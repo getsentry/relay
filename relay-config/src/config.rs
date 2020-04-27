@@ -17,46 +17,68 @@ use relay_redis::RedisConfig;
 use crate::types::ByteSize;
 use crate::upstream::UpstreamDescriptor;
 
-macro_rules! ctry {
-    ($expr:expr, $kind:expr, $path:expr) => {
-        match $expr {
-            Ok(val) => val,
-            Err(err) => return Err(ConfigError::for_file($path, err.context($kind))),
-        }
-    };
-}
-
 /// Defines the source of a config error
 #[derive(Debug)]
-enum ErrorSource {
-    /// an error originating from a configuration file
+enum ConfigErrorSource {
+    /// An error occurring independently.
+    None,
+    /// An error originating from a configuration file.
     File(PathBuf),
-    /// an error originating in a field override (an Env. Var. or a CLI parameter)
+    /// An error originating in a field override (an env var, or a CLI parameter).
     FieldOverride(String),
+}
+
+impl Default for ConfigErrorSource {
+    fn default() -> Self {
+        Self::None
+    }
 }
 
 /// Indicates config related errors.
 #[derive(Debug)]
 pub struct ConfigError {
-    error_source: ErrorSource,
+    source: ConfigErrorSource,
     inner: Context<ConfigErrorKind>,
 }
 
 impl ConfigError {
-    fn for_file<P: AsRef<Path>>(p: P, inner: Context<ConfigErrorKind>) -> Self {
-        ConfigError {
-            error_source: ErrorSource::File(p.as_ref().to_path_buf()),
-            inner,
+    #[inline]
+    fn new<C>(context: C) -> Self
+    where
+        C: Into<Context<ConfigErrorKind>>,
+    {
+        Self {
+            source: ConfigErrorSource::None,
+            inner: context.into(),
         }
     }
-    fn for_field<E>(name: &'static str, inner: E) -> Self
+
+    #[inline]
+    fn wrap<E>(inner: E, kind: ConfigErrorKind) -> Self
     where
         E: Fail,
     {
-        ConfigError {
-            error_source: ErrorSource::FieldOverride(name.into()),
-            inner: inner.context(ConfigErrorKind::InvalidValue),
-        }
+        Self::new(inner.context(kind))
+    }
+
+    #[inline]
+    fn for_field<E>(inner: E, field: &'static str) -> Self
+    where
+        E: Fail,
+    {
+        Self::wrap(inner, ConfigErrorKind::InvalidValue).field(field)
+    }
+
+    #[inline]
+    fn file<P: AsRef<Path>>(mut self, p: P) -> Self {
+        self.source = ConfigErrorSource::File(p.as_ref().to_path_buf());
+        self
+    }
+
+    #[inline]
+    fn field(mut self, name: &'static str) -> Self {
+        self.source = ConfigErrorSource::FieldOverride(name.to_owned());
+        self
     }
 
     /// Returns the error kind of the error.
@@ -77,11 +99,12 @@ impl Fail for ConfigError {
 
 impl fmt::Display for ConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.error_source {
-            ErrorSource::File(file_name) => {
+        match &self.source {
+            ConfigErrorSource::None => self.inner.fmt(f),
+            ConfigErrorSource::File(file_name) => {
                 write!(f, "{} (file {})", self.inner, file_name.display())
             }
-            ErrorSource::FieldOverride(name) => write!(f, "{} (field {})", self.inner, name),
+            ConfigErrorSource::FieldOverride(name) => write!(f, "{} (field {})", self.inner, name),
         }
     }
 }
@@ -95,9 +118,12 @@ pub enum ConfigErrorKind {
     /// Failed to save a file.
     #[fail(display = "could not write config file")]
     CouldNotWriteFile,
-    /// Parsing/dumping YAML failed.
+    /// Parsing YAML failed.
     #[fail(display = "could not parse yaml config file")]
     BadYaml,
+    /// Parsing JSON failed.
+    #[fail(display = "could not parse json config file")]
+    BadJson,
     /// Invalid config value
     #[fail(display = "invalid config value")]
     InvalidValue,
@@ -105,6 +131,81 @@ pub enum ConfigErrorKind {
     /// compiled without the processing feature.
     #[fail(display = "was not compiled with processing, cannot enable processing")]
     ProcessingNotAvailable,
+}
+
+enum ConfigFormat {
+    Yaml,
+    Json,
+}
+
+impl ConfigFormat {
+    pub fn extension(&self) -> &'static str {
+        match self {
+            ConfigFormat::Yaml => "yml",
+            ConfigFormat::Json => "json",
+        }
+    }
+}
+
+trait ConfigObject: DeserializeOwned + Serialize {
+    /// The format in which to serialize this configuration.
+    fn format() -> ConfigFormat;
+
+    /// The basename of the config file.
+    fn name() -> &'static str;
+
+    /// The full filename of the config file, including the file extension.
+    fn path(base: &Path) -> PathBuf {
+        base.join(format!("{}.{}", Self::name(), Self::format().extension()))
+    }
+
+    /// Loads the config file from a file within the given directory location.
+    fn load(base: &Path) -> Result<Self, ConfigError> {
+        let path = Self::path(base);
+
+        let f = fs::File::open(&path)
+            .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotOpenFile).file(&path))?;
+
+        match Self::format() {
+            ConfigFormat::Yaml => serde_yaml::from_reader(io::BufReader::new(f))
+                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::BadYaml).file(&path)),
+            ConfigFormat::Json => serde_json::from_reader(io::BufReader::new(f))
+                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::BadJson).file(&path)),
+        }
+    }
+
+    /// Writes the configuration object to the given writer.
+    fn write<W: Write>(&self, writer: &mut W) -> Result<(), ConfigError> {
+        match Self::format() {
+            ConfigFormat::Yaml => serde_yaml::to_writer(writer, self)
+                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile)),
+            ConfigFormat::Json => serde_json::to_writer_pretty(writer, self)
+                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile)),
+        }
+    }
+
+    /// Writes the configuration to a file within the given directory location.
+    fn save(&self, base: &Path) -> Result<(), ConfigError> {
+        let path = Self::path(base);
+        let mut options = fs::OpenOptions::new();
+        options.write(true).truncate(true).create(true);
+
+        // Remove all non-user permissions for the newly created file
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+
+        let mut f = options
+            .open(&path)
+            .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile).file(&path))?;
+
+        self.write(&mut f).map_err(|e| e.file(&path))?;
+        f.write_all(b"\n").ok();
+
+        Ok(())
+    }
 }
 
 /// Structure used to hold information about configuration overrides via
@@ -140,6 +241,25 @@ pub struct Credentials {
     pub public_key: PublicKey,
     /// The globally unique ID of the relay.
     pub id: RelayId,
+}
+
+impl Credentials {
+    /// Generates new random credentials.
+    pub fn generate() -> Self {
+        log::info!("generating new relay credentials");
+        let (sk, pk) = generate_key_pair();
+        Self {
+            secret_key: sk,
+            public_key: pk,
+            id: generate_relay_id(),
+        }
+    }
+
+    /// Serializes this configuration to JSON.
+    pub fn to_json_string(&self) -> Result<String, ConfigError> {
+        serde_json::to_string(self)
+            .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile))
+    }
 }
 
 impl ConfigObject for Credentials {
@@ -540,7 +660,7 @@ fn default_max_rate_limit() -> Option<u32> {
 pub struct Processing {
     /// True if the Relay should do processing. Defaults to `false`.
     pub enabled: bool,
-    /// GeoIp DB file location.
+    /// GeoIp DB file source.
     #[serde(default)]
     pub geoip_path: Option<PathBuf>,
     /// Maximum future timestamp of ingested events.
@@ -596,14 +716,12 @@ pub struct MinimalConfig {
 impl MinimalConfig {
     /// Saves the config in the given config folder as config.yml
     pub fn save_in_folder<P: AsRef<Path>>(&self, p: P) -> Result<(), ConfigError> {
-        if fs::metadata(p.as_ref()).is_err() {
-            ctry!(
-                fs::create_dir_all(p.as_ref()),
-                ConfigErrorKind::CouldNotOpenFile,
-                p.as_ref()
-            );
+        let path = p.as_ref();
+        if fs::metadata(path).is_err() {
+            fs::create_dir_all(path)
+                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotOpenFile).file(path))?;
         }
-        self.save(p.as_ref())
+        self.save(path)
     }
 }
 
@@ -668,21 +786,18 @@ impl Config {
         let path = env::current_dir()
             .map(|x| x.join(path.as_ref()))
             .unwrap_or_else(|_| path.as_ref().to_path_buf());
+
         let config = Config {
             values: ConfigValues::load(&path)?,
-            credentials: if fs::metadata(Credentials::path(&path)).is_ok() {
-                Some(Credentials::load(&path)?)
-            } else {
-                None
+            credentials: match fs::metadata(Credentials::path(&path)) {
+                Ok(_) => Some(Credentials::load(&path)?),
+                Err(_) => None,
             },
             path: path.clone(),
         };
 
         if cfg!(not(feature = "processing")) && config.processing_enabled() {
-            return Err(ConfigError::for_file(
-                &path,
-                ConfigErrorKind::ProcessingNotAvailable.into(),
-            ));
+            return Err(ConfigError::new(ConfigErrorKind::ProcessingNotAvailable).file(&path));
         }
 
         Ok(config)
@@ -698,19 +813,19 @@ impl Config {
 
         if let Some(upstream) = overrides.upstream {
             relay.upstream = upstream
-                .parse()
-                .map_err(|err| ConfigError::for_field("upstream", err))?;
+                .parse::<UpstreamDescriptor>()
+                .map_err(|err| ConfigError::for_field(err, "upstream"))?;
         }
 
         if let Some(host) = overrides.host {
             relay.host = host
-                .parse()
-                .map_err(|err| ConfigError::for_field("host", err))?;
+                .parse::<IpAddr>()
+                .map_err(|err| ConfigError::for_field(err, "host"))?;
         }
 
         if let Some(port) = overrides.port {
             relay.port = u16::from_str_radix(port.as_str(), 10)
-                .map_err(|err| ConfigError::for_field("port", err))?;
+                .map_err(|err| ConfigError::for_field(err, "port"))?;
         }
 
         let processing = &mut self.values.processing;
@@ -719,10 +834,7 @@ impl Config {
                 "true" | "1" => processing.enabled = true,
                 "false" | "0" | "" => processing.enabled = false,
                 _ => {
-                    return Err(ConfigError::for_field(
-                        "processing",
-                        ConfigErrorKind::InvalidValue,
-                    ))
+                    return Err(ConfigError::new(ConfigErrorKind::InvalidValue).field("processing"))
                 }
             }
         }
@@ -748,15 +860,15 @@ impl Config {
         }
         // credentials overrides
         let id = if let Some(id) = overrides.id {
-            let id = Uuid::parse_str(&id).map_err(|err| ConfigError::for_field("id", err))?;
+            let id = Uuid::parse_str(&id).map_err(|err| ConfigError::for_field(err, "id"))?;
             Some(id)
         } else {
             None
         };
         let public_key = if let Some(public_key) = overrides.public_key {
             let public_key = public_key
-                .parse()
-                .map_err(|err| ConfigError::for_field("public_key", err))?;
+                .parse::<PublicKey>()
+                .map_err(|err| ConfigError::for_field(err, "public_key"))?;
             Some(public_key)
         } else {
             None
@@ -764,8 +876,8 @@ impl Config {
 
         let secret_key = if let Some(secret_key) = overrides.secret_key {
             let secret_key = secret_key
-                .parse()
-                .map_err(|err| ConfigError::for_field("secret_key", err))?;
+                .parse::<SecretKey>()
+                .map_err(|err| ConfigError::for_field(err, "secret_key"))?;
             Some(secret_key)
         } else {
             None
@@ -797,10 +909,8 @@ impl Config {
                     // don't need them in the current command or we'll override them later
                 }
                 _ => {
-                    return Err(ConfigError::for_field(
-                        "incomplete credentials",
-                        ConfigErrorKind::InvalidValue,
-                    ));
+                    return Err(ConfigError::new(ConfigErrorKind::InvalidValue)
+                        .field("incomplete credentials"));
                 }
             }
         }
@@ -820,24 +930,15 @@ impl Config {
 
     /// Dumps out a YAML string of the values.
     pub fn to_yaml_string(&self) -> Result<String, ConfigError> {
-        Ok(ctry!(
-            serde_yaml::to_string(&self.values),
-            ConfigErrorKind::InvalidValue,
-            &self.path
-        ))
+        serde_yaml::to_string(&self.values)
+            .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile))
     }
 
     /// Regenerates the relay credentials.
     ///
     /// This also writes the credentials back to the file.
     pub fn regenerate_credentials(&mut self) -> Result<(), ConfigError> {
-        log::info!("generating new relay credentials");
-        let (sk, pk) = generate_key_pair();
-        let creds = Credentials {
-            secret_key: sk,
-            public_key: pk,
-            id: generate_relay_id(),
-        };
+        let creds = Credentials::generate();
         creds.save(&self.path)?;
         self.credentials = Some(creds);
         Ok(())
@@ -849,6 +950,8 @@ impl Config {
     }
 
     /// Set new credentials.
+    ///
+    /// This also writes the credentials back to the file.
     pub fn replace_credentials(
         &mut self,
         credentials: Option<Credentials>,
@@ -856,22 +959,22 @@ impl Config {
         if self.credentials == credentials {
             return Ok(false);
         }
+
         match credentials {
-            Some(creds) => {
+            Some(ref creds) => {
                 creds.save(&self.path)?;
-                self.credentials = Some(creds);
             }
             None => {
                 let path = Credentials::path(&self.path);
                 if fs::metadata(&path).is_ok() {
-                    ctry!(
-                        fs::remove_file(&path),
-                        ConfigErrorKind::CouldNotWriteFile,
-                        &path
-                    );
+                    fs::remove_file(&path).map_err(|e| {
+                        ConfigError::wrap(e, ConfigErrorKind::CouldNotWriteFile).file(&path)
+                    })?;
                 }
             }
         }
+
+        self.credentials = credentials;
         Ok(true)
     }
 
@@ -960,12 +1063,12 @@ impl Config {
     /// If stats is disabled an empty vector is returned.
     pub fn statsd_addrs(&self) -> Result<Vec<SocketAddr>, ConfigError> {
         if let Some(ref addr) = self.values.metrics.statsd {
-            Ok(ctry!(
-                addr.as_str().to_socket_addrs(),
-                ConfigErrorKind::InvalidValue,
-                &self.path
-            )
-            .collect())
+            let addrs = addr
+                .as_str()
+                .to_socket_addrs()
+                .map_err(|e| ConfigError::wrap(e, ConfigErrorKind::InvalidValue).file(&self.path))?
+                .collect();
+            Ok(addrs)
         } else {
             Ok(vec![])
         }
@@ -1201,86 +1304,5 @@ impl Default for Config {
             credentials: None,
             path: PathBuf::new(),
         }
-    }
-}
-
-enum ConfigFormat {
-    Yaml,
-    Json,
-}
-
-impl ConfigFormat {
-    pub fn extension(&self) -> &'static str {
-        match self {
-            ConfigFormat::Yaml => "yml",
-            ConfigFormat::Json => "json",
-        }
-    }
-}
-
-trait ConfigObject: DeserializeOwned + Serialize {
-    fn format() -> ConfigFormat;
-    fn name() -> &'static str;
-    fn path(base: &Path) -> PathBuf {
-        base.join(format!("{}.{}", Self::name(), Self::format().extension()))
-    }
-
-    fn load(base: &Path) -> Result<Self, ConfigError> {
-        let path = Self::path(base);
-        let f = ctry!(
-            fs::File::open(&path),
-            ConfigErrorKind::CouldNotOpenFile,
-            &path
-        );
-        Ok(match Self::format() {
-            ConfigFormat::Yaml => ctry!(
-                serde_yaml::from_reader(io::BufReader::new(f)),
-                ConfigErrorKind::BadYaml,
-                &path
-            ),
-            ConfigFormat::Json => ctry!(
-                serde_json::from_reader(io::BufReader::new(f)),
-                ConfigErrorKind::BadYaml,
-                &path
-            ),
-        })
-    }
-
-    fn save(&self, base: &Path) -> Result<(), ConfigError> {
-        let path = Self::path(base);
-        let mut options = fs::OpenOptions::new();
-        options.write(true).truncate(true).create(true);
-
-        // Remove all non-user permissions for the newly created file
-        #[cfg(not(windows))]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
-
-        let mut f = ctry!(
-            options.open(&path),
-            ConfigErrorKind::CouldNotWriteFile,
-            &path
-        );
-
-        match Self::format() {
-            ConfigFormat::Yaml => {
-                ctry!(
-                    serde_yaml::to_writer(&mut f, self),
-                    ConfigErrorKind::BadYaml,
-                    &path
-                );
-            }
-            ConfigFormat::Json => {
-                ctry!(
-                    serde_json::to_writer_pretty(&mut f, self),
-                    ConfigErrorKind::BadYaml,
-                    &path
-                );
-            }
-        }
-        f.write_all(b"\n").ok();
-        Ok(())
     }
 }

@@ -115,9 +115,14 @@ pub fn manage_credentials<'a>(mut config: Config, matches: &ArgMatches<'a>) -> R
                 "aborting because credentials already exist. Pass --overwrite to force.",
             ));
         }
-        config.regenerate_credentials()?;
-        println!("Generated new credentials");
-        setup::dump_credentials(&config);
+        let credentials = Credentials::generate();
+        if matches.is_present("stdout") {
+            println!("{}", credentials.to_json_string()?);
+        } else {
+            config.replace_credentials(Some(credentials))?;
+            println!("Generated new credentials");
+            setup::dump_credentials(&config);
+        }
     } else if let Some(matches) = matches.subcommand_matches("set") {
         let mut prompted = false;
         let secret_key = match matches.value_of("secret_key") {
@@ -201,7 +206,7 @@ pub fn manage_credentials<'a>(mut config: Config, matches: &ArgMatches<'a>) -> R
         if !config.has_credentials() {
             return Err(err_msg("no stored credentials"));
         } else {
-            println!("Stored credentials:");
+            println!("Credentials:");
             setup::dump_credentials(&config);
         }
     } else {
@@ -303,7 +308,8 @@ pub fn init_config<'a, P: AsRef<Path>>(
 
     let mut config = Config::from_path(&config_path)?;
     if config.relay_mode() == RelayMode::Managed && !config.has_credentials() {
-        config.regenerate_credentials()?;
+        let credentials = Credentials::generate();
+        config.replace_credentials(Some(credentials))?;
         println!("Generated new credentials");
         setup::dump_credentials(&config);
         done_something = true;

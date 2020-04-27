@@ -138,6 +138,11 @@ pub fn make_app() -> App<'static, 'static> {
                             Arg::with_name("overwrite")
                                 .long("overwrite")
                                 .help("Overwrite already existing credentials instead of failing"),
+                        )
+                        .arg(
+                            Arg::with_name("stdout")
+                                .long("stdout")
+                                .help("Write credentials to stdout instead of credentials.json"),
                         ),
                 )
                 .subcommand(
