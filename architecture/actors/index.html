@@ -449,6 +449,39 @@
     keys.rs
   </a>
   
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#keycache" class="md-nav__link">
+    KeyCache
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#getpublickey" class="md-nav__link">
+    GetPublicKey
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getpublickeys" class="md-nav__link">
+    GetPublicKeys
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -731,6 +764,39 @@
     keys.rs
   </a>
   
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#keycache" class="md-nav__link">
+    KeyCache
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#getpublickey" class="md-nav__link">
+    GetPublicKey
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getpublickeys" class="md-nav__link">
+    GetPublicKeys
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -943,6 +1009,70 @@
 <p>The <code>ProcessEvent</code> handler prepares the event for ingestion. It normalizes the event, symbolicates its stack-trace and strips sensitive information (PPI stripping).</p>
 <p><strong>TODO</strong> finish here</p>
 <h2 id="keysrs">keys.rs</h2>
+<h3 id="keycache">KeyCache</h3>
+<p>The KeyCache is an actor running in a SyncArbiter. There is only one instance of the KeyCache actor.</p>
+<p>The KeyCache actor is used for two purposes.</p>
+<ul>
+<li>to validate requests signed by downstream relays in <code>/api/0/relays/publickeys/</code> and <code>/api/0/relays/projectconfigs/</code> , (<code>GetPublicKey</code> message is used).</li>
+<li>to implement the <code>/api/0/relays/publickeys/</code> endpoint, ( <code>GetPublicKeys</code> message is used).</li>
+</ul>
+<p>Validation of requests are done via <code>SignedJson</code> extractors.</p>
+<p>The following messages are implemented by the KeyCache actor:</p>
+<h4 id="getpublickey">GetPublicKey</h4>
+<p>GetPublicKey tries first to resolve the public key by lookin into the key cache ( a map) and if it finds an entry for it ( a positive entyr with the public key or a negative entry with nothing) and the entry is not expired it returns the relay key or an error for negative entries.</p>
+<p>If the key is not found it checks in the configuration to see if it is supposed to fetch keys and returns error if it is not.</p>
+<p>If it can fetch keys it adds the key to a list of channels containing pending keys to be fetched.</p>
+<p>If there is no request scheduled for upstream it schedules a timer with a SendQuery request.</p>
+<p>When the timer is run, all the relay ids are collected from the waiting channels and a request is sent to upstream.</p>
+<p>When the request returns the resulting relay keys are pushed in the channels and a copy of them is kept in the cache for future requests.</p>
+<p>The receivers of the channels that got the public keys are completed and that completes the GetPublicKey  request future.</p>
+<div class="mermaid">sequenceDiagram
+participant extern as External Code
+participant keyCache as Key Cache
+participant channel as Key Channel
+participant timer as Timer
+participant upstream as Upstream
+
+extern -x keyCache: GetPublicKey(relay_id)
+activate keyCache
+keyCache -&gt;&gt; keyCache: getKeyFromCache
+alt id in cache &amp; not expired
+    keyCache -x extern: GetPublicKeyResult
+else not in cache or expired
+    alt config no credentials
+        keyCache -x extern: Error (no credentials)
+    else config has credentials
+        keyCache -&gt;&gt; keyCache :get/create_channel(id)
+
+        keyCache -x timer: Schedule fetch keys
+        activate timer
+        timer -x upstream: SendQuery([relayIds])
+        activate upstream
+        upstream -x timer: GetPublicKeyResult
+        deactivate upstream
+        timer -x channel: channel.send(public_key)
+        deactivate timer
+    activate channel
+        channel -x keyCache: (id,public_key)
+    deactivate channel
+    end
+end
+keyCache -X extern: 
+deactivate keyCache</div>
+
+<h4 id="getpublickeys">GetPublicKeys</h4>
+<p>Get public keys retuns keys in bulk. Since GetPublicKey does batching (see above) GetPublicKeys iterates over all requested keys and calls calls the (internal) worker function for GetPublicKey. The function returns either the key (if it is in the cache) or a future for the key ( the receiver channel) if the key is not already cached. </p>
+<p>After calling the worker function for each key we join all returned futures and when all are resolved we collect all results from the futures and add the results from the cache in the final result.</p>
+<div class="mermaid">sequenceDiagram
+participant extern as External Code
+participant keyCache as Key Cache
+
+extern -x +keyCache: GetPublicKeys([relay_ids])
+loop all ids
+  keyCache -x keyCache: get_or_fetch_key(id)
+end
+keyCache -X -extern: GetPublicKeysResult</div>
+
 <h2 id="outcomers">outcome.rs</h2>
 <h2 id="serverrs">server.rs</h2>
 <h2 id="storers">store.rs</h2>
