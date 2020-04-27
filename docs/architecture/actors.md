@@ -41,6 +41,90 @@ The `ProcessEvent` handler prepares the event for ingestion. It normalizes the e
 
 ## keys.rs
 
+### KeyCache
+
+The KeyCache is an actor running in a SyncArbiter. There is only one instance of the KeyCache actor.
+
+The KeyCache actor is used for two purposes.
+
+* to validate requests signed by downstream relays in `/api/0/relays/publickeys/` and `/api/0/relays/projectconfigs/` , (`GetPublicKey` message is used).
+* to implement the `/api/0/relays/publickeys/` endpoint, ( `GetPublicKeys` message is used).
+
+Validation of requests are done via `SignedJson` extractors.
+
+The following messages are implemented by the KeyCache actor:
+
+#### GetPublicKey
+
+GetPublicKey tries first to resolve the public key by lookin into the key cache ( a map) and if it finds an entry for it ( a positive entyr with the public key or a negative entry with nothing) and the entry is not expired it returns the relay key or an error for negative entries.
+
+If the key is not found it checks in the configuration to see if it is supposed to fetch keys and returns error if it is not.
+
+If it can fetch keys it adds the key to a list of channels containing pending keys to be fetched.
+
+If there is no request scheduled for upstream it schedules a timer with a SendQuery request.
+
+When the timer is run, all the relay ids are collected from the waiting channels and a request is sent to upstream.
+
+When the request returns the resulting relay keys are pushed in the channels and a copy of them is kept in the cache for future requests.
+
+The receivers of the channels that got the public keys are completed and that completes the GetPublicKey  request future.
+
+```mermaid
+sequenceDiagram
+participant extern as External Code
+participant keyCache as Key Cache
+participant channel as Key Channel
+participant timer as Timer
+participant upstream as Upstream
+
+extern -x keyCache: GetPublicKey(relay_id)
+activate keyCache
+keyCache ->> keyCache: getKeyFromCache
+alt id in cache & not expired
+	keyCache -x extern: GetPublicKeyResult
+else not in cache or expired
+	alt config no credentials
+		keyCache -x extern: Error (no credentials)
+	else config has credentials
+		keyCache ->> keyCache :get/create_channel(id)
+				
+		keyCache -x timer: Schedule fetch keys
+		activate timer
+		timer -x upstream: SendQuery([relayIds])
+		activate upstream
+		upstream -x timer: GetPublicKeyResult
+		deactivate upstream
+		timer -x channel: channel.send(public_key)
+		deactivate timer
+    activate channel
+    	channel -x keyCache: (id,public_key)
+    deactivate channel
+    keyCache -X extern: 
+    deactivate keyCache	
+end
+end
+
+```
+
+#### GetPublicKeys
+
+Get public keys retuns keys in bulk. Since GetPublicKey does batching (see above) GetPublicKeys iterates over all requested keys and calls calls the (internal) worker function for GetPublicKey. The function returns either the key (if it is in the cache) or a future for the key ( the receiver channel) if the key is not already cached. 
+
+After calling the worker function for each key we join all returned futures and when all are resolved we collect all results from the futures and add the results from the cache in the final result.
+
+```mermaid
+sequenceDiagram
+participant extern as External Code
+participant keyCache as Key Cache
+
+extern -x +keyCache: GetPublicKeys([relay_ids])
+loop all ids
+  keyCache -x keyCache: get_or_fetch_key(id)
+end
+keyCache -X -extern: GetPublicKeysResult
+```
+
 ## outcome.rs
 
 ## server.rs
