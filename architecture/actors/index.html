@@ -1055,10 +1055,11 @@ else not in cache or expired
     activate channel
         channel -x keyCache: (id,public_key)
     deactivate channel
-    end
+    keyCache -X extern: 
+    deactivate keyCache 
 end
-keyCache -X extern: 
-deactivate keyCache</div>
+end
+</div>
 
 <h4 id="getpublickeys">GetPublicKeys</h4>
 <p>Get public keys retuns keys in bulk. Since GetPublicKey does batching (see above) GetPublicKeys iterates over all requested keys and calls calls the (internal) worker function for GetPublicKey. The function returns either the key (if it is in the cache) or a future for the key ( the receiver channel) if the key is not already cached. </p>
