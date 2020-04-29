@@ -48,7 +48,7 @@ fn store_envelope(
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     let content_type = request.content_type();
-    if content_type != ContentType::Envelope {
+    if !content_type.is_empty() && content_type != ContentType::Envelope {
         return Box::new(future::err(BadStoreRequest::InvalidContentType {
             provided: content_type.to_owned(),
             accepted: envelope::CONTENT_TYPE,
