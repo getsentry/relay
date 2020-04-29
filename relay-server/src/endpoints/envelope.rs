@@ -1,15 +1,15 @@
 //! Handles envelope store requests.
 
 use actix::prelude::*;
-use actix_web::{HttpMessage, HttpRequest, HttpResponse};
-use futures::{future, Future};
+use actix_web::{HttpRequest, HttpResponse};
+use futures::Future;
 use serde::Serialize;
 
 use relay_general::protocol::EventId;
 
 use crate::body::StoreBody;
 use crate::endpoints::common::{self, BadStoreRequest};
-use crate::envelope::{self, ContentType, Envelope};
+use crate::envelope::Envelope;
 use crate::extractors::{RequestMeta, StartTime};
 use crate::service::{ServiceApp, ServiceState};
 
@@ -47,14 +47,6 @@ fn store_envelope(
     start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
-    let content_type = request.content_type();
-    if !content_type.is_empty() && content_type != ContentType::Envelope {
-        return Box::new(future::err(BadStoreRequest::InvalidContentType {
-            provided: content_type.to_owned(),
-            accepted: envelope::CONTENT_TYPE,
-        }));
-    }
-
     common::handle_store_like_request(
         meta,
         true,

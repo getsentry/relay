@@ -44,12 +44,6 @@ pub enum BadStoreRequest {
     #[fail(display = "empty request body")]
     EmptyBody,
 
-    #[fail(display = "unsupported content type '{}', expected '{}'", _0, _1)]
-    InvalidContentType {
-        provided: String,
-        accepted: &'static str,
-    },
-
     #[fail(display = "invalid JSON data")]
     InvalidJson(#[cause] serde_json::Error),
 
@@ -99,9 +93,6 @@ impl BadStoreRequest {
             }
 
             BadStoreRequest::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
-            BadStoreRequest::InvalidContentType { .. } => {
-                Outcome::Invalid(DiscardReason::ContentType)
-            }
             BadStoreRequest::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
             BadStoreRequest::InvalidMsgpack(_) => Outcome::Invalid(DiscardReason::InvalidMsgpack),
             BadStoreRequest::InvalidMultipart(_) => {
@@ -188,9 +179,6 @@ impl ResponseError for BadStoreRequest {
             }
             BadStoreRequest::PayloadError(StorePayloadError::Overflow) => {
                 HttpResponse::PayloadTooLarge().json(&body)
-            }
-            BadStoreRequest::InvalidContentType { .. } => {
-                HttpResponse::UnsupportedMediaType().json(&body)
             }
             _ => {
                 // In all other cases, we indicate a generic bad request to the client and render
