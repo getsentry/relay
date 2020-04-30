@@ -227,7 +227,7 @@ pub struct Event {
     pub culprit: Annotated<String>,
 
     /// Transaction name of the event.
-    #[metastructure(max_chars = "culprit")]
+    #[metastructure(max_chars = "culprit", trim_whitespace = "true")]
     pub transaction: Annotated<String>,
 
     /// Time since the start of the transaction until the error occurred.
