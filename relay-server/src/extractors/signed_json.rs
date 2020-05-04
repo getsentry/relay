@@ -6,17 +6,17 @@ use sentry::Hub;
 use sentry_actix::ActixWebHubExt;
 use serde::de::DeserializeOwned;
 
-use relay_auth::{PublicKey, RelayId};
+use relay_auth::RelayId;
 use relay_common::tryf;
 
-use crate::actors::keys::GetPublicKey;
+use crate::actors::keys::{GetRelayInfo, RelayInfo};
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
 
 #[derive(Debug)]
 pub struct SignedJson<T> {
     pub inner: T,
-    pub public_key: PublicKey,
+    pub relay_info: RelayInfo,
 }
 
 #[derive(Fail, Debug)]
@@ -68,7 +68,7 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
         let future = req
             .state()
             .key_cache()
-            .send(GetPublicKey { relay_id })
+            .send(GetRelayInfo { relay_id })
             .map_err(Error::from)
             .and_then(|result| {
                 result?
@@ -76,10 +76,11 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
                     .ok_or_else(|| Error::from(SignatureError::UnknownRelay))
             })
             .join(req.body().map_err(Error::from))
-            .and_then(move |(public_key, body)| {
-                public_key
+            .and_then(move |(relay_info, body)| {
+                relay_info
+                    .public_key
                     .unpack(&body, &relay_sig, None)
-                    .map(|inner| SignedJson { inner, public_key })
+                    .map(|inner| SignedJson { inner, relay_info })
                     .map_err(|_| Error::from(SignatureError::BadSignature))
             });
 
