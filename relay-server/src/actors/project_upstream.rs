@@ -169,7 +169,6 @@ impl UpstreamProjectSource {
 
                 let request = GetProjectStates {
                     projects: channels_batch.keys().copied().collect(),
-                    #[cfg(feature = "processing")]
                     full_config: self.config.processing_enabled(),
                 };
 
