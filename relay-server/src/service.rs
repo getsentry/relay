@@ -16,7 +16,7 @@ use relay_redis::RedisPool;
 use crate::actors::controller::{Configure, Controller};
 use crate::actors::events::EventManager;
 use crate::actors::healthcheck::Healthcheck;
-use crate::actors::keys::RelayInfoCache;
+use crate::actors::keys::RelayCache;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::project_keys::ProjectKeyLookup;
@@ -107,7 +107,7 @@ impl From<Context<ServerErrorKind>> for ServerError {
 #[derive(Clone)]
 pub struct ServiceState {
     config: Arc<Config>,
-    relay_info_cache: Addr<RelayInfoCache>,
+    relay_info_cache: Addr<RelayCache>,
     project_cache: Addr<ProjectCache>,
     upstream_relay: Addr<UpstreamRelay>,
     event_manager: Addr<EventManager>,
@@ -147,7 +147,7 @@ impl ServiceState {
             config: config.clone(),
             key_lookup: ProjectKeyLookup::new(config.clone(), upstream_relay.clone()).start(),
             upstream_relay: upstream_relay.clone(),
-            relay_info_cache: RelayInfoCache::new(config.clone(), upstream_relay.clone()).start(),
+            relay_info_cache: RelayCache::new(config.clone(), upstream_relay.clone()).start(),
             project_cache,
             healthcheck: Healthcheck::new(config, upstream_relay).start(),
             event_manager,
@@ -161,7 +161,7 @@ impl ServiceState {
     }
 
     /// Returns the current relay public key cache.
-    pub fn key_cache(&self) -> Addr<RelayInfoCache> {
+    pub fn key_cache(&self) -> Addr<RelayCache> {
         self.relay_info_cache.clone()
     }
 

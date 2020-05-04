@@ -9,7 +9,7 @@ use serde::de::DeserializeOwned;
 use relay_auth::RelayId;
 use relay_common::tryf;
 
-use crate::actors::keys::{GetRelayInfo, RelayInfo};
+use crate::actors::keys::{GetRelay, RelayInfo};
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
 
@@ -68,7 +68,7 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
         let future = req
             .state()
             .key_cache()
-            .send(GetRelayInfo { relay_id })
+            .send(GetRelay { relay_id })
             .map_err(Error::from)
             .and_then(|result| {
                 result?

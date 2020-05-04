@@ -36,7 +36,7 @@ impl ResponseError for KeyError {
 }
 
 #[derive(Debug)]
-enum RelayInfoState {
+enum RelayState {
     Exists {
         relay_info: RelayInfo,
         checked_at: Instant,
@@ -46,13 +46,13 @@ enum RelayInfoState {
     },
 }
 
-impl RelayInfoState {
+impl RelayState {
     fn is_valid_cache(&self, config: &Config) -> bool {
         match *self {
-            RelayInfoState::Exists { checked_at, .. } => {
+            RelayState::Exists { checked_at, .. } => {
                 checked_at.elapsed() < config.relay_cache_expiry()
             }
-            RelayInfoState::DoesNotExist { checked_at } => {
+            RelayState::DoesNotExist { checked_at } => {
                 checked_at.elapsed() < config.cache_miss_expiry()
             }
         }
@@ -60,7 +60,7 @@ impl RelayInfoState {
 
     fn as_option(&self) -> Option<&RelayInfo> {
         match *self {
-            RelayInfoState::Exists {
+            RelayState::Exists {
                 relay_info: ref public_key,
                 ..
             } => Some(public_key),
@@ -70,11 +70,11 @@ impl RelayInfoState {
 
     fn from_option(option: Option<RelayInfo>) -> Self {
         match option {
-            Some(public_key) => RelayInfoState::Exists {
+            Some(public_key) => RelayState::Exists {
                 relay_info: public_key,
                 checked_at: Instant::now(),
             },
-            None => RelayInfoState::DoesNotExist {
+            None => RelayState::DoesNotExist {
                 checked_at: Instant::now(),
             },
         }
@@ -105,17 +105,17 @@ impl RelayInfoChannel {
     }
 }
 
-pub struct RelayInfoCache {
+pub struct RelayCache {
     backoff: RetryBackoff,
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
-    relays: HashMap<RelayId, RelayInfoState>,
+    relays: HashMap<RelayId, RelayState>,
     relay_info_channels: HashMap<RelayId, RelayInfoChannel>,
 }
 
-impl RelayInfoCache {
+impl RelayCache {
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
-        RelayInfoCache {
+        RelayCache {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             config,
             upstream,
@@ -134,14 +134,14 @@ impl RelayInfoCache {
 
     /// Schedules a batched upstream query with exponential backoff.
     fn schedule_fetch(&mut self, context: &mut Context<Self>) {
-        utils::run_later(self.next_backoff(), Self::fetch_keys).spawn(context)
+        utils::run_later(self.next_backoff(), Self::fetch_relays).spawn(context)
     }
 
     /// Executes an upstream request to fetch public keys.
     ///
     /// This assumes that currently no request is running. If the upstream request fails or new
     /// channels are pushed in the meanwhile, this will reschedule automatically.
-    fn fetch_keys(&mut self, context: &mut Context<Self>) {
+    fn fetch_relays(&mut self, context: &mut Context<Self>) {
         let channels = mem::replace(&mut self.relay_info_channels, HashMap::new());
         log::debug!(
             "updating public keys for {} relays (attempt {})",
@@ -149,7 +149,7 @@ impl RelayInfoCache {
             self.backoff.attempt(),
         );
 
-        let request = GetRelaysInfo {
+        let request = GetRelays {
             relay_ids: channels.keys().cloned().collect(),
         };
 
@@ -160,13 +160,12 @@ impl RelayInfoCache {
             .and_then(|response, slf, ctx| {
                 match response {
                     Ok(response) => {
-                        let mut response = GetRelaysInfoResult::from(response);
+                        let mut response = GetRelaysResult::from(response);
                         slf.backoff.reset();
 
                         for (id, channel) in channels {
                             let info = response.relays.remove(&id).unwrap_or(None);
-                            slf.relays
-                                .insert(id, RelayInfoState::from_option(info.clone()));
+                            slf.relays.insert(id, RelayState::from_option(info.clone()));
                             log::debug!("relay {} public key updated", id);
                             channel.send(info).ok();
                         }
@@ -227,7 +226,7 @@ impl RelayInfoCache {
     }
 }
 
-impl Actor for RelayInfoCache {
+impl Actor for RelayCache {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
@@ -240,40 +239,40 @@ impl Actor for RelayInfoCache {
 }
 
 #[derive(Debug)]
-pub struct GetRelayInfo {
+pub struct GetRelay {
     pub relay_id: RelayId,
 }
 
 #[derive(Debug)]
-pub struct GetRelayInfoResult {
+pub struct GetRelayResult {
     pub public_key: Option<RelayInfo>,
 }
 
-impl Message for GetRelayInfo {
-    type Result = Result<GetRelayInfoResult, KeyError>;
+impl Message for GetRelay {
+    type Result = Result<GetRelayResult, KeyError>;
 }
 
-impl Handler<GetRelayInfo> for RelayInfoCache {
-    type Result = Response<GetRelayInfoResult, KeyError>;
+impl Handler<GetRelay> for RelayCache {
+    type Result = Response<GetRelayResult, KeyError>;
 
-    fn handle(&mut self, message: GetRelayInfo, context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: GetRelay, context: &mut Self::Context) -> Self::Result {
         self.get_or_fetch_info(message.relay_id, context)
-            .map(|(_id, public_key)| GetRelayInfoResult { public_key })
+            .map(|(_id, public_key)| GetRelayResult { public_key })
     }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct GetRelaysInfo {
+pub struct GetRelays {
     pub relay_ids: Vec<RelayId>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct GetRelaysInfoResult {
+pub struct GetRelaysResult {
     /// new format public key plus additional parameters
     pub relays: HashMap<RelayId, Option<RelayInfo>>,
 }
 
-impl From<PublicKeysResultCompatibility> for GetRelaysInfoResult {
+impl From<PublicKeysResultCompatibility> for GetRelaysResult {
     fn from(relays_info: PublicKeysResultCompatibility) -> Self {
         let relays = if relays_info.relays.is_empty() && !relays_info.public_keys.is_empty() {
             relays_info
@@ -316,11 +315,11 @@ impl RelayInfo {
     }
 }
 
-impl Message for GetRelaysInfo {
-    type Result = Result<GetRelaysInfoResult, KeyError>;
+impl Message for GetRelays {
+    type Result = Result<GetRelaysResult, KeyError>;
 }
 
-impl UpstreamQuery for GetRelaysInfo {
+impl UpstreamQuery for GetRelays {
     type Response = PublicKeysResultCompatibility;
 
     fn method(&self) -> Method {
@@ -332,10 +331,10 @@ impl UpstreamQuery for GetRelaysInfo {
     }
 }
 
-impl Handler<GetRelaysInfo> for RelayInfoCache {
-    type Result = Response<GetRelaysInfoResult, KeyError>;
+impl Handler<GetRelays> for RelayCache {
+    type Result = Response<GetRelaysResult, KeyError>;
 
-    fn handle(&mut self, message: GetRelaysInfo, context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: GetRelays, context: &mut Self::Context) -> Self::Result {
         let mut relays = HashMap::new();
         let mut futures = Vec::new();
 
@@ -354,12 +353,12 @@ impl Handler<GetRelaysInfo> for RelayInfoCache {
         }
 
         if futures.is_empty() {
-            return Response::reply(Ok(GetRelaysInfoResult { relays }));
+            return Response::reply(Ok(GetRelaysResult { relays }));
         }
 
         let future = future::join_all(futures).map(move |responses| {
             relays.extend(responses);
-            GetRelaysInfoResult { relays }
+            GetRelaysResult { relays }
         });
 
         Response::r#async(future)
