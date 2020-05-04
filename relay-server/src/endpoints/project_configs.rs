@@ -27,11 +27,11 @@ enum ProjectStateWrapper {
 
 impl ProjectStateWrapper {
     /// Create a wrapper which forces serialization into external or internal format
-    pub fn to_wrapped(ps: ProjectState, is_internal: bool) -> Self {
-        if is_internal {
-            Self::Full(ps)
+    pub fn new(state: ProjectState, full: bool) -> Self {
+        if full {
+            Self::Full(state)
         } else {
-            Self::Limited(ps)
+            Self::Limited(state)
         }
     }
 }
@@ -46,11 +46,11 @@ fn get_project_configs(
     state: CurrentServiceState,
     body: SignedJson<GetProjectStates>,
 ) -> ResponseFuture<Json<GetProjectStatesResponseWrapper>, Error> {
-    let relay_info = body.relay_info;
-    let is_internal = relay_info.internal && body.inner.is_full_config();
+    let relay = body.relay;
+    let full = relay.internal && body.inner.full_config;
 
     let futures = body.inner.projects.into_iter().map(move |project_id| {
-        let relay_info = relay_info.clone();
+        let relay = relay.clone();
         state
             .project_cache()
             .send(GetProject { id: project_id })
@@ -60,16 +60,17 @@ fn get_project_configs(
                 let project_state = project_state.ok()?;
                 // If public key is known (even if rate-limited, which is Some(false)), it has
                 // access to the project config
-                if project_state
-                    .config
-                    .trusted_relays
-                    .contains(&relay_info.public_key)
+                if relay.internal
+                    || project_state
+                        .config
+                        .trusted_relays
+                        .contains(&relay.public_key)
                 {
                     Some((*project_state).clone())
                 } else {
                     log::debug!(
                         "Public key {} does not have access to project {}",
-                        relay_info.public_key,
+                        relay.public_key,
                         project_id
                     );
                     None
@@ -82,13 +83,7 @@ fn get_project_configs(
         let configs = project_states
             .drain(..)
             .filter(|(_, state)| !state.as_ref().map_or(false, |s| s.invalid()))
-            .map(|(id, state)| match state {
-                None => (id, None),
-                Some(state) => (
-                    id,
-                    Some(ProjectStateWrapper::to_wrapped(state, is_internal)),
-                ),
-            })
+            .map(|(id, state)| (id, state.map(|s| ProjectStateWrapper::new(s, full))))
             .collect();
 
         Json(GetProjectStatesResponseWrapper { configs })

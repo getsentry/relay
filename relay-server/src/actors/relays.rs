@@ -38,7 +38,7 @@ impl ResponseError for KeyError {
 #[derive(Debug)]
 enum RelayState {
     Exists {
-        relay_info: RelayInfo,
+        relay: RelayInfo,
         checked_at: Instant,
     },
     DoesNotExist {
@@ -60,18 +60,15 @@ impl RelayState {
 
     fn as_option(&self) -> Option<&RelayInfo> {
         match *self {
-            RelayState::Exists {
-                relay_info: ref public_key,
-                ..
-            } => Some(public_key),
+            RelayState::Exists { ref relay, .. } => Some(relay),
             _ => None,
         }
     }
 
     fn from_option(option: Option<RelayInfo>) -> Self {
         match option {
-            Some(public_key) => RelayState::Exists {
-                relay_info: public_key,
+            Some(relay) => RelayState::Exists {
+                relay,
                 checked_at: Instant::now(),
             },
             None => RelayState::DoesNotExist {
@@ -110,7 +107,7 @@ pub struct RelayCache {
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     relays: HashMap<RelayId, RelayState>,
-    relay_info_channels: HashMap<RelayId, RelayInfoChannel>,
+    relay_channels: HashMap<RelayId, RelayInfoChannel>,
 }
 
 impl RelayCache {
@@ -120,7 +117,7 @@ impl RelayCache {
             config,
             upstream,
             relays: HashMap::new(),
-            relay_info_channels: HashMap::new(),
+            relay_channels: HashMap::new(),
         }
     }
 
@@ -137,12 +134,12 @@ impl RelayCache {
         utils::run_later(self.next_backoff(), Self::fetch_relays).spawn(context)
     }
 
-    /// Executes an upstream request to fetch public keys.
+    /// Executes an upstream request to fetch information on downstream Relays.
     ///
     /// This assumes that currently no request is running. If the upstream request fails or new
     /// channels are pushed in the meanwhile, this will reschedule automatically.
     fn fetch_relays(&mut self, context: &mut Context<Self>) {
-        let channels = mem::replace(&mut self.relay_info_channels, HashMap::new());
+        let channels = mem::replace(&mut self.relay_channels, HashMap::new());
         log::debug!(
             "updating public keys for {} relays (attempt {})",
             channels.len(),
@@ -175,11 +172,11 @@ impl RelayCache {
 
                         // Put the channels back into the queue, in addition to channels that have
                         // been pushed in the meanwhile. We will retry again shortly.
-                        slf.relay_info_channels.extend(channels);
+                        slf.relay_channels.extend(channels);
                     }
                 }
 
-                if !slf.relay_info_channels.is_empty() {
+                if !slf.relay_channels.is_empty() {
                     slf.schedule_fetch(ctx);
                 }
 
@@ -215,7 +212,7 @@ impl RelayCache {
         }
 
         let receiver = self
-            .relay_info_channels
+            .relay_channels
             .entry(relay_id)
             .or_insert_with(RelayInfoChannel::new)
             .receiver()
@@ -245,7 +242,7 @@ pub struct GetRelay {
 
 #[derive(Debug)]
 pub struct GetRelayResult {
-    pub public_key: Option<RelayInfo>,
+    pub relay: Option<RelayInfo>,
 }
 
 impl Message for GetRelay {
@@ -257,7 +254,7 @@ impl Handler<GetRelay> for RelayCache {
 
     fn handle(&mut self, message: GetRelay, context: &mut Self::Context) -> Self::Result {
         self.get_or_fetch_info(message.relay_id, context)
-            .map(|(_id, public_key)| GetRelayResult { public_key })
+            .map(|(_id, relay)| GetRelayResult { relay })
     }
 }
 
@@ -299,9 +296,13 @@ pub struct PublicKeysResultCompatibility {
     pub relays: HashMap<RelayId, Option<RelayInfo>>,
 }
 
+/// Information on a downstream Relay.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RelayInfo {
+    /// The public key that this Relay uses to authenticate and sign requests.
     pub public_key: PublicKey,
+
+    /// Marks an internal relay that has privileged access to more project configuration.
     #[serde(default)]
     pub internal: bool,
 }

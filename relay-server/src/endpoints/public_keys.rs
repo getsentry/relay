@@ -12,7 +12,7 @@ fn get_public_keys(
     body: SignedJson<GetRelays>,
 ) -> ResponseFuture<Json<GetRelaysResult>, Error> {
     let future = state
-        .key_cache()
+        .relay_cache()
         .send(body.inner)
         .map_err(Error::from)
         .and_then(|x| x.map_err(Error::from).map(Json));

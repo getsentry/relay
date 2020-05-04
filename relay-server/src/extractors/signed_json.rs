@@ -16,7 +16,7 @@ use crate::utils::ApiErrorResponse;
 #[derive(Debug)]
 pub struct SignedJson<T> {
     pub inner: T,
-    pub relay_info: RelayInfo,
+    pub relay: RelayInfo,
 }
 
 #[derive(Fail, Debug)]
@@ -67,20 +67,20 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
 
         let future = req
             .state()
-            .key_cache()
+            .relay_cache()
             .send(GetRelay { relay_id })
             .map_err(Error::from)
             .and_then(|result| {
                 result?
-                    .public_key
+                    .relay
                     .ok_or_else(|| Error::from(SignatureError::UnknownRelay))
             })
             .join(req.body().map_err(Error::from))
-            .and_then(move |(relay_info, body)| {
-                relay_info
+            .and_then(move |(relay, body)| {
+                relay
                     .public_key
                     .unpack(&body, &relay_sig, None)
-                    .map(|inner| SignedJson { inner, relay_info })
+                    .map(|inner| SignedJson { inner, relay })
                     .map_err(|_| Error::from(SignatureError::BadSignature))
             });
 

@@ -23,18 +23,8 @@ use crate::utils::{self, ErrorBoundary};
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStates {
     pub projects: Vec<ProjectId>,
-    #[cfg(feature = "processing")]
     #[serde(default)]
     pub full_config: bool,
-}
-
-impl GetProjectStates {
-    pub fn is_full_config(&self) -> bool {
-        #[cfg(feature = "processing")]
-        return self.full_config;
-        #[cfg(not(feature = "processing"))]
-        false
-    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]

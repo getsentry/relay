@@ -107,7 +107,7 @@ impl From<Context<ServerErrorKind>> for ServerError {
 #[derive(Clone)]
 pub struct ServiceState {
     config: Arc<Config>,
-    relay_info_cache: Addr<RelayCache>,
+    relay_cache: Addr<RelayCache>,
     project_cache: Addr<ProjectCache>,
     upstream_relay: Addr<UpstreamRelay>,
     event_manager: Addr<EventManager>,
@@ -147,7 +147,7 @@ impl ServiceState {
             config: config.clone(),
             key_lookup: ProjectKeyLookup::new(config.clone(), upstream_relay.clone()).start(),
             upstream_relay: upstream_relay.clone(),
-            relay_info_cache: RelayCache::new(config.clone(), upstream_relay.clone()).start(),
+            relay_cache: RelayCache::new(config.clone(), upstream_relay.clone()).start(),
             project_cache,
             healthcheck: Healthcheck::new(config, upstream_relay).start(),
             event_manager,
@@ -161,8 +161,8 @@ impl ServiceState {
     }
 
     /// Returns the current relay public key cache.
-    pub fn key_cache(&self) -> Addr<RelayCache> {
-        self.relay_info_cache.clone()
+    pub fn relay_cache(&self) -> Addr<RelayCache> {
+        self.relay_cache.clone()
     }
 
     /// Returns the current project cache.
