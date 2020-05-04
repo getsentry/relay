@@ -23,7 +23,6 @@ use crate::utils::{self, ErrorBoundary};
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStates {
     pub projects: Vec<ProjectId>,
-    #[cfg(feature = "processing")]
     #[serde(default)]
     pub full_config: bool,
 }
@@ -170,7 +169,6 @@ impl UpstreamProjectSource {
 
                 let request = GetProjectStates {
                     projects: channels_batch.keys().copied().collect(),
-                    #[cfg(feature = "processing")]
                     full_config: self.config.processing_enabled(),
                 };
 

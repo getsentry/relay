@@ -3,7 +3,7 @@ use std::sync::Arc;
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
 use futures::{future::Shared, sync::oneshot, Future};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use serde_json::Value;
 use url::Url;
 
@@ -92,6 +92,16 @@ impl Default for ProjectConfig {
     }
 }
 
+/// These are config values that the user can modify in the UI.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase", remote = "ProjectConfig")]
+pub struct LimitedProjectConfig {
+    pub allowed_domains: Vec<String>,
+    pub trusted_relays: Vec<PublicKey>,
+    pub pii_config: Option<PiiConfig>,
+    pub datascrubbing_settings: DataScrubbingConfig,
+}
+
 /// The project state is a cached server state of a project.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -127,6 +137,22 @@ pub struct ProjectState {
     /// True if this project state was fetched but incompatible with this Relay.
     #[serde(skip, default)]
     pub invalid: bool,
+}
+
+/// Controls how we serialize a ProjectState for an external Relay
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase", remote = "ProjectState")]
+pub struct LimitedProjectState {
+    pub last_fetch: DateTime<Utc>,
+    pub last_change: Option<DateTime<Utc>>,
+    pub disabled: bool,
+    #[serde(with = "limited_public_key_comfigs")]
+    pub public_keys: Vec<PublicKeyConfig>,
+    pub slug: Option<String>,
+    #[serde(with = "LimitedProjectConfig")]
+    pub config: ProjectConfig,
+    pub rev: Option<Uuid>,
+    pub organization_id: Option<u64>,
 }
 
 impl ProjectState {
@@ -376,6 +402,33 @@ pub struct PublicKeyConfig {
     pub legacy_quotas: Vec<Quota>,
 }
 
+mod limited_public_key_comfigs {
+    use super::*;
+    use serde::ser::SerializeSeq;
+
+    /// Represents a public key received from the projectconfig endpoint.
+    #[derive(Debug, Serialize)]
+    #[serde(rename_all = "camelCase", remote = "PublicKeyConfig")]
+    pub struct LimitedPublicKeyConfig {
+        pub public_key: String,
+        pub is_enabled: bool,
+    }
+
+    /// Serializes a list of `PublicKeyConfig` objects using `LimitedPublicKeyConfig`.
+    pub fn serialize<S>(keys: &[PublicKeyConfig], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        #[derive(Serialize)]
+        struct Wrapper<'a>(#[serde(with = "LimitedPublicKeyConfig")] &'a PublicKeyConfig);
+
+        let mut seq = serializer.serialize_seq(Some(keys.len()))?;
+        for key in keys {
+            seq.serialize_element(&Wrapper(key))?;
+        }
+        seq.end()
+    }
+}
 pub struct Project {
     id: ProjectId,
     config: Arc<Config>,

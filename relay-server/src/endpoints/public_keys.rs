@@ -2,17 +2,17 @@ use actix::ResponseFuture;
 use actix_web::{Error, Json};
 use futures::prelude::*;
 
-use crate::actors::keys::{GetPublicKeys, GetPublicKeysResult};
+use crate::actors::relays::{GetRelays, GetRelaysResult};
 use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;
 
 #[allow(clippy::needless_pass_by_value)]
 fn get_public_keys(
     state: CurrentServiceState,
-    body: SignedJson<GetPublicKeys>,
-) -> ResponseFuture<Json<GetPublicKeysResult>, Error> {
+    body: SignedJson<GetRelays>,
+) -> ResponseFuture<Json<GetRelaysResult>, Error> {
     let future = state
-        .key_cache()
+        .relay_cache()
         .send(body.inner)
         .map_err(Error::from)
         .and_then(|x| x.map_err(Error::from).map(Json));

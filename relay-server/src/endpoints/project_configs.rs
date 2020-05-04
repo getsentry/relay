@@ -1,23 +1,56 @@
+use std::collections::HashMap;
+
 use actix::prelude::*;
 use actix_web::{Error, Json};
 use futures::{future, Future};
+use serde::Serialize;
 
+use relay_common::ProjectId;
+
+use crate::actors::project::{GetProjectState, LimitedProjectState, ProjectState};
 use crate::actors::project_cache::GetProject;
-use crate::actors::project_upstream::{GetProjectStates, GetProjectStatesResponse};
-
-use crate::actors::project::GetProjectState;
+use crate::actors::project_upstream::GetProjectStates;
 use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;
-use crate::utils::ErrorBoundary;
+
+/// Wrapper on top the project state which encapsulates information about how ProjectState
+/// should be deserialized
+#[derive(Debug, Clone, Serialize)]
+// the wrapper will always deserialize as an internal ProjectState
+// we can manually force it to serialize back into an external ProjectState by
+// converting it to an external variant with (to_external)
+#[serde(untagged)]
+enum ProjectStateWrapper {
+    Full(ProjectState),
+    Limited(#[serde(with = "LimitedProjectState")] ProjectState),
+}
+
+impl ProjectStateWrapper {
+    /// Create a wrapper which forces serialization into external or internal format
+    pub fn new(state: ProjectState, full: bool) -> Self {
+        if full {
+            Self::Full(state)
+        } else {
+            Self::Limited(state)
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct GetProjectStatesResponseWrapper {
+    configs: HashMap<ProjectId, Option<ProjectStateWrapper>>,
+}
 
 #[allow(clippy::needless_pass_by_value)]
 fn get_project_configs(
     state: CurrentServiceState,
     body: SignedJson<GetProjectStates>,
-) -> ResponseFuture<Json<GetProjectStatesResponse>, Error> {
-    let public_key = body.public_key;
+) -> ResponseFuture<Json<GetProjectStatesResponseWrapper>, Error> {
+    let relay = body.relay;
+    let full = relay.internal && body.inner.full_config;
+
     let futures = body.inner.projects.into_iter().map(move |project_id| {
-        let public_key = public_key.clone();
+        let relay = relay.clone();
         state
             .project_cache()
             .send(GetProject { id: project_id })
@@ -27,12 +60,17 @@ fn get_project_configs(
                 let project_state = project_state.ok()?;
                 // If public key is known (even if rate-limited, which is Some(false)), it has
                 // access to the project config
-                if project_state.config.trusted_relays.contains(&public_key) {
+                if relay.internal
+                    || project_state
+                        .config
+                        .trusted_relays
+                        .contains(&relay.public_key)
+                {
                     Some((*project_state).clone())
                 } else {
                     log::debug!(
                         "Public key {} does not have access to project {}",
-                        public_key,
+                        relay.public_key,
                         project_id
                     );
                     None
@@ -41,14 +79,14 @@ fn get_project_configs(
             .map(move |project_state| (project_id, project_state))
     });
 
-    Box::new(future::join_all(futures).map(|mut project_states| {
+    Box::new(future::join_all(futures).map(move |mut project_states| {
         let configs = project_states
             .drain(..)
             .filter(|(_, state)| !state.as_ref().map_or(false, |s| s.invalid()))
-            .map(|(id, state)| (id, ErrorBoundary::Ok(state)))
+            .map(|(id, state)| (id, state.map(|s| ProjectStateWrapper::new(s, full))))
             .collect();
 
-        Json(GetProjectStatesResponse { configs })
+        Json(GetProjectStatesResponseWrapper { configs })
     }))
 }
 
