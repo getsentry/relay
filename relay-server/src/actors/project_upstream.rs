@@ -28,6 +28,15 @@ pub struct GetProjectStates {
     pub full_config: bool,
 }
 
+impl GetProjectStates {
+    pub fn is_full_config(&self) -> bool {
+        #[cfg(feature = "processing")]
+        return self.full_config;
+        #[cfg(not(feature = "processing"))]
+        false
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetProjectStatesResponse {
     pub configs: HashMap<ProjectId, ErrorBoundary<Option<ProjectState>>>,

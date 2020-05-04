@@ -46,9 +46,11 @@ fn get_project_configs(
     state: CurrentServiceState,
     body: SignedJson<GetProjectStates>,
 ) -> ResponseFuture<Json<GetProjectStatesResponseWrapper>, Error> {
-    let public_key = body.relay_info;
+    let relay_info = body.relay_info;
+    let is_internal = relay_info.internal && body.inner.is_full_config();
+
     let futures = body.inner.projects.into_iter().map(move |project_id| {
-        let public_key = public_key.clone();
+        let relay_info = relay_info.clone();
         state
             .project_cache()
             .send(GetProject { id: project_id })
@@ -61,13 +63,13 @@ fn get_project_configs(
                 if project_state
                     .config
                     .trusted_relays
-                    .contains(&public_key.public_key)
+                    .contains(&relay_info.public_key)
                 {
                     Some((*project_state).clone())
                 } else {
                     log::debug!(
                         "Public key {} does not have access to project {}",
-                        public_key.public_key,
+                        relay_info.public_key,
                         project_id
                     );
                     None
@@ -76,9 +78,7 @@ fn get_project_configs(
             .map(move |project_state| (project_id, project_state))
     });
 
-    Box::new(future::join_all(futures).map(|mut project_states| {
-        let is_internal = false;
-
+    Box::new(future::join_all(futures).map(move |mut project_states| {
         let configs = project_states
             .drain(..)
             .filter(|(_, state)| !state.as_ref().map_or(false, |s| s.invalid()))
