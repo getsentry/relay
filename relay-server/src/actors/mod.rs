@@ -42,13 +42,13 @@
 pub mod controller;
 pub mod events;
 pub mod healthcheck;
-pub mod keys;
 pub mod outcome;
 pub mod project;
 pub mod project_cache;
 pub mod project_keys;
 pub mod project_local;
 pub mod project_upstream;
+pub mod relays;
 pub mod server;
 pub mod upstream;
 

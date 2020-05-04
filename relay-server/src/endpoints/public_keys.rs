@@ -2,7 +2,7 @@ use actix::ResponseFuture;
 use actix_web::{Error, Json};
 use futures::prelude::*;
 
-use crate::actors::keys::{GetRelays, GetRelaysResult};
+use crate::actors::relays::{GetRelays, GetRelaysResult};
 use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;
 

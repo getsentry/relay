@@ -9,7 +9,7 @@ use serde::de::DeserializeOwned;
 use relay_auth::RelayId;
 use relay_common::tryf;
 
-use crate::actors::keys::{GetRelay, RelayInfo};
+use crate::actors::relays::{GetRelay, RelayInfo};
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
 
