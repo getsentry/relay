@@ -1,0 +1,2067 @@
+
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      
+      
+      
+        <meta name="author" content="Sentry">
+      
+      
+        <meta name="lang:clipboard.copy" content="Copy to clipboard">
+      
+        <meta name="lang:clipboard.copied" content="Copied to clipboard">
+      
+        <meta name="lang:search.language" content="en">
+      
+        <meta name="lang:search.pipeline.stopwords" content="True">
+      
+        <meta name="lang:search.pipeline.trimmer" content="True">
+      
+        <meta name="lang:search.result.none" content="No matching documents">
+      
+        <meta name="lang:search.result.one" content="1 matching document">
+      
+        <meta name="lang:search.result.other" content="# matching documents">
+      
+        <meta name="lang:search.tokenizer" content="[\s\-]+">
+      
+      <link rel="shortcut icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-4.6.2">
+    
+    
+      
+        <title>Sentry Relay</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/application.adb8469c.css">
+      
+      
+    
+    
+      <script src="../assets/javascripts/modernizr.86422ebf.js"></script>
+    
+    
+      
+        <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&display=fallback">
+        <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
+      
+    
+    <link rel="stylesheet" href="../assets/fonts/material-icons.css">
+    
+    
+      <link rel="stylesheet" href="https://unpkg.com/mermaid@7.1.2/dist/mermaid.css">
+    
+    
+      
+    
+    
+  </head>
+  
+    <body dir="ltr">
+  
+    <svg class="md-svg">
+      <defs>
+        
+        
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448" viewBox="0 0 416 448" id="__github"><path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19T128 352t-18.125-8.5-10.75-19T96 304t3.125-20.5 10.75-19T128 256t18.125 8.5 10.75 19T160 304zm160 0q0 10-3.125 20.5t-10.75 19T288 352t-18.125-8.5-10.75-19T256 304t3.125-20.5 10.75-19T288 256t18.125 8.5 10.75 19T320 304zm40 0q0-30-17.25-51T296 232q-10.25 0-48.75 5.25Q229.5 240 208 240t-39.25-2.75Q130.75 232 120 232q-29.5 0-46.75 21T56 304q0 22 8 38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0 37.25-1.75t35-7.375 30.5-15 20.25-25.75T360 304zm56-44q0 51.75-15.25 82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5T212 416q-19.5 0-35.5-.75t-36.875-3.125-38.125-7.5-34.25-12.875T37 371.5t-21.5-28.75Q0 312 0 260q0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25 30.875Q171.5 96 212 96q37 0 70 8 26.25-20.5 46.75-30.25T376 64q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34 99.5z"/></svg>
+        
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
+    
+      <a href="#event-schema" tabindex="0" class="md-skip">
+        Skip to content
+      </a>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid">
+    <div class="md-flex">
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <a href=".." title="Sentry Relay" aria-label="Sentry Relay" class="md-header-nav__button md-logo">
+          
+            <i class="md-icon"></i>
+          
+        </a>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <label class="md-icon md-icon--menu md-header-nav__button" for="__drawer"></label>
+      </div>
+      <div class="md-flex__cell md-flex__cell--stretch">
+        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+          
+            <span class="md-header-nav__topic">
+              Sentry Relay
+            </span>
+            <span class="md-header-nav__topic">
+              
+                Event schema
+              
+            </span>
+          
+        </div>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        
+          <label class="md-icon md-icon--search md-header-nav__button" for="__search"></label>
+          
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" aria-label="search" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <label class="md-icon md-search__icon" for="__search"></label>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
+        &#xE5CD;
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="result">
+          <div class="md-search-result__meta">
+            Type to start searching
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+        
+      </div>
+      
+        <div class="md-flex__cell md-flex__cell--shrink">
+          <div class="md-header-nav__source">
+            
+
+
+  
+
+<a href="https://github.com/getsentry/relay/" title="Go to repository" class="md-source" data-md-source="github">
+  
+    <div class="md-source__icon">
+      <svg viewBox="0 0 24 24" width="24" height="24">
+        <use xlink:href="#__github" width="24" height="24"></use>
+      </svg>
+    </div>
+  
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+          </div>
+        </div>
+      
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container">
+      
+        
+      
+      
+      <main class="md-main" role="main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" data-md-level="0">
+  <label class="md-nav__title md-nav__title--site" for="__drawer">
+    <a href=".." title="Sentry Relay" class="md-nav__button md-logo">
+      
+        <i class="md-icon"></i>
+      
+    </a>
+    Sentry Relay
+  </label>
+  
+    <div class="md-nav__source">
+      
+
+
+  
+
+<a href="https://github.com/getsentry/relay/" title="Go to repository" class="md-source" data-md-source="github">
+  
+    <div class="md-source__icon">
+      <svg viewBox="0 0 24 24" width="24" height="24">
+        <use xlink:href="#__github" width="24" height="24"></use>
+      </svg>
+    </div>
+  
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href=".." title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../options/" title="Configuration Options" class="md-nav__link">
+      Configuration Options
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../project-config/" title="Project Configuration" class="md-nav__link">
+      Project Configuration
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../metrics/" title="Metrics" class="md-nav__link">
+      Metrics
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
+    
+    <label class="md-nav__link" for="nav-5">
+      PII and datascrubbing
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-5">
+        PII and datascrubbing
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../pii-config/" title="PII Configuration" class="md-nav__link">
+      PII Configuration
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../pii-config/types/" title="PII Rule Types" class="md-nav__link">
+      PII Rule Types
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../pii-config/methods/" title="PII Redaction Methods" class="md-nav__link">
+      PII Redaction Methods
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../pii-config/selectors/" title="PII Selectors" class="md-nav__link">
+      PII Selectors
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
+    
+    <label class="md-nav__link" for="nav-6">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-6">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../architecture/" title="Architecture" class="md-nav__link">
+      Architecture
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../architecture/actors/" title="Actors" class="md-nav__link">
+      Actors
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../architecture/ingest-event-path/" title="Path of an Event through Relay" class="md-nav__link">
+      Path of an Event through Relay
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../architecture/project-configuration/" title="Project configuration" class="md-nav__link">
+      Project configuration
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        Event schema
+      </label>
+    
+    <a href="./" title="Event schema" class="md-nav__link md-nav__link--active">
+      Event schema
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#event" class="md-nav__link">
+    Event
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#breadcrumbs" class="md-nav__link">
+    Breadcrumbs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#breadcrumb" class="md-nav__link">
+    Breadcrumb
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#level" class="md-nav__link">
+    Level
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clientsdkinfo" class="md-nav__link">
+    ClientSDKInfo
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clientsdkpackage" class="md-nav__link">
+    ClientSDKPackage
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#context" class="md-nav__link">
+    Context
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spanstatus" class="md-nav__link">
+    SpanStatus
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debugmeta" class="md-nav__link">
+    DebugMeta
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debugimage" class="md-nav__link">
+    DebugImage
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#systemsdkinfo" class="md-nav__link">
+    SystemSDKInfo
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#eventprocessingerror" class="md-nav__link">
+    EventProcessingError
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exceptions" class="md-nav__link">
+    Exceptions
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exception" class="md-nav__link">
+    Exception
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mechanism" class="md-nav__link">
+    Mechanism
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mechanismmeta" class="md-nav__link">
+    MechanismMeta
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cerror" class="md-nav__link">
+    CError
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#machexception" class="md-nav__link">
+    MachException
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#posixsignal" class="md-nav__link">
+    POSIXSignal
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stacktrace" class="md-nav__link">
+    Stacktrace
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#frame" class="md-nav__link">
+    Frame
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#framedata" class="md-nav__link">
+    FrameData
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logentry" class="md-nav__link">
+    LogEntry
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#request" class="md-nav__link">
+    Request
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#span" class="md-nav__link">
+    Span
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#threads" class="md-nav__link">
+    Threads
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread" class="md-nav__link">
+    Thread
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#eventtype" class="md-nav__link">
+    EventType
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#user" class="md-nav__link">
+    User
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#geo" class="md-nav__link">
+    Geo
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#event" class="md-nav__link">
+    Event
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#breadcrumbs" class="md-nav__link">
+    Breadcrumbs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#breadcrumb" class="md-nav__link">
+    Breadcrumb
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#level" class="md-nav__link">
+    Level
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clientsdkinfo" class="md-nav__link">
+    ClientSDKInfo
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clientsdkpackage" class="md-nav__link">
+    ClientSDKPackage
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#context" class="md-nav__link">
+    Context
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spanstatus" class="md-nav__link">
+    SpanStatus
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debugmeta" class="md-nav__link">
+    DebugMeta
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debugimage" class="md-nav__link">
+    DebugImage
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#systemsdkinfo" class="md-nav__link">
+    SystemSDKInfo
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#eventprocessingerror" class="md-nav__link">
+    EventProcessingError
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exceptions" class="md-nav__link">
+    Exceptions
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exception" class="md-nav__link">
+    Exception
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mechanism" class="md-nav__link">
+    Mechanism
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mechanismmeta" class="md-nav__link">
+    MechanismMeta
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cerror" class="md-nav__link">
+    CError
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#machexception" class="md-nav__link">
+    MachException
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#posixsignal" class="md-nav__link">
+    POSIXSignal
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stacktrace" class="md-nav__link">
+    Stacktrace
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#frame" class="md-nav__link">
+    Frame
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#framedata" class="md-nav__link">
+    FrameData
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logentry" class="md-nav__link">
+    LogEntry
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#request" class="md-nav__link">
+    Request
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#span" class="md-nav__link">
+    Span
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#threads" class="md-nav__link">
+    Threads
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread" class="md-nav__link">
+    Thread
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#eventtype" class="md-nav__link">
+    EventType
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#user" class="md-nav__link">
+    User
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#geo" class="md-nav__link">
+    Geo
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/getsentry/relay/edit/master/docs/event-schema/index.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                
+                
+                <h1 id="event-schema">Event schema</h1>
+<p>This page is intended to eventually replace <a href="https://docs.sentry.io/development/sdk-dev/event-payloads/">our current event schema documentation</a>. As opposed to the current one, this one is automatically generated from source code and therefore more likely to be up-to-date and exhaustive. <strong>It is still a work-in-progress.</strong> Right now we recommend using our existing docs as linked above and only fall back to this doc to resolve ambiguities.</p>
+<p>In addition to documentation the event schema is documented in machine-readable form:</p>
+<ul>
+<li><a href="event.schema.json">Download JSON schema</a> (which is what this document is generated from)</li>
+</ul>
+<p><a name='typedef-Event'></a></p>
+<h2 id="event"><code>Event</code></h2>
+<p>The sentry v7 event structure.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>breadcrumbs</code> (optional): <code><a href='#typedef-Breadcrumbs'>Breadcrumbs</a> | null</code></p>
+<p>List of breadcrumbs recorded before this event.</p>
+</li>
+<li>
+<p><code>checksum</code> (optional): <code>null | string</code></p>
+<p>Legacy checksum used for grouping before fingerprint hashes.</p>
+</li>
+<li>
+<p><code>client_sdk</code> (optional): <code><a href='#typedef-ClientSDKInfo'>ClientSDKInfo</a> | null</code></p>
+<p>Information about the Sentry SDK that generated this event.</p>
+</li>
+<li>
+<p><code>contexts</code> (optional): <code>{ [key: string]: null | <a href='#typedef-Context'>Context</a> } | null</code></p>
+<p>Contexts describing the environment (e.g. device, os or browser).</p>
+</li>
+<li>
+<p><code>culprit</code> (optional): <code>null | string</code></p>
+<p>Custom culprit of the event.</p>
+</li>
+<li>
+<p><code>debug_meta</code> (optional): <code><a href='#typedef-DebugMeta'>DebugMeta</a> | null</code></p>
+<p>Meta data for event processing and debugging.</p>
+</li>
+<li>
+<p><code>dist</code> (optional): <code>null | string</code></p>
+<p>Program's distribution identifier.</p>
+</li>
+<li>
+<p><code>environment</code> (optional): <code>null | string</code></p>
+<p>Environment the environment was generated in ("production" or "development").</p>
+</li>
+<li>
+<p><code>errors</code> (optional): <code>Array&lt;<a href='#typedef-EventProcessingError'>EventProcessingError</a> | null&gt; | null</code></p>
+<p>Errors encountered during processing. Intended to be phased out in favor of
+annotation/metadata system.</p>
+</li>
+<li>
+<p><code>exceptions</code> (optional): <code><a href='#typedef-Exceptions'>Exceptions</a> | null</code></p>
+<p>One or multiple chained (nested) exceptions.</p>
+</li>
+<li>
+<p><code>extra</code> (optional): <code>{ [key: string]: any } | null</code></p>
+<p>Arbitrary extra information set by the user.</p>
+</li>
+<li>
+<p><code>fingerprint</code> (optional): <code>string[] | null</code></p>
+<p>Manual fingerprint override.</p>
+</li>
+<li>
+<p><code>id</code> (optional): <code>null | string</code></p>
+<p>Unique identifier of this event.</p>
+</li>
+<li>
+<p><code>key_id</code> (optional): <code>null | string</code></p>
+<p>Project key which sent this event.</p>
+</li>
+<li>
+<p><code>level</code> (optional): <code><a href='#typedef-Level'>Level</a> | null</code></p>
+<p>Severity level of the event.</p>
+</li>
+<li>
+<p><code>logentry</code> (optional): <code><a href='#typedef-LogEntry'>LogEntry</a> | null</code></p>
+<p>Custom parameterized message for this event.</p>
+</li>
+<li>
+<p><code>logger</code> (optional): <code>null | string</code></p>
+<p>Logger that created the event.</p>
+</li>
+<li>
+<p><code>modules</code> (optional): <code>{ [key: string]: null | string } | null</code></p>
+<p>Name and versions of installed modules.</p>
+</li>
+<li>
+<p><code>platform</code> (optional): <code>null | string</code></p>
+<p>Platform identifier of this event (defaults to "other").</p>
+</li>
+<li>
+<p><code>project</code> (optional): <code>number | null</code></p>
+<p>Project which sent this event.</p>
+</li>
+<li>
+<p><code>received</code> (optional): <code>number | null | string</code></p>
+<p>Timestamp when the event has been received by Sentry.</p>
+</li>
+<li>
+<p><code>release</code> (optional): <code>null | string</code></p>
+<p>Program's release identifier.</p>
+</li>
+<li>
+<p><code>request</code> (optional): <code><a href='#typedef-Request'>Request</a> | null</code></p>
+<p>Information about a web request that occurred during the event.</p>
+</li>
+<li>
+<p><code>server_name</code> (optional): <code>null | string</code></p>
+<p>Server or device name the event was generated on.</p>
+</li>
+<li>
+<p><code>site</code> (optional): <code>null | string</code></p>
+<p>Deprecated in favor of tags.</p>
+</li>
+<li>
+<p><code>spans</code> (optional): <code>Array&lt;<a href='#typedef-Span'>Span</a> | null&gt; | null</code></p>
+<p>Spans for tracing.</p>
+</li>
+<li>
+<p><code>stacktrace</code> (optional): <code><a href='#typedef-Stacktrace'>Stacktrace</a> | null</code></p>
+<p>Event stacktrace.</p>
+<p>DEPRECATED: Prefer <code>threads</code> or <code>exception</code> depending on which is more appropriate.</p>
+</li>
+<li>
+<p><code>start_timestamp</code> (optional): <code>number | null | string</code></p>
+<p>Timestamp when the event has started (relevant for event type = "transaction")</p>
+</li>
+<li>
+<p><code>tags</code> (optional): <code>Array&lt;Array&lt;null | string&gt; | null&gt; | { [key: string]: null | string } | null</code></p>
+<p>Custom tags for this event.</p>
+</li>
+<li>
+<p><code>threads</code> (optional): <code><a href='#typedef-Threads'>Threads</a> | null</code></p>
+<p>Threads that were active when the event occurred.</p>
+</li>
+<li>
+<p><code>time_spent</code> (optional): <code>number | null</code></p>
+<p>Time since the start of the transaction until the error occurred.</p>
+</li>
+<li>
+<p><code>timestamp</code> (optional): <code>number | null | string</code></p>
+<p>Timestamp when the event was created.</p>
+</li>
+<li>
+<p><code>transaction</code> (optional): <code>null | string</code></p>
+<p>Transaction name of the event.</p>
+</li>
+<li>
+<p><code>type</code> (optional): <code><a href='#typedef-EventType'>EventType</a> | null</code></p>
+<p>Type of event: error, csp, default</p>
+</li>
+<li>
+<p><code>user</code> (optional): <code><a href='#typedef-User'>User</a> | null</code></p>
+<p>Information about the user who triggered this event.</p>
+</li>
+<li>
+<p><code>version</code> (optional): <code>null | string</code></p>
+<p>Version</p>
+</li>
+</ul>
+<p><a name='typedef-Breadcrumbs'></a></p>
+<h2 id="breadcrumbs"><code>Breadcrumbs</code></h2>
+<p><strong>Properties:</strong></p>
+<ul>
+<li><code>values</code>: <code>Array&lt;<a href='#typedef-Breadcrumb'>Breadcrumb</a> | null&gt;</code></li>
+</ul>
+<p><a name='typedef-Breadcrumb'></a></p>
+<h2 id="breadcrumb"><code>Breadcrumb</code></h2>
+<p>A breadcrumb.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>category</code> (optional): <code>null | string</code></p>
+<p>The optional category of the breadcrumb.</p>
+</li>
+<li>
+<p><code>data</code> (optional): <code>{ [key: string]: any } | null</code></p>
+<p>Custom user-defined data of this breadcrumb.</p>
+</li>
+<li>
+<p><code>level</code> (optional): <code><a href='#typedef-Level'>Level</a> | null</code></p>
+<p>Severity level of the breadcrumb.</p>
+</li>
+<li>
+<p><code>message</code> (optional): <code>null | string</code></p>
+<p>Human readable message for the breadcrumb.</p>
+</li>
+<li>
+<p><code>timestamp</code> (optional): <code>number | null | string</code></p>
+<p>The timestamp of the breadcrumb.</p>
+</li>
+<li>
+<p><code>type</code> (optional): <code>null | string</code></p>
+<p>The type of the breadcrumb.</p>
+</li>
+</ul>
+<p><a name='typedef-Level'></a></p>
+<h2 id="level"><code>Level</code></h2>
+<p>Severity level of an event or breadcrumb.</p>
+<p><strong>Variants:</strong></p>
+<ul>
+<li><code>"debug"</code></li>
+<li><code>"error"</code></li>
+<li><code>"fatal"</code></li>
+<li><code>"info"</code></li>
+<li><code>"warning"</code></li>
+</ul>
+<p><a name='typedef-ClientSDKInfo'></a></p>
+<h2 id="clientsdkinfo"><code>ClientSDKInfo</code></h2>
+<p>Information about the Sentry SDK.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>client_ip</code> (optional): <code>null | string</code></p>
+<p>IP Address of sender??? Seems unused.</p>
+</li>
+<li>
+<p><code>integrations</code> (optional): <code>Array&lt;null | string&gt; | null</code></p>
+<p>List of integrations that are enabled in the SDK.</p>
+</li>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Unique SDK name.</p>
+</li>
+<li>
+<p><code>packages</code> (optional): <code>Array&lt;<a href='#typedef-ClientSDKPackage'>ClientSDKPackage</a> | null&gt; | null</code></p>
+<p>List of installed and loaded SDK packages.</p>
+</li>
+<li>
+<p><code>version</code> (optional): <code>null | string</code></p>
+<p>SDK version.</p>
+</li>
+</ul>
+<p><a name='typedef-ClientSDKPackage'></a></p>
+<h2 id="clientsdkpackage"><code>ClientSDKPackage</code></h2>
+<p>An installed and loaded package as part of the Sentry SDK.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Name of the package.</p>
+</li>
+<li>
+<p><code>version</code> (optional): <code>null | string</code></p>
+<p>Version of the package.</p>
+</li>
+</ul>
+<p><a name='typedef-Context'></a></p>
+<h2 id="context"><code>Context</code></h2>
+<p>Device information.</p>
+<p>Operating system information.</p>
+<p>Runtime information.</p>
+<p>Application information.</p>
+<p>Web browser information.</p>
+<p>Information about device's GPU.</p>
+<p>GPU information.</p>
+<p>Information related to Monitors feature.</p>
+<p>Trace context</p>
+<p>Monitor information.</p>
+<p>Additional arbitrary fields for forwards compatibility.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>arch</code> (optional): <code>null | string</code></p>
+<p>Native cpu architecture of the device.</p>
+</li>
+<li>
+<p><code>battery_level</code> (optional): <code>number | null</code></p>
+<p>Current battery level (0-100).</p>
+</li>
+<li>
+<p><code>boot_time</code> (optional): <code>null | string</code></p>
+<p>Indicator when the device was booted.</p>
+</li>
+<li>
+<p><code>brand</code> (optional): <code>null | string</code></p>
+<p>Brand of the device.</p>
+</li>
+<li>
+<p><code>charging</code> (optional): <code>boolean | null</code></p>
+<p>Whether the device was charging or not.</p>
+</li>
+<li>
+<p><code>external_free_storage</code> (optional): <code>number | null</code></p>
+<p>Free size of the attached external storage in bytes (eg: android SDK card).</p>
+</li>
+<li>
+<p><code>external_storage_size</code> (optional): <code>number | null</code></p>
+<p>Total size of the attached external storage in bytes (eg: android SDK card).</p>
+</li>
+<li>
+<p><code>family</code> (optional): <code>null | string</code></p>
+<p>Family of the device model.</p>
+</li>
+<li>
+<p><code>free_memory</code> (optional): <code>number | null</code></p>
+<p>How much memory is still available in bytes.</p>
+</li>
+<li>
+<p><code>free_storage</code> (optional): <code>number | null</code></p>
+<p>How much storage is free in bytes.</p>
+</li>
+<li>
+<p><code>low_memory</code> (optional): <code>boolean | null</code></p>
+<p>Whether the device was low on memory.</p>
+</li>
+<li>
+<p><code>manufacturer</code> (optional): <code>null | string</code></p>
+<p>Manufacturer of the device</p>
+</li>
+<li>
+<p><code>memory_size</code> (optional): <code>number | null</code></p>
+<p>Total memory available in bytes.</p>
+</li>
+<li>
+<p><code>model</code> (optional): <code>null | string</code></p>
+<p>Device model (human readable).</p>
+</li>
+<li>
+<p><code>model_id</code> (optional): <code>null | string</code></p>
+<p>Device model (internal identifier).</p>
+</li>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Name of the device.</p>
+<p>Name of the operating system.</p>
+<p>Runtime name.</p>
+</li>
+<li>
+<p><code>online</code> (optional): <code>boolean | null</code></p>
+<p>Whether the device was online or not.</p>
+</li>
+<li>
+<p><code>orientation</code> (optional): <code>null | string</code></p>
+<p>Current screen orientation.</p>
+</li>
+<li>
+<p><code>screen_density</code> (optional): <code>number | null</code></p>
+<p>Device screen density.</p>
+</li>
+<li>
+<p><code>screen_dpi</code> (optional): <code>number | null</code></p>
+<p>Screen density as dots-per-inch.</p>
+</li>
+<li>
+<p><code>screen_resolution</code> (optional): <code>null | string</code></p>
+<p>Device screen resolution.</p>
+</li>
+<li>
+<p><code>simulator</code> (optional): <code>boolean | null</code></p>
+<p>Simulator/prod indicator.</p>
+</li>
+<li>
+<p><code>storage_size</code> (optional): <code>number | null</code></p>
+<p>Total storage size of the device in bytes.</p>
+</li>
+<li>
+<p><code>timezone</code> (optional): <code>null | string</code></p>
+<p>Timezone of the device.</p>
+</li>
+<li>
+<p><code>usable_memory</code> (optional): <code>number | null</code></p>
+<p>How much memory is usable for the app in bytes.</p>
+</li>
+<li>
+<p><code>build</code> (optional): <code>null | string</code></p>
+<p>Internal build number of the operating system.</p>
+<p>Application build string, if it is separate from the version.</p>
+</li>
+<li>
+<p><code>kernel_version</code> (optional): <code>null | string</code></p>
+<p>Current kernel version.</p>
+</li>
+<li>
+<p><code>raw_description</code> (optional): <code>null | string</code></p>
+<p>Unprocessed operating system info.</p>
+<p>Unprocessed runtime info.</p>
+</li>
+<li>
+<p><code>rooted</code> (optional): <code>boolean | null</code></p>
+<p>Indicator if the OS is rooted (mobile mostly).</p>
+</li>
+<li>
+<p><code>version</code> (optional): <code>null | string</code></p>
+<p>Version of the operating system.</p>
+<p>Runtime version string.</p>
+<p>Runtime version.</p>
+</li>
+<li>
+<p><code>app_build</code> (optional): <code>null | string</code></p>
+<p>Internal build ID as it appears on the platform.</p>
+</li>
+<li>
+<p><code>app_identifier</code> (optional): <code>null | string</code></p>
+<p>App identifier (dotted bundle id).</p>
+</li>
+<li>
+<p><code>app_name</code> (optional): <code>null | string</code></p>
+<p>Application name as it appears on the platform.</p>
+</li>
+<li>
+<p><code>app_start_time</code> (optional): <code>null | string</code></p>
+<p>Start time of the app.</p>
+</li>
+<li>
+<p><code>app_version</code> (optional): <code>null | string</code></p>
+<p>Application version as it appears on the platform.</p>
+</li>
+<li>
+<p><code>build_type</code> (optional): <code>null | string</code></p>
+<p>Build identicator.</p>
+</li>
+<li>
+<p><code>device_app_hash</code> (optional): <code>null | string</code></p>
+<p>Device app hash (app specific device ID)</p>
+</li>
+<li>
+<p><code>op</code> (optional): <code>null | string</code></p>
+<p>Span type (see <code>OperationType</code> docs).</p>
+</li>
+<li>
+<p><code>parent_span_id</code> (optional): <code>null | string</code></p>
+<p>The ID of the span enclosing this span.</p>
+</li>
+<li>
+<p><code>span_id</code> (optional): <code>null | string</code></p>
+<p>The ID of the span.</p>
+</li>
+<li>
+<p><code>status</code> (optional): <code><a href='#typedef-SpanStatus'>SpanStatus</a> | null</code></p>
+<p>Whether the trace failed or succeeded. Currently only used to indicate status of
+individual transactions.</p>
+</li>
+<li>
+<p><code>trace_id</code> (optional): <code>null | string</code></p>
+<p>The trace ID.</p>
+</li>
+</ul>
+<p><a name='typedef-SpanStatus'></a></p>
+<h2 id="spanstatus"><code>SpanStatus</code></h2>
+<p>Trace status</p>
+<p>Values from
+https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/api-tracing.md#status
+Mapping to HTTP from
+https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/data-http.md#status</p>
+<p>Note: This type is represented as a u8 in Snuba/Clickhouse, with Unknown being the
+default value. We use repr(u8) to statically validate that the trace status has 255
+variants at most.</p>
+<p><strong>Variants:</strong></p>
+<ul>
+<li><code>"aborted"</code></li>
+<li><code>"already_exists"</code></li>
+<li><code>"cancelled"</code></li>
+<li><code>"data_loss"</code></li>
+<li><code>"deadline_exceeded"</code></li>
+<li><code>"failed_precondition"</code></li>
+<li><code>"internal_error"</code></li>
+<li><code>"invalid_argument"</code></li>
+<li><code>"not_found"</code></li>
+<li><code>"ok"</code></li>
+<li><code>"out_of_range"</code></li>
+<li><code>"permission_denied"</code></li>
+<li><code>"resource_exhausted"</code></li>
+<li><code>"unauthenticated"</code></li>
+<li><code>"unavailable"</code></li>
+<li><code>"unimplemented"</code></li>
+<li><code>"unknown"</code></li>
+</ul>
+<p><a name='typedef-DebugMeta'></a></p>
+<h2 id="debugmeta"><code>DebugMeta</code></h2>
+<p>Debugging and processing meta information.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>images</code> (optional): <code>Array&lt;null | <a href='#typedef-DebugImage'>DebugImage</a>&gt; | null</code></p>
+<p>List of debug information files (debug images).</p>
+</li>
+<li>
+<p><code>system_sdk</code> (optional): <code><a href='#typedef-SystemSDKInfo'>SystemSDKInfo</a> | null</code></p>
+<p>Information about the system SDK (e.g. iOS SDK).</p>
+</li>
+</ul>
+<p><a name='typedef-DebugImage'></a></p>
+<h2 id="debugimage"><code>DebugImage</code></h2>
+<p>Legacy apple debug images (MachO).</p>
+<p>This was also used for non-apple platforms with similar debug setups.</p>
+<p>Apple debug image in</p>
+<p>Generic new style debug image.</p>
+<p>A native platform debug information file.</p>
+<p>MachO (macOS and iOS) debug image.</p>
+<p>ELF (Linux) debug image.</p>
+<p>PE (Windows) debug image.</p>
+<p>A reference to a proguard debug file.</p>
+<p>Proguard mapping file.</p>
+<p>A debug image that is unknown to this protocol specification.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>arch</code> (optional): <code>null | string</code></p>
+<p>CPU architecture target.</p>
+</li>
+<li>
+<p><code>cpu_subtype</code> (optional): <code>number | null</code></p>
+<p>MachO CPU subtype identifier.</p>
+</li>
+<li>
+<p><code>cpu_type</code> (optional): <code>number | null</code></p>
+<p>MachO CPU type identifier.</p>
+</li>
+<li>
+<p><code>image_addr</code> (optional): <code>null | string</code></p>
+<p>Starting memory address of the image (required).</p>
+</li>
+<li>
+<p><code>image_size</code> (optional): <code>number | null</code></p>
+<p>Size of the image in bytes (required).</p>
+</li>
+<li>
+<p><code>image_vmaddr</code> (optional): <code>null | string</code></p>
+<p>Loading address in virtual memory.</p>
+</li>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Path and name of the debug image (required).</p>
+</li>
+<li>
+<p><code>uuid</code> (optional): <code>null | string</code></p>
+<p>The unique UUID of the image.</p>
+<p>UUID computed from the file contents.</p>
+</li>
+<li>
+<p><code>code_file</code> (optional): <code>null | string</code></p>
+<p>Path and name of the image file (required).</p>
+</li>
+<li>
+<p><code>code_id</code> (optional): <code>null | string</code></p>
+<p>Optional identifier of the code file.</p>
+<p>If not specified, it is assumed to be identical to the debug identifier.</p>
+</li>
+<li>
+<p><code>debug_file</code> (optional): <code>null | string</code></p>
+<p>Path and name of the debug companion file (required).</p>
+</li>
+<li>
+<p><code>debug_id</code> (optional): <code>null | string</code></p>
+<p>Unique debug identifier of the image.</p>
+</li>
+</ul>
+<p><a name='typedef-SystemSDKInfo'></a></p>
+<h2 id="systemsdkinfo"><code>SystemSDKInfo</code></h2>
+<p>Holds information about the system SDK.</p>
+<p>This is relevant for iOS and other platforms that have a system SDK.  Not to be confused
+with the client SDK.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>sdk_name</code> (optional): <code>null | string</code></p>
+<p>The internal name of the SDK.</p>
+</li>
+<li>
+<p><code>version_major</code> (optional): <code>number | null</code></p>
+<p>The major version of the SDK as integer or 0.</p>
+</li>
+<li>
+<p><code>version_minor</code> (optional): <code>number | null</code></p>
+<p>The minor version of the SDK as integer or 0.</p>
+</li>
+<li>
+<p><code>version_patchlevel</code> (optional): <code>number | null</code></p>
+<p>The patch version of the SDK as integer or 0.</p>
+</li>
+</ul>
+<p><a name='typedef-EventProcessingError'></a></p>
+<h2 id="eventprocessingerror"><code>EventProcessingError</code></h2>
+<p>An event processing error.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Affected key or deep path.</p>
+</li>
+<li>
+<p><code>type</code> (optional): <code>null | string</code></p>
+<p>The error kind.</p>
+</li>
+<li>
+<p><code>value</code> (optional): <code>any</code></p>
+<p>The original value causing this error.</p>
+</li>
+</ul>
+<p><a name='typedef-Exceptions'></a></p>
+<h2 id="exceptions"><code>Exceptions</code></h2>
+<p><strong>Properties:</strong></p>
+<ul>
+<li><code>values</code>: <code>Array&lt;<a href='#typedef-Exception'>Exception</a> | null&gt;</code></li>
+</ul>
+<p><a name='typedef-Exception'></a></p>
+<h2 id="exception"><code>Exception</code></h2>
+<p>A single exception.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>mechanism</code> (optional): <code><a href='#typedef-Mechanism'>Mechanism</a> | null</code></p>
+<p>Mechanism by which this exception was generated and handled.</p>
+</li>
+<li>
+<p><code>module</code> (optional): <code>null | string</code></p>
+<p>Module name of this exception.</p>
+</li>
+<li>
+<p><code>raw_stacktrace</code> (optional): <code><a href='#typedef-Stacktrace'>Stacktrace</a> | null</code></p>
+<p>Optional unprocessed stack trace.</p>
+</li>
+<li>
+<p><code>stacktrace</code> (optional): <code><a href='#typedef-Stacktrace'>Stacktrace</a> | null</code></p>
+<p>Stack trace containing frames of this exception.</p>
+</li>
+<li>
+<p><code>thread_id</code> (optional): <code>number | null | string</code></p>
+<p>Identifier of the thread this exception occurred in.</p>
+</li>
+<li>
+<p><code>type</code> (optional): <code>null | string</code></p>
+<p>Exception type. One of value or exception is required, checked in StoreNormalizeProcessor</p>
+</li>
+<li>
+<p><code>value</code> (optional): <code>null | string</code></p>
+<p>Human readable display value.</p>
+</li>
+</ul>
+<p><a name='typedef-Mechanism'></a></p>
+<h2 id="mechanism"><code>Mechanism</code></h2>
+<p>The mechanism by which an exception was generated and handled.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>data</code> (optional): <code>{ [key: string]: any } | null</code></p>
+<p>Additional attributes depending on the mechanism type.</p>
+</li>
+<li>
+<p><code>description</code> (optional): <code>null | string</code></p>
+<p>Human readable detail description.</p>
+</li>
+<li>
+<p><code>handled</code> (optional): <code>boolean | null</code></p>
+<p>Flag indicating whether this exception was handled.</p>
+</li>
+<li>
+<p><code>help_link</code> (optional): <code>null | string</code></p>
+<p>Link to online resources describing this error.</p>
+</li>
+<li>
+<p><code>meta</code> (optional): <code><a href='#typedef-MechanismMeta'>MechanismMeta</a> | null</code></p>
+<p>Operating system or runtime meta information.</p>
+</li>
+<li>
+<p><code>synthetic</code> (optional): <code>boolean | null</code></p>
+<p>If this is set then the exception is not a real exception but some form of synthetic
+error for instance from a signal handler, a hard segfault or similar where type and value
+are not useful for grouping or display purposes.</p>
+</li>
+<li>
+<p><code>type</code> (optional): <code>null | string</code></p>
+<p>Mechanism type (required).</p>
+</li>
+</ul>
+<p><a name='typedef-MechanismMeta'></a></p>
+<h2 id="mechanismmeta"><code>MechanismMeta</code></h2>
+<p>Operating system or runtime meta information to an exception mechanism.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>errno</code> (optional): <code><a href='#typedef-CError'>CError</a> | null</code></p>
+<p>Optional ISO C standard error code.</p>
+</li>
+<li>
+<p><code>mach_exception</code> (optional): <code><a href='#typedef-MachException'>MachException</a> | null</code></p>
+<p>Optional mach exception information.</p>
+</li>
+<li>
+<p><code>signal</code> (optional): <code><a href='#typedef-POSIXSignal'>POSIXSignal</a> | null</code></p>
+<p>Optional POSIX signal number.</p>
+</li>
+</ul>
+<p><a name='typedef-CError'></a></p>
+<h2 id="cerror"><code>CError</code></h2>
+<p>POSIX signal with optional extended data.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Optional name of the errno constant.</p>
+</li>
+<li>
+<p><code>number</code> (optional): <code>number | null</code></p>
+<p>The error code as specified by ISO C99, POSIX.1-2001 or POSIX.1-2008.</p>
+</li>
+</ul>
+<p><a name='typedef-MachException'></a></p>
+<h2 id="machexception"><code>MachException</code></h2>
+<p>Mach exception information.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>code</code> (optional): <code>number | null</code></p>
+<p>The mach exception code.</p>
+</li>
+<li>
+<p><code>exception</code> (optional): <code>number | null</code></p>
+<p>The mach exception type.</p>
+</li>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Optional name of the mach exception.</p>
+</li>
+<li>
+<p><code>subcode</code> (optional): <code>number | null</code></p>
+<p>The mach exception subcode.</p>
+</li>
+</ul>
+<p><a name='typedef-POSIXSignal'></a></p>
+<h2 id="posixsignal"><code>POSIXSignal</code></h2>
+<p>POSIX signal with optional extended data.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>code</code> (optional): <code>number | null</code></p>
+<p>An optional signal code present on Apple systems.</p>
+</li>
+<li>
+<p><code>code_name</code> (optional): <code>null | string</code></p>
+<p>Optional name of the errno constant.</p>
+</li>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Optional name of the errno constant.</p>
+</li>
+<li>
+<p><code>number</code> (optional): <code>number | null</code></p>
+<p>The POSIX signal number.</p>
+</li>
+</ul>
+<p><a name='typedef-Stacktrace'></a></p>
+<h2 id="stacktrace"><code>Stacktrace</code></h2>
+<p>Holds information about an entirey stacktrace.</p>
+<p>Newtype to distinguish <code>raw_stacktrace</code> attributes from the rest.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li><code>frames</code> (optional): <code>Array&lt;<a href='#typedef-Frame'>Frame</a> | null&gt; | null</code></li>
+<li>
+<p><code>lang</code> (optional): <code>null | string</code></p>
+<p>The language of the stacktrace.</p>
+</li>
+<li>
+<p><code>registers</code> (optional): <code>{ [key: string]: null | string } | null</code></p>
+<p>Register values of the thread (top frame).</p>
+</li>
+</ul>
+<p><a name='typedef-Frame'></a></p>
+<h2 id="frame"><code>Frame</code></h2>
+<p>Holds information about a single stacktrace frame.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>abs_path</code> (optional): <code>null | string</code></p>
+<p>Absolute path to the source file.</p>
+</li>
+<li>
+<p><code>colno</code> (optional): <code>number | null</code></p>
+<p>Column number within the source file.</p>
+</li>
+<li>
+<p><code>context_line</code> (optional): <code>null | string</code></p>
+<p>Source code of the current line.</p>
+</li>
+<li>
+<p><code>data</code> (optional): <code><a href='#typedef-FrameData'>FrameData</a> | null</code></p>
+<p>Auxiliary information about the frame that is platform specific.</p>
+</li>
+<li>
+<p><code>filename</code> (optional): <code>null | string</code></p>
+<p>The source file name (basename only).</p>
+</li>
+<li>
+<p><code>function</code> (optional): <code>null | string</code></p>
+<p>Name of the frame's function. This might include the name of a class.</p>
+</li>
+<li>
+<p><code>image_addr</code> (optional): <code>null | string</code></p>
+<p>Start address of the containing code module (image).</p>
+</li>
+<li>
+<p><code>in_app</code> (optional): <code>boolean | null</code></p>
+<p>Override whether this frame should be considered in-app.</p>
+</li>
+<li>
+<p><code>instruction_addr</code> (optional): <code>null | string</code></p>
+<p>Absolute address of the frame's CPU instruction.</p>
+</li>
+<li>
+<p><code>lang</code> (optional): <code>null | string</code></p>
+<p>The language of the frame if it overrides the stacktrace language.</p>
+</li>
+<li>
+<p><code>lineno</code> (optional): <code>number | null</code></p>
+<p>Line number within the source file.</p>
+</li>
+<li>
+<p><code>module</code> (optional): <code>null | string</code></p>
+<p>Name of the module the frame is contained in.</p>
+<p>Note that this might also include a class name if that is something the language natively
+considers to be part of the stack (for instance in Java).</p>
+</li>
+<li>
+<p><code>package</code> (optional): <code>null | string</code></p>
+<p>Name of the package that contains the frame.</p>
+<p>For instance this can be a dylib for native languages, the name of the jar or .NET
+assembly.</p>
+</li>
+<li>
+<p><code>platform</code> (optional): <code>null | string</code></p>
+<p>Which platform this frame is from.</p>
+</li>
+<li>
+<p><code>post_context</code> (optional): <code>Array&lt;null | string&gt; | null</code></p>
+<p>Source code of the lines after the current line.</p>
+</li>
+<li>
+<p><code>pre_context</code> (optional): <code>Array&lt;null | string&gt; | null</code></p>
+<p>Source code leading up to the current line.</p>
+</li>
+<li>
+<p><code>raw_function</code> (optional): <code>null | string</code></p>
+<p>A raw (but potentially truncated) function value.</p>
+<p>If this has the same value as <code>function</code> it's best to be omitted.  This exists because on
+many platforms the function itself contains additional information like overload
+specifies or a lot of generics which can make it exceed the maximum limit we provide for
+the field.  In those cases then we cannot reliably trim down the function any more at a
+later point because the more valuable information has been removed.</p>
+<p>The logic to be applied is that an intelligently trimmed function name should be stored
+in <code>function</code> and the value before trimming is stored in this field instead.  However
+also this field will be capped at 256 characters at the moment which often means that not
+the entire original value can be stored.</p>
+</li>
+<li>
+<p><code>symbol</code> (optional): <code>null | string</code></p>
+<p>Potentially mangled name of the symbol as it appears in an executable.</p>
+<p>This is different from a function name by generally being the mangled name that appears
+natively in the binary.  This is relevant for languages like Swift, C++ or Rust.</p>
+</li>
+<li>
+<p><code>symbol_addr</code> (optional): <code>null | string</code></p>
+<p>Start address of the frame's function.</p>
+</li>
+<li>
+<p><code>trust</code> (optional): <code>null | string</code></p>
+<p>Used for native crashes to indicate how much we can "trust" the instruction_addr</p>
+</li>
+<li>
+<p><code>vars</code> (optional): <code>{ [key: string]: any } | null</code></p>
+<p>Local variables in a convenient format.</p>
+</li>
+</ul>
+<p><a name='typedef-FrameData'></a></p>
+<h2 id="framedata"><code>FrameData</code></h2>
+<p>Additional frame data information.</p>
+<p>This value is set by the server and should not be set by the SDK.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>orig_colno</code> (optional): <code>number | null</code></p>
+<p>The original column number.</p>
+</li>
+<li>
+<p><code>orig_filename</code> (optional): <code>null | string</code></p>
+<p>The original minified filename.</p>
+</li>
+<li>
+<p><code>orig_function</code> (optional): <code>null | string</code></p>
+<p>The original function name before it was resolved.</p>
+</li>
+<li>
+<p><code>orig_in_app</code> (optional): <code>number | null</code></p>
+<p>The original value of the in_app flag before grouping enhancers ran.</p>
+<p>Because we need to handle more cases the following values are used:</p>
+<ul>
+<li>missing / <code>null</code>: information not available - <code>-1</code>: in_app was set to <code>null</code> - <code>0</code>:
+in_app was set to <code>false</code> - <code>1</code>: in_app was set to <code>true</code></li>
+</ul>
+</li>
+<li>
+<p><code>orig_lineno</code> (optional): <code>number | null</code></p>
+<p>The original line number.</p>
+</li>
+<li>
+<p><code>sourcemap</code> (optional): <code>null | string</code></p>
+<p>A reference to the sourcemap used.</p>
+</li>
+</ul>
+<p><a name='typedef-LogEntry'></a></p>
+<h2 id="logentry"><code>LogEntry</code></h2>
+<p>A log entry message.</p>
+<p>A log message is similar to the <code>message</code> attribute on the event itself but can
+additionally hold optional parameters.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>formatted</code> (optional): <code>null | string</code></p>
+<p>The formatted message</p>
+</li>
+<li>
+<p><code>message</code> (optional): <code>null | string</code></p>
+<p>The log message with parameter placeholders.</p>
+</li>
+<li>
+<p><code>params</code> (optional): <code>any</code></p>
+<p>Positional parameters to be interpolated into the log message.</p>
+</li>
+</ul>
+<p><a name='typedef-Request'></a></p>
+<h2 id="request"><code>Request</code></h2>
+<p>Http request information.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>cookies</code> (optional): <code>Array&lt;Array&lt;null | string&gt; | null&gt; | { [key: string]: null | string } | null</code></p>
+<p>URL encoded contents of the Cookie header.</p>
+</li>
+<li>
+<p><code>data</code> (optional): <code>any</code></p>
+<p>Request data in any format that makes sense.</p>
+</li>
+<li>
+<p><code>env</code> (optional): <code>{ [key: string]: any } | null</code></p>
+<p>Server environment data, such as CGI/WSGI.</p>
+</li>
+<li>
+<p><code>fragment</code> (optional): <code>null | string</code></p>
+<p>The fragment of the request URL.</p>
+</li>
+<li>
+<p><code>headers</code> (optional): <code>Array&lt;Array&lt;null | string&gt; | null&gt; | { [key: string]: null | string } | null</code></p>
+<p>HTTP request headers.</p>
+</li>
+<li>
+<p><code>inferred_content_type</code> (optional): <code>null | string</code></p>
+<p>The inferred content type of the request payload.</p>
+</li>
+<li>
+<p><code>method</code> (optional): <code>null | string</code></p>
+<p>HTTP request method.</p>
+</li>
+<li>
+<p><code>query_string</code> (optional): <code>Array&lt;Array&lt;null | string&gt; | null&gt; | { [key: string]: null | string } | null</code></p>
+<p>URL encoded HTTP query string.</p>
+</li>
+<li>
+<p><code>url</code> (optional): <code>null | string</code></p>
+<p>URL of the request.</p>
+</li>
+</ul>
+<p><a name='typedef-Span'></a></p>
+<h2 id="span"><code>Span</code></h2>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>description</code>: <code>null | string</code></p>
+<p>Human readable description of a span (e.g. method URL).</p>
+</li>
+<li>
+<p><code>op</code>: <code>null | string</code></p>
+<p>Span type (see <code>OperationType</code> docs).</p>
+</li>
+<li>
+<p><code>parent_span_id</code>: <code>null | string</code></p>
+<p>The ID of the span enclosing this span.</p>
+</li>
+<li>
+<p><code>span_id</code>: <code>null | string</code></p>
+<p>The Span id.</p>
+</li>
+<li>
+<p><code>start_timestamp</code>: <code>number | null | string</code></p>
+<p>Timestamp when the span started.</p>
+</li>
+<li>
+<p><code>timestamp</code>: <code>number | null | string</code></p>
+<p>Timestamp when the span was ended.</p>
+</li>
+<li>
+<p><code>trace_id</code>: <code>null | string</code></p>
+<p>The ID of the trace the span belongs to.</p>
+</li>
+</ul>
+<p><a name='typedef-Threads'></a></p>
+<h2 id="threads"><code>Threads</code></h2>
+<p><strong>Properties:</strong></p>
+<ul>
+<li><code>values</code>: <code>Array&lt;<a href='#typedef-Thread'>Thread</a> | null&gt;</code></li>
+</ul>
+<p><a name='typedef-Thread'></a></p>
+<h2 id="thread"><code>Thread</code></h2>
+<p>A process thread of an event.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>crashed</code> (optional): <code>boolean | null</code></p>
+<p>Indicates that this thread requested the event (usually by crashing).</p>
+</li>
+<li>
+<p><code>current</code> (optional): <code>boolean | null</code></p>
+<p>Indicates that the thread was not suspended when the event was created.</p>
+</li>
+<li>
+<p><code>id</code> (optional): <code>number | null | string</code></p>
+<p>Identifier of this thread within the process (usually an integer).</p>
+</li>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Display name of this thread.</p>
+</li>
+<li>
+<p><code>raw_stacktrace</code> (optional): <code><a href='#typedef-Stacktrace'>Stacktrace</a> | null</code></p>
+<p>Optional unprocessed stack trace.</p>
+</li>
+<li>
+<p><code>stacktrace</code> (optional): <code><a href='#typedef-Stacktrace'>Stacktrace</a> | null</code></p>
+<p>Stack trace containing frames of this exception.</p>
+</li>
+</ul>
+<p><a name='typedef-EventType'></a></p>
+<h2 id="eventtype"><code>EventType</code></h2>
+<p>The type of event we're dealing with.</p>
+<p><strong>Variants:</strong></p>
+<ul>
+<li><code>"csp"</code></li>
+<li><code>"default"</code></li>
+<li><code>"error"</code></li>
+<li><code>"expectct"</code></li>
+<li><code>"expectstaple"</code></li>
+<li><code>"hpkp"</code></li>
+<li><code>"transaction"</code></li>
+</ul>
+<p><a name='typedef-User'></a></p>
+<h2 id="user"><code>User</code></h2>
+<p>Information about the user who triggered an event.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>data</code> (optional): <code>{ [key: string]: any } | null</code></p>
+<p>Additional arbitrary fields, as stored in the database (and sometimes as sent by
+clients). All data from <code>self.other</code> should end up here after store normalization.</p>
+</li>
+<li>
+<p><code>email</code> (optional): <code>null | string</code></p>
+<p>Email address of the user.</p>
+</li>
+<li>
+<p><code>geo</code> (optional): <code><a href='#typedef-Geo'>Geo</a> | null</code></p>
+<p>Approximate geographical location of the end user or device.</p>
+</li>
+<li>
+<p><code>id</code> (optional): <code>null | string</code></p>
+<p>Unique identifier of the user.</p>
+</li>
+<li>
+<p><code>ip_address</code> (optional): <code>null | string</code></p>
+<p>Remote IP address of the user. Defaults to "".</p>
+</li>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Human readable name of the user.</p>
+</li>
+<li>
+<p><code>username</code> (optional): <code>null | string</code></p>
+<p>Username of the user.</p>
+</li>
+</ul>
+<p><a name='typedef-Geo'></a></p>
+<h2 id="geo"><code>Geo</code></h2>
+<p>Geographical location of the end user or device.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>city</code> (optional): <code>null | string</code></p>
+<p>Human readable city name.</p>
+</li>
+<li>
+<p><code>country_code</code> (optional): <code>null | string</code></p>
+<p>Two-letter country code (ISO 3166-1 alpha-2).</p>
+</li>
+<li>
+<p><code>region</code> (optional): <code>null | string</code></p>
+<p>Human readable region name or code.</p>
+</li>
+</ul>
+                
+                  
+                
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid">
+        
+          <a href="../architecture/project-configuration/" title="Project configuration" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
+            </div>
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                Project configuration
+              </span>
+            </div>
+          </a>
+        
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        powered by
+        <a href="https://www.mkdocs.org" target="_blank" rel="noopener">MkDocs</a>
+        and
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+          Material for MkDocs</a>
+      </div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../assets/javascripts/application.c33a9706.js"></script>
+      
+      <script>app.initialize({version:"1.0.4",url:{base:".."}})</script>
+      
+        <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+      
+    
+  </body>
+</html>
