@@ -14,7 +14,7 @@
 
 <p align="center">
   <p align="center">
-    <img src="https://github.com/getsentry/relay/blob/master/artwork/semaphore.jpg?raw=true" alt="semaphore tower" width="480">
+    <img src="https://github.com/getsentry/relay/blob/master/artwork/relay-logo.png?raw=true" alt="Relay" width="480">
   </p>
 </p>
 
