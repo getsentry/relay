@@ -1,5 +1,11 @@
 # Introduction
 
+<p align="center">
+  <p align="center">
+    <img src="https://github.com/getsentry/relay/blob/master/artwork/relay-logo.png?raw=true" alt="Relay" width="480">
+  </p>
+</p>
+
 The Sentry Relay is a work in progress service that pushes some functionality
 from the Sentry SDKs as well as the Sentry server into a proxy process.
 
