@@ -42,12 +42,12 @@ If you moved your config folder somewhere else, you can use the `--config` optio
 
 ### Running in Docker
 
-Docker image for `relay` can be found at `us.gcr.io/sentryio/relay`.
+Docker image for `relay` can be found at [`getsentry/relay`](https://hub.docker.com/r/getsentry/relay/).
 
 For example, you can start the latest version of `relay` as follows:
 
 ```sh
-docker run -v $(pwd)/configs/:/etc/relay/ us.gcr.io/sentryio/relay run --config /etc/relay
+docker run -v $(pwd)/configs/:/etc/relay/ getsentry/relay run --config /etc/relay
 ```
 
 The command assumes that Relay's configuration (`config.yml` and
