@@ -14,5 +14,5 @@ target
 /site
 
 # Editors
-/.idea/
+**/.idea/
 .DS_Store

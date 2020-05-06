@@ -1,0 +1,7 @@
+users:
+  - weight: 2
+    task_set:
+      class_name: load_test.TaskSet1
+  - weight: 2
+    task_set:
+      class_name: load_test.TaskSet2
