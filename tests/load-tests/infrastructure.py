@@ -26,6 +26,83 @@ def full_path_from_relative_path(module_name, relative_file_name):
     return os.path.join(dir_path, relative_file_name)
 
 
+class FakeSet(TaskSet):
+    """
+    A task set that is only used so that the ConfigurableLocust is recognized as a Locust class
+    """
+
+    @task
+    def fake_task(self):
+        pass  # a task never used
+
+
+class ConfigParams(object):
+    """
+    Class used by the ConfigurableLocust to store its configuration.
+    """
+    def __init__(self, params):
+        self.params = params
+
+    def __getattr__(self, item):
+        return self.params.get(item)
+
+    def get_child_task_set_name(self):
+        task_set_config = self.params.get("task_set",{})
+        return task_set_config.get("class_name", None)
+
+    @property
+    def wait_time(self):
+        return self.params.get("wait_time", constant(0))
+
+    def get_child_params(self):
+        return ConfigParams(self.params.get("task_set"))
+
+
+
+class ConfigurableTaskSet(TaskSet):
+    """
+    A TaskSet that
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if hasattr(self.parent, "get_params"):
+            self.__params = self.parent.get_params().get_child_params()
+        else:
+            raise ValueError(__name__, "A TaskSet derived from ConfigurableTasSet "
+                                       "must only be used by a ConfigurableLocust object")
+
+    def get_child_params(self):
+        return TaskSetParams(self.__params.get("task_set"))
+
+
+
+
+class ConfigurableLocust(Locust):
+    """
+    Root class for a configurable Locust.
+
+    """
+
+    def __init__(self, file_name):
+        super().__init__()
+        params = get_locust_params(file_name)
+        self.__params = params
+        task_set_class_name = params.get_child_task_set_name()
+        if task_set_class_name is not None:
+            self.task_set = _load_class(task_set_class_name)
+        else:
+            raise ValueError("Invalid locust config, no class name")
+        self.__wait_time = params.wait_time
+        self.weight = params.weight
+
+    def wait_time(self):
+        return self.__wait_time(self)
+
+    def get_params(self):
+        return self.__params
+
+
 @memoize
 def _load_class(class_name: str):
     """
@@ -41,80 +118,6 @@ def _load_class(class_name: str):
         module = import_module(class_name[:class_offset])
         task_set = getattr(module, class_name[class_offset + 1:])
     return task_set
-
-
-class FakeSet(TaskSet):
-    """
-    A task set that is only used so that the ConfigurableLocust is recognized as a Locust class
-    """
-
-    @task
-    def fake_task(self):
-        pass  # a task never used
-
-
-class ConfigProps(object):
-    """
-    A class that transforms dictionary objects into object with normal properties
-    """
-
-    def __init__(self, params):
-        self.params = params
-
-    def __getattr__(self, item):
-        return self.params.get(item)
-
-
-class LocustParams(ConfigProps):
-    """
-    Class used by the ConfigurableLocust to store its configuration.
-    """
-
-    def __init__(self, params):
-        super().__init__(params)
-
-    @property
-    def task_set(self):
-        task_set_config = self.params.get("task_set")
-        return task_set_config.get("class", FakeSet)
-
-    @property
-    def wait_time(self):
-        return self.params.get("wait_time", constant(0))
-
-    def get_task_set_params(self):
-        return TaskSetParams(self.params.get("task_set"))
-
-
-class TaskSetParams(object):
-    """
-    Class used by ConfigurableTaskSet to store its configuration
-    """
-
-    def __init__(self, params):
-        super().__init__()
-        self.custom = ConfigProps(params.get("custom", {}))
-
-
-class ConfigurableLocust(Locust):
-    """
-    Root class for a configurable Locust.
-
-    """
-
-    def __init__(self, file_name):
-        super().__init__()
-        params = get_locust_params(file_name)
-        self.__params = params
-        self.task_set = params.task_set
-        self.__wait_time = params.wait_time
-        self.weight = params.weight
-
-    def wait_time(self):
-        return self.__wait_time(self)
-
-    def get_params(self):
-        return self.__params
 
 
 @memoize
@@ -135,11 +138,7 @@ def _load_locust_config(file_name):
         task_set = user.get("task_set")
         if task_set is None:
             raise ValueError("Unspecified task set for user at offset {}".format(idx))
-        class_name = task_set.get("class_name")
-        if class_name is None:
-            raise ValueError("Unspecified TaskSet class name for user at offset {}".format(idx))
-        task_set['class'] = _load_class(class_name)
-    config['users'] = [LocustParams(user) for user in users]
+    config['users'] = [ConfigParams(user) for user in users]
     config['total_weight'] = total_weight
     _load_locust_config.config = config
     return config
@@ -157,23 +156,3 @@ def get_locust_params(file_name):
             return user
 
     raise Exception("Bug: wrong math, we should never be here")
-
-
-class ConfigurableTaskSet(TaskSet):
-    """
-    A TaskSet that
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if hasattr(self.parent, "get_params"):
-            self.__params = self.parent.get_params().get_task_set_params()
-        else:
-            raise ValueError(__name__, "A TaskSet derived from ConfigurableTasSet "
-                                       "must only be used by a ConfigurableLocust object")
-
-    def get_task_set_params(self):
-        return TaskSetParams(self.__params.get("task_set"))
-
-    def get_params(self):
-        return self.__params
