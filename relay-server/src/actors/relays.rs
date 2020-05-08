@@ -287,17 +287,19 @@ impl From<PublicKeysResultCompatibility> for GetRelaysResult {
 /// Defines a compatibility format for deserializing relays info that supports
 /// both the old and the new format for relay info
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PublicKeysResultCompatibility {
-    /// old format only public key info
-    #[serde(default)]
+    /// DEPRECATED. Legacy format only public key info.
+    #[serde(default, rename = "public_keys")]
     pub public_keys: HashMap<RelayId, Option<PublicKey>>,
-    /// new format public key plus additional parameters
+    /// A map from Relay's identifier to its information.
     #[serde(default)]
     pub relays: HashMap<RelayId, Option<RelayInfo>>,
 }
 
 /// Information on a downstream Relay.
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct RelayInfo {
     /// The public key that this Relay uses to authenticate and sign requests.
     pub public_key: PublicKey,
