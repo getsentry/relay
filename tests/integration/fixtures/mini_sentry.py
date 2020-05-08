@@ -7,7 +7,7 @@ from queue import Queue
 
 import pytest
 
-from flask import Flask, request as flask_request, jsonify
+from flask import abort, Flask, request as flask_request, jsonify
 from pytest_localserver.http import WSGIServer
 
 from . import SentryLike, Envelope
@@ -22,6 +22,7 @@ class Sentry(SentryLike):
         self.test_failures = []
         self.upstream = None
         self.hits = {}
+        self.known_relays = {}
 
     @property
     def internal_error_dsn(self):
@@ -51,6 +52,13 @@ def mini_sentry(request):
 
     authenticated_relays = {}
 
+    def is_trusted(relay_id, project_config):
+        if authenticated_relays[relay_id].get("internal", False):
+            return True
+        if not project_config:
+            return False
+        return relay_id in project_config["config"]["trustedRelays"]
+
     @app.before_request
     def count_hits():
         if flask_request.url_rule:
@@ -60,9 +68,12 @@ def mini_sentry(request):
     def get_challenge():
         relay_id = flask_request.json["relay_id"]
         public_key = flask_request.json["public_key"]
-        authenticated_relays[relay_id] = public_key
 
         assert relay_id == flask_request.headers["x-sentry-relay-id"]
+        if relay_id not in sentry.known_relays:
+            abort(403, "unknown relay")
+
+        authenticated_relays[relay_id] = sentry.known_relays[relay_id]
         return jsonify({"token": "123", "relay_id": relay_id})
 
     @app.route("/api/0/relays/register/response/", methods=["POST"])
@@ -113,20 +124,34 @@ def mini_sentry(request):
 
     @app.route("/api/0/relays/projectconfigs/", methods=["POST"])
     def get_project_config():
+        relay_id = flask_request.headers["x-sentry-relay-id"]
+        if relay_id not in authenticated_relays:
+            abort(403, "relay not registered")
+
         rv = {}
         for project_id in flask_request.json["projects"]:
-            rv[project_id] = sentry.project_configs[int(project_id)]
+            project_config = sentry.project_configs[int(project_id)]
+            if is_trusted(relay_id, project_config):
+                rv[project_id] = project_config
 
         return jsonify(configs=rv)
 
     @app.route("/api/0/relays/publickeys/", methods=["POST"])
     def public_keys():
-        ids = flask_request.json["relay_ids"]
-        rv = {}
-        for id in ids:
-            rv[id] = authenticated_relays[id]
+        relay_id = flask_request.headers["x-sentry-relay-id"]
+        if relay_id not in authenticated_relays:
+            abort(403, "relay not registered")
 
-        return jsonify(public_keys=rv)
+        ids = flask_request.json["relay_ids"]
+        keys = {}
+        relays = {}
+        for id in ids:
+            relay = authenticated_relays[id]
+            if relay:
+                keys[id] = relay["publicKey"]
+                relays[id] = relay
+
+        return jsonify(public_keys=keys, relays=relays)
 
     @app.errorhandler(500)
     def fail(e):
