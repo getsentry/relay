@@ -44,7 +44,7 @@ class Relay(SentryLike):
 
 @pytest.fixture
 def relay(tmpdir, mini_sentry, request, random_port, background_process, config_dir):
-    def inner(upstream, options=None, prepare=None):
+    def inner(upstream, options=None, prepare=None, external=None):
         host = "127.0.0.1"
         port = random_port()
 
@@ -102,6 +102,11 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
 
         assert public_key
         assert relay_id
+
+        mini_sentry.known_relays[relay_id] = {
+            "publicKey": public_key,
+            "internal": not external,
+        }
 
         return Relay(
             (host, port), process, upstream, public_key, relay_id, dir, default_opts
