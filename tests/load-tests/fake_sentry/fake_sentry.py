@@ -6,13 +6,14 @@ import datetime
 import time
 import os
 
-from yaml import load, dump
+from yaml import load
 
 try:
     from yaml import CLoader as Loader, CDumper as Dumper, CFullLoader as FullLoader
 except ImportError:
     from yaml import Loader, Dumper, FullLoader
 
+from infrastructure.util import full_path_from_module_relative_path
 
 class Sentry(object):
     _healthcheck_passed = False
@@ -230,9 +231,12 @@ def _get_config():
     Returns the program settings located in the main directory (just above this file's directory)
     with the name config.yml
     """
-    file_name = os.path.realpath(
-        os.path.join(__file__, "../..", "fake_sentry.config.yml")
-    )
+    file_name = full_path_from_module_relative_path(
+        __file__,
+        "..",
+        "config",
+        "fake_sentry.config.yml")
+
     try:
         with open(file_name, "r") as file:
             return load(file, Loader=FullLoader)

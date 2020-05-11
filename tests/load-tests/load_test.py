@@ -1,7 +1,7 @@
 from locust import task
 
 # do not remove it needs to be here in order for the file to be recognized as a locust file
-from infrastructure import ConfigurableLocust, FakeSet, full_path_from_relative_path  # noqa
+from infrastructure import ConfigurableLocust, FakeSet, full_path_from_module_relative_path  # noqa
 from infrastructure import ConfigurableTaskSet
 
 
@@ -51,5 +51,5 @@ class GenericLocust(ConfigurableLocust):
     task_set = FakeSet  # this is set only so that
 
     def __init__(self):
-        config_file_name = full_path_from_relative_path(__file__, "config/load_test.yml")
+        config_file_name = full_path_from_module_relative_path(__file__, "config/load_test.yml")
         super().__init__(config_file_name)
