@@ -1,0 +1,11 @@
+users:
+  - weight: 1
+    task_set:
+      class_name: locustfile.SimpleTaskSet
+      custom:
+        num_projects: 12
+        request_frequency:
+          small: 1
+          medium: 1
+          large: 1
+          bad: 0

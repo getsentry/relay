@@ -44,6 +44,10 @@ class ConfigParams(object):
     def get_child_params(self):
         return ConfigParams(self.params.get("task_set"))
 
+    @property
+    def custom(self):
+        return ConfigParams(self.params.get("custom", {}))
+
 
 class ConfigurableTaskSet(TaskSet):
     """
@@ -52,8 +56,8 @@ class ConfigurableTaskSet(TaskSet):
     Note: Since this class looks for configuration parameters through its parent it can only be
     used as a child of a ConfigurableLocust or a child of another ConfigurableTaskSet
     """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, parent):
+        super().__init__(parent)
         if hasattr(self.parent, "get_params"):
             self.__params = self.parent.get_params().get_child_params()
         else:
@@ -64,6 +68,9 @@ class ConfigurableTaskSet(TaskSet):
         if task_set_class_name is not None:
             self.task_set = _load_class(task_set_class_name)
 
+    @property
+    def params(self):
+        return self.__params
 
 class ConfigurableLocust(HttpLocust):
     """
