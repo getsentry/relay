@@ -162,7 +162,7 @@ impl Processor for TrimmingProcessor {
             }
 
             if let Some(split_index) = split_index {
-                value.split_off(split_index);
+                let _ = value.split_off(split_index);
             }
 
             if value.len() != original_length {
@@ -204,7 +204,7 @@ impl Processor for TrimmingProcessor {
             }
 
             if let Some(split_key) = split_key {
-                value.split_off(&split_key);
+                let _ = value.split_off(&split_key);
             }
 
             if value.len() != original_length {

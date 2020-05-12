@@ -12,7 +12,7 @@ use crate::types::{Annotated, Meta, ProcessingResult, Value};
 
 /// Metadata about a selector found in the event
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize)]
-pub struct Selector {
+pub struct SelectorSuggestion {
     /// The selector that users should be able to use to address the underlying value
     path: SelectorSpec,
     /// The JSON-serialized value for previewing what the selector means.
@@ -22,7 +22,7 @@ pub struct Selector {
 }
 
 struct GenerateSelectorsProcessor {
-    selectors: BTreeSet<Selector>,
+    selectors: BTreeSet<SelectorSuggestion>,
 }
 
 impl Processor for GenerateSelectorsProcessor {
@@ -48,7 +48,7 @@ impl Processor for GenerateSelectorsProcessor {
                         string_value = Some(s);
                     }
                 }
-                self.selectors.insert(Selector {
+                self.selectors.insert(SelectorSuggestion {
                     path,
                     value: string_value,
                 });
@@ -134,7 +134,9 @@ impl Processor for GenerateSelectorsProcessor {
 ///
 /// XXX: This function should not have to take a mutable ref, we only do that due to restrictions
 /// on the Processor trait that we internally use to traverse the event.
-pub fn selectors_from_value<T: ProcessValue>(value: &mut Annotated<T>) -> BTreeSet<Selector> {
+pub fn selector_suggestions_from_value<T: ProcessValue>(
+    value: &mut Annotated<T>,
+) -> BTreeSet<SelectorSuggestion> {
     let mut processor = GenerateSelectorsProcessor {
         selectors: BTreeSet::new(),
     };
@@ -157,7 +159,7 @@ mod tests {
         let mut event =
             Annotated::<Event>::from_json(r#"{"logentry": {"message": "hi"}}"#).unwrap();
 
-        let selectors = selectors_from_value(&mut event);
+        let selectors = selector_suggestions_from_value(&mut event);
         insta::assert_yaml_snapshot!(selectors, @r###"
         ---
         []
@@ -215,7 +217,7 @@ mod tests {
         )
         .unwrap();
 
-        let selectors = selectors_from_value(&mut event);
+        let selectors = selector_suggestions_from_value(&mut event);
         insta::assert_yaml_snapshot!(selectors, @r###"
         ---
         - path: $string
