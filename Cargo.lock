@@ -2375,7 +2375,7 @@ checksum = "7fe5bd57d1d7414c6b5ed48563a2c855d995ff777729dcd91c369ec7fea395ae"
 
 [[package]]
 name = "relay"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "chrono",
  "clap",
@@ -2399,7 +2399,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "base64 0.10.1",
  "chrono",
@@ -2414,7 +2414,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "backoff",
  "cadence",
@@ -2432,7 +2432,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "failure",
  "human-size",
@@ -2449,7 +2449,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "globset",
  "insta",
@@ -2465,7 +2465,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "bytecount",
  "chrono",
@@ -2500,7 +2500,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general-derive"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "proc-macro2 1.0.10",
  "quote 1.0.3",
@@ -2510,7 +2510,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "failure",
  "insta",
@@ -2526,7 +2526,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "failure",
  "r2d2",
@@ -2536,7 +2536,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "actix",
  "actix-web",
