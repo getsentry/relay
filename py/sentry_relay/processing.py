@@ -24,6 +24,7 @@ __all__ = [
     "convert_datascrubbing_config",
     "pii_strip_event",
     "pii_selectors_from_event",
+    "pii_selector_suggestions_from_event",
     "VALID_PLATFORMS",
 ]
 

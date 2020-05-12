@@ -14,11 +14,11 @@ use crate::types::{Annotated, Meta, ProcessingResult, Value};
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize)]
 pub struct SelectorSuggestion {
     /// The selector that users should be able to use to address the underlying value
-    path: SelectorSpec,
+    pub path: SelectorSpec,
     /// The JSON-serialized value for previewing what the selector means.
     ///
     /// Right now this only contains string values.
-    value: Option<String>,
+    pub value: Option<String>,
 }
 
 struct GenerateSelectorsProcessor {
