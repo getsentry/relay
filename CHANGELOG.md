@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.9
+
+**Relay**:
+
+- New explicit envelope endpoint. Envelopes no longer need to be sent with the
+  right content type (to cater to browser JS).
+- Introduce an item type for transactions.
+- Support environment variables and CLI arguments instead of command line parameters.
+- Return status 415 on wrong content types.
+- Normalize double-slashes in requests more aggressively.
+- Add an option to generate credentials on stdout.
+- Ability to serve project configs from Relay to downstream Relays with proper
+  permission checking.
+- Relay has a logo now.
+
+**Store**:
+
+- PII: Make and/or selectors specific.
+- Add a browser filter for IE 11.
+- Changes to release parsing.
+- PII: Expose event values as part of generated selector suggestions.
+
 ## 0.5.8
 
 **Store**:
