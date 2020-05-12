@@ -207,14 +207,13 @@ def test_parse_release():
     parsed = sentry_relay.parse_release("org.example.FooApp@1.0rc1+20200101100")
     assert parsed == {
         "build_hash": None,
-        "description": "1.0.0-rc1 (20200101100)",
-        "format": "qualified_versioned",
+        "description": "1.0-rc1 (20200101100)",
         "package": "org.example.FooApp",
         "version_parsed": {
             "build_code": "20200101100",
+            "components": 2,
             "major": 1,
             "minor": 0,
-            "normalized_build_code": "02020010110000000000000000000000",
             "patch": 0,
             "pre": "rc1",
         },
