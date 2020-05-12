@@ -490,18 +490,6 @@
   </li>
 
     
-      
-      
-      
-
-
-  <li class="md-nav__item">
-    <a href="event-schema/" title="Event schema" class="md-nav__link">
-      Event schema
-    </a>
-  </li>
-
-    
   </ul>
 </nav>
                   </div>
@@ -597,6 +585,12 @@
                 
                 
                 <h1 id="introduction">Introduction</h1>
+<p align="center">
+  <p align="center">
+    <img src="https://github.com/getsentry/relay/blob/master/artwork/relay-logo.png?raw=true" alt="Relay" width="480">
+  </p>
+</p>
+
 <p>The Sentry Relay is a work in progress service that pushes some functionality
 from the Sentry SDKs as well as the Sentry server into a proxy process.</p>
 <h2 id="getting-started">Getting started</h2>
@@ -632,9 +626,9 @@ launch the server, run:</p>
 
 
 <h3 id="running-in-docker">Running in Docker</h3>
-<p>Docker image for <code>relay</code> can be found at <code>us.gcr.io/sentryio/relay</code>.</p>
+<p>Docker image for <code>relay</code> can be found at <a href="https://hub.docker.com/r/getsentry/relay/"><code>getsentry/relay</code></a>.</p>
 <p>For example, you can start the latest version of <code>relay</code> as follows:</p>
-<div class="codehilite"><pre><span></span><code>docker run -v <span class="k">$(</span><span class="nb">pwd</span><span class="k">)</span>/configs/:/etc/relay/ us.gcr.io/sentryio/relay run --config /etc/relay
+<div class="codehilite"><pre><span></span><code>docker run -v <span class="k">$(</span><span class="nb">pwd</span><span class="k">)</span>/configs/:/etc/relay/ getsentry/relay run --config /etc/relay
 </code></pre></div>
 
 <p>The command assumes that Relay's configuration (<code>config.yml</code> and
