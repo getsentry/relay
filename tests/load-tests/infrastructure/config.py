@@ -64,7 +64,7 @@ def get_project_info(num_projects) -> ProjectInfo:
     if num_projects > 1:
         project_idx = floor(random() * num_projects)
     if use_fake_projects:
-        project_id = project_idx
+        project_id = project_idx+1
         project_key = config["fake_projects"]["key"]
     else:
         project_cfg = config["projects"][project_idx]

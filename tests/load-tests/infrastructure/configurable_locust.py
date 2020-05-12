@@ -23,12 +23,27 @@ class FakeSet(TaskSet):
     def fake_task(self):
         pass  # a task never used
 
+def _default_custom():
+    """
+    Default custom parameters
+    """
+    return {
+        "num_projects": 1
+    }
+
+def _default_task_set_params():
+    """
+    Default taks_set parameters
+    """
+    return {}
+
 class ConfigParams(object):
     """
     Class used by the ConfigurableLocust to store its configuration.
     """
-    def __init__(self, params):
-        self.params = params
+    def __init__(self, params, default_params=None):
+        default_params = default_params or {}
+        self.params = {**default_params, **params}
 
     def __getattr__(self, item):
         return self.params.get(item)
@@ -42,11 +57,11 @@ class ConfigParams(object):
         return self.params.get("wait_time", constant(0))
 
     def get_child_params(self):
-        return ConfigParams(self.params.get("task_set"))
+        return ConfigParams(self.params.get("task_set"), _default_task_set_params())
 
     @property
     def custom(self):
-        return ConfigParams(self.params.get("custom", {}))
+        return ConfigParams(self.params.get("custom", _default_custom()))
 
 
 class ConfigurableTaskSet(TaskSet):

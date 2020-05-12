@@ -9,3 +9,4 @@ users:
           medium: 1
           large: 1
           bad: 0
+          medium_envelope: 1
