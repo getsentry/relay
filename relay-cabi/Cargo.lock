@@ -932,7 +932,7 @@ checksum = "7fe5bd57d1d7414c6b5ed48563a2c855d995ff777729dcd91c369ec7fea395ae"
 
 [[package]]
 name = "relay-auth"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "base64",
  "chrono",
@@ -947,7 +947,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "chrono",
  "failure",
@@ -963,7 +963,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "backoff",
  "cadence",
@@ -981,7 +981,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "bytecount",
  "chrono",
@@ -1013,7 +1013,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general-derive"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "proc-macro2 1.0.10",
  "quote 1.0.3",
@@ -1065,9 +1065,9 @@ checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 
 [[package]]
 name = "sentry-release-parser"
-version = "0.3.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90b04358fbae608e1444fbe600820daec959372c7022efa0df6611e388013b85"
+checksum = "59caafcf5d0662504ad1a1184ba75975704f1b16d4d2ce877ed8e3e8cf61933f"
 dependencies = [
  "lazy_static",
  "regex",
