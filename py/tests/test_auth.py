@@ -2,8 +2,6 @@ import uuid
 import sentry_relay
 import pytest
 
-# flake8: noqa
-
 
 def test_basic_key_functions():
     sk, pk = sentry_relay.generate_key_pair()
