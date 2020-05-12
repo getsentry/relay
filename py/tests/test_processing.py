@@ -200,7 +200,9 @@ def test_pii_strip_event():
 
 def test_pii_selectors_from_event():
     event = {"logentry": {"formatted": "hi"}}
-    assert set(sentry_relay.pii_selectors_from_event(event)) == {"$message"}
+    assert sentry_relay.pii_selectors_from_event(event) == [
+        {"path": "$message", "value": "hi"}
+    ]
 
 
 def test_parse_release():
