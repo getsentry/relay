@@ -1,15 +1,28 @@
 use std::collections::BTreeSet;
 
+use serde::Serialize;
+
 use crate::pii::utils::process_pairlist;
 use crate::processor::{
     process_value, Pii, ProcessValue, ProcessingState, Processor, SelectorPathItem, SelectorSpec,
     ValueType,
 };
 use crate::protocol::{AsPair, PairList};
-use crate::types::{Annotated, Meta, ProcessingResult};
+use crate::types::{Annotated, Meta, ProcessingResult, Value};
+
+/// Metadata about a selector found in the event
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize)]
+pub struct SelectorSuggestion {
+    /// The selector that users should be able to use to address the underlying value
+    pub path: SelectorSpec,
+    /// The JSON-serialized value for previewing what the selector means.
+    ///
+    /// Right now this only contains string values.
+    pub value: Option<String>,
+}
 
 struct GenerateSelectorsProcessor {
-    paths: BTreeSet<SelectorSpec>,
+    selectors: BTreeSet<SelectorSuggestion>,
 }
 
 impl Processor for GenerateSelectorsProcessor {
@@ -29,7 +42,16 @@ impl Processor for GenerateSelectorsProcessor {
 
         let mut insert_path = |path: SelectorSpec| {
             if state.attrs().pii != Pii::Maybe || path.is_specific() {
-                self.paths.insert(path);
+                let mut string_value = None;
+                if let Some(value) = value {
+                    if let Value::String(s) = value.clone().to_value() {
+                        string_value = Some(s);
+                    }
+                }
+                self.selectors.insert(SelectorSuggestion {
+                    path,
+                    value: string_value,
+                });
                 true
             } else {
                 false
@@ -112,15 +134,17 @@ impl Processor for GenerateSelectorsProcessor {
 ///
 /// XXX: This function should not have to take a mutable ref, we only do that due to restrictions
 /// on the Processor trait that we internally use to traverse the event.
-pub fn selectors_from_value<T: ProcessValue>(value: &mut Annotated<T>) -> BTreeSet<SelectorSpec> {
+pub fn selector_suggestions_from_value<T: ProcessValue>(
+    value: &mut Annotated<T>,
+) -> BTreeSet<SelectorSuggestion> {
     let mut processor = GenerateSelectorsProcessor {
-        paths: BTreeSet::new(),
+        selectors: BTreeSet::new(),
     };
 
     process_value(value, &mut processor, ProcessingState::root())
         .expect("This processor is supposed to be infallible");
 
-    processor.paths
+    processor.selectors
 }
 
 #[cfg(test)]
@@ -135,7 +159,7 @@ mod tests {
         let mut event =
             Annotated::<Event>::from_json(r#"{"logentry": {"message": "hi"}}"#).unwrap();
 
-        let selectors = selectors_from_value(&mut event);
+        let selectors = selector_suggestions_from_value(&mut event);
         insta::assert_yaml_snapshot!(selectors, @r###"
         ---
         []
@@ -193,21 +217,39 @@ mod tests {
         )
         .unwrap();
 
-        let selectors = selectors_from_value(&mut event);
+        let selectors = selector_suggestions_from_value(&mut event);
         insta::assert_yaml_snapshot!(selectors, @r###"
         ---
-        - $string
-        - $error.value
-        - $frame.abs_path
-        - $frame.filename
-        - $frame.vars
-        - $frame.vars.bam
-        - $frame.vars.foo
-        - $http.headers
-        - $http.headers.Authorization
-        - $message
-        - extra
-        - "extra.'My Custom Value'"
+        - path: $string
+          value: "123"
+        - path: $string
+          value: bar
+        - path: $string
+          value: not really
+        - path: $error.value
+          value: Divided by zero
+        - path: $error.value
+          value: Something failed
+        - path: $frame.abs_path
+          value: foo/bar/baz
+        - path: $frame.filename
+          value: baz
+        - path: $frame.vars
+          value: ~
+        - path: $frame.vars.bam
+          value: bar
+        - path: $frame.vars.foo
+          value: bar
+        - path: $http.headers
+          value: ~
+        - path: $http.headers.Authorization
+          value: not really
+        - path: $message
+          value: hi
+        - path: extra
+          value: ~
+        - path: "extra.'My Custom Value'"
+          value: "123"
         "###);
     }
 }

@@ -112,7 +112,7 @@ pub trait Processor: Sized {
 }
 
 /// A recursively processable value.
-pub trait ProcessValue: FromValue + ToValue + Debug {
+pub trait ProcessValue: FromValue + ToValue + Debug + Clone {
     /// Returns the type of the value.
     #[inline]
     fn value_type(&self) -> Option<ValueType> {
