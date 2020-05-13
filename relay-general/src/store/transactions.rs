@@ -41,7 +41,9 @@ impl Processor for TransactionsProcessor {
         // SDKs should avoid sending empty transaction names, setting a more contextual default
         // value when possible.
         if event.transaction.value().map_or(true, |s| s.is_empty()) {
-            event.transaction = Annotated::new("<unlabeled transaction>".to_owned())
+            event
+                .transaction
+                .set_value(Some("<unlabeled transaction>".to_owned()))
         }
 
         match (event.start_timestamp.value(), event.timestamp.value_mut()) {
@@ -227,7 +229,7 @@ mod tests {
                 ..Default::default()
             })]),
             ..Default::default()
-        });
+        })
     }
 
     #[test]
