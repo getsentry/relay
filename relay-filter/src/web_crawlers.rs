@@ -42,7 +42,10 @@ lazy_static! {
         Slack|                      # Slack - see https://api.slack.com/robots
         Calypso\sAppCrawler|        # Google indexing bot
         pingdom|                    # Pingdom
-        lyticsbot                   # Lytics
+        lyticsbot|                  # Lytics
+        AWS\sSecurity\sScanner      # AWS Security Scanner causing DisallowedHost errors in Django, see
+                                    # https://forums.aws.amazon.com/thread.jspa?messageID=932404
+                                    # and https://github.com/getsentry/sentry-python/issues/641
     "#
     )
     .expect("Invalid web crawlers filter Regex");
@@ -89,6 +92,7 @@ mod tests {
             "Calypso AppCrawler",
             "pingdom",
             "lyticsbot",
+            "AWS Security Scanner",
         ];
 
         for banned_user_agent in &user_agents {

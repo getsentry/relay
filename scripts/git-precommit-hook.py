@@ -36,7 +36,7 @@ def run_format_check(files):
     if rv != 0:
         print("", file=sys.stderr)
         print(
-            "\033[1m\033[2minfo: to fix this run `cargo fmt` and "
+            "\033[1m\033[2minfo: to fix this run `cargo fmt --all` and "
             "commit again\033[0m",
             file=sys.stderr,
         )
