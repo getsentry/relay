@@ -30,6 +30,11 @@ def relay_address():
     return "{}:{}".format(host, port)
 
 
+def kafka_config():
+    config = locust_config()
+    return config.get("kafka", {})
+
+
 @memoize
 def locust_config():
     """

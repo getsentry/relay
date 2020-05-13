@@ -4,6 +4,16 @@ use_fake_projects: true
 relay:
   host: http://127.0.0.1
   port: 3000
+kafka:
+  broker:
+    "bootstrap.servers":"127.0.0.1:9092"
+  topics:
+    outcomes: outcomes
+    events: ingest-events
+    transactions: ingest-transactions
+    attachments: ingest-attachments
+    sessions: ingest-sessions
+
 fake_projects:
   key: "31a5a894b4524f74a9a8d0e27e21ba91"
 projects:

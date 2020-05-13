@@ -1,0 +1,23 @@
+users:
+  - weight: 1
+    task_set:
+      class_name: kafka_consumers_lt.KafkaOutcomesTaskSet
+      custom:
+        num_projects: 12
+        request_frequency:
+          small: 1
+          medium: 1
+          large: 1
+          bad: 0
+          medium_envelope: 1
+  - weight: 1
+    task_set:
+      class_name: kafka_consumers_lt.KafkaEventsTaskSet
+      custom:
+        num_projects: 12
+        request_frequency:
+          small: 1
+          medium: 1
+          large: 1
+          bad: 0
+          medium_envelope: 1

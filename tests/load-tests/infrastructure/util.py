@@ -1,5 +1,6 @@
 import functools
 import os
+from uuid import uuid4
 
 
 def full_path_from_module_relative_path(module_name, *args):
@@ -32,6 +33,10 @@ def send_envelope(client, project_id, project_key, envelope, headers=None):
 
 def _auth_header(project_key):
     return "Sentry sentry_key={},sentry_version=7".format(project_key)
+
+
+def get_uuid():
+    return str(uuid4()).replace("-", "")
 
 
 def memoize(f):

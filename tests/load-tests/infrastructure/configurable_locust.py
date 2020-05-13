@@ -2,6 +2,8 @@ import os
 from threading import RLock
 from importlib import import_module
 from random import randrange
+from typing import Mapping, Callable
+
 from yaml import load
 
 from .util import memoize, full_path_from_module_relative_path
@@ -11,7 +13,7 @@ try:
 except ImportError:
     from yaml import Loader, Dumper, FullLoader
 
-from locust import TaskSet, task, constant, HttpLocust, Locust
+from locust import TaskSet, task, constant, HttpLocust
 
 
 class FakeSet(TaskSet):
@@ -23,6 +25,7 @@ class FakeSet(TaskSet):
     def fake_task(self):
         pass  # a task never used
 
+
 def _default_custom():
     """
     Default custom parameters
@@ -31,16 +34,19 @@ def _default_custom():
         "num_projects": 1
     }
 
+
 def _default_task_set_params():
     """
     Default taks_set parameters
     """
     return {}
 
+
 class ConfigParams(object):
     """
     Class used by the ConfigurableLocust to store its configuration.
     """
+
     def __init__(self, params, default_params=None):
         default_params = default_params or {}
         self.params = {**default_params, **params}
@@ -49,7 +55,7 @@ class ConfigParams(object):
         return self.params.get(item)
 
     def get_child_task_set_name(self):
-        task_set_config = self.params.get("task_set",{})
+        task_set_config = self.params.get("task_set", {})
         return task_set_config.get("class_name", None)
 
     @property
@@ -71,21 +77,41 @@ class ConfigurableTaskSet(TaskSet):
     Note: Since this class looks for configuration parameters through its parent it can only be
     used as a child of a ConfigurableLocust or a child of another ConfigurableTaskSet
     """
+
     def __init__(self, parent):
         super().__init__(parent)
         if hasattr(self.parent, "get_params"):
             self.__params = self.parent.get_params().get_child_params()
         else:
             raise ValueError(__name__, "A TaskSet derived from ConfigurableTaskSet "
-                                       "must only be used by a ConfigurableLocust object or another ConfigurableTaskSet")
+                                       "must only be used by a ConfigurableLocust object or another "
+                                       "ConfigurableTaskSet")
         params = self.__params
         task_set_class_name = params.get_child_task_set_name()
         if task_set_class_name is not None:
             self.task_set = _load_class(task_set_class_name)
 
+    def set_tasks_frequencies(self, task_frequency: Mapping[Callable[[TaskSet], None], int]):
+        """
+        Replicate Locust functionality for tasks with frequency dictionaries.
+
+        If one passes a dictionary as tasks Locust converts it into
+        an array where each task is repeated by its frequency number
+        that (e.g. {t_a: 2, t_B: 3} is converted to [t_a,t_a,t_B,t_B,t_B]
+        we do the same thing below
+
+        task_frequency: relative frequency with which they will be called
+
+        """
+        tasks = []
+        for task_fn, freq in task_frequency.items():
+            tasks += [task_fn] * freq
+        self.tasks = tasks
+
     @property
     def params(self):
         return self.__params
+
 
 class ConfigurableLocust(HttpLocust):
     """
@@ -236,7 +262,3 @@ class EventsCache(object):
     @classmethod
     def _get_event_directory(cls):
         return full_path_from_module_relative_path(__file__, "../events")
-
-
-
-
