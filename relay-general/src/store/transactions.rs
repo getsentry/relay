@@ -198,7 +198,7 @@ mod tests {
     fn new_test_event() -> Annotated<Event> {
         let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
         let end = Utc.ymd(2000, 1, 1).and_hms(0, 0, 10);
-        return Annotated::new(Event {
+        Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             transaction: Annotated::new("/".to_owned()),
             start_timestamp: Annotated::new(start),
