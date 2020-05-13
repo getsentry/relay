@@ -25,12 +25,6 @@ class SimpleTaskSet(ConfigurableTaskSet):
             bad_event_task: frequencies.get("bad", 0),
             medium_event_envelope_task: frequencies.get("medium_envelope", 0),
         })
-        self.tasks = ([small_event_task] * frequencies.get("small", 1) +
-                      [medium_event_task] * frequencies.get("medium", 1) +
-                      [large_event_task] * frequencies.get("large", 1) +
-                      [bad_event_task] * frequencies.get("bad", 0) +
-                      [medium_event_envelope_task] * frequencies.get("medium_envelope", 0)
-                      )
 
 
 class SimpleLoadTest(ConfigurableLocust):

@@ -6,7 +6,7 @@ relay:
   port: 3000
 kafka:
   broker:
-    "bootstrap.servers":"127.0.0.1:9092"
+    bootstrap.servers: "127.0.0.1:9092"
   topics:
     outcomes: outcomes
     events: ingest-events
