@@ -1,6 +1,7 @@
 from queue import Queue
 
 from flask import Flask, request as flask_request, jsonify, abort
+import logging
 import threading
 import datetime
 import time
@@ -14,6 +15,7 @@ except ImportError:
     from yaml import Loader, Dumper, FullLoader
 
 from infrastructure.util import full_path_from_module_relative_path
+
 
 class Sentry(object):
     _healthcheck_passed = False
@@ -154,6 +156,11 @@ def run_blocking_fake_sentry(config):
 
 def _fake_sentry_thread(config):
     app = Flask(__name__)
+
+    log_level = config.get("log_level", logging.INFO)
+    logging.getLogger("werkzeug").setLevel(log_level)
+    app.logger.setLevel(log_level)
+
     # sentry = None
     host = config.get("host")
     port = config.get("port")
@@ -181,9 +188,9 @@ def _fake_sentry_thread(config):
     @app.route("/api/0/relays/projectconfigs/", methods=["POST"])
     def get_project_config():
         request_body = flask_request.json
-        print("get_project_config called for:{}".format(request_body))
         rv = {}
         for project_id in request_body["projects"]:
+            app.logger.debug("getting project config for: {}".format(project_id))
             rv[project_id] = sentry.full_project_config()
         return jsonify(configs=rv)
 
@@ -198,12 +205,10 @@ def _fake_sentry_thread(config):
 
     @app.route("/api/<project_id>/store", methods=["POST", "GET"])
     def store_all(project_id):
-        print("FAKE sentry store called for project:{}".format(repr(project_id)))
         return ""
 
     @app.route("/<path:u_path>", methods=["POST", "GET"])
     def catch_all(u_path):
-        print("fake sentry called on:'{}'".format(repr(u_path)))
         return (
             "<h1>Fake Sentry</h1>"
             + "<div>You have called fake-sentry on: <nbsp/>"
@@ -215,12 +220,11 @@ def _fake_sentry_thread(config):
 
     @app.route("/", methods=["GET"])
     def root():
-        print("Root url called.")
         return "<h1>Fake Sentry</h1><div>This is the root url</div>"
 
     @app.errorhandler(Exception)
     def fail(e):
-        print("Fake sentry error generated error:\n{}".format(e))
+        app.logger.error("Fake sentry error generated error:\n{}".format(e))
         abort(400)
 
     app.run(host=host, port=port)
@@ -232,10 +236,8 @@ def _get_config():
     with the name config.yml
     """
     file_name = full_path_from_module_relative_path(
-        __file__,
-        "..",
-        "config",
-        "fake_sentry.config.yml")
+        __file__, "..", "config", "fake_sentry.config.yml"
+    )
 
     try:
         with open(file_name, "r") as file:

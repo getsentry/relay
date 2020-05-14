@@ -5,4 +5,6 @@ host: 127.0.0.1
 # port for the running server
 port: 8000
 # security key
-key: '31a5a894b4524f74a9a8d0e27e21ba91'
+key: "31a5a894b4524f74a9a8d0e27e21ba91"
+# log level
+log_level: DEBUG
