@@ -312,7 +312,7 @@ impl Handler<Authenticate> for UpstreamRelay {
                 slf.send_query(challenge_response).into_actor(slf)
             })
             .map(|_, slf, _ctx| {
-                log::debug!("relay successfully registered with upstream");
+                log::info!("relay successfully registered with upstream");
                 slf.auth_state = AuthState::Registered;
             })
             .map_err(|err, slf, ctx| {
