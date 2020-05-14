@@ -39,7 +39,7 @@ class SimpleLoadTest(ConfigurableLocust):
     host = relay_address()
 
     def __init__(self):
-        config_file_name = full_path_from_module_relative_path(__file__, "config/SimpleLoadTest.yml")
+        config_file_name = full_path_from_module_relative_path(__file__, "config/simple_load_test.yml")
         super().__init__(config_file_name)
 
     def setup(self):

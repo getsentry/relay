@@ -1,6 +1,9 @@
 SHELL=/bin/bash
 export PYTHON_VERSION := python3
 
+DEFAULT_CONFIG_FILES := $(wildcard default_config/*.yml)
+CONFIG_FILES := $(DEFAULT_CONFIG_FILES:default_config/%=config/%)
+
 all: config msg
 .PHONY: all
 
@@ -18,7 +21,7 @@ about:
 	less readme.txt
 .PHONY: about
 
-config: setup-deps setup-brew
+config: setup-deps setup-brew setup-config
 .PHONY: config
 
 fake-sentry: setup-deps
@@ -36,6 +39,13 @@ setup-brew:
 setup-deps: setup-venv
 	.venv/bin/pip install -U -r requirements.txt
 .PHONY: setup-python-deps
+
+setup-config: $(CONFIG_FILES)
+.PHONY: setup-config
+
+config/%.yml: default_config/%.yml
+	@mkdir -p config
+	cp $< $@
 
 setup-venv: .venv/bin/python
 .PHONY: setup-venv
