@@ -3,41 +3,7 @@
   "dist": null,
   "platform": "native",
   "message": "medium event",
-  "datetime": "2019-10-04T01:23:08.000000Z",
-  "time_spent": null,
   "tags": [
-    [
-      "environment",
-      "release"
-    ],
-    [
-      "level",
-      "error"
-    ],
-    [
-      "logger",
-      "rdkafka::client"
-    ],
-    [
-      "os",
-      "Linux 4.14.137+"
-    ],
-    [
-      "os.name",
-      "Linux"
-    ],
-    [
-      "rust",
-      "rustc 1.38.0"
-    ],
-    [
-      "rust.name",
-      "rustc"
-    ],
-    [
-      "release",
-      "relay@0.4.46"
-    ],
     [
       "server_name",
       "relay-77bcdc59f-7m8sb"
@@ -765,7 +731,6 @@
       "channel": "stable"
     }
   },
-  "culprit": "sentry::backtrace_support::backtrace_to_stacktrace",
   "debug_meta": {
     "images": [
       {
@@ -856,30 +821,18 @@
           "frames": [
             {
               "function": "<unknown>",
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "unknown_image"
-              },
               "instruction_addr": "0x0",
               "in_app": false
             },
             {
               "function": "__clone",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "missing"
-              },
               "instruction_addr": "0x7fe4b2981d0f",
               "package": "/lib/x86_64-linux-gnu/libc.so.6"
             },
             {
               "function": "start_thread",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "missing"
-              },
               "instruction_addr": "0x7fe4b247f4a4",
               "package": "/lib/x86_64-linux-gnu/libpthread.so.0"
             },
@@ -891,10 +844,6 @@
               "filename": "src/libstd/sys/unix/thread.rs",
               "lineno": 79,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e08676c22a"
             },
             {
@@ -905,10 +854,6 @@
               "filename": "src/libstd/sys_common/thread.rs",
               "lineno": 13,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e08676c2a4"
             },
             {
@@ -919,10 +864,6 @@
               "filename": "boxed.rs",
               "raw_function": "<alloc::boxed::Box<F> as core::ops::function::FnOnce<A>>::call_once",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e08676c2af",
               "lineno": 787
             },
@@ -934,10 +875,6 @@
               "filename": "boxed.rs",
               "raw_function": "<alloc::boxed::Box<F> as core::ops::function::FnOnce<A>>::call_once",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e0867568ae",
               "lineno": 787
             },
@@ -949,10 +886,6 @@
               "filename": "function.rs",
               "lineno": 235,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e085bfd720"
             },
             {
@@ -963,10 +896,6 @@
               "filename": "mod.rs",
               "lineno": 469,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e085bfd756"
             },
             {
@@ -977,10 +906,6 @@
               "filename": "panic.rs",
               "lineno": 394,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e085bfd756"
             },
             {
@@ -991,10 +916,6 @@
               "filename": "panicking.rs",
               "lineno": 275,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e085bfd785"
             },
             {
@@ -1005,9 +926,6 @@
               "filename": "src/libpanic_unwind/lib.rs",
               "lineno": 80,
               "in_app": false,
-              "data": {
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e08676cf89"
             },
             {
@@ -1018,10 +936,6 @@
               "filename": "backtrace.rs",
               "lineno": 77,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e085bf5827"
             },
             {
@@ -1046,10 +960,6 @@
               "filename": "base_producer.rs",
               "raw_function": "rdkafka::producer::base_producer::ThreadedProducer<C>::start::{{closure}}",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "                    let n = producer_clone.poll(Duration::from_millis(100));",
               "lineno": 410
             },
@@ -1075,10 +985,6 @@
               "filename": "base_producer.rs",
               "raw_function": "rdkafka::producer::base_producer::BaseProducer<C>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        unsafe { rdsys::rd_kafka_poll(self.native_ptr(), timeout_to_ms(timeout)) }",
               "lineno": 286
             },
@@ -1104,10 +1010,6 @@
               "filename": "rdkafka.c",
               "lineno": 3405,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        return rd_kafka_q_serve(rk->rk_rep, timeout_ms, 0,"
             },
             {
@@ -1132,10 +1034,6 @@
               "filename": "rdkafka_queue.c",
               "lineno": 484,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "                rd_kafka_q_deq0(&localq, rko);"
             },
             {
@@ -1160,10 +1058,6 @@
               "filename": "rdkafka_queue.h",
               "lineno": 477,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        rkq->rkq_qsize -= rko->rko_len;"
             },
             {
@@ -1188,10 +1082,6 @@
               "filename": "rdkafka.c",
               "lineno": 3276,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "\t\t\trk->rk_conf.error_cb(rk, rko->rko_err,"
             },
             {
@@ -1216,10 +1106,6 @@
               "filename": "client.rs",
               "lineno": 307,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "    let err = rdsys::primitive_to_rd_kafka_resp_err_t(err)"
             },
             {
@@ -1244,10 +1130,6 @@
               "filename": "client.rs",
               "lineno": 309,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "    let error = KafkaError::Global(err.into());"
             },
             {
@@ -1272,10 +1154,6 @@
               "filename": "client.rs",
               "raw_function": "<T as core::convert::Into<U>>::into",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "    (*context).error(error, reason.trim());",
               "lineno": 313
             },
@@ -1301,10 +1179,6 @@
               "filename": "future_producer.rs",
               "raw_function": "<rdkafka::producer::future_producer::FutureProducerContext<C> as rdkafka::client::ClientContext>::error",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        self.wrapped_context.error(error, reason);",
               "lineno": 133
             },
@@ -1330,10 +1204,6 @@
               "filename": "client.rs",
               "lineno": 55,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        error!(\"librdkafka: {}: {}\", error, reason);"
             },
             {
@@ -1358,9 +1228,6 @@
               "filename": "lib.rs",
               "lineno": 971,
               "in_app": false,
-              "data": {
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            log::Log::log("
             },
             {
@@ -1385,10 +1252,6 @@
               "filename": "log.rs",
               "raw_function": "<sentry::integrations::log::Logger as log::Log>::log",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            Hub::with_active(|hub| {",
               "lineno": 184
             },
@@ -1414,10 +1277,6 @@
               "filename": "hub.rs",
               "lineno": 208,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            Hub::with(|hub| {"
             },
             {
@@ -1442,10 +1301,6 @@
               "filename": "hub.rs",
               "lineno": 184,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        if USE_PROCESS_HUB.with(Cell::get) {"
             },
             {
@@ -1456,10 +1311,6 @@
               "filename": "local.rs",
               "lineno": 239,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e085ed600a"
             },
             {
@@ -1470,10 +1321,6 @@
               "filename": "local.rs",
               "lineno": 259,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e085ed600a"
             },
             {
@@ -1484,10 +1331,6 @@
               "filename": "<::std::thread::local::__thread_local_inner macros>",
               "lineno": 29,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e085ed600a"
             },
             {
@@ -1498,10 +1341,6 @@
               "filename": "local.rs",
               "lineno": 416,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e085ed6030"
             },
             {
@@ -1512,10 +1351,6 @@
               "filename": "local.rs",
               "lineno": 431,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e085ed6030"
             },
             {
@@ -1526,10 +1361,6 @@
               "filename": "local.rs",
               "lineno": 290,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e085ed6030"
             },
             {
@@ -1540,10 +1371,6 @@
               "filename": "function.rs",
               "lineno": 235,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e085ed6030"
             },
             {
@@ -1554,10 +1381,6 @@
               "filename": "<::std::thread::local::__thread_local_inner macros>",
               "lineno": 5,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x55e085ed6134"
             },
             {
@@ -1582,9 +1405,6 @@
               "filename": "log.rs",
               "lineno": 161,
               "in_app": false,
-              "data": {
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "                current_stacktrace()"
             },
             {
@@ -1609,10 +1429,6 @@
               "filename": "backtrace_support.rs",
               "lineno": 178,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "    backtrace_to_stacktrace(&Backtrace::new())"
             },
             {
@@ -1637,10 +1453,6 @@
               "filename": "backtrace_support.rs",
               "lineno": 128,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "    let frames = bt"
             }
           ]
@@ -1650,54 +1462,36 @@
           "frames": [
             {
               "function": "<unknown>",
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x0",
               "in_app": false
             },
             {
               "function": "__clone",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x7fe4b2981d0f",
               "package": "/lib/x86_64-linux-gnu/libc.so.6"
             },
             {
               "function": "start_thread",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x7fe4b247f4a4",
               "package": "/lib/x86_64-linux-gnu/libpthread.so.0"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x55e08676c2b0",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x55e0867568af",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x55e085bfd786",
               "package": "/bin/relay"
             },
@@ -1710,54 +1504,36 @@
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x55e085bf5930",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x55e085c1d566",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x55e085c517f0",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x55e085c22c91",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x55e085bf9810",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x55e085bf8e92",
               "package": "/bin/relay"
             },
@@ -1770,18 +1546,12 @@
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x55e085eafb56",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x55e085ed6135",
               "package": "/bin/relay"
             },
@@ -1794,9 +1564,6 @@
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x55e085ee926d",
               "package": "/bin/relay"
             }
@@ -1806,18 +1573,8 @@
       }
     ]
   },
-
-  "key_id": "643163",
   "level": "error",
-  "location": "backtrace_support.rs",
   "logger": "rdkafka::client",
-  "metadata": {
-    "function": "sentry::backtrace_support::backtrace_to_stacktrace",
-    "type": "rdkafka::client",
-    "value": "librdkafka: Global error: BrokerTransportFailure (Local: Broker transport failure): 192.168.208.180:9092/1: Disconnected (after 1137010ms in state UP)",
-    "filename": "backtrace_support.rs"
-  },
-  "received": 1570152188.447,
   "sdk": {
     "version": "0.17.0",
     "name": "sentry.rust",
@@ -1832,9 +1589,5 @@
       "panic",
       "log"
     ]
-  },
-  "timestamp": 1570152188.374,
-  "title": "rdkafka::client: librdkafka: Global error: BrokerTransportFailure (Local: Broker transport failure): 192.168.208.1...",
-  "type": "error",
-  "version": "7"
+  }
 }

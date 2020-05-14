@@ -65,11 +65,13 @@ def get_project_info(num_projects) -> ProjectInfo:
         num_available_projects = len(projects)
         if num_projects > num_available_projects:
             num_projects = num_available_projects
-    project_idx = 1
+
+    project_idx = 0
     if num_projects > 1:
         project_idx = floor(random() * num_projects)
+
     if use_fake_projects:
-        project_id = project_idx+1
+        project_id = project_idx + 1
         project_key = config["fake_projects"]["key"]
     else:
         project_cfg = config["projects"][project_idx]
@@ -80,4 +82,6 @@ def get_project_info(num_projects) -> ProjectInfo:
 
 
 def _config_file_path():
-    return full_path_from_module_relative_path(__file__, "..", "config", "locust_config.yml")
+    return full_path_from_module_relative_path(
+        __file__, "..", "config", "locust_config.yml"
+    )
