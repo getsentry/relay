@@ -6,6 +6,7 @@ import threading
 import datetime
 import time
 import os
+import uuid
 
 from yaml import load
 
@@ -203,9 +204,10 @@ def _fake_sentry_thread(config):
 
         return jsonify(public_keys=rv)
 
-    @app.route("/api/<project_id>/store", methods=["POST", "GET"])
+    @app.route("/api/<project_id>/store/", methods=["POST", "GET"])
+    @app.route("/api/<project_id>/envelope/", methods=["POST"])
     def store_all(project_id):
-        return ""
+        return jsonify({"event_id": str(uuid.uuid4().hex)})
 
     @app.route("/<path:u_path>", methods=["POST", "GET"])
     def catch_all(u_path):
