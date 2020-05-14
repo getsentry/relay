@@ -2,54 +2,7 @@
   "release": "relay@0.4.46",
   "dist": null,
   "platform": "native",
-  "message": "",
-  "datetime": "2019-10-02T23:13:30.000000Z",
-  "time_spent": null,
   "tags": [
-    [
-      "browser",
-      "Chrome 77.0.3865"
-    ],
-    [
-      "browser.name",
-      "Chrome"
-    ],
-    [
-      "client_os.name",
-      "Windows 8.1"
-    ],
-    [
-      "environment",
-      "release"
-    ],
-    [
-      "level",
-      "error"
-    ],
-    [
-      "os",
-      "Linux 4.14.137+"
-    ],
-    [
-      "os.name",
-      "Linux"
-    ],
-    [
-      "rust",
-      "rustc 1.38.0"
-    ],
-    [
-      "rust.name",
-      "rustc"
-    ],
-    [
-      "release",
-      "relay@0.4.46"
-    ],
-    [
-      "server_name",
-      "relay-6bcd5dccbb-8fhsl"
-    ],
     [
       "transaction",
       "/api"
@@ -790,7 +743,6 @@
       "name": "Chrome"
     }
   },
-  "culprit": "/api",
   "debug_meta": {
     "images": [
       {
@@ -881,30 +833,18 @@
           "frames": [
             {
               "function": "<unknown>",
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "unknown_image"
-              },
               "instruction_addr": "0x0",
               "in_app": false
             },
             {
               "function": "__clone",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "missing"
-              },
               "instruction_addr": "0x7fe3a35b8d0f",
               "package": "/lib/x86_64-linux-gnu/libc.so.6"
             },
             {
               "function": "start_thread",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "missing"
-              },
               "instruction_addr": "0x7fe3a30b64a4",
               "package": "/lib/x86_64-linux-gnu/libpthread.so.0"
             },
@@ -916,10 +856,6 @@
               "filename": "src/libstd/sys/unix/thread.rs",
               "lineno": 79,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b519522a"
             },
             {
@@ -930,10 +866,6 @@
               "filename": "src/libstd/sys_common/thread.rs",
               "lineno": 13,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b51952a4"
             },
             {
@@ -944,10 +876,6 @@
               "filename": "boxed.rs",
               "raw_function": "<alloc::boxed::Box<F> as core::ops::function::FnOnce<A>>::call_once",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b51952af",
               "lineno": 787
             },
@@ -959,10 +887,6 @@
               "filename": "boxed.rs",
               "raw_function": "<alloc::boxed::Box<F> as core::ops::function::FnOnce<A>>::call_once",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b517f8ae",
               "lineno": 787
             },
@@ -974,10 +898,6 @@
               "filename": "function.rs",
               "lineno": 235,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b48227d3"
             },
             {
@@ -988,10 +908,6 @@
               "filename": "mod.rs",
               "lineno": 469,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b4822807"
             },
             {
@@ -1002,10 +918,6 @@
               "filename": "panic.rs",
               "lineno": 394,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b4822807"
             },
             {
@@ -1016,10 +928,6 @@
               "filename": "panicking.rs",
               "lineno": 275,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b4822845"
             },
             {
@@ -1030,9 +938,6 @@
               "filename": "src/libpanic_unwind/lib.rs",
               "lineno": 80,
               "in_app": false,
-              "data": {
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b5195f89"
             },
             {
@@ -1043,10 +948,6 @@
               "filename": "panicking.rs",
               "lineno": 296,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b48223c0"
             },
             {
@@ -1057,10 +958,6 @@
               "filename": "panic.rs",
               "raw_function": "<std::panic::AssertUnwindSafe<F> as core::ops::function::FnOnce<()>>::call_once",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b48223c0",
               "lineno": 315
             },
@@ -1072,10 +969,6 @@
               "filename": "mod.rs",
               "lineno": 470,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b48223d5"
             },
             {
@@ -1086,10 +979,6 @@
               "filename": "backtrace.rs",
               "lineno": 77,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b48215da"
             },
             {
@@ -1114,10 +1003,6 @@
               "filename": "arbiter.rs",
               "lineno": 116,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "                let _ = match rt.block_on(stop_rx) {"
             },
             {
@@ -1142,10 +1027,6 @@
               "filename": "runtime.rs",
               "lineno": 198,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        self.enter(|executor| {"
             },
             {
@@ -1170,10 +1051,6 @@
               "filename": "runtime.rs",
               "lineno": 226,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        let mut enter = tokio_executor::enter().expect(\"Multiple executors at once\");"
             },
             {
@@ -1184,10 +1061,6 @@
               "filename": "result.rs",
               "raw_function": "core::result::Result<T,E>::expect",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b48327bf"
             },
             {
@@ -1198,10 +1071,6 @@
               "filename": "local.rs",
               "lineno": 239,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b4804186"
             },
             {
@@ -1212,10 +1081,6 @@
               "filename": "local.rs",
               "lineno": 262,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b48041b2"
             },
             {
@@ -1240,10 +1105,6 @@
               "filename": "lib.rs",
               "lineno": 237,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        f(enter)"
             },
             {
@@ -1268,10 +1129,6 @@
               "filename": "runtime.rs",
               "lineno": 231,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            clock::with_default(clock, enter, |enter| {"
             },
             {
@@ -1296,10 +1153,6 @@
               "filename": "clock.rs",
               "lineno": 117,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "    CLOCK.with(|cell| {"
             },
             {
@@ -1310,10 +1163,6 @@
               "filename": "local.rs",
               "lineno": 239,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b48044f3"
             },
             {
@@ -1324,10 +1173,6 @@
               "filename": "local.rs",
               "lineno": 262,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b480451c"
             },
             {
@@ -1339,10 +1184,6 @@
               "filename": "clock.rs",
               "lineno": 119,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            cell.get().is_none(),"
             },
             {
@@ -1354,10 +1195,6 @@
               "filename": "clock.rs",
               "lineno": 137,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        f(enter)"
             },
             {
@@ -1369,10 +1206,6 @@
               "filename": "runtime.rs",
               "lineno": 232,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "                timer::with_default(&timer_handle, enter, |enter| {"
             },
             {
@@ -1384,10 +1217,6 @@
               "filename": "handle.rs",
               "lineno": 84,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "    CURRENT_TIMER.with(|current| {"
             },
             {
@@ -1398,10 +1227,6 @@
               "filename": "local.rs",
               "lineno": 239,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b480614b"
             },
             {
@@ -1412,10 +1237,6 @@
               "filename": "local.rs",
               "lineno": 262,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b480616d"
             },
             {
@@ -1427,10 +1248,6 @@
               "filename": "handle.rs",
               "lineno": 101,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        f(enter)"
             },
             {
@@ -1442,10 +1259,6 @@
               "filename": "runtime.rs",
               "lineno": 243,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "                })"
             },
             {
@@ -1456,10 +1269,6 @@
               "filename": "local.rs",
               "lineno": 239,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b4804e89"
             },
             {
@@ -1470,10 +1279,6 @@
               "filename": "local.rs",
               "lineno": 262,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b4804eab"
             },
             {
@@ -1485,10 +1290,6 @@
               "filename": "global.rs",
               "lineno": 179,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        match cell.get() {"
             },
             {
@@ -1500,10 +1301,6 @@
               "filename": "global.rs",
               "lineno": 209,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        f(enter)"
             },
             {
@@ -1515,10 +1312,6 @@
               "filename": "runtime.rs",
               "lineno": 241,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "                        f(&mut executor)"
             },
             {
@@ -1530,10 +1323,6 @@
               "filename": "runtime.rs",
               "lineno": 200,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            let ret = executor.block_on(f);"
             },
             {
@@ -1545,10 +1334,6 @@
               "filename": "lib.rs",
               "raw_function": "tokio_current_thread::Entered<P>::block_on",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            self.tick();",
               "lineno": 502
             },
@@ -1561,10 +1346,6 @@
               "filename": "lib.rs",
               "raw_function": "tokio_current_thread::Entered<P>::tick",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        borrow",
               "lineno": 612
             },
@@ -1577,10 +1358,6 @@
               "filename": "scheduler.rs",
               "raw_function": "tokio_current_thread::scheduler::Scheduler<U>::tick",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        let tick = self.inner.tick_num.fetch_add(1, SeqCst).wrapping_add(1);",
               "lineno": 214
             },
@@ -1593,10 +1370,6 @@
               "filename": "scheduler.rs",
               "raw_function": "core::num::<impl usize>::wrapping_add",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "                if (*(*node).item.get()).is_none() {",
               "lineno": 237
             },
@@ -1608,10 +1381,6 @@
               "filename": "option.rs",
               "lineno": 209,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b48135d2"
             },
             {
@@ -1623,10 +1392,6 @@
               "filename": "scheduler.rs",
               "lineno": 300,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "                    let item = (*node.item.get()).as_mut().unwrap();"
             },
             {
@@ -1638,10 +1403,6 @@
               "filename": "scheduler.rs",
               "lineno": 306,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "                    let prev = (*node).queued.swap(false, SeqCst);"
             },
             {
@@ -1652,10 +1413,6 @@
               "filename": "atomic.rs",
               "lineno": 464,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b481364d"
             },
             {
@@ -1667,10 +1424,6 @@
               "filename": "scheduler.rs",
               "lineno": 322,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "                    let notify = Notify(bomb.node.as_ref().unwrap());"
             },
             {
@@ -1682,10 +1435,6 @@
               "filename": "scheduler.rs",
               "lineno": 330,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "                    if borrow.enter(enter, || scheduled.tick()) {"
             },
             {
@@ -1697,10 +1446,6 @@
               "filename": "lib.rs",
               "raw_function": "tokio_current_thread::Borrow<U>::enter",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        CURRENT.with(|current| {",
               "lineno": 786
             },
@@ -1712,10 +1457,6 @@
               "filename": "local.rs",
               "lineno": 239,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b4813694"
             },
             {
@@ -1726,10 +1467,6 @@
               "filename": "local.rs",
               "lineno": 262,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b48136a3"
             },
             {
@@ -1741,10 +1478,6 @@
               "filename": "lib.rs",
               "raw_function": "tokio_current_thread::Borrow<U>::enter::{{closure}}",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            current.set_spawn(self, || f())",
               "lineno": 788
             },
@@ -1757,10 +1490,6 @@
               "filename": "lib.rs",
               "lineno": 825,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        f()"
             },
             {
@@ -1772,10 +1501,6 @@
               "filename": "lib.rs",
               "raw_function": "tokio_current_thread::Borrow<U>::enter::{{closure}}::{{closure}}",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            current.set_spawn(self, || f())",
               "lineno": 788
             },
@@ -1788,10 +1513,6 @@
               "filename": "scheduler.rs",
               "raw_function": "tokio_current_thread::scheduler::Scheduler<U>::tick::{{closure}}",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "                    if borrow.enter(enter, || scheduled.tick()) {",
               "lineno": 330
             },
@@ -1804,10 +1525,6 @@
               "filename": "scheduler.rs",
               "raw_function": "tokio_current_thread::scheduler::Scheduled<U>::tick",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        let ret = match self.task.0.poll_future_notify(self.notify, 0) {",
               "lineno": 351
             },
@@ -1820,10 +1537,6 @@
               "filename": "mod.rs",
               "lineno": 329,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        self.poll_fn_notify(notify, id, |f| f.poll())"
             },
             {
@@ -1835,10 +1548,6 @@
               "filename": "mod.rs",
               "lineno": 291,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        self.enter(BorrowedUnpark::new(&mk, id), f)"
             },
             {
@@ -1850,10 +1559,6 @@
               "filename": "mod.rs",
               "lineno": 399,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        set(&borrowed, || f(obj))"
             },
             {
@@ -1865,10 +1570,6 @@
               "filename": "mod.rs",
               "lineno": 67,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "    if core::is_get_ptr(0x1) {"
             },
             {
@@ -1880,10 +1581,6 @@
               "filename": "core.rs",
               "lineno": 163,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "    GET.load(Relaxed) == f"
             },
             {
@@ -1895,10 +1592,6 @@
               "filename": "mod.rs",
               "lineno": 83,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            f()"
             },
             {
@@ -1910,10 +1603,6 @@
               "filename": "mod.rs",
               "lineno": 399,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        set(&borrowed, || f(obj))"
             },
             {
@@ -1925,10 +1614,6 @@
               "filename": "mod.rs",
               "lineno": 329,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        self.poll_fn_notify(notify, id, |f| f.poll())"
             },
             {
@@ -1940,10 +1625,6 @@
               "filename": "mod.rs",
               "raw_function": "<alloc::boxed::Box<F> as futures::future::Future>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            (**self).poll()",
               "lineno": 113
             },
@@ -1956,10 +1637,6 @@
               "filename": "chain.rs",
               "raw_function": "futures::future::chain::Chain<A,B,C>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "                match a.poll() {",
               "lineno": 26
             },
@@ -1979,10 +1656,6 @@
               "filename": "either.rs",
               "raw_function": "<futures::future::either::Either<A,B> as futures::future::Future>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "use {Future, Poll, Stream};"
             },
             {
@@ -2007,10 +1680,6 @@
               "filename": "either.rs",
               "raw_function": "<futures::future::either::Either<A,B> as futures::future::Future>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            Either::A(ref mut a) => a.poll(),",
               "lineno": 35
             },
@@ -2036,10 +1705,6 @@
               "filename": "acceptor.rs",
               "raw_function": "<actix_web::server::acceptor::ServerMessageAcceptorServiceFut<T> as futures::future::Future>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        match self.fut.poll()? {",
               "lineno": 378
             },
@@ -2065,10 +1730,6 @@
               "filename": "and_then.rs",
               "raw_function": "<actix_net::service::and_then::AndThenFuture<A,B> as futures::future::Future>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        match self.fut_a.as_mut().expect(\"actix-net bug\").poll() {",
               "lineno": 97
             },
@@ -2094,10 +1755,6 @@
               "filename": "and_then.rs",
               "lineno": 94,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            return fut.poll();"
             },
             {
@@ -2122,10 +1779,6 @@
               "filename": "map_err.rs",
               "raw_function": "<actix_net::service::map_err::MapErrFuture<A,F,E> as futures::future::Future>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        self.fut.poll().map_err(&self.f)",
               "lineno": 92
             },
@@ -2151,10 +1804,6 @@
               "filename": "channel.rs",
               "raw_function": "<actix_web::server::channel::HttpChannel<T,H> as futures::future::Future>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            HttpProtocol::H1(ref mut h1) => return h1.poll(),",
               "lineno": 105
             },
@@ -2180,10 +1829,6 @@
               "filename": "h1.rs",
               "raw_function": "actix_web::server::h1::Http1Dispatcher<T,H>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            self.poll_handler()?;",
               "lineno": 223
             },
@@ -2209,10 +1854,6 @@
               "filename": "h1.rs",
               "raw_function": "actix_web::server::h1::Http1Dispatcher<T,H>::poll_handler",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            match self.tasks[0].poll_io(&mut self.stream) {",
               "lineno": 381
             },
@@ -2238,10 +1879,6 @@
               "filename": "h1.rs",
               "raw_function": "actix_web::server::h1::Entry<H>::poll_io",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "                task.poll_io(io)",
               "lineno": 80
             },
@@ -2267,10 +1904,6 @@
               "filename": "pipeline.rs",
               "raw_function": "<actix_web::pipeline::Pipeline<S,H> as actix_web::server::handler::HttpHandlerTask>::poll_io",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        let mut state = mem::replace(&mut self.1, PipelineState::None);",
               "lineno": 122
             },
@@ -2296,10 +1929,6 @@
               "filename": "pipeline.rs",
               "lineno": 151,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            match state.poll(&mut self.0, &self.2) {"
             },
             {
@@ -2324,10 +1953,6 @@
               "filename": "pipeline.rs",
               "raw_function": "actix_web::pipeline::PipelineState<S,H>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            PipelineState::Handler(ref mut state) => state.poll(info, mws),",
               "lineno": 50
             },
@@ -2353,10 +1978,6 @@
               "filename": "pipeline.rs",
               "raw_function": "actix_web::pipeline::WaitingResponse<S,H>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        match self.fut.poll() {",
               "lineno": 301
             },
@@ -2382,10 +2003,6 @@
               "filename": "mod.rs",
               "raw_function": "<alloc::boxed::Box<F> as futures::future::Future>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            (**self).poll()",
               "lineno": 113
             },
@@ -2410,10 +2027,6 @@
               "filename": "then.rs",
               "raw_function": "<futures::future::then::Then<A,B,F> as futures::future::Future>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        self.state.poll(|a, f| {",
               "lineno": 32
             },
@@ -2439,10 +2052,6 @@
               "filename": "chain.rs",
               "raw_function": "futures::future::chain::Chain<A,B,C>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "                    Err(e) => Err(e),",
               "lineno": 29
             },
@@ -2468,10 +2077,6 @@
               "filename": "and_then.rs",
               "raw_function": "<futures::future::and_then::AndThen<A,B,F> as futures::future::Future>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        self.state.poll(|result, f| {",
               "lineno": 32
             },
@@ -2497,10 +2102,6 @@
               "filename": "chain.rs",
               "raw_function": "futures::future::chain::Chain<A,B,C>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "                match a.poll() {",
               "lineno": 26
             },
@@ -2526,10 +2127,6 @@
               "filename": "and_then.rs",
               "raw_function": "<futures::future::and_then::AndThen<A,B,F> as futures::future::Future>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        self.state.poll(|result, f| {",
               "lineno": 32
             },
@@ -2555,10 +2152,6 @@
               "filename": "chain.rs",
               "raw_function": "futures::future::chain::Chain<A,B,C>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            Chain::Second(ref mut b) => return b.poll(),",
               "lineno": 32
             },
@@ -2581,10 +2174,6 @@
               "filename": "map_err.rs",
               "raw_function": "<futures::future::map_err::MapErr<A,F> as futures::future::Future>::poll",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "        e.map_err(self.f.take().expect(\"cannot poll MapErr twice\"))",
               "lineno": 34
             },
@@ -2596,10 +2185,6 @@
               "filename": "result.rs",
               "raw_function": "core::result::Result<T,E>::map_err",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b444cb6c",
               "lineno": 574
             },
@@ -2611,10 +2196,6 @@
               "filename": "function.rs",
               "lineno": 235,
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "instruction_addr": "0x5556b444cb6c"
             },
             {
@@ -2639,10 +2220,6 @@
               "filename": "error.rs",
               "raw_function": "<actix_web::error::Error as core::convert::From<T>>::from",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1,
-                "symbolicator_status": "symbolicated"
-              },
               "context_line": "            Some(Backtrace::new())",
               "lineno": 175
             }
@@ -2652,54 +2229,36 @@
           "frames": [
             {
               "function": "<unknown>",
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x0",
               "in_app": false
             },
             {
               "function": "__clone",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x7fe3a35b8d0f",
               "package": "/lib/x86_64-linux-gnu/libc.so.6"
             },
             {
               "function": "start_thread",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x7fe3a30b64a4",
               "package": "/lib/x86_64-linux-gnu/libpthread.so.0"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b51952b0",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b517f8af",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b4822846",
               "package": "/bin/relay"
             },
@@ -2712,243 +2271,162 @@
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b48223d6",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b4821bab",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b48327c0",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b4804269",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b480458d",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b4806227",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b4804f13",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b482b51e",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b482abcc",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b48136c9",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b482a6e4",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b481b936",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b47f5052",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b456fd34",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b45848de",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b448f7d5",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b4490c11",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b442b73e",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b442b223",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b42b3b03",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b4304872",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b42f8a79",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b4560452",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b42fae49",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b456d6a3",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b4564f07",
               "package": "/bin/relay"
             },
             {
               "function": "<unknown>",
               "in_app": false,
-              "data": {
-                "orig_in_app": 1
-              },
               "instruction_addr": "0x5556b444cb84",
               "package": "/bin/relay"
             }
@@ -2960,20 +2438,7 @@
       }
     ]
   },
-  "hashes": [
-    "d71a813d43ee77a77963f5695d61ce4c"
-  ],
-  "key_id": "643163",
   "level": "error",
-  "location": "error.rs",
-  "logger": "",
-  "metadata": {
-    "function": "actix_web::error::Error::from",
-    "type": "SendRequestError",
-    "value": "Timeout while waiting for response",
-    "filename": "error.rs"
-  },
-  "received": 1570058012.466,
   "request": {
     "url": "https://ingest.sentry.io/api/222937/security/",
     "query_string": [
@@ -3066,9 +2531,5 @@
       "log"
     ]
   },
-  "timestamp": 1570058010.195,
-  "title": "SendRequestError: Timeout while waiting for response",
-  "transaction": "/api",
-  "type": "error",
-  "version": "7"
+  "transaction": "/api"
 }
