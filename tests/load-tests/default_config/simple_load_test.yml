@@ -1,12 +1,9 @@
 users:
-  - weight: 1
+  SimpleLoadTest:
+    num_projects: 10
+    weight: 1
     task_set:
-      class_name: locustfile.SimpleTaskSet
-      custom:
-        num_projects: 12
-        request_frequency:
-          small: 1
-          medium: 1
-          large: 1
-          bad: 0
-          medium_envelope: 1
+      tasks:
+        - locustfile.small_event_task
+        - locustfile.medium_event_task
+        - locustfile.large_event_task

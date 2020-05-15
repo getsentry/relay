@@ -1,23 +1,22 @@
 users:
-  - weight: 1
+  First:
+    wait_time: between(0.1, 0.2)
+    num_projects: 10
+    weight: 1
     task_set:
-      class_name: kafka_consumers_lt.KafkaOutcomesTaskSet
-      custom:
-        num_projects: 12
-        request_frequency:
-          small: 1
-          medium: 1
-          large: 1
-          bad: 0
-          medium_envelope: 1
-  - weight: 1
+      tasks:
+        kafka_consumers_lt.task1:
+          weight: 1
+        kafka_consumers_lt.task2:
+          weight: 2
+        kafka_consumers_lt.task_factory1:
+          weight: 1
+          param1: This is param1
+  Second:
+    wait_time: constant(0.1)
+    num_projects: 10
+    weight: 1
     task_set:
-      class_name: kafka_consumers_lt.KafkaEventsTaskSet
-      custom:
-        num_projects: 12
-        request_frequency:
-          small: 1
-          medium: 1
-          large: 1
-          bad: 0
-          medium_envelope: 1
+      tasks:
+        - kafka_consumers_lt.task3
+        - kafka_consumers_lt.task4
