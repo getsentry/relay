@@ -21,11 +21,6 @@
 The Sentry Relay is a work in progress service that pushes some functionality
 from the Sentry SDKs as well as the Sentry server into a proxy process.
 
-> **NOTE:** Relay version _0.5_ and newer can only be used with sentry.io
-> (SaaS). Support will be shipped to on-premise in an upcoming release. To use
-> Relay with your self-hosted Sentry instance, remain on version 0.4 for the
-> time being.
-
 ## Documentation
 
 The project documentation can be found at:
