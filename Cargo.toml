@@ -4,13 +4,21 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "An proxy service for Sentry."
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-exclude = [".vscode/**/*", ".idea/**/*"]
 license-file = "./LICENSE"
 readme = "README.md"
 version = "0.5.9"
 edition = "2018"
 build = "build.rs"
 publish = false
+exclude = [
+    ".idea/**",
+    ".vscode/**",
+    "artwork/**",
+    "py/**",
+    "docs/**",
+    "scripts/**",
+    "tests/**",
+]
 
 [workspace]
 
