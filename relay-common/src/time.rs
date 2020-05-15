@@ -3,9 +3,15 @@
 use std::fmt;
 use std::time::{Duration, Instant, SystemTime};
 
-/// Converts an Instant into a SystemTime.
+/// Converts an `Instant` into a `SystemTime`.
 pub fn instant_to_system_time(instant: Instant) -> SystemTime {
     SystemTime::now() - instant.elapsed()
+}
+
+/// Converts an `Instant` into a `DateTime`.
+#[cfg(feature = "chrono")]
+pub fn instant_to_date_time(instant: Instant) -> chrono::DateTime<chrono::Utc> {
+    instant_to_system_time(instant).into()
 }
 
 /// A unix timestap (time elapsed since 1970).

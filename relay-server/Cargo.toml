@@ -15,6 +15,7 @@ default = ["with_ssl"]
 with_ssl = ["native-tls", "actix-web/tls"]
 processing = [
     "rdkafka",
+    "relay-common/chrono",
     "relay-config/processing",
     "relay-quotas/rate-limiter",
     "relay-redis/impl",
