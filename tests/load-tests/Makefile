@@ -18,7 +18,7 @@ msg:
 .PHONY: msg
 
 about:
-	less readme.txt
+	less readme.md
 .PHONY: about
 
 config: setup-deps setup-brew setup-config
