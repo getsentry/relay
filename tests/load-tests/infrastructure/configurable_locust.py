@@ -2,7 +2,7 @@ from collections import abc
 
 from yaml import load
 
-from .config import relay_address
+from .config import relay_address, generate_project_info, ProjectInfo
 from .util import memoize, load_object
 
 try:
@@ -138,3 +138,19 @@ def _load_locust_config(file_name):
 
     users = config.get("users")
     return users
+
+
+def get_project_info(task_set: TaskSet) -> ProjectInfo:
+    """
+    Returns a randomly chosen project info for the locust.
+
+    It expects a locust configuration with an entry for num_projects
+    Something Like:
+
+    users:
+      SimpleLoadTest:
+        num_projects: 10
+    """
+    locust_params = task_set.get_locust_params()
+    num_projects = locust_params.get('num_projects', 1)
+    return generate_project_info(num_projects)

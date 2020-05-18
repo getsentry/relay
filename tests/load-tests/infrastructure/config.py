@@ -55,7 +55,7 @@ def locust_config():
 ProjectInfo = namedtuple("ProjectInfo", "id, key")
 
 
-def get_project_info(num_projects) -> ProjectInfo:
+def generate_project_info(num_projects) -> ProjectInfo:
     config = locust_config()
 
     use_fake_projects = config["use_fake_projects"]

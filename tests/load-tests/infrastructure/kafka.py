@@ -5,8 +5,6 @@ from datetime import datetime
 from infrastructure.config import kafka_config
 from confluent_kafka import Producer
 
-from infrastructure.util import get_uuid
-
 
 class Outcome(IntEnum):
     ACCEPTED = 0
@@ -14,6 +12,18 @@ class Outcome(IntEnum):
     RATE_LIMITED = 2
     INVALID = 3
     ABUSE = 4
+
+    def reason(self):
+        if self == Outcome.ACCEPTED:
+            return None
+        elif self == Outcome.FILTERED:
+            return "filtered"
+        elif self == Outcome.RATE_LIMITED:
+            return "limit reached"
+        elif self == Outcome.INVALID:
+            return "bad event"
+        elif self == Outcome.ABUSE:
+            return "abuse"
 
 
 class Topic(Enum):

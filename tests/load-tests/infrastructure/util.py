@@ -36,8 +36,8 @@ def _auth_header(project_key):
     return "Sentry sentry_key={},sentry_version=7".format(project_key)
 
 
-def get_uuid():
-    return str(uuid4()).replace("-", "")
+def get_uuid() -> hex:
+    return uuid4().hex
 
 
 def memoize(f):
