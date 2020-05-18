@@ -494,6 +494,7 @@ impl EventProcessor {
         event: &mut Annotated<Event>,
         envelope: &Envelope,
         project_state: &ProjectState,
+        start_time: Instant,
     ) -> Result<(), ProcessingError> {
         let geoip_lookup = self.geoip_lookup.as_deref();
         let key_id = project_state
@@ -519,6 +520,7 @@ impl EventProcessor {
             remove_other: Some(true),
             normalize_user_agent: Some(true),
             sent_at: envelope.sent_at(),
+            received_at: Some(relay_common::instant_to_date_time(start_time)),
         };
 
         let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
@@ -579,7 +581,12 @@ impl EventProcessor {
         &self,
         message: ProcessEnvelope,
     ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
-        let mut envelope = message.envelope;
+        #[allow(unused_variables)]
+        let ProcessEnvelope {
+            mut envelope,
+            project_state,
+            start_time,
+        } = message;
 
         macro_rules! if_processing {
             ($($tt:tt)*) => {
@@ -593,7 +600,7 @@ impl EventProcessor {
 
         // Set the event retention. Effectively, this value will only be available in processing
         // mode when the full project config is queried from the upstream.
-        if let Some(retention) = message.project_state.config.event_retention {
+        if let Some(retention) = project_state.config.event_retention {
             envelope.set_retention(retention);
         }
 
@@ -616,6 +623,7 @@ impl EventProcessor {
         // Extract the event from the envelope. This removes all items from the envelope that should
         // not be forwarded, including the event item itself.
         let (mut event, event_len) = self.extract_event(&mut envelope)?;
+        #[allow(unused_mut)]
         let mut event_type = event.value().and_then(|e| e.ty.value()).copied();
         _metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
@@ -675,7 +683,7 @@ impl EventProcessor {
         }
 
         if_processing! {
-            self.store_process_event(&mut event, &envelope, &message.project_state)?;
+            self.store_process_event(&mut event, &envelope, &project_state, start_time)?;
 
             if let Some(event) = event.value_mut() {
                 event_type = event.ty.value().copied();
@@ -688,20 +696,14 @@ impl EventProcessor {
 
         // Run PII stripping last since normalization can add PII (e.g. IP addresses).
         metric!(timer(RelayTimers::EventProcessingPii), {
-            if let Some(ref config) = message.project_state.config.pii_config {
+            if let Some(ref config) = project_state.config.pii_config {
                 let compiled = config.compiled();
                 let mut processor = PiiProcessor::new(&compiled);
                 process_value(&mut event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
 
-            let config = message
-                .project_state
-                .config
-                .datascrubbing_settings
-                .pii_config();
-
-            if let Some(ref config) = *config {
+            if let Some(ref config) = *project_state.config.datascrubbing_settings.pii_config() {
                 let compiled = config.compiled();
 
                 let mut processor = PiiProcessor::new(&compiled);

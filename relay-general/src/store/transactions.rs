@@ -1,28 +1,9 @@
-use chrono::{DateTime, Duration, Utc};
-
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{Context, ContextInner, Event, EventType, Span};
-use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Timestamp};
+use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult};
 
-pub struct TransactionsProcessor {
-    /// Timestamp when the client thinks it sent the event. None means that we default to
-    /// event.timestamp.
-    sent_at: Option<DateTime<Utc>>,
-    client_clock_drift: Option<Duration>,
-
-    // This is an attribute so we can mock it in testing.
-    now: DateTime<Utc>,
-}
-
-impl TransactionsProcessor {
-    pub fn new(sent_at: Option<DateTime<Utc>>) -> Self {
-        TransactionsProcessor {
-            sent_at,
-            client_clock_drift: None,
-            now: Utc::now(),
-        }
-    }
-}
+/// Rejects transactions based on required fields.
+pub struct TransactionsProcessor;
 
 impl Processor for TransactionsProcessor {
     fn process_event(
@@ -53,9 +34,6 @@ impl Processor for TransactionsProcessor {
                         "end timestamp is smaller than start timestamp",
                     ));
                 }
-
-                let sent_at = self.sent_at.unwrap_or(*end);
-                self.client_clock_drift = Some(sent_at.signed_duration_since(self.now));
             }
             (_, None) => {
                 // This invariant should be already guaranteed for regular error events.
@@ -169,21 +147,6 @@ impl Processor for TransactionsProcessor {
 
         Ok(())
     }
-
-    fn process_timestamp(
-        &mut self,
-        timestamp: &mut Timestamp,
-        _meta: &mut Meta,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        let drift = self.client_clock_drift.expect(
-            "Expected client_clock_drift to be set in process_timestamp. \
-             Processing order is messed up.",
-        );
-        *timestamp = timestamp.checked_sub_signed(drift).unwrap_or(*timestamp);
-
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -237,7 +200,7 @@ mod tests {
         let mut event = Annotated::new(Event::default());
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(None),
+            &mut TransactionsProcessor,
             ProcessingState::root(),
         )
         .unwrap();
@@ -254,7 +217,7 @@ mod tests {
         assert_eq_dbg!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::new(None),
+                &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -274,7 +237,7 @@ mod tests {
         assert_eq_dbg!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::new(None),
+                &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -295,7 +258,7 @@ mod tests {
         assert_eq_dbg!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::new(None),
+                &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -317,7 +280,7 @@ mod tests {
         assert_eq_dbg!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::new(None),
+                &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -343,7 +306,7 @@ mod tests {
         assert_eq_dbg!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::new(None),
+                &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -374,7 +337,7 @@ mod tests {
         assert_eq_dbg!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::new(None),
+                &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -408,7 +371,7 @@ mod tests {
         assert_eq_dbg!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::new(None),
+                &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -444,9 +407,12 @@ mod tests {
             ..Default::default()
         });
 
-        let mut processor = TransactionsProcessor::new(None);
-        processor.now = end;
-        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor,
+            ProcessingState::root(),
+        )
+        .unwrap();
 
         assert_annotated_snapshot!(event, @r###"
         {
@@ -492,7 +458,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(None),
+            &mut TransactionsProcessor,
             ProcessingState::root(),
         )
         .unwrap();
@@ -526,7 +492,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(None),
+            &mut TransactionsProcessor,
             ProcessingState::root(),
         )
         .unwrap();
@@ -561,7 +527,7 @@ mod tests {
         assert_eq_dbg!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::new(None),
+                &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -600,7 +566,7 @@ mod tests {
         assert_eq_dbg!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::new(None),
+                &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -640,7 +606,7 @@ mod tests {
         assert_eq_dbg!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::new(None),
+                &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -681,7 +647,7 @@ mod tests {
         assert_eq_dbg!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::new(None),
+                &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -723,7 +689,7 @@ mod tests {
         assert_eq_dbg!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::new(None),
+                &mut TransactionsProcessor,
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -768,9 +734,12 @@ mod tests {
             ..Default::default()
         });
 
-        let mut processor = TransactionsProcessor::new(None);
-        processor.now = end;
-        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor,
+            ProcessingState::root(),
+        )
+        .unwrap();
 
         assert_annotated_snapshot!(event, @r###"
         {
@@ -802,12 +771,13 @@ mod tests {
     #[test]
     fn test_allows_valid_transaction_event_with_spans() {
         let mut event = new_test_event();
-        let end = *event.value().unwrap().timestamp.value().unwrap();
 
-        let mut processor = TransactionsProcessor::new(None);
-        processor.now = end;
-
-        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor,
+            ProcessingState::root(),
+        )
+        .unwrap();
 
         assert_annotated_snapshot!(event, @r###"
         {
@@ -837,90 +807,8 @@ mod tests {
     }
 
     #[test]
-    fn test_no_clock_drift() {
-        let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
-        let end = Utc.ymd(2000, 1, 2).and_hms(0, 0, 0);
-
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(end),
-            start_timestamp: Annotated::new(start),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
-                        )),
-                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
-            spans: Annotated::new(vec![]),
-            ..Default::default()
-        });
-
-        let mut processor = TransactionsProcessor::new(None);
-        processor.now = end;
-
-        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-        assert_eq!(*event.value().unwrap().timestamp.value().unwrap(), end);
-        assert_eq!(
-            *event.value().unwrap().start_timestamp.value().unwrap(),
-            start
-        );
-    }
-
-    #[test]
-    fn test_some_clock_drift() {
-        let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
-        let end = Utc.ymd(2000, 1, 2).and_hms(0, 0, 0);
-        let now = Utc.ymd(2000, 1, 3).and_hms(0, 0, 0);
-
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(end),
-            start_timestamp: Annotated::new(start),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
-                        )),
-                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
-            spans: Annotated::new(vec![]),
-            ..Default::default()
-        });
-
-        let mut processor = TransactionsProcessor::new(None);
-        processor.now = now;
-
-        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-        assert_eq!(*event.value().unwrap().timestamp.value().unwrap(), now);
-        assert_eq!(
-            *event.value().unwrap().start_timestamp.value().unwrap(),
-            end
-        ); // shift by 1 day == end
-    }
-
-    #[test]
     fn test_defaults_transaction_name_when_missing() {
         let mut event = new_test_event();
-        let end = *event.value().unwrap().timestamp.value().unwrap();
 
         event
             .apply(|event, _| {
@@ -929,10 +817,12 @@ mod tests {
             })
             .unwrap();
 
-        let mut processor = TransactionsProcessor::new(None);
-        processor.now = end;
-
-        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor,
+            ProcessingState::root(),
+        )
+        .unwrap();
 
         assert_annotated_snapshot!(event, @r###"
         {
@@ -964,7 +854,6 @@ mod tests {
     #[test]
     fn test_defaults_transaction_name_when_empty() {
         let mut event = new_test_event();
-        let end = *event.value().unwrap().timestamp.value().unwrap();
 
         event
             .apply(|event, _| {
@@ -973,10 +862,12 @@ mod tests {
             })
             .unwrap();
 
-        let mut processor = TransactionsProcessor::new(None);
-        processor.now = end;
-
-        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor,
+            ProcessingState::root(),
+        )
+        .unwrap();
 
         assert_annotated_snapshot!(event, @r###"
         {

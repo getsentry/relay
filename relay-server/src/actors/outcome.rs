@@ -171,7 +171,7 @@ pub enum DiscardReason {
 mod kafka {
     use super::*;
 
-    use chrono::{DateTime, SecondsFormat, Utc};
+    use chrono::SecondsFormat;
     use failure::{Fail, ResultExt};
     use rdkafka::error::KafkaError;
     use rdkafka::producer::{BaseRecord, DefaultProducerContext};
@@ -281,8 +281,7 @@ mod kafka {
                 Some(reason) => Some(reason.to_string()),
             };
 
-            let start_time = relay_common::instant_to_system_time(msg.timestamp);
-            let date_time: DateTime<Utc> = start_time.into();
+            let date_time = relay_common::instant_to_date_time(msg.timestamp);
 
             // convert to a RFC 3339 formatted date with the shape YYYY-MM-DDTHH:MM:SS.mmmmmmZ
             // e.g. something like: "2019-09-29T09:46:40.123456Z"

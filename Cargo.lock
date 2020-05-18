@@ -2418,6 +2418,7 @@ version = "0.5.9"
 dependencies = [
  "backoff",
  "cadence",
+ "chrono",
  "failure",
  "globset",
  "lazy_static",
