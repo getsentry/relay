@@ -697,7 +697,7 @@ impl EventProcessor {
             let client = envelope.meta().client().unwrap_or_default();
             if envelope.sent_at().is_none()
                 && event_type == Some(EventType::Transaction)
-                && client.starts_with("sentry-javascript/")
+                && client.starts_with("sentry.javascript")
             {
                 if let Some(&event_timestamp) = event.timestamp.value() {
                     envelope.set_sent_at(event_timestamp);
