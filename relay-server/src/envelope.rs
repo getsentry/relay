@@ -634,9 +634,13 @@ impl Envelope {
     }
 
     /// When the event has been sent, according to the SDK.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn sent_at(&self) -> Option<DateTime<Utc>> {
         self.headers.sent_at
+    }
+
+    /// Sets the timestamp at which an envelope is sent to the upstream.
+    pub fn set_sent_at(&mut self, sent_at: DateTime<Utc>) {
+        self.headers.sent_at = Some(sent_at);
     }
 
     /// Sets the data retention in days for items in this envelope.

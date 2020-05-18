@@ -9,7 +9,6 @@ pub fn instant_to_system_time(instant: Instant) -> SystemTime {
 }
 
 /// Converts an `Instant` into a `DateTime`.
-#[cfg(feature = "chrono")]
 pub fn instant_to_date_time(instant: Instant) -> chrono::DateTime<chrono::Utc> {
     instant_to_system_time(instant).into()
 }

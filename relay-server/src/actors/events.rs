@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use actix::prelude::*;
+use chrono::Utc;
 use failure::Fail;
 use futures::prelude::*;
 use parking_lot::RwLock;
@@ -66,7 +67,6 @@ enum ProcessingError {
     #[fail(display = "event payload too large")]
     PayloadTooLarge,
 
-    #[cfg(feature = "processing")]
     #[fail(display = "invalid transaction event")]
     InvalidTransaction,
 
@@ -488,6 +488,22 @@ impl EventProcessor {
         Ok(())
     }
 
+    fn fast_process_event(
+        &self,
+        event: &mut Annotated<Event>,
+        envelope: &Envelope,
+        start_time: Instant,
+    ) -> Result<(), ProcessingError> {
+        let sent_at = envelope.sent_at();
+        let received_at = relay_common::instant_to_date_time(start_time);
+        let mut processor = relay_general::store::ClockDriftProcessor::new(sent_at, received_at);
+
+        process_value(event, &mut processor, ProcessingState::root())
+            .map_err(|_| ProcessingError::InvalidTransaction)?;
+
+        Ok(())
+    }
+
     #[cfg(feature = "processing")]
     fn store_process_event(
         &self,
@@ -674,6 +690,19 @@ impl EventProcessor {
             // id was ingested, this will already be the case. Otherwise, this will insert a new
             // event id. To be defensive, we always overwrite to ensure consistency.
             event.id = Annotated::new(event_id);
+
+            // TODO: Temporary workaround before processing. Experimental JavaScript SDKs relied on
+            // a buggy clock drift correction that assumes the event timestamp is the sent_at date.
+            // This should be removed as soon as JS has switched to Envelope-only ingestion.
+            let client = envelope.meta().client().unwrap_or_default();
+            if envelope.sent_at().is_none()
+                && event_type == Some(EventType::Transaction)
+                && client.starts_with("sentry-javascript/")
+            {
+                if let Some(&event_timestamp) = event.timestamp.value() {
+                    envelope.set_sent_at(event_timestamp);
+                }
+            }
         } else {
             // If we have an envelope without event at this point, we are done with processing. This
             // envelope only contains attachments or user reports. We should not run filters or
@@ -682,6 +711,10 @@ impl EventProcessor {
             return Ok(ProcessEnvelopeResponse { envelope });
         }
 
+        if !self.config.processing_enabled() {
+            self.fast_process_event(&mut event, &envelope, start_time)?;
+        }
+        // else
         if_processing! {
             self.store_process_event(&mut event, &envelope, &project_state, start_time)?;
 
@@ -993,7 +1026,7 @@ impl Handler<HandleEnvelope> for EventManager {
                     .flatten()
             })
             .and_then(clone!(captured_events, scoping, |processed| {
-                let envelope = processed.envelope;
+                let mut envelope = processed.envelope;
 
                 #[cfg(feature = "processing")]
                 {
@@ -1031,6 +1064,13 @@ impl Handler<HandleEnvelope> for EventManager {
                 log::trace!("sending event to sentry endpoint");
                 let request = SendRequest::post(format!("/api/{}/store/", project_id)).build(
                     move |builder| {
+                        // Override the `sent_at` timestamp. Since the event went through basic
+                        // normalization, all timestamps have been corrected. We propagate the new
+                        // `sent_at` to allow the next Relay to double-check this timestamp and
+                        // potentially apply correction again. This is done as close to sending as
+                        // possible so that we avoid internal delays.
+                        envelope.set_sent_at(Utc::now());
+
                         let meta = envelope.meta();
 
                         if let Some(origin) = meta.origin() {
@@ -1116,6 +1156,9 @@ impl Handler<HandleEnvelope> for EventManager {
                     ProcessingError::InvalidSecurityReport(_) => {
                         Some(Outcome::Invalid(DiscardReason::SecurityReport))
                     }
+                    ProcessingError::InvalidTransaction => {
+                        Some(Outcome::Invalid(DiscardReason::InvalidTransaction))
+                    }
                     ProcessingError::DuplicateItem(_) => {
                         Some(Outcome::Invalid(DiscardReason::DuplicateItem))
                     }
@@ -1124,10 +1167,6 @@ impl Handler<HandleEnvelope> for EventManager {
                     #[cfg(feature = "processing")]
                     ProcessingError::InvalidUnrealReport(_) => {
                         Some(Outcome::Invalid(DiscardReason::ProcessUnreal))
-                    }
-                    #[cfg(feature = "processing")]
-                    ProcessingError::InvalidTransaction => {
-                        Some(Outcome::Invalid(DiscardReason::InvalidTransaction))
                     }
                     #[cfg(feature = "processing")]
                     ProcessingError::EventFiltered(ref filter_stat_key) => {
