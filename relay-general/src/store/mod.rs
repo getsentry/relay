@@ -19,7 +19,8 @@ mod schema;
 mod transactions;
 mod trimming;
 
-pub use crate::store::geo::{GeoIpError, GeoIpLookup};
+pub use self::clock_drift::ClockDriftProcessor;
+pub use self::geo::{GeoIpError, GeoIpLookup};
 
 /// The config for store.
 #[derive(Serialize, Deserialize, Debug, Default)]
