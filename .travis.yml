@@ -118,12 +118,17 @@ jobs:
         - zip -r relay-dsym.zip target/release/relay.dSYM
         - zeus upload -t "application/octet-stream" -n relay-Darwin-x86_64-dsym.zip relay-dsym.zip || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
+    - name: "release: docs"
+      if: branch ~= /^release\/[\d.]+$/
+      before_script: npm install -g @zeus-ci/cli
+      script: make -e travis-upload-prose-docs
+
     # -------------------------------------
     # PYTHON RELEASE BUILDS
     # -------------------------------------
 
     - name: "release: librelay[linux-x86]"
-      if: branch ~= /^release\/[\d.]+$/
+      if: branch ~= /^release-library\/[\d.]+$/
       env: BUILD_ARCH=i686
       language: generic
       script:
@@ -132,7 +137,7 @@ jobs:
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     - name: "release: librelay[linux-x86_64]"
-      if: branch ~= /^release\/[\d.]+$/
+      if: branch ~= /^release-library\/[\d.]+$/
       env: BUILD_ARCH=x86_64
       language: generic
       script:
@@ -141,7 +146,7 @@ jobs:
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     - name: "release: librelay[macos]"
-      if: branch ~= /^release\/[\d.]+$/
+      if: branch ~= /^release-library\/[\d.]+$/
       os: osx
       language: generic
       osx_image: xcode9.4
@@ -152,15 +157,11 @@ jobs:
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     - name: "release: librelay[sdist]"
-      if: branch ~= /^release\/[\d.]+$/
+      if: branch ~= /^release-library\/[\d.]+$/
       script:
         - make -e sdist
         - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
-
-    - name: "docs"
-      before_script: npm install -g @zeus-ci/cli
-      script: make -e travis-upload-prose-docs
 
 notifications:
   webhooks:
