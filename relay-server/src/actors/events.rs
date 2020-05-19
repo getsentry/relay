@@ -691,14 +691,10 @@ impl EventProcessor {
             // event id. To be defensive, we always overwrite to ensure consistency.
             event.id = Annotated::new(event_id);
 
-            // TODO: Temporary workaround before processing. Experimental JavaScript SDKs relied on
-            // a buggy clock drift correction that assumes the event timestamp is the sent_at date.
-            // This should be removed as soon as JS has switched to Envelope-only ingestion.
-            let client = envelope.meta().client().unwrap_or_default();
-            if envelope.sent_at().is_none()
-                && event_type == Some(EventType::Transaction)
-                && client.starts_with("sentry.javascript")
-            {
+            // TODO: Temporary workaround before processing. Experimental SDKs relied on a buggy
+            // clock drift correction that assumes the event timestamp is the sent_at time. This
+            // should be removed as soon as legacy ingestion has been removed.
+            if envelope.sent_at().is_none() && event_type == Some(EventType::Transaction) {
                 if let Some(&event_timestamp) = event.timestamp.value() {
                     envelope.set_sent_at(event_timestamp);
                 }
