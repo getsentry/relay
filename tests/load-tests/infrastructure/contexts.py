@@ -1,3 +1,4 @@
+import time
 import random
 
 def schema_generator(**fields):
@@ -18,10 +19,10 @@ def schema_generator(**fields):
                 sub_generator = random.choice(sub_generator)
 
             if callable(sub_generator):
-                v = sub_generator()
+                sub_generator = sub_generator()
 
-            if v is not None:
-                rv[k] = v
+            if sub_generator is not None:
+                rv[k] = sub_generator
 
         return rv
 
@@ -68,7 +69,7 @@ def device_context_generator():
 def app_context_generator():
     return schema_generator(
         type="app",
-        app_version=version_generator(3)
+        app_version=version_generator(3),
         app_identifier="io.sentry.sample",
         app_build=range(100),
     )
