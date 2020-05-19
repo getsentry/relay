@@ -1,9 +1,14 @@
 import json
+import time
+
+import msgpack
 from enum import IntEnum, Enum
 from datetime import datetime
 
 from infrastructure.config import kafka_config
 from confluent_kafka import Producer
+
+from infrastructure.util import get_uuid
 
 
 class Outcome(IntEnum):
@@ -30,7 +35,7 @@ class Topic(Enum):
     Events = {"config_name": "events", "default": "ingest-events"}
     Attachments = {"config_name": "attachments", "default": "ingest-attachments"}
     Transactions = {"config_name": "transactions", "default": "ingest-transactions"}
-    Outcomes = {"config_name": "outcomes", "default": "outcomes"}
+    Outcomes = {"config_name": "outcomes", "default": "ingest-outcomes"}
     Sessions = {"config_name": "sessions", "default": "ingest-sessions"}
 
 
@@ -87,9 +92,27 @@ def kafka_send_outcome(task_set, project_id, outcome: Outcome, event_id=None, or
     kafka_mixin.producer.produce(kafka_mixin.topic_name(Topic.Outcomes), json.dumps(message))
 
 
-def kafka_send_event(task_set, event):
+def kafka_send_event(task_set, event, project_id, remote_addr = None):
+    event_id = event.get("event_id")
+    if event_id is None:
+        event_id = get_uuid()
+        event["event_id"] = event_id
+
+
+    wrapped_event = {
+        "type": "event",
+        "payload": json.dumps(event),
+        "start_time": time.time(),
+        "event_id": event_id,
+        "project_id": int(project_id),
+        "attachments": []
+    }
+
+    if remote_addr is not None:
+        wrapped_event["remote_addr"] = remote_addr
+
     kafka_mixin = _get_producer_mixin(task_set)
-    kafka_mixin.producer.produce(kafka_mixin.topic_name(Topic.Events), json.dumps(event))
+    kafka_mixin.producer.produce(kafka_mixin.topic_name(Topic.Events), msgpack.packb(wrapped_event))
 
 
 def _get_producer_mixin(task_set):

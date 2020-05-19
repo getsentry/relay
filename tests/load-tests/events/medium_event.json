@@ -3,6 +3,7 @@
   "dist": null,
   "platform": "native",
   "message": "medium event",
+  "logentry": {"message": "medium event logentry message"},
   "tags": [
     [
       "server_name",

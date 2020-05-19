@@ -1,8 +1,14 @@
 """
 Tasks and task helpers to be used to generate kafka events and outcomes
 """
+import json
+import time
+
+from locust import TaskSet
+
+from infrastructure import EventsCache
 from infrastructure.configurable_locust import get_project_info
-from infrastructure.kafka import Outcome, kafka_send_outcome
+from infrastructure.kafka import Outcome, kafka_send_outcome, kafka_send_event
 import random
 
 from infrastructure.util import get_uuid
@@ -16,6 +22,8 @@ def kafka_outcome_task(outcome: Outcome):
     def task(task_set):
         _kafka_send_outcome(task_set, outcome)
 
+    return task
+
 
 _id_to_outcome = {outcome.value: outcome for outcome in Outcome}
 
@@ -28,7 +36,7 @@ def kafka_random_outcome_task(task_set):
     _kafka_send_outcome(task_set, outcome)
 
 
-def kafka_configurable_outcome_task(task_params):
+def kafka_configurable_outcome_task_factory(task_params):
     """
     A task factory that can be configured from the locust yaml file.
 
@@ -46,7 +54,7 @@ def kafka_configurable_outcome_task(task_params):
                 filtered: 1
 
     """
-    outcome_names = {outcome.name.lower(): Outcome for outcome in Outcome}
+    outcome_names = {outcome.name.lower(): outcome for outcome in Outcome}
     frequencies = []
     total_freq = 0
     for name, val in task_params.items():
@@ -68,7 +76,32 @@ def kafka_configurable_outcome_task(task_params):
     return task
 
 
-def _kafka_send_outcome(task_set, outcome):
+def canned_kafka_event_task(event_name: str, send_outcome: bool):
+    def inner(task_set: TaskSet):
+        event_body = EventsCache.get_event_by_name(event_name)
+        event = json.loads(event_body)
+        _kafka_send_event(task_set, event, send_outcome)
+
+    return inner
+
+
+def _kafka_send_outcome(task_set: TaskSet, outcome: Outcome):
     project_info = get_project_info(task_set)
     event_id = get_uuid()
     kafka_send_outcome(task_set, project_info.id, outcome, event_id, reason=outcome.reason())
+
+
+def _kafka_send_event(task_set, event, send_outcome=True):
+    project_info = get_project_info(task_set)
+    event_id = get_uuid()
+    event['event_id'] = event_id
+
+    # set required attributes for processing in a central place
+    event["project"] = project_info.id
+    event['platform']= 'python'
+    event['timestamp'] = time.time()
+
+    kafka_send_event(task_set, event, project_info.id)
+
+    if send_outcome:
+        kafka_send_outcome(task_set, project_info.id, Outcome.ACCEPTED, event_id)
