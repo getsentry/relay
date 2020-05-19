@@ -202,3 +202,14 @@ The password for the `.pfx` file is `password`.
 ### Release Management
 
 We use [craft](https://github.com/getsentry/craft) to release new versions.
+There are two separate projects to publish:
+
+- **Relay binary** is released from the root folder. Run `craft prepare` and
+  `craft publish` in that directory to create a release build and publish it,
+  respectively. We use [Calendar Versioning](https://calver.org/) and coordinate
+  releases with Sentry.
+
+- **Relay Python library** along with the C-ABI are released from the `py/`
+  subfolder. Change into that directory and run `craft prepare` and `craft
+  publish`. We use [Semantic Versioning](https://semver.org/) and release during
+  the development cycle.
