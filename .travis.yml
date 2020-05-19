@@ -9,6 +9,7 @@ branches:
   only:
     - master
     - /^release\/[\d.]+$/
+    - /^release-library\/[\d.]+$/
 
 before_install:
   - curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain ${RUST_TOOLCHAIN:-stable}
@@ -27,17 +28,15 @@ jobs:
     # STATIC ANALYSIS
     # -------------------------------------
 
-    - name: "check: codestyle"
-      script: make -e style
-
-    - name: "check: lint"
-      script: make -e lint
+    - name: "check: lints"
+      script: make -e style lint
 
     # -------------------------------------
     # RUST TESTS
     # -------------------------------------
 
     - name: "test: relay[linux]"
+      if: NOT branch ~= /^release-library\/[\d.]+$/
       addons:
         apt:
           packages:
@@ -61,10 +60,12 @@ jobs:
     # -------------------------------------
 
     - name: "test: librelay"
+      if: NOT branch ~= /^release\/[\d.]+$/
       script: make -e test-python
 
     - name: "test: librelay[py2]"
       python: "2.7"
+      if: NOT branch ~= /^release\/[\d.]+$/
       script: make -e RELAY_PYTHON_VERSION=python2 test-python
 
     # -------------------------------------
@@ -72,6 +73,7 @@ jobs:
     # -------------------------------------
 
     - name: "integration-test: relay"
+      if: NOT branch ~= /^release-library\/[\d.]+$/
       env:
         - KAFKA_BOOTSTRAP_SERVER="localhost:9092"
       install:
