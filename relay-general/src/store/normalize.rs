@@ -456,9 +456,10 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         event.platform.get_or_insert_with(|| "other".to_string());
         event.logger.get_or_insert_with(String::new);
         event.extra.get_or_insert_with(Object::new);
-        if event_type != EventType::Transaction {
-            event.level.get_or_insert_with(|| Level::Error);
-        }
+        event.level.get_or_insert_with(|| match event_type {
+            EventType::Transaction => Level::Info,
+            _ => Level::Error,
+        });
         if event.client_sdk.value().is_none() {
             event.client_sdk.set_value(self.get_sdk_info());
         }
@@ -919,7 +920,7 @@ fn test_transaction_level_untouched() {
     process_value(&mut event, processor, ProcessingState::root()).unwrap();
 
     let event = event.value().unwrap();
-    assert_eq_dbg!(event.level.value(), None);
+    assert_eq_dbg!(event.level.value(), Some(&Level::Info));
 }
 
 #[test]
