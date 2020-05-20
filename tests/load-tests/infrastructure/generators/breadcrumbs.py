@@ -38,11 +38,3 @@ def breadcrumb_generator(min=None, max=None, categories=None, levels=None, types
         return result
 
     return inner
-
-
-def add_breadcrumbs_to_message(message, generator=None):
-    breadcrumbs = generator() if generator is not None else breadcrumb_generator()()
-
-    message["breadcrumbs"] = {
-        "values": breadcrumbs
-    }

@@ -1,40 +1,7 @@
 import time
 import random
 
-def schema_generator(**fields):
-    """
-    Generate a dictionary instance according to the schema outlined by the
-    provided kwargs. Supports:
-
-    * string
-    * number
-    * callable
-    * range object
-    * list of any of the above (random item will be selected)
-    """
-    def inner():
-        rv = {}
-        for k, sub_generator in fields.items():
-            if isinstance(sub_generator, (list, tuple, range)):
-                sub_generator = random.choice(sub_generator)
-
-            if callable(sub_generator):
-                sub_generator = sub_generator()
-
-            if sub_generator is not None:
-                rv[k] = sub_generator
-
-        return rv
-
-    return inner
-
-
-def version_generator(n=3):
-    def inner():
-        return ".".join(str(random.randrange(10)) for _ in range(n))
-
-    return inner
-
+from infrastructure.generators.util import schema_generator, version_generator
 
 def device_context_generator():
     return schema_generator(
@@ -83,17 +50,3 @@ def os_context_generator():
         build="sdk_google_phone_x86-userdebug 7.1.1 NYC 5464897 test-keys",
         name=["Android", "NookPhone"]
     )
-
-def mobile_contexts_generator():
-    device_context = device_context_generator()
-    app_context = app_context_generator()
-    os_context =  os_context_generator()
-
-    def inner():
-        return {
-            "app": app_context(),
-            "os": os_context(),
-            "device": device_context()
-        }
-
-    return inner
