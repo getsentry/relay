@@ -4,3 +4,4 @@ pyyaml
 sentry-sdk==0.14.3
 confluent-kafka==1.4.1
 msgpack>=0.6.1,<0.7.0
+sentry-relay==0.5.9

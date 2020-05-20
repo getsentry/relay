@@ -2,7 +2,7 @@ import functools
 import os
 from importlib import import_module
 from uuid import uuid4
-
+from sentry_relay.processing import StoreNormalizer
 
 def full_path_from_module_relative_path(module_name, *args):
     dir_path = os.path.dirname(os.path.realpath(module_name))
@@ -107,3 +107,10 @@ def load_object(name: str):
     else:
         print(f"The loaded object {object}")
     return object
+
+
+def normalize_event(event, project_id):
+    normalizer = StoreNormalizer(
+        project_id=project_id,
+    )
+    return normalizer.normalize_event(event)

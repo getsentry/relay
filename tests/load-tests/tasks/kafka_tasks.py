@@ -98,7 +98,6 @@ def _kafka_send_event(task_set, event, send_outcome=True):
 
     # set required attributes for processing in a central place
     event["project"] = project_info.id
-    event['platform']= 'python'
     event['timestamp'] = time.time()
 
     kafka_send_event(task_set, event, project_info.id)
