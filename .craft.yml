@@ -1,11 +1,11 @@
 ---
-minVersion: "0.8.4"
+minVersion: "0.9.6"
 github:
   owner: getsentry
   repo: relay
 changelogPolicy: simple
+
 targets:
-  - name: pypi
   - name: github
   - name: gh-pages
   - name: registry
@@ -27,10 +27,6 @@ targets:
 
 requireNames:
   - /^gh-pages.zip$/
-  - /^sentry_relay-.*-py2.py3-none-macosx_10_13_x86_64.whl$/
-  - /^sentry_relay-.*-py2.py3-none-manylinux1_i686.whl$/
-  - /^sentry_relay-.*-py2.py3-none-manylinux1_x86_64.whl$/
-  - /^sentry-relay-.*.zip$/
   - /^relay-Darwin-x86_64$/
   - /^relay-Darwin-x86_64-dsym.zip$/
   - /^relay-Linux-x86_64$/

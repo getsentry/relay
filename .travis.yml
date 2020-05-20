@@ -9,6 +9,7 @@ branches:
   only:
     - master
     - /^release\/[\d.]+$/
+    - /^release-library\/[\d.]+$/
 
 before_install:
   - curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain ${RUST_TOOLCHAIN:-stable}
@@ -27,17 +28,15 @@ jobs:
     # STATIC ANALYSIS
     # -------------------------------------
 
-    - name: "check: codestyle"
-      script: make -e style
-
-    - name: "check: lint"
-      script: make -e lint
+    - name: "check: lints"
+      script: make -e style lint
 
     # -------------------------------------
     # RUST TESTS
     # -------------------------------------
 
     - name: "test: relay[linux]"
+      if: NOT branch ~= /^release-library\/[\d.]+$/
       addons:
         apt:
           packages:
@@ -61,10 +60,12 @@ jobs:
     # -------------------------------------
 
     - name: "test: librelay"
+      if: NOT branch ~= /^release\/[\d.]+$/
       script: make -e test-python
 
     - name: "test: librelay[py2]"
       python: "2.7"
+      if: NOT branch ~= /^release\/[\d.]+$/
       script: make -e RELAY_PYTHON_VERSION=python2 test-python
 
     # -------------------------------------
@@ -72,6 +73,7 @@ jobs:
     # -------------------------------------
 
     - name: "integration-test: relay"
+      if: NOT branch ~= /^release-library\/[\d.]+$/
       env:
         - KAFKA_BOOTSTRAP_SERVER="localhost:9092"
       install:
@@ -118,12 +120,17 @@ jobs:
         - zip -r relay-dsym.zip target/release/relay.dSYM
         - zeus upload -t "application/octet-stream" -n relay-Darwin-x86_64-dsym.zip relay-dsym.zip || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
+    - name: "release: docs"
+      if: branch ~= /^release\/[\d.]+$/
+      before_script: npm install -g @zeus-ci/cli
+      script: make -e travis-upload-prose-docs
+
     # -------------------------------------
     # PYTHON RELEASE BUILDS
     # -------------------------------------
 
     - name: "release: librelay[linux-x86]"
-      if: branch ~= /^release\/[\d.]+$/
+      if: branch ~= /^release-library\/[\d.]+$/
       env: BUILD_ARCH=i686
       language: generic
       script:
@@ -132,7 +139,7 @@ jobs:
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     - name: "release: librelay[linux-x86_64]"
-      if: branch ~= /^release\/[\d.]+$/
+      if: branch ~= /^release-library\/[\d.]+$/
       env: BUILD_ARCH=x86_64
       language: generic
       script:
@@ -141,7 +148,7 @@ jobs:
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     - name: "release: librelay[macos]"
-      if: branch ~= /^release\/[\d.]+$/
+      if: branch ~= /^release-library\/[\d.]+$/
       os: osx
       language: generic
       osx_image: xcode9.4
@@ -152,15 +159,11 @@ jobs:
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
     - name: "release: librelay[sdist]"
-      if: branch ~= /^release\/[\d.]+$/
+      if: branch ~= /^release-library\/[\d.]+$/
       script:
         - make -e sdist
         - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
-
-    - name: "docs"
-      before_script: npm install -g @zeus-ci/cli
-      script: make -e travis-upload-prose-docs
 
 notifications:
   webhooks:

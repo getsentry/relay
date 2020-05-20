@@ -1,0 +1,467 @@
+# Changelog
+
+## 0.5.9
+
+- PII: Make and/or selectors specific.
+- Add a browser filter for IE 11.
+- Changes to release parsing.
+- PII: Expose event values as part of generated selector suggestions.
+
+## 0.5.8
+
+- Fix a bug where exception values and the device name were not PII-strippable.
+
+## 0.5.7
+
+- Release is now a required attribute for session data.
+- `unknown` can now be used in place of `unknown_error` for span statuses. A
+  future release will change the canonical format from `unknown_error` to
+  `unknown`.
+
+## 0.5.6
+
+- Minor updates to PII processing: Aliases for value types (`$error` instead of
+  `$exception` to be in sync with Discover column naming) and adding a default
+  for replace-redactions.
+- It is now valid to send transactions and spans without `op` set, in which
+  case a default value will be inserted.
+
+## 0.5.5
+
+- Small performance improvements in datascrubbing config converter.
+- New, C-style selector syntax (old one still works)
+
+## 0.5.4
+
+- Add event contexts to `pii=maybe`.
+- Fix parsing of msgpack breadcrumbs in Rust store.
+- Envelopes sent to Rust store can omit the DSN in headers.
+- Ability to quote/escape special characters in selectors in PII configs.
+
+## 0.5.3
+
+- Validate release names during event ingestion (#479)
+- Add browser extension filter (#470)
+- Add `pii=maybe`, a new kind of event schema field that can only be scrubbed if explicitly addressed.
+- Add way to scrub filepaths in a way that does not break processing.
+- Add missing errors for JSON parsing and release validation (#478)
+- Expose more datascrubbing utils (#464)
+
+## 0.5.2
+
+- Misc bugfixes in PII processor. Those bugs do not affect the legacy data scrubber exposed in Python.
+- Polishing documentation around PII configuration format.
+- Signal codes in mach mechanism are no longer required.
+
+## 0.5.1
+
+- Bump xcode version from 7.3 to 9.4, dropping wheel support for some older OS X versions.
+- New function `validate_pii_config`.
+- Fix a bug in the PII processor that would always remove the entire string on `pattern` rules.
+- Ability to correct some clock drift and wrong system time in transaction events.
+
+## 0.5.0
+
+- The package is now called `sentry-relay`.
+- Renamed all `Semaphore*` types to `Relay*`.
+- Fixed memory leaks in processing functions.
+
+## 0.4.65
+
+- Preserve microsecond precision in all time stamps.
+- Record event ids in all outcomes.
+- Updates to event processing metrics.
+- Add span status mapping from open telemetry.
+- Fix glob-matching of newline characters.
+
+## 0.4.64
+
+- Added newline support for general glob code.
+- Added span status mapping to python library.
+
+## 0.4.63
+
+- Fix a bug where glob-matching in filters did not behave correctly when the
+  to-be-matched string contained newlines.
+- Add `moz-extension:` as scheme for browser extensions (filtering out Firefox
+  addons).
+- Raise a dedicated Python exception type for invalid transaction events. Also
+  do not report that error to Sentry from Relay.
+
+## 0.4.62
+
+- Spec out values of `event.contexts.trace.status`.
+- `none` is now no longer a valid environment name.
+- Do no longer drop transaction events in renormalization.
+- Various performance improvements.
+
+## 0.4.61
+
+- Add `thread.errored` attribute (#306).
+
+## 0.4.60
+
+- License is now BSL instead of MIT (#301).
+- Transaction events with negative duration are now rejected (#291).
+- Fix a panic when normalizing certain dates.
+
+## 0.4.59
+
+- Fix: Normalize legacy stacktrace attributes (#292)
+- Fix: Validate platform attributes (#294)
+
+## 0.4.58
+
+- Expose globbing code from Relay to Python (#288)
+- Normalize before datascrubbing (#290)
+- Selectively log internal errors to stderr (#285)
+- Do not ignore `process_value` result in `scrub_event` (#284)
+
+## 0.4.57
+
+- Stricter validation of transaction events
+
+## 0.4.56
+
+- Fix a panic in trimming
+
+## 0.4.55
+
+- Fix more bugs in datascrubbing converter
+
+## 0.4.54
+
+- Fix more bugs in datascrubbing converter
+
+## 0.4.53
+
+- Fix more bugs in datascrubbing converter
+
+## 0.4.52
+
+- Fix more bugs in datascrubbing converter
+
+## 0.4.51
+
+- Fix a few bugs in datascrubbing converter
+- Fix a panic on overflowing timestamps
+
+## 0.4.50
+
+- Fix bug where IP scrubbers were applied even when not enabled
+
+## 0.4.49
+
+- Fix handling of panics in CABI/Python bindings
+
+## 0.4.48
+
+- Fix various bugs in the datascrubber and PII processing code to get closer to behavior of the Python implementation.
+
+## 0.4.47
+
+- Fix encoding issue in the Python layer of event normalization.
+
+## 0.4.46
+
+- Resolved a regression in IP address normalization. The new behavior is closer to a line-by-line port of the old Python code.
+
+## 0.4.45
+
+- Resolved an issue where GEO IP data was not always infered.
+
+## 0.4.44
+
+- Only take the user IP address from the store request's IP for certain platforms. This restores the behavior of the old Python code.
+
+## 0.4.43
+
+- Bump size of breadcrumbs
+- Workaround for an issue where we would not parse OS information from User Agent when SDK had already sent OS information.
+
+## 0.4.42
+
+- Fix normalization of version strings from user agents.
+
+## 0.4.41
+
+- Parse and normalize user agent strings.
+
+## 0.4.40
+
+- Restrict ranges of timestamps to prevent overflows in Python code and UI.
+
+## 0.4.39
+
+- Fix a bug where stacktrace trimming was not applied during renormalization.
+
+## 0.4.38
+
+- Added typed spans to `Event`.
+
+## 0.4.37
+
+- Added `orig_in_app` to frame data.
+
+## 0.4.36
+
+- Add new .NET versions for context normalization.
+
+## 0.4.35
+
+- Fix bug where thread's stacktraces were not normalized.
+- Fix bug where a string at max depth of a databag was stringified again.
+
+## 0.4.34
+
+- Added `data` attribute to frames.
+- Added a way to override other trimming behavior in Python normalizer binding.
+
+## 0.4.33
+
+- Smaller protocol adjustments related to rolling out re-normalization in Rust.
+- Plugin-provided context types should now work properly again.
+
+## 0.4.32
+
+- Removed `function_name` field from frame and added `raw_function`.
+
+## 0.4.31
+
+- Add trace context type.
+
+## 0.4.30
+
+- Make exception messages/values larger to allow for foreign stacktrace data to be attached.
+
+## 0.4.29
+
+- Added `function_name` field to frame.
+
+## 0.4.28
+
+- Add missing context type for sessionstack.
+
+## 0.4.27
+
+- Increase frame vars size again! Byte size was fine, but max depth
+  was way too small.
+
+## 0.4.26
+
+- Reduce frame vars size.
+
+## 0.4.25
+
+- Add missing trimming to frame vars.
+
+## 0.4.24
+
+- Reject non-http/https `help_urls` in exception mechanisms (#192)
+
+## 0.4.23
+
+- Add basic truncation to event meta to prevent payload size from spiralling out of control.
+
+## 0.4.22
+
+- Improve the grouping protocol config (#190)
+
+## 0.4.21
+
+- Add new debug image variants (#188)
+- Trim release and environment (#184)
+
+## 0.4.20
+
+- Alias level critical as fatal (#182)
+- Add device properties from Java/.NET SDKs (#185)
+- Add `lang` to frame and stacktrace (#186)
+
+## 0.4.19
+
+- Add mode for renormalization (#181)
+
+## 0.4.18
+
+- Restore the original behavior with supporting very large values in extra
+  (#180)
+
+## 0.4.17
+
+- Add untyped spans for tracing (#179)
+- Add the `none` event type
+
+## 0.4.16
+
+- Add support for synthetic mechanism markers (#177)
+
+## 0.4.15
+
+- Fix processors: Do not create `path_item` in `enter_nothing`
+
+## 0.4.14
+
+- Rename `template_info` to template
+- Add two new untyped context types: `gpu`, `monitors`
+- Rewrite `derive(ProcessValue)` to use `Structure::each_variant` (#175)
+
+## 0.4.13
+
+- Allow arrays as header values (#176)
+- Swap `python-json-read-adapter` to git dependency
+
+## 0.4.12
+
+- Run json.dumps at max depth in databag (#174)
+
+## 0.4.11
+
+- Get oshint case-insensitively
+
+## 0.4.10
+
+- Trim `time_spent` to max value of db column
+
+## 0.4.9
+
+- Trim containers one level before max_depth (#173)
+- Unconditionally overwrite `received`
+
+## 0.4.8
+
+- Fix bugs in array trimming, more code comments (#172)
+
+## 0.4.7
+
+- Deal with surrogate escapes in python bindings
+
+## 0.4.6
+
+- Reject exceptions with empty type and value (#170)
+- Validate remote_addr before backfilling into user (#171)
+
+## 0.4.5
+
+- Adjust limits to fit values into db (#167)
+- Environment is 64 chars in db
+- Normalize macOS (#168)
+- Use right maxchars for `transaction`, `dist`, `release`
+- Do not add error to invalid url
+
+## 0.4.4
+
+- Reject unknown debug images (#163)
+- Include original_value in `Meta::eq` (#164)
+- Emit correct expectations for common types (#162)
+- Permit invalid emails in user interface (#161)
+- Drop long tags correctly (#165)
+- Do not skip null values in pairlists (#166)
+
+## 0.4.3
+
+- Fix broken sdk_info parsing (#156)
+- Add basic snapshot tests for normalize and event parsing (#154)
+- Context trimming (#153)
+- Coerce PHP frame vars array to object (#159)
+
+## 0.4.2
+
+- Remove content-type params
+- Dont attempt to free() if python is shutting down
+- Improve cookie header normalizations (#151)
+- Implement LogEntry formatting (#152)
+- Deduplicate tags (#155)
+- Treat empty paths like no paths in frame normalization
+- Remove cookie header when explicit cookies are given
+
+## 0.4.1
+
+- Do not remove empty cookies or headers (#138)
+- Skip more empty containers (#139)
+- Make `request.header` values lenient (#145)
+- Remove internal tags when backfilling (#146)
+- Implement advanced context normalization (#140)
+- Retain additional properties in contexts (#141)
+- Implement very lenient URL parsing (#147)
+- Do not require breadcrumb timestamps (#144)
+- Reject tags with long keys (#149)
+
+## 0.4.0
+
+- Add new options max_concurrent_events (#134)
+- Dont move stacktrace before normalizing it (#135)
+- Fix broken repr and crash when shutting down python
+- Port slim_frame_data (#137)
+- Special treatment for ellipsis in URLs
+- Parse request bodies
+
+## 0.3.0
+
+- Changed PII stripping rule format to permit path selectors when applying
+  rules. This means that now `$string` refers to strings for instance and
+  `user.id` refers to the `id` field in the `user` attribute of the event.
+  Temporarily support for old rules is retained.
+
+## 0.2.7
+
+- Minor fixes to be closer to Python. Ability to disable trimming of objects,
+  arrays and strings.
+
+## 0.2.6
+
+- Fix bug where PII stripping would remove containers without leaving any
+  metadata about the retraction.
+- Fix bug where old `redactPair` rules would stop working.
+
+## 0.2.5
+
+- Rewrite of PII stripping logic. This brings potentially breaking changes to
+  the semantics of PII configs. Most importantly field types such as
+  `"freeform"` and `"databag"` are gone, right now there is only `"container"`
+  and `"text"`. All old field types should have become an alias for `"text"`,
+  but take extra care in ensuring your PII rules still work.
+
+- Minor fixes to be closer to Python.
+
+## 0.2.4
+
+- Remove stray print statement.
+
+## 0.2.3
+
+- Fix main performance issues.
+
+## 0.2.2
+
+- Fix segfault when trying to process contexts.
+- Fix trimming state "leaking" between interfaces, leading to excessive trimming.
+- Don't serialize empty arrays and objects (with a few exceptions).
+
+## 0.2.1
+
+- Expose CABI for normalizing event data.
+
+## 0.2.0
+
+- Updated event processing: Events from older SDKs are now supported. Also,
+  we've fixed some bugs along the line.
+- Introduced full support for PII stripping.
+
+## 0.1.3
+
+- Added support for metadata format
+
+## 0.1.2
+
+- Update dependencies
+
+## 0.1.1
+
+- Rename "sentry-relay" to "semaphore"
+- Use new features from Rust 1.26
+- Prepare Python builds (#20)
+
+## 0.1.0
+
+An initial release of the library.

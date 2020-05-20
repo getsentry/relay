@@ -1,0 +1,24 @@
+---
+minVersion: "0.9.6"
+github:
+  owner: getsentry
+  repo: relay
+changelogPolicy: simple
+preReleaseCommand: ../scripts/bump-library.sh
+releaseBranchPrefix: release-library
+
+targets:
+  - name: pypi
+  - name: gcs
+    bucket: sentry-sdk-assets
+    includeNames: /^(sentry-relay|sentry_relay).*(.whl|.zip)$/
+    paths:
+      - path: /librelay/{{version}}/
+        metadata:
+          cacheControl: "public, max-age=2592000"
+
+requireNames:
+  - /^sentry_relay-.*-py2.py3-none-macosx_10_13_x86_64.whl$/
+  - /^sentry_relay-.*-py2.py3-none-manylinux1_i686.whl$/
+  - /^sentry_relay-.*-py2.py3-none-manylinux1_x86_64.whl$/
+  - /^sentry-relay-.*.zip$/
