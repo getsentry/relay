@@ -8,7 +8,7 @@ use serde_json::Value;
 use url::Url;
 
 use relay_auth::PublicKey;
-use relay_common::{metric, ProjectId, Uuid};
+use relay_common::{metric, ProjectId};
 use relay_config::{Config, RelayMode};
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
@@ -127,9 +127,6 @@ pub struct ProjectState {
     /// The project's current config.
     #[serde(default)]
     pub config: ProjectConfig,
-    /// The project state's revision id.
-    #[serde(default)]
-    pub rev: Option<Uuid>,
     /// The organization id.
     #[serde(default)]
     pub organization_id: Option<u64>,
@@ -151,7 +148,6 @@ pub struct LimitedProjectState {
     pub slug: Option<String>,
     #[serde(with = "LimitedProjectConfig")]
     pub config: ProjectConfig,
-    pub rev: Option<Uuid>,
     pub organization_id: Option<u64>,
 }
 
@@ -165,7 +161,6 @@ impl ProjectState {
             public_keys: Vec::new(),
             slug: None,
             config: ProjectConfig::default(),
-            rev: None,
             organization_id: None,
             invalid: false,
         }
