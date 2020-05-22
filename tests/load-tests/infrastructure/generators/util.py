@@ -1,5 +1,6 @@
 import random
 
+
 def schema_generator(**fields):
     """
     Generate a dictionary instance according to the schema outlined by the
@@ -11,6 +12,7 @@ def schema_generator(**fields):
     * range object
     * list of any of the above (random item will be selected)
     """
+
     def inner():
         rv = {}
         for k, sub_generator in fields.items():
@@ -30,6 +32,7 @@ def schema_generator(**fields):
 
     return inner
 
+
 def version_generator(num_segments=3, max_version_segment=10):
     def inner():
         return ".".join(str(random.randrange(max_version_segment)) for _ in range(num_segments))
@@ -48,5 +51,45 @@ def string_databag_generator(max_length=10000):
             rv.append(chr(random.randrange(0, 256)))
 
         return "".join(rv)
+
+    return inner
+
+
+_articles1 = ['The', "A"]
+_articles2 = ['The', "An"]
+_predicate = ["eats", "talks with", "looks at", "annoys", "collects",
+              "sprays", "disrespects", "embarrasses", "empathises with",
+              "slaps", "plays with", "runs after", "swims after"]
+_subject = ["man", "dog", "child", "woman", "girl", "boy", "lion", "cat",
+            "wombat", "lamma", "alpaca", "vicuna", "guanaco", "leopard",
+            "cougar", "wallaby", "bear", "skunk", "rabbit", "badger"]
+_direct_object = _subject + ["meal", "baby", "table", "glass", "chronometer", "parliament", "computer",
+                             "cellular phone", "toy", "tortilla", "laptop", "bottle", "fountain pen"]
+
+
+def sentence_generator():
+    def inner():
+        subject = random.choice(_subject)
+
+        while True:
+            direct_object = random.choice(_direct_object)
+            if direct_object != subject:
+                break
+
+        if subject[0] == 'a':
+            article1 = random.choice(_articles2)
+        else:
+            article1 = random.choice(_articles1)
+
+        if _direct_object[0] == 'a':
+            article2 = random.choice(_articles2)
+        else:
+            article2 = random.choice(_articles1)
+
+        article2 = article2.lower()
+
+        predicate = random.choice(_predicate)
+
+        return f"{article1} {subject} {predicate} {article2} {direct_object}."
 
     return inner

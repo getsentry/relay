@@ -1,6 +1,8 @@
 import random
 import time
 
+from infrastructure.generators.util import schema_generator
+
 # some canned messages to populate the breadcrumbs
 _breadcrumb_messages = [
     "sending message via: UDP(10.8.0.10:53)",
@@ -17,24 +19,21 @@ def breadcrumb_generator(min=None, max=None, categories=None, levels=None, types
     levels = levels if levels is not None else ["fatal", "error", "warning", "info", "debug"]
     types = types if types is not None else ["default", "http", "error"]
     messages = messages if messages is not None else _breadcrumb_messages
-
     get_num_crumbs = lambda: random.randrange(min, max + 1)
-    get_category = lambda: random.choice(categories)
-    get_level = lambda: random.choice(levels)
-    get_type = lambda: random.choice(types)
-    get_message = lambda: random.choice(messages)
+
+    generator = schema_generator(
+        category=categories,
+        timestamp=lambda: time.time(),
+        level=levels,
+        type=types,
+        message=lambda: random.choice(messages)
+    )
 
     def inner():
         num_crumbs = get_num_crumbs()
         result = [None] * num_crumbs
         for idx in range(num_crumbs):
-            result[idx] = {
-                "category": get_category(),
-                "timestamp": time.time(),
-                "level": get_level(),
-                "type": get_type(),
-                "message": get_message()
-            }
+            result[idx] = generator()
         return result
 
     return inner
