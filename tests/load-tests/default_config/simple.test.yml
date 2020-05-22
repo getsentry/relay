@@ -17,7 +17,7 @@ users:
         simple_locustfile.random_envelope_event_task_factory:
           weight: 0
           with_level: true
-          randomized_fingerprints: true
+          num_event_groups: 1
           max_message_length: 500
           max_users: ~
           min_breadcrumbs: 0
@@ -26,6 +26,7 @@ users:
           breadcrumb_levels: ~
           breadcrumb_types: ~
           breadcrumb_messages: ~
+          num_releases: 10
         simple_locustfile.random_envelope_event_task:
           weight: 0
         simple_locustfile.random_event_task:
@@ -33,7 +34,7 @@ users:
         simple_locustfile.random_event_task_factory:
           weight: 0
           with_level: true
-          randomized_fingerprints: true
+          num_event_groups: 1
           max_message_length: 500
           max_users: ~
           min_breadcrumbs: 0
@@ -42,3 +43,4 @@ users:
           breadcrumb_levels: ~
           breadcrumb_types: ~
           breadcrumb_messages: ~
+          num_releases: 10
