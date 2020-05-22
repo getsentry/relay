@@ -1,5 +1,6 @@
 users:
   SimpleLoadTest:
+    wait_time: constant(1)
     num_projects: 10
     weight: 1
     task_set:
@@ -7,3 +8,37 @@ users:
         - locustfile.small_event_task
         - locustfile.medium_event_task
         - locustfile.large_event_task
+  RandomEvents:
+    wait_time: constant(1)
+    num_projects: 10
+    weight: 0
+    task_set:
+      tasks:
+        locustfile.random_envelope_event_task_factory:
+          weight: 0
+          with_level: true
+          randomized_fingerprints: true
+          max_message_length: 500
+          max_users: ~
+          min_breadcrumbs: 0
+          max_breadcrumbs: 50
+          breadcrumb_categories: ~
+          breadcrumb_levels: ~
+          breadcrumb_types: ~
+          breadcrumb_messages: ~
+        locustfile.random_envelope_event_task:
+          weight: 0
+        locustfile.random_event_task:
+          weight: 1
+        locustfile.random_event_task_factory:
+          weight: 0
+          with_level: true
+          randomized_fingerprints: true
+          max_message_length: 500
+          max_users: ~
+          min_breadcrumbs: 0
+          max_breadcrumbs: 50
+          breadcrumb_categories: ~
+          breadcrumb_levels: ~
+          breadcrumb_types: ~
+          breadcrumb_messages: ~
