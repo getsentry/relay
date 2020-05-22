@@ -15,7 +15,7 @@ from infrastructure.generators.native import native_data_generator
 def base_event_generator(
     with_event_id=True,
     with_level=True,
-    randomized_fingerprints=False,
+    num_event_groups=1,
     max_message_length=10000,
     max_users=None,
     min_breadcrumbs=None,
@@ -29,7 +29,7 @@ def base_event_generator(
     event_generator = schema_generator(
         event_id=(lambda: uuid.uuid4().hex) if with_event_id else None,
         level=["error", "debug"] if with_level else None,
-        fingerprint=(lambda: uuid.uuid4().hex) if randomized_fingerprints else None,
+        fingerprint=lambda: f"fingerprint{random.randrange(num_event_groups)}",
         transaction=[None, lambda: f"mytransaction{random.randrange(100)}"],
         logentry={"formatted":  sentence_generator()},
         logger=["foo.bar.baz", "bam.baz.bad", None],

@@ -16,7 +16,7 @@ def send_message(client, project_id, project_key, msg_body, headers=None):
         "Content-Type": "application/json; charset=UTF-8",
         **(headers or {})
     }
-    return client.post(url, headers=headers, data=msg_body)
+    return client.post(url, headers=headers, json=msg_body)
 
 
 def send_envelope(client, project_id, project_key, envelope, headers=None):
