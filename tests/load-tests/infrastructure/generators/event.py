@@ -9,6 +9,7 @@ from infrastructure.generators.util import (
 from infrastructure.generators.user import user_interface_generator
 from infrastructure.generators.contexts import os_context_generator, device_context_generator, app_context_generator
 from infrastructure.generators.breadcrumbs import breadcrumb_generator
+from infrastructure.generators.native import native_data_generator
 
 
 def base_event_generator(
@@ -23,8 +24,9 @@ def base_event_generator(
     breadcrumb_levels=None,
     breadcrumb_types=None,
     breadcrumb_messages=None,
+    with_native_stacktrace=False,
 ):
-    return schema_generator(
+    event_generator = schema_generator(
         event_id=(lambda: uuid.uuid4().hex) if with_event_id else None,
         level=["error", "debug"] if with_level else None,
         fingerprint=(lambda: uuid.uuid4().hex) if randomized_fingerprints else None,
@@ -48,3 +50,25 @@ def base_event_generator(
             messages=breadcrumb_messages,
         )
     )
+
+    if with_native_stacktrace:
+        native_gen = native_data_generator()
+
+        exc_gen = schema_generator(
+            type=string_databag_generator(),
+            value=string_databag_generator(),
+        )
+
+        def event_generator(base_gen=event_generator):
+            event = base_gen()
+            frames, images = native_gen()
+
+            event['platform'] = 'cocoa'
+            exc = exc_gen()
+            event['exception'] = {'values': [exc]}
+
+            exc['stacktrace'] = {'frames': frames}
+            event['debug_meta'] = {'images': images}
+            return event
+
+    return event_generator
