@@ -56,9 +56,6 @@ def random_event_task_factory(task_params=None):
     return inner
 
 
-random_event_task = random_event_task_factory()
-
-
 def random_envelope_event_task_factory(task_params=None):
     if task_params is not None:
         kwargs = _get_task_config_args(task_params)
@@ -75,6 +72,3 @@ def random_envelope_event_task_factory(task_params=None):
         return send_envelope(task_set.client, project_info.id, project_info.key, envelope)
 
     return inner
-
-
-random_envelope_event_task = random_envelope_event_task_factory()
