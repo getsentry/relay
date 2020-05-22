@@ -37,7 +37,7 @@ def native_data_generator(**event_kwargs):
 
             for frame in image_frames:
                 frame = dict(frame)
-                frame['instruction_addr'] = hex(int(image['instruction_addr'], 16) + shift)
+                frame['instruction_addr'] = hex(int(frame['instruction_addr'], 16) + shift)
                 frames.append(frame)
 
         return frames, images

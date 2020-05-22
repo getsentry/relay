@@ -55,11 +55,7 @@ def base_event_generator(
 
     if with_native_stacktrace:
         native_gen = native_data_generator()
-
-        exc_gen = schema_generator(
-            type=string_databag_generator(),
-            value=string_databag_generator(),
-        )
+        exc_gen = schema_generator(value=sentence_generator())
 
         def event_generator(base_gen=event_generator):
             event = base_gen()

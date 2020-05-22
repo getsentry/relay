@@ -35,14 +35,8 @@ def canned_envelope_event_task(event_name: str):
     return inner
 
 
-_valid_event_factory_params = frozenset(
-    ["with_level", "randomized_fingerprints", "max_message_length", "max_users", "min_breadcrumbs",
-     "max_breadcrumbs", "breadcrumb_categories", "breadcrumb_levels", "breadcrumb_types",
-     "breadcrumb_messages"])
-
-
 def _get_task_config_args(task_params):
-    return {k: v for k, v in task_params.items() if k in _valid_event_factory_params and v is not None}
+    return {k: v for k, v in task_params.items() if k != 'weight'}
 
 
 def random_event_task_factory(task_params=None):

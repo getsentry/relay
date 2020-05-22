@@ -28,7 +28,7 @@ def device_context_generator():
         model_id="NYC",
         brand=["google", "zoogle", "moodle", "doodle", "tamagotchi"],
         storage_size=range(10 ** 6),
-        boot_time=time.time(),
+        boot_time=lambda: str(time.time()),
         arch=lambda: f"x{random.random()}",
         manufacturer=["Google", "Hasbro"],
     )
