@@ -15,6 +15,6 @@ random_event_task = event_tasks.random_event_task
 random_envelope_event_task_factory = event_tasks.random_envelope_event_task_factory
 random_envelope_event_task = event_tasks.random_envelope_event_task
 
-_config_path = full_path_from_module_relative_path(__file__, "config/simple_load_test.yml")
+_config_path = full_path_from_module_relative_path(__file__, "config/simple.test.yml")
 SimpleLoadTest = create_locust_class("SimpleLoadTest", _config_path)
 RandomEvents = create_locust_class("RandomEvents", _config_path)
