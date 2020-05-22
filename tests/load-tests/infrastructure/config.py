@@ -83,5 +83,5 @@ def generate_project_info(num_projects) -> ProjectInfo:
 
 def _config_file_path():
     return full_path_from_module_relative_path(
-        __file__, "..", "config", "locust_config.yml"
+        __file__, "..", "config", "locust.config.yml"
     )

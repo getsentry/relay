@@ -28,8 +28,14 @@ fake-sentry: setup-deps
 	.venv/bin/python -m fake_sentry.fake_sentry
 .PHONY: fake-sentry
 
-load-test: setup-deps
-	.venv/bin/locust -f locustfile.py
+check-test:
+ifndef TEST
+	$(error TEST is undefined. Please specify a test name such as `make TEST=simple load-test` or `make TEST=kafka_consumers load-test`)
+endif
+.PHONY: check-test
+
+load-test: check-test setup-deps
+	.venv/bin/locust -f $(TEST)_locustfile.py
 .PHONY: load-test
 
 setup-brew:
