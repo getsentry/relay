@@ -186,18 +186,16 @@ impl UpstreamRelay {
             // timeout to prevent the queued events from timing out while waiting for a free
             // connection in the pool.
             //
-            // This is dirty and not good enough in the long run. Right now filling up the "request
-            // queue" means that requests unrelated to `store` (queries, proxied/forwarded
-            // requests) are blocked by store requests. Ideally those requests would bypass this
-            // queue.
+            // This may not be good enough in the long run. Right now, filling up the "request
+            // queue" means that requests unrelated to `store` (queries, proxied/forwarded requests)
+            // are blocked by store requests. Ideally, those requests would bypass this queue.
             //
             // Two options come to mind:
-            //
-            // 1.) Have own connection pool for `store` requests
-            //
-            // 2.) Buffer up/queue/synchronize events before creating the request
-            //
+            //   1. Have own connection pool for `store` requests
+            //   2. Buffer up/queue/synchronize events before creating the request
             .wait_timeout(self.config.event_buffer_expiry())
+            // This is the timeout after wait + connect.
+            .timeout(self.config.http_timeout())
             .map_err(UpstreamRequestError::SendFailed)
             .and_then(|response| match response.status() {
                 StatusCode::TOO_MANY_REQUESTS => {
@@ -244,7 +242,6 @@ impl UpstreamRelay {
         let future = self
             .send_request(method, path, |builder| {
                 builder
-                    .timeout(self.config.http_timeout())
                     .header("X-Sentry-Relay-Signature", signature)
                     .header(header::CONTENT_TYPE, "application/json")
                     .body(json)
