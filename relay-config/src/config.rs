@@ -351,6 +351,9 @@ pub struct Relay {
     pub tls_identity_path: Option<PathBuf>,
     /// Password for the PKCS12 archive.
     pub tls_identity_password: Option<String>,
+    /// Controls whether outcomes will be emitted when processing is disabled.
+    /// Processing relays always emit outcomes (for backwards compatibility).
+    pub emit_outcomes: bool,
 }
 
 impl Default for Relay {
@@ -363,6 +366,7 @@ impl Default for Relay {
             tls_port: None,
             tls_identity_path: None,
             tls_identity_password: None,
+            emit_outcomes: false,
         }
     }
 }
@@ -1036,6 +1040,11 @@ impl Config {
     /// Returns the password for the identity bundle
     pub fn tls_identity_password(&self) -> Option<&str> {
         self.values.relay.tls_identity_password.as_deref()
+    }
+
+    /// Returns the emit_outcomes flag
+    pub fn emit_outcomes(&self) -> bool {
+        self.values.relay.emit_outcomes
     }
 
     /// Returns the log level.
