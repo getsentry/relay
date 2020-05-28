@@ -202,6 +202,39 @@ pub enum DiscardReason {
     ProcessUnreal,
 }
 
+impl Outcome {
+    /// Returns the name of the outcome as recognized by Sentry.
+    fn name(&self) -> &'static str {
+        match self {
+            Outcome::Accepted => "accepted",
+            Outcome::Filtered(_) => "filtered",
+            Outcome::RateLimited(_) => "rate_limited",
+            Outcome::Invalid(_) => "invalid",
+            Outcome::Abuse => "abuse",
+        }
+    }
+
+    fn to_outcome_id(&self) -> u8 {
+        match self {
+            Outcome::Accepted => 0,
+            Outcome::Filtered(_) => 1,
+            Outcome::RateLimited(_) => 2,
+            Outcome::Invalid(_) => 3,
+            Outcome::Abuse => 4,
+        }
+    }
+
+    fn to_reason(&self) -> Option<&str> {
+        match self {
+            Outcome::Accepted => None,
+            Outcome::Invalid(discard_reason) => Some(discard_reason.name()),
+            Outcome::Filtered(filter_key) => Some(filter_key.name()),
+            Outcome::RateLimited(code_opt) => code_opt.as_ref().map(|code| code.as_str()),
+            Outcome::Abuse => None,
+        }
+    }
+}
+
 impl DiscardReason {
     pub fn name(self) -> &'static str {
         match self {
@@ -240,8 +273,7 @@ impl DiscardReason {
 pub struct TrackRawOutcome {
     /// The timespan of the event outcome.
     timestamp: String,
-    /// Organization id.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Organization id.#[serde(default, skip_serializing_if = "Option::is_none")]
     org_id: Option<u64>,
     /// Project id.
     project_id: ProjectId,
@@ -250,14 +282,12 @@ pub struct TrackRawOutcome {
     key_id: Option<u64>,
     /// The outcome.
     outcome: u8,
-    /// Reason for the outcome.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Reason for the outcome.#[serde(default, skip_serializing_if = "Option::is_none")]
     reason: Option<String>,
     /// The event id.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     event_id: Option<EventId>,
-    /// The client ip address.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// The client ip address.#[serde(default, skip_serializing_if = "Option::is_none")]
     remote_addr: Option<String>,
 }
 
