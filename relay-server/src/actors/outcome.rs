@@ -23,10 +23,10 @@ use crate::ServerError;
 // Choose the outcome module implementation (either the real one or the fake, no-op one).
 // Real outcome implementation
 #[cfg(feature = "processing")]
-pub use self::kafka::*;
+pub use self::processing::*;
 // No-op outcome implementation
 #[cfg(not(feature = "processing"))]
-pub use self::noop::*;
+pub use self::non_processing::*;
 
 /// Tracks an outcome of an event.
 ///
@@ -75,17 +75,6 @@ pub enum Outcome {
 }
 
 impl Outcome {
-    /// Returns the name of the outcome as recognized by Sentry.
-    fn name(&self) -> &'static str {
-        match self {
-            Outcome::Accepted => "accepted",
-            Outcome::Filtered(_) => "filtered",
-            Outcome::RateLimited(_) => "rate_limited",
-            Outcome::Invalid(_) => "invalid",
-            Outcome::Abuse => "abuse",
-        }
-    }
-
     fn to_outcome_id(&self) -> u8 {
         match self {
             Outcome::Accepted => 0,
@@ -235,7 +224,8 @@ impl DiscardReason {
     }
 }
 
-/// The outcome message is serialized as json and placed on the Kafka topic using OutcomePayload
+/// The outcome message is serialized as json and placed on the Kafka topic or in
+/// the http using TrackRawOutcome
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TrackRawOutcome {
     /// The timespan of the event outcome.
@@ -259,6 +249,19 @@ pub struct TrackRawOutcome {
     /// The client ip address.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     remote_addr: Option<String>,
+}
+
+impl TrackRawOutcome {
+    fn name(&self) -> &'static str {
+        match self.outcome {
+            0 => "accepted",
+            1 => "filtered",
+            2 => "rate_limited",
+            3 => "invalid",
+            4 => "abuse",
+            _ => "", // TODO should we return a result ?
+        }
+    }
 }
 
 impl From<&TrackOutcome> for TrackRawOutcome {
@@ -298,7 +301,7 @@ impl Message for TrackRawOutcome {
 
 /// This is the implementation that uses kafka queues and does stuff
 #[cfg(feature = "processing")]
-mod kafka {
+mod processing {
     use super::*;
 
     use failure::{Fail, ResultExt};
@@ -348,6 +351,43 @@ mod kafka {
                 producer: future_producer,
             })
         }
+
+        fn send_kafka_message(&mut self, message: TrackRawOutcome) -> Result<(), OutcomeError> {
+            log::trace!("Tracking outcome: {:?}", message);
+
+            let producer = match self.producer {
+                Some(ref producer) => producer,
+                None => return Ok(()),
+            };
+
+            let payload =
+                serde_json::to_string(&message).map_err(OutcomeError::SerializationError)?;
+
+            metric!(
+                counter(RelayCounters::Outcomes) += 1,
+                reason = message.reason.as_deref().unwrap_or(""),
+                outcome = message.name()
+            );
+
+            // At the moment, we support outcomes with optional EventId.
+            // Here we create a fake EventId, when we don't have the real one, so that we can
+            // create a kafka message key that spreads the events nicely over all the
+            // kafka consumer groups.
+            let key = message.event_id.unwrap_or_else(EventId::new).0;
+
+            let record = BaseRecord::to(self.config.kafka_topic_name(KafkaTopic::Outcomes))
+                .payload(&payload)
+                .key(key.as_bytes().as_ref());
+
+            match producer.send(record) {
+                Ok(_) => Ok(()),
+                Err((kafka_error, _message)) => Err(OutcomeError::SendFailed(kafka_error)),
+            }
+        }
+
+        fn send_http_message(&mut self, _message: TrackRawOutcome) -> Result<(), OutcomeError> {
+            unimplemented!()
+        }
     }
 
     impl Actor for OutcomeProducer {
@@ -367,70 +407,44 @@ mod kafka {
         }
     }
 
-    impl Handler<TrackRawOutcome> for OutcomeProducer {
-        type Result = Result<(), OutcomeError>;
-        fn handle(&mut self, _message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            log::error!("TrackRawOutcome is not yet implemented!");
-            Ok(()) //TODO add real implementation
-        }
-    }
-
     impl Handler<TrackOutcome> for OutcomeProducer {
         type Result = Result<(), OutcomeError>;
 
         fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            log::trace!("Tracking outcome: {:?}", message);
+            self.handle(TrackRawOutcome::from(&message), _ctx)
+        }
+    }
 
-            let producer = match self.producer {
-                Some(ref producer) => producer,
-                None => return Ok(()),
-            };
-
-            let payload = serde_json::to_string(&TrackRawOutcome::from(&message))
-                .map_err(OutcomeError::SerializationError)?;
-
-            metric!(
-                counter(RelayCounters::Outcomes) += 1,
-                reason = message.outcome.to_reason().unwrap_or(""),
-                outcome = message.outcome.name()
-            );
-
-            // At the moment, we support outcomes with optional EventId.
-            // Here we create a fake EventId, when we don't have the real one, so that we can
-            // create a kafka message key that spreads the events nicely over all the
-            // kafka consumer groups.
-            let key = message.event_id.unwrap_or_else(EventId::new).0;
-
-            let record = BaseRecord::to(self.config.kafka_topic_name(KafkaTopic::Outcomes))
-                .payload(&payload)
-                .key(key.as_bytes().as_ref());
-
-            match producer.send(record) {
-                Ok(_) => Ok(()),
-                Err((kafka_error, _message)) => Err(OutcomeError::SendFailed(kafka_error)),
+    impl Handler<TrackRawOutcome> for OutcomeProducer {
+        type Result = Result<(), OutcomeError>;
+        fn handle(&mut self, message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
+            if self.config.processing_enabled() {
+                self.send_kafka_message(message)
+            } else if self.config.emit_outcomes() {
+                self.send_http_message(message)
+            } else {
+                Ok(()) // processing not enabled and emit_outcomes disabled
             }
         }
     }
 }
 
-/// This is a noop implementation that doesn't do anything it is here to cleanly isolate the
-/// conditional compilation of Relay with / without processing.
-///
-/// When compiling with processing this module will NOT be included in compilation. When compiling
-/// without processing this module will be included and will serve as a 'no op' actor that just
-/// returns a success future whenever a message is sent to it.
+/// This is the Outcome processing implementation for Relays that are compiled without processing
+/// There is no access to kafka, we can only send outcomes to the upstream Relay
 #[cfg(not(feature = "processing"))]
-mod noop {
+mod non_processing {
     use super::*;
 
     #[derive(Debug)]
     pub enum OutcomeError {}
 
-    pub struct OutcomeProducer;
+    pub struct OutcomeProducer {
+        config: Arc<Config>,
+    }
 
     impl OutcomeProducer {
-        pub fn create(_config: Arc<Config>) -> Result<Self, ServerError> {
-            Ok(Self)
+        pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
+            Ok(Self { config })
         }
     }
 
@@ -442,8 +456,11 @@ mod noop {
         type Result = Result<(), OutcomeError>;
         fn handle(&mut self, message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
             log::trace!("Tracking outcome (noop): {:?}", message);
-            // nothing to do here
-            Ok(())
+            if self.config.processing_enabled() {
+                unimplemented!() //TODO send to http
+            } else {
+                Ok(())
+            }
         }
     }
 
@@ -451,10 +468,7 @@ mod noop {
         type Result = Result<(), OutcomeError>;
 
         fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            log::trace!("Tracking outcome (noop): {:?}", message);
-            // nothing to do here
-            let _name = message.outcome.name();
-            Ok(())
+            self.handle(TrackRawOutcome::from(&message), _ctx)
         }
     }
 }
