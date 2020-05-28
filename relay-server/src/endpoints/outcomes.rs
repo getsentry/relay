@@ -1,40 +1,33 @@
-use actix::ResponseFuture;
-use actix_web::{HttpResponse, ResponseError};
-use failure::Fail;
-use futures::prelude::*;
-use serde::Deserialize;
+use actix_web::HttpResponse;
+use serde::{Deserialize, Serialize};
 
 use crate::actors::outcome::OutcomePayload;
 use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;
 
+/// Defines the structure of the HTTP outcomes requests
 #[derive(Deserialize, Debug)]
-pub struct SendOutcomes {
+struct SendOutcomes {
     pub outcomes: Vec<OutcomePayload>,
 }
 
-fn send_outcomes(
-    state: CurrentServiceState,
-    body: SignedJson<SendOutcomes>,
-) -> ResponseFuture<HttpResponse, OutcomeProcessingError> {
+/// Defines the structure of the HTTP outcomes responses for successful requests
+#[derive(Serialize, Debug)]
+struct OutcomesResponse {
+    // nothing yet, future features will go here
+}
+
+fn send_outcomes(state: CurrentServiceState, body: SignedJson<SendOutcomes>) -> HttpResponse {
     if !body.relay.internal {
-        return Box::new(futures::future::ok(HttpResponse::Unauthorized().into()));
+        return HttpResponse::Unauthorized().finish();
     }
     if !state.config().emit_outcomes() {
-        return Box::new(futures::future::ok(HttpResponse::Forbidden().into()));
+        return HttpResponse::Forbidden().finish();
     }
-    let requests: Vec<_> = body
-        .inner
-        .outcomes
-        .iter()
-        .map(|o| state.outcome_producer().send(o.clone()))
-        .collect();
-
-    Box::new(
-        futures::future::join_all(requests)
-            .map_err(|_| OutcomeProcessingError)
-            .map(|_| HttpResponse::Ok().into()),
-    )
+    for outcome in body.inner.outcomes {
+        state.outcome_producer().do_send(outcome);
+    }
+    HttpResponse::Ok().json(OutcomesResponse {})
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
@@ -42,14 +35,4 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         r.name("relay-outcomes");
         r.post().with(send_outcomes);
     })
-}
-
-#[derive(Fail, Debug)]
-#[fail(display = "An error occurred.")]
-struct OutcomeProcessingError;
-
-impl ResponseError for OutcomeProcessingError {
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::InternalServerError().into()
-    }
 }
