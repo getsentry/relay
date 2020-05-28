@@ -9,7 +9,10 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use actix::prelude::*;
+use chrono::SecondsFormat;
+use serde::{Deserialize, Serialize};
 
+use relay_common::ProjectId;
 use relay_config::Config;
 use relay_filter::FilterStatKey;
 use relay_general::protocol::EventId;
@@ -166,144 +169,146 @@ pub enum DiscardReason {
     ProcessUnreal,
 }
 
+impl Outcome {
+    /// Returns the name of the outcome as recognized by Sentry.
+    fn name(&self) -> &'static str {
+        match self {
+            Outcome::Accepted => "accepted",
+            Outcome::Filtered(_) => "filtered",
+            Outcome::RateLimited(_) => "rate_limited",
+            Outcome::Invalid(_) => "invalid",
+            Outcome::Abuse => "abuse",
+        }
+    }
+
+    fn to_outcome_id(&self) -> u8 {
+        match self {
+            Outcome::Accepted => 0,
+            Outcome::Filtered(_) => 1,
+            Outcome::RateLimited(_) => 2,
+            Outcome::Invalid(_) => 3,
+            Outcome::Abuse => 4,
+        }
+    }
+
+    fn to_reason(&self) -> Option<&str> {
+        match self {
+            Outcome::Accepted => None,
+            Outcome::Invalid(discard_reason) => Some(discard_reason.name()),
+            Outcome::Filtered(filter_key) => Some(filter_key.name()),
+            Outcome::RateLimited(code_opt) => code_opt.as_ref().map(|code| code.as_str()),
+            Outcome::Abuse => None,
+        }
+    }
+}
+
+impl DiscardReason {
+    pub fn name(self) -> &'static str {
+        match self {
+            DiscardReason::Duplicate => "duplicate",
+            DiscardReason::ProjectId => "project_id",
+            DiscardReason::AuthVersion => "auth_version",
+            DiscardReason::AuthClient => "auth_client",
+            DiscardReason::NoData => "no_data",
+            DiscardReason::TooLarge => "too_large",
+            DiscardReason::DisallowedMethod => "disallowed_method",
+            DiscardReason::ContentType => "content_type",
+            DiscardReason::MultiProjectId => "multi_project_id",
+            DiscardReason::MissingMinidumpUpload => "missing_minidump_upload",
+            DiscardReason::InvalidMinidump => "invalid_minidump",
+            DiscardReason::SecurityReportType => "security_report_type",
+            DiscardReason::SecurityReport => "security_report",
+            DiscardReason::Cors => "cors",
+            DiscardReason::ProcessUnreal => "process_unreal",
+
+            // Relay specific reasons (not present in Sentry)
+            DiscardReason::Payload => "payload",
+            DiscardReason::InvalidJson => "invalid_json",
+            DiscardReason::InvalidMultipart => "invalid_multipart",
+            DiscardReason::InvalidMsgpack => "invalid_msgpack",
+            DiscardReason::InvalidTransaction => "invalid_transaction",
+            DiscardReason::InvalidEnvelope => "invalid_envelope",
+            DiscardReason::ProjectState => "project_state",
+            DiscardReason::DuplicateItem => "duplicate_item",
+            DiscardReason::Internal => "internal",
+        }
+    }
+}
+
+/// The outcome message is serialized as json and placed on the Kafka topic using OutcomePayload
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OutcomePayload {
+    /// The timespan of the event outcome.
+    timestamp: String,
+    /// Organization id.
+    org_id: Option<u64>,
+    /// Project id.
+    project_id: ProjectId,
+    /// The DSN project key id.
+    key_id: Option<u64>,
+    /// The outcome.
+    outcome: u8,
+    /// Reason for the outcome.
+    reason: Option<String>,
+    /// The event id.
+    event_id: Option<EventId>,
+    /// The client ip address.
+    remote_addr: Option<String>,
+}
+
+impl From<&TrackOutcome> for OutcomePayload {
+    fn from(msg: &TrackOutcome) -> Self {
+        let reason = match msg.outcome.to_reason() {
+            None => None,
+            Some(reason) => Some(reason.to_string()),
+        };
+
+        let date_time = relay_common::instant_to_date_time(msg.timestamp);
+
+        // convert to a RFC 3339 formatted date with the shape YYYY-MM-DDTHH:MM:SS.mmmmmmZ
+        // e.g. something like: "2019-09-29T09:46:40.123456Z"
+        let timestamp = date_time.to_rfc3339_opts(SecondsFormat::Micros, true);
+
+        let org_id = match msg.scoping.organization_id {
+            0 => None,
+            id => Some(id),
+        };
+
+        OutcomePayload {
+            timestamp,
+            org_id,
+            project_id: msg.scoping.project_id,
+            key_id: msg.scoping.key_id,
+            outcome: msg.outcome.to_outcome_id(),
+            reason,
+            event_id: msg.event_id,
+            remote_addr: msg.remote_addr.map(|addr| addr.to_string()),
+        }
+    }
+}
+
+impl Message for OutcomePayload {
+    type Result = Result<(), OutcomeError>;
+}
+
 /// This is the implementation that uses kafka queues and does stuff
 #[cfg(feature = "processing")]
 mod kafka {
     use super::*;
 
-    use chrono::SecondsFormat;
     use failure::{Fail, ResultExt};
     use rdkafka::error::KafkaError;
     use rdkafka::producer::{BaseRecord, DefaultProducerContext};
     use rdkafka::ClientConfig;
-    use serde::Serialize;
     use serde_json::Error as SerdeSerializationError;
 
-    use relay_common::{metric, ProjectId};
+    use relay_common::metric;
     use relay_config::KafkaTopic;
 
     use crate::metrics::RelayCounters;
     use crate::service::ServerErrorKind;
 
     type ThreadedProducer = rdkafka::producer::ThreadedProducer<DefaultProducerContext>;
-
-    impl Outcome {
-        /// Returns the name of the outcome as recognized by Sentry.
-        fn name(&self) -> &'static str {
-            match self {
-                Outcome::Accepted => "accepted",
-                Outcome::Filtered(_) => "filtered",
-                Outcome::RateLimited(_) => "rate_limited",
-                Outcome::Invalid(_) => "invalid",
-                Outcome::Abuse => "abuse",
-            }
-        }
-
-        fn to_outcome_id(&self) -> u8 {
-            match self {
-                Outcome::Accepted => 0,
-                Outcome::Filtered(_) => 1,
-                Outcome::RateLimited(_) => 2,
-                Outcome::Invalid(_) => 3,
-                Outcome::Abuse => 4,
-            }
-        }
-
-        fn to_reason(&self) -> Option<&str> {
-            match self {
-                Outcome::Accepted => None,
-                Outcome::Invalid(discard_reason) => Some(discard_reason.name()),
-                Outcome::Filtered(filter_key) => Some(filter_key.name()),
-                Outcome::RateLimited(code_opt) => code_opt.as_ref().map(|code| code.as_str()),
-                Outcome::Abuse => None,
-            }
-        }
-    }
-
-    impl DiscardReason {
-        pub fn name(self) -> &'static str {
-            match self {
-                DiscardReason::Duplicate => "duplicate",
-                DiscardReason::ProjectId => "project_id",
-                DiscardReason::AuthVersion => "auth_version",
-                DiscardReason::AuthClient => "auth_client",
-                DiscardReason::NoData => "no_data",
-                DiscardReason::TooLarge => "too_large",
-                DiscardReason::DisallowedMethod => "disallowed_method",
-                DiscardReason::ContentType => "content_type",
-                DiscardReason::MultiProjectId => "multi_project_id",
-                DiscardReason::MissingMinidumpUpload => "missing_minidump_upload",
-                DiscardReason::InvalidMinidump => "invalid_minidump",
-                DiscardReason::SecurityReportType => "security_report_type",
-                DiscardReason::SecurityReport => "security_report",
-                DiscardReason::Cors => "cors",
-                DiscardReason::ProcessUnreal => "process_unreal",
-
-                // Relay specific reasons (not present in Sentry)
-                DiscardReason::Payload => "payload",
-                DiscardReason::InvalidJson => "invalid_json",
-                DiscardReason::InvalidMultipart => "invalid_multipart",
-                DiscardReason::InvalidMsgpack => "invalid_msgpack",
-                DiscardReason::InvalidTransaction => "invalid_transaction",
-                DiscardReason::InvalidEnvelope => "invalid_envelope",
-                DiscardReason::ProjectState => "project_state",
-                DiscardReason::DuplicateItem => "duplicate_item",
-                DiscardReason::Internal => "internal",
-            }
-        }
-    }
-
-    /// The outcome message is serialized as json and placed on the Kafka topic using OutcomePayload
-    #[derive(Debug, Serialize, Clone)]
-    struct OutcomePayload {
-        /// The timespan of the event outcome.
-        timestamp: String,
-        /// Organization id.
-        org_id: Option<u64>,
-        /// Project id.
-        project_id: ProjectId,
-        /// The DSN project key id.
-        key_id: Option<u64>,
-        /// The outcome.
-        outcome: u8,
-        /// Reason for the outcome.
-        reason: Option<String>,
-        /// The event id.
-        event_id: Option<EventId>,
-        /// The client ip address.
-        remote_addr: Option<String>,
-    }
-
-    impl From<&TrackOutcome> for OutcomePayload {
-        fn from(msg: &TrackOutcome) -> Self {
-            let reason = match msg.outcome.to_reason() {
-                None => None,
-                Some(reason) => Some(reason.to_string()),
-            };
-
-            let date_time = relay_common::instant_to_date_time(msg.timestamp);
-
-            // convert to a RFC 3339 formatted date with the shape YYYY-MM-DDTHH:MM:SS.mmmmmmZ
-            // e.g. something like: "2019-09-29T09:46:40.123456Z"
-            let timestamp = date_time.to_rfc3339_opts(SecondsFormat::Micros, true);
-
-            let org_id = match msg.scoping.organization_id {
-                0 => None,
-                id => Some(id),
-            };
-
-            OutcomePayload {
-                timestamp,
-                org_id,
-                project_id: msg.scoping.project_id,
-                key_id: msg.scoping.key_id,
-                outcome: msg.outcome.to_outcome_id(),
-                reason,
-                event_id: msg.event_id,
-                remote_addr: msg.remote_addr.map(|addr| addr.to_string()),
-            }
-        }
-    }
 
     #[derive(Fail, Debug)]
     pub enum OutcomeError {
@@ -354,6 +359,13 @@ mod kafka {
 
         fn stopped(&mut self, _ctx: &mut Self::Context) {
             log::info!("OutcomeProducer stopped.");
+        }
+    }
+
+    impl Handler<OutcomePayload> for OutcomeProducer {
+        type Result = Result<(), OutcomeError>;
+        fn handle(&mut self, _message: OutcomePayload, _ctx: &mut Self::Context) -> Self::Result {
+            unimplemented!("TODO implement!")
         }
     }
 
@@ -420,13 +432,23 @@ mod noop {
         type Context = Context<Self>;
     }
 
+    impl Handler<OutcomePayload> for OutcomeProducer {
+        type Result = Result<(), OutcomeError>;
+        fn handle(&mut self, message: OutcomePayload, _ctx: &mut Self::Context) -> Self::Result {
+            log::trace!("Tracking outcome (noop): {:?}", message);
+            // nothing to do here
+            Ok(())
+        }
+    }
+
     impl Handler<TrackOutcome> for OutcomeProducer {
-        type Result = ResponseFuture<(), OutcomeError>;
+        type Result = Result<(), OutcomeError>;
 
         fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
             log::trace!("Tracking outcome (noop): {:?}", message);
             // nothing to do here
-            Box::new(futures::future::ok(()))
+            let _name = message.outcome.name();
+            Ok(())
         }
     }
 }
