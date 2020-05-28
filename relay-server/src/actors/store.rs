@@ -164,11 +164,8 @@ impl StoreForwarder {
                         if let Some(client) = client {
                             scope.set_tag("sdk", client);
                         }
-                        if let Ok(payload) = std::str::from_utf8(&item.payload()) {
-                            scope.set_extra("session", payload.into());
-                        } else {
-                            scope.set_extra("session", "<invalid utf8>".into());
-                        }
+                        let payload = item.payload();
+                        scope.set_extra("session", String::from_utf8_lossy(&payload).into());
                     },
                     || {
                         // Skip gracefully here to allow sending other messages.
