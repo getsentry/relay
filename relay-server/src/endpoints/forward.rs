@@ -14,6 +14,7 @@ use relay_common::GlobMatcher;
 use relay_config::Config;
 
 use crate::body::ForwardBody;
+use crate::endpoints::statics;
 use crate::extractors::ForwardedFor;
 use crate::service::{ServiceApp, ServiceState};
 
@@ -138,7 +139,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
     // "/api/" path is special as it is actually a web UI endpoint.
     app.resource("/api/", |r| {
         r.name("api-root");
-        r.f(|_| HttpResponse::NotFound())
+        r.f(statics::not_found)
     })
     .handler("/api", forward_upstream)
 }
