@@ -1,13 +1,13 @@
 //! Returns captured events.
 
 use ::actix::prelude::*;
-use actix_web::{http::Method, HttpResponse, Path, Scope};
+use actix_web::{http::Method, HttpResponse, Path};
 use futures::future::Future;
 
 use crate::actors::events::GetCapturedEvent;
 use crate::envelope;
 use crate::extractors::CurrentServiceState;
-use crate::service::ServiceState;
+use crate::service::ServiceApp;
 
 use relay_general::protocol::EventId;
 
@@ -34,8 +34,8 @@ fn get_captured_event(
     Box::new(future)
 }
 
-pub fn configure_scope(scope: Scope<ServiceState>) -> Scope<ServiceState> {
-    scope.resource("/events/{event_id}/", |r| {
+pub fn configure_app(app: ServiceApp) -> ServiceApp {
+    app.resource("/api/relay/events/{event_id}/", |r| {
         r.name("internal-events");
         r.method(Method::GET).with(get_captured_event);
     })
