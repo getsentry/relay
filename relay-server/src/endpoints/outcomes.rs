@@ -1,14 +1,15 @@
 use actix_web::HttpResponse;
 use serde::{Deserialize, Serialize};
 
-use crate::actors::outcome::OutcomePayload;
+use crate::actors::outcome::TrackRawOutcome;
 use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;
 
 /// Defines the structure of the HTTP outcomes requests
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default)]
+#[serde(default)]
 struct SendOutcomes {
-    pub outcomes: Vec<OutcomePayload>,
+    pub outcomes: Vec<TrackRawOutcome>,
 }
 
 /// Defines the structure of the HTTP outcomes responses for successful requests
@@ -18,16 +19,13 @@ struct OutcomesResponse {
 }
 
 fn send_outcomes(state: CurrentServiceState, body: SignedJson<SendOutcomes>) -> HttpResponse {
-    if !body.relay.internal {
-        return HttpResponse::Unauthorized().finish();
-    }
-    if !state.config().emit_outcomes() {
+    if !body.relay.internal || !state.config().emit_outcomes() {
         return HttpResponse::Forbidden().finish();
     }
     for outcome in body.inner.outcomes {
         state.outcome_producer().do_send(outcome);
     }
-    HttpResponse::Ok().json(OutcomesResponse {})
+    HttpResponse::Accepted().json(OutcomesResponse {})
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
