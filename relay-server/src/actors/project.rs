@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
@@ -106,9 +107,6 @@ pub struct LimitedProjectConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectState {
-    /// The timestamp of when the state was received.
-    #[serde(default = "Utc::now")]
-    pub last_fetch: DateTime<Utc>,
     /// The timestamp of when the state was last changed.
     ///
     /// This might be `None` in some rare cases like where states
@@ -131,6 +129,10 @@ pub struct ProjectState {
     #[serde(default)]
     pub organization_id: Option<u64>,
 
+    /// The time at which this project state was last updated.
+    #[serde(skip, default = "Instant::now")]
+    pub last_fetch: Instant,
+
     /// True if this project state was fetched but incompatible with this Relay.
     #[serde(skip, default)]
     pub invalid: bool,
@@ -140,7 +142,6 @@ pub struct ProjectState {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase", remote = "ProjectState")]
 pub struct LimitedProjectState {
-    pub last_fetch: DateTime<Utc>,
     pub last_change: Option<DateTime<Utc>>,
     pub disabled: bool,
     #[serde(with = "limited_public_key_comfigs")]
@@ -155,13 +156,13 @@ impl ProjectState {
     /// Project state for a missing project.
     pub fn missing() -> Self {
         ProjectState {
-            last_fetch: Utc::now(),
             last_change: None,
             disabled: true,
             public_keys: Vec::new(),
             slug: None,
             config: ProjectConfig::default(),
             organization_id: None,
+            last_fetch: Instant::now(),
             invalid: false,
         }
     }
@@ -219,39 +220,16 @@ impl ProjectState {
     }
 
     /// Returns whether this state is outdated and needs to be refetched.
-    pub fn outdated(&self, project_id: ProjectId, config: &Config) -> Outdated {
+    pub fn outdated(&self, config: &Config) -> Outdated {
         let expiry = match self.slug {
             Some(_) => config.project_cache_expiry(),
             None => config.cache_miss_expiry(),
         };
 
-        // Project state updates are aligned to a fixed grid based on the expiry interval. By
-        // default, that's a grid of 1 minute intervals for invalid projects, and a grid of 5
-        // minutes for existing projects (cache hits). The exception to this is when a project is
-        // seen for the first time, where it is fetched immediately.
-        let window = expiry.as_secs();
-
-        // To spread out project state updates more evenly, they are shifted deterministically
-        // within the grid window. A 5 minute interval results in 300 theoretical slots that can be
-        // chosen for each project based on its project id.
-        let project_shift = project_id.value() % window;
-
-        // Based on the last fetch, compute the timestamp of the next fetch. The time stamp is
-        // shifted by the project shift to move the grid accordingly. Note that if the remainder is
-        // zero, the next fetch is one full window ahead to avoid instant reloading.
-        let last_fetch = self.last_fetch.timestamp() as u64;
-        let remainder = (last_fetch - project_shift) % window;
-        let next_fetch = last_fetch + (window - remainder);
-
-        // See the below assertion for constraints on the next fetch time.
-        debug_assert!(next_fetch > last_fetch && next_fetch <= last_fetch + window);
-
-        let now = Utc::now().timestamp() as u64;
-
-        // A project state counts as outdated when the time of the next fetch has passed.
-        if now >= next_fetch + config.project_grace_period().as_secs() {
+        let elapsed = self.last_fetch.elapsed();
+        if elapsed >= expiry + config.project_grace_period() {
             Outdated::HardOutdated
-        } else if now >= next_fetch {
+        } else if elapsed >= expiry {
             Outdated::SoftOutdated
         } else {
             Outdated::Updated
@@ -317,18 +295,13 @@ impl ProjectState {
     }
 
     /// Determines whether the given event should be accepted or dropped.
-    pub fn get_event_action(
-        &self,
-        project_id: ProjectId,
-        meta: &RequestMeta,
-        config: &Config,
-    ) -> EventAction {
+    pub fn get_event_action(&self, meta: &RequestMeta, config: &Config) -> EventAction {
         // Try to verify the request origin with the project config.
         if !self.is_valid_origin(meta.origin()) {
             return EventAction::Discard(DiscardReason::Cors);
         }
 
-        if self.outdated(project_id, config) == Outdated::HardOutdated {
+        if self.outdated(config) == Outdated::HardOutdated {
             // if the state is out of date, we proceed as if it was still up to date. The
             // upstream relay (or sentry) will still filter events.
 
@@ -460,7 +433,7 @@ impl Project {
 
         let state = self.state.as_ref();
         let outdated = state
-            .map(|s| s.outdated(self.id, &self.config))
+            .map(|s| s.outdated(&self.config))
             .unwrap_or(Outdated::HardOutdated);
 
         let alternative_rv = match (state, outdated, self.is_local) {
@@ -631,8 +604,6 @@ impl Handler<GetEventAction> for Project {
     type Result = MessageResult<GetEventAction>;
 
     fn handle(&mut self, message: GetEventAction, _context: &mut Self::Context) -> Self::Result {
-        let project_id = self.id;
-
         let scoping = self.get_scoping(&message.meta);
         let rate_limits = self.rate_limits.check(scoping.item(DataCategory::Error));
 
@@ -642,7 +613,7 @@ impl Handler<GetEventAction> for Project {
             // If the state is not loaded, we're probably in a preflight request. `EventManager`
             // ensures to load the state before calling this function.
             self.state().map_or(EventAction::Accept, |state| {
-                state.get_event_action(project_id, &message.meta, &self.config)
+                state.get_event_action(&message.meta, &self.config)
             })
         };
 
