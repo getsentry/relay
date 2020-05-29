@@ -111,6 +111,24 @@ pub struct Metrics {
     /// This metric is measured in Sentry and reported in the javascript processing task.
     #[metastructure(field = "ms.processing.sourcemaps")]
     pub ms_processing_sourcemaps: Annotated<u64>,
+
+    /// Whether there has been a processing error that likely impacts the usefulness of an event.
+    ///
+    /// Example: malformed/unparseable debug information files.
+    ///
+    /// This metric is measured in Sentry and should be reported in all processing tasks.
+    #[metastructure(field = "flag.processing.error")]
+    pub flag_processing_error: Annotated<bool>,
+
+    /// Whether there has been a processing error that almost certainly renders the event
+    /// unusuable.
+    ///
+    /// Example: Minidump could not be parsed, but we do not drop the event as it may still contain
+    /// context data and attachments, and we already billed the user anyway.
+    ///
+    /// This metric is measured in Sentry and should be reported in all processing tasks.
+    #[metastructure(field = "flag.processing.fatal")]
+    pub flag_processing_fatal: Annotated<bool>,
 }
 
 // Do not process Metrics
