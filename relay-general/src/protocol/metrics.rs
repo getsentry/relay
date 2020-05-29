@@ -117,8 +117,8 @@ pub struct Metrics {
     /// Example: malformed/unparseable debug information files.
     ///
     /// This metric is measured in Sentry and should be reported in all processing tasks.
-    #[metastructure(field = "flag.error.processing")]
-    pub flag_error_processing: Annotated<bool>,
+    #[metastructure(field = "flag.processing.error")]
+    pub flag_processing_error: Annotated<bool>,
 
     /// Whether there has been a processing error that almost certainly renders the event
     /// unusuable.
@@ -127,8 +127,8 @@ pub struct Metrics {
     /// context data and attachments, and we already billed the user anyway.
     ///
     /// This metric is measured in Sentry and should be reported in all processing tasks.
-    #[metastructure(field = "flag.fatal.processing")]
-    pub flag_fatal_processing: Annotated<bool>,
+    #[metastructure(field = "flag.processing.fatal")]
+    pub flag_processing_fatal: Annotated<bool>,
 }
 
 // Do not process Metrics
