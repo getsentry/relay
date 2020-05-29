@@ -9,7 +9,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use actix::prelude::*;
+use actix_web::http::Method;
 use chrono::SecondsFormat;
+use futures::future::Future;
 use serde::{Deserialize, Serialize};
 
 use relay_common::ProjectId;
@@ -18,6 +20,8 @@ use relay_filter::FilterStatKey;
 use relay_general::protocol::EventId;
 use relay_quotas::{ReasonCode, Scoping};
 
+use crate::actors::upstream::SendQuery;
+use crate::actors::upstream::{UpstreamQuery, UpstreamRelay};
 use crate::ServerError;
 
 // Choose the outcome module implementation (either the real one or the fake, no-op one).
@@ -27,6 +31,35 @@ pub use self::processing::*;
 // No-op outcome implementation
 #[cfg(not(feature = "processing"))]
 pub use self::non_processing::*;
+use std::borrow::Cow;
+
+const MAX_OUTCOME_BATCH_SIZE: usize = 1000;
+const MAX_OUTCOME_BATCH_INTERVAL_MILLSEC: u64 = 500;
+
+/// Defines the structure of the HTTP outcomes requests
+#[derive(Deserialize, Serialize, Debug, Default)]
+#[serde(default)]
+pub struct SendOutcomes {
+    pub outcomes: Vec<TrackRawOutcome>,
+}
+
+impl UpstreamQuery for SendOutcomes {
+    type Response = SendOutcomes;
+
+    fn method(&self) -> Method {
+        Method::POST
+    }
+
+    fn path(&self) -> Cow<'static, str> {
+        Cow::Borrowed("/api/0/relays/outcomes/")
+    }
+}
+
+/// Defines the structure of the HTTP outcomes responses for successful requests
+#[derive(Serialize, Debug)]
+pub struct SendOutcomesResponse {
+    // nothing yet, future features will go here
+}
 
 /// Tracks an outcome of an event.
 ///
@@ -315,6 +348,8 @@ mod processing {
 
     use crate::metrics::RelayCounters;
     use crate::service::ServerErrorKind;
+    use crate::utils::run_later;
+    use std::time::Duration;
 
     type ThreadedProducer = rdkafka::producer::ThreadedProducer<DefaultProducerContext>;
 
@@ -329,10 +364,16 @@ mod processing {
     pub struct OutcomeProducer {
         config: Arc<Config>,
         producer: Option<ThreadedProducer>,
+        upstream: Addr<UpstreamRelay>,
+        unsent_outcomes: Vec<TrackRawOutcome>,
+        send_scheduled: bool,
     }
 
     impl OutcomeProducer {
-        pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
+        pub fn create(
+            config: Arc<Config>,
+            upstream: Addr<UpstreamRelay>,
+        ) -> Result<Self, ServerError> {
             let future_producer = if config.processing_enabled() {
                 let mut client_config = ClientConfig::new();
                 for config_p in config.kafka_config() {
@@ -349,10 +390,13 @@ mod processing {
             Ok(Self {
                 config,
                 producer: future_producer,
+                upstream,
+                unsent_outcomes: Vec::new(),
+                send_scheduled: false,
             })
         }
 
-        fn send_kafka_message(&mut self, message: TrackRawOutcome) -> Result<(), OutcomeError> {
+        fn send_kafka_message(&self, message: TrackRawOutcome) -> Result<(), OutcomeError> {
             log::trace!("Tracking outcome: {:?}", message);
 
             let producer = match self.producer {
@@ -385,8 +429,38 @@ mod processing {
             }
         }
 
-        fn send_http_message(&mut self, _message: TrackRawOutcome) -> Result<(), OutcomeError> {
-            unimplemented!()
+        fn send_batch(&mut self, context: &mut Context<Self>) {
+            let request = SendOutcomes {
+                outcomes: self.unsent_outcomes.drain(..).collect(),
+            };
+            self.send_scheduled = false;
+
+            self.upstream
+                .send(SendQuery(request))
+                .map(|_| ())
+                .map_err(|_| ())
+                .into_actor(self)
+                .spawn(context);
+        }
+
+        fn send_http_message(
+            &mut self,
+            message: TrackRawOutcome,
+            context: &mut Context<Self>,
+        ) -> Result<(), OutcomeError> {
+            self.unsent_outcomes.push(message);
+            if self.unsent_outcomes.len() >= MAX_OUTCOME_BATCH_SIZE {
+                self.send_batch(context)
+            } else if !self.send_scheduled {
+                self.send_scheduled = true;
+                run_later(
+                    Duration::from_millis(MAX_OUTCOME_BATCH_INTERVAL_MILLSEC),
+                    Self::send_batch,
+                )
+                .spawn(context)
+            }
+
+            Ok(())
         }
     }
 
@@ -417,11 +491,11 @@ mod processing {
 
     impl Handler<TrackRawOutcome> for OutcomeProducer {
         type Result = Result<(), OutcomeError>;
-        fn handle(&mut self, message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
+        fn handle(&mut self, message: TrackRawOutcome, ctx: &mut Self::Context) -> Self::Result {
             if self.config.processing_enabled() {
                 self.send_kafka_message(message)
             } else if self.config.emit_outcomes() {
-                self.send_http_message(message)
+                self.send_http_message(message, ctx)
             } else {
                 Ok(()) // processing not enabled and emit_outcomes disabled
             }
@@ -440,11 +514,15 @@ mod non_processing {
 
     pub struct OutcomeProducer {
         config: Arc<Config>,
+        upstream: Addr<UpstreamRelay>,
     }
 
     impl OutcomeProducer {
-        pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
-            Ok(Self { config })
+        pub fn create(
+            config: Arc<Config>,
+            upstream: Addr<UpstreamRelay>,
+        ) -> Result<Self, ServerError> {
+            Ok(Self { config, upstream })
         }
     }
 
