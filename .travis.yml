@@ -10,7 +10,6 @@ branches:
     - master
     - /^release\/[\d.]+$/
     - /^release-library\/[\d.]+$/
-    - tmp/project-logs
 
 before_install:
   - curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain ${RUST_TOOLCHAIN:-stable}
