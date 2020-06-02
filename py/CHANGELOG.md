@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.10
+
+- Set default transaction name (#576)
+- Apply clock drift correction based on received_at (#580, #582)
+- Add AWS Security Scanner to web crawlers (#577)
+- Do not default transactions to level error (#585)
+- Update `sentry-release-parser` to 0.6.0 (#590)
+- Add schema for success metrics (failed and errored processing) (#593)
+
 ## 0.5.9
 
 - PII: Make and/or selectors specific.
