@@ -35,9 +35,6 @@ pub use self::processing::*;
 pub use self::non_processing::*;
 use std::borrow::Cow;
 
-const MAX_OUTCOME_BATCH_SIZE: usize = 1000;
-const MAX_OUTCOME_BATCH_INTERVAL_MILLSEC: u64 = 500;
-
 /// Defines the structure of the HTTP outcomes requests
 #[derive(Deserialize, Serialize, Debug, Default)]
 #[serde(default)]
@@ -343,12 +340,12 @@ impl OutcomeProducer {
         context: &mut Context<Self>,
     ) -> Result<(), OutcomeError> {
         self.unsent_outcomes.push(message);
-        if self.unsent_outcomes.len() >= MAX_OUTCOME_BATCH_SIZE {
+        if self.unsent_outcomes.len() >= self.config.max_outcome_batch_size() {
             self.send_batch(context)
         } else if !self.send_scheduled {
             self.send_scheduled = true;
             run_later(
-                Duration::from_millis(MAX_OUTCOME_BATCH_INTERVAL_MILLSEC),
+                Duration::from_millis(self.config.max_outcome_interval_millsec()),
                 Self::send_batch,
             )
             .spawn(context)
@@ -399,7 +396,7 @@ mod processing {
     }
 
     pub struct OutcomeProducer {
-        config: Arc<Config>,
+        pub(super) config: Arc<Config>,
         producer: Option<ThreadedProducer>,
         pub(super) upstream: Addr<UpstreamRelay>,
         pub(super) unsent_outcomes: Vec<TrackRawOutcome>,
@@ -516,7 +513,7 @@ mod non_processing {
     pub enum OutcomeError {}
 
     pub struct OutcomeProducer {
-        config: Arc<Config>,
+        pub(super) config: Arc<Config>,
         pub(super) upstream: Addr<UpstreamRelay>,
         pub(super) unsent_outcomes: Vec<TrackRawOutcome>,
         pub(super) send_scheduled: bool,

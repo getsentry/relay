@@ -354,6 +354,12 @@ pub struct Relay {
     /// Controls whether outcomes will be emitted when processing is disabled.
     /// Processing relays always emit outcomes (for backwards compatibility).
     pub emit_outcomes: bool,
+    /// The maximum number of outcomes that are batched before being sent
+    /// via http to the upstream (only applies to non processing relays)
+    pub max_outcome_batch_size: usize,
+    /// The maximum time interval (in milliseconds) that an outcome may be batched
+    /// via http to the upstream (only applies to non processing relays)
+    pub max_outcome_interval_millsec: u64,
 }
 
 impl Default for Relay {
@@ -367,6 +373,8 @@ impl Default for Relay {
             tls_identity_path: None,
             tls_identity_password: None,
             emit_outcomes: false,
+            max_outcome_batch_size: 1000,
+            max_outcome_interval_millsec: 500,
         }
     }
 }
@@ -838,7 +846,7 @@ impl Config {
                 "true" | "1" => processing.enabled = true,
                 "false" | "0" | "" => processing.enabled = false,
                 _ => {
-                    return Err(ConfigError::new(ConfigErrorKind::InvalidValue).field("processing"))
+                    return Err(ConfigError::new(ConfigErrorKind::InvalidValue).field("processing"));
                 }
             }
         }
@@ -1045,6 +1053,16 @@ impl Config {
     /// Returns the emit_outcomes flag
     pub fn emit_outcomes(&self) -> bool {
         self.values.relay.emit_outcomes
+    }
+
+    /// Returns the maximum number of outcomes that are batched before being sent
+    pub fn max_outcome_batch_size(&self) -> usize {
+        self.values.relay.max_outcome_batch_size
+    }
+
+    /// Returns the maximum interval (in milliseconds) that an outcome may be batched
+    pub fn max_outcome_interval_millsec(&self) -> u64 {
+        self.values.relay.max_outcome_interval_millsec
     }
 
     /// Returns the log level.
