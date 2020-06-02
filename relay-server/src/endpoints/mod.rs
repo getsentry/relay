@@ -16,6 +16,7 @@ mod outcomes;
 mod project_configs;
 mod public_keys;
 mod security_report;
+mod statics;
 mod store;
 mod unreal;
 
