@@ -1,0 +1,60 @@
+# Increase/decrease `weight` to enable/disable tasks. In the example setup
+# `SimpleLoadTest` is disabled because of weight=0, and envelope sending is
+# disabled as well. Effectively we only send random events as pure JSON.
+
+users:
+  # A task that sends a couple events from files.
+  SimpleLoadTest:
+    wait_time: constant(1)
+    num_projects: 10
+    weight: 0
+    task_set:
+      tasks:
+        - simple_locustfile.small_event_task
+        - simple_locustfile.medium_event_task
+        - simple_locustfile.large_event_task
+
+  # A task that generates random events based on config parameters
+  RandomEvents:
+    wait_time: constant(1)
+    num_projects: 10
+    weight: 1
+    task_set:
+      tasks:
+        simple_locustfile.random_envelope_event_task_factory:
+          weight: 0
+          # This task generally accepts the same arguments as `random_event_task_factory`.
+          with_level: true
+          num_event_groups: 1
+          num_releases: 10
+
+        simple_locustfile.random_event_task_factory:
+          weight: 1
+          with_level: true
+
+          # How many issues to create.
+          num_event_groups: 10
+
+          max_message_length: 500
+
+          # Amount of users to generate, if null (~), users will just be
+          # entirely random IPv4 addresses.
+          max_users: ~
+
+          # Breadcrumb options
+          min_breadcrumbs: 0
+          max_breadcrumbs: 50
+          breadcrumb_categories: ~
+          breadcrumb_levels: ~
+          breadcrumb_types: ~
+          breadcrumb_messages: ~
+
+          # Amount of random releases to generate.
+          num_releases: 10
+
+          # Add a native stacktrace such that symbolicator is part of the
+          # equation. The debug files necessary for processing the stacktrace
+          # can be found in the native-images/ folder and can be uploaded with:
+          #
+          #   sentry-cli upload-dif . --org sentry --project internal
+          with_native_stacktrace: false
