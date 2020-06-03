@@ -321,15 +321,21 @@ impl Message for TrackRawOutcome {
 /// Common implementation for both processing and non-processing
 impl OutcomeProducer {
     fn send_batch(&mut self, context: &mut Context<Self>) {
+        log::trace!("Sending outcome batch");
         let request = SendOutcomes {
             outcomes: self.unsent_outcomes.drain(..).collect(),
         };
         self.send_scheduled = false;
 
+        //BUG (RaduW) the future is never resolved, there is no tracing error.
         self.upstream
             .send(SendQuery(request))
-            .map(|_| ())
-            .map_err(|_| ())
+            .map(|_| {
+                log::trace!("outcome batch sent.");
+            })
+            .map_err(|_| {
+                log::warn!("outcome batch sending failed!");
+            })
             .into_actor(self)
             .spawn(context);
     }
@@ -339,6 +345,7 @@ impl OutcomeProducer {
         message: TrackRawOutcome,
         context: &mut Context<Self>,
     ) -> Result<(), OutcomeError> {
+        log::trace!("Batching outcome");
         self.unsent_outcomes.push(message);
         if self.unsent_outcomes.len() >= self.config.max_outcome_batch_size() {
             self.send_batch(context)
@@ -492,6 +499,7 @@ mod processing {
     impl Handler<TrackRawOutcome> for OutcomeProducer {
         type Result = Result<(), OutcomeError>;
         fn handle(&mut self, message: TrackRawOutcome, ctx: &mut Self::Context) -> Self::Result {
+            log::trace!("handling outcome");
             if self.config.processing_enabled() {
                 self.send_kafka_message(message)
             } else if self.config.emit_outcomes() {
