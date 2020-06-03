@@ -8,7 +8,7 @@
 use serde::{ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
 use smallvec::smallvec;
 
-use crate::types::{DataCategory, Quota, QuotaScope, ReasonCode};
+use crate::quota::{DataCategory, Quota, QuotaScope, ReasonCode};
 
 /// Legacy format of the `Quota` type.
 #[derive(Deserialize, Serialize)]
