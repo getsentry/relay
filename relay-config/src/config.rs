@@ -351,15 +351,6 @@ pub struct Relay {
     pub tls_identity_path: Option<PathBuf>,
     /// Password for the PKCS12 archive.
     pub tls_identity_password: Option<String>,
-    /// Controls whether outcomes will be emitted when processing is disabled.
-    /// Processing relays always emit outcomes (for backwards compatibility).
-    pub emit_outcomes: bool,
-    /// The maximum number of outcomes that are batched before being sent
-    /// via http to the upstream (only applies to non processing relays)
-    pub max_outcome_batch_size: usize,
-    /// The maximum time interval (in milliseconds) that an outcome may be batched
-    /// via http to the upstream (only applies to non processing relays)
-    pub max_outcome_interval_millsec: u64,
 }
 
 impl Default for Relay {
@@ -372,9 +363,6 @@ impl Default for Relay {
             tls_port: None,
             tls_identity_path: None,
             tls_identity_password: None,
-            emit_outcomes: false,
-            max_outcome_batch_size: 1000,
-            max_outcome_interval_millsec: 500,
         }
     }
 }
@@ -718,6 +706,31 @@ impl Default for Processing {
     }
 }
 
+/// Outcome generation specific configuration values.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+pub struct Outcomes {
+    /// Controls whether outcomes will be emitted when processing is disabled.
+    /// Processing relays always emit outcomes (for backwards compatibility).
+    pub emit_outcomes: bool,
+    /// The maximum number of outcomes that are batched before being sent
+    /// via http to the upstream (only applies to non processing relays)
+    pub max_outcome_batch_size: usize,
+    /// The maximum time interval (in milliseconds) that an outcome may be batched
+    /// via http to the upstream (only applies to non processing relays)
+    pub max_outcome_interval_millsec: u64,
+}
+
+impl Default for Outcomes {
+    fn default() -> Self {
+        Outcomes {
+            emit_outcomes: false,
+            max_outcome_batch_size: 1000,
+            max_outcome_interval_millsec: 500,
+        }
+    }
+}
+
 /// Minimal version of a config for dumping out.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct MinimalConfig {
@@ -765,6 +778,8 @@ struct ConfigValues {
     sentry: Sentry,
     #[serde(default)]
     processing: Processing,
+    #[serde(default)]
+    outcomes: Outcomes,
 }
 
 impl ConfigObject for ConfigValues {
@@ -1052,17 +1067,17 @@ impl Config {
 
     /// Returns the emit_outcomes flag
     pub fn emit_outcomes(&self) -> bool {
-        self.values.relay.emit_outcomes
+        self.values.outcomes.emit_outcomes
     }
 
     /// Returns the maximum number of outcomes that are batched before being sent
     pub fn max_outcome_batch_size(&self) -> usize {
-        self.values.relay.max_outcome_batch_size
+        self.values.outcomes.max_outcome_batch_size
     }
 
-    /// Returns the maximum interval (in milliseconds) that an outcome may be batched
-    pub fn max_outcome_interval_millsec(&self) -> u64 {
-        self.values.relay.max_outcome_interval_millsec
+    /// Returns the maximum interval that an outcome may be batched
+    pub fn max_outcome_interval(&self) -> Duration {
+        Duration::from_millis(self.values.outcomes.max_outcome_interval_millsec)
     }
 
     /// Returns the log level.

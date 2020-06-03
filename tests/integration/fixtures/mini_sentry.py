@@ -160,8 +160,9 @@ def mini_sentry(request):
         if relay_id not in authenticated_relays:
             abort(403, "relay not registered")
 
-        outcomes_batch = flask_request.json()
+        outcomes_batch = flask_request.json
         sentry.captured_outcomes.put(outcomes_batch)
+        return jsonify({})
 
     @app.errorhandler(500)
     def fail(e):
