@@ -43,7 +43,7 @@ use {
     relay_filter::FilterStatKey,
     relay_general::protocol::IpAddr,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    relay_quotas::{DataCategory, RateLimiter, RateLimitingError},
+    relay_quotas::{DataCategory, RateLimitingError, RedisRateLimiter},
 };
 
 #[derive(Debug, Fail)]
@@ -121,7 +121,7 @@ type ExtractedEvent = (Annotated<Event>, usize);
 struct EventProcessor {
     config: Arc<Config>,
     #[cfg(feature = "processing")]
-    rate_limiter: Option<RateLimiter>,
+    rate_limiter: Option<RedisRateLimiter>,
     #[cfg(feature = "processing")]
     geoip_lookup: Option<Arc<GeoIpLookup>>,
 }
@@ -130,7 +130,7 @@ impl EventProcessor {
     #[cfg(feature = "processing")]
     pub fn new(
         config: Arc<Config>,
-        rate_limiter: Option<RateLimiter>,
+        rate_limiter: Option<RedisRateLimiter>,
         geoip_lookup: Option<Arc<GeoIpLookup>>,
     ) -> Self {
         Self {
@@ -827,8 +827,8 @@ impl EventManager {
                 None => None,
             };
 
-            let rate_limiter =
-                redis_pool.map(|pool| RateLimiter::new(pool).max_limit(config.max_rate_limit()));
+            let rate_limiter = redis_pool
+                .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
 
             SyncArbiter::start(
                 thread_count,
