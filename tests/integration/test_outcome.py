@@ -93,7 +93,8 @@ def test_outcomes_non_processing(relay, relay_with_processing, mini_sentry):
 
     events = mini_sentry.captured_events
 
-    assert events.empty()  # no events received since all have been for an invalid project id
+    # no events received since all have been for an invalid project id
+    assert events.empty()
     outcomes = mini_sentry.captured_outcomes
     assert outcomes.qsize() == 1
 
@@ -132,5 +133,5 @@ def test_outcomes_non_processing_batching(relay, mini_sentry):
 
     outcomes = outcomes_batch.get("outcomes")
     assert len(outcomes) == 3
-    actual_event_ids = [ outcome.get("event_id") for outcome in outcomes]
+    actual_event_ids = [outcome.get("event_id") for outcome in outcomes]
     assert event_ids == actual_event_ids
