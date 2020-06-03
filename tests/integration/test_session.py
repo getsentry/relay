@@ -216,3 +216,32 @@ def test_session_force_errors_on_crash(
         "environment": "production",
         "retention_days": 90,
     }
+
+
+def test_session_release_required(
+    mini_sentry, relay_with_processing, sessions_consumer
+):
+    relay = relay_with_processing()
+    relay.wait_relay_healthcheck()
+
+    sessions_consumer = sessions_consumer()
+
+    project_config = mini_sentry.full_project_config()
+    project_config["config"]["eventRetention"] = 17
+    mini_sentry.project_configs[42] = project_config
+
+    timestamp = datetime.now(tz=timezone.utc)
+    started = timestamp - timedelta(days=5, hours=1)
+
+    relay.send_session(
+        42,
+        {
+            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+            "timestamp": timestamp.isoformat(),
+            "started": started.isoformat(),
+        },
+    )
+
+    assert sessions_consumer.poll() is None
+    assert mini_sentry.test_failures
+    mini_sentry.test_failures.clear()
