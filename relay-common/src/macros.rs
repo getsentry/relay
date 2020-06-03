@@ -62,39 +62,46 @@ macro_rules! tryf {
     };
 }
 
-/// An alternative to a `move` closure.
+/// A cloning alternative to a `move` closure.
 ///
-/// When one needs to use a closure with move semantics one often needs to clone and
-/// move some of the free variables. This macro automates the process of cloning and moving
-/// variables.
+/// When one needs to use a closure with move semantics one often needs to clone and move some of
+/// the free variables. This macro automates the process of cloning and moving variables.
 ///
 /// The following code:
-/// ```compile_fail
-/// let arg1 = v1.clone()
-/// let arg2 = v2.clone()
 ///
-/// let result = some_function( move || f(arg1, arg2)})
 /// ```
+/// # use std::sync::{Arc, Mutex};
+/// let shared = Arc::new(Mutex::new(0));
+///
+/// let cloned = shared.clone();
+/// std::thread::spawn(move || {
+///     *cloned.lock().unwrap() = 42
+/// }).join();
+///
+/// assert_eq!(*shared.lock().unwrap(), 42);
+/// ```
+///
 /// Can be rewritten in a cleaner way by using the `clone!` macro like so:
 ///
-/// ```compile_fail
-/// let result = some_function( clone! { v1, v2, || f(v1,v2)})
+/// ```
+/// # use std::sync::{Arc, Mutex};
+/// use relay_common::clone;
+///
+/// let shared = Arc::new(Mutex::new(0));
+/// std::thread::spawn(clone!(shared, || {
+///     *shared.lock().unwrap() = 42
+/// })).join();
+///
+/// assert_eq!(*shared.lock().unwrap(), 42);
 /// ```
 #[macro_export]
 macro_rules! clone {
-    (@param _) => ( _ );
-    (@param ()) => (());
-    (@param $x:ident) => ( $x );
-    ($($n:ident),+ , || $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move || $body
-        }
-    );
-    ($($n:ident),+ , |$($p:tt),+| $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move |$(clone!(@param $p),)+| $body
-        }
-    );
+    ($($n:ident ,)+ || $body:expr) => {{
+        $( let $n = $n.clone(); )+
+        move || $body
+    }};
+    ($($n:ident ,)+ |$($p:pat),+| $body:expr) => {{
+        $( let $n = $n.clone(); )+
+        move |$($p),+| $body
+    }};
 }
