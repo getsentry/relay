@@ -6,7 +6,6 @@
 
 use std::net::IpAddr;
 use std::sync::Arc;
-use std::time::Duration;
 use std::time::Instant;
 
 use actix::prelude::*;
@@ -15,7 +14,7 @@ use chrono::SecondsFormat;
 use futures::future::Future;
 use serde::{Deserialize, Serialize};
 
-use relay_common::ProjectId;
+use relay_common::{LogError, ProjectId};
 use relay_config::Config;
 use relay_filter::FilterStatKey;
 use relay_general::protocol::EventId;
@@ -23,7 +22,6 @@ use relay_quotas::{ReasonCode, Scoping};
 
 use crate::actors::upstream::SendQuery;
 use crate::actors::upstream::{UpstreamQuery, UpstreamRelay};
-use crate::utils::run_later;
 use crate::ServerError;
 
 // Choose the outcome module implementation (either processing or non-processing).
@@ -321,20 +319,28 @@ impl Message for TrackRawOutcome {
 /// Common implementation for both processing and non-processing
 impl OutcomeProducer {
     fn send_batch(&mut self, context: &mut Context<Self>) {
-        log::trace!("Sending outcome batch");
+        log::trace!("sending outcome batch");
+
+        //the future should be either canceled (if we are called with a full batch)
+        // or already called (if we are called by a timeout)
+        self.send_outcomes_future = None;
+
+        if self.unsent_outcomes.len() == 0 {
+            log::warn!("unexpected send_batch scheduled with no outcomes to send.");
+            return;
+        }
+
         let request = SendOutcomes {
             outcomes: self.unsent_outcomes.drain(..).collect(),
         };
-        self.send_scheduled = false;
 
-        //BUG (RaduW) the future is never resolved, there is no tracing error.
         self.upstream
             .send(SendQuery(request))
             .map(|_| {
                 log::trace!("outcome batch sent.");
             })
-            .map_err(|_| {
-                log::warn!("outcome batch sending failed!");
+            .map_err(|error| {
+                log::error!("outcome batch sending failed with: {}", LogError(&error));
             })
             .into_actor(self)
             .spawn(context);
@@ -348,14 +354,13 @@ impl OutcomeProducer {
         log::trace!("Batching outcome");
         self.unsent_outcomes.push(message);
         if self.unsent_outcomes.len() >= self.config.max_outcome_batch_size() {
+            if let Some(send_outcomes_future) = self.send_outcomes_future {
+                context.cancel_future(send_outcomes_future);
+            }
             self.send_batch(context)
-        } else if !self.send_scheduled {
-            self.send_scheduled = true;
-            run_later(
-                Duration::from_millis(self.config.max_outcome_interval_millsec()),
-                Self::send_batch,
-            )
-            .spawn(context)
+        } else if self.send_outcomes_future.is_none() {
+            self.send_outcomes_future =
+                Some(context.run_later(self.config.max_outcome_interval(), Self::send_batch));
         }
 
         Ok(())
@@ -407,7 +412,7 @@ mod processing {
         producer: Option<ThreadedProducer>,
         pub(super) upstream: Addr<UpstreamRelay>,
         pub(super) unsent_outcomes: Vec<TrackRawOutcome>,
-        pub(super) send_scheduled: bool,
+        pub(super) send_outcomes_future: Option<SpawnHandle>,
     }
 
     impl OutcomeProducer {
@@ -433,7 +438,7 @@ mod processing {
                 producer: future_producer,
                 upstream,
                 unsent_outcomes: Vec::new(),
-                send_scheduled: false,
+                send_outcomes_future: None,
             })
         }
 
@@ -524,7 +529,7 @@ mod non_processing {
         pub(super) config: Arc<Config>,
         pub(super) upstream: Addr<UpstreamRelay>,
         pub(super) unsent_outcomes: Vec<TrackRawOutcome>,
-        pub(super) send_scheduled: bool,
+        pub(super) send_outcomes_future: Option<SpawnHandle>,
     }
 
     impl OutcomeProducer {
@@ -536,7 +541,7 @@ mod non_processing {
                 config,
                 upstream,
                 unsent_outcomes: Vec::new(),
-                send_scheduled: false,
+                send_outcomes_future: None,
             })
         }
     }
