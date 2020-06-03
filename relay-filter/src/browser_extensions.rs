@@ -140,7 +140,7 @@ mod tests {
 
     fn get_event_with_exception_value(val: &str) -> Event {
         let ex = Exception {
-            value: Annotated::from(JsonLenientString::from(val.to_string())),
+            value: Annotated::from(JsonLenientString::from(val)),
             ..Exception::default()
         };
 

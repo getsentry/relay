@@ -736,7 +736,13 @@ impl FromValue for JsonLenientString {
 
 impl From<String> for JsonLenientString {
     fn from(value: String) -> Self {
-        JsonLenientString(value)
+        Self(value)
+    }
+}
+
+impl From<&'_ str> for JsonLenientString {
+    fn from(value: &str) -> Self {
+        Self(value.to_owned())
     }
 }
 

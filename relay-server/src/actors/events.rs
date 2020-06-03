@@ -152,7 +152,7 @@ impl EventProcessor {
     /// payload can be checked via `is_minidump_event`.
     #[cfg(feature = "processing")]
     fn write_native_placeholder(&self, event: &mut Annotated<Event>, is_minidump: bool) {
-        use relay_general::protocol::{Exception, JsonLenientString, Level, Mechanism};
+        use relay_general::protocol::{Exception, Level, Mechanism};
 
         let event = event.get_or_insert_with(Event::default);
 
@@ -177,7 +177,14 @@ impl EventProcessor {
             .value_mut()
             .get_or_insert_with(Vec::new);
 
-        exceptions.clear(); // clear previous errors if any
+        if exceptions.is_empty() {
+            exceptions.push(Annotated::empty());
+        }
+
+        let exception = exceptions
+            .get_mut(0)
+            .expect("exceptions cannot be empty")
+            .get_or_insert_with(Exception::default);
 
         let (type_name, value, mechanism_type) = if is_minidump {
             ("Minidump", "Invalid Minidump", "minidump")
@@ -189,17 +196,17 @@ impl EventProcessor {
             )
         };
 
-        exceptions.push(Annotated::new(Exception {
-            ty: Annotated::new(type_name.to_string()),
-            value: Annotated::new(JsonLenientString(value.to_string())),
-            mechanism: Annotated::new(Mechanism {
-                ty: Annotated::from(mechanism_type.to_string()),
-                handled: Annotated::from(false),
-                synthetic: Annotated::from(true),
-                ..Mechanism::default()
-            }),
-            ..Exception::default()
-        }));
+        // Apply defaults to an existing exception.
+        exception.ty.get_or_insert_with(|| type_name.to_owned());
+        exception.value.get_or_insert_with(|| value.into());
+
+        // Always overwrite the mechanism to trigger minidump processing.
+        exception.mechanism = Annotated::new(Mechanism {
+            ty: Annotated::from(mechanism_type.to_owned()),
+            handled: Annotated::from(false),
+            synthetic: Annotated::from(true),
+            ..Mechanism::default()
+        });
     }
 
     fn event_from_json_payload(

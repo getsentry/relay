@@ -344,6 +344,38 @@ def test_minidump_with_processing(
     ]
 
 
+def test_minidump_with_processing_and_exception(
+    mini_sentry, relay_with_processing, attachments_consumer
+):
+    project_id = 42
+    relay = relay_with_processing()
+    relay.wait_relay_healthcheck()
+    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    attachments_consumer = attachments_consumer()
+
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content")]
+    params = [("sentry", '{"exception":{"type":"hello","value":"world"}}')]
+    relay.send_minidump(project_id=project_id, params=params, files=attachments)
+
+    attachment = b""
+    num_chunks = 0
+    attachment_id = None
+
+    while attachment != b"MDMP content":
+        chunk, message = attachments_consumer.get_attachment_chunk()
+        attachment_id = attachment_id or message["id"]
+        attachment += chunk
+        num_chunks += 1
+
+    event, message = attachments_consumer.get_event()
+
+    # Check that the original exception is there, but so is the mechanism
+    assert event["platform"] == "native"
+    assert event["exception"]["values"][0]["mechanism"]["type"] == "minidump"
+    assert event["exception"]["values"][0]["type"] == "hello"
+    assert event["exception"]["values"][0]["value"] == "world"
+
+
 def test_minidump_ratelimit(mini_sentry, relay_with_processing, outcomes_consumer):
     relay = relay_with_processing()
     relay.wait_relay_healthcheck()
