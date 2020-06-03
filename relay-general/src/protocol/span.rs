@@ -56,8 +56,8 @@ mod tests {
   "description": "desc",
   "op": "operation",
   "span_id": "fa90fdead5f74052",
-  "status": "ok",
-  "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
+  "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+  "status": "ok"
 }"#;
 
         let span = Annotated::new(Span {
