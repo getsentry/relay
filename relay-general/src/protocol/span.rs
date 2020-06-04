@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 
-use crate::protocol::{OperationType, SpanId, TraceId};
+use crate::protocol::{OperationType, SpanId, SpanStatus, TraceId};
 use crate::types::{Annotated, Object, Value};
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
@@ -34,6 +34,9 @@ pub struct Span {
     #[metastructure(required = "true")]
     pub trace_id: Annotated<TraceId>,
 
+    /// The status of a span
+    pub status: Annotated<SpanStatus>,
+
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
@@ -53,7 +56,8 @@ mod tests {
   "description": "desc",
   "op": "operation",
   "span_id": "fa90fdead5f74052",
-  "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
+  "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+  "status": "ok"
 }"#;
 
         let span = Annotated::new(Span {
@@ -63,6 +67,7 @@ mod tests {
             op: Annotated::new("operation".to_owned()),
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+            status: Annotated::new(SpanStatus::Ok),
             ..Default::default()
         });
         assert_eq_str!(json, span.to_json_pretty().unwrap());
