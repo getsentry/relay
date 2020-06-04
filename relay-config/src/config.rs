@@ -230,6 +230,8 @@ pub struct OverridableConfig {
     pub secret_key: Option<String>,
     /// The public key of the relay
     pub public_key: Option<String>,
+    /// Outcome source
+    pub outcome_source: Option<String>,
 }
 
 /// The relay credentials
@@ -719,6 +721,9 @@ pub struct Outcomes {
     /// The maximum time interval (in milliseconds) that an outcome may be batched
     /// via http to the upstream (only applies to non processing relays)
     pub max_outcome_interval_millsec: u64,
+    /// Defines the source string registered in the outcomes originating from
+    /// this Relay ( typically something like the region and or the layer )
+    pub source: Option<String>,
 }
 
 impl Default for Outcomes {
@@ -727,6 +732,7 @@ impl Default for Outcomes {
             emit_outcomes: false,
             max_outcome_batch_size: 1000,
             max_outcome_interval_millsec: 500,
+            source: None,
         }
     }
 }
@@ -834,7 +840,7 @@ impl Config {
     /// command line parameters)
     pub fn apply_override(
         &mut self,
-        overrides: OverridableConfig,
+        mut overrides: OverridableConfig,
     ) -> Result<&mut Self, ConfigError> {
         let relay = &mut self.values.relay;
 
@@ -909,6 +915,10 @@ impl Config {
         } else {
             None
         };
+        let mut outcomes = &mut self.values.outcomes;
+        if overrides.outcome_source.is_some() {
+            outcomes.source = overrides.outcome_source.take();
+        }
 
         if let Some(credentials) = &mut self.credentials {
             //we have existing credentials we may override some entries
@@ -1078,6 +1088,11 @@ impl Config {
     /// Returns the maximum interval that an outcome may be batched
     pub fn max_outcome_interval(&self) -> Duration {
         Duration::from_millis(self.values.outcomes.max_outcome_interval_millsec)
+    }
+
+    /// The originating source of the outcome
+    pub fn outcome_source(&self) -> Option<&str> {
+        self.values.outcomes.source.as_deref()
     }
 
     /// Returns the log level.

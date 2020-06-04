@@ -279,10 +279,12 @@ pub struct TrackRawOutcome {
     /// The client ip address.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     remote_addr: Option<String>,
+    /// The source of the outcome (which Relay sent it)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    source: Option<String>,
 }
-
-impl From<&TrackOutcome> for TrackRawOutcome {
-    fn from(msg: &TrackOutcome) -> Self {
+impl TrackRawOutcome {
+    fn from_outcome(msg: &TrackOutcome, config: &Config) -> Self {
         let reason = match msg.outcome.to_reason() {
             None => None,
             Some(reason) => Some(reason.to_string()),
@@ -299,6 +301,10 @@ impl From<&TrackOutcome> for TrackRawOutcome {
             id => Some(id),
         };
 
+        // since TrackOutcome objects come only from this Relay (and not any downstream
+        // Relays), set the source to whatever our current outcome source is.
+        let source = config.outcome_source().map(str::to_owned);
+
         TrackRawOutcome {
             timestamp,
             org_id,
@@ -308,6 +314,7 @@ impl From<&TrackOutcome> for TrackRawOutcome {
             reason,
             event_id: msg.event_id,
             remote_addr: msg.remote_addr.map(|addr| addr.to_string()),
+            source,
         }
     }
 }
@@ -497,7 +504,7 @@ mod processing {
         type Result = Result<(), OutcomeError>;
 
         fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            self.handle(TrackRawOutcome::from(&message), _ctx)
+            self.handle(TrackRawOutcome::from_outcome(&message, &self.config), _ctx)
         }
     }
 
@@ -565,7 +572,7 @@ mod non_processing {
         type Result = Result<(), OutcomeError>;
 
         fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            self.handle(TrackRawOutcome::from(&message), _ctx)
+            self.handle(TrackRawOutcome::from_outcome(&message, &self.config), _ctx)
         }
     }
 }

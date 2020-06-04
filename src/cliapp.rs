@@ -108,6 +108,14 @@ pub fn make_app() -> App<'static, 'static> {
                         .takes_value(true)
                         .long("redis-url")
                         .help("Redis server URL."),
+                )
+                .arg(
+                    Arg::with_name("source_id")
+                        .value_name("SOURCE_ID")
+                        .takes_value(true)
+                        .long("source-id")
+                        .env("RELAY_SOURCE_ID")
+                        .help("Names the current relay in the outcome source."),
                 ),
         )
         .subcommand(

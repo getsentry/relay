@@ -171,7 +171,7 @@ def test_outcomes_non_processing_max_batch_time(relay, mini_sentry):
     for i in range(events_to_send):
         event_id = _send_event(relay)
         event_ids.add(event_id)
-        time.sleep(0.002)  # sleep more than the batch time
+        time.sleep(0.01)  # sleep more than the batch time
 
     # we should get one batch per event sent
     batches = []
@@ -184,6 +184,37 @@ def test_outcomes_non_processing_max_batch_time(relay, mini_sentry):
         outcomes = batch.get("outcomes")
         assert len(outcomes) == 1  # one outcome per batch
         assert outcomes[0].get("event_id") in event_ids  # a known event id
+
+
+def test_outcome_source(relay, mini_sentry):
+    """
+    Test that the source is picked from configuration and passed in outcomes
+    """
+    config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "max_outcome_batch_size": 1,
+            "max_outcome_interval_millsec": 1,
+            "source": "my-layer",
+        }
+    }
+
+    relay = relay(mini_sentry, config)
+    relay.wait_relay_healthcheck()
+    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
+    mini_sentry.project_configs[42] = None
+
+    event_id = _send_event(relay)
+
+    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
+    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
+
+    outcomes = outcomes_batch.get("outcomes")
+    assert len(outcomes) == 1
+
+    outcome = outcomes[0]
+
+    assert outcome.get("source") == "my-layer"
 
 
 def test_outcomes_non_processing_batching(relay, mini_sentry):
