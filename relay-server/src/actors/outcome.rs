@@ -325,7 +325,7 @@ impl OutcomeProducer {
         // or already called (if we are called by a timeout)
         self.send_outcomes_future = None;
 
-        if self.unsent_outcomes.len() == 0 {
+        if self.unsent_outcomes.is_empty() {
             log::warn!("unexpected send_batch scheduled with no outcomes to send.");
             return;
         }
