@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use actix::prelude::*;
+use chrono::Utc;
 use failure::Fail;
 use futures::prelude::*;
 use parking_lot::RwLock;
@@ -42,7 +43,7 @@ use {
     relay_filter::FilterStatKey,
     relay_general::protocol::IpAddr,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    relay_quotas::{DataCategory, RateLimiter, RateLimitingError},
+    relay_quotas::{DataCategory, RateLimitingError, RedisRateLimiter},
 };
 
 #[derive(Debug, Fail)]
@@ -66,7 +67,6 @@ enum ProcessingError {
     #[fail(display = "event payload too large")]
     PayloadTooLarge,
 
-    #[cfg(feature = "processing")]
     #[fail(display = "invalid transaction event")]
     InvalidTransaction,
 
@@ -121,7 +121,7 @@ type ExtractedEvent = (Annotated<Event>, usize);
 struct EventProcessor {
     config: Arc<Config>,
     #[cfg(feature = "processing")]
-    rate_limiter: Option<RateLimiter>,
+    rate_limiter: Option<RedisRateLimiter>,
     #[cfg(feature = "processing")]
     geoip_lookup: Option<Arc<GeoIpLookup>>,
 }
@@ -130,7 +130,7 @@ impl EventProcessor {
     #[cfg(feature = "processing")]
     pub fn new(
         config: Arc<Config>,
-        rate_limiter: Option<RateLimiter>,
+        rate_limiter: Option<RedisRateLimiter>,
         geoip_lookup: Option<Arc<GeoIpLookup>>,
     ) -> Self {
         Self {
@@ -488,12 +488,29 @@ impl EventProcessor {
         Ok(())
     }
 
+    fn fast_process_event(
+        &self,
+        event: &mut Annotated<Event>,
+        envelope: &Envelope,
+        start_time: Instant,
+    ) -> Result<(), ProcessingError> {
+        let sent_at = envelope.sent_at();
+        let received_at = relay_common::instant_to_date_time(start_time);
+        let mut processor = relay_general::store::ClockDriftProcessor::new(sent_at, received_at);
+
+        process_value(event, &mut processor, ProcessingState::root())
+            .map_err(|_| ProcessingError::InvalidTransaction)?;
+
+        Ok(())
+    }
+
     #[cfg(feature = "processing")]
     fn store_process_event(
         &self,
         event: &mut Annotated<Event>,
         envelope: &Envelope,
         project_state: &ProjectState,
+        start_time: Instant,
     ) -> Result<(), ProcessingError> {
         let geoip_lookup = self.geoip_lookup.as_deref();
         let key_id = project_state
@@ -519,6 +536,7 @@ impl EventProcessor {
             remove_other: Some(true),
             normalize_user_agent: Some(true),
             sent_at: envelope.sent_at(),
+            received_at: Some(relay_common::instant_to_date_time(start_time)),
         };
 
         let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
@@ -579,7 +597,12 @@ impl EventProcessor {
         &self,
         message: ProcessEnvelope,
     ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
-        let mut envelope = message.envelope;
+        #[allow(unused_variables)]
+        let ProcessEnvelope {
+            mut envelope,
+            project_state,
+            start_time,
+        } = message;
 
         macro_rules! if_processing {
             ($($tt:tt)*) => {
@@ -593,7 +616,7 @@ impl EventProcessor {
 
         // Set the event retention. Effectively, this value will only be available in processing
         // mode when the full project config is queried from the upstream.
-        if let Some(retention) = message.project_state.config.event_retention {
+        if let Some(retention) = project_state.config.event_retention {
             envelope.set_retention(retention);
         }
 
@@ -616,6 +639,7 @@ impl EventProcessor {
         // Extract the event from the envelope. This removes all items from the envelope that should
         // not be forwarded, including the event item itself.
         let (mut event, event_len) = self.extract_event(&mut envelope)?;
+        #[allow(unused_mut)]
         let mut event_type = event.value().and_then(|e| e.ty.value()).copied();
         _metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
@@ -666,6 +690,15 @@ impl EventProcessor {
             // id was ingested, this will already be the case. Otherwise, this will insert a new
             // event id. To be defensive, we always overwrite to ensure consistency.
             event.id = Annotated::new(event_id);
+
+            // TODO: Temporary workaround before processing. Experimental SDKs relied on a buggy
+            // clock drift correction that assumes the event timestamp is the sent_at time. This
+            // should be removed as soon as legacy ingestion has been removed.
+            if envelope.sent_at().is_none() && event_type == Some(EventType::Transaction) {
+                if let Some(&event_timestamp) = event.timestamp.value() {
+                    envelope.set_sent_at(event_timestamp);
+                }
+            }
         } else {
             // If we have an envelope without event at this point, we are done with processing. This
             // envelope only contains attachments or user reports. We should not run filters or
@@ -674,8 +707,12 @@ impl EventProcessor {
             return Ok(ProcessEnvelopeResponse { envelope });
         }
 
+        if !self.config.processing_enabled() {
+            self.fast_process_event(&mut event, &envelope, start_time)?;
+        }
+        // else
         if_processing! {
-            self.store_process_event(&mut event, &envelope, &message.project_state)?;
+            self.store_process_event(&mut event, &envelope, &project_state, start_time)?;
 
             if let Some(event) = event.value_mut() {
                 event_type = event.ty.value().copied();
@@ -688,20 +725,14 @@ impl EventProcessor {
 
         // Run PII stripping last since normalization can add PII (e.g. IP addresses).
         metric!(timer(RelayTimers::EventProcessingPii), {
-            if let Some(ref config) = message.project_state.config.pii_config {
+            if let Some(ref config) = project_state.config.pii_config {
                 let compiled = config.compiled();
                 let mut processor = PiiProcessor::new(&compiled);
                 process_value(&mut event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
 
-            let config = message
-                .project_state
-                .config
-                .datascrubbing_settings
-                .pii_config();
-
-            if let Some(ref config) = *config {
+            if let Some(ref config) = *project_state.config.datascrubbing_settings.pii_config() {
                 let compiled = config.compiled();
 
                 let mut processor = PiiProcessor::new(&compiled);
@@ -796,8 +827,8 @@ impl EventManager {
                 None => None,
             };
 
-            let rate_limiter =
-                redis_pool.map(|pool| RateLimiter::new(pool).max_limit(config.max_rate_limit()));
+            let rate_limiter = redis_pool
+                .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
 
             SyncArbiter::start(
                 thread_count,
@@ -991,7 +1022,7 @@ impl Handler<HandleEnvelope> for EventManager {
                     .flatten()
             })
             .and_then(clone!(captured_events, scoping, |processed| {
-                let envelope = processed.envelope;
+                let mut envelope = processed.envelope;
 
                 #[cfg(feature = "processing")]
                 {
@@ -1029,6 +1060,13 @@ impl Handler<HandleEnvelope> for EventManager {
                 log::trace!("sending event to sentry endpoint");
                 let request = SendRequest::post(format!("/api/{}/store/", project_id)).build(
                     move |builder| {
+                        // Override the `sent_at` timestamp. Since the event went through basic
+                        // normalization, all timestamps have been corrected. We propagate the new
+                        // `sent_at` to allow the next Relay to double-check this timestamp and
+                        // potentially apply correction again. This is done as close to sending as
+                        // possible so that we avoid internal delays.
+                        envelope.set_sent_at(Utc::now());
+
                         let meta = envelope.meta();
 
                         if let Some(origin) = meta.origin() {
@@ -1114,6 +1152,9 @@ impl Handler<HandleEnvelope> for EventManager {
                     ProcessingError::InvalidSecurityReport(_) => {
                         Some(Outcome::Invalid(DiscardReason::SecurityReport))
                     }
+                    ProcessingError::InvalidTransaction => {
+                        Some(Outcome::Invalid(DiscardReason::InvalidTransaction))
+                    }
                     ProcessingError::DuplicateItem(_) => {
                         Some(Outcome::Invalid(DiscardReason::DuplicateItem))
                     }
@@ -1122,10 +1163,6 @@ impl Handler<HandleEnvelope> for EventManager {
                     #[cfg(feature = "processing")]
                     ProcessingError::InvalidUnrealReport(_) => {
                         Some(Outcome::Invalid(DiscardReason::ProcessUnreal))
-                    }
-                    #[cfg(feature = "processing")]
-                    ProcessingError::InvalidTransaction => {
-                        Some(Outcome::Invalid(DiscardReason::InvalidTransaction))
                     }
                     #[cfg(feature = "processing")]
                     ProcessingError::EventFiltered(ref filter_stat_key) => {

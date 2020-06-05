@@ -9,6 +9,7 @@ use crate::processor::{ProcessingState, Processor};
 use crate::protocol::{Event, IpAddr};
 use crate::types::{Meta, ProcessingResult};
 
+mod clock_drift;
 mod event_error;
 mod geo;
 mod legacy;
@@ -18,7 +19,8 @@ mod schema;
 mod transactions;
 mod trimming;
 
-pub use crate::store::geo::{GeoIpError, GeoIpLookup};
+pub use self::clock_drift::ClockDriftProcessor;
+pub use self::geo::{GeoIpError, GeoIpLookup};
 
 /// The config for store.
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -31,6 +33,8 @@ pub struct StoreConfig {
     pub protocol_version: Option<String>,
     pub grouping_config: Option<Value>,
     pub user_agent: Option<String>,
+    pub received_at: Option<DateTime<Utc>>,
+    pub sent_at: Option<DateTime<Utc>>,
 
     pub max_secs_in_future: Option<i64>,
     pub max_secs_in_past: Option<i64>,
@@ -45,9 +49,6 @@ pub struct StoreConfig {
 
     /// When `true` it adds context information extracted from the user agent
     pub normalize_user_agent: Option<bool>,
-
-    /// When the event has been sent, according to the SDK. Passed in via envelope headers.
-    pub sent_at: Option<DateTime<Utc>>,
 }
 
 /// The processor that normalizes events for store.
@@ -87,11 +88,14 @@ impl<'a> Processor for StoreProcessor<'a> {
         legacy::LegacyProcessor.process_event(event, meta, state)?;
 
         if !is_renormalize {
+            let received_at = self.config.received_at.unwrap_or_else(Utc::now);
+            clock_drift::ClockDriftProcessor::new(self.config.sent_at, received_at)
+                .process_event(event, meta, state)?;
+
             // internally noops for non-transaction events
             // TODO: Parts of this processor should probably be a filter once Relay is store so we
             // can revert some changes to ProcessingAction
-            transactions::TransactionsProcessor::new(self.config.sent_at)
-                .process_event(event, meta, state)?;
+            transactions::TransactionsProcessor.process_event(event, meta, state)?;
         }
 
         if !is_renormalize {

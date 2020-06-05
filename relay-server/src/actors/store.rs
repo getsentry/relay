@@ -151,14 +151,28 @@ impl StoreForwarder {
         &self,
         org_id: u64,
         project_id: ProjectId,
+        client: Option<&str>,
         event_retention: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
         let session = match SessionUpdate::parse(&item.payload()) {
             Ok(session) => session,
             Err(error) => {
-                // Skip gracefully here to allow sending other messages.
-                log::error!("failed to store session: {}", LogError(&error));
+                sentry::with_scope(
+                    |scope| {
+                        scope.set_tag("project", project_id);
+                        if let Some(client) = client {
+                            scope.set_tag("sdk", client);
+                        }
+                        let payload = item.payload();
+                        scope.set_extra("session", String::from_utf8_lossy(&payload).into());
+                    },
+                    || {
+                        // Skip gracefully here to allow sending other messages.
+                        log::error!("failed to store session: {}", LogError(&error));
+                    },
+                );
+
                 return Ok(());
             }
         };
@@ -443,6 +457,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                     self.produce_session(
                         scoping.organization_id,
                         scoping.project_id,
+                        envelope.meta().client(),
                         retention,
                         item,
                     )?;

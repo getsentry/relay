@@ -16,7 +16,7 @@ with_ssl = ["native-tls", "actix-web/tls"]
 processing = [
     "rdkafka",
     "relay-config/processing",
-    "relay-quotas/rate-limiter",
+    "relay-quotas/redis",
     "relay-redis/impl",
     "symbolic",
 ]

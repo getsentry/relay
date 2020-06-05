@@ -119,19 +119,19 @@ impl<'a> NormalizeProcessor<'a> {
 
     /// Validates the timestamp range and sets a default value.
     fn normalize_timestamps(&self, event: &mut Event) -> ProcessingResult {
-        let current_timestamp = Utc::now();
-        event.received = Annotated::new(current_timestamp);
+        let received_at = self.config.received_at.unwrap_or_else(Utc::now);
+        event.received = Annotated::new(received_at);
 
         event.timestamp.apply(|timestamp, meta| {
             if let Some(secs) = self.config.max_secs_in_future {
-                if *timestamp > current_timestamp + Duration::seconds(secs) {
+                if *timestamp > received_at + Duration::seconds(secs) {
                     meta.add_error(ErrorKind::FutureTimestamp);
                     return Err(ProcessingAction::DeleteValueSoft);
                 }
             }
 
             if let Some(secs) = self.config.max_secs_in_past {
-                if *timestamp < current_timestamp - Duration::seconds(secs) {
+                if *timestamp < received_at - Duration::seconds(secs) {
                     meta.add_error(ErrorKind::PastTimestamp);
                     return Err(ProcessingAction::DeleteValueSoft);
                 }
@@ -141,7 +141,7 @@ impl<'a> NormalizeProcessor<'a> {
         })?;
 
         if event.timestamp.value().is_none() {
-            event.timestamp.set_value(Some(current_timestamp));
+            event.timestamp.set_value(Some(received_at));
         }
 
         event
@@ -410,9 +410,10 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         event.process_child_values(self, state)?;
 
         // Override internal attributes, even if they were set in the payload
+        let event_type = self.infer_event_type(event);
+        event.ty = Annotated::from(event_type);
         event.project = Annotated::from(self.config.project_id);
         event.key_id = Annotated::from(self.config.key_id.clone());
-        event.ty = Annotated::from(self.infer_event_type(event));
         event.version = Annotated::from(self.config.protocol_version.clone());
         event.grouping_config = self
             .config
@@ -451,11 +452,14 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 
         // Default required attributes, even if they have errors
         event.errors.get_or_insert_with(Vec::new);
-        event.level.get_or_insert_with(|| Level::Error);
         event.id.get_or_insert_with(EventId::new);
         event.platform.get_or_insert_with(|| "other".to_string());
         event.logger.get_or_insert_with(String::new);
         event.extra.get_or_insert_with(Object::new);
+        event.level.get_or_insert_with(|| match event_type {
+            EventType::Transaction => Level::Info,
+            _ => Level::Error,
+        });
         if event.client_sdk.value().is_none() {
             event.client_sdk.set_value(self.get_sdk_info());
         }
@@ -892,6 +896,31 @@ fn test_user_ip_from_client_ip_without_appropriate_platform() {
 
     assert!(user.ip_address.value().is_none());
     assert!(user.geo.value().is_none());
+}
+
+#[test]
+fn test_event_level_defaulted() {
+    let processor = &mut NormalizeProcessor::default();
+    let mut event = Annotated::new(Event::default());
+
+    process_value(&mut event, processor, ProcessingState::root()).unwrap();
+
+    let event = event.value().unwrap();
+    assert_eq_dbg!(event.level.value(), Some(&Level::Error));
+}
+
+#[test]
+fn test_transaction_level_untouched() {
+    let processor = &mut NormalizeProcessor::default();
+    let mut event = Annotated::new(Event {
+        ty: Annotated::new(EventType::Transaction),
+        ..Event::default()
+    });
+
+    process_value(&mut event, processor, ProcessingState::root()).unwrap();
+
+    let event = event.value().unwrap();
+    assert_eq_dbg!(event.level.value(), Some(&Level::Info));
 }
 
 #[test]

@@ -97,7 +97,7 @@ def test_attachments_with_processing(
         relay.send_event(project_id, b"bogus")
 
     outcome = outcomes_consumer.get_outcome()
-    assert outcome["event_id"] == None, outcome
+    assert outcome.get("event_id", None) is None, outcome
     assert outcome["outcome"] == 3
     assert outcome["reason"] == "payload"
 

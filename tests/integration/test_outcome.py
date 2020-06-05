@@ -27,6 +27,15 @@ def test_outcomes(relay_with_processing, kafka_consumer, mini_sentry):
     assert outcome is not None
     outcome = outcome.value()
     outcome = json.loads(outcome)
+    # set defaults to allow for results that elide empty fields
+    default = {
+        "org_id": None,
+        "key_id": None,
+        "reason": None,
+        "event_id": None,
+        "remote_addr": None,
+    }
+    outcome = {**default, **outcome}
     # deal with the timestamp separately ( we can't control it exactly)
     timestamp = outcome.get("timestamp")
     del outcome["timestamp"]
