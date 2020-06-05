@@ -2,24 +2,16 @@
 
 ## Unreleased
 
-- Add SpanStatus to span struct
-  ([#603](https://github.com/getsentry/relay/pull/603))
+- Add SpanStatus to span struct ([#603](https://github.com/getsentry/relay/pull/603))
 
 ## 0.5.10
 
-- Set default transaction name
-  ([#576](https://github.com/getsentry/relay/pull/576))
-- Apply clock drift correction based on received_at
-  ([#580](https://github.com/getsentry/relay/pull/580),
-  [#582](https://github.com/getsentry/relay/pull/582))
-- Add AWS Security Scanner to web crawlers
-  ([#577](https://github.com/getsentry/relay/pull/577))
-- Do not default transactions to level error
-  ([#585](https://github.com/getsentry/relay/pull/585))
-- Update `sentry-release-parser` to 0.6.0
-  ([#590](https://github.com/getsentry/relay/pull/590))
-- Add schema for success metrics (failed and errored processing)
-  ([#593](https://github.com/getsentry/relay/pull/593))
+- Set default transaction name ([#576](https://github.com/getsentry/relay/pull/576))
+- Apply clock drift correction based on received_at ([#580](https://github.com/getsentry/relay/pull/580), [#582](https://github.com/getsentry/relay/pull/582))
+- Add AWS Security Scanner to web crawlers ([#577](https://github.com/getsentry/relay/pull/577))
+- Do not default transactions to level error ([#585](https://github.com/getsentry/relay/pull/585))
+- Update `sentry-release-parser` to 0.6.0 ([#590](https://github.com/getsentry/relay/pull/590))
+- Add schema for success metrics (failed and errored processing) ([#593](https://github.com/getsentry/relay/pull/593))
 
 ## 0.5.9
 
@@ -35,17 +27,12 @@
 ## 0.5.7
 
 - Release is now a required attribute for session data.
-- `unknown` can now be used in place of `unknown_error` for span statuses. A
-  future release will change the canonical format from `unknown_error` to
-  `unknown`.
+- `unknown` can now be used in place of `unknown_error` for span statuses. A future release will change the canonical format from `unknown_error` to `unknown`.
 
 ## 0.5.6
 
-- Minor updates to PII processing: Aliases for value types (`$error` instead of
-  `$exception` to be in sync with Discover column naming) and adding a default
-  for replace-redactions.
-- It is now valid to send transactions and spans without `op` set, in which case
-  a default value will be inserted.
+- Minor updates to PII processing: Aliases for value types (`$error` instead of `$exception` to be in sync with Discover column naming) and adding a default for replace-redactions.
+- It is now valid to send transactions and spans without `op` set, in which case a default value will be inserted.
 
 ## 0.5.5
 
@@ -61,34 +48,25 @@
 
 ## 0.5.3
 
-- Validate release names during event ingestion
-  ([#479](https://github.com/getsentry/relay/pull/479))
-- Add browser extension filter
-  ([#470](https://github.com/getsentry/relay/pull/470))
-- Add `pii=maybe`, a new kind of event schema field that can only be scrubbed if
-  explicitly addressed.
+- Validate release names during event ingestion ([#479](https://github.com/getsentry/relay/pull/479))
+- Add browser extension filter ([#470](https://github.com/getsentry/relay/pull/470))
+- Add `pii=maybe`, a new kind of event schema field that can only be scrubbed if explicitly addressed.
 - Add way to scrub filepaths in a way that does not break processing.
-- Add missing errors for JSON parsing and release validation
-  ([#478](https://github.com/getsentry/relay/pull/478))
-- Expose more datascrubbing utils
-  ([#464](https://github.com/getsentry/relay/pull/464))
+- Add missing errors for JSON parsing and release validation ([#478](https://github.com/getsentry/relay/pull/478))
+- Expose more datascrubbing utils ([#464](https://github.com/getsentry/relay/pull/464))
 
 ## 0.5.2
 
-- Misc bugfixes in PII processor. Those bugs do not affect the legacy data
-  scrubber exposed in Python.
+- Misc bugfixes in PII processor. Those bugs do not affect the legacy data scrubber exposed in Python.
 - Polishing documentation around PII configuration format.
 - Signal codes in mach mechanism are no longer required.
 
 ## 0.5.1
 
-- Bump xcode version from 7.3 to 9.4, dropping wheel support for some older OS X
-  versions.
+- Bump xcode version from 7.3 to 9.4, dropping wheel support for some older OS X versions.
 - New function `validate_pii_config`.
-- Fix a bug in the PII processor that would always remove the entire string on
-  `pattern` rules.
-- Ability to correct some clock drift and wrong system time in transaction
-  events.
+- Fix a bug in the PII processor that would always remove the entire string on `pattern` rules.
+- Ability to correct some clock drift and wrong system time in transaction events.
 
 ## 0.5.0
 
@@ -111,12 +89,9 @@
 
 ## 0.4.63
 
-- Fix a bug where glob-matching in filters did not behave correctly when the
-  to-be-matched string contained newlines.
-- Add `moz-extension:` as scheme for browser extensions (filtering out Firefox
-  addons).
-- Raise a dedicated Python exception type for invalid transaction events. Also
-  do not report that error to Sentry from Relay.
+- Fix a bug where glob-matching in filters did not behave correctly when the to-be-matched string contained newlines.
+- Add `moz-extension:` as scheme for browser extensions (filtering out Firefox addons).
+- Raise a dedicated Python exception type for invalid transaction events. Also do not report that error to Sentry from Relay.
 
 ## 0.4.62
 
@@ -127,34 +102,25 @@
 
 ## 0.4.61
 
-- Add `thread.errored` attribute
-  ([#306](https://github.com/getsentry/relay/pull/306)).
+- Add `thread.errored` attribute ([#306](https://github.com/getsentry/relay/pull/306)).
 
 ## 0.4.60
 
-- License is now BSL instead of MIT
-  ([#301](https://github.com/getsentry/relay/pull/301)).
-- Transaction events with negative duration are now rejected
-  ([#291](https://github.com/getsentry/relay/pull/291)).
+- License is now BSL instead of MIT ([#301](https://github.com/getsentry/relay/pull/301)).
+- Transaction events with negative duration are now rejected ([#291](https://github.com/getsentry/relay/pull/291)).
 - Fix a panic when normalizing certain dates.
 
 ## 0.4.59
 
-- Fix: Normalize legacy stacktrace attributes
-  ([#292](https://github.com/getsentry/relay/pull/292))
-- Fix: Validate platform attributes
-  ([#294](https://github.com/getsentry/relay/pull/294))
+- Fix: Normalize legacy stacktrace attributes ([#292](https://github.com/getsentry/relay/pull/292))
+- Fix: Validate platform attributes ([#294](https://github.com/getsentry/relay/pull/294))
 
 ## 0.4.58
 
-- Expose globbing code from Relay to Python
-  ([#288](https://github.com/getsentry/relay/pull/288))
-- Normalize before datascrubbing
-  ([#290](https://github.com/getsentry/relay/pull/290))
-- Selectively log internal errors to stderr
-  ([#285](https://github.com/getsentry/relay/pull/285))
-- Do not ignore `process_value` result in `scrub_event`
-  ([#284](https://github.com/getsentry/relay/pull/284))
+- Expose globbing code from Relay to Python ([#288](https://github.com/getsentry/relay/pull/288))
+- Normalize before datascrubbing ([#290](https://github.com/getsentry/relay/pull/290))
+- Selectively log internal errors to stderr ([#285](https://github.com/getsentry/relay/pull/285))
+- Do not ignore `process_value` result in `scrub_event` ([#284](https://github.com/getsentry/relay/pull/284))
 
 ## 0.4.57
 
@@ -195,8 +161,7 @@
 
 ## 0.4.48
 
-- Fix various bugs in the datascrubber and PII processing code to get closer to
-  behavior of the Python implementation.
+- Fix various bugs in the datascrubber and PII processing code to get closer to behavior of the Python implementation.
 
 ## 0.4.47
 
@@ -204,8 +169,7 @@
 
 ## 0.4.46
 
-- Resolved a regression in IP address normalization. The new behavior is closer
-  to a line-by-line port of the old Python code.
+- Resolved a regression in IP address normalization. The new behavior is closer to a line-by-line port of the old Python code.
 
 ## 0.4.45
 
@@ -213,14 +177,12 @@
 
 ## 0.4.44
 
-- Only take the user IP address from the store request's IP for certain
-  platforms. This restores the behavior of the old Python code.
+- Only take the user IP address from the store request's IP for certain platforms. This restores the behavior of the old Python code.
 
 ## 0.4.43
 
 - Bump size of breadcrumbs
-- Workaround for an issue where we would not parse OS information from User
-  Agent when SDK had already sent OS information.
+- Workaround for an issue where we would not parse OS information from User Agent when SDK had already sent OS information.
 
 ## 0.4.42
 
@@ -275,8 +237,7 @@
 
 ## 0.4.30
 
-- Make exception messages/values larger to allow for foreign stacktrace data to
-  be attached.
+- Make exception messages/values larger to allow for foreign stacktrace data to be attached.
 
 ## 0.4.29
 
@@ -288,8 +249,7 @@
 
 ## 0.4.27
 
-- Increase frame vars size again! Byte size was fine, but max depth was way too
-  small.
+- Increase frame vars size again! Byte size was fine, but max depth was way too small.
 
 ## 0.4.26
 
@@ -301,55 +261,43 @@
 
 ## 0.4.24
 
-- Reject non-http/https `help_urls` in exception mechanisms
-  ([#192](https://github.com/getsentry/relay/pull/192))
+- Reject non-http/https `help_urls` in exception mechanisms ([#192](https://github.com/getsentry/relay/pull/192))
 
 ## 0.4.23
 
-- Add basic truncation to event meta to prevent payload size from spiralling out
-  of control.
+- Add basic truncation to event meta to prevent payload size from spiralling out of control.
 
 ## 0.4.22
 
-- Improve the grouping protocol config
-  ([#190](https://github.com/getsentry/relay/pull/190))
+- Improve the grouping protocol config ([#190](https://github.com/getsentry/relay/pull/190))
 
 ## 0.4.21
 
-- Add new debug image variants
-  ([#188](https://github.com/getsentry/relay/pull/188))
-- Trim release and environment
-  ([#184](https://github.com/getsentry/relay/pull/184))
+- Add new debug image variants ([#188](https://github.com/getsentry/relay/pull/188))
+- Trim release and environment ([#184](https://github.com/getsentry/relay/pull/184))
 
 ## 0.4.20
 
-- Alias level critical as fatal
-  ([#182](https://github.com/getsentry/relay/pull/182))
-- Add device properties from Java/.NET SDKs
-  ([#185](https://github.com/getsentry/relay/pull/185))
-- Add `lang` to frame and stacktrace
-  ([#186](https://github.com/getsentry/relay/pull/186))
+- Alias level critical as fatal ([#182](https://github.com/getsentry/relay/pull/182))
+- Add device properties from Java/.NET SDKs ([#185](https://github.com/getsentry/relay/pull/185))
+- Add `lang` to frame and stacktrace ([#186](https://github.com/getsentry/relay/pull/186))
 
 ## 0.4.19
 
-- Add mode for renormalization
-  ([#181](https://github.com/getsentry/relay/pull/181))
+- Add mode for renormalization ([#181](https://github.com/getsentry/relay/pull/181))
 
 ## 0.4.18
 
-- Restore the original behavior with supporting very large values in extra
-  ([#180](https://github.com/getsentry/relay/pull/180))
+- Restore the original behavior with supporting very large values in extra ([#180](https://github.com/getsentry/relay/pull/180))
 
 ## 0.4.17
 
-- Add untyped spans for tracing
-  ([#179](https://github.com/getsentry/relay/pull/179))
+- Add untyped spans for tracing ([#179](https://github.com/getsentry/relay/pull/179))
 - Add the `none` event type
 
 ## 0.4.16
 
-- Add support for synthetic mechanism markers
-  ([#177](https://github.com/getsentry/relay/pull/177))
+- Add support for synthetic mechanism markers ([#177](https://github.com/getsentry/relay/pull/177))
 
 ## 0.4.15
 
@@ -359,19 +307,16 @@
 
 - Rename `template_info` to template
 - Add two new untyped context types: `gpu`, `monitors`
-- Rewrite `derive(ProcessValue)` to use `Structure::each_variant`
-  ([#175](https://github.com/getsentry/relay/pull/175))
+- Rewrite `derive(ProcessValue)` to use `Structure::each_variant` ([#175](https://github.com/getsentry/relay/pull/175))
 
 ## 0.4.13
 
-- Allow arrays as header values
-  ([#176](https://github.com/getsentry/relay/pull/176))
+- Allow arrays as header values ([#176](https://github.com/getsentry/relay/pull/176))
 - Swap `python-json-read-adapter` to git dependency
 
 ## 0.4.12
 
-- Run json.dumps at max depth in databag
-  ([#174](https://github.com/getsentry/relay/pull/174))
+- Run json.dumps at max depth in databag ([#174](https://github.com/getsentry/relay/pull/174))
 
 ## 0.4.11
 
@@ -383,14 +328,12 @@
 
 ## 0.4.9
 
-- Trim containers one level before max_depth
-  ([#173](https://github.com/getsentry/relay/pull/173))
+- Trim containers one level before max_depth ([#173](https://github.com/getsentry/relay/pull/173))
 - Unconditionally overwrite `received`
 
 ## 0.4.8
 
-- Fix bugs in array trimming, more code comments
-  ([#172](https://github.com/getsentry/relay/pull/172))
+- Fix bugs in array trimming, more code comments ([#172](https://github.com/getsentry/relay/pull/172))
 
 ## 0.4.7
 
@@ -398,15 +341,12 @@
 
 ## 0.4.6
 
-- Reject exceptions with empty type and value
-  ([#170](https://github.com/getsentry/relay/pull/170))
-- Validate remote_addr before backfilling into user
-  ([#171](https://github.com/getsentry/relay/pull/171))
+- Reject exceptions with empty type and value ([#170](https://github.com/getsentry/relay/pull/170))
+- Validate remote_addr before backfilling into user ([#171](https://github.com/getsentry/relay/pull/171))
 
 ## 0.4.5
 
-- Adjust limits to fit values into db
-  ([#167](https://github.com/getsentry/relay/pull/167))
+- Adjust limits to fit values into db ([#167](https://github.com/getsentry/relay/pull/167))
 - Environment is 64 chars in db
 - Normalize macOS ([#168](https://github.com/getsentry/relay/pull/168))
 - Use right maxchars for `transaction`, `dist`, `release`
@@ -414,67 +354,46 @@
 
 ## 0.4.4
 
-- Reject unknown debug images
-  ([#163](https://github.com/getsentry/relay/pull/163))
-- Include original_value in `Meta::eq`
-  ([#164](https://github.com/getsentry/relay/pull/164))
-- Emit correct expectations for common types
-  ([#162](https://github.com/getsentry/relay/pull/162))
-- Permit invalid emails in user interface
-  ([#161](https://github.com/getsentry/relay/pull/161))
+- Reject unknown debug images ([#163](https://github.com/getsentry/relay/pull/163))
+- Include original_value in `Meta::eq` ([#164](https://github.com/getsentry/relay/pull/164))
+- Emit correct expectations for common types ([#162](https://github.com/getsentry/relay/pull/162))
+- Permit invalid emails in user interface ([#161](https://github.com/getsentry/relay/pull/161))
 - Drop long tags correctly ([#165](https://github.com/getsentry/relay/pull/165))
-- Do not skip null values in pairlists
-  ([#166](https://github.com/getsentry/relay/pull/166))
+- Do not skip null values in pairlists ([#166](https://github.com/getsentry/relay/pull/166))
 
 ## 0.4.3
 
-- Fix broken sdk_info parsing
-  ([#156](https://github.com/getsentry/relay/pull/156))
-- Add basic snapshot tests for normalize and event parsing
-  ([#154](https://github.com/getsentry/relay/pull/154))
+- Fix broken sdk_info parsing ([#156](https://github.com/getsentry/relay/pull/156))
+- Add basic snapshot tests for normalize and event parsing ([#154](https://github.com/getsentry/relay/pull/154))
 - Context trimming ([#153](https://github.com/getsentry/relay/pull/153))
-- Coerce PHP frame vars array to object
-  ([#159](https://github.com/getsentry/relay/pull/159))
+- Coerce PHP frame vars array to object ([#159](https://github.com/getsentry/relay/pull/159))
 
 ## 0.4.2
 
 - Remove content-type params
 - Dont attempt to free() if python is shutting down
-- Improve cookie header normalizations
-  ([#151](https://github.com/getsentry/relay/pull/151))
-- Implement LogEntry formatting
-  ([#152](https://github.com/getsentry/relay/pull/152))
+- Improve cookie header normalizations ([#151](https://github.com/getsentry/relay/pull/151))
+- Implement LogEntry formatting ([#152](https://github.com/getsentry/relay/pull/152))
 - Deduplicate tags ([#155](https://github.com/getsentry/relay/pull/155))
 - Treat empty paths like no paths in frame normalization
 - Remove cookie header when explicit cookies are given
 
 ## 0.4.1
 
-- Do not remove empty cookies or headers
-  ([#138](https://github.com/getsentry/relay/pull/138))
-- Skip more empty containers
-  ([#139](https://github.com/getsentry/relay/pull/139))
-- Make `request.header` values lenient
-  ([#145](https://github.com/getsentry/relay/pull/145))
-- Remove internal tags when backfilling
-  ([#146](https://github.com/getsentry/relay/pull/146))
-- Implement advanced context normalization
-  ([#140](https://github.com/getsentry/relay/pull/140))
-- Retain additional properties in contexts
-  ([#141](https://github.com/getsentry/relay/pull/141))
-- Implement very lenient URL parsing
-  ([#147](https://github.com/getsentry/relay/pull/147))
-- Do not require breadcrumb timestamps
-  ([#144](https://github.com/getsentry/relay/pull/144))
-- Reject tags with long keys
-  ([#149](https://github.com/getsentry/relay/pull/149))
+- Do not remove empty cookies or headers ([#138](https://github.com/getsentry/relay/pull/138))
+- Skip more empty containers ([#139](https://github.com/getsentry/relay/pull/139))
+- Make `request.header` values lenient ([#145](https://github.com/getsentry/relay/pull/145))
+- Remove internal tags when backfilling ([#146](https://github.com/getsentry/relay/pull/146))
+- Implement advanced context normalization ([#140](https://github.com/getsentry/relay/pull/140))
+- Retain additional properties in contexts ([#141](https://github.com/getsentry/relay/pull/141))
+- Implement very lenient URL parsing ([#147](https://github.com/getsentry/relay/pull/147))
+- Do not require breadcrumb timestamps ([#144](https://github.com/getsentry/relay/pull/144))
+- Reject tags with long keys ([#149](https://github.com/getsentry/relay/pull/149))
 
 ## 0.4.0
 
-- Add new options max_concurrent_events
-  ([#134](https://github.com/getsentry/relay/pull/134))
-- Dont move stacktrace before normalizing it
-  ([#135](https://github.com/getsentry/relay/pull/135))
+- Add new options max_concurrent_events ([#134](https://github.com/getsentry/relay/pull/134))
+- Dont move stacktrace before normalizing it ([#135](https://github.com/getsentry/relay/pull/135))
 - Fix broken repr and crash when shutting down python
 - Port slim_frame_data ([#137](https://github.com/getsentry/relay/pull/137))
 - Special treatment for ellipsis in URLs
@@ -482,29 +401,20 @@
 
 ## 0.3.0
 
-- Changed PII stripping rule format to permit path selectors when applying
-  rules. This means that now `$string` refers to strings for instance and
-  `user.id` refers to the `id` field in the `user` attribute of the event.
-  Temporarily support for old rules is retained.
+- Changed PII stripping rule format to permit path selectors when applying rules. This means that now `$string` refers to strings for instance and `user.id` refers to the `id` field in the `user` attribute of the event. Temporarily support for old rules is retained.
 
 ## 0.2.7
 
-- Minor fixes to be closer to Python. Ability to disable trimming of objects,
-  arrays and strings.
+- Minor fixes to be closer to Python. Ability to disable trimming of objects, arrays and strings.
 
 ## 0.2.6
 
-- Fix bug where PII stripping would remove containers without leaving any
-  metadata about the retraction.
+- Fix bug where PII stripping would remove containers without leaving any metadata about the retraction.
 - Fix bug where old `redactPair` rules would stop working.
 
 ## 0.2.5
 
-- Rewrite of PII stripping logic. This brings potentially breaking changes to
-  the semantics of PII configs. Most importantly field types such as
-  `"freeform"` and `"databag"` are gone, right now there is only `"container"`
-  and `"text"`. All old field types should have become an alias for `"text"`,
-  but take extra care in ensuring your PII rules still work.
+- Rewrite of PII stripping logic. This brings potentially breaking changes to the semantics of PII configs. Most importantly field types such as `"freeform"` and `"databag"` are gone, right now there is only `"container"` and `"text"`. All old field types should have become an alias for `"text"`, but take extra care in ensuring your PII rules still work.
 
 - Minor fixes to be closer to Python.
 
@@ -519,8 +429,7 @@
 ## 0.2.2
 
 - Fix segfault when trying to process contexts.
-- Fix trimming state "leaking" between interfaces, leading to excessive
-  trimming.
+- Fix trimming state "leaking" between interfaces, leading to excessive trimming.
 - Don't serialize empty arrays and objects (with a few exceptions).
 
 ## 0.2.1
@@ -529,8 +438,7 @@
 
 ## 0.2.0
 
-- Updated event processing: Events from older SDKs are now supported. Also,
-  we've fixed some bugs along the line.
+- Updated event processing: Events from older SDKs are now supported. Also, we've fixed some bugs along the line.
 - Introduced full support for PII stripping.
 
 ## 0.1.3
