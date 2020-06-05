@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+We have switched to [CalVer](https://calver.org/)! Relay's version is always in
+line with the latest version of [Sentry](https://github.com/getsentry/sentry).
+
+**Features**:
+
+- Proxy and managed Relays now apply clock drift correction based on the
+  `sent_at` header emitted by SDKs. (#581)
+
+**Bug Fixes**:
+
+- Clock drift correction no longer considers the transaction timestamp as
+  baseline for SDKs using Envelopes. Instead, only the dedicated `sent_at`
+  Envelope header is used. (#580)
+- The `http.timeout` setting is now applied to all requests, including event
+  submission. Previously, events were exempt. (#588)
+- All endpoint metrics now report their proper `route` tag. This applies to
+  `requests`, `requests.duration`, and `responses.status_codes`. Previously,
+  some some endpoints reported an empty route. (#595)
+- Properly refresh cached project states based on the configured intervals.
+  Previously, Relay may have gone into an endless refresh cycle if the system
+  clock not accurate, or the state had not been updated in the upstream. (#596)
+- Respond with `403 Forbidden` when multiple authentication payloads are sent by
+  the SDK. Previously, Relay would authenticate using one of the payloads and
+  silently ignore the rest. (#602)
+
+**Internal**:
+
+- Ignore non-Rust folders for faster rebuilding and testing. (#578)
+- Invalid session payloads are now logged for SDK debugging. (#584, #591)
+- Remove unused `rev` from project state. (#586)
+- Add an outcome endpoint for trusted Relays. (#589)
+
 ## 0.5.9
 
 - Relay has a logo now!

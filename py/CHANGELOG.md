@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add SpanStatus to span struct (#603)
+
 ## 0.5.10
 
 - Set default transaction name (#576)
