@@ -8,31 +8,41 @@ line with the latest version of [Sentry](https://github.com/getsentry/sentry).
 **Features**:
 
 - Proxy and managed Relays now apply clock drift correction based on the
-  `sent_at` header emitted by SDKs. (#581)
+  `sent_at` header emitted by SDKs.
+  ([#581](https://github.com/getsentry/relay/pull/581))
 
 **Bug Fixes**:
 
 - Clock drift correction no longer considers the transaction timestamp as
   baseline for SDKs using Envelopes. Instead, only the dedicated `sent_at`
-  Envelope header is used. (#580)
+  Envelope header is used. ([#580](https://github.com/getsentry/relay/pull/580))
 - The `http.timeout` setting is now applied to all requests, including event
-  submission. Previously, events were exempt. (#588)
+  submission. Previously, events were exempt.
+  ([#588](https://github.com/getsentry/relay/pull/588))
 - All endpoint metrics now report their proper `route` tag. This applies to
   `requests`, `requests.duration`, and `responses.status_codes`. Previously,
-  some some endpoints reported an empty route. (#595)
+  some some endpoints reported an empty route.
+  ([#595](https://github.com/getsentry/relay/pull/595))
 - Properly refresh cached project states based on the configured intervals.
   Previously, Relay may have gone into an endless refresh cycle if the system
-  clock not accurate, or the state had not been updated in the upstream. (#596)
+  clock not accurate, or the state had not been updated in the upstream.
+  ([#596](https://github.com/getsentry/relay/pull/596))
 - Respond with `403 Forbidden` when multiple authentication payloads are sent by
   the SDK. Previously, Relay would authenticate using one of the payloads and
-  silently ignore the rest. (#602)
+  silently ignore the rest.
+  ([#602](https://github.com/getsentry/relay/pull/602))
 
 **Internal**:
 
-- Ignore non-Rust folders for faster rebuilding and testing. (#578)
-- Invalid session payloads are now logged for SDK debugging. (#584, #591)
-- Remove unused `rev` from project state. (#586)
-- Add an outcome endpoint for trusted Relays. (#589)
+- Ignore non-Rust folders for faster rebuilding and testing.
+  ([#578](https://github.com/getsentry/relay/pull/578))
+- Invalid session payloads are now logged for SDK debugging.
+  ([#584](https://github.com/getsentry/relay/pull/584),
+  [#591](https://github.com/getsentry/relay/pull/591))
+- Remove unused `rev` from project state.
+  ([#586](https://github.com/getsentry/relay/pull/586))
+- Add an outcome endpoint for trusted Relays.
+  ([#589](https://github.com/getsentry/relay/pull/589))
 
 ## 0.5.9
 
@@ -40,7 +50,8 @@ line with the latest version of [Sentry](https://github.com/getsentry/sentry).
 - New explicit `envelope/` endpoint. Envelopes no longer need to be sent with
   the right `content-type` header (to cater to browser JS).
 - Introduce an Envelope item type for transactions.
-- Support environment variables and CLI arguments instead of command line parameters.
+- Support environment variables and CLI arguments instead of command line
+  parameters.
 - Return status `415` on wrong content types.
 - Normalize double-slashes in request URLs more aggressively.
 - Add an option to generate credentials on stdout.
@@ -73,7 +84,8 @@ line with the latest version of [Sentry](https://github.com/getsentry/sentry).
 
 ## 0.5.6
 
-- Fix a bug where Relay would stop processing events if Sentry is down for only a short time.
+- Fix a bug where Relay would stop processing events if Sentry is down for only
+  a short time.
 - Improvements to architecture documentation.
 - Initial support for rate limiting by event type ("scoped quotas")
 - Fix a bug where `key_id` was omitted from outcomes created by Relay.
@@ -85,8 +97,8 @@ line with the latest version of [Sentry](https://github.com/getsentry/sentry).
 - PII processing: Aliases for value types (`$error` instead of `$exception` to
   be in sync with Discover column naming) and adding a default for
   replace-redactions.
-- It is now valid to send transactions and spans without `op` set, in which
-  case a default value will be inserted.
+- It is now valid to send transactions and spans without `op` set, in which case
+  a default value will be inserted.
 
 ## 0.5.5
 
@@ -109,15 +121,21 @@ line with the latest version of [Sentry](https://github.com/getsentry/sentry).
 ## 0.5.3
 
 - Properly strip the linux binary to reduce its size
-- Allow base64 encoded JSON event payloads (#466)
-- Fix multipart requests without trailing newline (#465)
-- Support for ingesting session updates (#449)
+- Allow base64 encoded JSON event payloads
+  ([#466](https://github.com/getsentry/relay/pull/466))
+- Fix multipart requests without trailing newline
+  ([#465](https://github.com/getsentry/relay/pull/465))
+- Support for ingesting session updates
+  ([#449](https://github.com/getsentry/relay/pull/449))
 
 **Internal**:
 
-- Validate release names during event ingestion (#479)
-- Add browser extension filter (#470)
-- Add `pii=maybe`, a new kind of event schema field that can only be scrubbed if explicitly addressed.
+- Validate release names during event ingestion
+  ([#479](https://github.com/getsentry/relay/pull/479))
+- Add browser extension filter
+  ([#470](https://github.com/getsentry/relay/pull/470))
+- Add `pii=maybe`, a new kind of event schema field that can only be scrubbed if
+  explicitly addressed.
 - Add way to scrub filepaths in a way that does not break processing.
 
 ## 0.5.2
@@ -125,13 +143,14 @@ line with the latest version of [Sentry](https://github.com/getsentry/sentry).
 - Fix trivial Redis-related crash when running in non-processing mode.
 - Limit the maximum retry-after of a rate limit. This is necessary because of
   the "Delete and ignore future events" feature in Sentry.
-- Project caches are now evicted after `project_grace_period` has passed. If
-  you have that parameter set to a high number you may see increased memory
+- Project caches are now evicted after `project_grace_period` has passed. If you
+  have that parameter set to a high number you may see increased memory
   consumption.
 
 **Internal**:
 
-- Misc bugfixes in PII processor. Those bugs do not affect the legacy data scrubber exposed in Python.
+- Misc bugfixes in PII processor. Those bugs do not affect the legacy data
+  scrubber exposed in Python.
 - Polishing documentation around PII configuration format.
 - Signal codes in mach mechanism are no longer required.
 
@@ -143,8 +162,10 @@ line with the latest version of [Sentry](https://github.com/getsentry/sentry).
 
 **Internal**:
 
-- Fix a bug in the PII processor that would always remove the entire string on `pattern` rules.
-- Ability to correct some clock drift and wrong system time in transaction events.
+- Fix a bug in the PII processor that would always remove the entire string on
+  `pattern` rules.
+- Ability to correct some clock drift and wrong system time in transaction
+  events.
 
 ## 0.5.0
 
@@ -212,42 +233,62 @@ line with the latest version of [Sentry](https://github.com/getsentry/sentry).
 
 **Internal**:
 
-- Add `thread.errored` attribute (#306).
+- Add `thread.errored` attribute
+  ([#306](https://github.com/getsentry/relay/pull/306)).
 
 ## 0.4.60
 
-- License is now BSL instead of MIT (#301).
-- Improve internal metrics and logging (#296, #297, #298).
-- Fix unbounded requests to Sentry for project configs (#295, #300).
-- Fix rejected responses from Sentry due to size limit (#303).
-- Expose more options for configuring request concurrency limits (#311).
+- License is now BSL instead of MIT
+  ([#301](https://github.com/getsentry/relay/pull/301)).
+- Improve internal metrics and logging
+  ([#296](https://github.com/getsentry/relay/pull/296),
+  [#297](https://github.com/getsentry/relay/pull/297),
+  [#298](https://github.com/getsentry/relay/pull/298)).
+- Fix unbounded requests to Sentry for project configs
+  ([#295](https://github.com/getsentry/relay/pull/295),
+  [#300](https://github.com/getsentry/relay/pull/300)).
+- Fix rejected responses from Sentry due to size limit
+  ([#303](https://github.com/getsentry/relay/pull/303)).
+- Expose more options for configuring request concurrency limits
+  ([#311](https://github.com/getsentry/relay/pull/311)).
 
 **Internal**:
 
-- Transaction events with negative duration are now rejected (#291).
+- Transaction events with negative duration are now rejected
+  ([#291](https://github.com/getsentry/relay/pull/291)).
 - Fix a panic when normalizing certain dates.
 
 ## 0.4.59
 
 **Internal**:
 
-- Fix: Normalize legacy stacktrace attributes (#292)
-- Fix: Validate platform attributes in Relay (#294)
-- Flip the flag that indicates Relay processing (#293)
+- Fix: Normalize legacy stacktrace attributes
+  ([#292](https://github.com/getsentry/relay/pull/292))
+- Fix: Validate platform attributes in Relay
+  ([#294](https://github.com/getsentry/relay/pull/294))
+- Flip the flag that indicates Relay processing
+  ([#293](https://github.com/getsentry/relay/pull/293))
 
 ## 0.4.58
 
-- Evict project caches after some time (#287)
-- Selectively log internal errors to stderr (#285)
-- Add an error boundary to parsing project states (#281)
+- Evict project caches after some time
+  ([#287](https://github.com/getsentry/relay/pull/287))
+- Selectively log internal errors to stderr
+  ([#285](https://github.com/getsentry/relay/pull/285))
+- Add an error boundary to parsing project states
+  ([#281](https://github.com/getsentry/relay/pull/281))
 
 **Internal**:
 
-- Add event size metrics (#286)
-- Normalize before datascrubbing (#290)
-- Add a config value for thread counts (#283)
-- Refactor outcomes for parity with Sentry (#282)
-- Add flag that relay processed an event (#279)
+- Add event size metrics ([#286](https://github.com/getsentry/relay/pull/286))
+- Normalize before datascrubbing
+  ([#290](https://github.com/getsentry/relay/pull/290))
+- Add a config value for thread counts
+  ([#283](https://github.com/getsentry/relay/pull/283))
+- Refactor outcomes for parity with Sentry
+  ([#282](https://github.com/getsentry/relay/pull/282))
+- Add flag that relay processed an event
+  ([#279](https://github.com/getsentry/relay/pull/279))
 
 ## 0.4.57
 
@@ -324,7 +365,8 @@ line with the latest version of [Sentry](https://github.com/getsentry/sentry).
 
 **Internal**:
 
-- Resolved a regression in IP address normalization. The new behavior is closer to a line-by-line port of the old Python code.
+- Resolved a regression in IP address normalization. The new behavior is closer
+  to a line-by-line port of the old Python code.
 
 ## 0.4.45
 
@@ -336,14 +378,16 @@ line with the latest version of [Sentry](https://github.com/getsentry/sentry).
 
 **Normalization**:
 
-- Only take the user IP address from the store request's IP for certain platforms. This restores the behavior of the old Python code.
+- Only take the user IP address from the store request's IP for certain
+  platforms. This restores the behavior of the old Python code.
 
 ## 0.4.43
 
 **Normalization**:
 
 - Bump size of breadcrumbs.
-- Workaround for an issue where we would not parse OS information from User Agent when SDK had already sent OS information.
+- Workaround for an issue where we would not parse OS information from User
+  Agent when SDK had already sent OS information.
 - Further work on Sentry-internal event ingestion.
 
 ## 0.4.42
@@ -428,7 +472,8 @@ line with the latest version of [Sentry](https://github.com/getsentry/sentry).
 
 **Internal**:
 
-- Make exception messages/values larger to allow for foreign stacktrace data to be attached.
+- Make exception messages/values larger to allow for foreign stacktrace data to
+  be attached.
 
 ## 0.4.29
 
@@ -446,8 +491,8 @@ line with the latest version of [Sentry](https://github.com/getsentry/sentry).
 
 **Internal**:
 
-- Increase frame vars size again! Byte size was fine, but max depth
-  was way too small.
+- Increase frame vars size again! Byte size was fine, but max depth was way too
+  small.
 
 ## 0.4.26
 
@@ -471,7 +516,8 @@ line with the latest version of [Sentry](https://github.com/getsentry/sentry).
 
 **Internal**:
 
-- Add basic truncation to event meta to prevent payload size from spiralling out of control.
+- Add basic truncation to event meta to prevent payload size from spiralling out
+  of control.
 
 ## 0.4.22
 
@@ -507,8 +553,8 @@ line with the latest version of [Sentry](https://github.com/getsentry/sentry).
 
 **Internal**:
 
-- Added support for protocol changes related to upcoming sentry SDK features.
-  In particular the `none` event type was added.
+- Added support for protocol changes related to upcoming sentry SDK features. In
+  particular the `none` event type was added.
 
 ## 0.4.16
 
@@ -672,7 +718,8 @@ For users of relay, nothing changed at all. This is a release to test embedding
 some Rust code in Sentry itself.
 
 - store: Fix segfault when trying to process contexts.
-- store: Fix trimming state "leaking" between interfaces, leading to excessive trimming.
+- store: Fix trimming state "leaking" between interfaces, leading to excessive
+  trimming.
 - store: Don't serialize empty arrays and objects (with a few exceptions).
 
 ## 0.2.1
@@ -720,15 +767,16 @@ Besides that, there are many technical changes, including:
 
 ## 0.1.2
 
-- JSON logging (#32)
+- JSON logging ([#32](https://github.com/getsentry/relay/pull/32))
 - Update dependencies
 
 ## 0.1.1
 
 - Rename "sentry-relay" to "semaphore"
 - Use new features from Rust 1.26
-- Prepare binary and Python builds (#20)
-- Add Dockerfile (#23)
+- Prepare binary and Python builds
+  ([#20](https://github.com/getsentry/relay/pull/20))
+- Add Dockerfile ([#23](https://github.com/getsentry/relay/pull/23))
 
 ## 0.1.0
 
