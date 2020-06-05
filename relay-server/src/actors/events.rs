@@ -48,7 +48,7 @@ use {
 
 #[derive(Debug, Fail)]
 pub enum QueueEnvelopeError {
-    #[fail(display = "Too many events (max_concurrent_events reached)")]
+    #[fail(display = "Too many events (event_buffer_size reached)")]
     TooManyEvents,
 }
 

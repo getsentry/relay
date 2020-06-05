@@ -336,7 +336,7 @@ def test_store_buffer_size(mini_sentry, relay):
 
     for (_, error) in mini_sentry.test_failures:
         assert isinstance(error, AssertionError)
-        assert "Too many events (max_concurrent_events reached)" in str(error)
+        assert "Too many events (event_buffer_size reached)" in str(error)
     mini_sentry.test_failures.clear()
 
 
