@@ -24,6 +24,9 @@ pub enum BadEventMeta {
     #[fail(display = "missing authorization information")]
     MissingAuth,
 
+    #[fail(display = "multiple authorization payloads detected")]
+    MultipleAuth,
+
     #[fail(display = "bad project path parameter")]
     BadProject(#[cause] ParseProjectIdError),
 
@@ -43,7 +46,7 @@ pub enum BadEventMeta {
 impl ResponseError for BadEventMeta {
     fn error_response(&self) -> HttpResponse {
         let mut builder = match *self {
-            Self::MissingAuth | Self::BadProjectKey | Self::BadAuth(_) => {
+            Self::MissingAuth | Self::MultipleAuth | Self::BadProjectKey | Self::BadAuth(_) => {
                 HttpResponse::Unauthorized()
             }
             Self::BadProject(_) | Self::BadDsn(_) => HttpResponse::BadRequest(),
@@ -246,30 +249,45 @@ fn get_auth_header<'a, S>(req: &'a HttpRequest<S>, header_name: &str) -> Option<
 }
 
 fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {
+    let mut auth = None;
+
     // try to extract authentication info from http header "x-sentry-auth"
-    if let Some(auth) = get_auth_header(req, "x-sentry-auth") {
-        return auth.parse::<Auth>().map_err(BadEventMeta::BadAuth);
+    if let Some(header) = get_auth_header(req, "x-sentry-auth") {
+        auth = Some(header.parse::<Auth>().map_err(BadEventMeta::BadAuth)?);
     }
 
     // try to extract authentication info from http header "authorization"
-    if let Some(auth) = get_auth_header(req, "authorization") {
-        return auth.parse::<Auth>().map_err(BadEventMeta::BadAuth);
+    if let Some(header) = get_auth_header(req, "authorization") {
+        if auth.is_some() {
+            return Err(BadEventMeta::MultipleAuth);
+        }
+
+        auth = Some(header.parse::<Auth>().map_err(BadEventMeta::BadAuth)?);
     }
 
     // try to extract authentication info from URL query_param .../?sentry_...=<key>...
     let query = req.query_string();
     if query.contains("sentry_") {
-        return Auth::from_querystring(query.as_bytes()).map_err(BadEventMeta::BadAuth);
+        if auth.is_some() {
+            return Err(BadEventMeta::MultipleAuth);
+        }
+
+        auth = Some(Auth::from_querystring(query.as_bytes()).map_err(BadEventMeta::BadAuth)?);
     }
 
     // try to extract authentication info from URL path segment .../{sentry_key}/...
-    let sentry_key = req
-        .match_info()
-        .get("sentry_key")
-        .ok_or(BadEventMeta::MissingAuth)?;
+    if let Some(sentry_key) = req.match_info().get("sentry_key") {
+        if auth.is_some() {
+            return Err(BadEventMeta::MultipleAuth);
+        }
 
-    Auth::from_pairs(std::iter::once(("sentry_key", sentry_key)))
-        .map_err(|_| BadEventMeta::MissingAuth)
+        auth = Some(
+            Auth::from_pairs(std::iter::once(("sentry_key", sentry_key)))
+                .map_err(|_| BadEventMeta::MissingAuth)?,
+        );
+    }
+
+    auth.ok_or(BadEventMeta::MissingAuth)
 }
 
 fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Option<Url> {
