@@ -260,7 +260,7 @@ impl Handler<FetchProjectState> for ProjectCache {
                 }
 
                 let fetch_upstream = upstream_source
-                    .send(message.clone())
+                    .send(message)
                     .map_err(|_| ())
                     .and_then(move |result| result.map_err(|_| ()));
 
