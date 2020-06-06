@@ -10,14 +10,6 @@ ARG DOCKER_ARCH
 ARG BUILD_ARCH=x86_64
 ARG OPENSSL_ARCH=linux-x86_64
 
-ENV DOCKER_ARCH=${DOCKER_ARCH}
-ENV BUILD_ARCH=${BUILD_ARCH}
-ENV OPENSSL_ARCH=${OPENSSL_ARCH}
-
-ENV BUILD_TARGET=${BUILD_ARCH}-unknown-linux-gnu
-ENV OPENSSL_DIR=/usr/local/build/$BUILD_TARGET
-ENV OPENSSL_STATIC=1
-
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
     curl build-essential git zip \
@@ -26,8 +18,10 @@ RUN apt-get update \
 
 WORKDIR /work
 
-ENV PREFIX_DIR="$OPENSSL_DIR"
-ENV LIBS_DIR="/home/rust/libs"
+ENV DOCKER_ARCH=${DOCKER_ARCH} \
+    BUILD_ARCH=${BUILD_ARCH} \
+    BUILD_TARGET=${BUILD_ARCH}-unknown-linux-gnu \
+    LIBS_DIR="/home/rust/libs"
 
 RUN echo "Building zlib" \
     && ZLIB_VERS=1.2.11 \
@@ -41,6 +35,11 @@ RUN echo "Building zlib" \
     && ./configure --static --archs="-fPIC" --prefix=$PREFIX_DIR \
     && make -j$(nproc) && make install \
     && cd .. && rm -rf zlib-$ZLIB_VERS.tar.gz zlib-$ZLIB_VERS checksums.txt
+
+ENV PREFIX_DIR="$OPENSSL_DIR" \
+    OPENSSL_ARCH=${OPENSSL_ARCH} \
+    OPENSSL_DIR=/usr/local/build/${BUILD_TARGET} \
+    OPENSSL_STATIC=1
 
 RUN echo "Building OpenSSL" \
     && OPENSSL_VERS=1.0.2s \
