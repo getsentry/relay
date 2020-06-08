@@ -620,6 +620,19 @@ impl EventProcessor {
             envelope.set_retention(retention);
         }
 
+        // Fast path for envelopes without event items or items that can create events. Such
+        // envelopes only require rate limiting in processing mode and can be passed through without
+        // processing enabled.
+        if !envelope.items().any(Item::creates_event) {
+            // TODO: Apply rate limits no non-event items once implemented.
+            return Ok(ProcessEnvelopeResponse { envelope });
+        }
+
+        // When queueing the envelope, it should have been split up into event-related items and
+        // non-event items. This allows us to bail early if the event is filtered or rate limited
+        // without dealing with other items (such as sessions).
+        debug_assert!(envelope.items().all(Item::requires_event));
+
         // Unreal endpoint puts the whole request into an item. This is done to make the endpoint
         // fast. For envelopes containing an Unreal request, we will look into the unreal item and
         // expand it so it can be consumed like any other event (e.g. `__sentry-event`). External
@@ -898,7 +911,7 @@ impl Message for QueueEnvelope {
 impl Handler<QueueEnvelope> for EventManager {
     type Result = Result<Option<EventId>, QueueEnvelopeError>;
 
-    fn handle(&mut self, message: QueueEnvelope, context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, mut message: QueueEnvelope, context: &mut Self::Context) -> Self::Result {
         metric!(histogram(RelayHistograms::EventQueueSize) = u64::from(self.current_active_events));
 
         metric!(
@@ -913,18 +926,31 @@ impl Handler<QueueEnvelope> for EventManager {
             return Err(QueueEnvelopeError::TooManyEvents);
         }
 
-        self.current_active_events += 1;
-
         let event_id = message.envelope.event_id();
 
-        // Actual event handling is performed asynchronously in a separate future. The lifetime of
-        // that future will be tied to the EventManager's context. This allows to keep the Project
-        // actor alive even if it is cleaned up in the ProjectManager.
+        // Split the envelope into event-related items and other items. This allows to fast-track:
+        //  1. Envelopes with only session items. They only require rate limiting.
+        //  2. Event envelope processing can bail out if the event is filtered or rate limited,
+        //     since all items depend on this event.
+        if let Some(event_envelope) = message.envelope.split_by(Item::requires_event) {
+            self.current_active_events += 1;
+            context.notify(HandleEnvelope {
+                envelope: event_envelope,
+                project: message.project.clone(),
+                start_time: message.start_time,
+            });
+        }
+
+        self.current_active_events += 1;
         context.notify(HandleEnvelope {
             envelope: message.envelope,
             project: message.project,
             start_time: message.start_time,
         });
+
+        // Actual event handling is performed asynchronously in a separate future. The lifetime of
+        // that future will be tied to the EventManager's context. This allows to keep the Project
+        // actor alive even if it is cleaned up in the ProjectManager.
 
         log::trace!("queued event");
         Ok(event_id)
