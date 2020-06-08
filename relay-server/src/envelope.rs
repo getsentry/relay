@@ -445,13 +445,18 @@ impl Item {
 
             // Attachments are only event items if they are crash reports.
             ItemType::Attachment => match self.attachment_type().unwrap_or_default() {
-                AttachmentType::AppleCrashReport | AttachmentType::Minidump => true,
-                _ => false,
+                AttachmentType::AppleCrashReport
+                | AttachmentType::Minidump
+                | AttachmentType::EventPayload
+                | AttachmentType::Breadcrumbs => true,
+                AttachmentType::Attachment
+                | AttachmentType::UnrealContext
+                | AttachmentType::UnrealLogs => false,
             },
 
-            // Form data items may contain partial event payloads, but those are only ever valid if they
-            // occur together with an explicit event item, such as a minidump or apple crash report. For
-            // this reason, FormData alone does not constitute an event item.
+            // Form data items may contain partial event payloads, but those are only ever valid if
+            // they occur together with an explicit event item, such as a minidump or apple crash
+            // report. For this reason, FormData alone does not constitute an event item.
             ItemType::FormData => false,
 
             // The remaining item types cannot carry event payloads.
