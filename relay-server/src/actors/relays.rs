@@ -219,7 +219,7 @@ impl RelayCache {
             .map(move |key| (relay_id, (*key).clone()))
             .map_err(|_| KeyError::FetchFailed);
 
-        Response::r#async(receiver)
+        Response::future(receiver)
     }
 }
 
@@ -343,7 +343,7 @@ impl Handler<GetRelays> for RelayCache {
 
         for id in message.relay_ids {
             match self.get_or_fetch_info(id, context) {
-                Response::Async(fut) => {
+                Response::Future(fut) => {
                     futures.push(fut);
                 }
                 Response::Reply(Ok((id, key))) => {
@@ -364,6 +364,6 @@ impl Handler<GetRelays> for RelayCache {
             GetRelaysResult { relays }
         });
 
-        Response::r#async(future)
+        Response::future(future)
     }
 }

@@ -472,7 +472,7 @@ impl Project {
             .map(|shared| (*shared).clone())
             .map_err(|_| ProjectError::FetchFailed);
 
-        Response::r#async(future)
+        Response::future(future)
     }
 
     fn fetch_state(

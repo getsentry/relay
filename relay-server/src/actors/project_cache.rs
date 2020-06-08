@@ -270,6 +270,6 @@ impl Handler<FetchProjectState> for ProjectCache {
             Box::new(fetch_redis)
         });
 
-        Response::r#async(future)
+        Response::future(future)
     }
 }
