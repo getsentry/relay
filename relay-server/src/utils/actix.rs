@@ -4,7 +4,7 @@ use futures::prelude::*;
 
 pub enum Response<T, E> {
     Reply(Result<T, E>),
-    Async(ResponseFuture<T, E>),
+    Future(ResponseFuture<T, E>),
 }
 
 impl<T, E> Response<T, E> {
@@ -16,12 +16,12 @@ impl<T, E> Response<T, E> {
         Response::Reply(result)
     }
 
-    pub fn r#async<F>(future: F) -> Self
+    pub fn future<F>(future: F) -> Self
     where
         F: IntoFuture<Item = T, Error = E>,
         F::Future: 'static,
     {
-        Response::Async(Box::new(future.into_future()))
+        Response::Future(Box::new(future.into_future()))
     }
 }
 
@@ -32,7 +32,7 @@ impl<T: 'static, E: 'static> Response<T, E> {
     {
         match self {
             Response::Reply(result) => Response::reply(result.map(f)),
-            Response::Async(future) => Response::r#async(future.map(f)),
+            Response::Future(future) => Response::future(future.map(f)),
         }
     }
 }
@@ -45,7 +45,7 @@ where
 {
     fn handle<R: ResponseChannel<M>>(self, _context: &mut A::Context, tx: Option<R>) {
         match self {
-            Response::Async(fut) => {
+            Response::Future(fut) => {
                 Arbiter::spawn(fut.then(move |res| {
                     if let Some(tx) = tx {
                         tx.send(res);
