@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::protocol::{
-    Event, HeaderName, HeaderValue, Headers, LogEntry, PairList, Request, TagEntry, Tags,
+    Event, EventType, HeaderName, HeaderValue, Headers, LogEntry, PairList, Request, TagEntry, Tags,
 };
 use crate::types::{Annotated, Array, Object, Value};
 
@@ -490,6 +490,7 @@ impl Csp {
             .effective_directive()
             .map_err(serde::de::Error::custom)?;
 
+        event.ty = Annotated::new(EventType::Csp);
         event.logentry = Annotated::new(LogEntry::from(raw_csp.get_message(effective_directive)));
         event.culprit = Annotated::new(raw_csp.get_culprit());
         event.tags = Annotated::new(raw_csp.get_tags(effective_directive));
@@ -744,6 +745,7 @@ impl ExpectCt {
         let raw_report = serde_json::from_slice::<ExpectCtReportRaw>(data)?;
         let raw_expect_ct = raw_report.expect_ct_report;
 
+        event.ty = Annotated::new(EventType::ExpectCT);
         event.logentry = Annotated::new(LogEntry::from(raw_expect_ct.get_message()));
         event.culprit = Annotated::new(raw_expect_ct.get_culprit());
         event.tags = Annotated::new(raw_expect_ct.get_tags());
@@ -885,6 +887,7 @@ impl Hpkp {
     pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), serde_json::Error> {
         let raw_hpkp = serde_json::from_slice::<HpkpRaw>(data)?;
 
+        event.ty = Annotated::new(EventType::Hpkp);
         event.logentry = Annotated::new(LogEntry::from(raw_hpkp.get_message()));
         event.tags = Annotated::new(raw_hpkp.get_tags());
         event.request = Annotated::new(raw_hpkp.get_request());
@@ -1094,6 +1097,7 @@ impl ExpectStaple {
         let raw_report = serde_json::from_slice::<ExpectStapleReportRaw>(data)?;
         let raw_expect_staple = raw_report.expect_staple_report;
 
+        event.ty = Annotated::new(EventType::ExpectStaple);
         event.logentry = Annotated::new(LogEntry::from(raw_expect_staple.get_message()));
         event.culprit = Annotated::new(raw_expect_staple.get_culprit());
         event.tags = Annotated::new(raw_expect_staple.get_tags());
@@ -1202,6 +1206,7 @@ mod tests {
 
         assert_annotated_snapshot!(Annotated::new(event), @r###"
         {
+          "type": "csp",
           "culprit": "style-src cdn.example.com",
           "logentry": {
             "formatted": "Blocked 'style' from 'example.com'"
@@ -1243,6 +1248,7 @@ mod tests {
 
         assert_annotated_snapshot!(Annotated::new(event), @r###"
         {
+          "type": "csp",
           "culprit": "",
           "logentry": {
             "formatted": "Blocked unsafe (eval() or inline) 'script'"
@@ -1286,39 +1292,40 @@ mod tests {
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
 
         assert_annotated_snapshot!(Annotated::new(event), @r###"
-       ⋮{
-       ⋮  "culprit": "default-src self",
-       ⋮  "logentry": {
-       ⋮    "formatted": "Blocked 'default-src' from 'evilhackerscripts.com'"
-       ⋮  },
-       ⋮  "request": {
-       ⋮    "url": "https://example.com/foo/bar",
-       ⋮    "headers": [
-       ⋮      [
-       ⋮        "Referer",
-       ⋮        "https://www.google.com/"
-       ⋮      ]
-       ⋮    ]
-       ⋮  },
-       ⋮  "tags": [
-       ⋮    [
-       ⋮      "effective-directive",
-       ⋮      "default-src"
-       ⋮    ],
-       ⋮    [
-       ⋮      "blocked-uri",
-       ⋮      "http://evilhackerscripts.com"
-       ⋮    ]
-       ⋮  ],
-       ⋮  "csp": {
-       ⋮    "effective_directive": "default-src",
-       ⋮    "blocked_uri": "http://evilhackerscripts.com",
-       ⋮    "document_uri": "https://example.com/foo/bar",
-       ⋮    "original_policy": "default-src self; report-uri /csp-hotline.php",
-       ⋮    "referrer": "https://www.google.com/",
-       ⋮    "violated_directive": "default-src self"
-       ⋮  }
-       ⋮}
+        {
+          "type": "csp",
+          "culprit": "default-src self",
+          "logentry": {
+            "formatted": "Blocked 'default-src' from 'evilhackerscripts.com'"
+          },
+          "request": {
+            "url": "https://example.com/foo/bar",
+            "headers": [
+              [
+                "Referer",
+                "https://www.google.com/"
+              ]
+            ]
+          },
+          "tags": [
+            [
+              "effective-directive",
+              "default-src"
+            ],
+            [
+              "blocked-uri",
+              "http://evilhackerscripts.com"
+            ]
+          ],
+          "csp": {
+            "effective_directive": "default-src",
+            "blocked_uri": "http://evilhackerscripts.com",
+            "document_uri": "https://example.com/foo/bar",
+            "original_policy": "default-src self; report-uri /csp-hotline.php",
+            "referrer": "https://www.google.com/",
+            "violated_directive": "default-src self"
+          }
+        }
         "###);
     }
 
@@ -1346,6 +1353,7 @@ mod tests {
 
         assert_annotated_snapshot!(Annotated::new(event), @r###"
         {
+          "type": "csp",
           "culprit": "script-src",
           "logentry": {
             "formatted": "Blocked 'script' from 'baddomain.com'"
@@ -1698,6 +1706,7 @@ mod tests {
         ExpectCt::apply_to_event(json.as_bytes(), &mut event).unwrap();
         assert_annotated_snapshot!(Annotated::new(event), @r###"
         {
+          "type": "expectct",
           "culprit": "www.example.com",
           "logentry": {
             "formatted": "Expect-CT failed for 'www.example.com'"
@@ -1770,6 +1779,7 @@ mod tests {
         ExpectStaple::apply_to_event(json.as_bytes(), &mut event).unwrap();
         assert_annotated_snapshot!(Annotated::new(event), @r###"
         {
+          "type": "expectstaple",
           "culprit": "www.example.com",
           "logentry": {
             "formatted": "Expect-Staple failed for 'www.example.com'"
@@ -1830,6 +1840,7 @@ mod tests {
         Hpkp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         assert_annotated_snapshot!(Annotated::new(event), @r###"
         {
+          "type": "hpkp",
           "logentry": {
             "formatted": "Public key pinning validation failed for 'example.com'"
           },

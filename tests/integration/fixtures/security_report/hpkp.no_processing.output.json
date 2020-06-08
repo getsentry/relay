@@ -1,4 +1,5 @@
 {
+  "type": "hpkp",
   "logentry": {
     "formatted": "Public key pinning validation failed for 'www.example.com'"
   },

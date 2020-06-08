@@ -1,4 +1,5 @@
 {
+  "type": "csp",
   "csp": {
     "blocked_uri": "http://evilhackerscripts.com",
     "document_uri": "https://example.com/foo/bar",

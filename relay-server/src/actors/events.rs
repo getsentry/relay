@@ -428,7 +428,8 @@ impl EventProcessor {
         // `process_event`.
         let event_item = envelope.take_item_by(|item| item.ty() == ItemType::Event);
         let transaction_item = envelope.take_item_by(|item| item.ty() == ItemType::Transaction);
-        let security_item = envelope.take_item_by(|item| item.ty() == ItemType::SecurityReport);
+        let security_item = envelope.take_item_by(|item| item.ty() == ItemType::Security);
+        let raw_security_item = envelope.take_item_by(|item| item.ty() == ItemType::RawSecurity);
         let form_item = envelope.take_item_by(|item| item.ty() == ItemType::FormData);
         let attachment_item = envelope
             .take_item_by(|item| item.attachment_type() == Some(AttachmentType::EventPayload));
@@ -437,10 +438,10 @@ impl EventProcessor {
         let breadcrumbs_item2 = envelope
             .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
 
-        if let Some(item) = event_item {
+        if let Some(item) = event_item.or(security_item) {
             log::trace!("processing json event");
             return Ok(metric!(timer(RelayTimers::EventProcessingDeserialize), {
-                // Event items can never include transactions, so kill the event type and let
+                // Event items can never include transactions, so retain the event type and let
                 // inference deal with this during store normalization.
                 self.event_from_json_payload(item, None)?
             }));
@@ -455,7 +456,7 @@ impl EventProcessor {
             }));
         }
 
-        if let Some(item) = security_item {
+        if let Some(item) = raw_security_item {
             log::trace!("processing security report");
             return Ok(self.event_from_security_report(item)?);
         }
@@ -616,8 +617,9 @@ impl EventProcessor {
             // These should always be removed by `extract_event`:
             ItemType::Event => true,
             ItemType::Transaction => true,
+            ItemType::Security => true,
             ItemType::FormData => true,
-            ItemType::SecurityReport => true,
+            ItemType::RawSecurity => true,
 
             // These should be removed conditionally:
             ItemType::UnrealReport => self.config.processing_enabled(),
@@ -798,12 +800,8 @@ impl EventProcessor {
             event.to_json().map_err(ProcessingError::SerializeFailed)?
         });
 
-        let item_type = match event_type {
-            Some(EventType::Transaction) => ItemType::Transaction,
-            _ => ItemType::Event,
-        };
-
         // Add the normalized event back to the envelope. All the other items are attachments.
+        let item_type = ItemType::from_event_type(event_type.unwrap_or_default());
         let mut event_item = Item::new(item_type);
         event_item.set_payload(ContentType::Json, data);
         envelope.add_item(event_item);

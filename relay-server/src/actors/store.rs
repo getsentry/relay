@@ -420,8 +420,12 @@ impl Handler<StoreEnvelope> for StoreForwarder {
 
         let retention = envelope.retention();
         let event_id = envelope.event_id();
-        let event_item = envelope
-            .get_item_by(|item| matches!(item.ty(), ItemType::Event | ItemType::Transaction));
+        let event_item = envelope.get_item_by(|item| {
+            matches!(
+                item.ty(),
+                ItemType::Event | ItemType::Transaction | ItemType::Security
+            )
+        });
 
         let topic = if envelope.get_item_by(is_slow_item).is_some() {
             KafkaTopic::Attachments

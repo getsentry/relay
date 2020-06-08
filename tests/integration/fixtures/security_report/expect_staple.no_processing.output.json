@@ -1,4 +1,5 @@
 {
+  "type": "expectstaple",
   "culprit": "www.example.com",
   "logentry": {
     "formatted": "Expect-Staple failed for 'www.example.com'"
