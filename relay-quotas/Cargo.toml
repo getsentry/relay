@@ -17,7 +17,6 @@ redis = [
     "relay-redis/impl",
     "sentry",
 ]
-legacy = []
 
 [dependencies]
 failure = { version = "0.1.5", optional = true }
