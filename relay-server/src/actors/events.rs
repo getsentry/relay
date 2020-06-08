@@ -25,8 +25,7 @@ use relay_redis::RedisPool;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
-    EventAction, GetEventAction, GetProjectState, GetScoping, Project, ProjectState,
-    UpdateRateLimits,
+    CheckEnvelope, GetProjectState, Project, ProjectState, UpdateRateLimits,
 };
 use crate::actors::project_cache::ProjectError;
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
@@ -1046,7 +1045,6 @@ impl Handler<HandleEnvelope> for EventManager {
         let event_id = envelope.event_id();
         let project_id = envelope.meta().project_id();
         let remote_addr = envelope.meta().client_addr();
-        let shared_meta = Arc::new(envelope.meta().clone());
 
         // Compute whether this envelope contains an event. This is used in error handling to
         // appropriately emit an outecome. Envelopes not containing events (such as standalone
@@ -1058,27 +1056,26 @@ impl Handler<HandleEnvelope> for EventManager {
         metric!(set(RelaySets::UniqueProjects) = project_id.value() as i64);
 
         let future = project
-            .send(GetScoping::fetched(shared_meta.clone()))
+            .send(CheckEnvelope::fetched(envelope))
             .map_err(ProcessingError::ScheduleFailed)
-            .and_then(|scoping_result| scoping_result.map_err(ProcessingError::ProjectFailed))
-            .and_then(clone!(project, scoping, |new_scoping| {
-                scoping.replace(new_scoping);
-                project
-                    .send(GetEventAction::new(shared_meta))
-                    .map_err(ProcessingError::ScheduleFailed)
+            .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
+            .and_then(clone!(scoping, |response| {
+                scoping.replace(response.scoping);
+
+                let checked = response.result.map_err(ProcessingError::EventRejected)?;
+                match checked.envelope {
+                    Some(envelope) => Ok(envelope),
+                    None => Err(ProcessingError::RateLimited(checked.rate_limits)),
+                }
             }))
-            .and_then(|action| match action {
-                EventAction::Accept => Ok(()),
-                EventAction::RateLimit(limits) => Err(ProcessingError::RateLimited(limits)),
-                EventAction::Discard(reason) => Err(ProcessingError::EventRejected(reason)),
-            })
-            .and_then(clone!(project, |_| {
+            .and_then(clone!(project, |envelope| {
                 project
                     .send(GetProjectState)
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
+                    .map(|state| (envelope, state))
             }))
-            .and_then(move |project_state| {
+            .and_then(move |(envelope, project_state)| {
                 processor
                     .send(ProcessEnvelope {
                         envelope,
