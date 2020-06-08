@@ -443,7 +443,8 @@ impl Item {
             | ItemType::SecurityReport
             | ItemType::UnrealReport => true,
 
-            // Attachments are only event items if they are crash reports.
+            // Attachments are only event items if they are crash reports or if they carry partial
+            // event payloads. Plain attachments never create event payloads.
             ItemType::Attachment => match self.attachment_type().unwrap_or_default() {
                 AttachmentType::AppleCrashReport
                 | AttachmentType::Minidump
