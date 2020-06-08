@@ -479,7 +479,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
 
             self.produce(topic, event_message)?;
             metric!(
-                counter(RelayCounters::ProcessingEventProduced) += 1,
+                counter(RelayCounters::ProcessingMessageProduced) += 1,
                 event_type = "event"
             );
         } else if !attachments.is_empty() {
@@ -493,7 +493,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
 
                 self.produce(topic, attachment_message)?;
                 metric!(
-                    counter(RelayCounters::ProcessingEventProduced) += 1,
+                    counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = "attachment"
                 );
             }

@@ -456,7 +456,7 @@ where
                 })
         }))
         .or_else(move |error: BadStoreRequest| {
-            metric!(counter(RelayCounters::EventRejected) += 1);
+            metric!(counter(RelayCounters::EnvelopeRejected) += 1);
 
             if is_event {
                 outcome_producer.do_send(TrackOutcome {

@@ -836,8 +836,8 @@ impl Handler<ProcessEnvelope> for EventProcessor {
     type Result = Result<ProcessEnvelopeResponse, ProcessingError>;
 
     fn handle(&mut self, message: ProcessEnvelope, _context: &mut Self::Context) -> Self::Result {
-        metric!(timer(RelayTimers::EventWaitTime) = message.start_time.elapsed());
-        metric!(timer(RelayTimers::EventProcessingTime), {
+        metric!(timer(RelayTimers::EnvelopeWaitTime) = message.start_time.elapsed());
+        metric!(timer(RelayTimers::EnvelopeProcessingTime), {
             self.process(message)
         })
     }
@@ -951,10 +951,12 @@ impl Handler<QueueEnvelope> for EventManager {
     type Result = Result<Option<EventId>, QueueEnvelopeError>;
 
     fn handle(&mut self, mut message: QueueEnvelope, context: &mut Self::Context) -> Self::Result {
-        metric!(histogram(RelayHistograms::EventQueueSize) = u64::from(self.current_active_events));
+        metric!(
+            histogram(RelayHistograms::EnvelopeQueueSize) = u64::from(self.current_active_events)
+        );
 
         metric!(
-            histogram(RelayHistograms::EventQueueSizePct) = {
+            histogram(RelayHistograms::EnvelopeQueueSizePct) = {
                 let queue_size_pct = self.current_active_events as f32 * 100.0
                     / self.config.event_buffer_size() as f32;
                 queue_size_pct.floor() as u64
@@ -1167,9 +1169,9 @@ impl Handler<HandleEnvelope> for EventManager {
             }))
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
-            .map(|_, _, _| metric!(counter(RelayCounters::EventAccepted) += 1))
+            .map(|_, _, _| metric!(counter(RelayCounters::EnvelopeAccepted) += 1))
             .map_err(move |error, slf, _| {
-                metric!(counter(RelayCounters::EventRejected) += 1);
+                metric!(counter(RelayCounters::EnvelopeRejected) += 1);
 
                 // Rate limits need special handling: Cache them on the project to avoid
                 // expensive processing while the limit is active.
@@ -1219,7 +1221,7 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
             })
             .then(move |x, slf, _| {
-                metric!(timer(RelayTimers::EventTotalTime) = start_time.elapsed());
+                metric!(timer(RelayTimers::EnvelopeTotalTime) = start_time.elapsed());
                 slf.current_active_events -= 1;
                 fut::result(x)
             })
