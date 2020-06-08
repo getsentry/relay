@@ -32,11 +32,12 @@ pub use self::processing::*;
 #[cfg(not(feature = "processing"))]
 pub use self::non_processing::*;
 use std::borrow::Cow;
+use std::mem;
 
 /// Defines the structure of the HTTP outcomes requests
 #[derive(Deserialize, Serialize, Debug, Default)]
-#[serde(default)]
 pub struct SendOutcomes {
+    #[serde(default)]
     pub outcomes: Vec<TrackRawOutcome>,
 }
 
@@ -319,29 +320,28 @@ impl Message for TrackRawOutcome {
 /// Common implementation for both processing and non-processing
 impl OutcomeProducer {
     fn send_batch(&mut self, context: &mut Context<Self>) {
-        log::trace!("sending outcome batch");
-
         //the future should be either canceled (if we are called with a full batch)
         // or already called (if we are called by a timeout)
-        self.send_outcomes_future = None;
+        self.pending_flush_handle = None;
 
         if self.unsent_outcomes.is_empty() {
             log::warn!("unexpected send_batch scheduled with no outcomes to send.");
             return;
+        } else {
+            log::trace!(
+                "sending outcome batch of size:{}",
+                self.unsent_outcomes.len()
+            );
         }
 
         let request = SendOutcomes {
-            outcomes: self.unsent_outcomes.drain(..).collect(),
+            outcomes: mem::take(&mut self.unsent_outcomes),
         };
 
         self.upstream
             .send(SendQuery(request))
-            .map(|_| {
-                log::trace!("outcome batch sent.");
-            })
-            .map_err(|error| {
-                log::error!("outcome batch sending failed with: {}", LogError(&error));
-            })
+            .map(|_| log::trace!("outcome batch sent."))
+            .map_err(|error| log::error!("outcome batch sending failed with: {}", LogError(&error)))
             .into_actor(self)
             .spawn(context);
     }
@@ -354,12 +354,12 @@ impl OutcomeProducer {
         log::trace!("Batching outcome");
         self.unsent_outcomes.push(message);
         if self.unsent_outcomes.len() >= self.config.max_outcome_batch_size() {
-            if let Some(send_outcomes_future) = self.send_outcomes_future {
-                context.cancel_future(send_outcomes_future);
+            if let Some(pending_flush_handle) = self.pending_flush_handle {
+                context.cancel_future(pending_flush_handle);
             }
             self.send_batch(context)
-        } else if self.send_outcomes_future.is_none() {
-            self.send_outcomes_future =
+        } else if self.pending_flush_handle.is_none() {
+            self.pending_flush_handle =
                 Some(context.run_later(self.config.max_outcome_interval(), Self::send_batch));
         }
 
@@ -395,14 +395,14 @@ mod processing {
     }
 
     impl TrackRawOutcome {
-        fn name(&self) -> &'static str {
+        fn tag_name(&self) -> &'static str {
             match self.outcome {
                 0 => "accepted",
                 1 => "filtered",
                 2 => "rate_limited",
                 3 => "invalid",
                 4 => "abuse",
-                _ => "", // TODO should we return a result ?
+                _ => "<unknown>",
             }
         }
     }
@@ -412,7 +412,7 @@ mod processing {
         producer: Option<ThreadedProducer>,
         pub(super) upstream: Addr<UpstreamRelay>,
         pub(super) unsent_outcomes: Vec<TrackRawOutcome>,
-        pub(super) send_outcomes_future: Option<SpawnHandle>,
+        pub(super) pending_flush_handle: Option<SpawnHandle>,
     }
 
     impl OutcomeProducer {
@@ -438,7 +438,7 @@ mod processing {
                 producer: future_producer,
                 upstream,
                 unsent_outcomes: Vec::new(),
-                send_outcomes_future: None,
+                pending_flush_handle: None,
             })
         }
 
@@ -456,7 +456,7 @@ mod processing {
             metric!(
                 counter(RelayCounters::Outcomes) += 1,
                 reason = message.reason.as_deref().unwrap_or(""),
-                outcome = message.name()
+                outcome = message.tag_name(),
             );
 
             // At the moment, we support outcomes with optional EventId.
@@ -529,7 +529,7 @@ mod non_processing {
         pub(super) config: Arc<Config>,
         pub(super) upstream: Addr<UpstreamRelay>,
         pub(super) unsent_outcomes: Vec<TrackRawOutcome>,
-        pub(super) send_outcomes_future: Option<SpawnHandle>,
+        pub(super) pending_flush_handle: Option<SpawnHandle>,
     }
 
     impl OutcomeProducer {
@@ -541,7 +541,7 @@ mod non_processing {
                 config,
                 upstream,
                 unsent_outcomes: Vec::new(),
-                send_outcomes_future: None,
+                pending_flush_handle: None,
             })
         }
     }
