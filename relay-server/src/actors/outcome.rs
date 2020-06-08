@@ -380,7 +380,7 @@ mod processing {
                     .context(ServerErrorKind::KafkaError)?;
                 (Some(future_producer), None)
             } else {
-                let http_producer = HttpOutcomeProducer::create(config.clone(), upstream.clone())
+                let http_producer = HttpOutcomeProducer::create(config.clone(), upstream)
                     .map(|producer| producer.start())
                     .map_err(|error| {
                         log::error!("Failed to start http producer: {}", LogError(&error));
