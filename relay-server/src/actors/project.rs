@@ -13,14 +13,14 @@ use relay_common::{metric, ProjectId};
 use relay_config::{Config, RelayMode};
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
+use relay_quotas::{Quota, RateLimits, Scoping};
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
-use crate::utils::{ActorResponse, Response};
+use crate::utils::{ActorResponse, EnvelopeLimiter, Response};
 
 /// The current status of a project state. Return value of `ProjectState::outdated`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -295,6 +295,11 @@ impl ProjectState {
         scoping
     }
 
+    /// Returns quotas declared in this project state.
+    pub fn get_quotas(&self) -> &[Quota] {
+        self.config.quotas.as_slice()
+    }
+
     /// Determines whether the given request should be accepted or discarded.
     ///
     /// Returns `Ok(())` if the request should be accepted. Returns `Err(DiscardReason)` if the
@@ -510,7 +515,7 @@ impl Project {
 
     fn check_envelope(
         &mut self,
-        envelope: Envelope,
+        mut envelope: Envelope,
         scoping: &Scoping,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         if let Some(state) = self.state() {
@@ -519,9 +524,13 @@ impl Project {
 
         self.rate_limits.clean_expired();
 
-        // TODO: Apply rate limits no non-event items once implemented.
-        let rate_limits = self.rate_limits.check(scoping.item(DataCategory::Error));
-        let envelope = if rate_limits.is_limited() {
+        let quotas = self.state().map(|s| s.get_quotas()).unwrap_or(&[]);
+        let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
+            Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
+        });
+
+        let rate_limits = envelope_limiter.enforce(&mut envelope, scoping)?;
+        let envelope = if envelope.is_empty() {
             None
         } else {
             Some(envelope)

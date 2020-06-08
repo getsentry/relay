@@ -747,6 +747,17 @@ impl Envelope {
         })
     }
 
+    /// Retains only the items specified by the predicate.
+    ///
+    /// In other words, remove all elements where `f(&item)` returns `false`. This method operates
+    /// in place and preserves the order of the retained items.
+    pub fn retain_items<F>(&mut self, f: F)
+    where
+        F: FnMut(&mut Item) -> bool,
+    {
+        self.items.retain(f)
+    }
+
     /// Serializes this envelope into the given writer.
     pub fn serialize<W>(&self, mut writer: W) -> Result<(), EnvelopeError>
     where
