@@ -22,6 +22,7 @@ We have switched to [CalVer](https://calver.org/)! Relay's version is always in 
 - Invalid session payloads are now logged for SDK debugging. ([#584](https://github.com/getsentry/relay/pull/584), [#591](https://github.com/getsentry/relay/pull/591))
 - Remove unused `rev` from project state. ([#586](https://github.com/getsentry/relay/pull/586))
 - Add an outcome endpoint for trusted Relays. ([#589](https://github.com/getsentry/relay/pull/589))
+- Emit outcomes for event payloads submitted in attachment files. ([#609](https://github.com/getsentry/relay/pull/609))
 
 ## 0.5.9
 

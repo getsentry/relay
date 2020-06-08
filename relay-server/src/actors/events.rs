@@ -605,11 +605,9 @@ impl EventProcessor {
         } = message;
 
         macro_rules! if_processing {
-            ($($tt:tt)*) => {
+            ($block:block) => {
                 #[cfg(feature = "processing")] {
-                    if self.config.processing_enabled() {
-                        $($tt)*
-                    }
+                    if self.config.processing_enabled() $block
                 }
             };
         }
@@ -637,12 +635,12 @@ impl EventProcessor {
         // fast. For envelopes containing an Unreal request, we will look into the unreal item and
         // expand it so it can be consumed like any other event (e.g. `__sentry-event`). External
         // Relays should leave this as-is.
-        if_processing! {
+        if_processing!({
             if let Some(item) = envelope.take_item_by(|item| item.ty() == ItemType::UnrealReport) {
                 utils::expand_unreal_envelope(item, &mut envelope)
                     .map_err(ProcessingError::InvalidUnrealReport)?;
             }
-        }
+        });
 
         // Carry metrics on event sizes through the entire normalization process. Without
         // processing, this value is unused and will be optimized away. Note how we need to extract
@@ -663,7 +661,7 @@ impl EventProcessor {
             return Err(ProcessingError::DuplicateItem(duplicate.ty()));
         }
 
-        if_processing! {
+        if_processing!({
             // This envelope may contain UE4 crash report information, which needs to be patched on
             // the event returned from `extract_event`.
             utils::process_unreal_envelope(&mut event, &mut envelope)
@@ -673,18 +671,20 @@ impl EventProcessor {
             // event. This indicates to the pipeline that the event needs special processing.
             let minidump_attachment = envelope
                 .get_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump));
-            let apple_crash_report_attachment = envelope
-                .get_item_by(|item| item.attachment_type() == Some(AttachmentType::AppleCrashReport));
+            let apple_crash_report_attachment = envelope.get_item_by(|item| {
+                item.attachment_type() == Some(AttachmentType::AppleCrashReport)
+            });
 
             if let Some(item) = minidump_attachment {
                 _metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
                 self.write_native_placeholder(&mut event, true);
-            } else if let Some(item) =  apple_crash_report_attachment {
+            } else if let Some(item) = apple_crash_report_attachment {
                 _metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
                 self.write_native_placeholder(&mut event, false);
             }
 
-            let attachment_size = envelope.items()
+            let attachment_size = envelope
+                .items()
                 .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment))
                 .map(|item| item.len())
                 .sum::<usize>();
@@ -692,7 +692,7 @@ impl EventProcessor {
             if attachment_size > 0 {
                 _metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size as u64);
             }
-        }
+        });
 
         if let Some(event) = event.value_mut() {
             // Event id is set statically in the ingest path.
@@ -724,7 +724,7 @@ impl EventProcessor {
             self.fast_process_event(&mut event, &envelope, start_time)?;
         }
         // else
-        if_processing! {
+        if_processing!({
             self.store_process_event(&mut event, &envelope, &project_state, start_time)?;
 
             if let Some(event) = event.value_mut() {
@@ -734,7 +734,7 @@ impl EventProcessor {
                 // during processing is overwritten at last.
                 event._metrics = Annotated::new(_metrics);
             }
-        }
+        });
 
         // Run PII stripping last since normalization can add PII (e.g. IP addresses).
         metric!(timer(RelayTimers::EventProcessingPii), {
