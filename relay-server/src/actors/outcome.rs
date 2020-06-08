@@ -4,6 +4,8 @@
 //! must be emitted in the entire ingestion pipeline. Since Relay is only one part in this pipeline,
 //! outcomes may not be emitted if the event is accepted.
 
+use std::borrow::Cow;
+use std::mem;
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Instant;
@@ -33,9 +35,6 @@ pub use self::processing::*;
 pub type OutcomeProducer = processing::ProcessingOutcomeProducer;
 #[cfg(not(feature = "processing"))]
 pub type OutcomeProducer = HttpOutcomeProducer;
-
-use std::borrow::Cow;
-use std::mem;
 
 /// Defines the structure of the HTTP outcomes requests
 #[derive(Deserialize, Serialize, Debug, Default)]

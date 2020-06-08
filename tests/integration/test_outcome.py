@@ -86,8 +86,8 @@ def test_outcomes_non_processing(relay, relay_with_processing, mini_sentry):
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "max_outcome_batch_size": 1,
-            "max_outcome_interval_millsec": 1,
+            "max_batch_size": 1,
+            "max_interval": 1,
         }
     }
 
@@ -130,8 +130,8 @@ def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
     config = {
         "outcomes": {
             "emit_outcomes": False,
-            "max_outcome_batch_size": 1,
-            "max_outcome_interval_millsec": 1,
+            "max_batch_size": 1,
+            "max_interval": 1,
         }
     }
 
@@ -157,8 +157,8 @@ def test_outcomes_non_processing_max_batch_time(relay, mini_sentry):
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "max_outcome_batch_size": 1000,  # a huge batch size
-            "max_outcome_interval_millsec": 1,  # very short batch time
+            "max_batch_size": 1000,  # a huge batch size
+            "max_interval": 1,  # very short batch time
         }
     }
     relay = relay(mini_sentry, config)
@@ -171,7 +171,7 @@ def test_outcomes_non_processing_max_batch_time(relay, mini_sentry):
     for i in range(events_to_send):
         event_id = _send_event(relay)
         event_ids.add(event_id)
-        time.sleep(0.002)  # sleep more than the batch time
+        time.sleep(0.005)  # sleep more than the batch time
 
     # we should get one batch per event sent
     batches = []
@@ -196,8 +196,8 @@ def test_outcomes_non_processing_batching(relay, mini_sentry):
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "max_outcome_batch_size": batch_size,
-            "max_outcome_interval_millsec": HOUR_MILLISEC,  # batch every hour
+            "max_batch_size": batch_size,
+            "max_interval": HOUR_MILLISEC,  # batch every hour
         }
     }
 
