@@ -715,18 +715,18 @@ pub struct Outcomes {
     pub emit_outcomes: bool,
     /// The maximum number of outcomes that are batched before being sent
     /// via http to the upstream (only applies to non processing relays)
-    pub max_batch_size: usize,
+    pub batch_size: usize,
     /// The maximum time interval (in milliseconds) that an outcome may be batched
     /// via http to the upstream (only applies to non processing relays)
-    pub max_interval: u64,
+    pub batch_interval: u64,
 }
 
 impl Default for Outcomes {
     fn default() -> Self {
         Outcomes {
             emit_outcomes: false,
-            max_batch_size: 1000,
-            max_interval: 500,
+            batch_size: 1000,
+            batch_interval: 500,
         }
     }
 }
@@ -1071,13 +1071,13 @@ impl Config {
     }
 
     /// Returns the maximum number of outcomes that are batched before being sent
-    pub fn max_outcome_batch_size(&self) -> usize {
-        self.values.outcomes.max_batch_size
+    pub fn outcome_batch_size(&self) -> usize {
+        self.values.outcomes.batch_size
     }
 
     /// Returns the maximum interval that an outcome may be batched
-    pub fn max_outcome_interval(&self) -> Duration {
-        Duration::from_millis(self.values.outcomes.max_interval)
+    pub fn outcome_batch_interval(&self) -> Duration {
+        Duration::from_millis(self.values.outcomes.batch_interval)
     }
 
     /// Returns the log level.

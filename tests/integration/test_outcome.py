@@ -84,11 +84,7 @@ def test_outcomes_non_processing(relay, relay_with_processing, mini_sentry):
     with all necessary information set.
     """
     config = {
-        "outcomes": {
-            "emit_outcomes": True,
-            "max_batch_size": 1,
-            "max_interval": 1,
-        }
+        "outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1,}
     }
 
     relay = relay(mini_sentry, config)
@@ -128,11 +124,7 @@ def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
     when we disable outcomes.
     """
     config = {
-        "outcomes": {
-            "emit_outcomes": False,
-            "max_batch_size": 1,
-            "max_interval": 1,
-        }
+        "outcomes": {"emit_outcomes": False, "batch_size": 1, "batch_interval": 1,}
     }
 
     relay = relay(mini_sentry, config)
@@ -157,8 +149,8 @@ def test_outcomes_non_processing_max_batch_time(relay, mini_sentry):
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "max_batch_size": 1000,  # a huge batch size
-            "max_interval": 1,  # very short batch time
+            "batch_size": 1000,  # a huge batch size
+            "batch_interval": 1,  # very short batch time
         }
     }
     relay = relay(mini_sentry, config)
@@ -196,8 +188,8 @@ def test_outcomes_non_processing_batching(relay, mini_sentry):
     config = {
         "outcomes": {
             "emit_outcomes": True,
-            "max_batch_size": batch_size,
-            "max_interval": HOUR_MILLISEC,  # batch every hour
+            "batch_size": batch_size,
+            "batch_interval": HOUR_MILLISEC,  # batch every hour
         }
     }
 

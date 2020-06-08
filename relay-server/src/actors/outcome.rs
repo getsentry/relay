@@ -546,14 +546,14 @@ impl HttpOutcomeProducer {
     ) -> Result<(), OutcomeError> {
         log::trace!("Batching outcome");
         self.unsent_outcomes.push(message);
-        if self.unsent_outcomes.len() >= self.config.max_outcome_batch_size() {
+        if self.unsent_outcomes.len() >= self.config.outcome_batch_size() {
             if let Some(pending_flush_handle) = self.pending_flush_handle {
                 context.cancel_future(pending_flush_handle);
             }
             self.send_batch(context)
         } else if self.pending_flush_handle.is_none() {
             self.pending_flush_handle =
-                Some(context.run_later(self.config.max_outcome_interval(), Self::send_batch));
+                Some(context.run_later(self.config.outcome_batch_interval(), Self::send_batch));
         }
 
         Ok(())
