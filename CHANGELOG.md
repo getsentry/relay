@@ -25,6 +25,7 @@ We have switched to [CalVer](https://calver.org/)! Relay's version is always in 
 - Add an outcome endpoint for trusted Relays. ([#589](https://github.com/getsentry/relay/pull/589))
 - Emit outcomes for event payloads submitted in attachment files. ([#609](https://github.com/getsentry/relay/pull/609))
 - Split envelopes that contain sessions and other items and ingest them independently. ([#610](https://github.com/getsentry/relay/pull/610))
+- Removed support for legacy per-key quotas. ([#616](https://github.com/getsentry/relay/pull/615))
 
 ## 0.5.9
 
