@@ -61,19 +61,59 @@
 //! [`configure_statsd`]: fn.configure_statsd.html
 //! [`metric!`]: ../macro.metric.html
 
+use std::collections::BTreeMap;
 use std::net::ToSocketAddrs;
+use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
-use cadence::StatsdClient;
+use cadence::{Metric, MetricBuilder, StatsdClient};
 use lazy_static::lazy_static;
 use parking_lot::RwLock;
 
+/// Client configuration object to store globally.
+#[derive(Clone, Debug)]
+pub struct MetricsClient {
+    /// The raw statsd client
+    pub statsd_client: StatsdClient,
+    /// Default tags to apply to every metric
+    pub default_tags: BTreeMap<String, String>,
+}
+
+impl Deref for MetricsClient {
+    type Target = StatsdClient;
+
+    fn deref(&self) -> &StatsdClient {
+        &self.statsd_client
+    }
+}
+
+impl DerefMut for MetricsClient {
+    fn deref_mut(&mut self) -> &mut StatsdClient {
+        &mut self.statsd_client
+    }
+}
+
+impl MetricsClient {
+    /// Send a metric with the default tags defined on this `MetricsClient`.
+    #[inline(always)]
+    pub fn send_metric<'a, T>(&'a self, mut metric: MetricBuilder<'a, '_, T>)
+    where
+        T: Metric + From<String>,
+    {
+        for (k, v) in &self.default_tags {
+            metric = metric.with_tag(k, v);
+        }
+
+        metric.send();
+    }
+}
+
 lazy_static! {
-    static ref METRICS_CLIENT: RwLock<Option<Arc<StatsdClient>>> = RwLock::new(None);
+    static ref METRICS_CLIENT: RwLock<Option<Arc<MetricsClient>>> = RwLock::new(None);
 }
 
 thread_local! {
-    static CURRENT_CLIENT: Option<Arc<StatsdClient>> = METRICS_CLIENT.read().clone();
+    static CURRENT_CLIENT: Option<Arc<MetricsClient>> = METRICS_CLIENT.read().clone();
 }
 
 /// Internal prelude for the macro
@@ -88,8 +128,11 @@ pub mod prelude {
 }
 
 /// Set a new statsd client.
-pub fn set_client(statsd_client: StatsdClient) {
-    *METRICS_CLIENT.write() = Some(Arc::new(statsd_client));
+pub fn set_client(statsd_client: StatsdClient, default_tags: BTreeMap<String, String>) {
+    *METRICS_CLIENT.write() = Some(Arc::new(MetricsClient {
+        statsd_client,
+        default_tags,
+    }));
 }
 
 /// Disable the client again.
@@ -98,12 +141,19 @@ pub fn disable() {
 }
 
 /// Tell the metrics system to report to statsd.
-pub fn configure_statsd<A: ToSocketAddrs>(prefix: &str, host: A) {
+pub fn configure_statsd<A: ToSocketAddrs>(
+    prefix: &str,
+    host: A,
+    default_tags: BTreeMap<String, String>,
+) {
     let addrs: Vec<_> = host.to_socket_addrs().unwrap().collect();
     if !addrs.is_empty() {
         log::info!("reporting metrics to statsd at {}", addrs[0]);
     }
-    set_client(StatsdClient::from_udp_host(prefix, &addrs[..]).unwrap());
+    set_client(
+        StatsdClient::from_udp_host(prefix, &addrs[..]).unwrap(),
+        default_tags,
+    );
 }
 
 /// Invoke a callback with the current statsd client.
@@ -113,7 +163,7 @@ pub fn configure_statsd<A: ToSocketAddrs>(prefix: &str, host: A) {
 #[inline(always)]
 pub fn with_client<F, R>(f: F) -> R
 where
-    F: FnOnce(&StatsdClient) -> R,
+    F: FnOnce(&MetricsClient) -> R,
     R: Default,
 {
     CURRENT_CLIENT.with(|client| {
@@ -364,9 +414,10 @@ macro_rules! metric {
     (counter($id:expr) += $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
         $crate::metrics::with_client(|client| {
             use $crate::metrics::_pred::*;
-            client.count_with_tags(&$crate::metrics::CounterMetric::name(&$id), $value)
+            client.send_metric(
+                client.count_with_tags(&$crate::metrics::CounterMetric::name(&$id), $value)
                 $(.with_tag(stringify!($k), $v))*
-                .send();
+            )
         })
     };
 
@@ -374,9 +425,10 @@ macro_rules! metric {
     (counter($id:expr) -= $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
         $crate::metrics::with_client(|client| {
             use $crate::metrics::_pred::*;
-            client.count_with_tags(&$crate::metrics::CounterMetric::name(&$id), -$value)
-                $(.with_tag(stringify!(stringify!($k)), $v))*
-                .send();
+            client.send_metric(
+                client.count_with_tags(&$crate::metrics::CounterMetric::name(&$id), -$value)
+                    $(.with_tag(stringify!($k), $v))*
+            )
         })
     };
 
@@ -384,9 +436,10 @@ macro_rules! metric {
     (gauge($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
         $crate::metrics::with_client(|client| {
             use $crate::metrics::_pred::*;
-            client.gauge_with_tags(&$crate::metrics::GaugeMetric::name(&$id), $value)
-                $(.with_tag(stringify!($k), $v))*
-                .send();
+            client.send_metric(
+                client.gauge_with_tags(&$crate::metrics::GaugeMetric::name(&$id), $value)
+                    $(.with_tag(stringify!($k), $v))*
+            )
         })
     };
 
@@ -394,9 +447,10 @@ macro_rules! metric {
     (histogram($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
         $crate::metrics::with_client(|client| {
             use $crate::metrics::_pred::*;
-            client.histogram_with_tags(&$crate::metrics::HistogramMetric::name(&$id), $value)
-                $(.with_tag(stringify!($k), $v))*
-                .send();
+            client.send_metric(
+                client.histogram_with_tags(&$crate::metrics::HistogramMetric::name(&$id), $value)
+                    $(.with_tag(stringify!($k), $v))*
+            )
         })
     };
 
@@ -404,9 +458,10 @@ macro_rules! metric {
     (set($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
         $crate::metrics::with_client(|client| {
             use $crate::metrics::_pred::*;
-            client.set_with_tags(&$crate::metrics::SetMetric::name(&$id), $value)
-                $(.with_tag(stringify!($k), $v))*
-                .send();
+            client.send_metric(
+                client.set_with_tags(&$crate::metrics::SetMetric::name(&$id), $value)
+                    $(.with_tag(stringify!($k), $v))*
+            )
         })
     };
 
@@ -414,9 +469,10 @@ macro_rules! metric {
     (timer($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
         $crate::metrics::with_client(|client| {
             use $crate::metrics::_pred::*;
-            client.time_duration_with_tags(&$crate::metrics::TimerMetric::name(&$id), $value)
-                $(.with_tag(stringify!($k), $v))*
-                .send();
+            client.send_metric(
+                client.time_duration_with_tags(&$crate::metrics::TimerMetric::name(&$id), $value)
+                    $(.with_tag(stringify!($k), $v))*
+            )
         })
     };
 
@@ -426,9 +482,10 @@ macro_rules! metric {
         let rv = {$block};
         $crate::metrics::with_client(|client| {
             use $crate::metrics::_pred::*;
-            client.time_duration_with_tags(&$crate::metrics::TimerMetric::name(&$id), now.elapsed())
-                $(.with_tag(stringify!($k), $v))*
-                .send();
+            client.send_metric(
+                client.time_duration_with_tags(&$crate::metrics::TimerMetric::name(&$id), now.elapsed())
+                    $(.with_tag(stringify!($k), $v))*
+            )
         });
         rv
     }};

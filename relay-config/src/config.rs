@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::env;
 use std::fmt;
 use std::fs;
@@ -417,6 +418,10 @@ struct Metrics {
     statsd: Option<String>,
     /// The prefix that should be added to all metrics.
     prefix: String,
+    /// Default tags to apply to all outgoing metrics.
+    default_tags: BTreeMap<String, String>,
+    /// A tag name to report the hostname to, for each metric. Defaults to not sending such a tag.
+    hostname_tag: Option<String>,
 }
 
 impl Default for Metrics {
@@ -424,6 +429,8 @@ impl Default for Metrics {
         Metrics {
             statsd: None,
             prefix: "sentry.relay".into(),
+            default_tags: BTreeMap::new(),
+            hostname_tag: None,
         }
     }
 }
@@ -1134,6 +1141,20 @@ impl Config {
     /// Return the prefix for statsd metrics.
     pub fn metrics_prefix(&self) -> &str {
         &self.values.metrics.prefix
+    }
+
+    /// Returns the default tags for statsd metrics.
+    pub fn metrics_default_tags(&self) -> &BTreeMap<String, String> {
+        &self.values.metrics.default_tags
+    }
+
+    /// Returns the name of the hostname tag that should be attached to each outgoing metric.
+    pub fn metrics_hostname_tag(&self) -> Option<&str> {
+        self.values
+            .metrics
+            .hostname_tag
+            .as_ref()
+            .map(String::as_str)
     }
 
     /// Returns the default timeout for all upstream HTTP requests.
