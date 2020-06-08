@@ -2,7 +2,6 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::Arc;
 
 use actix::prelude::*;
 use actix_web::http::{header, StatusCode};
@@ -20,7 +19,7 @@ use relay_quotas::RateLimits;
 
 use crate::actors::events::{QueueEnvelope, QueueEnvelopeError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::{EventAction, GetEventAction, GetScoping};
+use crate::actors::project::CheckEnvelope;
 use crate::actors::project_cache::{GetProject, ProjectError};
 use crate::body::StorePayloadError;
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
@@ -404,7 +403,6 @@ where
     let remote_addr = meta.client_addr();
 
     let scoping = Rc::new(RefCell::new(meta.get_partial_scoping()));
-    let cloned_meta = Arc::new(meta.clone());
     let event_id = Rc::new(RefCell::new(None));
     let config = request.state().config();
 
@@ -412,38 +410,34 @@ where
         .send(GetProject { id: project_id })
         .map_err(BadStoreRequest::ScheduleFailed)
         .and_then(clone!(event_id, scoping, |project| {
-            project
-                .send(GetScoping::cached(cloned_meta.clone()))
-                .map_err(BadStoreRequest::ScheduleFailed)
-                .and_then(|scoping_result| scoping_result.map_err(BadStoreRequest::ProjectFailed))
-                .and_then(move |new_scoping| {
-                    scoping.replace(new_scoping);
-                    extract_envelope(&request, meta)
-                })
-                .and_then(move |envelope| {
-                    if check_envelope_size_limits(&config, &envelope) {
-                        Ok(envelope)
-                    } else {
-                        Err(BadStoreRequest::PayloadError(StorePayloadError::Overflow))
-                    }
-                })
+            extract_envelope(&request, meta)
+                .into_future()
                 .and_then(clone!(project, |envelope| {
                     event_id.replace(envelope.event_id());
 
                     project
-                        .send(GetEventAction::new(cloned_meta))
+                        .send(CheckEnvelope::cached(envelope))
                         .map_err(BadStoreRequest::ScheduleFailed)
-                        .and_then(move |action| match action {
-                            EventAction::Accept => Ok(envelope),
-                            EventAction::RateLimit(rate_limits) => {
-                                Err(BadStoreRequest::RateLimited(rate_limits))
-                            }
-                            EventAction::Discard(reason) => {
-                                Err(BadStoreRequest::EventRejected(reason))
-                            }
-                        })
+                        .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
                 }))
-                .and_then(move |envelope| {
+                .and_then(clone!(scoping, |response| {
+                    scoping.replace(response.scoping);
+
+                    let checked = response.result.map_err(BadStoreRequest::EventRejected)?;
+
+                    // Skip over queuing and issue a rate limit right away
+                    let envelope = match checked.envelope {
+                        Some(envelope) => envelope,
+                        None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
+                    };
+
+                    if check_envelope_size_limits(&config, &envelope) {
+                        Ok((envelope, checked.rate_limits))
+                    } else {
+                        Err(BadStoreRequest::PayloadError(StorePayloadError::Overflow))
+                    }
+                }))
+                .and_then(move |(envelope, rate_limits)| {
                     event_manager
                         .send(QueueEnvelope {
                             envelope,
@@ -452,7 +446,14 @@ where
                         })
                         .map_err(BadStoreRequest::ScheduleFailed)
                         .and_then(|result| result.map_err(BadStoreRequest::QueueFailed))
-                        .map(create_response)
+                        .map(move |event_id| (event_id, rate_limits))
+                })
+                .and_then(move |(event_id, rate_limits)| {
+                    if rate_limits.is_limited() {
+                        Err(BadStoreRequest::RateLimited(rate_limits))
+                    } else {
+                        Ok(create_response(event_id))
+                    }
                 })
         }))
         .or_else(move |error: BadStoreRequest| {
