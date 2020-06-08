@@ -83,7 +83,7 @@ enum ProcessingError {
     ProjectFailed(#[cause] ProjectError),
 
     #[fail(display = "invalid security report type")]
-    InvalidSecurityReportType,
+    InvalidSecurityType,
 
     #[fail(display = "invalid security report")]
     InvalidSecurityReport(#[cause] serde_json::Error),
@@ -114,6 +114,45 @@ enum ProcessingError {
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
+}
+
+impl ProcessingError {
+    fn to_outcome(&self) -> Option<Outcome> {
+        match *self {
+            // General outcomes for invalid events
+            Self::PayloadTooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge)),
+            Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
+            Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
+            Self::EventRejected(reason) => Some(Outcome::Invalid(reason)),
+            Self::InvalidSecurityType => Some(Outcome::Invalid(DiscardReason::SecurityReportType)),
+            Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
+            Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
+            Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
+            Self::RateLimited(ref rate_limits) => rate_limits
+                .longest()
+                .map(|r| Outcome::RateLimited(r.reason_code.clone())),
+
+            // Processing-only outcomes (Sentry-internal Relays)
+            #[cfg(feature = "processing")]
+            Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
+            #[cfg(feature = "processing")]
+            Self::EventFiltered(ref filter_stat_key) => Some(Outcome::Filtered(*filter_stat_key)),
+
+            // Internal errors
+            Self::SerializeFailed(_)
+            | Self::ScheduleFailed(_)
+            | Self::ProjectFailed(_)
+            | Self::Timeout
+            | Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
+            #[cfg(feature = "processing")]
+            Self::StoreFailed(_) | Self::QuotasFailed(_) => {
+                Some(Outcome::Invalid(DiscardReason::Internal))
+            }
+
+            // If we send to an upstream, we don't emit outcomes.
+            Self::SendFailed(_) => None,
+        }
+    }
 }
 
 type ExtractedEvent = (Annotated<Event>, usize);
@@ -224,7 +263,7 @@ impl EventProcessor {
         let data = &item.payload();
         let report_type = SecurityReportType::from_json(data)
             .map_err(ProcessingError::InvalidJson)?
-            .ok_or(ProcessingError::InvalidSecurityReportType)?;
+            .ok_or(ProcessingError::InvalidSecurityType)?;
 
         match report_type {
             SecurityReportType::Csp => Csp::apply_to_event(data, &mut event),
@@ -1129,7 +1168,9 @@ impl Handler<HandleEnvelope> for EventManager {
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
             .map(|_, _, _| metric!(counter(RelayCounters::EventAccepted) += 1))
-            .map_err(clone!(project, captured_events, |error, _, _| {
+            .map_err(move |error, slf, _| {
+                metric!(counter(RelayCounters::EventRejected) += 1);
+
                 // Rate limits need special handling: Cache them on the project to avoid
                 // expensive processing while the limit is active.
                 if let ProcessingError::RateLimited(ref rate_limits) = error {
@@ -1143,7 +1184,7 @@ impl Handler<HandleEnvelope> for EventManager {
                     if let Some(event_id) = event_id {
                         log::debug!("capturing failed event {}", event_id);
                         let msg = LogError(&error).to_string();
-                        captured_events
+                        slf.captured_events
                             .write()
                             .insert(event_id, CapturedEvent::Err(msg));
                     } else {
@@ -1157,75 +1198,17 @@ impl Handler<HandleEnvelope> for EventManager {
                     return;
                 }
 
-                metric!(counter(RelayCounters::EventRejected) += 1);
-                let outcome_params = match error {
-                    // General outcomes for invalid events
-                    ProcessingError::PayloadTooLarge => {
-                        Some(Outcome::Invalid(DiscardReason::TooLarge))
-                    }
-                    ProcessingError::InvalidJson(_) => {
-                        Some(Outcome::Invalid(DiscardReason::InvalidJson))
-                    }
-                    ProcessingError::InvalidMsgpack(_) => {
-                        Some(Outcome::Invalid(DiscardReason::InvalidMsgpack))
-                    }
-                    ProcessingError::EventRejected(outcome_reason) => {
-                        Some(Outcome::Invalid(outcome_reason))
-                    }
-                    ProcessingError::InvalidSecurityReportType => {
-                        Some(Outcome::Invalid(DiscardReason::SecurityReportType))
-                    }
-                    ProcessingError::InvalidSecurityReport(_) => {
-                        Some(Outcome::Invalid(DiscardReason::SecurityReport))
-                    }
-                    ProcessingError::InvalidTransaction => {
-                        Some(Outcome::Invalid(DiscardReason::InvalidTransaction))
-                    }
-                    ProcessingError::DuplicateItem(_) => {
-                        Some(Outcome::Invalid(DiscardReason::DuplicateItem))
-                    }
-
-                    // Processing-only outcomes (Sentry-internal Relays)
-                    #[cfg(feature = "processing")]
-                    ProcessingError::InvalidUnrealReport(_) => {
-                        Some(Outcome::Invalid(DiscardReason::ProcessUnreal))
-                    }
-                    #[cfg(feature = "processing")]
-                    ProcessingError::EventFiltered(ref filter_stat_key) => {
-                        Some(Outcome::Filtered(*filter_stat_key))
-                    }
-                    // Processing-only but not feature flagged
-                    ProcessingError::RateLimited(ref rate_limits) => rate_limits
-                        .longest()
-                        .map(|r| Outcome::RateLimited(r.reason_code.clone())),
-
-                    // Internal errors
-                    ProcessingError::SerializeFailed(_)
-                    | ProcessingError::ScheduleFailed(_)
-                    | ProcessingError::ProjectFailed(_)
-                    | ProcessingError::Timeout
-                    | ProcessingError::ProcessingFailed(_) => {
-                        Some(Outcome::Invalid(DiscardReason::Internal))
-                    }
-                    #[cfg(feature = "processing")]
-                    ProcessingError::StoreFailed(_) | ProcessingError::QuotasFailed(_) => {
-                        Some(Outcome::Invalid(DiscardReason::Internal))
-                    }
-
-                    // If we send to an upstream, we don't emit outcomes.
-                    ProcessingError::SendFailed(_) => None,
-                };
-
-                if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome_params {
+                let outcome = error.to_outcome();
+                if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome {
                     // Errors are only logged for what we consider an internal discard reason. These
                     // indicate errors in the infrastructure or implementation bugs. In other cases,
-                    // we "expect" errors and log them as info level.
+                    // we "expect" errors and log them as debug level.
                     log::error!("error processing event: {}", LogError(&error));
                 } else {
                     log::debug!("dropped event: {}", LogError(&error));
                 }
 
-                if let Some(outcome) = outcome_params {
+                if let Some(outcome) = outcome {
                     outcome_producer.do_send(TrackOutcome {
                         timestamp: Instant::now(),
                         scoping: scoping.borrow().clone(),
@@ -1234,7 +1217,7 @@ impl Handler<HandleEnvelope> for EventManager {
                         remote_addr,
                     })
                 }
-            }))
+            })
             .then(move |x, slf, _| {
                 metric!(timer(RelayTimers::EventTotalTime) = start_time.elapsed());
                 slf.current_active_events -= 1;
