@@ -390,7 +390,7 @@ mod kafka {
                 .map_err(OutcomeError::SerializationError)?;
 
             metric!(
-                counter(RelayCounters::EventOutcomes) += 1,
+                counter(RelayCounters::Outcomes) += 1,
                 reason = message.outcome.to_reason().unwrap_or(""),
                 outcome = message.outcome.name()
             );
