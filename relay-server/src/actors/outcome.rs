@@ -4,29 +4,62 @@
 //! must be emitted in the entire ingestion pipeline. Since Relay is only one part in this pipeline,
 //! outcomes may not be emitted if the event is accepted.
 
+use std::borrow::Cow;
+use std::mem;
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Instant;
 
 use actix::prelude::*;
+use actix_web::http::Method;
 use chrono::SecondsFormat;
+use futures::future::Future;
 use serde::{Deserialize, Serialize};
 
-use relay_common::ProjectId;
+use relay_common::{LogError, ProjectId};
 use relay_config::Config;
 use relay_filter::FilterStatKey;
 use relay_general::protocol::EventId;
 use relay_quotas::{ReasonCode, Scoping};
 
+use crate::actors::upstream::SendQuery;
+use crate::actors::upstream::{UpstreamQuery, UpstreamRelay};
 use crate::ServerError;
 
-// Choose the outcome module implementation (either the real one or the fake, no-op one).
-// Real outcome implementation
+// Choose the outcome module implementation (either processing or non-processing).
+// Processing outcome implementation
 #[cfg(feature = "processing")]
-pub use self::kafka::*;
-// No-op outcome implementation
+pub use self::processing::*;
+
+#[cfg(feature = "processing")]
+pub type OutcomeProducer = processing::ProcessingOutcomeProducer;
 #[cfg(not(feature = "processing"))]
-pub use self::noop::*;
+pub type OutcomeProducer = HttpOutcomeProducer;
+
+/// Defines the structure of the HTTP outcomes requests
+#[derive(Deserialize, Serialize, Debug, Default)]
+pub struct SendOutcomes {
+    #[serde(default)]
+    pub outcomes: Vec<TrackRawOutcome>,
+}
+
+impl UpstreamQuery for SendOutcomes {
+    type Response = SendOutcomes;
+
+    fn method(&self) -> Method {
+        Method::POST
+    }
+
+    fn path(&self) -> Cow<'static, str> {
+        Cow::Borrowed("/api/0/relays/outcomes/")
+    }
+}
+
+/// Defines the structure of the HTTP outcomes responses for successful requests
+#[derive(Serialize, Debug)]
+pub struct SendOutcomesResponse {
+    // nothing yet, future features will go here
+}
 
 /// Tracks an outcome of an event.
 ///
@@ -75,17 +108,6 @@ pub enum Outcome {
 }
 
 impl Outcome {
-    /// Returns the name of the outcome as recognized by Sentry.
-    fn name(&self) -> &'static str {
-        match self {
-            Outcome::Accepted => "accepted",
-            Outcome::Filtered(_) => "filtered",
-            Outcome::RateLimited(_) => "rate_limited",
-            Outcome::Invalid(_) => "invalid",
-            Outcome::Abuse => "abuse",
-        }
-    }
-
     fn to_outcome_id(&self) -> u8 {
         match self {
             Outcome::Accepted => 0,
@@ -235,7 +257,8 @@ impl DiscardReason {
     }
 }
 
-/// The outcome message is serialized as json and placed on the Kafka topic using OutcomePayload
+/// The outcome message is serialized as json and placed on the Kafka topic or in
+/// the http using TrackRawOutcome
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TrackRawOutcome {
     /// The timespan of the event outcome.
@@ -298,7 +321,7 @@ impl Message for TrackRawOutcome {
 
 /// This is the implementation that uses kafka queues and does stuff
 #[cfg(feature = "processing")]
-mod kafka {
+mod processing {
     use super::*;
 
     use failure::{Fail, ResultExt};
@@ -323,14 +346,31 @@ mod kafka {
         SerializationError(SerdeSerializationError),
     }
 
-    pub struct OutcomeProducer {
-        config: Arc<Config>,
-        producer: Option<ThreadedProducer>,
+    impl TrackRawOutcome {
+        fn tag_name(&self) -> &'static str {
+            match self.outcome {
+                0 => "accepted",
+                1 => "filtered",
+                2 => "rate_limited",
+                3 => "invalid",
+                4 => "abuse",
+                _ => "<unknown>",
+            }
+        }
     }
 
-    impl OutcomeProducer {
-        pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
-            let future_producer = if config.processing_enabled() {
+    pub struct ProcessingOutcomeProducer {
+        config: Arc<Config>,
+        producer: Option<ThreadedProducer>,
+        http_producer: Option<Addr<HttpOutcomeProducer>>,
+    }
+
+    impl ProcessingOutcomeProducer {
+        pub fn create(
+            config: Arc<Config>,
+            upstream: Addr<UpstreamRelay>,
+        ) -> Result<Self, ServerError> {
+            let (future_producer, http_producer) = if config.processing_enabled() {
                 let mut client_config = ClientConfig::new();
                 for config_p in config.kafka_config() {
                     client_config.set(config_p.name.as_str(), config_p.value.as_str());
@@ -338,61 +378,40 @@ mod kafka {
                 let future_producer = client_config
                     .create()
                     .context(ServerErrorKind::KafkaError)?;
-                Some(future_producer)
+                (Some(future_producer), None)
             } else {
-                None
+                let http_producer = HttpOutcomeProducer::create(config.clone(), upstream)
+                    .map(|producer| producer.start())
+                    .map_err(|error| {
+                        log::error!("Failed to start http producer: {}", LogError(&error));
+                        error
+                    })
+                    .ok();
+                (None, http_producer)
             };
 
             Ok(Self {
                 config,
                 producer: future_producer,
+                http_producer,
             })
         }
-    }
 
-    impl Actor for OutcomeProducer {
-        type Context = Context<Self>;
-
-        fn started(&mut self, context: &mut Self::Context) {
-            // Set the mailbox size to the size of the event buffer. This is a rough estimate but
-            // should ensure that we're not dropping outcomes unintentionally.
-            let mailbox_size = self.config.event_buffer_size() as usize;
-            context.set_mailbox_capacity(mailbox_size);
-
-            log::info!("OutcomeProducer started.");
-        }
-
-        fn stopped(&mut self, _ctx: &mut Self::Context) {
-            log::info!("OutcomeProducer stopped.");
-        }
-    }
-
-    impl Handler<TrackRawOutcome> for OutcomeProducer {
-        type Result = Result<(), OutcomeError>;
-        fn handle(&mut self, _message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            log::error!("TrackRawOutcome is not yet implemented!");
-            Ok(()) //TODO add real implementation
-        }
-    }
-
-    impl Handler<TrackOutcome> for OutcomeProducer {
-        type Result = Result<(), OutcomeError>;
-
-        fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            log::trace!("Tracking outcome: {:?}", message);
+        fn send_kafka_message(&self, message: TrackRawOutcome) -> Result<(), OutcomeError> {
+            log::trace!("Tracking kafka outcome: {:?}", message);
 
             let producer = match self.producer {
                 Some(ref producer) => producer,
                 None => return Ok(()),
             };
 
-            let payload = serde_json::to_string(&TrackRawOutcome::from(&message))
-                .map_err(OutcomeError::SerializationError)?;
+            let payload =
+                serde_json::to_string(&message).map_err(OutcomeError::SerializationError)?;
 
             metric!(
                 counter(RelayCounters::Outcomes) += 1,
-                reason = message.outcome.to_reason().unwrap_or(""),
-                outcome = message.outcome.name()
+                reason = message.reason.as_deref().unwrap_or(""),
+                outcome = message.tag_name(),
             );
 
             // At the moment, we support outcomes with optional EventId.
@@ -410,51 +429,156 @@ mod kafka {
                 Err((kafka_error, _message)) => Err(OutcomeError::SendFailed(kafka_error)),
             }
         }
-    }
-}
 
-/// This is a noop implementation that doesn't do anything it is here to cleanly isolate the
-/// conditional compilation of Relay with / without processing.
-///
-/// When compiling with processing this module will NOT be included in compilation. When compiling
-/// without processing this module will be included and will serve as a 'no op' actor that just
-/// returns a success future whenever a message is sent to it.
-#[cfg(not(feature = "processing"))]
-mod noop {
-    use super::*;
+        fn send_http_message(&self, message: TrackRawOutcome) -> Result<(), OutcomeError> {
+            log::trace!("Tracking http outcome: {:?}", message);
 
-    #[derive(Debug)]
-    pub enum OutcomeError {}
+            let producer = match self.http_producer {
+                Some(ref producer) => producer,
+                None => {
+                    log::error!("send_http_message called with invalid http_producer");
+                    return Ok(());
+                }
+            };
 
-    pub struct OutcomeProducer;
+            producer.do_send(message);
 
-    impl OutcomeProducer {
-        pub fn create(_config: Arc<Config>) -> Result<Self, ServerError> {
-            Ok(Self)
-        }
-    }
-
-    impl Actor for OutcomeProducer {
-        type Context = Context<Self>;
-    }
-
-    impl Handler<TrackRawOutcome> for OutcomeProducer {
-        type Result = Result<(), OutcomeError>;
-        fn handle(&mut self, message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            log::trace!("Tracking outcome (noop): {:?}", message);
-            // nothing to do here
             Ok(())
         }
     }
 
-    impl Handler<TrackOutcome> for OutcomeProducer {
+    impl Actor for ProcessingOutcomeProducer {
+        type Context = Context<Self>;
+
+        fn started(&mut self, context: &mut Self::Context) {
+            // Set the mailbox size to the size of the event buffer. This is a rough estimate but
+            // should ensure that we're not dropping outcomes unintentionally.
+            let mailbox_size = self.config.event_buffer_size() as usize;
+            context.set_mailbox_capacity(mailbox_size);
+
+            log::info!("OutcomeProducer started.");
+        }
+
+        fn stopped(&mut self, _ctx: &mut Self::Context) {
+            log::info!("OutcomeProducer stopped.");
+        }
+    }
+
+    impl Handler<TrackOutcome> for ProcessingOutcomeProducer {
         type Result = Result<(), OutcomeError>;
 
         fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            log::trace!("Tracking outcome (noop): {:?}", message);
-            // nothing to do here
-            let _name = message.outcome.name();
-            Ok(())
+            self.handle(TrackRawOutcome::from(&message), _ctx)
         }
+    }
+
+    impl Handler<TrackRawOutcome> for ProcessingOutcomeProducer {
+        type Result = Result<(), OutcomeError>;
+        fn handle(&mut self, message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
+            log::trace!("handling outcome");
+            if self.config.processing_enabled() {
+                self.send_kafka_message(message)
+            } else if self.config.emit_outcomes() {
+                self.send_http_message(message)
+            } else {
+                Ok(()) // processing not enabled and emit_outcomes disabled
+            }
+        }
+    }
+}
+
+/// This is the Outcome processing implementation for Relays that are compiled without processing
+/// There is no access to kafka, we can only send outcomes to the upstream Relay
+#[cfg(not(feature = "processing"))]
+#[derive(Debug)]
+pub enum OutcomeError {}
+
+pub struct HttpOutcomeProducer {
+    pub(super) config: Arc<Config>,
+    pub(super) upstream: Addr<UpstreamRelay>,
+    pub(super) unsent_outcomes: Vec<TrackRawOutcome>,
+    pub(super) pending_flush_handle: Option<SpawnHandle>,
+}
+
+impl HttpOutcomeProducer {
+    pub fn create(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Result<Self, ServerError> {
+        Ok(Self {
+            config,
+            upstream,
+            unsent_outcomes: Vec::new(),
+            pending_flush_handle: None,
+        })
+    }
+}
+
+impl HttpOutcomeProducer {
+    fn send_batch(&mut self, context: &mut Context<Self>) {
+        //the future should be either canceled (if we are called with a full batch)
+        // or already called (if we are called by a timeout)
+        self.pending_flush_handle = None;
+
+        if self.unsent_outcomes.is_empty() {
+            log::warn!("unexpected send_batch scheduled with no outcomes to send.");
+            return;
+        } else {
+            log::trace!(
+                "sending outcome batch of size:{}",
+                self.unsent_outcomes.len()
+            );
+        }
+
+        let request = SendOutcomes {
+            outcomes: mem::take(&mut self.unsent_outcomes),
+        };
+
+        self.upstream
+            .send(SendQuery(request))
+            .map(|_| log::trace!("outcome batch sent."))
+            .map_err(|error| log::error!("outcome batch sending failed with: {}", LogError(&error)))
+            .into_actor(self)
+            .spawn(context);
+    }
+
+    fn send_http_message(
+        &mut self,
+        message: TrackRawOutcome,
+        context: &mut Context<Self>,
+    ) -> Result<(), OutcomeError> {
+        log::trace!("Batching outcome");
+        self.unsent_outcomes.push(message);
+        if self.unsent_outcomes.len() >= self.config.outcome_batch_size() {
+            if let Some(pending_flush_handle) = self.pending_flush_handle {
+                context.cancel_future(pending_flush_handle);
+            }
+            self.send_batch(context)
+        } else if self.pending_flush_handle.is_none() {
+            self.pending_flush_handle =
+                Some(context.run_later(self.config.outcome_batch_interval(), Self::send_batch));
+        }
+
+        Ok(())
+    }
+}
+
+impl Actor for HttpOutcomeProducer {
+    type Context = Context<Self>;
+}
+
+impl Handler<TrackRawOutcome> for HttpOutcomeProducer {
+    type Result = Result<(), OutcomeError>;
+    fn handle(&mut self, message: TrackRawOutcome, ctx: &mut Self::Context) -> Self::Result {
+        if self.config.emit_outcomes() {
+            self.send_http_message(message, ctx)
+        } else {
+            Ok(()) // processing not enabled and emit_outcomes disabled
+        }
+    }
+}
+
+impl Handler<TrackOutcome> for HttpOutcomeProducer {
+    type Result = Result<(), OutcomeError>;
+
+    fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
+        self.handle(TrackRawOutcome::from(&message), _ctx)
     }
 }

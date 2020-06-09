@@ -121,7 +121,7 @@ impl ServiceState {
     pub fn start(config: Arc<Config>) -> Result<Self, ServerError> {
         let upstream_relay = Arbiter::start(clone!(config, |_| UpstreamRelay::new(config)));
 
-        let outcome_producer = OutcomeProducer::create(config.clone())?;
+        let outcome_producer = OutcomeProducer::create(config.clone(), upstream_relay.clone())?;
         let outcome_producer = Arbiter::start(move |_| outcome_producer);
 
         let redis_pool = match config.redis() {

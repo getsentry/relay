@@ -497,15 +497,7 @@ impl EventProcessor {
             None => return Ok(()),
         };
 
-        let public_key = envelope.meta().public_key();
-        let quotas = if !state.config.quotas.is_empty() {
-            state.config.quotas.as_slice()
-        } else if let Some(ref key_config) = state.get_public_key_config(public_key) {
-            key_config.legacy_quotas.as_slice()
-        } else {
-            &[]
-        };
-
+        let quotas = state.config.quotas.as_slice();
         if quotas.is_empty() {
             return Ok(());
         }

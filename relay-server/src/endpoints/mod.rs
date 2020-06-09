@@ -29,6 +29,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         // Web API routes pointing to /api/0
         .configure(project_configs::configure_app)
         .configure(public_keys::configure_app)
+        .configure(outcomes::configure_app)
         // Ingestion routes pointing to /api/<project_id>/
         .configure(store::configure_app)
         .configure(envelope::configure_app)
@@ -36,7 +37,6 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         .configure(minidump::configure_app)
         .configure(attachments::configure_app)
         .configure(unreal::configure_app)
-        .configure(outcomes::configure_app)
         // `forward` must be last as it creates a wildcard proxy
         .configure(forward::configure_app)
 }
