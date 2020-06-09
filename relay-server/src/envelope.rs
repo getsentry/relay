@@ -41,7 +41,7 @@ use failure::Fail;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use relay_general::protocol::EventId;
+use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
@@ -77,12 +77,14 @@ pub enum ItemType {
     Event,
     /// Transaction event payload encoded in JSON.
     Transaction,
+    /// Security report event payload encoded in JSON.
+    Security,
     /// Raw payload of an arbitrary attachment.
     Attachment,
     /// Multipart form data collected into a stream of JSON tuples.
     FormData,
     /// Security report as sent by the browser in JSON.
-    SecurityReport,
+    RawSecurity,
     /// Raw compressed UE4 crash report.
     UnrealReport,
     /// User feedback encoded as JSON.
@@ -91,14 +93,28 @@ pub enum ItemType {
     Session,
 }
 
+impl ItemType {
+    /// Returns the event item type corresponding to the given `EventType`.
+    pub fn from_event_type(event_type: EventType) -> Self {
+        match event_type {
+            EventType::Default | EventType::Error => ItemType::Event,
+            EventType::Transaction => ItemType::Transaction,
+            EventType::Csp | EventType::Hpkp | EventType::ExpectCT | EventType::ExpectStaple => {
+                ItemType::Security
+            }
+        }
+    }
+}
+
 impl fmt::Display for ItemType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::Event => write!(f, "event"),
             Self::Transaction => write!(f, "transaction"),
+            Self::Security => write!(f, "security report"),
             Self::Attachment => write!(f, "attachment"),
             Self::FormData => write!(f, "form data"),
-            Self::SecurityReport => write!(f, "security report"),
+            Self::RawSecurity => write!(f, "raw security report"),
             Self::UnrealReport => write!(f, "unreal report"),
             Self::UserReport => write!(f, "user feedback"),
             Self::Session => write!(f, "session"),
@@ -440,7 +456,8 @@ impl Item {
             // These items are direct event types.
             ItemType::Event
             | ItemType::Transaction
-            | ItemType::SecurityReport
+            | ItemType::Security
+            | ItemType::RawSecurity
             | ItemType::UnrealReport => true,
 
             // Attachments are only event items if they are crash reports or if they carry partial
@@ -472,9 +489,10 @@ impl Item {
         match self.ty() {
             ItemType::Event => true,
             ItemType::Transaction => true,
+            ItemType::Security => true,
             ItemType::Attachment => true,
             ItemType::FormData => true,
-            ItemType::SecurityReport => true,
+            ItemType::RawSecurity => true,
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
             ItemType::Session => false,

@@ -6,7 +6,7 @@ use bytes::{Bytes, BytesMut};
 use futures::Future;
 use serde::Serialize;
 
-use relay_general::protocol::{EventId, EventType};
+use relay_general::protocol::EventId;
 
 use crate::body::StoreBody;
 use crate::endpoints::common::{self, BadStoreRequest};
@@ -56,11 +56,7 @@ fn parse_event(
 
     // Old SDKs used to send transactions to the store endpoint with an explicit `Transaction` event
     // type. The processing queue expects those in an explicit item.
-    let item_type = match minimal.ty {
-        EventType::Transaction => ItemType::Transaction,
-        _ => ItemType::Event,
-    };
-
+    let item_type = ItemType::from_event_type(minimal.ty);
     let mut event_item = Item::new(item_type);
     event_item.set_payload(content_type, data);
 
