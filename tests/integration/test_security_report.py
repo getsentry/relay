@@ -1,3 +1,4 @@
+import json
 import pytest
 
 CSP_IGNORED_FIELDS = (
@@ -8,6 +9,13 @@ CSP_IGNORED_FIELDS = (
 EXPECT_CT_IGNORED_FIELDS = ("event_id",)
 EXPECT_STAPLE_IGNORED_FIELDS = ("event_id",)
 HPKP_IGNORED_FIELDS = ("event_id",)
+
+
+def get_security_report(envelope):
+    if envelope is not None:
+        for item in envelope.items:
+            if item.headers.get("type") == "security":
+                return json.loads(item.get_bytes())
 
 
 def id_fun1(origins):
@@ -116,7 +124,8 @@ def test_security_report(mini_sentry, relay, test_case, json_fixture_provider):
         environment="production",
     )
 
-    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = get_security_report(envelope)
     for x in ignored_properties:
         event.pop(x, None)
 

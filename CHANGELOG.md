@@ -20,13 +20,15 @@ We have switched to [CalVer](https://calver.org/)! Relay's version is always in 
 **Internal**:
 
 - Add source (who emitted the outcome) to Outcome payload.([#604](https://github.com/getsentry/relay/pull/604))
-- Add support for Outcomes generation in non processing relays.([#592](https://github.com/getsentry/relay/pull/592))
 - Ignore non-Rust folders for faster rebuilding and testing. ([#578](https://github.com/getsentry/relay/pull/578))
 - Invalid session payloads are now logged for SDK debugging. ([#584](https://github.com/getsentry/relay/pull/584), [#591](https://github.com/getsentry/relay/pull/591))
+- Add support for Outcomes generation in external Relays. ([#592](https://github.com/getsentry/relay/pull/592))
 - Remove unused `rev` from project state. ([#586](https://github.com/getsentry/relay/pull/586))
 - Add an outcome endpoint for trusted Relays. ([#589](https://github.com/getsentry/relay/pull/589))
 - Emit outcomes for event payloads submitted in attachment files. ([#609](https://github.com/getsentry/relay/pull/609))
 - Split envelopes that contain sessions and other items and ingest them independently. ([#610](https://github.com/getsentry/relay/pull/610))
+- Removed support for legacy per-key quotas. ([#616](https://github.com/getsentry/relay/pull/615))
+- Security events (CSP, Expect-CT, Expect-Staple, and HPKP) are now placed into a dedicated `security` item in envelopes, rather than the generic event item. This allows for quick detection of the event type for rate limiting. ([#617](https://github.com/getsentry/relay/pull/617))
 
 ## 0.5.9
 

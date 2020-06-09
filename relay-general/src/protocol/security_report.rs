@@ -1286,39 +1286,39 @@ mod tests {
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
 
         assert_annotated_snapshot!(Annotated::new(event), @r###"
-       ⋮{
-       ⋮  "culprit": "default-src self",
-       ⋮  "logentry": {
-       ⋮    "formatted": "Blocked 'default-src' from 'evilhackerscripts.com'"
-       ⋮  },
-       ⋮  "request": {
-       ⋮    "url": "https://example.com/foo/bar",
-       ⋮    "headers": [
-       ⋮      [
-       ⋮        "Referer",
-       ⋮        "https://www.google.com/"
-       ⋮      ]
-       ⋮    ]
-       ⋮  },
-       ⋮  "tags": [
-       ⋮    [
-       ⋮      "effective-directive",
-       ⋮      "default-src"
-       ⋮    ],
-       ⋮    [
-       ⋮      "blocked-uri",
-       ⋮      "http://evilhackerscripts.com"
-       ⋮    ]
-       ⋮  ],
-       ⋮  "csp": {
-       ⋮    "effective_directive": "default-src",
-       ⋮    "blocked_uri": "http://evilhackerscripts.com",
-       ⋮    "document_uri": "https://example.com/foo/bar",
-       ⋮    "original_policy": "default-src self; report-uri /csp-hotline.php",
-       ⋮    "referrer": "https://www.google.com/",
-       ⋮    "violated_directive": "default-src self"
-       ⋮  }
-       ⋮}
+        {
+          "culprit": "default-src self",
+          "logentry": {
+            "formatted": "Blocked 'default-src' from 'evilhackerscripts.com'"
+          },
+          "request": {
+            "url": "https://example.com/foo/bar",
+            "headers": [
+              [
+                "Referer",
+                "https://www.google.com/"
+              ]
+            ]
+          },
+          "tags": [
+            [
+              "effective-directive",
+              "default-src"
+            ],
+            [
+              "blocked-uri",
+              "http://evilhackerscripts.com"
+            ]
+          ],
+          "csp": {
+            "effective_directive": "default-src",
+            "blocked_uri": "http://evilhackerscripts.com",
+            "document_uri": "https://example.com/foo/bar",
+            "original_policy": "default-src self; report-uri /csp-hotline.php",
+            "referrer": "https://www.google.com/",
+            "violated_directive": "default-src self"
+          }
+        }
         "###);
     }
 

@@ -32,7 +32,7 @@ fn extract_envelope(
                 return Err(BadStoreRequest::EmptyBody);
             }
 
-            let mut report_item = Item::new(ItemType::SecurityReport);
+            let mut report_item = Item::new(ItemType::RawSecurity);
             report_item.set_payload(ContentType::Json, data);
 
             if let Some(sentry_release) = params.sentry_release {

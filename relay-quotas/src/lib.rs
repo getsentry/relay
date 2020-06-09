@@ -12,9 +12,6 @@ mod rate_limit;
 pub use self::quota::*;
 pub use self::rate_limit::*;
 
-#[cfg(feature = "legacy")]
-pub mod legacy;
-
 #[cfg(feature = "redis")]
 mod redis;
 #[cfg(feature = "redis")]

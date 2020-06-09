@@ -1,4 +1,5 @@
 {
+  "type": "csp",
   "csp": {
     "blocked_uri": "http://notlocalhost:8000/lol.css",
     "document_uri": "http://notlocalhost:8000/",

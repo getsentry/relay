@@ -1,4 +1,5 @@
 {
+  "type": "expectct",
   "culprit": "www.example.com",
   "logentry": {
     "formatted": "Expect-CT failed for 'www.example.com'"
