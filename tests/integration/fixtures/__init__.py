@@ -70,12 +70,7 @@ class SentryLike(object):
     def basic_project_config(self):
         return {
             "publicKeys": [
-                {
-                    "publicKey": self.dsn_public_key,
-                    "isEnabled": True,
-                    "numericId": 123,
-                    "quotas": [],
-                }
+                {"publicKey": self.dsn_public_key, "isEnabled": True, "numericId": 123}
             ],
             "rev": "5ceaea8c919811e8ae7daae9fe877901",
             "disabled": False,

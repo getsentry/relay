@@ -273,8 +273,8 @@ impl ProjectState {
         let mut scoping = meta.get_partial_scoping();
 
         // The key configuration may be missing if the event has been queued for extended times and
-        // project was refetched in between. In such a case, access to legacy-qutoas and the key id
-        // are not availabe, but we can gracefully execute all other rate limiting.
+        // project was refetched in between. In such a case, access to key quotas is not availabe,
+        // but we can gracefully execute all other rate limiting.
         scoping.key_id = self
             .get_public_key_config(&scoping.public_key)
             .and_then(|config| config.numeric_id);
@@ -365,17 +365,6 @@ pub struct PublicKeyConfig {
     /// Only available for internal relays.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub numeric_id: Option<u64>,
-
-    /// List of quotas to apply to events that use this key.
-    ///
-    /// Only available for internal relays.
-    #[serde(
-        default,
-        rename = "quotas",
-        with = "relay_quotas::legacy",
-        skip_serializing_if = "Vec::is_empty"
-    )]
-    pub legacy_quotas: Vec<Quota>,
 }
 
 mod limited_public_key_comfigs {
