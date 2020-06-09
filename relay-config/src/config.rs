@@ -717,10 +717,10 @@ pub struct Outcomes {
     pub emit_outcomes: bool,
     /// The maximum number of outcomes that are batched before being sent
     /// via http to the upstream (only applies to non processing relays)
-    pub max_outcome_batch_size: usize,
+    pub batch_size: usize,
     /// The maximum time interval (in milliseconds) that an outcome may be batched
     /// via http to the upstream (only applies to non processing relays)
-    pub max_outcome_interval_millsec: u64,
+    pub batch_interval: u64,
     /// Defines the source string registered in the outcomes originating from
     /// this Relay ( typically something like the region and or the layer )
     pub source: Option<String>,
@@ -730,8 +730,8 @@ impl Default for Outcomes {
     fn default() -> Self {
         Outcomes {
             emit_outcomes: false,
-            max_outcome_batch_size: 1000,
-            max_outcome_interval_millsec: 500,
+            batch_size: 1000,
+            batch_interval: 500,
             source: None,
         }
     }
@@ -1081,13 +1081,13 @@ impl Config {
     }
 
     /// Returns the maximum number of outcomes that are batched before being sent
-    pub fn max_outcome_batch_size(&self) -> usize {
-        self.values.outcomes.max_outcome_batch_size
+    pub fn outcome_batch_size(&self) -> usize {
+        self.values.outcomes.batch_size
     }
 
     /// Returns the maximum interval that an outcome may be batched
-    pub fn max_outcome_interval(&self) -> Duration {
-        Duration::from_millis(self.values.outcomes.max_outcome_interval_millsec)
+    pub fn outcome_batch_interval(&self) -> Duration {
+        Duration::from_millis(self.values.outcomes.batch_interval)
     }
 
     /// The originating source of the outcome

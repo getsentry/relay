@@ -156,10 +156,10 @@ impl Future for StoreBody {
             })
             .and_then(|body_opt| {
                 let body = body_opt.ok_or(StorePayloadError::Overflow)?;
-                metric!(histogram(RelayHistograms::EventSizeBytesRaw) = body.len() as u64);
+                metric!(histogram(RelayHistograms::RequestSizeBytesRaw) = body.len() as u64);
                 let decoded = decode_bytes(body.freeze())?;
                 metric!(
-                    histogram(RelayHistograms::EventSizeBytesUncompressed) = decoded.len() as u64
+                    histogram(RelayHistograms::RequestSizeBytesUncompressed) = decoded.len() as u64
                 );
                 Ok(decoded)
             });

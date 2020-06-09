@@ -25,8 +25,7 @@ use relay_redis::RedisPool;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
-    EventAction, GetEventAction, GetProjectState, GetScoping, Project, ProjectState,
-    UpdateRateLimits,
+    CheckEnvelope, GetProjectState, Project, ProjectState, UpdateRateLimits,
 };
 use crate::actors::project_cache::ProjectError;
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
@@ -48,7 +47,7 @@ use {
 
 #[derive(Debug, Fail)]
 pub enum QueueEnvelopeError {
-    #[fail(display = "Too many events (max_concurrent_events reached)")]
+    #[fail(display = "Too many events (event_buffer_size reached)")]
     TooManyEvents,
 }
 
@@ -83,7 +82,7 @@ enum ProcessingError {
     ProjectFailed(#[cause] ProjectError),
 
     #[fail(display = "invalid security report type")]
-    InvalidSecurityReportType,
+    InvalidSecurityType,
 
     #[fail(display = "invalid security report")]
     InvalidSecurityReport(#[cause] serde_json::Error),
@@ -114,6 +113,45 @@ enum ProcessingError {
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
+}
+
+impl ProcessingError {
+    fn to_outcome(&self) -> Option<Outcome> {
+        match *self {
+            // General outcomes for invalid events
+            Self::PayloadTooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge)),
+            Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
+            Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
+            Self::EventRejected(reason) => Some(Outcome::Invalid(reason)),
+            Self::InvalidSecurityType => Some(Outcome::Invalid(DiscardReason::SecurityReportType)),
+            Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
+            Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
+            Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
+            Self::RateLimited(ref rate_limits) => rate_limits
+                .longest()
+                .map(|r| Outcome::RateLimited(r.reason_code.clone())),
+
+            // Processing-only outcomes (Sentry-internal Relays)
+            #[cfg(feature = "processing")]
+            Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
+            #[cfg(feature = "processing")]
+            Self::EventFiltered(ref filter_stat_key) => Some(Outcome::Filtered(*filter_stat_key)),
+
+            // Internal errors
+            Self::SerializeFailed(_)
+            | Self::ScheduleFailed(_)
+            | Self::ProjectFailed(_)
+            | Self::Timeout
+            | Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
+            #[cfg(feature = "processing")]
+            Self::StoreFailed(_) | Self::QuotasFailed(_) => {
+                Some(Outcome::Invalid(DiscardReason::Internal))
+            }
+
+            // If we send to an upstream, we don't emit outcomes.
+            Self::SendFailed(_) => None,
+        }
+    }
 }
 
 type ExtractedEvent = (Annotated<Event>, usize);
@@ -224,7 +262,7 @@ impl EventProcessor {
         let data = &item.payload();
         let report_type = SecurityReportType::from_json(data)
             .map_err(ProcessingError::InvalidJson)?
-            .ok_or(ProcessingError::InvalidSecurityReportType)?;
+            .ok_or(ProcessingError::InvalidSecurityType)?;
 
         match report_type {
             SecurityReportType::Csp => Csp::apply_to_event(data, &mut event),
@@ -605,11 +643,9 @@ impl EventProcessor {
         } = message;
 
         macro_rules! if_processing {
-            ($($tt:tt)*) => {
+            ($block:block) => {
                 #[cfg(feature = "processing")] {
-                    if self.config.processing_enabled() {
-                        $($tt)*
-                    }
+                    if self.config.processing_enabled() $block
                 }
             };
         }
@@ -620,16 +656,29 @@ impl EventProcessor {
             envelope.set_retention(retention);
         }
 
+        // Fast path for envelopes without event items or items that can create events. Such
+        // envelopes only require rate limiting in processing mode and can be passed through without
+        // processing enabled.
+        if !envelope.items().any(Item::creates_event) {
+            // TODO: Apply rate limits no non-event items once implemented.
+            return Ok(ProcessEnvelopeResponse { envelope });
+        }
+
+        // When queueing the envelope, it should have been split up into event-related items and
+        // non-event items. This allows us to bail early if the event is filtered or rate limited
+        // without dealing with other items (such as sessions).
+        debug_assert!(envelope.items().all(Item::requires_event));
+
         // Unreal endpoint puts the whole request into an item. This is done to make the endpoint
         // fast. For envelopes containing an Unreal request, we will look into the unreal item and
         // expand it so it can be consumed like any other event (e.g. `__sentry-event`). External
         // Relays should leave this as-is.
-        if_processing! {
+        if_processing!({
             if let Some(item) = envelope.take_item_by(|item| item.ty() == ItemType::UnrealReport) {
                 utils::expand_unreal_envelope(item, &mut envelope)
                     .map_err(ProcessingError::InvalidUnrealReport)?;
             }
-        }
+        });
 
         // Carry metrics on event sizes through the entire normalization process. Without
         // processing, this value is unused and will be optimized away. Note how we need to extract
@@ -650,7 +699,7 @@ impl EventProcessor {
             return Err(ProcessingError::DuplicateItem(duplicate.ty()));
         }
 
-        if_processing! {
+        if_processing!({
             // This envelope may contain UE4 crash report information, which needs to be patched on
             // the event returned from `extract_event`.
             utils::process_unreal_envelope(&mut event, &mut envelope)
@@ -660,18 +709,20 @@ impl EventProcessor {
             // event. This indicates to the pipeline that the event needs special processing.
             let minidump_attachment = envelope
                 .get_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump));
-            let apple_crash_report_attachment = envelope
-                .get_item_by(|item| item.attachment_type() == Some(AttachmentType::AppleCrashReport));
+            let apple_crash_report_attachment = envelope.get_item_by(|item| {
+                item.attachment_type() == Some(AttachmentType::AppleCrashReport)
+            });
 
             if let Some(item) = minidump_attachment {
                 _metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
                 self.write_native_placeholder(&mut event, true);
-            } else if let Some(item) =  apple_crash_report_attachment {
+            } else if let Some(item) = apple_crash_report_attachment {
                 _metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
                 self.write_native_placeholder(&mut event, false);
             }
 
-            let attachment_size = envelope.items()
+            let attachment_size = envelope
+                .items()
                 .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment))
                 .map(|item| item.len())
                 .sum::<usize>();
@@ -679,7 +730,7 @@ impl EventProcessor {
             if attachment_size > 0 {
                 _metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size as u64);
             }
-        }
+        });
 
         if let Some(event) = event.value_mut() {
             // Event id is set statically in the ingest path.
@@ -711,7 +762,7 @@ impl EventProcessor {
             self.fast_process_event(&mut event, &envelope, start_time)?;
         }
         // else
-        if_processing! {
+        if_processing!({
             self.store_process_event(&mut event, &envelope, &project_state, start_time)?;
 
             if let Some(event) = event.value_mut() {
@@ -721,7 +772,7 @@ impl EventProcessor {
                 // during processing is overwritten at last.
                 event._metrics = Annotated::new(_metrics);
             }
-        }
+        });
 
         // Run PII stripping last since normalization can add PII (e.g. IP addresses).
         metric!(timer(RelayTimers::EventProcessingPii), {
@@ -784,8 +835,8 @@ impl Handler<ProcessEnvelope> for EventProcessor {
     type Result = Result<ProcessEnvelopeResponse, ProcessingError>;
 
     fn handle(&mut self, message: ProcessEnvelope, _context: &mut Self::Context) -> Self::Result {
-        metric!(timer(RelayTimers::EventWaitTime) = message.start_time.elapsed());
-        metric!(timer(RelayTimers::EventProcessingTime), {
+        metric!(timer(RelayTimers::EnvelopeWaitTime) = message.start_time.elapsed());
+        metric!(timer(RelayTimers::EnvelopeProcessingTime), {
             self.process(message)
         })
     }
@@ -898,11 +949,13 @@ impl Message for QueueEnvelope {
 impl Handler<QueueEnvelope> for EventManager {
     type Result = Result<Option<EventId>, QueueEnvelopeError>;
 
-    fn handle(&mut self, message: QueueEnvelope, context: &mut Self::Context) -> Self::Result {
-        metric!(histogram(RelayHistograms::EventQueueSize) = u64::from(self.current_active_events));
+    fn handle(&mut self, mut message: QueueEnvelope, context: &mut Self::Context) -> Self::Result {
+        metric!(
+            histogram(RelayHistograms::EnvelopeQueueSize) = u64::from(self.current_active_events)
+        );
 
         metric!(
-            histogram(RelayHistograms::EventQueueSizePct) = {
+            histogram(RelayHistograms::EnvelopeQueueSizePct) = {
                 let queue_size_pct = self.current_active_events as f32 * 100.0
                     / self.config.event_buffer_size() as f32;
                 queue_size_pct.floor() as u64
@@ -913,18 +966,31 @@ impl Handler<QueueEnvelope> for EventManager {
             return Err(QueueEnvelopeError::TooManyEvents);
         }
 
-        self.current_active_events += 1;
-
         let event_id = message.envelope.event_id();
 
-        // Actual event handling is performed asynchronously in a separate future. The lifetime of
-        // that future will be tied to the EventManager's context. This allows to keep the Project
-        // actor alive even if it is cleaned up in the ProjectManager.
+        // Split the envelope into event-related items and other items. This allows to fast-track:
+        //  1. Envelopes with only session items. They only require rate limiting.
+        //  2. Event envelope processing can bail out if the event is filtered or rate limited,
+        //     since all items depend on this event.
+        if let Some(event_envelope) = message.envelope.split_by(Item::requires_event) {
+            self.current_active_events += 1;
+            context.notify(HandleEnvelope {
+                envelope: event_envelope,
+                project: message.project.clone(),
+                start_time: message.start_time,
+            });
+        }
+
+        self.current_active_events += 1;
         context.notify(HandleEnvelope {
             envelope: message.envelope,
             project: message.project,
             start_time: message.start_time,
         });
+
+        // Actual event handling is performed asynchronously in a separate future. The lifetime of
+        // that future will be tied to the EventManager's context. This allows to keep the Project
+        // actor alive even if it is cleaned up in the ProjectManager.
 
         log::trace!("queued event");
         Ok(event_id)
@@ -979,7 +1045,6 @@ impl Handler<HandleEnvelope> for EventManager {
         let event_id = envelope.event_id();
         let project_id = envelope.meta().project_id();
         let remote_addr = envelope.meta().client_addr();
-        let shared_meta = Arc::new(envelope.meta().clone());
 
         // Compute whether this envelope contains an event. This is used in error handling to
         // appropriately emit an outecome. Envelopes not containing events (such as standalone
@@ -991,27 +1056,26 @@ impl Handler<HandleEnvelope> for EventManager {
         metric!(set(RelaySets::UniqueProjects) = project_id.value() as i64);
 
         let future = project
-            .send(GetScoping::fetched(shared_meta.clone()))
+            .send(CheckEnvelope::fetched(envelope))
             .map_err(ProcessingError::ScheduleFailed)
-            .and_then(|scoping_result| scoping_result.map_err(ProcessingError::ProjectFailed))
-            .and_then(clone!(project, scoping, |new_scoping| {
-                scoping.replace(new_scoping);
-                project
-                    .send(GetEventAction::new(shared_meta))
-                    .map_err(ProcessingError::ScheduleFailed)
+            .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
+            .and_then(clone!(scoping, |response| {
+                scoping.replace(response.scoping);
+
+                let checked = response.result.map_err(ProcessingError::EventRejected)?;
+                match checked.envelope {
+                    Some(envelope) => Ok(envelope),
+                    None => Err(ProcessingError::RateLimited(checked.rate_limits)),
+                }
             }))
-            .and_then(|action| match action {
-                EventAction::Accept => Ok(()),
-                EventAction::RateLimit(limits) => Err(ProcessingError::RateLimited(limits)),
-                EventAction::Discard(reason) => Err(ProcessingError::EventRejected(reason)),
-            })
-            .and_then(clone!(project, |_| {
+            .and_then(clone!(project, |envelope| {
                 project
                     .send(GetProjectState)
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
+                    .map(|state| (envelope, state))
             }))
-            .and_then(move |project_state| {
+            .and_then(move |(envelope, project_state)| {
                 processor
                     .send(ProcessEnvelope {
                         envelope,
@@ -1102,8 +1166,10 @@ impl Handler<HandleEnvelope> for EventManager {
             }))
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
-            .map(|_, _, _| metric!(counter(RelayCounters::EventAccepted) += 1))
-            .map_err(clone!(project, captured_events, |error, _, _| {
+            .map(|_, _, _| metric!(counter(RelayCounters::EnvelopeAccepted) += 1))
+            .map_err(move |error, slf, _| {
+                metric!(counter(RelayCounters::EnvelopeRejected) += 1);
+
                 // Rate limits need special handling: Cache them on the project to avoid
                 // expensive processing while the limit is active.
                 if let ProcessingError::RateLimited(ref rate_limits) = error {
@@ -1117,7 +1183,7 @@ impl Handler<HandleEnvelope> for EventManager {
                     if let Some(event_id) = event_id {
                         log::debug!("capturing failed event {}", event_id);
                         let msg = LogError(&error).to_string();
-                        captured_events
+                        slf.captured_events
                             .write()
                             .insert(event_id, CapturedEvent::Err(msg));
                     } else {
@@ -1131,75 +1197,17 @@ impl Handler<HandleEnvelope> for EventManager {
                     return;
                 }
 
-                metric!(counter(RelayCounters::EventRejected) += 1);
-                let outcome_params = match error {
-                    // General outcomes for invalid events
-                    ProcessingError::PayloadTooLarge => {
-                        Some(Outcome::Invalid(DiscardReason::TooLarge))
-                    }
-                    ProcessingError::InvalidJson(_) => {
-                        Some(Outcome::Invalid(DiscardReason::InvalidJson))
-                    }
-                    ProcessingError::InvalidMsgpack(_) => {
-                        Some(Outcome::Invalid(DiscardReason::InvalidMsgpack))
-                    }
-                    ProcessingError::EventRejected(outcome_reason) => {
-                        Some(Outcome::Invalid(outcome_reason))
-                    }
-                    ProcessingError::InvalidSecurityReportType => {
-                        Some(Outcome::Invalid(DiscardReason::SecurityReportType))
-                    }
-                    ProcessingError::InvalidSecurityReport(_) => {
-                        Some(Outcome::Invalid(DiscardReason::SecurityReport))
-                    }
-                    ProcessingError::InvalidTransaction => {
-                        Some(Outcome::Invalid(DiscardReason::InvalidTransaction))
-                    }
-                    ProcessingError::DuplicateItem(_) => {
-                        Some(Outcome::Invalid(DiscardReason::DuplicateItem))
-                    }
-
-                    // Processing-only outcomes (Sentry-internal Relays)
-                    #[cfg(feature = "processing")]
-                    ProcessingError::InvalidUnrealReport(_) => {
-                        Some(Outcome::Invalid(DiscardReason::ProcessUnreal))
-                    }
-                    #[cfg(feature = "processing")]
-                    ProcessingError::EventFiltered(ref filter_stat_key) => {
-                        Some(Outcome::Filtered(*filter_stat_key))
-                    }
-                    // Processing-only but not feature flagged
-                    ProcessingError::RateLimited(ref rate_limits) => rate_limits
-                        .longest()
-                        .map(|r| Outcome::RateLimited(r.reason_code.clone())),
-
-                    // Internal errors
-                    ProcessingError::SerializeFailed(_)
-                    | ProcessingError::ScheduleFailed(_)
-                    | ProcessingError::ProjectFailed(_)
-                    | ProcessingError::Timeout
-                    | ProcessingError::ProcessingFailed(_) => {
-                        Some(Outcome::Invalid(DiscardReason::Internal))
-                    }
-                    #[cfg(feature = "processing")]
-                    ProcessingError::StoreFailed(_) | ProcessingError::QuotasFailed(_) => {
-                        Some(Outcome::Invalid(DiscardReason::Internal))
-                    }
-
-                    // If we send to an upstream, we don't emit outcomes.
-                    ProcessingError::SendFailed(_) => None,
-                };
-
-                if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome_params {
+                let outcome = error.to_outcome();
+                if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome {
                     // Errors are only logged for what we consider an internal discard reason. These
                     // indicate errors in the infrastructure or implementation bugs. In other cases,
-                    // we "expect" errors and log them as info level.
+                    // we "expect" errors and log them as debug level.
                     log::error!("error processing event: {}", LogError(&error));
                 } else {
                     log::debug!("dropped event: {}", LogError(&error));
                 }
 
-                if let Some(outcome) = outcome_params {
+                if let Some(outcome) = outcome {
                     outcome_producer.do_send(TrackOutcome {
                         timestamp: Instant::now(),
                         scoping: scoping.borrow().clone(),
@@ -1208,9 +1216,9 @@ impl Handler<HandleEnvelope> for EventManager {
                         remote_addr,
                     })
                 }
-            }))
+            })
             .then(move |x, slf, _| {
-                metric!(timer(RelayTimers::EventTotalTime) = start_time.elapsed());
+                metric!(timer(RelayTimers::EnvelopeTotalTime) = start_time.elapsed());
                 slf.current_active_events -= 1;
                 fut::result(x)
             })

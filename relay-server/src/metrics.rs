@@ -16,42 +16,53 @@ impl SetMetric for RelaySets {
 
 /// Histogram metrics used by Relay.
 pub enum RelayHistograms {
-    /// The number of events in the queue as a percentage of the maximum number of events
-    /// that can be stored in the queue ( 0 ... the queue is empty, 1 ... the queue is full
-    /// and no additional events can be added).
-    EventQueueSizePct,
-    /// The number of events in the queue. The event queue represents the events that are being
-    /// processed at a particular time in Relay. Once a request is received the event has
-    /// some preliminary (quick) processing to determine if it can be processed or it is
-    /// rejected. Once this determination has been done the http request that
-    /// created the event terminates and, if the request is to be further processed,
-    /// the event enters a queue ( a virtual queue, the event is kept in a future that
-    /// will resolve at some point in time).
-    /// Once the event finishes processing and is sent downstream (i.e. the future is
-    /// resolved and the event leaves relay) the event is considered handled and it
-    /// leaves the queue ( the queue size is decremented).
-    EventQueueSize,
-    /// The event size as seen by Relay after it is extracted from a request.
-    EventSizeBytesRaw,
-    /// The event size as seen by Relay after it has been decompressed and decoded (e.g. from Base64).
-    EventSizeBytesUncompressed,
-    /// Number of projects in the ProjectCache that are waiting for their state to be updated.
+    /// The number of envelopes in the queue as a percentage of the maximum number of envelopes that
+    /// can be stored in the queue.
+    ///
+    /// The value ranges from `0` (the queue is empty) to `1` (the queue is full and no additional
+    /// events can be added).
+    EnvelopeQueueSizePct,
+    /// The number of envelopes in the queue.
+    ///
+    /// The event queue represents the envelopes that are being processed at a particular time in
+    /// Relay. Once a request is received, the envelope receives some preliminary (quick) processing
+    /// to determine if it can be processed or it is rejected. Once this determination has been
+    /// done, the http request that created the envelope terminates and, if the request is to be
+    /// further processed, the envelope enters a queue.
+    ///
+    /// Once the envelope finishes processing and is sent downstream, the envelope is considered
+    /// handled and it leaves the queue.
+    EnvelopeQueueSize,
+    /// The size of the request body as seen by Relay after it is extracted from a request.
+    ///
+    /// For envelope requests, this is the full size of the envelope. For JSON store requests, this
+    /// is the size of the JSON body.
+    ///
+    /// If this request contains a base64 zlib compressed payload without a proper
+    /// `content-encoding` header, then this is the size before decompression.
+    RequestSizeBytesRaw,
+    /// The size of the request body as seen by Relay after it has been decompressed and decoded in
+    /// case this request contains a base64 zlib compressed payload without a proper
+    /// `content-encoding` header. Otherwise, this metric is always equal to `event.size_bytes.raw`.
+    RequestSizeBytesUncompressed,
+    /// Number of projects in the in-memory project cache that are waiting for their state to be
+    /// updated.
     ProjectStatePending,
-    /// Number of project state requested from the Upstream for the current batch request.
+    /// Number of project states requested from the Upstream for the current batch request.
     ProjectStateRequestBatchSize,
     /// Number of project states received from the Upstream for the current batch request.
     ProjectStateReceived,
-    /// Number of project states currently held in the ProjectState cache.
+    /// Number of project states currently held in the in-memory project cache.
     ProjectStateCacheSize,
 }
 
 impl HistogramMetric for RelayHistograms {
     fn name(&self) -> &'static str {
         match self {
-            RelayHistograms::EventQueueSizePct => "event.queue_size.pct",
-            RelayHistograms::EventQueueSize => "event.queue_size",
-            RelayHistograms::EventSizeBytesRaw => "event.size_bytes.raw",
-            RelayHistograms::EventSizeBytesUncompressed => "event.size_bytes.uncompressed",
+            RelayHistograms::EnvelopeQueueSizePct => "event.queue_size.pct",
+            RelayHistograms::EnvelopeQueueSize => "event.queue_size",
+            RelayHistograms::RequestSizeBytesRaw => "event.size_bytes.raw",
+            RelayHistograms::RequestSizeBytesUncompressed => "event.size_bytes.uncompressed",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
             RelayHistograms::ProjectStateReceived => "project_state.received",
@@ -65,31 +76,29 @@ pub enum RelayTimers {
     /// The time spent deserializing an event from a JSON byte array into the native data structure
     /// on which Relay operates.
     EventProcessingDeserialize,
-    /// Time spent running event processors on an event.
-    /// Event processing happens before filtering.
+    /// Time spent running event processors on an event. Event processing happens before filtering.
     #[cfg(feature = "processing")]
     EventProcessingProcess,
     /// Time spent running filtering on an event.
     #[cfg(feature = "processing")]
     EventProcessingFiltering,
     /// Time spent checking for rate limits in Redis.
-    /// Note that not all events are checked against Redis. After an event is rate limited
-    /// for period A, any event using the same key coming during period A will be automatically
-    /// rate limited without checking against Redis (the event will be simply discarded without
-    /// being placed in the processing queue).
+    ///
+    /// Note that not all events are checked against Redis. After an event is rate limited for the
+    /// first time, the rate limit is cached. Events coming in during this period will be discarded
+    /// earlier in the request queue and do not reach the processing queue.
     #[cfg(feature = "processing")]
     EventProcessingRateLimiting,
-    /// Time spent in data scrubbing for the current event.
+    /// Time spent in data scrubbing for the current event. Data scrubbing happens last before
+    /// serializing the event back to JSON.
     EventProcessingPii,
-    /// Time spent converting the event from an Annotated<Event> into a String containing the JSON
-    /// representation of the event.
+    /// Time spent converting the event from its in-memory reprsentation into a JSON string.
     EventProcessingSerialization,
-    /// Represents the time spent between receiving the event in Relay (i.e. beginning of the
-    /// request handling) up to the time before starting synchronous processing in the EventProcessor.
-    EventWaitTime,
-    /// This is the time the event spends in the EventProcessor (i.e. the sync processing of the
-    /// event).
-    /// The time spent in synchronous event processing.
+    /// Time spent between receiving a request in Relay (that is, beginning of request handling) and
+    /// the start of synchronous processing in the EventProcessor. This metric primarily indicates
+    /// backlog in event processing.
+    EnvelopeWaitTime,
+    /// The time spent in synchronous processing of envelopes.
     ///
     /// This timing covers the end-to-end processing in the CPU pool and comprises:
     ///
@@ -102,10 +111,10 @@ pub enum RelayTimers {
     ///  - `event_processing.process`
     ///  - `event_processing.filtering`
     ///  - `event_processing.rate_limiting`
-    EventProcessingTime,
-    /// The total time an event spends in Relay from the time it is received until it finishes
-    /// processing.
-    EventTotalTime,
+    EnvelopeProcessingTime,
+    /// The total time an envelope spends in Relay from the time it is received until it finishes
+    /// processing and has been submitted.
+    EnvelopeTotalTime,
     /// The total time spent during `ProjectCache.fetch_states` in which eviction of outdated
     /// projects happens.
     ProjectStateEvictionDuration,
@@ -142,9 +151,9 @@ impl TimerMetric for RelayTimers {
             RelayTimers::EventProcessingRateLimiting => "event_processing.rate_limiting",
             RelayTimers::EventProcessingPii => "event_processing.pii",
             RelayTimers::EventProcessingSerialization => "event_processing.serialization",
-            RelayTimers::EventWaitTime => "event.wait_time",
-            RelayTimers::EventProcessingTime => "event.processing_time",
-            RelayTimers::EventTotalTime => "event.total_time",
+            RelayTimers::EnvelopeWaitTime => "event.wait_time",
+            RelayTimers::EnvelopeProcessingTime => "event.processing_time",
+            RelayTimers::EnvelopeTotalTime => "event.total_time",
             RelayTimers::ProjectStateEvictionDuration => "project_state.eviction.duration",
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
             RelayTimers::ProjectIdRequestDuration => "project_id.request.duration",
@@ -155,20 +164,20 @@ impl TimerMetric for RelayTimers {
 
 /// Counter metrics used by Relay
 pub enum RelayCounters {
-    /// Number of events accepted in the current time slot. This represents events that
-    /// have successfully passed rate limits, filters and have been successfully handled.
-    EventAccepted,
-    /// Number of events rejected in the current time slot. This includes events being rejected
-    /// because they are malformed or any other error during processing (including filtered
-    /// events, discarded events and rate limited events).
-    EventRejected,
-    /// Represents a group of counters, implemented with using tags. The following tags are
-    /// present for each event outcome:
+    /// Number of envelopes accepted in the current time slot. This represents requests that have
+    /// successfully passed rate limits, filters and have been successfully handled.
+    EnvelopeAccepted,
+    /// Number of envelopes rejected in the current time slot. This includes envelopes being
+    /// rejected because they are malformed or any other errors during processing (including
+    /// filtered events, invalid payloads and rate limits).
+    EnvelopeRejected,
+    /// Represents a group of counters incremented for every outcome emitted by Relay, implemented
+    /// with tags. The following tags are present for each event outcome:
     ///
-    /// - `outcome` which is an `EventOutcome` enumeration
+    /// - `outcome` which is an `Outcome` enumeration
     /// - `reason` which is the reason string for all outcomes that are not `Accepted`.
     #[cfg(feature = "processing")]
-    EventOutcomes,
+    Outcomes,
     /// Counts the number of times a project state lookup is done. This includes requests
     /// for projects that are cached and requests for projects that are not yet cached.
     /// All requests that return a  `EventAction::Accept` i.e. are not rate limited (on
@@ -196,12 +205,13 @@ pub enum RelayCounters {
     /// Counts the number of times Relay started.
     /// This can be used to track unwanted restarts due to crashes or termination.
     ServerStarting,
-    /// Counts the number of messages placed on the Kafka queue. When Relay operates with processing
-    /// enabled and a message is successfully processed each message will generate an event on the
-    /// Kafka queue and zero or more attachments. The counter has an  `event_type` tag which is set to
+    /// Counts the number of messages placed on the Kafka queue.
+    ///
+    /// When Relay operates with processing enabled and an item is successfully processed, each item
+    /// will generate a message on the Kafka. The counter has an `event_type` tag which is set to
     /// either `event` or `attachment` representing the type of message produced on the Kafka queue.
     #[cfg(feature = "processing")]
-    ProcessingEventProduced,
+    ProcessingMessageProduced,
     /// Counts the number of events that hit any of the Store like endpoints (Store, Security,
     /// MiniDump, Unreal). The events are counted before they are rate limited , filtered or
     /// processed in any way. The counter has a `version` tag that tracks the message event
@@ -224,10 +234,10 @@ pub enum RelayCounters {
 impl CounterMetric for RelayCounters {
     fn name(&self) -> &'static str {
         match self {
-            RelayCounters::EventAccepted => "event.accepted",
-            RelayCounters::EventRejected => "event.rejected",
+            RelayCounters::EnvelopeAccepted => "event.accepted",
+            RelayCounters::EnvelopeRejected => "event.rejected",
             #[cfg(feature = "processing")]
-            RelayCounters::EventOutcomes => "events.outcomes",
+            RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
             RelayCounters::ProjectCacheHit => "project_cache.hit",
@@ -235,7 +245,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectIdRequest => "project_id.request",
             RelayCounters::ServerStarting => "server.starting",
             #[cfg(feature = "processing")]
-            RelayCounters::ProcessingEventProduced => "processing.event.produced",
+            RelayCounters::ProcessingMessageProduced => "processing.event.produced",
             RelayCounters::EventProtocol => "event.protocol",
             RelayCounters::Requests => "requests",
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",

@@ -15,6 +15,7 @@ use relay_config::Config;
 
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::metrics::{RelayCounters, RelayTimers};
+use crate::utils::Response;
 
 type ProjectKey = String;
 
@@ -186,6 +187,6 @@ impl Handler<GetProjectId> for ProjectKeyLookup {
         };
 
         let response = channel.map(|shared| *shared).map_err(|_| ProjectKeyError);
-        Response::r#async(response)
+        Response::future(response)
     }
 }

@@ -260,7 +260,7 @@ impl Handler<FetchProjectState> for ProjectCache {
                 }
 
                 let fetch_upstream = upstream_source
-                    .send(message.clone())
+                    .send(message)
                     .map_err(|_| ())
                     .and_then(move |result| result.map_err(|_| ()));
 
@@ -270,6 +270,6 @@ impl Handler<FetchProjectState> for ProjectCache {
             Box::new(fetch_redis)
         });
 
-        Response::r#async(future)
+        Response::future(future)
     }
 }
