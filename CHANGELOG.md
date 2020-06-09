@@ -19,7 +19,7 @@ We have switched to [CalVer](https://calver.org/)! Relay's version is always in 
 
 **Internal**:
 
-- Add source (who emitted the outcome) to Outcome payload.([#604](https://github.com/getsentry/relay/pull/604))
+- Add source (who emitted the outcome) to Outcome payload. ([#604](https://github.com/getsentry/relay/pull/604))
 - Ignore non-Rust folders for faster rebuilding and testing. ([#578](https://github.com/getsentry/relay/pull/578))
 - Invalid session payloads are now logged for SDK debugging. ([#584](https://github.com/getsentry/relay/pull/584), [#591](https://github.com/getsentry/relay/pull/591))
 - Add support for Outcomes generation in external Relays. ([#592](https://github.com/getsentry/relay/pull/592))
