@@ -288,7 +288,7 @@ pub struct TrackRawOutcome {
 }
 
 impl TrackRawOutcome {
-    fn from_outcome(msg: &TrackOutcome, config: &Config) -> Self {
+    fn from_outcome(msg: TrackOutcome, config: &Config) -> Self {
         let reason = match msg.outcome.to_reason() {
             None => None,
             Some(reason) => Some(reason.to_string()),
@@ -476,7 +476,7 @@ mod processing {
         type Result = Result<(), OutcomeError>;
 
         fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            self.handle(TrackRawOutcome::from_outcome(&message, &self.config), _ctx)
+            self.handle(TrackRawOutcome::from_outcome(message, &self.config), _ctx)
         }
     }
 
@@ -587,6 +587,6 @@ impl Handler<TrackOutcome> for HttpOutcomeProducer {
     type Result = Result<(), OutcomeError>;
 
     fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-        self.handle(TrackRawOutcome::from_outcome(&message, &self.config), _ctx)
+        self.handle(TrackRawOutcome::from_outcome(message, &self.config), _ctx)
     }
 }

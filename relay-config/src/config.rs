@@ -716,13 +716,13 @@ pub struct Outcomes {
     /// Processing relays always emit outcomes (for backwards compatibility).
     pub emit_outcomes: bool,
     /// The maximum number of outcomes that are batched before being sent
-    /// via http to the upstream (only applies to non processing relays)
+    /// via http to the upstream (only applies to non processing relays).
     pub batch_size: usize,
     /// The maximum time interval (in milliseconds) that an outcome may be batched
-    /// via http to the upstream (only applies to non processing relays)
+    /// via http to the upstream (only applies to non processing relays).
     pub batch_interval: u64,
     /// Defines the source string registered in the outcomes originating from
-    /// this Relay ( typically something like the region and or the layer )
+    /// this Relay (typically something like the region or the layer).
     pub source: Option<String>,
 }
 
