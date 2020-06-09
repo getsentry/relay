@@ -283,6 +283,15 @@ impl EventProcessor {
             event.environment = Annotated::from(env.to_owned());
         }
 
+        // Explicitly set the event type. This is required so that a `Security` item can be created
+        // instead of a regular `Event` item.
+        event.ty = Annotated::new(match report_type {
+            SecurityReportType::Csp => EventType::Csp,
+            SecurityReportType::ExpectCt => EventType::ExpectCT,
+            SecurityReportType::ExpectStaple => EventType::ExpectStaple,
+            SecurityReportType::Hpkp => EventType::Hpkp,
+        });
+
         Ok((Annotated::new(event), len))
     }
 
