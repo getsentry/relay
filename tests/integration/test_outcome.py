@@ -229,3 +229,50 @@ def test_outcomes_non_processing_batching(relay, mini_sentry):
 
     # no events received since all have been for an invalid project id
     assert mini_sentry.captured_events.empty()
+
+
+def _send_event(relay):
+    event_id = uuid.uuid1().hex
+    message_text = "some message {}".format(datetime.now())
+    event_body = {
+        "event_id": event_id,
+        "message": message_text,
+        "extra": {"msg_text": message_text},
+    }
+
+    try:
+        relay.send_event(42, event_body)
+    except:
+        pass
+    return event_id
+
+
+def test_outcome_source(relay, mini_sentry):
+    """
+    Test that the source is picked from configuration and passed in outcomes
+    """
+    config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "source": "my-layer",
+        }
+    }
+
+    relay = relay(mini_sentry, config)
+    relay.wait_relay_healthcheck()
+    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
+    mini_sentry.project_configs[42] = None
+
+    event_id = _send_event(relay)
+
+    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
+    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
+
+    outcomes = outcomes_batch.get("outcomes")
+    assert len(outcomes) == 1
+
+    outcome = outcomes[0]
+
+    assert outcome.get("source") == "my-layer"
