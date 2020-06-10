@@ -151,9 +151,9 @@ impl TimerMetric for RelayTimers {
             RelayTimers::EventProcessingRateLimiting => "event_processing.rate_limiting",
             RelayTimers::EventProcessingPii => "event_processing.pii",
             RelayTimers::EventProcessingSerialization => "event_processing.serialization",
-            RelayTimers::EnvelopeWaitTime => "event.wait_time",
-            RelayTimers::EnvelopeProcessingTime => "event.processing_time",
-            RelayTimers::EnvelopeTotalTime => "event.total_time",
+            RelayTimers::EnvelopeWaitTime => "envelope.wait_time",
+            RelayTimers::EnvelopeProcessingTime => "envelope.processing_time",
+            RelayTimers::EnvelopeTotalTime => "envelope.total_time",
             RelayTimers::ProjectStateEvictionDuration => "project_state.eviction.duration",
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
             RelayTimers::ProjectIdRequestDuration => "project_id.request.duration",
@@ -234,8 +234,8 @@ pub enum RelayCounters {
 impl CounterMetric for RelayCounters {
     fn name(&self) -> &'static str {
         match self {
-            RelayCounters::EnvelopeAccepted => "event.accepted",
-            RelayCounters::EnvelopeRejected => "event.rejected",
+            RelayCounters::EnvelopeAccepted => "envelope.accepted",
+            RelayCounters::EnvelopeRejected => "envelope.rejected",
             #[cfg(feature = "processing")]
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
