@@ -217,7 +217,7 @@ impl UpstreamProjectSource {
                                     })
                                     .unwrap_or_else(ProjectState::missing);
 
-                                channel.send(state);
+                                channel.send(state.sanitize());
                             }
                         }
                         Err(error) => {

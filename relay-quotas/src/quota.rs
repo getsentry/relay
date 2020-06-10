@@ -86,6 +86,14 @@ impl ItemScoping<'_> {
     }
 }
 
+/// The unit in which a data category is measured.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CategoryUnit {
+    Count,
+    Bytes,
+    Batched,
+}
+
 /// Classifies the type of data that is being ingested.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -131,6 +139,17 @@ impl DataCategory {
             Self::Attachment => "attachment",
             Self::Session => "session",
             Self::Unknown => "unknown",
+        }
+    }
+
+    fn unit(self) -> Option<CategoryUnit> {
+        match self {
+            Self::Default | Self::Error | Self::Transaction | Self::Security => {
+                Some(CategoryUnit::Count)
+            }
+            Self::Attachment => Some(CategoryUnit::Bytes),
+            Self::Session => Some(CategoryUnit::Batched),
+            Self::Unknown => None,
         }
     }
 }
@@ -287,6 +306,26 @@ pub struct Quota {
 }
 
 impl Quota {
+    /// Returns whether this quota is valid for tracking.
+    ///
+    /// There are a few conditions at which quotas are invalid:
+    ///  - The quota only applies to `Unknown` data categories.
+    ///  - The quota is counted (not limit `0`) but specifies categories with different units.
+    pub fn is_valid(&self) -> bool {
+        let mut units = self.categories.iter().filter_map(|c| c.unit());
+
+        match units.next() {
+            // There are only unknown categories, which is always invalid
+            None if !self.categories.is_empty() => false,
+            // This is a reject all quota, which is always valid
+            _ if self.limit == Some(0) => true,
+            // Applies to all categories, which implies multiple units
+            None => false,
+            // There are multiple categories, which must all have the same units
+            Some(unit) => units.all(|u| u == unit),
+        }
+    }
+
     /// Checks whether this quota's scope matches the given item scoping.
     ///
     /// This quota matches, if:
@@ -489,6 +528,83 @@ mod tests {
           window: Some(42),
         )
         "###);
+    }
+
+    #[test]
+    fn test_quota_valid_reject_all() {
+        let quota = Quota {
+            id: None,
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(0),
+            window: None,
+            reason_code: None,
+        };
+
+        assert!(quota.is_valid());
+    }
+
+    #[test]
+    fn test_quota_invalid_only_unknown() {
+        let quota = Quota {
+            id: None,
+            categories: smallvec![DataCategory::Unknown, DataCategory::Unknown],
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(0),
+            window: None,
+            reason_code: None,
+        };
+
+        assert!(!quota.is_valid());
+    }
+
+    #[test]
+    fn test_quota_valid_reject_all_mixed() {
+        let quota = Quota {
+            id: None,
+            categories: smallvec![DataCategory::Error, DataCategory::Attachment],
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(0),
+            window: None,
+            reason_code: None,
+        };
+
+        assert!(quota.is_valid());
+    }
+
+    #[test]
+    fn test_quota_invalid_limited_mixed() {
+        let quota = Quota {
+            id: None,
+            categories: smallvec![DataCategory::Error, DataCategory::Attachment],
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(1000),
+            window: None,
+            reason_code: None,
+        };
+
+        // This category is limited and counted, but has multiple units.
+        assert!(!quota.is_valid());
+    }
+
+    #[test]
+    fn test_quota_invalid_unlimited_mixed() {
+        let quota = Quota {
+            id: None,
+            categories: smallvec![DataCategory::Error, DataCategory::Attachment],
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: None,
+            window: None,
+            reason_code: None,
+        };
+
+        // This category is unlimited and counted, but has multiple units.
+        assert!(!quota.is_valid());
     }
 
     #[test]
