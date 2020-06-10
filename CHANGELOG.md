@@ -17,6 +17,7 @@ We have switched to [CalVer](https://calver.org/)! Relay's version is always in 
 - Properly refresh cached project states based on the configured intervals. Previously, Relay may have gone into an endless refresh cycle if the system clock not accurate, or the state had not been updated in the upstream. ([#596](https://github.com/getsentry/relay/pull/596))
 - Respond with `403 Forbidden` when multiple authentication payloads are sent by the SDK. Previously, Relay would authenticate using one of the payloads and silently ignore the rest. ([#602](https://github.com/getsentry/relay/pull/602))
 - Improve metrics documentation. ([#614](https://github.com/getsentry/relay/pull/614))
+- Do not scrub event processing errors by default. ([#619](https://github.com/getsentry/relay/pull/619))
 
 **Internal**:
 
