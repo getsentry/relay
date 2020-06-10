@@ -184,7 +184,7 @@ pub struct EventProcessingError {
     pub value: Annotated<Value>,
 
     /// Additional data explaining this error.
-    #[metastructure(additional_properties, pii = "true")]
+    #[metastructure(additional_properties, pii = "maybe")]
     pub other: Object<Value>,
 }
 
