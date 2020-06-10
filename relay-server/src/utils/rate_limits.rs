@@ -53,9 +53,8 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
 
         let mut categories = DataCategories::new();
         for category in components.next().unwrap_or("").split(';') {
-            let category = DataCategory::from_name(category);
-            if category != DataCategory::Unknown {
-                categories.push(category);
+            if category != "" {
+                categories.push(DataCategory::from_name(category));
             }
         }
 
@@ -212,15 +211,10 @@ where
 mod tests {
     use super::*;
 
+    use smallvec::smallvec;
+
     use relay_common::ProjectId;
     use relay_quotas::RetryAfter;
-
-    fn get_test_categories() -> DataCategories {
-        let mut categories = DataCategories::new();
-        categories.push(DataCategory::Transaction);
-        categories.push(DataCategory::Security);
-        categories
-    }
 
     #[test]
     fn test_format_rate_limits() {
@@ -236,7 +230,7 @@ mod tests {
 
         // Add a more specific rate limit for just one category.
         rate_limits.add(RateLimit {
-            categories: get_test_categories(),
+            categories: smallvec![DataCategory::Transaction, DataCategory::Security],
             scope: RateLimitScope::Project(ProjectId::new(21)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(4711),
@@ -285,7 +279,11 @@ mod tests {
                     retry_after: rate_limits[0].retry_after,
                 },
                 RateLimit {
-                    categories: get_test_categories(),
+                    categories: smallvec![
+                        DataCategory::Transaction,
+                        DataCategory::Security,
+                        DataCategory::Unknown,
+                    ],
                     scope: RateLimitScope::Project(ProjectId::new(21)),
                     reason_code: None,
                     retry_after: rate_limits[1].retry_after,
@@ -295,5 +293,30 @@ mod tests {
 
         assert_eq!(42, rate_limits[0].retry_after.remaining_seconds());
         assert_eq!(4711, rate_limits[1].retry_after.remaining_seconds());
+    }
+
+    #[test]
+    fn test_parse_rate_limits_only_unknown() {
+        let scoping = Scoping {
+            organization_id: 42,
+            project_id: ProjectId::new(21),
+            public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+            key_id: Some(17),
+        };
+
+        // contains "foobar", an unknown scope that should be mapped to Unknown
+        let formatted = "42:foo;bar:organization";
+        let rate_limits: Vec<RateLimit> =
+            parse_rate_limits(&scoping, formatted).into_iter().collect();
+
+        assert_eq!(
+            rate_limits,
+            vec![RateLimit {
+                categories: smallvec![DataCategory::Unknown, DataCategory::Unknown],
+                scope: RateLimitScope::Organization(42),
+                reason_code: None,
+                retry_after: rate_limits[0].retry_after,
+            },]
+        );
     }
 }
