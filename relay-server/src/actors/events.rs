@@ -1169,9 +1169,17 @@ impl Handler<HandleEnvelope> for EventManager {
             }))
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
-            .map(|_, _, _| metric!(counter(RelayCounters::EnvelopeAccepted) += 1))
+            .map(move |_, _, _| {
+                metric!(
+                    counter(RelayCounters::EnvelopeAccepted) += 1,
+                    is_event = &is_event.to_string()
+                )
+            })
             .map_err(move |error, slf, _| {
-                metric!(counter(RelayCounters::EnvelopeRejected) += 1);
+                metric!(
+                    counter(RelayCounters::EnvelopeRejected) += 1,
+                    is_event = &is_event.to_string()
+                );
 
                 // Rate limits need special handling: Cache them on the project to avoid
                 // expensive processing while the limit is active.

@@ -375,7 +375,7 @@ macro_rules! metric {
         $crate::metrics::with_client(|client| {
             use $crate::metrics::_pred::*;
             client.count_with_tags(&$crate::metrics::CounterMetric::name(&$id), -$value)
-                $(.with_tag(stringify!(stringify!($k)), $v))*
+                $(.with_tag(stringify!($k), $v))*
                 .send();
         })
     };
