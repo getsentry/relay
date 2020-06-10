@@ -475,6 +475,7 @@ def test_processing_quotas(
             "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
             "scope": "key",
             "scopeId": six.text_type(key_id),
+            "categories": ["error", "default"],
             "limit": 5,
             "window": 3600,
             "reasonCode": "get_lost",
@@ -512,7 +513,7 @@ def test_processing_quotas(
         # max_rate_limit parameter
         retry_after = headers["retry-after"]
         assert int(retry_after) <= 120
-        assert headers["x-sentry-rate-limits"] == "120::key"
+        assert headers["x-sentry-rate-limits"] == "120:default;error:key"
         outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
 
     relay.dsn_public_key = second_key["publicKey"]
