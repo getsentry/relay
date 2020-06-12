@@ -353,6 +353,12 @@ impl ProjectState {
             }
         }
     }
+
+    /// Validates data in this project state and removes values that are partially invalid.
+    pub fn sanitize(mut self) -> Self {
+        self.config.quotas.retain(Quota::is_valid);
+        self
+    }
 }
 
 /// Represents a public key received from the projectconfig endpoint.
