@@ -23,7 +23,8 @@ jobs:
             dry_run: ${{ github.event.client_payload.dry_run }}
           env:
             GIT_COMMITTER_NAME: getsentry-bot
-            GIT_COMMITTER_EMAIL: bot@getsentry.com
+            GIT_AUTHOR_NAME: getsentry-bot
+            EMAIL: bot@getsentry.com
 
         - uses: getsentry/craft@master
           with:
