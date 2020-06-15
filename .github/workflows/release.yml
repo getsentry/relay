@@ -14,11 +14,17 @@ jobs:
           if: ${{ !github.event.client_payload.version }}
           run: echo "::set-output name=version::$(date +'%y.%-m.0')"
         - uses: actions/checkout@v2
+          with:
+            token: ${{ secrets.GH_SENTRY_BOT_PAT }}
         - uses: getsentry/craft@master
           with:
             action: prepare
             version: ${{ github.event.client_payload.version || steps.calver.outputs.version }}
             dry_run: ${{ github.event.client_payload.dry_run }}
+          env:
+            GIT_AUTHOR_NAME: getsentry-bot
+            GIT_AUTHOR_EMAIL: bot@getsentry.com
+
         - uses: getsentry/craft@master
           with:
             action: publish
