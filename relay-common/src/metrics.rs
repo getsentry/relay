@@ -21,9 +21,10 @@
 //! [`configure_statsd`] to create a default client with known arguments:
 //!
 //! ```no_run
+//! # use std::collections::BTreeMap;
 //! use relay_common::metrics;
 //!
-//! metrics::configure_statsd("myprefix", "localhost:8125");
+//! metrics::configure_statsd("myprefix", "localhost:8125", BTreeMap::new());
 //! ```
 //!
 //! ## Macro Usage
@@ -71,7 +72,7 @@ use lazy_static::lazy_static;
 use parking_lot::RwLock;
 
 /// Client configuration object to store globally.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct MetricsClient {
     /// The raw statsd client
     pub statsd_client: StatsdClient,
@@ -128,11 +129,8 @@ pub mod prelude {
 }
 
 /// Set a new statsd client.
-pub fn set_client(statsd_client: StatsdClient, default_tags: BTreeMap<String, String>) {
-    *METRICS_CLIENT.write() = Some(Arc::new(MetricsClient {
-        statsd_client,
-        default_tags,
-    }));
+pub fn set_client(client: MetricsClient) {
+    *METRICS_CLIENT.write() = Some(Arc::new(client));
 }
 
 /// Disable the client again.
@@ -150,10 +148,11 @@ pub fn configure_statsd<A: ToSocketAddrs>(
     if !addrs.is_empty() {
         log::info!("reporting metrics to statsd at {}", addrs[0]);
     }
-    set_client(
-        StatsdClient::from_udp_host(prefix, &addrs[..]).unwrap(),
+    let statsd_client = StatsdClient::from_udp_host(prefix, &addrs[..]).unwrap();
+    set_client(MetricsClient {
+        statsd_client,
         default_tags,
-    );
+    });
 }
 
 /// Invoke a callback with the current statsd client.

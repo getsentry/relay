@@ -2437,7 +2437,6 @@ name = "relay-config"
 version = "0.5.9"
 dependencies = [
  "failure",
- "hostname",
  "human-size",
  "log",
  "num_cpus",

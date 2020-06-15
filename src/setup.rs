@@ -202,14 +202,17 @@ pub fn init_logging(config: &Config) {
 /// Initialize the metric system.
 pub fn init_metrics(config: &Config) -> Result<(), Error> {
     let addrs = config.statsd_addrs()?;
-    if !addrs.is_empty() {
-        let mut default_tags = config.metrics_default_tags().clone();
-        if let Some(hostname_tag) = config.metrics_hostname_tag() {
-            if let Some(hostname) = hostname::get().ok().and_then(|s| s.into_string().ok()) {
-                default_tags.insert(hostname_tag.to_owned(), hostname);
-            }
-        }
-        metrics::configure_statsd(config.metrics_prefix(), &addrs[..], default_tags);
+    if addrs.is_empty() {
+        return Ok(());
     }
+
+    let mut default_tags = config.metrics_default_tags().clone();
+    if let Some(hostname_tag) = config.metrics_hostname_tag() {
+        if let Some(hostname) = hostname::get().ok().and_then(|s| s.into_string().ok()) {
+            default_tags.insert(hostname_tag.to_owned(), hostname);
+        }
+    }
+    metrics::configure_statsd(config.metrics_prefix(), &addrs[..], default_tags);
+
     Ok(())
 }
