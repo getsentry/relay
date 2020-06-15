@@ -1087,40 +1087,46 @@
 <h2 id="relayhistograms">RelayHistograms</h2>
 <p>Histogram metrics used by Relay.</p>
 <h3 id="eventqueue_sizepct"><code>event.queue_size.pct</code></h3>
-<p>The metric is referred in code as: <code>RelayHistograms::EventQueueSizePct</code>.</p>
-<p>The number of events in the queue as a percentage of the maximum number of events
-that can be stored in the queue ( 0 ... the queue is empty, 1 ... the queue is full
-and no additional events can be added).</p>
+<p>The metric is referred in code as: <code>RelayHistograms::EnvelopeQueueSizePct</code>.</p>
+<p>The number of envelopes in the queue as a percentage of the maximum number of envelopes that
+can be stored in the queue.</p>
+<p>The value ranges from <code>0</code> (the queue is empty) to <code>1</code> (the queue is full and no additional
+events can be added).</p>
 <h3 id="eventqueue_size"><code>event.queue_size</code></h3>
-<p>The metric is referred in code as: <code>RelayHistograms::EventQueueSize</code>.</p>
-<p>The number of events in the queue. The event queue represents the events that are being
-processed at a particular time in Relay. Once a request is received the event has
-some preliminary (quick) processing to determine if it can be processed or it is
-rejected. Once this determination has been done the http request that
-created the event terminates and, if the request is to be further processed,
-the event enters a queue ( a virtual queue, the event is kept in a future that
-will resolve at some point in time).
-Once the event finishes processing and is sent downstream (i.e. the future is
-resolved and the event leaves relay) the event is considered handled and it
-leaves the queue ( the queue size is decremented).</p>
+<p>The metric is referred in code as: <code>RelayHistograms::EnvelopeQueueSize</code>.</p>
+<p>The number of envelopes in the queue.</p>
+<p>The event queue represents the envelopes that are being processed at a particular time in
+Relay. Once a request is received, the envelope receives some preliminary (quick) processing
+to determine if it can be processed or it is rejected. Once this determination has been
+done, the http request that created the envelope terminates and, if the request is to be
+further processed, the envelope enters a queue.</p>
+<p>Once the envelope finishes processing and is sent downstream, the envelope is considered
+handled and it leaves the queue.</p>
 <h3 id="eventsize_bytesraw"><code>event.size_bytes.raw</code></h3>
-<p>The metric is referred in code as: <code>RelayHistograms::EventSizeBytesRaw</code>.</p>
-<p>The event size as seen by Relay after it is extracted from a request.</p>
+<p>The metric is referred in code as: <code>RelayHistograms::RequestSizeBytesRaw</code>.</p>
+<p>The size of the request body as seen by Relay after it is extracted from a request.</p>
+<p>For envelope requests, this is the full size of the envelope. For JSON store requests, this
+is the size of the JSON body.</p>
+<p>If this request contains a base64 zlib compressed payload without a proper
+<code>content-encoding</code> header, then this is the size before decompression.</p>
 <h3 id="eventsize_bytesuncompressed"><code>event.size_bytes.uncompressed</code></h3>
-<p>The metric is referred in code as: <code>RelayHistograms::EventSizeBytesUncompressed</code>.</p>
-<p>The event size as seen by Relay after it has been decompressed and decoded (e.g. from Base64).</p>
+<p>The metric is referred in code as: <code>RelayHistograms::RequestSizeBytesUncompressed</code>.</p>
+<p>The size of the request body as seen by Relay after it has been decompressed and decoded in
+case this request contains a base64 zlib compressed payload without a proper
+<code>content-encoding</code> header. Otherwise, this metric is always equal to <code>event.size_bytes.raw</code>.</p>
 <h3 id="project_statepending"><code>project_state.pending</code></h3>
 <p>The metric is referred in code as: <code>RelayHistograms::ProjectStatePending</code>.</p>
-<p>Number of projects in the ProjectCache that are waiting for their state to be updated.</p>
+<p>Number of projects in the in-memory project cache that are waiting for their state to be
+updated.</p>
 <h3 id="project_staterequestbatch_size"><code>project_state.request.batch_size</code></h3>
 <p>The metric is referred in code as: <code>RelayHistograms::ProjectStateRequestBatchSize</code>.</p>
-<p>Number of project state requested from the Upstream for the current batch request.</p>
+<p>Number of project states requested from the Upstream for the current batch request.</p>
 <h3 id="project_statereceived"><code>project_state.received</code></h3>
 <p>The metric is referred in code as: <code>RelayHistograms::ProjectStateReceived</code>.</p>
 <p>Number of project states received from the Upstream for the current batch request.</p>
 <h3 id="project_cachesize"><code>project_cache.size</code></h3>
 <p>The metric is referred in code as: <code>RelayHistograms::ProjectStateCacheSize</code>.</p>
-<p>Number of project states currently held in the ProjectState cache.</p>
+<p>Number of project states currently held in the in-memory project cache.</p>
 <h2 id="relaytimers">RelayTimers</h2>
 <p>Timer metrics used by Relay</p>
 <h3 id="event_processingdeserialize"><code>event_processing.deserialize</code></h3>
@@ -1130,8 +1136,7 @@ on which Relay operates.</p>
 <h3 id="event_processingprocess"><code>event_processing.process</code></h3>
 <p><strong>Note</strong>: This metric is emitted only when Relay is built with the <code>processing</code> feature.</p>
 <p>The metric is referred in code as: <code>RelayTimers::EventProcessingProcess</code>.</p>
-<p>Time spent running event processors on an event.
-Event processing happens before filtering.</p>
+<p>Time spent running event processors on an event. Event processing happens before filtering.</p>
 <h3 id="event_processingfiltering"><code>event_processing.filtering</code></h3>
 <p><strong>Note</strong>: This metric is emitted only when Relay is built with the <code>processing</code> feature.</p>
 <p>The metric is referred in code as: <code>RelayTimers::EventProcessingFiltering</code>.</p>
@@ -1139,27 +1144,25 @@ Event processing happens before filtering.</p>
 <h3 id="event_processingrate_limiting"><code>event_processing.rate_limiting</code></h3>
 <p><strong>Note</strong>: This metric is emitted only when Relay is built with the <code>processing</code> feature.</p>
 <p>The metric is referred in code as: <code>RelayTimers::EventProcessingRateLimiting</code>.</p>
-<p>Time spent checking for rate limits in Redis.
-Note that not all events are checked against Redis. After an event is rate limited
-for period A, any event using the same key coming during period A will be automatically
-rate limited without checking against Redis (the event will be simply discarded without
-being placed in the processing queue).</p>
+<p>Time spent checking for rate limits in Redis.</p>
+<p>Note that not all events are checked against Redis. After an event is rate limited for the
+first time, the rate limit is cached. Events coming in during this period will be discarded
+earlier in the request queue and do not reach the processing queue.</p>
 <h3 id="event_processingpii"><code>event_processing.pii</code></h3>
 <p>The metric is referred in code as: <code>RelayTimers::EventProcessingPii</code>.</p>
-<p>Time spent in data scrubbing for the current event.</p>
+<p>Time spent in data scrubbing for the current event. Data scrubbing happens last before
+serializing the event back to JSON.</p>
 <h3 id="event_processingserialization"><code>event_processing.serialization</code></h3>
 <p>The metric is referred in code as: <code>RelayTimers::EventProcessingSerialization</code>.</p>
-<p>Time spent converting the event from an Annotated<Event> into a String containing the JSON
-representation of the event.</p>
+<p>Time spent converting the event from its in-memory reprsentation into a JSON string.</p>
 <h3 id="eventwait_time"><code>event.wait_time</code></h3>
-<p>The metric is referred in code as: <code>RelayTimers::EventWaitTime</code>.</p>
-<p>Represents the time spent between receiving the event in Relay (i.e. beginning of the
-request handling) up to the time before starting synchronous processing in the EventProcessor.</p>
+<p>The metric is referred in code as: <code>RelayTimers::EnvelopeWaitTime</code>.</p>
+<p>Time spent between receiving a request in Relay (that is, beginning of request handling) and
+the start of synchronous processing in the EventProcessor. This metric primarily indicates
+backlog in event processing.</p>
 <h3 id="eventprocessing_time"><code>event.processing_time</code></h3>
-<p>The metric is referred in code as: <code>RelayTimers::EventProcessingTime</code>.</p>
-<p>This is the time the event spends in the EventProcessor (i.e. the sync processing of the
-event).
-The time spent in synchronous event processing.</p>
+<p>The metric is referred in code as: <code>RelayTimers::EnvelopeProcessingTime</code>.</p>
+<p>The time spent in synchronous processing of envelopes.</p>
 <p>This timing covers the end-to-end processing in the CPU pool and comprises:</p>
 <ul>
 <li><code>event_processing.deserialize</code></li>
@@ -1173,9 +1176,9 @@ The time spent in synchronous event processing.</p>
 <li><code>event_processing.rate_limiting</code></li>
 </ul>
 <h3 id="eventtotal_time"><code>event.total_time</code></h3>
-<p>The metric is referred in code as: <code>RelayTimers::EventTotalTime</code>.</p>
-<p>The total time an event spends in Relay from the time it is received until it finishes
-processing.</p>
+<p>The metric is referred in code as: <code>RelayTimers::EnvelopeTotalTime</code>.</p>
+<p>The total time an envelope spends in Relay from the time it is received until it finishes
+processing and has been submitted.</p>
 <h3 id="project_stateevictionduration"><code>project_state.eviction.duration</code></h3>
 <p>The metric is referred in code as: <code>RelayTimers::ProjectStateEvictionDuration</code>.</p>
 <p>The total time spent during <code>ProjectCache.fetch_states</code> in which eviction of outdated
@@ -1210,21 +1213,21 @@ a latter time and an HTTP OK (200) is returned.</p>
 <h2 id="relaycounters">RelayCounters</h2>
 <p>Counter metrics used by Relay</p>
 <h3 id="eventaccepted"><code>event.accepted</code></h3>
-<p>The metric is referred in code as: <code>RelayCounters::EventAccepted</code>.</p>
-<p>Number of events accepted in the current time slot. This represents events that
-have successfully passed rate limits, filters and have been successfully handled.</p>
+<p>The metric is referred in code as: <code>RelayCounters::EnvelopeAccepted</code>.</p>
+<p>Number of envelopes accepted in the current time slot. This represents requests that have
+successfully passed rate limits, filters and have been successfully handled.</p>
 <h3 id="eventrejected"><code>event.rejected</code></h3>
-<p>The metric is referred in code as: <code>RelayCounters::EventRejected</code>.</p>
-<p>Number of events rejected in the current time slot. This includes events being rejected
-because they are malformed or any other error during processing (including filtered
-events, discarded events and rate limited events).</p>
+<p>The metric is referred in code as: <code>RelayCounters::EnvelopeRejected</code>.</p>
+<p>Number of envelopes rejected in the current time slot. This includes envelopes being
+rejected because they are malformed or any other errors during processing (including
+filtered events, invalid payloads and rate limits).</p>
 <h3 id="eventsoutcomes"><code>events.outcomes</code></h3>
 <p><strong>Note</strong>: This metric is emitted only when Relay is built with the <code>processing</code> feature.</p>
-<p>The metric is referred in code as: <code>RelayCounters::EventOutcomes</code>.</p>
-<p>Represents a group of counters, implemented with using tags. The following tags are
-present for each event outcome:</p>
+<p>The metric is referred in code as: <code>RelayCounters::Outcomes</code>.</p>
+<p>Represents a group of counters incremented for every outcome emitted by Relay, implemented
+with tags. The following tags are present for each event outcome:</p>
 <ul>
-<li><code>outcome</code> which is an <code>EventOutcome</code> enumeration</li>
+<li><code>outcome</code> which is an <code>Outcome</code> enumeration</li>
 <li><code>reason</code> which is the reason string for all outcomes that are not <code>Accepted</code>.</li>
 </ul>
 <h3 id="project_stateget"><code>project_state.get</code></h3>
@@ -1262,10 +1265,10 @@ are counted. Once the ProjectId is successfully cached it will be retained indef
 This can be used to track unwanted restarts due to crashes or termination.</p>
 <h3 id="processingeventproduced"><code>processing.event.produced</code></h3>
 <p><strong>Note</strong>: This metric is emitted only when Relay is built with the <code>processing</code> feature.</p>
-<p>The metric is referred in code as: <code>RelayCounters::ProcessingEventProduced</code>.</p>
-<p>Counts the number of messages placed on the Kafka queue. When Relay operates with processing
-enabled and a message is successfully processed each message will generate an event on the
-Kafka queue and zero or more attachments. The counter has an  <code>event_type</code> tag which is set to
+<p>The metric is referred in code as: <code>RelayCounters::ProcessingMessageProduced</code>.</p>
+<p>Counts the number of messages placed on the Kafka queue.</p>
+<p>When Relay operates with processing enabled and an item is successfully processed, each item
+will generate a message on the Kafka. The counter has an <code>event_type</code> tag which is set to
 either <code>event</code> or <code>attachment</code> representing the type of message produced on the Kafka queue.</p>
 <h3 id="eventprotocol"><code>event.protocol</code></h3>
 <p>The metric is referred in code as: <code>RelayCounters::EventProtocol</code>.</p>

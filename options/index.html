@@ -711,6 +711,12 @@
 <p><code>metrics.prefix</code></p>
 <p>: <em>string, default: <code>sentry.relay</code></em></p>
 <p>The prefix that should be added to all metrics.</p>
+<p><code>metrics.default_tags</code></p>
+<p>: <em>object of strings, default empty</em></p>
+<p>A set of default tags that should be attached to all outgoing statsd metrics.</p>
+<p><code>metrics.hostname_tag</code></p>
+<p>: <em>string, optional</em></p>
+<p>If set, report the current hostname under the given tag name for all metrics.</p>
 <h2 id="internal-error-reporting">Internal Error Reporting</h2>
 <p>Configures error reporting for errors happening within Sentry. Disabled by
 default.</p>
