@@ -2384,6 +2384,7 @@ dependencies = [
  "env_logger",
  "failure",
  "futures",
+ "hostname",
  "lazy_static",
  "log",
  "openssl-probe",

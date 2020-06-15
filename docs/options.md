@@ -229,6 +229,18 @@ Controls various HTTP-related limits.  All values are human-readable strings of 
 
   The prefix that should be added to all metrics.
 
+`metrics.default_tags`
+
+: *object of strings, default empty*
+
+  A set of default tags that should be attached to all outgoing statsd metrics.
+
+`metrics.hostname_tag`
+
+: *string, optional*
+
+  If set, report the current hostname under the given tag name for all metrics.
+
 ## Internal Error Reporting
 
 Configures error reporting for errors happening within Sentry. Disabled by
