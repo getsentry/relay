@@ -17,6 +17,7 @@ jobs:
           with:
             token: ${{ secrets.GH_SENTRY_BOT_PAT }}
         - uses: getsentry/craft@master
+          if: ${{ !github.event.client_payload.skip_prepare }}
           with:
             action: prepare
             version: ${{ github.event.client_payload.version || steps.calver.outputs.version }}
