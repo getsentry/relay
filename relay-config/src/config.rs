@@ -1150,11 +1150,7 @@ impl Config {
 
     /// Returns the name of the hostname tag that should be attached to each outgoing metric.
     pub fn metrics_hostname_tag(&self) -> Option<&str> {
-        self.values
-            .metrics
-            .hostname_tag
-            .as_ref()
-            .map(String::as_str)
+        self.values.metrics.hostname_tag.as_deref()
     }
 
     /// Returns the default timeout for all upstream HTTP requests.
