@@ -10,7 +10,7 @@ NEW_VERSION="${2}"
 echo "Current version: ${OLD_VERSION}"
 echo "Bumping version: ${NEW_VERSION}"
 
-VERSION_RE=${VERSION//\./\\.}
+VERSION_RE=${OLD_VERSION//\./\\.}
 find . -name Cargo.toml -not -path './relay-cabi/*' -exec sed -i '' -e "1,/^version/ s/^version.*/version = \"${NEW_VERSION}\"/" {} \;
 
 cargo update -p relay
