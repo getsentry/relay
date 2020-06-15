@@ -383,8 +383,9 @@ declare_builtin_rules! {
 mod tests {
     use std::collections::BTreeMap;
 
-    use crate::pii::config::PiiConfig;
+    use crate::pii::config::{PiiConfig, RuleSpec, RuleType};
     use crate::pii::processor::PiiProcessor;
+    use crate::pii::{HashRedaction, MaskRedaction, Redaction, ReplaceRedaction};
     use crate::processor::{process_value, ProcessingState, ValueType};
     use crate::types::{Annotated, Remark, RemarkType};
 
@@ -425,6 +426,65 @@ mod tests {
         }};
     }
 
+    macro_rules! assert_custom_rulespec {
+        (
+            rule = $rule:expr; input = $input:expr; output = $output:expr; remarks = $remarks:expr;
+        ) => {{
+            let mut chunks = $rule[1..].split(':');
+            let a = chunks.next().unwrap();
+            let b = chunks.next().unwrap();
+
+            let config2 = PiiConfig {
+                rules: {
+                    let mut map = BTreeMap::new();
+                    map.insert(
+                        "0".to_owned(),
+                        RuleSpec {
+                            ty: match a {
+                                "ip" => RuleType::Ip,
+                                "email" => RuleType::Email,
+                                "creditcard" => RuleType::Creditcard,
+                                "mac" => RuleType::Mac,
+                                "uuid" => RuleType::Uuid,
+                                "imei" => RuleType::Imei,
+                                _ => panic!("Unknown RuleType"),
+                            },
+                            redaction: match b {
+                                "remove" => Redaction::Remove,
+                                "replace" => Redaction::Replace(ReplaceRedaction::default()),
+                                "mask" => Redaction::Mask(MaskRedaction::default()),
+                                "hash" => Redaction::Hash(HashRedaction::default()),
+                                _ => panic!("Unknown redaction method"),
+                            },
+                        },
+                    );
+                    map
+                },
+                applications: {
+                    let mut map = BTreeMap::new();
+                    map.insert(ValueType::String.into(), vec!["0".to_owned()]);
+                    map
+                },
+                ..Default::default()
+            };
+
+            let input = $input.to_string();
+            let compiled = config2.compiled();
+            let mut processor = PiiProcessor::new(&compiled);
+            let mut root = Annotated::new(FreeformRoot {
+                value: Annotated::new(input),
+            });
+            process_value(&mut root, &mut processor, ProcessingState::root()).unwrap();
+            let root = root.0.unwrap();
+            assert_eq_str!(root.value.value().unwrap(), $output);
+            let remarks: Vec<Remark> = $remarks;
+            assert_eq_dbg!(
+                root.value.meta().iter_remarks().collect::<Vec<_>>(),
+                remarks.iter().collect::<Vec<_>>()
+            );
+        }};
+    }
+
     #[test]
     fn test_ipv4() {
         assert_text_rule!(
@@ -443,12 +503,28 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@ip:replace", (7, 11)),
             ];
         );
+        assert_custom_rulespec!(
+            rule = "@ip:replace";
+            input = "before 127.0.0.1 after";
+            output = "before [Filtered] after";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "0", (7, 17)),
+            ];
+        );
         assert_text_rule!(
             rule = "@ip:hash";
             input = "before 127.0.0.1 after";
             output = "before AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741 after";
             remarks = vec![
                 Remark::with_range(RemarkType::Pseudonymized, "@ip:hash", (7, 47)),
+            ];
+        );
+        assert_custom_rulespec!(
+            rule = "@ip:hash";
+            input = "before 127.0.0.1 after";
+            output = "before AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741 after";
+            remarks = vec![
+                Remark::with_range(RemarkType::Pseudonymized, "0", (7, 47)),
             ];
         );
     }
@@ -471,12 +547,28 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@ip:replace", (1, 5)),
             ];
         );
+        assert_custom_rulespec!(
+            rule = "@ip:replace";
+            input = "[2001:0db8:85a3:0000:0000:8a2e:0370:7334]";
+            output = "[[Filtered]]";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "0", (1, 11)),
+            ];
+        );
         assert_text_rule!(
             rule = "@ip:hash";
             input = "before 2001:0db8:85a3:0000:0000:8a2e:0370:7334 after";
             output = "before 8C3DC9BEED9ADE493670547E24E4E45EDE69FF03 after";
             remarks = vec![
                 Remark::with_range(RemarkType::Pseudonymized, "@ip:hash", (7, 47)),
+            ];
+        );
+        assert_custom_rulespec!(
+            rule = "@ip:hash";
+            input = "before 2001:0db8:85a3:0000:0000:8a2e:0370:7334 after";
+            output = "before 8C3DC9BEED9ADE493670547E24E4E45EDE69FF03 after";
+            remarks = vec![
+                Remark::with_range(RemarkType::Pseudonymized, "0", (7, 47)),
             ];
         );
         assert_text_rule!(
@@ -505,12 +597,28 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@imei:replace", (7, 13)),
             ];
         );
+        assert_custom_rulespec!(
+            rule = "@imei:replace";
+            input = "before 356938035643809 after";
+            output = "before [Filtered] after";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "0", (7, 17)),
+            ];
+        );
         assert_text_rule!(
             rule = "@imei:hash";
             input = "before 356938035643809 after";
             output = "before 3888108AA99417402969D0B47A2CA4ECD2A1AAD3 after";
             remarks = vec![
                 Remark::with_range(RemarkType::Pseudonymized, "@imei:hash", (7, 47)),
+            ];
+        );
+        assert_custom_rulespec!(
+            rule = "@imei:hash";
+            input = "before 356938035643809 after";
+            output = "before 3888108AA99417402969D0B47A2CA4ECD2A1AAD3 after";
+            remarks = vec![
+                Remark::with_range(RemarkType::Pseudonymized, "0", (7, 47)),
             ];
         );
     }
@@ -533,6 +641,14 @@ mod tests {
                 Remark::with_range(RemarkType::Masked, "@mac:mask", (6, 23)),
             ];
         );
+        assert_custom_rulespec!(
+            rule = "@mac:mask";
+            input = "ether 4a:00:04:10:9b:50";
+            output = "ether *****************";
+            remarks = vec![
+                Remark::with_range(RemarkType::Masked, "0", (6, 23)),
+            ];
+        );
         assert_text_rule!(
             rule = "@mac:replace";
             input = "ether 4a:00:04:10:9b:50";
@@ -541,12 +657,28 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@mac:replace", (6, 11)),
             ];
         );
+        assert_custom_rulespec!(
+            rule = "@mac:replace";
+            input = "ether 4a:00:04:10:9b:50";
+            output = "ether [Filtered]";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "0", (6, 16)),
+            ];
+        );
         assert_text_rule!(
             rule = "@mac:hash";
             input = "ether 4a:00:04:10:9b:50";
             output = "ether 6220F3EE59BF56B32C98323D7DE43286AAF1F8F1";
             remarks = vec![
                 Remark::with_range(RemarkType::Pseudonymized, "@mac:hash", (6, 46)),
+            ];
+        );
+        assert_custom_rulespec!(
+            rule = "@mac:hash";
+            input = "ether 4a:00:04:10:9b:50";
+            output = "ether 6220F3EE59BF56B32C98323D7DE43286AAF1F8F1";
+            remarks = vec![
+                Remark::with_range(RemarkType::Pseudonymized, "0", (6, 46)),
             ];
         );
     }
@@ -569,6 +701,14 @@ mod tests {
                 Remark::with_range(RemarkType::Masked, "@uuid:mask", (8, 44)),
             ];
         );
+        assert_custom_rulespec!(
+            rule = "@uuid:mask";
+            input = "user id ceee0822-ed8f-4622-b2a3-789e73e75cd1";
+            output = "user id ************************************";
+            remarks = vec![
+                Remark::with_range(RemarkType::Masked, "0", (8, 44)),
+            ];
+        );
         assert_text_rule!(
             rule = "@uuid:hash";
             input = "user id ceee0822-ed8f-4622-b2a3-789e73e75cd1";
@@ -577,12 +717,28 @@ mod tests {
                 Remark::with_range(RemarkType::Pseudonymized, "@uuid:hash", (8, 48)),
             ];
         );
+        assert_custom_rulespec!(
+            rule = "@uuid:hash";
+            input = "user id ceee0822-ed8f-4622-b2a3-789e73e75cd1";
+            output = "user id EBFA4DBDAA4A619F10B6DE2ABB630DE0122F5CDB";
+            remarks = vec![
+                Remark::with_range(RemarkType::Pseudonymized, "0", (8, 48)),
+            ];
+        );
         assert_text_rule!(
             rule = "@uuid:replace";
             input = "user id ceee0822-ed8f-4622-b2a3-789e73e75cd1";
             output = "user id [uuid]";
             remarks = vec![
                 Remark::with_range(RemarkType::Substituted, "@uuid:replace", (8, 14)),
+            ];
+        );
+        assert_custom_rulespec!(
+            rule = "@uuid:replace";
+            input = "user id ceee0822-ed8f-4622-b2a3-789e73e75cd1";
+            output = "user id [Filtered]";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "0", (8, 18)),
             ];
         );
     }
@@ -605,6 +761,14 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@email:replace", (16, 23)),
             ];
         );
+        assert_custom_rulespec!(
+            rule = "@email:replace";
+            input = "John Appleseed <john@appleseed.com>";
+            output = "John Appleseed <[Filtered]>";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "0", (16, 26)),
+            ];
+        );
         assert_text_rule!(
             rule = "@email:mask";
             input = "John Appleseed <john@appleseed.com>";
@@ -613,12 +777,28 @@ mod tests {
                 Remark::with_range(RemarkType::Masked, "@email:mask", (16, 34)),
             ];
         );
+        assert_custom_rulespec!(
+            rule = "@email:mask";
+            input = "John Appleseed <john@appleseed.com>";
+            output = "John Appleseed <******************>";
+            remarks = vec![
+                Remark::with_range(RemarkType::Masked, "0", (16, 34)),
+            ];
+        );
         assert_text_rule!(
             rule = "@email:hash";
             input = "John Appleseed <john@appleseed.com>";
             output = "John Appleseed <33835528AC0FFF1B46D167C35FEAAA6F08FD3F46>";
             remarks = vec![
                 Remark::with_range(RemarkType::Pseudonymized, "@email:hash", (16, 56)),
+            ];
+        );
+        assert_custom_rulespec!(
+            rule = "@email:hash";
+            input = "John Appleseed <john@appleseed.com>";
+            output = "John Appleseed <33835528AC0FFF1B46D167C35FEAAA6F08FD3F46>";
+            remarks = vec![
+                Remark::with_range(RemarkType::Pseudonymized, "0", (16, 56)),
             ];
         );
     }
@@ -642,17 +822,17 @@ mod tests {
             ];
         );
         assert_text_rule!(
-            rule = "@creditcard";
-            input = "John Appleseed 4571-2345-6789-0111!";
-            output = "John Appleseed [creditcard]!";
-            remarks = vec![
-                Remark::with_range(RemarkType::Substituted, "@creditcard", (15, 27)),
-            ];
-        );
-        assert_text_rule!(
             rule = "@creditcard:mask";
             input = "John Appleseed 4571234567890111!";
             output = "John Appleseed ************0111!";
+            remarks = vec![
+                Remark::with_range(RemarkType::Masked, "@creditcard:mask", (15, 31)),
+            ];
+        );
+        assert_custom_rulespec!(
+            rule = "@creditcard:mask";
+            input = "John Appleseed 4571234567890111!";
+            output = "John Appleseed ****************!";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@creditcard:mask", (15, 31)),
             ];
@@ -665,7 +845,23 @@ mod tests {
                 Remark::with_range(RemarkType::Substituted, "@creditcard:replace", (15, 27)),
             ];
         );
+        assert_custom_rulespec!(
+            rule = "@creditcard:replace";
+            input = "John Appleseed 4571234567890111!";
+            output = "John Appleseed [creditcard]!";
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@creditcard:replace", (15, 27)),
+            ];
+        );
         assert_text_rule!(
+            rule = "@creditcard:hash";
+            input = "John Appleseed 4571234567890111!";
+            output = "John Appleseed 68C796A9ED3FB51BF850A11140FCADD8E2D88466!";
+            remarks = vec![
+                Remark::with_range(RemarkType::Pseudonymized, "@creditcard:hash", (15, 55)),
+            ];
+        );
+        assert_custom_rulespec!(
             rule = "@creditcard:hash";
             input = "John Appleseed 4571234567890111!";
             output = "John Appleseed 68C796A9ED3FB51BF850A11140FCADD8E2D88466!";
