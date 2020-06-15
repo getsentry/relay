@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 20.6.0
 
 We have switched to [CalVer](https://calver.org/)! Relay's version is always in line with the latest version of [Sentry](https://github.com/getsentry/sentry).
 
