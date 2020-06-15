@@ -1,9 +1,11 @@
 ---
-minVersion: "0.9.6"
+minVersion: "0.10.0"
 github:
   owner: getsentry
   repo: relay
-changelogPolicy: simple
+changelogPolicy: auto
+statusProvider:
+  name: github
 
 targets:
   - name: github
@@ -24,6 +26,9 @@ targets:
       - path: /relay/latest/
         metadata:
           cacheControl: "public, max-age=600"
+  - name: docker
+    source: us.gcr.io/sentryio/relay
+    target: getsentry/relay
 
 requireNames:
   - /^gh-pages.zip$/
