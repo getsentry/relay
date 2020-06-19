@@ -129,10 +129,8 @@ pub enum RuleType {
     /// A PEM encoded key
     Pemkey,
     /// Auth info from URLs
-    #[serde(alias = "urlauth")]
     UrlAuth,
     /// US SSN.
-    #[serde(alias = "usssn")]
     UsSsn,
     /// Keys that look like passwords
     Password,
