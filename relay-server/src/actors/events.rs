@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use actix::prelude::*;
-use chrono::Utc;
+use chrono::{DateTime, Duration, Utc};
 use failure::Fail;
 use futures::prelude::*;
 use parking_lot::RwLock;
@@ -17,8 +17,9 @@ use relay_general::pii::PiiProcessor;
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, LenientString,
-    Metrics, SecurityReportType, Values,
+    Metrics, SecurityReportType, SessionUpdate, Values,
 };
+use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
@@ -532,10 +533,9 @@ impl EventProcessor {
         &self,
         event: &mut Annotated<Event>,
         envelope: &Envelope,
-        start_time: Instant,
+        received_at: DateTime<Utc>,
     ) -> Result<(), ProcessingError> {
         let sent_at = envelope.sent_at();
-        let received_at = relay_common::instant_to_date_time(start_time);
         let mut processor = relay_general::store::ClockDriftProcessor::new(sent_at, received_at);
 
         process_value(event, &mut processor, ProcessingState::root())
@@ -550,7 +550,7 @@ impl EventProcessor {
         event: &mut Annotated<Event>,
         envelope: &Envelope,
         project_state: &ProjectState,
-        start_time: Instant,
+        received_at: DateTime<Utc>,
     ) -> Result<(), ProcessingError> {
         let geoip_lookup = self.geoip_lookup.as_deref();
         let key_id = project_state
@@ -576,7 +576,7 @@ impl EventProcessor {
             remove_other: Some(true),
             normalize_user_agent: Some(true),
             sent_at: envelope.sent_at(),
-            received_at: Some(relay_common::instant_to_date_time(start_time)),
+            received_at: Some(received_at),
         };
 
         let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
@@ -634,6 +634,88 @@ impl EventProcessor {
         }
     }
 
+    /// Validates all sessions in the envelope, if any.
+    ///
+    /// Sessions are removed from the envelope if they contain invalid JSON or if their timestamps
+    /// are out of range after clock drift correction.
+    fn process_sessions(&self, envelope: &mut Envelope, received: DateTime<Utc>) {
+        let project_id = envelope.meta().project_id().value();
+        let clock_drift_processor = ClockDriftProcessor::new(envelope.sent_at(), received);
+        let client = envelope.meta().client().map(str::to_owned);
+
+        envelope.retain_items(|item| {
+            if item.ty() != ItemType::Session {
+                return true;
+            }
+
+            let mut changed = false;
+            let payload = item.payload();
+
+            let mut session = match SessionUpdate::parse(&payload) {
+                Ok(session) => session,
+                Err(error) => {
+                    return sentry::with_scope(
+                        |scope| {
+                            scope.set_tag("project", project_id);
+                            if let Some(ref client) = client {
+                                scope.set_tag("sdk", client);
+                            }
+                            scope.set_extra("session", String::from_utf8_lossy(&payload).into());
+                        },
+                        || {
+                            // Skip gracefully here to allow sending other sessions.
+                            log::error!("failed to store session: {}", LogError(&error));
+                            false
+                        },
+                    );
+                }
+            };
+
+            if session.sequence == u64::max_value() {
+                log::trace!("skipping session due to sequence overflow");
+                return false;
+            }
+
+            if clock_drift_processor.is_drifted() {
+                log::trace!("applying clock drift correction to session");
+                clock_drift_processor.process_session(&mut session);
+                changed = true;
+            }
+
+            if session.timestamp < session.started {
+                log::trace!("fixing session timestamp to {}", session.timestamp);
+                session.timestamp = session.started;
+                changed = true;
+            }
+
+            let max_age = Duration::seconds(self.config.max_session_secs_in_past());
+            if (received - session.started) > max_age || (received - session.timestamp) > max_age {
+                log::trace!("skipping session older than {} days", max_age.num_days());
+                return false;
+            }
+
+            let max_future = Duration::seconds(self.config.max_secs_in_future());
+            if (session.started - received) > max_age || (session.timestamp - received) > max_age {
+                log::trace!(
+                    "skipping session more than {}s in the future",
+                    max_future.num_seconds()
+                );
+                return false;
+            }
+
+            if changed {
+                let json_string = match serde_json::to_string(&session) {
+                    Ok(json) => json,
+                    Err(_) => return false,
+                };
+
+                item.set_payload(ContentType::Json, json_string);
+            }
+
+            true
+        });
+    }
+
     fn process(
         &self,
         message: ProcessEnvelope,
@@ -658,6 +740,9 @@ impl EventProcessor {
         if let Some(retention) = project_state.config.event_retention {
             envelope.set_retention(retention);
         }
+
+        let received_at = relay_common::instant_to_date_time(start_time);
+        self.process_sessions(&mut envelope, received_at);
 
         // Fast path for envelopes without event items or items that can create events. Such
         // envelopes only require rate limiting in processing mode and can be passed through without
@@ -762,11 +847,11 @@ impl EventProcessor {
         }
 
         if !self.config.processing_enabled() {
-            self.fast_process_event(&mut event, &envelope, start_time)?;
+            self.fast_process_event(&mut event, &envelope, received_at)?;
         }
         // else
         if_processing!({
-            self.store_process_event(&mut event, &envelope, &project_state, start_time)?;
+            self.store_process_event(&mut event, &envelope, &project_state, received_at)?;
 
             if let Some(event) = event.value_mut() {
                 event_type = event.ty.value().copied();

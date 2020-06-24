@@ -652,6 +652,10 @@ fn default_max_secs_in_past() -> u32 {
     30 * 24 * 3600 // 30 days
 }
 
+fn default_max_session_secs_in_past() -> u32 {
+    5 * 24 * 3600 // 5 days
+}
+
 fn default_chunk_size() -> ByteSize {
     ByteSize::from_megabytes(1)
 }
@@ -678,6 +682,9 @@ pub struct Processing {
     /// Maximum age of ingested events. Older events will be adjusted to `now()`.
     #[serde(default = "default_max_secs_in_past")]
     pub max_secs_in_past: u32,
+    /// Maximum age of ingested sessions. Older sessions will be dropped.
+    #[serde(default = "default_max_session_secs_in_past")]
+    pub max_session_secs_in_past: u32,
     /// Kafka producer configurations.
     pub kafka_config: Vec<KafkaConfigParam>,
     /// Kafka topic names.
@@ -705,6 +712,7 @@ impl Default for Processing {
             geoip_path: None,
             max_secs_in_future: 0,
             max_secs_in_past: 0,
+            max_session_secs_in_past: 0,
             kafka_config: Vec::new(),
             topics: TopicNames::default(),
             redis: None,
@@ -1322,7 +1330,9 @@ impl Config {
         self.values.processing.geoip_path.as_deref()
     }
 
-    /// Maximum future timestamp of ingested events.
+    /// Maximum future timestamp of ingested data.
+    ///
+    /// Events past this timestamp will be adjusted to `now()`. Sessions will be dropped.
     pub fn max_secs_in_future(&self) -> i64 {
         self.values.processing.max_secs_in_future.into()
     }
@@ -1330,6 +1340,11 @@ impl Config {
     /// Maximum age of ingested events. Older events will be adjusted to `now()`.
     pub fn max_secs_in_past(&self) -> i64 {
         self.values.processing.max_secs_in_past.into()
+    }
+
+    /// Maximum age of ingested sessions. Older sessions will be dropped.
+    pub fn max_session_secs_in_past(&self) -> i64 {
+        self.values.processing.max_session_secs_in_past.into()
     }
 
     /// The list of Kafka configuration parameters.
