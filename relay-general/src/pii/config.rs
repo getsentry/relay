@@ -105,7 +105,7 @@ pub struct RedactPairRule {
 }
 
 /// Supported stripping rules.
-#[derive(Serialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RuleType {
     /// Matches any value.
@@ -135,58 +135,12 @@ pub enum RuleType {
     /// Keys that look like passwords
     Password,
     /// When a regex matches a key, a value is removed
+    #[serde(alias = "redactPair")]
     RedactPair(RedactPairRule),
     /// Applies multiple rules.
     Multiple(MultipleRule),
     /// Applies another rule.  Works like a single multiple.
     Alias(AliasRule),
-}
-
-impl<'de> Deserialize<'de> for RuleType {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        #[derive(Deserialize)]
-        #[serde(tag = "type", rename_all = "snake_case")]
-        enum RuleTypeWithLegacy {
-            Anything,
-            Pattern(PatternRule),
-            Imei,
-            Mac,
-            Uuid,
-            Email,
-            Ip,
-            Creditcard,
-            Userpath,
-            Pemkey,
-            UrlAuth,
-            UsSsn,
-            Password,
-            RedactPair(RedactPairRule),
-            #[serde(rename = "redactPair")]
-            RedactPairLegacy(RedactPairRule),
-            Multiple(MultipleRule),
-            Alias(AliasRule),
-        }
-
-        Ok(match RuleTypeWithLegacy::deserialize(deserializer)? {
-            RuleTypeWithLegacy::Anything => RuleType::Anything,
-            RuleTypeWithLegacy::Pattern(r) => RuleType::Pattern(r),
-            RuleTypeWithLegacy::Imei => RuleType::Imei,
-            RuleTypeWithLegacy::Mac => RuleType::Mac,
-            RuleTypeWithLegacy::Uuid => RuleType::Uuid,
-            RuleTypeWithLegacy::Email => RuleType::Email,
-            RuleTypeWithLegacy::Ip => RuleType::Ip,
-            RuleTypeWithLegacy::Creditcard => RuleType::Creditcard,
-            RuleTypeWithLegacy::Userpath => RuleType::Userpath,
-            RuleTypeWithLegacy::Pemkey => RuleType::Pemkey,
-            RuleTypeWithLegacy::UrlAuth => RuleType::UrlAuth,
-            RuleTypeWithLegacy::UsSsn => RuleType::UsSsn,
-            RuleTypeWithLegacy::RedactPair(r) => RuleType::RedactPair(r),
-            RuleTypeWithLegacy::Password => RuleType::Password,
-            RuleTypeWithLegacy::RedactPairLegacy(r) => RuleType::RedactPair(r),
-            RuleTypeWithLegacy::Multiple(r) => RuleType::Multiple(r),
-            RuleTypeWithLegacy::Alias(r) => RuleType::Alias(r),
-        })
-    }
 }
 
 /// A single rule configuration.
