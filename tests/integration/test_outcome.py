@@ -93,7 +93,7 @@ def test_outcomes_non_processing(relay, relay_with_processing, mini_sentry):
     with all necessary information set.
     """
     config = {
-        "outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1, }
+        "outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1,}
     }
 
     relay = relay(mini_sentry, config)
@@ -135,7 +135,7 @@ def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
     when we disable outcomes.
     """
     config = {
-        "outcomes": {"emit_outcomes": False, "batch_size": 1, "batch_interval": 1, }
+        "outcomes": {"emit_outcomes": False, "batch_size": 1, "batch_interval": 1,}
     }
 
     relay = relay(mini_sentry, config)
