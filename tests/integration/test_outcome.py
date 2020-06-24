@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import datetime
 import json
 import uuid
@@ -9,6 +10,12 @@ HOUR_MILLISEC = 1000 * 3600
 
 
 def test_outcomes_processing(relay_with_processing, kafka_consumer, mini_sentry):
+    """
+    Tests outcomes are sent to the kafka outcome topic
+
+    Send one event to a processing Relay and verify that the event is placed on the
+    kafka outcomes topic and the event has the proper information.
+    """
     relay = relay_with_processing()
     relay.wait_relay_healthcheck()
     outcomes = kafka_consumer("outcomes")
@@ -80,6 +87,7 @@ def _send_event(relay):
 def test_outcomes_non_processing(relay, relay_with_processing, mini_sentry):
     """
     Test basic outcome functionality.
+
     Send one event that generates an outcome and verify that we get an outcomes batch
     with all necessary information set.
     """
@@ -120,6 +128,8 @@ def test_outcomes_non_processing(relay, relay_with_processing, mini_sentry):
 
 def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
     """
+    Test that no outcomes are sent when outcomes are disabled.
+
     Set batching to a very short interval and verify that we don't receive any outcome
     when we disable outcomes.
     """
@@ -181,6 +191,7 @@ def test_outcomes_non_processing_max_batch_time(relay, mini_sentry):
 def test_outcomes_non_processing_batching(relay, mini_sentry):
     """
     Test that outcomes are batched according to max size.
+
     Send max_outcome_batch_size events with a very large max_batch_time and expect all
     to come in one batch.
     """
@@ -276,3 +287,94 @@ def test_outcome_source(relay, mini_sentry):
     outcome = outcomes[0]
 
     assert outcome.get("source") == "my-layer"
+
+
+def test_outcome_forwarding(relay, mini_sentry):
+    """
+    Tests that Relay forwards outcomes from downstream relays
+
+    Have a chain of two trusted relays that connect to Sentry (both non
+    processing, to make the test faster) and verify that the outcomes sent by
+    the first (downstream relay) are properly forwarded by the upstream relay
+    to sentry.
+    """
+    config_upstream = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "source": "upstream-layer",
+        }
+    }
+    upstream_relay = relay(mini_sentry, config_upstream)
+
+    config_downstream = deepcopy(config_upstream)
+    config_downstream["outcomes"]["source"] = "downstream-layer"
+
+    downstream_relay = relay(upstream_relay, config_downstream)
+    downstream_relay.wait_relay_healthcheck()
+
+    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
+    mini_sentry.project_configs[42] = None
+
+    event_id = _send_event(downstream_relay)
+
+    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
+    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
+
+    outcomes = outcomes_batch.get("outcomes")
+    assert len(outcomes) == 1
+
+    outcome = outcomes[0]
+
+    assert outcome.get("source") == "downstream-layer"
+    assert outcome.get("event_id") == event_id
+
+
+def test_deep_chain_outcome_forwarding(relay, mini_sentry):
+    """
+    Tests that Relay forwards outcomes from a deep chain of relays
+
+    Have a chain of many relays that eventually connect to Sentry
+    and verify that the outcomes sent by  the first (downstream relay)
+    are properly forwarded up to sentry.
+    """
+    num_intermediate_relays = 4
+
+    config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "source": "intermediate-layer",
+        }
+    }
+
+    upstream = mini_sentry
+    # build a chain of identical relays
+    for i in range(num_intermediate_relays):
+        intermediate_relay = relay(upstream, config)
+        upstream = intermediate_relay
+
+    # mark the downstream relay so we can identify outcomes originating from it
+    config_downstream = deepcopy(config)
+    config_downstream["outcomes"]["source"] = "downstream-layer"
+
+    downstream_relay = relay(upstream, config_downstream)
+    downstream_relay.wait_relay_healthcheck()
+
+    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
+    mini_sentry.project_configs[42] = None
+
+    event_id = _send_event(downstream_relay)
+
+    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
+    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
+
+    outcomes = outcomes_batch.get("outcomes")
+    assert len(outcomes) == 1
+
+    outcome = outcomes[0]
+
+    assert outcome.get("source") == "downstream-layer"
+    assert outcome.get("event_id") == event_id

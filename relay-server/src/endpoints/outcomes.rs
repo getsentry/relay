@@ -15,7 +15,7 @@ fn send_outcomes(state: CurrentServiceState, body: SignedJson<SendOutcomes>) -> 
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    app.resource("/api/0/relays/outcomes", |r| {
+    app.resource("/api/0/relays/outcomes/", |r| {
         r.name("relay-outcomes");
         r.post().with(send_outcomes);
     })
