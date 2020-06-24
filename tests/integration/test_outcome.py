@@ -4,6 +4,7 @@ import json
 import uuid
 from queue import Empty
 
+import pytest
 import time
 
 HOUR_MILLISEC = 1000 * 3600
@@ -92,7 +93,7 @@ def test_outcomes_non_processing(relay, relay_with_processing, mini_sentry):
     with all necessary information set.
     """
     config = {
-        "outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1,}
+        "outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1, }
     }
 
     relay = relay(mini_sentry, config)
@@ -134,7 +135,7 @@ def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
     when we disable outcomes.
     """
     config = {
-        "outcomes": {"emit_outcomes": False, "batch_size": 1, "batch_interval": 1,}
+        "outcomes": {"emit_outcomes": False, "batch_size": 1, "batch_interval": 1, }
     }
 
     relay = relay(mini_sentry, config)
@@ -289,57 +290,15 @@ def test_outcome_source(relay, mini_sentry):
     assert outcome.get("source") == "my-layer"
 
 
-def test_outcome_forwarding(relay, mini_sentry):
+@pytest.mark.parametrize("num_intermediate_relays", [1, 4])
+def test_outcome_forwarding(relay, mini_sentry, num_intermediate_relays):
     """
-    Tests that Relay forwards outcomes from downstream relays
-
-    Have a chain of two trusted relays that connect to Sentry (both non
-    processing, to make the test faster) and verify that the outcomes sent by
-    the first (downstream relay) are properly forwarded by the upstream relay
-    to sentry.
-    """
-    config_upstream = {
-        "outcomes": {
-            "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-            "source": "upstream-layer",
-        }
-    }
-    upstream_relay = relay(mini_sentry, config_upstream)
-
-    config_downstream = deepcopy(config_upstream)
-    config_downstream["outcomes"]["source"] = "downstream-layer"
-
-    downstream_relay = relay(upstream_relay, config_downstream)
-    downstream_relay.wait_relay_healthcheck()
-
-    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
-    mini_sentry.project_configs[42] = None
-
-    event_id = _send_event(downstream_relay)
-
-    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
-    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
-
-    outcomes = outcomes_batch.get("outcomes")
-    assert len(outcomes) == 1
-
-    outcome = outcomes[0]
-
-    assert outcome.get("source") == "downstream-layer"
-    assert outcome.get("event_id") == event_id
-
-
-def test_deep_chain_outcome_forwarding(relay, mini_sentry):
-    """
-    Tests that Relay forwards outcomes from a deep chain of relays
+    Tests that Relay forwards outcomes from a chain of relays
 
     Have a chain of many relays that eventually connect to Sentry
     and verify that the outcomes sent by  the first (downstream relay)
     are properly forwarded up to sentry.
     """
-    num_intermediate_relays = 4
 
     config = {
         "outcomes": {
