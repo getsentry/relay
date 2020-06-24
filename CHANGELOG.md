@@ -19,6 +19,7 @@ We have switched to [CalVer](https://calver.org/)! Relay's version is always in 
 - Respond with `403 Forbidden` when multiple authentication payloads are sent by the SDK. Previously, Relay would authenticate using one of the payloads and silently ignore the rest. ([#602](https://github.com/getsentry/relay/pull/602))
 - Improve metrics documentation. ([#614](https://github.com/getsentry/relay/pull/614))
 - Do not scrub event processing errors by default. ([#619](https://github.com/getsentry/relay/pull/619))
+- Outcomes from downstream relays were not forwarded upstream. ([#632](https://github.com/getsentry/relay/pull/632))
 
 **Internal**:
 
