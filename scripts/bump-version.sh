@@ -15,3 +15,4 @@ find . -name Cargo.toml -not -path './relay-cabi/*' -exec sed -i.bak -e "1,/^ver
 find . -name Cargo.toml.bak -exec rm {} \;
 
 cargo update -p relay
+cargo update -p relay-common --manifest-path ./relay-cabi/Cargo.toml
