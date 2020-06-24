@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+**Bug Fixes**:
+- Outcomes from downstream relays were not forwarded upstream. ([#632](https://github.com/getsentry/relay/pull/632))
+
+**Internal**:
+
 ## 20.6.0
 
 We have switched to [CalVer](https://calver.org/)! Relay's version is always in line with the latest version of [Sentry](https://github.com/getsentry/sentry).
