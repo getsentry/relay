@@ -88,10 +88,6 @@ impl<'a> Processor for StoreProcessor<'a> {
         legacy::LegacyProcessor.process_event(event, meta, state)?;
 
         if !is_renormalize {
-            let received_at = self.config.received_at.unwrap_or_else(Utc::now);
-            clock_drift::ClockDriftProcessor::new(self.config.sent_at, received_at)
-                .process_event(event, meta, state)?;
-
             // internally noops for non-transaction events
             // TODO: Parts of this processor should probably be a filter once Relay is store so we
             // can revert some changes to ProcessingAction
