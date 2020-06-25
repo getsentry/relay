@@ -6,7 +6,6 @@ use std::time::Instant;
 
 use actix::prelude::*;
 use bytes::Bytes;
-use chrono::{Duration, Utc};
 use failure::{Fail, ResultExt};
 use rdkafka::error::KafkaError;
 use rdkafka::producer::{BaseRecord, DefaultProducerContext};
@@ -14,13 +13,12 @@ use rdkafka::ClientConfig;
 use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
 
-use relay_common::{metric, LogError, ProjectId, UnixTimestamp, Uuid};
+use relay_common::{metric, ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
 use relay_general::protocol::{EventId, SessionStatus, SessionUpdate};
 use relay_general::types;
 use relay_quotas::Scoping;
 
-use crate::constants::MAX_SESSION_DAYS;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::metrics::RelayCounters;
 use crate::service::{ServerError, ServerErrorKind};
@@ -151,43 +149,13 @@ impl StoreForwarder {
         &self,
         org_id: u64,
         project_id: ProjectId,
-        client: Option<&str>,
         event_retention: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
         let session = match SessionUpdate::parse(&item.payload()) {
             Ok(session) => session,
-            Err(error) => {
-                sentry::with_scope(
-                    |scope| {
-                        scope.set_tag("project", project_id);
-                        if let Some(client) = client {
-                            scope.set_tag("sdk", client);
-                        }
-                        let payload = item.payload();
-                        scope.set_extra("session", String::from_utf8_lossy(&payload).into());
-                    },
-                    || {
-                        // Skip gracefully here to allow sending other messages.
-                        log::error!("failed to store session: {}", LogError(&error));
-                    },
-                );
-
-                return Ok(());
-            }
+            Err(_) => return Ok(()),
         };
-
-        if session.sequence == u64::max_value() {
-            // TODO(ja): Move this to normalization eventually.
-            log::trace!("skipping session due to sequence overflow");
-            return Ok(());
-        }
-
-        let session_age = Utc::now() - session.started;
-        if session_age > Duration::days(MAX_SESSION_DAYS.into()) {
-            log::trace!("skipping session older than {} days", MAX_SESSION_DAYS);
-            return Ok(());
-        }
 
         let message = KafkaMessage::Session(SessionKafkaMessage {
             org_id,
@@ -461,7 +429,6 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                     self.produce_session(
                         scoping.organization_id,
                         scoping.project_id,
-                        envelope.meta().client(),
                         retention,
                         item,
                     )?;

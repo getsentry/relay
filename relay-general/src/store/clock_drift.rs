@@ -3,7 +3,7 @@ use std::fmt;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::protocol::Event;
+use crate::protocol::{Event, SessionUpdate};
 use crate::types::{Error, ErrorKind, Meta, ProcessingResult, Timestamp};
 
 /// The minimum clock drift for correction to apply.
@@ -91,6 +91,19 @@ impl ClockDriftProcessor {
         Self {
             received_at,
             correction,
+        }
+    }
+
+    /// Returns `true` if the clocks are significantly drifted.
+    pub fn is_drifted(&self) -> bool {
+        self.correction.is_some()
+    }
+
+    /// Processes the given session.
+    pub fn process_session(&self, session: &mut SessionUpdate) {
+        if let Some(correction) = self.correction {
+            session.timestamp = session.timestamp + correction.drift;
+            session.started = session.started + correction.drift;
         }
     }
 }

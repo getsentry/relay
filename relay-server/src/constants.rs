@@ -25,8 +25,3 @@ pub const UNREAL_USER_HEADER: &str = "unreal_user_id";
 /// The default retention for events if the server does not specify a value in project
 /// configurations.
 pub const DEFAULT_EVENT_RETENTION: u16 = 90;
-
-/// The maximum age of an ingested session in days. Session updates for sessions older than this
-/// will be discarded.
-#[cfg_attr(not(feature = "processing"), allow(dead_code))]
-pub const MAX_SESSION_DAYS: u8 = 5;

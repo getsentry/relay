@@ -2,12 +2,10 @@
 
 ## Unreleased
 
-**Features**:
-
 **Bug Fixes**:
-- Outcomes from downstream relays were not forwarded upstream. ([#632](https://github.com/getsentry/relay/pull/632))
 
-**Internal**:
+- Outcomes from downstream relays were not forwarded upstream. ([#632](https://github.com/getsentry/relay/pull/632))
+- Apply clock drift correction to Release Health sessions and validate timestamps. ([#633](https://github.com/getsentry/relay/pull/633))
 
 ## 20.6.0
 
