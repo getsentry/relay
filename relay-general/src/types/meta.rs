@@ -152,6 +152,9 @@ pub enum ErrorKind {
     ValueTooLong,
 
     /// The timestamp is too old.
+    /// XXX: This and FutureTimestamp is only used in minidump processing because we generate
+    /// timestamps for minidump events at a later point. Ideally we would use the same kind of
+    /// timestamp correction for minidumps.
     PastTimestamp,
 
     /// The timestamp lies in the future, likely due to clock drift.
