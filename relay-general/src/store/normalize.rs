@@ -15,7 +15,7 @@ use crate::protocol::{
     Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry, Request, SpanStatus,
     Stacktrace, Tags, TraceContext, User, INVALID_ENVIRONMENTS, INVALID_RELEASES, VALID_PLATFORMS,
 };
-use crate::store::{GeoIpLookup, StoreConfig};
+use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig};
 use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
     ProcessingResult, Value,
@@ -118,27 +118,40 @@ impl<'a> NormalizeProcessor<'a> {
     }
 
     /// Validates the timestamp range and sets a default value.
-    fn normalize_timestamps(&self, event: &mut Event) -> ProcessingResult {
+    fn normalize_timestamps(
+        &self,
+        event: &mut Event,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
         let received_at = self.config.received_at.unwrap_or_else(Utc::now);
         event.received = Annotated::new(received_at);
+
+        let mut sent_at = None;
 
         event.timestamp.apply(|timestamp, meta| {
             if let Some(secs) = self.config.max_secs_in_future {
                 if *timestamp > received_at + Duration::seconds(secs) {
                     meta.add_error(ErrorKind::FutureTimestamp);
-                    return Err(ProcessingAction::DeleteValueSoft);
+                    sent_at = Some(*timestamp);
+                    return Ok(());
                 }
             }
 
             if let Some(secs) = self.config.max_secs_in_past {
                 if *timestamp < received_at - Duration::seconds(secs) {
                     meta.add_error(ErrorKind::PastTimestamp);
-                    return Err(ProcessingAction::DeleteValueSoft);
+                    sent_at = Some(*timestamp);
+                    return Ok(());
                 }
             }
 
             Ok(())
         })?;
+
+        ClockDriftProcessor::new(sent_at, received_at)
+            .reason("Timestamp out of bounds.")
+            .process_event(event, meta, state)?;
 
         if event.timestamp.value().is_none() {
             event.timestamp.set_value(Some(received_at));
@@ -398,7 +411,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
     fn process_event(
         &mut self,
         event: &mut Event,
-        _meta: &mut Meta,
+        meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         // Process security reports first to ensure all props.
@@ -466,7 +479,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 
         // Normalize connected attributes and interfaces
         self.normalize_release_dist(event);
-        self.normalize_timestamps(event)?;
+        self.normalize_timestamps(event, meta, state)?;
         self.normalize_event_tags(event)?;
         self.normalize_exceptions(event)?;
         self.normalize_user_agent(event);
@@ -1474,6 +1487,61 @@ fn test_grouping_config() {
       "received": "[received]",
       "grouping_config": {
         "id": "legacy:1234-12-12",
+      },
+    }
+    "###);
+}
+
+#[test]
+fn test_future_timestamp() {
+    use crate::types::SerializableAnnotated;
+
+    use chrono::TimeZone;
+    use insta::assert_ron_snapshot;
+
+    let mut event = Annotated::new(Event {
+        timestamp: Annotated::new(Utc.ymd(2000, 1, 2).and_hms(0, 0, 0)),
+        ..Default::default()
+    });
+
+    let mut processor = NormalizeProcessor::new(
+        Arc::new(StoreConfig {
+            received_at: Some(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0)),
+            max_secs_in_past: Some(0),
+            max_secs_in_future: Some(0),
+            ..Default::default()
+        }),
+        None,
+    );
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+    assert_ron_snapshot!(SerializableAnnotated(&event), {
+        ".event_id" => "[event-id]",
+    }, @r###"
+    {
+      "event_id": "[event-id]",
+      "level": "error",
+      "type": "default",
+      "logger": "",
+      "platform": "other",
+      "timestamp": 946857600,
+      "received": 946944000,
+      "_meta": {
+        "timestamp": {
+          "": Meta(Some(MetaInner(
+            err: [
+              "past_timestamp",
+              [
+                "invalid_data",
+                {
+                  "reason": "clock drift: all timestamps adjusted by 1 day. Reason: Timestamp out of bounds.",
+                  "sdk_time": "2000-01-02 00:00:00 UTC",
+                  "server_time": "2000-01-03 00:00:00 UTC",
+                },
+              ],
+            ],
+          ))),
+        },
       },
     }
     "###);

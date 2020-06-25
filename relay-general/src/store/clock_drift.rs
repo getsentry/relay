@@ -1,4 +1,5 @@
 use std::fmt;
+use std::fmt::Write;
 
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 
@@ -75,6 +76,7 @@ impl fmt::Display for HumanDuration {
 pub struct ClockDriftProcessor {
     received_at: DateTime<Utc>,
     correction: Option<ClockCorrection>,
+    reason: &'static str,
 }
 
 impl ClockDriftProcessor {
@@ -91,7 +93,13 @@ impl ClockDriftProcessor {
         Self {
             received_at,
             correction,
+            reason: "Detected bad client clock",
         }
+    }
+
+    pub fn reason(mut self, reason: &'static str) -> Self {
+        self.reason = reason;
+        self
     }
 
     /// Returns `true` if the clocks are significantly drifted.
@@ -115,14 +123,15 @@ impl Processor for ClockDriftProcessor {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        event.process_child_values(self, state)?;
-
         if let Some(correction) = self.correction {
+            event.process_child_values(self, state)?;
+
             let timestamp_meta = event.timestamp.meta_mut();
             timestamp_meta.add_error(Error::with(ErrorKind::InvalidData, |e| {
-                let reason = format!(
-                    "clock drift: all timestamps adjusted by {}",
-                    HumanDuration(correction.drift)
+                let mut reason = format!(
+                    "clock drift: all timestamps adjusted by {}. Reason: {}",
+                    HumanDuration(correction.drift),
+                    self.reason
                 );
 
                 e.insert("reason", reason);
