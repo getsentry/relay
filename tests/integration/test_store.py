@@ -390,6 +390,39 @@ def test_store_not_normalized(mini_sentry, relay):
     assert event.get("version") is None
 
 
+def make_transaction(event):
+    now = datetime.datetime.utcnow()
+    event.update(
+        {
+            "type": "transaction",
+            "timestamp": now.isoformat(),
+            "start_timestamp": (now - datetime.timedelta(seconds=2)).isoformat(),
+            "spans": [],
+            "contexts": {
+                "trace": {
+                    "op": "hi",
+                    "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                    "span_id": "968cff94913ebb07",
+                }
+            },
+            "transaction": "hi",
+        }
+    )
+    return event
+
+
+def make_error(event):
+    event.update(
+        {
+            "type": "error",
+            "exception": {
+                "values": [{"type": "ValueError", "value": "Should not happen"}]
+            },
+        }
+    )
+    return event
+
+
 @pytest.mark.parametrize("event_type", ["default", "transaction"])
 def test_processing(
     mini_sentry,
@@ -411,30 +444,14 @@ def test_processing(
         events_consumer = transactions_consumer()
 
     # create a unique message so we can make sure we don't test with stale data
-    now = datetime.datetime.utcnow()
-    message_text = "some message {}".format(now.isoformat())
+    message_text = "some message {}".format(uuid.uuid4())
     event = {
         "message": message_text,
         "extra": {"msg_text": message_text},
-        "type": event_type,
-        "timestamp": now.isoformat(),
     }
 
     if event_type == "transaction":
-        event.update(
-            {
-                "start_timestamp": (now - datetime.timedelta(seconds=2)).isoformat(),
-                "spans": [],
-                "contexts": {
-                    "trace": {
-                        "op": "hi",
-                        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-                        "span_id": "968cff94913ebb07",
-                    }
-                },
-                "transaction": "hi",
-            }
-        )
+        make_transaction(event)
 
     relay.send_event(42, event)
 
@@ -460,8 +477,14 @@ def test_processing(
     assert event.get("version") is not None
 
 
+@pytest.mark.parametrize("event_type", ["default", "error", "transaction"])
 def test_processing_quotas(
-    mini_sentry, relay_with_processing, outcomes_consumer, events_consumer
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+    events_consumer,
+    transactions_consumer,
+    event_type,
 ):
     relay = relay_with_processing({"processing": {"max_rate_limit": 120}})
     relay.wait_relay_healthcheck()
@@ -470,12 +493,15 @@ def test_processing_quotas(
     public_keys = projectconfig["publicKeys"]
     key_id = public_keys[0]["numericId"]
 
+    # Default events are also mapped to "error" by Relay.
+    category = "error" if event_type == "default" else event_type
+
     projectconfig["config"]["quotas"] = [
         {
             "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
             "scope": "key",
             "scopeId": six.text_type(key_id),
-            "categories": ["error", "default"],
+            "categories": [category],
             "limit": 5,
             "window": 3600,
             "reasonCode": "get_lost",
@@ -489,37 +515,47 @@ def test_processing_quotas(
     }
     public_keys.append(second_key)
 
-    events_consumer = events_consumer()
+    if event_type == "transaction":
+        events_consumer = transactions_consumer()
+    else:
+        events_consumer = events_consumer()
     outcomes_consumer = outcomes_consumer()
 
+    if event_type == "transaction":
+        transform = make_transaction
+    elif event_type == "error":
+        transform = make_error
+    elif event_type == "default":
+        transform = lambda e: e
+
     for i in range(5):
-        relay.send_event(42, {"message": f"regular{i}"})
+        relay.send_event(42, transform({"message": f"regular{i}"}))
 
         event, _ = events_consumer.get_event()
         assert event["logentry"]["formatted"] == f"regular{i}"
 
     # this one will not get a 429 but still get rate limited (silently) because
     # of our caching
-    relay.send_event(42, {"message": "some_message"})
+    relay.send_event(42, transform({"message": "some_message"}))
 
     outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
 
     for _ in range(5):
         with pytest.raises(HTTPError) as excinfo:
-            relay.send_event(42, {"message": "rate_limited"})
+            relay.send_event(42, transform({"message": "rate_limited"}))
         headers = excinfo.value.response.headers
 
         # The rate limit is actually for 1 hour, but we cap at 120s with the
         # max_rate_limit parameter
         retry_after = headers["retry-after"]
         assert int(retry_after) <= 120
-        assert headers["x-sentry-rate-limits"] == "120:default;error:key"
+        assert headers["x-sentry-rate-limits"] == "120:%s:key" % category
         outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
 
     relay.dsn_public_key = second_key["publicKey"]
 
     for i in range(10):
-        relay.send_event(42, {"message": f"otherkey{i}"})
+        relay.send_event(42, transform({"message": f"otherkey{i}"}))
         event, _ = events_consumer.get_event()
 
         assert event["logentry"]["formatted"] == f"otherkey{i}"

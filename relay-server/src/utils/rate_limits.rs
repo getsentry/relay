@@ -1,4 +1,4 @@
-use std::fmt::Write;
+use std::fmt::{self, Write};
 
 use relay_quotas::{
     DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
@@ -131,6 +131,16 @@ where
         }
     }
 
+    /// Assume an event with the given category, even if no item is present in the envelope.
+    ///
+    /// This ensures that rate limits for the given data category are checked even if there is no
+    /// matching item in the envelope. Other items are handled according to the rules as if the
+    /// event item were present.
+    #[cfg(feature = "processing")]
+    pub fn assume_event(&mut self, category: DataCategory) {
+        self.event_category = Some(category);
+    }
+
     /// Process rate limits for the envelope, removing offending items and returning applied limits.
     pub fn enforce(mut self, envelope: &mut Envelope, scoping: &Scoping) -> Result<RateLimits, E> {
         self.aggregate(envelope);
@@ -204,6 +214,19 @@ where
         }
 
         false
+    }
+}
+
+impl<F> fmt::Debug for EnvelopeLimiter<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EnvelopeLimiter")
+            .field("event_category", &self.event_category)
+            .field("attachment_quantity", &self.attachment_quantity)
+            .field("session_quantity", &self.session_quantity)
+            .field("remove_event", &self.remove_event)
+            .field("remove_attachments", &self.remove_attachments)
+            .field("remove_sessions", &self.remove_sessions)
+            .finish()
     }
 }
 

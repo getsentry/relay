@@ -39,6 +39,7 @@ use crate::utils::{self, FormDataIter, FutureExt};
 use {
     crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
     crate::service::ServerErrorKind,
+    crate::utils::EnvelopeLimiter,
     failure::ResultExt,
     relay_filter::FilterStatKey,
     relay_general::protocol::IpAddr,
@@ -223,6 +224,21 @@ impl ProcessEnvelopeState {
         self.event
             .value()
             .map(|event| event.ty.value().copied().unwrap_or_default())
+    }
+
+    /// Returns the data category if there is an event.
+    ///
+    /// The data category is computed from the event type. Both `Default` and `Error` events map to
+    /// the `Error` data category. If there is no Event, `None` is returned.
+    #[cfg(feature = "processing")]
+    fn event_category(&self) -> Option<DataCategory> {
+        self.event_type().map(|ty| match ty {
+            EventType::Default | EventType::Error => DataCategory::Error,
+            EventType::Transaction => DataCategory::Transaction,
+            EventType::Csp | EventType::Hpkp | EventType::ExpectCT | EventType::ExpectStaple => {
+                DataCategory::Security
+            }
+        })
     }
 
     /// Removes the event payload from this processing state.
@@ -880,12 +896,6 @@ impl EventProcessor {
 
     #[cfg(feature = "processing")]
     fn enforce_quotas(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        // TODO: Enforce quotas for all envelope items. For now, only consider Envelopes with events
-        // and assume the `Error` data category.
-        if state.event_type().is_none() {
-            return Ok(());
-        }
-
         let rate_limiter = match self.rate_limiter.as_ref() {
             Some(rate_limiter) => rate_limiter,
             None => return Ok(()),
@@ -897,18 +907,36 @@ impl EventProcessor {
             return Ok(());
         }
 
+        let mut remove_event = false;
+        let category = state.event_category();
+
+        // When invoking the rate limiter, capture if the event item has been rate limited to also
+        // remove it from the processing state eventually.
+        let mut envelope_limiter = EnvelopeLimiter::new(|item_scope, _quantity| {
+            let limits = rate_limiter.is_rate_limited(quotas, item_scope)?;
+            remove_event ^= Some(item_scope.category) == category && limits.is_limited();
+            Ok(limits)
+        });
+
+        // Tell the envelope limiter about the event, since it has been removed from the Envelope at
+        // this stage in processing.
+        if let Some(category) = category {
+            envelope_limiter.assume_event(category);
+        }
+
         // Fetch scoping again from the project state. This is a rather cheap operation at this
         // point and it is easier than passing scoping through all layers of `process_envelope`.
         let scoping = project_state.get_scoping(state.envelope.meta());
 
         state.rate_limits = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-            rate_limiter
-                .is_rate_limited(quotas, scoping.item(DataCategory::Error))
+            envelope_limiter
+                .enforce(&mut state.envelope, &scoping)
                 .map_err(ProcessingError::QuotasFailed)?
         });
 
-        if state.rate_limits.is_limited() {
+        if remove_event {
             state.remove_event();
+            debug_assert!(state.envelope.is_empty());
         }
 
         Ok(())

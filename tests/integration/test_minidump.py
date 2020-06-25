@@ -305,13 +305,28 @@ def test_minidump_invalid_nested_formdata(mini_sentry, relay):
         relay.send_minidump(project_id=project_id, files=attachments)
 
 
+@pytest.mark.parametrize("rate_limits", [None, ["attachment"], ["transaction"]])
 def test_minidump_with_processing(
-    mini_sentry, relay_with_processing, attachments_consumer
+    mini_sentry, relay_with_processing, attachments_consumer, rate_limits
 ):
     project_id = 42
     relay = relay_with_processing()
     relay.wait_relay_healthcheck()
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+
+    project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+
+    # Configure rate limits. The transaction rate limit does not affect minidumps. The attachment
+    # rate limit would affect them, but since minidumps are required for processing they are still
+    # passed through. Only when "error" is limited will the minidump be rejected.
+    if rate_limits:
+        project_config["config"]["quotas"] = [
+            {
+                "categories": rate_limits,
+                "limit": 0,
+                "reasonCode": "static_disabled_quota",
+            }
+        ]
+
     attachments_consumer = attachments_consumer()
 
     attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content")]
@@ -344,13 +359,16 @@ def test_minidump_with_processing(
     ]
 
 
-def test_minidump_ratelimit(mini_sentry, relay_with_processing, outcomes_consumer):
+@pytest.mark.parametrize("rate_limits", [[], ["error"], ["error", "attachment"]])
+def test_minidump_ratelimit(
+    mini_sentry, relay_with_processing, outcomes_consumer, rate_limits
+):
     relay = relay_with_processing()
     relay.wait_relay_healthcheck()
 
     project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
     project_config["config"]["quotas"] = [
-        {"limit": 0, "reasonCode": "static_disabled_quota",}
+        {"categories": rate_limits, "limit": 0, "reasonCode": "static_disabled_quota"}
     ]
 
     outcomes_consumer = outcomes_consumer()
