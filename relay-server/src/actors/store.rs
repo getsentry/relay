@@ -125,6 +125,11 @@ impl StoreForwarder {
                 .map(|content_type| content_type.as_str().to_owned()),
             attachment_type: item.attachment_type().unwrap_or_default(),
             chunks: chunk_index,
+            rate_limited: if self.config.emit_attachment_rate_limit_flag() {
+                Some(item.get_header("rate_limited") == Some(&true.into()))
+            } else {
+                None
+            },
         })
     }
 
@@ -224,6 +229,15 @@ struct ChunkedAttachment {
 
     /// Number of chunks. Must be greater than zero.
     chunks: usize,
+
+    /// Whether this attachment was rate limited and should be removed after processing.
+    ///
+    /// By default, rate limited attachments are immediately removed from Envelopes. For processing,
+    /// native crash reports still need to be retained. These attachments are marked with the
+    /// `"rate_limited"` header, which signals to the processing pipeline that the attachment should
+    /// not be persisted after processing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    rate_limited: Option<bool>,
 }
 
 /// A hack to make rmp-serde behave more like serde-json when serializing enums.

@@ -145,7 +145,7 @@ where
     pub fn enforce(mut self, envelope: &mut Envelope, scoping: &Scoping) -> Result<RateLimits, E> {
         self.aggregate(envelope);
         let rate_limits = self.execute(scoping)?;
-        envelope.retain_items(|item| !self.should_remove(item));
+        envelope.retain_items(|item| self.retain_item(item));
         Ok(rate_limits)
     }
 
@@ -197,23 +197,28 @@ where
         Ok(rate_limits)
     }
 
-    fn should_remove(&self, item: &Item) -> bool {
+    fn retain_item(&self, item: &mut Item) -> bool {
         // Remove event items and all items that depend on this event
         if self.remove_event && item.requires_event() {
-            return true;
+            return false;
         }
 
         // Remove attachments, except those required for processing
         if self.remove_attachments && item.ty() == ItemType::Attachment {
-            return !item.creates_event();
+            if item.creates_event() {
+                item.set_header("rate_limited", true);
+                return true;
+            }
+
+            return false;
         }
 
         // Remove sessions independently of events
         if self.remove_sessions && item.ty() == ItemType::Session {
-            return true;
+            return false;
         }
 
-        false
+        true
     }
 }
 
