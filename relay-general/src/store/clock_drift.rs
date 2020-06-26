@@ -129,7 +129,7 @@ impl Processor for ClockDriftProcessor {
             let timestamp_meta = event.timestamp.meta_mut();
             timestamp_meta.add_error(Error::with(ErrorKind::InvalidData, |e| {
                 let mut reason = format!(
-                    "clock drift: all timestamps adjusted by {}. Reason: {}",
+                    "{}: all timestamps adjusted by {}",
                     HumanDuration(correction.drift),
                     self.reason
                 );

@@ -148,7 +148,7 @@ impl<'a> NormalizeProcessor<'a> {
         })?;
 
         ClockDriftProcessor::new(sent_at, received_at)
-            .reason("Timestamp out of bounds.")
+            .reason("timestamp out of bounds")
             .process_event(event, meta, state)?;
 
         if event.timestamp.value().is_none() {
