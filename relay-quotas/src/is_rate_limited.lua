@@ -1,45 +1,64 @@
 -- Check a collection of quota counters to identify if an item should be rate
--- limited. Values provided as ``KEYS`` specify the keys of the counters to
--- check and the keys of counters to subtract, and values provided as ``ARGV``
--- specify the maximum value (quota limit) and expiration time for each key.
+-- limited. For each quota, repeat the same set of ``KEYS`` and ``ARGV``:
 --
--- For example, to check a quota ``foo`` that has a corresponding refund/negative
--- counter "subtract_from_foo", a limit of 10 items and expires at the Unix timestamp
--- ``100``, as well as a quota ``bar`` that has a corresponding refund/negative
--- counter "subtract_from_bar" limit of 20 items and should expire at the Unix
--- timestamp ``100``, the ``KEYS`` and ``ARGV`` values would be as follows:
+-- ``KEYS`` (2 per quota):
+--  * [string] Key of the counter.
+--  * [string] Key of the refund counter.
 --
---   KEYS = {"foo", "subtract_from_foo", "bar", "subtract_from_bar"}
---   ARGV = {10, 100, 20, 100}
+-- ``ARGV`` (3 per quota):
+--  * [number] Quota limit. Can be ``-1`` for unlimited quotas.
+--  * [number] Expiration time in seconds for the key.
+--  * [number] Quantity to increment the quota by.
 --
--- If all checks pass (the item is accepted), the counters for all quotas are
--- incremented. If any checks fail (the item is rejected), the counters for all
--- quotas are unaffected. The result is a Lua table/array (Redis multi bulk
--- reply) that specifies whether or not the item was *rejected* based on the
--- provided limit.
-assert(#KEYS == #ARGV, "incorrect number of keys and arguments provided")
-assert(#KEYS % 2 == 0, "there must be an even number of keys")
+-- For example, to check the following two quotas each with a timeout of 10 minutes:
+--  * Key ``foo``, refund key ``foo_refund``, limit ``10``; quantity ``5``
+--  * Key ``bar``, refund key ``bar_refund``, limit ``20``; quantity ``1``
+--
+-- Send these values:
+--
+--     KEYS = {"foo", "foo_refund", "bar", "bar_refund"}
+--     ARGV = {10, 600, 5, 20, 600, 1}
+--
+-- The script applies the following logic:
+--  * If all checks pass, the item is accepted and the counters for all quotas
+--    are incremented.
+--  * If any check fails, the item is rejected and the counters for all remain
+--    unchanged.
+--
+-- The result is a Lua table/array (Redis multi bulk reply) that specifies
+-- whether or not the item was *rejected* based on the provided limit.
+assert(#KEYS % 2 == 0, "there must be 2 keys per quota")
+assert(#ARGV % 3 == 0, "there must be 3 args per quota")
+assert(#KEYS / 2 == #ARGV / 3, "incorrect number of keys and arguments provided")
 
 local results = {}
 local failed = false
-for i=1, #KEYS, 2 do
-    local limit = tonumber(ARGV[i])
+local num_quotas = #KEYS / 2
+for i=0, num_quotas - 1 do
+    local k = i * 2 + 1
+    local v = i * 3 + 1
+
+    local limit = tonumber(ARGV[v])
+    local quantity = tonumber(ARGV[v+2])
     local rejected = false
     -- limit=-1 means "no limit"
     if limit >= 0 then
-        rejected = (redis.call('GET', KEYS[i]) or 0) - (redis.call('GET', KEYS[i + 1]) or 0) + 1 > limit
+        rejected = (redis.call('GET', KEYS[k]) or 0) - (redis.call('GET', KEYS[k + 1]) or 0) + quantity > limit
     end
 
     if rejected then
         failed = true
     end
-    results[(i + 1) / 2] = rejected
+    results[i + 1] = rejected
 end
 
 if not failed then
-    for i=1, #KEYS, 2 do
-        redis.call('INCR', KEYS[i])
-        redis.call('EXPIREAT', KEYS[i], ARGV[i + 1])
+    for i=0, num_quotas - 1 do
+        local k = i * 2 + 1
+        local v = i * 3 + 1
+
+        redis.call('INCRBY', KEYS[k], ARGV[v + 2])
+        redis.call('EXPIREAT', KEYS[k], ARGV[v + 1])
     end
 end
 
