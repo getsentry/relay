@@ -10,10 +10,10 @@ license-file = "../LICENSE"
 publish = false
 
 [dependencies]
-failure = "0.1.5"
+failure = "0.1.8"
 r2d2 = { version = "0.8.8", optional = true }
 redis = { version = "0.15.1", optional = true, features = ["cluster", "r2d2"] }
-serde = { version = "1.0.98", features = ["derive"] }
+serde = { version = "1.0.114", features = ["derive"] }
 
 [features]
 default = []
