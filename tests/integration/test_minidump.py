@@ -305,9 +305,9 @@ def test_minidump_invalid_nested_formdata(mini_sentry, relay):
         relay.send_minidump(project_id=project_id, files=attachments)
 
 
-@pytest.mark.parametrize("rate_limits", [None, ["attachment"], ["transaction"]])
+@pytest.mark.parametrize("rate_limit", [None, "attachment", "transaction"])
 def test_minidump_with_processing(
-    mini_sentry, relay_with_processing, attachments_consumer, rate_limits
+    mini_sentry, relay_with_processing, attachments_consumer, rate_limit
 ):
     project_id = 42
     relay = relay_with_processing()
@@ -318,10 +318,10 @@ def test_minidump_with_processing(
     # Configure rate limits. The transaction rate limit does not affect minidumps. The attachment
     # rate limit would affect them, but since minidumps are required for processing they are still
     # passed through. Only when "error" is limited will the minidump be rejected.
-    if rate_limits:
+    if rate_limit:
         project_config["config"]["quotas"] = [
             {
-                "categories": rate_limits,
+                "categories": [rate_limit],
                 "limit": 0,
                 "reasonCode": "static_disabled_quota",
             }
@@ -355,6 +355,7 @@ def test_minidump_with_processing(
             "content_type": "application/octet-stream",
             "attachment_type": "event.minidump",
             "chunks": num_chunks,
+            "rate_limited": rate_limit == "attachment",
         }
     ]
 
