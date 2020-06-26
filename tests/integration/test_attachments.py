@@ -1,4 +1,6 @@
 import pytest
+import time
+import uuid
 
 from requests.exceptions import HTTPError
 
@@ -132,3 +134,76 @@ def test_empty_attachments_with_processing(
         "event_id": event_id,
         "project_id": project_id,
     }
+
+
+@pytest.mark.parametrize("rate_limits", [[], ["attachment"]])
+def test_attachments_ratelimit(
+    mini_sentry, relay_with_processing, outcomes_consumer, rate_limits
+):
+    event_id = "515539018c9b4260a6f999572f1661ee"
+
+    relay = relay_with_processing()
+    relay.wait_relay_healthcheck()
+
+    project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    project_config["config"]["quotas"] = [
+        {"categories": rate_limits, "limit": 0, "reasonCode": "static_disabled_quota"}
+    ]
+
+    outcomes_consumer = outcomes_consumer()
+    attachments = [("att_1", "foo.txt", b"")]
+
+    # First attachment returns 200 but is rate limited in processing
+    relay.send_attachments(42, event_id, attachments)
+    # TODO: There are no outcomes emitted for attachments yet. Instead, sleep to allow Relay to
+    # process the event and cache the rate limit
+    # outcomes_consumer.assert_rate_limited("static_disabled_quota")
+    time.sleep(0.2)
+
+    # Second attachment returns 429 in endpoint
+    with pytest.raises(HTTPError) as excinfo:
+        relay.send_attachments(42, event_id, attachments)
+    assert excinfo.value.response.status_code == 429
+    # outcomes_consumer.assert_rate_limited("static_disabled_quota")
+
+
+def test_attachments_quotas(
+    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer,
+):
+    event_id = "515539018c9b4260a6f999572f1661ee"
+
+    relay = relay_with_processing()
+    relay.wait_relay_healthcheck()
+
+    project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    project_config["config"]["quotas"] = [
+        {
+            "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
+            "categories": ["attachment"],
+            "window": 3600,
+            "limit": 5,  # TODO: Test attachment size quota once implemented
+            "reasonCode": "attachments_exceeded",
+        }
+    ]
+
+    attachments_consumer = attachments_consumer()
+    outcomes_consumer = outcomes_consumer()
+    attachments = [("att_1", "foo.txt", b"blabla")]
+
+    for i in range(5):
+        relay.send_attachments(42, event_id, [("att_1", "%s.txt" % i, b"")])
+        attachment = attachments_consumer.get_individual_attachment()
+        assert attachment["attachment"]["name"] == "%s.txt" % i
+
+    # First attachment returns 200 but is rate limited in processing
+    relay.send_attachments(42, event_id, attachments)
+    # TODO: There are no outcomes emitted for attachments yet. Instead, sleep to allow Relay to
+    # process the event and cache the rate limit
+    # outcomes_consumer.assert_rate_limited("static_disabled_quota")
+    time.sleep(0.2)
+
+    # Second attachment returns 429 in endpoint
+    with pytest.raises(HTTPError) as excinfo:
+        relay.send_attachments(42, event_id, attachments)
+    assert excinfo.value.response.status_code == 429
+    # outcomes_consumer.assert_rate_limited("static_disabled_quota")
