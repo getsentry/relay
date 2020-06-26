@@ -174,6 +174,7 @@ def test_attachments_quotas(
     mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer,
 ):
     event_id = "515539018c9b4260a6f999572f1661ee"
+    attachment_body = b"blabla"
 
     relay = relay_with_processing()
     relay.wait_relay_healthcheck()
@@ -184,17 +185,19 @@ def test_attachments_quotas(
             "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
             "categories": ["attachment"],
             "window": 3600,
-            "limit": 5,  # TODO: Test attachment size quota once implemented
+            "limit": 5 * len(attachment_body),
             "reasonCode": "attachments_exceeded",
         }
     ]
 
     attachments_consumer = attachments_consumer()
     outcomes_consumer = outcomes_consumer()
-    attachments = [("att_1", "foo.txt", b"blabla")]
+    attachments = [("att_1", "foo.txt", attachment_body)]
 
     for i in range(5):
-        relay.send_attachments(42, event_id, [("att_1", "%s.txt" % i, b"")])
+        relay.send_attachments(42, event_id, [("att_1", "%s.txt" % i, attachment_body)])
+        chunk, _ = attachments_consumer.get_attachment_chunk()
+        assert chunk == attachment_body
         attachment = attachments_consumer.get_individual_attachment()
         assert attachment["attachment"]["name"] == "%s.txt" % i
 

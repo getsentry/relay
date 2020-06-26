@@ -912,8 +912,8 @@ impl EventProcessor {
 
         // When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.
-        let mut envelope_limiter = EnvelopeLimiter::new(|item_scope, _quantity| {
-            let limits = rate_limiter.is_rate_limited(quotas, item_scope)?;
+        let mut envelope_limiter = EnvelopeLimiter::new(|item_scope, quantity| {
+            let limits = rate_limiter.is_rate_limited(quotas, item_scope, quantity)?;
             remove_event ^= Some(item_scope.category) == category && limits.is_limited();
             Ok(limits)
         });
