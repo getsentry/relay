@@ -179,7 +179,7 @@ def test_outcomes_non_processing_max_batch_time(relay, mini_sentry):
     # we should get one batch per event sent
     batches = []
     for batch_id in range(events_to_send):
-        batch = mini_sentry.captured_outcomes.get(timeout=0.2)
+        batch = mini_sentry.captured_outcomes.get(timeout=1)
         batches.append(batch)
 
     # verify that the batches contain one outcome each and the event_ids are ok
