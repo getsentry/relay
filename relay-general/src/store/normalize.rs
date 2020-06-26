@@ -125,13 +125,14 @@ impl<'a> NormalizeProcessor<'a> {
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         let received_at = self.config.received_at.unwrap_or_else(Utc::now);
-        event.received = Annotated::new(received_at);
 
         let mut sent_at = None;
+        let mut error_kind = ErrorKind::ClockDrift;
 
-        event.timestamp.apply(|timestamp, meta| {
+        event.timestamp.apply(|timestamp, _meta| {
             if let Some(secs) = self.config.max_secs_in_future {
                 if *timestamp > received_at + Duration::seconds(secs) {
+                    error_kind = ErrorKind::FutureTimestamp;
                     sent_at = Some(*timestamp);
                     return Ok(());
                 }
@@ -139,6 +140,7 @@ impl<'a> NormalizeProcessor<'a> {
 
             if let Some(secs) = self.config.max_secs_in_past {
                 if *timestamp < received_at - Duration::seconds(secs) {
+                    error_kind = ErrorKind::PastTimestamp;
                     sent_at = Some(*timestamp);
                     return Ok(());
                 }
@@ -148,8 +150,11 @@ impl<'a> NormalizeProcessor<'a> {
         })?;
 
         ClockDriftProcessor::new(sent_at, received_at)
-            .reason("timestamp out of bounds")
+            .error_kind(error_kind)
             .process_event(event, meta, state)?;
+
+        // Apply this after clock drift correction, otherwise we will malform it.
+        event.received = Annotated::new(received_at);
 
         if event.timestamp.value().is_none() {
             event.timestamp.set_value(Some(received_at));
@@ -1498,7 +1503,7 @@ fn test_future_timestamp() {
     use insta::assert_ron_snapshot;
 
     let mut event = Annotated::new(Event {
-        timestamp: Annotated::new(Utc.ymd(2000, 1, 2).and_hms(0, 0, 0)),
+        timestamp: Annotated::new(Utc.ymd(1970, 1, 1).and_hms(0, 0, 0)),
         ..Default::default()
     });
 
@@ -1523,18 +1528,16 @@ fn test_future_timestamp() {
       "logger": "",
       "platform": "other",
       "timestamp": 946857600,
-      "received": 946944000,
+      "received": 946857600,
       "_meta": {
         "timestamp": {
           "": Meta(Some(MetaInner(
             err: [
-              "past_timestamp",
               [
-                "invalid_data",
+                "past_timestamp",
                 {
-                  "reason": "clock drift: all timestamps adjusted by 1 day. Reason: Timestamp out of bounds.",
-                  "sdk_time": "2000-01-02 00:00:00 UTC",
-                  "server_time": "2000-01-03 00:00:00 UTC",
+                  "sdk_time": "1970-01-01T00:00:00+00:00",
+                  "server_time": "2000-01-03T00:00:00+00:00",
                 },
               ],
             ],

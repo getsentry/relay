@@ -1,6 +1,3 @@
-use std::fmt;
-use std::fmt::Write;
-
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
@@ -32,28 +29,6 @@ impl ClockCorrection {
     }
 }
 
-/// Prints a duration with minimum precision.
-///
-/// Uses days if the duration is at least 1 day, otherwise falls back to hours and then seconds.
-/// Also supports negative durations.
-#[derive(Clone, Copy, Debug)]
-struct HumanDuration(SignedDuration);
-
-impl fmt::Display for HumanDuration {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let days = self.0.num_days();
-        if days.abs() == 1 {
-            write!(f, "{} day", days)
-        } else if days != 0 {
-            write!(f, "{} days", days)
-        } else if self.0.num_hours() != 0 {
-            write!(f, "{}h", self.0.num_hours())
-        } else {
-            write!(f, "{}s", self.0.num_seconds())
-        }
-    }
-}
-
 /// Corrects clock drift based on the sender's and receivers timestamps.
 ///
 /// Clock drift correction applies to all timestamps in the event protocol. This includes especially
@@ -76,7 +51,7 @@ impl fmt::Display for HumanDuration {
 pub struct ClockDriftProcessor {
     received_at: DateTime<Utc>,
     correction: Option<ClockCorrection>,
-    reason: &'static str,
+    kind: ErrorKind,
 }
 
 impl ClockDriftProcessor {
@@ -93,12 +68,12 @@ impl ClockDriftProcessor {
         Self {
             received_at,
             correction,
-            reason: "Detected bad client clock",
+            kind: ErrorKind::ClockDrift,
         }
     }
 
-    pub fn reason(mut self, reason: &'static str) -> Self {
-        self.reason = reason;
+    pub fn error_kind(mut self, kind: ErrorKind) -> Self {
+        self.kind = kind;
         self
     }
 
@@ -127,16 +102,9 @@ impl Processor for ClockDriftProcessor {
             event.process_child_values(self, state)?;
 
             let timestamp_meta = event.timestamp.meta_mut();
-            timestamp_meta.add_error(Error::with(ErrorKind::InvalidData, |e| {
-                let mut reason = format!(
-                    "{}: all timestamps adjusted by {}",
-                    HumanDuration(correction.drift),
-                    self.reason
-                );
-
-                e.insert("reason", reason);
-                e.insert("sdk_time", correction.sent_at.to_string());
-                e.insert("server_time", self.received_at.to_string());
+            timestamp_meta.add_error(Error::with(self.kind.clone(), |e| {
+                e.insert("sdk_time", correction.sent_at.to_rfc3339());
+                e.insert("server_time", self.received_at.to_rfc3339());
             }));
         }
 
