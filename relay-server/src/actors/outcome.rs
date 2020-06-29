@@ -215,6 +215,9 @@ pub enum DiscardReason {
     /// [Relay] An envelope was submitted with two items that need to be unique.
     DuplicateItem,
 
+    /// [Relay] An event envelope was submitted but no payload could be extracted.
+    NoEventPayload,
+
     /// [All] An error in Relay caused event ingestion to fail. This is the catch-all and usually
     /// indicates bugs in Relay, rather than an expected failure.
     Internal,
@@ -252,6 +255,7 @@ impl DiscardReason {
             DiscardReason::InvalidEnvelope => "invalid_envelope",
             DiscardReason::ProjectState => "project_state",
             DiscardReason::DuplicateItem => "duplicate_item",
+            DiscardReason::NoEventPayload => "no_event_payload",
             DiscardReason::Internal => "internal",
         }
     }

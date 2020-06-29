@@ -171,6 +171,7 @@ impl RedisRateLimiter {
         &self,
         quotas: &[Quota],
         item_scoping: ItemScoping<'_>,
+        quantity: usize,
     ) -> Result<RateLimits, RateLimitingError> {
         let timestamp = UnixTimestamp::now();
 
@@ -197,6 +198,7 @@ impl RedisRateLimiter {
 
                 invocation.arg(quota.limit());
                 invocation.arg(quota.expiry().as_secs());
+                invocation.arg(quantity);
 
                 tracked_quotas.push(quota);
             } else {
@@ -296,7 +298,7 @@ mod tests {
         };
 
         let rate_limits: Vec<RateLimit> = RATE_LIMITER
-            .is_rate_limited(quotas, scoping)
+            .is_rate_limited(quotas, scoping, 1)
             .expect("rate limiting failed")
             .into_iter()
             .collect();
@@ -336,7 +338,7 @@ mod tests {
 
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = RATE_LIMITER
-                .is_rate_limited(quotas, scoping)
+                .is_rate_limited(quotas, scoping, 1)
                 .expect("rate limiting failed")
                 .into_iter()
                 .collect();
@@ -370,7 +372,7 @@ mod tests {
         };
 
         let rate_limits: Vec<RateLimit> = RATE_LIMITER
-            .is_rate_limited(&[], scoping)
+            .is_rate_limited(&[], scoping, 1)
             .expect("rate limiting failed")
             .into_iter()
             .collect();
@@ -413,7 +415,7 @@ mod tests {
 
         for i in 0..1 {
             let rate_limits: Vec<RateLimit> = RATE_LIMITER
-                .is_rate_limited(quotas, scoping)
+                .is_rate_limited(quotas, scoping, 1)
                 .expect("rate limiting failed")
                 .into_iter()
                 .collect();
@@ -430,6 +432,51 @@ mod tests {
                         retry_after: rate_limits[0].retry_after,
                     }]
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn test_quota_with_quantity() {
+        let quotas = &[Quota {
+            id: Some(format!("test_quantity_quota_{:?}", SystemTime::now())),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(500),
+            window: Some(60),
+            reason_code: Some(ReasonCode::new("get_lost")),
+        }];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(43),
+                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                key_id: Some(44),
+            },
+        };
+
+        for i in 0..10 {
+            let rate_limits: Vec<RateLimit> = RATE_LIMITER
+                .is_rate_limited(quotas, scoping, 100)
+                .expect("rate limiting failed")
+                .into_iter()
+                .collect();
+
+            if i >= 5 {
+                assert_eq!(
+                    rate_limits,
+                    vec![RateLimit {
+                        categories: DataCategories::new(),
+                        scope: RateLimitScope::Organization(42),
+                        reason_code: Some(ReasonCode::new("get_lost")),
+                        retry_after: rate_limits[0].retry_after,
+                    }]
+                );
+            } else {
+                assert_eq!(rate_limits, vec![]);
             }
         }
     }
@@ -512,14 +559,16 @@ mod tests {
 
         let mut invocation = script.prepare_invoke();
         invocation
-            .key(&foo)
-            .key(&r_foo)
-            .key(&bar)
-            .key(&r_bar)
-            .arg(1)
-            .arg(now + 60)
-            .arg(2)
-            .arg(now + 120);
+            .key(&foo) // key
+            .key(&r_foo) // refund key
+            .key(&bar) // key
+            .key(&r_bar) // refund key
+            .arg(1) // limit
+            .arg(now + 60) // expiry
+            .arg(1) // quantity
+            .arg(2) // limit
+            .arg(now + 120) // expiry
+            .arg(1); // quantity
 
         // The item should not be rate limited by either key.
         assert_eq!(
@@ -560,7 +609,12 @@ mod tests {
         let () = conn.set(&apple, 5).unwrap();
 
         let mut invocation = script.prepare_invoke();
-        invocation.key(&orange).key(&baz).arg(1).arg(now + 60);
+        invocation
+            .key(&orange) // key
+            .key(&baz) // refund key
+            .arg(1) // limit
+            .arg(now + 60) // expiry
+            .arg(1); // quantity
 
         // increment
         assert_eq!(
@@ -575,7 +629,12 @@ mod tests {
         );
 
         let mut invocation = script.prepare_invoke();
-        invocation.key(&orange).key(&apple).arg(1).arg(now + 60);
+        invocation
+            .key(&orange) // key
+            .key(&apple) // refund key
+            .arg(1) // limit
+            .arg(now + 60) // expiry
+            .arg(1); // quantity
 
         // test that refund key is used
         assert_eq!(

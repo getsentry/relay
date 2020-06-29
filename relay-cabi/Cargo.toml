@@ -20,12 +20,12 @@ debug = true
 lto = true
 
 [dependencies]
-chrono = "0.4.7"
-failure = "0.1.5"
+chrono = "0.4.11"
+failure = "0.1.8"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
-lazy_static = "1.3.0"
-serde = { version = "1.0.98", features = ["derive"] }
-serde_json = "1.0.40"
+lazy_static = "1.4.0"
+serde = { version = "1.0.114", features = ["derive"] }
+serde_json = "1.0.55"
 relay-auth = { path = "../relay-auth" }
 relay-common = { path = "../relay-common" }
 relay-general = { path = "../relay-general" }
