@@ -72,6 +72,8 @@ impl ClockDriftProcessor {
         }
     }
 
+    /// Use the given error kind for the attached eventerror instead of the default
+    /// `ErrorKind::ClockDrift`.
     pub fn error_kind(mut self, kind: ErrorKind) -> Self {
         self.kind = kind;
         self
