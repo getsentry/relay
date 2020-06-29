@@ -8,24 +8,11 @@ General relay settings.
 
 `relay.mode`
 
-: *string, default: `managed`*
+: *string, default: `managed`* , 
 
-  Controls the basic communication and configuration mode for this relay.
-  Allowed values are:
+: possible values: `managed`, `static`, `proxy` and `capture`  
 
-  - `managed` *(default)*: Project configurations are managed by Sentry, unless
-    they are statically overridden via the file system. This requires
-    credentials to be set up and white listed in Sentry.
-  - `static`: Projects must be statically configured on the file system. If
-    configured, PII stripping is also performed on those events. Events for
-    unknown projects are automatically rejected.
-  - `proxy`: Relay acts as a proxy for all requests and events. It will not load
-    project configurations from the upstream or perform PII stripping. All
-    events are accepted unless overridden on the file system.
-
-  For more information on providing or overriding project configurations on the
-  file system, please refer to [Project Configuration](project-config.md) and
-  [PII Configuration](pii-config/index.md).
+  Controls mainly how Relay obtains the project configuration for events. For detailed explanation of the modes see: [Advanced Configuration](../advanced_config/) 
 
 `relay.upstream`
 
@@ -86,6 +73,12 @@ Set various network-related settings.
 
   Maximum interval between failed request retries in seconds.
 
+`host.header`
+
+: string, default: `null`
+
+​	The custom HTTP  Host header to be sent to the upstream.	
+
 ## Caching
 
 Fine-tune caching of project state.
@@ -97,6 +90,14 @@ Fine-tune caching of project state.
   The cache timeout for project configurations in seconds.  Irrelevant if you
   use the "simple proxy mode", where your project config is stored in a local
   file.
+
+`cache.project_grace_period`
+
+:*integer, default: `0` (seconds)*
+
+  Number of seconds to continue using this project configuration after cache 
+  expiry while a new state is being fetched. This is added on top of `project_expiry` 
+  and `miss_expiry`.
 
 `cache.relay_expiry`
 
@@ -123,6 +124,11 @@ Fine-tune caching of project state.
   The buffer timeout for batched queries before sending them upstream **in
   milliseconds**.
 
+`cache.batch_size`
+: *integer, default: `500`*
+
+  The maximum number of project configs to fetch from Sentry at once.
+
 `cache.file_interval`
 
 : *integer, default: `10` (10 seconds)*
@@ -136,9 +142,16 @@ Fine-tune caching of project state.
   The maximum number of events that are buffered in case of network issues or
   high rates of incoming events.
 
+`cache.eviction_interval`
+
+: *integer, default: `60` (seconds)*
+
+  Interval for evicting outdated project configs from memory.
+
 ## Size Limits
 
-Controls various HTTP-related limits.  All values are human-readable strings of a number and a human-readable unit, such as:
+Controls various HTTP-related limits.  All values are either integers or are human-readable strings of a number 
+and a human-readable unit, such as:
 
 - `1KiB`
 - `1MB`
@@ -152,11 +165,44 @@ Controls various HTTP-related limits.  All values are human-readable strings of 
 
   The maximum number of concurrent connections to the upstream.
 
-`limits.max_event_payload_size`
+`limits.max_concurrent_queries`
 
-: *string, default: `256KB`*
+: *integer, default: `5`*
+
+  The maximum number of  queries that can be sent concurrently from Relay to the upstream 
+  before Relay starts buffering.
+
+  The concurrency of queries is additionally constrained by `max_concurrent_requests`.
+
+`limits.max_event_size`
+
+: *string, default: `1MB`*
 
   The maximum payload size for events.
+
+`limits.max_attachment_size`
+
+: *string, default: `50Mb`*
+
+  The maximum size for each attachment.
+
+`limits.max_attachments_size`
+
+: *string, default: `50Mb`*
+
+  The maximum combined size for all attachments in an envelope or request. 
+
+`limits.max_envelope_size`
+
+: *string, default: `50Mb`*
+
+  The maximum payload size for an entire envelopes. Individual limits still apply.
+
+`limits.max_session_count`
+
+: *integer, default: `100`*
+
+  The maximum number of session items per envelope.
 
 `limits.max_api_payload_size`
 
@@ -175,6 +221,50 @@ Controls various HTTP-related limits.  All values are human-readable strings of 
 : *string, default: `100MB`*
 
   The maximum payload size for chunks
+
+`limits.max_thread_count`
+
+: *integer, default: number of cpus*
+  
+  The maximum number of threads to spawn for CPU and web worker, each.
+    
+  The total number of threads spawned will roughly be `2 * max_thread_count + 1`.
+
+`limits.query_timeout`
+
+: *integer, default: `30` (seconds)* 
+  
+  The maximum number of seconds a query is allowed to take across retries. Individual requests
+  have lower timeouts. Defaults to 30 seconds.
+
+
+`limits.max_connection_rate`
+  
+: *integer, default:  `256`*
+  
+  The maximum number of connections to Relay that can be created at once.
+
+
+`limits.max_pending_connections`
+
+: *integer, default: `2048`*
+  
+  The maximum number of pending connects to Relay. This corresponds to the backlog param of
+  `listen(2)` in POSIX.
+
+
+`limits.max_connections`
+
+: *integer: default: `25_000`*
+  
+  The maximum number of open connections to Relay.
+
+
+`limits.shutdown_timeout`
+
+: *integer, default:L `10` (seconds)*
+  
+  The maximum number of seconds to wait for pending events after receiving a shutdown signal.
 
 ## Logging
 

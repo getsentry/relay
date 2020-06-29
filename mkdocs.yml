@@ -6,6 +6,7 @@ theme:
 
 nav:
   - index.md
+  - advanced_config.md
   - options.md
   - project-config.md
   - metrics.md
