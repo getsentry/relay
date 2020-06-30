@@ -125,6 +125,11 @@ impl StoreForwarder {
                 .map(|content_type| content_type.as_str().to_owned()),
             attachment_type: item.attachment_type().unwrap_or_default(),
             chunks: chunk_index,
+            size: if self.config.emit_attachment_rate_limit_flag() {
+                Some(size)
+            } else {
+                None
+            },
             rate_limited: if self.config.emit_attachment_rate_limit_flag() {
                 Some(item.get_header("rate_limited") == Some(&true.into()))
             } else {
@@ -229,6 +234,10 @@ struct ChunkedAttachment {
 
     /// Number of chunks. Must be greater than zero.
     chunks: usize,
+
+    /// The size of the attachment in bytes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    size: Option<usize>,
 
     /// Whether this attachment was rate limited and should be removed after processing.
     ///
