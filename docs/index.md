@@ -6,40 +6,67 @@
   </p>
 </p>
 
-Sentry Relay is a work in progress service that pushes some functionality
-from the Sentry SDKs as well as the Sentry server into a proxy process.
+Sentry Relay is a standalone service that allows you to scrub personal
+information and improve event response time. It acts as a middle layer between
+your application and Sentry.io.
 
-### What needs does Relay address ?
+**Relay is still work in progress.**
 
-There are a few usage scenarios which Relay was designed to handle.
+## Use Cases for Relay
 
-#### Removal of personal identifiable information (PII) from events
+Relay was designed with a few usage scenarios in mind.
 
-Without Relay, PII stripping can be done in the Sentry SDK or on the server side in Sentry's infrastructure.
+### Scrubbing Personally Identifiable Information (PII)
 
-Having PII stripping done inside the Sentry SDK has two disatvantages:
+Sentry allows to scrub PII in two places: in the SDK before sending the event,
+and upon arrival on Sentry's infrastructure. Relay adds a third option that
+allows to scrub data in a central place before sending it to Sentry.
 
-* puts potentially unacceptable processing burden on the applications that emit events
-* it is not a unified mechanism and multiple applications potentially using multiple language SDKs need to be configured
+To choose the right place for data scrubbing, consider:
 
-Having PII stripping on Sentry's server side infrastructure, while solving the problems mentioned above, has the disadvantage that it implies transporting the messages with potentially sensitive information outside the barriers of an organization. This might not be an acceptable solution to some oranizations for various legal and complience reasons.
+- If you prefer to configure data scrubbing in a central place, you can let
+  Sentry handle data scrubbing. Upon arrival, Sentry immediatly applies
+  [server-side scrubbing] and guaratees that personal information is never
+  stored.
 
-Running a Relay server inside an organization boundary can solve the PII striping problems mentioned above by both having the PII Striping done in one centrailzed place without putting any processing burden on the client applications and also having it done before the information leaves the organization infrastructure.
+- If you cannot send PII outside your infrastructure but you still prefer to
+  configure data scrubbing in one centralized place, run Relay and configure
+  your SDKs to send events there. Relay uses the privacy settings configured in
+  Sentry, and scrubs PII before forwarding data to Sentry.
 
-#### Increased event response time performance
+- For the most strict data privacy requirements, you can configure SDKs to scrub
+  PII using the [before_send hooks], which prevents data from being collected
+  on the device. This may require you to replicate the same logic across your
+  applications and could lead to a performance impact.
 
-Relay is designed to be extremely performant and it will respond very quickly to event requests. Having a Relay installed close to an organization infrstructure will further improve the response when sending events.
+### Improved Response Time
 
-## Getting started
+Relay is designed to respond very quickly to requests. Having Relay installed
+close to your infrastructure will further improve the response when sending
+events.
 
-In this section we will create a simple setup using the default settings. Check the [In depth configuration]( ./indepthconfig) page for a detail discussion of various operating scenarious for Relay.
+This can particularly reduce the roundtrip time in remote locations.
 
-The Relay server is called `relay`. Binaries can be downloaded from the [GitHub releases page](https://github.com/getsentry/relay/releases). 
+### Enterprise Domain Name
 
-After downloading, place the binary somewhere on your `PATH` and make it executable.
+By default, SDKs need to be configured with a DSN that points to `sentry.io`. If
+you need to restrict all HTTP communication to a custom domain name, Relay can
+act as an opaque proxy that reliably forwards events to Sentry.
 
-In order to create the initial configuration Relay provides the`config init` command. The command creates configuration files
-in the `.realy`  folder under the directory in which the command is run:
+## Getting Started
+
+In this section we will create a simple setup using the default settings. Check
+the _[Advanced Configuration]_ page for a detail discussion
+of various operating scenarious for Relay.
+
+The Relay server is called `relay`. Binaries can be downloaded from [GitHub
+Releases] and a Docker image is provided on [DockerHub].
+
+### Initializing Configuration
+
+In order to create the initial configuration, Relay provides the `relay config
+init` command. The command puts configuration files in the `.relay` folder
+under the current working directory:
 
 ```bash
 ❯ ./relay config init
@@ -48,10 +75,24 @@ Do you want to create a new config?:
 > Yes, create default config
   Yes, create custom config
   No, abort
-
 ```
 
-Selecting the default configuration will create  a minimal configuration file under `.relay/config.yml`. Below is an example of what the file looks like (**Note:** that the exact options and values may slightly change in time, we will update this doc when relevant changes are made ).
+Selecting the default configuration will create a minimal configuration file.
+Alternatively, you can choose to override the default settings, by selecting
+_*"create custom config"_. This allows you to customize the following basic
+parameters:
+
+- The `mode` setting configures the major mode in which Relay operates. For more
+  information on available relay modes, refer to _[Advanced Configuration]_.
+- The `upstream` setting configures the server to which Relay will forward the
+  events (by default the main `sentry.io` URL).
+- The `port` and `host` settings configure the TCP port at which Relay will
+  listen to. This is the address to which SDKs send events.
+- The `tls` settings configure TLS support (HTTPS support), used for
+  the cases where the communication between the SDK and Relay needs to be
+  secured.
+
+Settings are placed in `.relay/config.yml`. Note that all configuration values are optional and default to these settings:
 
 ```yaml
 ---
@@ -63,22 +104,16 @@ relay:
   tls_port: ~
   tls_identity_path: ~
   tls_identity_password: ~
-
 ```
 
-All configurations are explained in detail in the section [Configuration Options](../options), here we will go only through the basics.
+All configurations are explained in detail in the section [Configuration
+Options].
 
-Only a few options under the`relay` key are added to the configuration files in order to make it easy to configure the most common settings. All configuration keys are optional and `realy` will start when provided with an empty dictionary `{}` in the configuration file.
+### Credentials
 
-The `mode` setting configures the major mode in which Relay can operate and it is explained in detail in the [advanced configuration]( ./advanced_config) page.
+Besides `config.yml`, the `init` command has also created a credentials file `credentials.json` in the same `.relay` directory. This file contains the a public and private key used by Relay to authenticate with the upstream server.
 
-The `upstream` setting configures the server to which Relay will forward the events ( by default the main sentry url).
-
-The `port` and `host` settings configure the tcp port at which relay will listen to ( and therefore the addres to which an SDK or an application will send events). 
-
-The `tls_...` settings configure tls support (https support) for Relay ( used for the cases where the communication between the SDK and Relay needs to be secured).
-
-Besides `config.yml` the init process has also created a credentials file `credentials.json` in the same `./.relay/` directory.  This file contains the credentials used by Relay to authenticate with the upstream server (by default the infrastrcture operated by Sentry). **As such it is important that this file should be adequatly protected from modification or viewing by unauthorized entities**.
+**As such, it is important that this file should be adequatly protected from modification or viewing by unauthorized entities**.
 
 Here's an example of the contents of a typical credentials file:
 
@@ -90,49 +125,17 @@ Here's an example of the contents of a typical credentials file:
 }
 ```
 
-You will be using the `public_key` to register your Relay with the upstream server when running it in `managed` mode. 
+You will be using the `public_key` to register your Relay with the upstream server when running it in `managed` mode.
 
-Once you have registered your Relay with Sentry (see section below) you will be ready to run your Relay:
+### Registering Relay with Sentry
 
-    $ relay run
+To operate in `managed` mode, Relay pulls configuration for PII stripping,
+filtering, and rate limiting from your organization and project settings at
+Sentry. Since these settings may contain sensitive information, their access is
+restricted by Sentry and requires authorization.
 
-If you moved your config folder somewhere else (e.g. for security reasons), you can use the `--config` option to specify the folder:
-
-    $ relay run --config ./my/custom/relay_folder/
-
-### Running in Docker
-
-As an alternative to directly running the Relay binary sentry also provides a Docker image that can be used to run Relay.
-
-Docker image for `relay` can be found at [`getsentry/relay`](https://hub.docker.com/r/getsentry/relay/).
-
-Similarly to directly running the `relay` binary, running the docker image needs a configuration directory in which it can find the configuration and credentials files ( `config.yml` and `credentials.json`).
-
-Providing the configuration directory can be done with the standard mechanisms offered by docker ([docker volumes](https://docs.docker.com/storage/volumes/)).
-
-For example, you can start the latest version of `relay` as follows:
-
-```sh
-docker run -v $(pwd)/configs/:/etc/relay/ getsentry/relay run --config /etc/relay
-```
-
-The command assumes that Relay's configuration (`config.yml` and`credentials.json`) are stored in `./configs/` directory on the host machine.
-
-### Registering Relay with the upstream server
-
-When running in the default `managed` mode Relay needs to authenticate with the upstream server. 
-
-In order for Relay to do its typical work, like PII stripping or filtering and rate limitting the number of events, Relay needs some configuration. This configuration is specific to an organization or even to a particular application within an organization (called a `project` in Sentry's terminology).
-
-The mode in which a Relay operates controls how Relay obtains the `project` configuration. 
-
-In the default (`managed`) mode, the configuration is provided by the upstream server (typically Sentry). 
-
-Since `project` configuration may contain propriety information its access is restricted by the upstream server and requires authorization. 
-
-A Relay needs to be registered with the upstream server (a server running the `sentry` server either operated by Sentry itself or run on one's private infrastructure).
-
-In order to register the installed Relay with Sentry, get the contents of the public key, either by inspecting the `credentials.json` file or by running:
+In order to register Relay with Sentry, get the contents of the public key,
+either by inspecting the `credentials.json` file or by running:
 
 ```
 ❯ ./relay credentials show
@@ -141,50 +144,76 @@ Credentials:
   public key: nDJl79SbEYH9-8NEJAI7ezrgYfolPW3Bnkg00k1zOfA
 ```
 
-After copying the public key go to the organization settings in Sentry (click on the top left icon and select Organization settings).
-
-Go to Relays and click New Relay Key, add the key and save it:
+After copying the public key, go to the organization settings in Sentry by clicking on _Settings_ in the main navigation on the left, then go to _Relays_.
 
 <p align="center">
     <img src="img/add-relay-key.png" alt="Add relay key" >
 </p>
 
-
+Click _New Relay Key_ to add the key and save it:
 
 <p align="center">
     <img src="img/edit-relay-key.png" alt="Add relay key" >
 </p>
 
+Now your Relay is registered with Sentry and ready to send messages. See
+[advanced configuration] page to learn more about further Relay configuration
+options.
 
+### Running Relay
 
-Now your Relay is registered with Sentry and ready to send messages.
+Once you have registered your Relay with Sentry, you are ready to run your
+Relay:
 
-See  [advanced configuration]( ./advanced_config) page to learn more about Relay configuration.
+    ❯ relay run
 
-# Sending a Test Event
+If you moved your config folder somewhere else (e.g. for security reasons), you can use the `--config` option to specify the location:
 
-After your Relay is registered with Sentry it is time to send a test event.
+    ❯ relay run --config ./my/custom/relay_folder/
 
-Start the Relay server (by running `relay run`).
+### Running in Docker
 
-Get the DSN of your project by navigating to your project settings | Client Keys (DSN) or type CMD + K (CTRL + K in Windows ) and type DSN. From the Client Keys page get the  DSN, it will look something like:
+As an alternative to directly running the Relay binary, Sentry also provides a Docker image that can be used to run Relay. It can be found on [DockerHub].
+
+Similar to directly running the `relay` binary, running the docker image needs a directory in which it can find the configuration and credentials files (`config.yml` and `credentials.json`). Providing the configuration directory can be done with the standard mechanisms offered by docker, either by mounting [docker volumes](https://docs.docker.com/storage/volumes/) or by building a new container and copying the files in.
+
+For example, you can start the latest version of `relay` as follows:
+
+```sh
+❯ docker run -v $(pwd)/configs/:/work/.relay/ getsentry/relay run
+```
+
+This example command assumes that Relay's configuration (`config.yml` and `credentials.json`) are stored in `./configs/` directory on the host machine.
+
+### Sending a Test Event
+
+Once Relay is running and authenticated with Sentry, it is time to send a test event.
+
+Get the DSN of your project by navigating to your _Project Settings > Client Keys (DSN)_. From the _Client Keys_ page, get the DSN, which looks something like:
 
 ```
-https://12345abcdb1e4c123490ecec89c1f199@o1.ingest.sentry.io/2244 
+https://12345abcdb1e4c123490ecec89c1f199@o1.ingest.sentry.io/2244
 ```
 
-and replace the protocol from `https` to `http` and the server name to the Relay server `127.0.0.1:3000`, for our case it would look like:
+Next, replace parts of the DSN to match the address at which Relay is reachable. For instance, if Relay listens at `http://localhost:3000`, change the protocol and host of the DSN to:
 
 ```
-http://12345abcdb1e4c123490ecec89c1f199@127.0.0.1:3000/2244 
+http://12345abcdb1e4c123490ecec89c1f199@localhost:3000/2244
 ```
 
-Use the new DSN in your SDK configuration.
-
-If using Sentry `sentry-cli` you can send a message like so:
+Use the new DSN in your SDK configuration. To test this, you can send a message with `sentry-cli`:
 
 ```bash
-SENTRY_DSN='http://12345abcdb1e4c123490ecec89c1f199@127.0.0.1:3000/2244' sentry-cli send-event -m 'A test event'
+❯ export SENTRY_DSN='http://12345abcdb1e4c123490ecec89c1f199@127.0.0.1:3000/2244'
+❯ sentry-cli send-event -m 'A test event'
 ```
 
-Go back to sentry and look for the event in your project.
+After a few seconds, the event should appear in the issues stream in your
+project.
+
+[before_send hooks]: https://docs.sentry.io/error-reporting/configuration/?platform=rust#before-send
+[server-side scrubbing]: https://docs.sentry.io/data-management/sensitive-data/#server-side-scrubbing
+[github releases]: https://github.com/getsentry/relay/releases
+[Advanced Configuration]: ./advanced_config
+[Configuration Options]: ../options
+[dockerhub]: https://hub.docker.com/r/getsentry/relay/
