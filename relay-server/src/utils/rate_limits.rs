@@ -109,6 +109,7 @@ pub struct EnvelopeLimiter<F> {
     event_category: Option<DataCategory>,
     attachment_quantity: usize,
     session_quantity: usize,
+    has_plain_attachments: bool,
     remove_event: bool,
     remove_attachments: bool,
     remove_sessions: bool,
@@ -125,6 +126,7 @@ where
             event_category: None,
             attachment_quantity: 0,
             session_quantity: 0,
+            has_plain_attachments: false,
             remove_event: false,
             remove_attachments: false,
             remove_sessions: false,
@@ -153,6 +155,9 @@ where
         for item in envelope.items() {
             if item.creates_event() {
                 self.infer_category(item);
+            } else if item.ty() == ItemType::Attachment {
+                // Plain attachments do not create events.
+                self.has_plain_attachments ^= true;
             }
 
             match item.ty() {
@@ -184,7 +189,13 @@ where
             let item_scoping = scoping.item(DataCategory::Attachment);
             let attachment_limits = (&mut self.check)(item_scoping, self.attachment_quantity)?;
             self.remove_attachments = attachment_limits.is_limited();
-            rate_limits.merge(attachment_limits);
+
+            // Only record rate limits for plain attachments. For all other attachments, it's
+            // perfectly "legal" to send them. They will still be discarded in Sentry, but clients
+            // can continue to send them.
+            if self.has_plain_attachments {
+                rate_limits.merge(attachment_limits);
+            }
         }
 
         if self.session_quantity > 0 {
