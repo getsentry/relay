@@ -54,6 +54,7 @@ fn store_envelope(
         request,
         extract_envelope,
         create_response,
+        true,
     )
 }
 

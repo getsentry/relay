@@ -54,6 +54,7 @@ fn store_attachment(
         request,
         extract_envelope,
         create_response,
+        true,
     )
 }
 

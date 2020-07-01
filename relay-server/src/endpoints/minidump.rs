@@ -188,6 +188,7 @@ fn store_minidump(
         request,
         extract_envelope,
         common::create_text_event_id_response,
+        false, // Never respond with a 429 since clients often retry these
     )
 }
 

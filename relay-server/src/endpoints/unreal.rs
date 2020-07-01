@@ -50,6 +50,7 @@ fn store_unreal(
         // The return here is only useful for consistency because the UE4 crash reporter doesn't
         // care about it.
         common::create_text_event_id_response,
+        false,
     )
 }
 
