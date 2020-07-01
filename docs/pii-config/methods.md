@@ -1,9 +1,9 @@
 # PII Redaction Methods
 
-#### remove
+### `remove`
 
 Remove the entire field. Relay may choose to either set it to `null` or to remove it entirely.
-  
+
 ```json
 {
   "rules": {
@@ -20,7 +20,7 @@ Remove the entire field. Relay may choose to either set it to `null` or to remov
 }
 ```
 
-#### replace
+### `replace`
 
 Replace the key with a static string.
 
@@ -41,7 +41,7 @@ Replace the key with a static string.
 }
 ```
 
-#### mask
+### `mask`
 
 Replace every character of the matched string with a "masking" char. Compared to `replace` this preserves the length of the original string.
 
@@ -64,7 +64,7 @@ Replace every character of the matched string with a "masking" char. Compared to
 }
 ```
 
-#### hash
+### `hash`
 
 Replace the string with a hashed version of itself. Equal strings will produce the same hash, so if you, for example, decide to hash the user ID instead of replacing or removing it, you will still have an accurate count of users affected.
 
