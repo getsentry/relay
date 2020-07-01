@@ -56,7 +56,7 @@ act as an opaque proxy that reliably forwards events to Sentry.
 ## Getting Started
 
 In this section we will create a simple setup using the default settings. Check
-the _[Advanced Configuration]_ page for a detail discussion
+the _[Configuration Options]_ page for a detail discussion
 of various operating scenarious for Relay.
 
 The Relay server is called `relay`. Binaries can be downloaded from [GitHub
@@ -68,7 +68,7 @@ In order to create the initial configuration, Relay provides the `relay config
 init` command. The command puts configuration files in the `.relay` folder
 under the current working directory:
 
-```bash
+```sh
 ❯ ./relay config init
 Initializing relay in /<current_directory>/.relay
 Do you want to create a new config?:
@@ -83,7 +83,7 @@ _*"create custom config"_. This allows you to customize the following basic
 parameters:
 
 - The `mode` setting configures the major mode in which Relay operates. For more
-  information on available relay modes, refer to _[Advanced Configuration]_.
+  information on available relay modes, refer to _[Relay Modes]_.
 - The `upstream` setting configures the server to which Relay will forward the
   events (by default the main `sentry.io` URL).
 - The `port` and `host` settings configure the TCP port at which Relay will
@@ -137,7 +137,7 @@ restricted by Sentry and requires authorization.
 In order to register Relay with Sentry, get the contents of the public key,
 either by inspecting the `credentials.json` file or by running:
 
-```
+```sh
 ❯ ./relay credentials show
 Credentials:
   relay id: 8cd24a0e-384d-4052-9010-68a21392b33c
@@ -147,17 +147,17 @@ Credentials:
 After copying the public key, go to the organization settings in Sentry by clicking on _Settings_ in the main navigation on the left, then go to _Relays_.
 
 <p align="center">
-    <img src="img/add-relay-key.png" alt="Add relay key" >
+    <img src="img/add-relay-key.png" alt="Relays Settings" />
 </p>
 
 Click _New Relay Key_ to add the key and save it:
 
 <p align="center">
-    <img src="img/edit-relay-key.png" alt="Add relay key" >
+    <img src="img/edit-relay-key.png" alt="Add Relay Key" >
 </p>
 
 Now your Relay is registered with Sentry and ready to send messages. See
-[advanced configuration] page to learn more about further Relay configuration
+[Configuration Options] page to learn more about further Relay configuration
 options.
 
 ### Running Relay
@@ -165,17 +165,31 @@ options.
 Once you have registered your Relay with Sentry, you are ready to run your
 Relay:
 
-    ❯ relay run
+```sh
+❯ relay run
+ INFO  relay::setup > launching relay from config folder .relay
+ INFO  relay::setup >   relay mode: managed
+ INFO  relay::setup >   relay id: f2119bc9-9a9b-4531-826b-24e9794902f2
+ INFO  relay::setup >   public key: QPBITKKtKUuEZGGbPke8iufEXAcVrEv6nmWrkRtc3l8
+ ...
+ DEBUG relay::server::upstream > relay successfully registered with upstream
+```
 
 If you moved your config folder somewhere else (e.g. for security reasons), you can use the `--config` option to specify the location:
 
-    ❯ relay run --config ./my/custom/relay_folder/
+```sh
+❯ relay run --config ./my/custom/relay_folder/
+```
 
 ### Running in Docker
 
 As an alternative to directly running the Relay binary, Sentry also provides a Docker image that can be used to run Relay. It can be found on [DockerHub].
 
-Similar to directly running the `relay` binary, running the docker image needs a directory in which it can find the configuration and credentials files (`config.yml` and `credentials.json`). Providing the configuration directory can be done with the standard mechanisms offered by docker, either by mounting [docker volumes](https://docs.docker.com/storage/volumes/) or by building a new container and copying the files in.
+Similar to directly running the `relay` binary, running the docker image needs a
+directory in which it can find the configuration and credentials files
+(`config.yml` and `credentials.json`). Providing the configuration directory can
+be done with the standard mechanisms offered by docker, either by mounting
+[docker volumes] or by building a new container and copying the files in.
 
 For example, you can start the latest version of `relay` as follows:
 
@@ -203,7 +217,7 @@ http://12345abcdb1e4c123490ecec89c1f199@localhost:3000/2244
 
 Use the new DSN in your SDK configuration. To test this, you can send a message with `sentry-cli`:
 
-```bash
+```sh
 ❯ export SENTRY_DSN='http://12345abcdb1e4c123490ecec89c1f199@127.0.0.1:3000/2244'
 ❯ sentry-cli send-event -m 'A test event'
 ```
@@ -214,6 +228,8 @@ project.
 [before_send hooks]: https://docs.sentry.io/error-reporting/configuration/?platform=rust#before-send
 [server-side scrubbing]: https://docs.sentry.io/data-management/sensitive-data/#server-side-scrubbing
 [github releases]: https://github.com/getsentry/relay/releases
-[Advanced Configuration]: ./advanced_config
+[configuration options]: ./configuration/options
+[relay modes]: ./configuration/modes
 [Configuration Options]: ../options
 [dockerhub]: https://hub.docker.com/r/getsentry/relay/
+[docker volumes]: https://docs.docker.com/storage/volumes/
