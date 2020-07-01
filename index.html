@@ -245,16 +245,30 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#getting-started" class="md-nav__link">
-    Getting started
+  <a href="#use-cases-for-relay" class="md-nav__link">
+    Use Cases for Relay
   </a>
   
     <nav class="md-nav">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#running-in-docker" class="md-nav__link">
-    Running in Docker
+  <a href="#scrubbing-personally-identifiable-information-pii" class="md-nav__link">
+    Scrubbing Personally Identifiable Information (PII)
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#improved-response-time" class="md-nav__link">
+    Improved Response Time
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enterprise-domain-name" class="md-nav__link">
+    Enterprise Domain Name
   </a>
   
 </li>
@@ -265,37 +279,57 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#upstream-registration" class="md-nav__link">
-    Upstream Registration
+  <a href="#getting-started" class="md-nav__link">
+    Getting Started
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#initializing-configuration" class="md-nav__link">
+    Initializing Configuration
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#metrics-and-crash-reporting" class="md-nav__link">
-    Metrics and Crash Reporting
+        
+          <li class="md-nav__item">
+  <a href="#credentials" class="md-nav__link">
+    Credentials
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#setting-up-a-project" class="md-nav__link">
-    Setting up a Project
+        
+          <li class="md-nav__item">
+  <a href="#registering-relay-with-sentry" class="md-nav__link">
+    Registering Relay with Sentry
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
+        
+          <li class="md-nav__item">
+  <a href="#running-relay" class="md-nav__link">
+    Running Relay
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-in-docker" class="md-nav__link">
+    Running in Docker
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#sending-a-test-event" class="md-nav__link">
     Sending a Test Event
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#pii-stripping" class="md-nav__link">
-    PII Stripping
-  </a>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -315,34 +349,70 @@
       
 
 
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
+    
+    <label class="md-nav__link" for="nav-2">
+      Advanced Configuration
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-2">
+        Advanced Configuration
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
   <li class="md-nav__item">
-    <a href="options/" title="Configuration Options" class="md-nav__link">
+    <a href="configuration/modes/" title="Relay Modes" class="md-nav__link">
+      Relay Modes
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="configuration/options/" title="Configuration Options" class="md-nav__link">
       Configuration Options
     </a>
   </li>
 
-    
-      
-      
-      
+        
+          
+          
+          
 
 
   <li class="md-nav__item">
-    <a href="project-config/" title="Project Configuration" class="md-nav__link">
+    <a href="configuration/metrics/" title="Errors and Metrics" class="md-nav__link">
+      Errors and Metrics
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="configuration/projects/" title="Project Configuration" class="md-nav__link">
       Project Configuration
     </a>
   </li>
 
-    
-      
-      
-      
-
-
-  <li class="md-nav__item">
-    <a href="metrics/" title="Metrics" class="md-nav__link">
-      Metrics
-    </a>
+        
+      </ul>
+    </nav>
   </li>
 
     
@@ -353,14 +423,14 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3">
     
-    <label class="md-nav__link" for="nav-5">
-      PII and datascrubbing
+    <label class="md-nav__link" for="nav-3">
+      PII and Data Scrubbing
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-5">
-        PII and datascrubbing
+      <label class="md-nav__title" for="nav-3">
+        PII and Data Scrubbing
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
         
@@ -425,13 +495,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
     
-    <label class="md-nav__link" for="nav-6">
+    <label class="md-nav__link" for="nav-4">
       Architecture
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-6">
+      <label class="md-nav__title" for="nav-4">
         Architecture
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -511,16 +581,30 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#getting-started" class="md-nav__link">
-    Getting started
+  <a href="#use-cases-for-relay" class="md-nav__link">
+    Use Cases for Relay
   </a>
   
     <nav class="md-nav">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#running-in-docker" class="md-nav__link">
-    Running in Docker
+  <a href="#scrubbing-personally-identifiable-information-pii" class="md-nav__link">
+    Scrubbing Personally Identifiable Information (PII)
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#improved-response-time" class="md-nav__link">
+    Improved Response Time
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enterprise-domain-name" class="md-nav__link">
+    Enterprise Domain Name
   </a>
   
 </li>
@@ -531,37 +615,57 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#upstream-registration" class="md-nav__link">
-    Upstream Registration
+  <a href="#getting-started" class="md-nav__link">
+    Getting Started
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#initializing-configuration" class="md-nav__link">
+    Initializing Configuration
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#metrics-and-crash-reporting" class="md-nav__link">
-    Metrics and Crash Reporting
+        
+          <li class="md-nav__item">
+  <a href="#credentials" class="md-nav__link">
+    Credentials
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#setting-up-a-project" class="md-nav__link">
-    Setting up a Project
+        
+          <li class="md-nav__item">
+  <a href="#registering-relay-with-sentry" class="md-nav__link">
+    Registering Relay with Sentry
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
+        
+          <li class="md-nav__item">
+  <a href="#running-relay" class="md-nav__link">
+    Running Relay
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-in-docker" class="md-nav__link">
+    Running in Docker
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#sending-a-test-event" class="md-nav__link">
     Sending a Test Event
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#pii-stripping" class="md-nav__link">
-    PII Stripping
-  </a>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -591,141 +695,176 @@
   </p>
 </p>
 
-<p>The Sentry Relay is a work in progress service that pushes some functionality
-from the Sentry SDKs as well as the Sentry server into a proxy process.</p>
-<h2 id="getting-started">Getting started</h2>
-<p>The Relay server is called <code>relay</code>. Binaries can be downloaded from the <a href="https://github.com/getsentry/relay/releases">GitHub
-releases page</a>. After downloading,
-place the binary somewhere on your <code>PATH</code> and make it executable.</p>
-<p>The <code>config init</code> command is provided to initialize the initial config. The
-config will be created the folder it's run from in a hidden <code>.relay</code>
-subdirectory:</p>
-<div class="codehilite"><pre><span></span><code>$ relay config init
+<p>Sentry Relay is a standalone service that allows you to scrub personal
+information and improve event response time. It acts as a middle layer between
+your application and Sentry.io.</p>
+<p><strong>Relay is still work in progress.</strong></p>
+<h2 id="use-cases-for-relay">Use Cases for Relay</h2>
+<p>Relay was designed with a few usage scenarios in mind.</p>
+<h3 id="scrubbing-personally-identifiable-information-pii">Scrubbing Personally Identifiable Information (PII)</h3>
+<p>Sentry allows to scrub PII in two places: in the SDK before sending the event,
+and upon arrival on Sentry's infrastructure. Relay adds a third option that
+allows to scrub data in a central place before sending it to Sentry.</p>
+<p>To choose the right place for data scrubbing, consider:</p>
+<ul>
+<li>
+<p>If you prefer to configure data scrubbing in a central place, you can let
+  Sentry handle data scrubbing. Upon arrival, Sentry immediatly applies
+  <a href="https://docs.sentry.io/data-management/sensitive-data/#server-side-scrubbing">server-side scrubbing</a> and guaratees that personal information is never
+  stored.</p>
+</li>
+<li>
+<p>If you cannot send PII outside your infrastructure but you still prefer to
+  configure data scrubbing in one centralized place, run Relay and configure
+  your SDKs to send events there. Relay uses the privacy settings configured in
+  Sentry, and scrubs PII before forwarding data to Sentry.</p>
+</li>
+<li>
+<p>For the most strict data privacy requirements, you can configure SDKs to scrub
+  PII using the <a href="https://docs.sentry.io/error-reporting/configuration/?platform=rust#before-send">before_send hooks</a>, which prevents data from being collected
+  on the device. This may require you to replicate the same logic across your
+  applications and could lead to a performance impact.</p>
+</li>
+</ul>
+<h3 id="improved-response-time">Improved Response Time</h3>
+<p>Relay is designed to respond very quickly to requests. Having Relay installed
+close to your infrastructure will further improve the response when sending
+events.</p>
+<p>This can particularly reduce the roundtrip time in remote locations.</p>
+<h3 id="enterprise-domain-name">Enterprise Domain Name</h3>
+<p>By default, SDKs need to be configured with a DSN that points to <code>sentry.io</code>. If
+you need to restrict all HTTP communication to a custom domain name, Relay can
+act as an opaque proxy that reliably forwards events to Sentry.</p>
+<h2 id="getting-started">Getting Started</h2>
+<p>In this section we will create a simple setup using the default settings. Check
+the <em><a href="../options">Configuration Options</a></em> page for a detail discussion
+of various operating scenarious for Relay.</p>
+<p>The Relay server is called <code>relay</code>. Binaries can be downloaded from <a href="https://github.com/getsentry/relay/releases">GitHub
+Releases</a> and a Docker image is provided on <a href="https://hub.docker.com/r/getsentry/relay/">DockerHub</a>.</p>
+<h3 id="initializing-configuration">Initializing Configuration</h3>
+<p>In order to create the initial configuration, Relay provides the <code>relay config
+init</code> command. The command puts configuration files in the <code>.relay</code> folder
+under the current working directory:</p>
+<div class="codehilite"><pre><span></span><code>❯ ./relay config init
+Initializing relay in /&lt;current_directory&gt;/.relay
+Do you want to create a new config?:
+&gt; Yes, create default config
+  Yes, create custom config
+  No, abort
 </code></pre></div>
 
-
-<p>The wizard will ask a few questions:</p>
-<ol>
-<li>default vs custom config. In the default config the relay will connect to
-   sentry.io for sending and will generally use the defaults. In the custom
-   config a different upstream can be configured.</li>
-<li>Relay internal crash reporting can be enabled or disabled. When enabled the
-   relay will report its own internal errors to sentry.io to help us debug it.</li>
-<li>Lastly the relay will ask it should run authenticated with credentials or
-   not. Currently we do not yet support authenticated mode against sentry.io.</li>
-</ol>
-<p>You now have a folder named <code>.relay</code> in your current working directory. To
-launch the server, run:</p>
-<div class="codehilite"><pre><span></span><code>$ relay run
+<p>Selecting the default configuration will create a minimal configuration file.
+Alternatively, you can choose to override the default settings, by selecting
+<em>*"create custom config"</em>. This allows you to customize the following basic
+parameters:</p>
+<ul>
+<li>The <code>mode</code> setting configures the major mode in which Relay operates. For more
+  information on available relay modes, refer to <em><a href="./configuration/modes">Relay Modes</a></em>.</li>
+<li>The <code>upstream</code> setting configures the server to which Relay will forward the
+  events (by default the main <code>sentry.io</code> URL).</li>
+<li>The <code>port</code> and <code>host</code> settings configure the TCP port at which Relay will
+  listen to. This is the address to which SDKs send events.</li>
+<li>The <code>tls</code> settings configure TLS support (HTTPS support), used for
+  the cases where the communication between the SDK and Relay needs to be
+  secured.</li>
+</ul>
+<p>Settings are placed in <code>.relay/config.yml</code>. Note that all configuration values are optional and default to these settings:</p>
+<div class="codehilite"><pre><span></span><code><span class="nn">---</span>
+<span class="nt">relay</span><span class="p">:</span>
+  <span class="nt">mode</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">managed</span>
+  <span class="nt">upstream</span><span class="p">:</span> <span class="s">&quot;https://sentry.io/&quot;</span>
+  <span class="nt">host</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">127.0.0.1</span>
+  <span class="nt">port</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">3000</span>
+  <span class="nt">tls_port</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">~</span>
+  <span class="nt">tls_identity_path</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">~</span>
+  <span class="nt">tls_identity_password</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">~</span>
 </code></pre></div>
 
-
-<p>If you moved your config folder somewhere else, you can use the <code>--config</code> option:</p>
-<div class="codehilite"><pre><span></span><code>$ relay run --config ./my/custom/relay_folder/
+<p>All configurations are explained in detail in the section <a href="../options">Configuration
+Options</a>.</p>
+<h3 id="credentials">Credentials</h3>
+<p>Besides <code>config.yml</code>, the <code>init</code> command has also created a credentials file <code>credentials.json</code> in the same <code>.relay</code> directory. This file contains the a public and private key used by Relay to authenticate with the upstream server.</p>
+<p><strong>As such, it is important that this file should be adequatly protected from modification or viewing by unauthorized entities</strong>.</p>
+<p>Here's an example of the contents of a typical credentials file:</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;secret_key&quot;</span><span class="p">:</span> <span class="s2">&quot;5gkTAfwOrJ0lMy9aOAOmHKO1k6gd8ApYkAInmg5VfWk&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;public_key&quot;</span><span class="p">:</span> <span class="s2">&quot;fQzvlvqLM2pJwLDwM_sXD2Lk5swzx-Oml4WhsOquon4&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;cde0d72e-0c4e-4550-a934-c1867d8a177c&quot;</span>
+<span class="p">}</span>
 </code></pre></div>
 
+<p>You will be using the <code>public_key</code> to register your Relay with the upstream server when running it in <code>managed</code> mode.</p>
+<h3 id="registering-relay-with-sentry">Registering Relay with Sentry</h3>
+<p>To operate in <code>managed</code> mode, Relay pulls configuration for PII stripping,
+filtering, and rate limiting from your organization and project settings at
+Sentry. Since these settings may contain sensitive information, their access is
+restricted by Sentry and requires authorization.</p>
+<p>In order to register Relay with Sentry, get the contents of the public key,
+either by inspecting the <code>credentials.json</code> file or by running:</p>
+<div class="codehilite"><pre><span></span><code>❯ ./relay credentials show
+Credentials:
+  relay id: 8cd24a0e-384d-4052-9010-68a21392b33c
+  public key: nDJl79SbEYH9-8NEJAI7ezrgYfolPW3Bnkg00k1zOfA
+</code></pre></div>
+
+<p>After copying the public key, go to the organization settings in Sentry by clicking on <em>Settings</em> in the main navigation on the left, then go to <em>Relays</em>.</p>
+<p align="center">
+    <img src="img/add-relay-key.png" alt="Relays Settings" />
+</p>
+
+<p>Click <em>New Relay Key</em> to add the key and save it:</p>
+<p align="center">
+    <img src="img/edit-relay-key.png" alt="Add Relay Key" >
+</p>
+
+<p>Now your Relay is registered with Sentry and ready to send messages. See
+<a href="../options">Configuration Options</a> page to learn more about further Relay configuration
+options.</p>
+<h3 id="running-relay">Running Relay</h3>
+<p>Once you have registered your Relay with Sentry, you are ready to run your
+Relay:</p>
+<div class="codehilite"><pre><span></span><code>❯ relay run
+ INFO  relay::setup &gt; launching relay from config folder .relay
+ INFO  relay::setup &gt;   relay mode: managed
+ INFO  relay::setup &gt;   relay id: f2119bc9-9a9b-4531-826b-24e9794902f2
+ INFO  relay::setup &gt;   public key: QPBITKKtKUuEZGGbPke8iufEXAcVrEv6nmWrkRtc3l8
+ ...
+ DEBUG relay::server::upstream &gt; relay successfully registered with upstream
+</code></pre></div>
+
+<p>If you moved your config folder somewhere else (e.g. for security reasons), you can use the <code>--config</code> option to specify the location:</p>
+<div class="codehilite"><pre><span></span><code>❯ relay run --config ./my/custom/relay_folder/
+</code></pre></div>
 
 <h3 id="running-in-docker">Running in Docker</h3>
-<p>Docker image for <code>relay</code> can be found at <a href="https://hub.docker.com/r/getsentry/relay/"><code>getsentry/relay</code></a>.</p>
+<p>As an alternative to directly running the Relay binary, Sentry also provides a Docker image that can be used to run Relay. It can be found on <a href="https://hub.docker.com/r/getsentry/relay/">DockerHub</a>.</p>
+<p>Similar to directly running the <code>relay</code> binary, running the docker image needs a
+directory in which it can find the configuration and credentials files
+(<code>config.yml</code> and <code>credentials.json</code>). Providing the configuration directory can
+be done with the standard mechanisms offered by docker, either by mounting
+<a href="https://docs.docker.com/storage/volumes/">docker volumes</a> or by building a new container and copying the files in.</p>
 <p>For example, you can start the latest version of <code>relay</code> as follows:</p>
-<div class="codehilite"><pre><span></span><code>docker run -v <span class="k">$(</span><span class="nb">pwd</span><span class="k">)</span>/configs/:/etc/relay/ getsentry/relay run --config /etc/relay
+<div class="codehilite"><pre><span></span><code>❯ docker run -v <span class="k">$(</span><span class="nb">pwd</span><span class="k">)</span>/configs/:/work/.relay/ getsentry/relay run
 </code></pre></div>
 
-<p>The command assumes that Relay's configuration (<code>config.yml</code> and
-<code>credentials.json</code>) are stored in <code>./configs/</code> directory on the host machine.</p>
-<h2 id="upstream-registration">Upstream Registration</h2>
-<p>When Relay runs, it registers with the upstream configured Sentry instance. Each
-Relay is identified by the <code>(relay_id, public_key)</code> tuple upstream. Multiple
-Relays can share the same public key if they run with different Relay IDs.</p>
-<p>At present, Sentry requires Relays to be explicitly whitelisted by their public
-key. This is done through the <code>SENTRY_RELAY_WHITELIST_PK</code> config key which is a
-list of permitted public keys.</p>
-<h2 id="metrics-and-crash-reporting">Metrics and Crash Reporting</h2>
-<p>By default, Relay currently reports directly to sentry.io. This can be disabled
-by setting the <code>sentry.enabled</code> key to <code>false</code>. Additionally a different DSN can
-be supplied with <code>sentry.dsn</code>. Crash reporting will become opt-in before the
-initial public release.</p>
-<p>Stats can be submitted to a statsd server by configuring <code>metrics.statsd</code> key.
-It can be put to a <code>ip:port</code> tuple. Additionally <code>metrics.prefix</code> can be
-configured to have a different prefix (the default is <code>sentry.relay</code>). This
-prefix is added in front of all metrics.</p>
-<h2 id="setting-up-a-project">Setting up a Project</h2>
-<p>Right now Relay is only really usable in "simple proxy mode" (without
-credentials), and as such calls the same exact endpoints on Sentry that an SDK
-would. That also means you have to configure each project individually in Relay.</p>
-<p>Create a new file in the form <code>project_id.json</code>:</p>
-<div class="codehilite"><pre><span></span><code><span class="na">.relay</span><span class="err">/</span><span class="no">projects</span><span class="err">/</span><span class="no">___PROJECT_ID___.json</span>
+<p>This example command assumes that Relay's configuration (<code>config.yml</code> and <code>credentials.json</code>) are stored in <code>./configs/</code> directory on the host machine.</p>
+<h3 id="sending-a-test-event">Sending a Test Event</h3>
+<p>Once Relay is running and authenticated with Sentry, it is time to send a test event.</p>
+<p>Get the DSN of your project by navigating to your <em>Project Settings &gt; Client Keys (DSN)</em>. From the <em>Client Keys</em> page, get the DSN, which looks something like:</p>
+<div class="codehilite"><pre><span></span><code><span class="c">https://12345abcdb1e4c123490ecec89c1f199@o1.ingest.sentry.io/2244</span>
 </code></pre></div>
 
-<p>With the following content:</p>
-<div class="codehilite"><pre><span></span><code><span class="p">{</span>
-  <span class="nt">&quot;publicKeys&quot;</span><span class="p">:</span> <span class="p">[</span>
-    <span class="p">{</span>
-      <span class="nt">&quot;publicKey&quot;</span><span class="p">:</span> <span class="s2">&quot;___PUBLIC_KEY___&quot;</span><span class="p">,</span>
-      <span class="nt">&quot;isEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span>
-    <span class="p">}</span>
-  <span class="p">],</span>
-  <span class="nt">&quot;config&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;allowedDomains&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span>
-    <span class="nt">&quot;piiConfig&quot;</span><span class="p">:</span> <span class="p">{}</span>
-  <span class="p">}</span>
-<span class="p">}</span>
+<p>Next, replace parts of the DSN to match the address at which Relay is reachable. For instance, if Relay listens at <code>http://localhost:3000</code>, change the protocol and host of the DSN to:</p>
+<div class="codehilite"><pre><span></span><code><span class="c">http://12345abcdb1e4c123490ecec89c1f199@localhost:3000/2244</span>
 </code></pre></div>
 
-<p>The relay has to know all public keys (i.e. the secret part of the DSN) that
-will send events to it. DSNs unknown for this project will be rejected.</p>
-<h2 id="sending-a-test-event">Sending a Test Event</h2>
-<p>Launch the server with <code>relay run</code>, and set up any SDK with the following DSN:</p>
-<div class="codehilite"><pre><span></span><code><span class="nl">http</span><span class="p">:</span><span class="c1">//___PUBLIC_KEY___@127.0.0.1:3000/___PROJECT_ID___</span>
+<p>Use the new DSN in your SDK configuration. To test this, you can send a message with <code>sentry-cli</code>:</p>
+<div class="codehilite"><pre><span></span><code>❯ <span class="nb">export</span> <span class="nv">SENTRY_DSN</span><span class="o">=</span><span class="s1">&#39;http://12345abcdb1e4c123490ecec89c1f199@127.0.0.1:3000/2244&#39;</span>
+❯ sentry-cli send-event -m <span class="s1">&#39;A test event&#39;</span>
 </code></pre></div>
 
-<p>As you can see we only changed the host and port of the DSN to point to your
-Relay setup. You should be able to use the SDK normally at this point. Events
-arrive at the Sentry instance that Relay is configured to use in
-<code>.relay/config.yml</code>.</p>
-<h2 id="pii-stripping">PII Stripping</h2>
-<p>Now let's get to the entire point of this proxy setup: Stripping sensitive data.</p>
-<p>The easiest way to go about this is if you already have a raw JSON payload from
-some SDK. Go to our PII config editor
-<a href="https://getsentry.github.io/piinguin/">Piinguin</a>, and:</p>
-<ol>
-<li>Paste in a raw event</li>
-<li>Click on data you want eliminated</li>
-<li>Paste in other payloads and see if they look fine, go to step <strong>2</strong> if
-   necessary.</li>
-</ol>
-<p>After iterating on the config, paste it back into the project config you created
-earlier:</p>
-<div class="codehilite"><pre><span></span><code><span class="na">.relay</span><span class="err">/</span><span class="no">projects</span><span class="err">/</span><span class="no">___PROJECT_ID___.json</span>
-</code></pre></div>
-
-<p>For example:</p>
-<div class="codehilite"><pre><span></span><code><span class="p">{</span>
-  <span class="nt">&quot;publicKeys&quot;</span><span class="p">:</span> <span class="p">[</span>
-    <span class="p">{</span>
-      <span class="nt">&quot;publicKey&quot;</span><span class="p">:</span> <span class="s2">&quot;___PUBLIC_KEY___&quot;</span><span class="p">,</span>
-      <span class="nt">&quot;isEnabled&quot;</span><span class="p">:</span> <span class="kc">true</span>
-    <span class="p">}</span>
-  <span class="p">],</span>
-  <span class="nt">&quot;config&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nt">&quot;allowedDomains&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span>
-    <span class="nt">&quot;piiConfig&quot;</span><span class="p">:</span> <span class="p">{</span>
-      <span class="nt">&quot;rules&quot;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="nt">&quot;device_id&quot;</span><span class="p">:</span> <span class="p">{</span>
-          <span class="nt">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;pattern&quot;</span><span class="p">,</span>
-          <span class="nt">&quot;pattern&quot;</span><span class="p">:</span> <span class="s2">&quot;d/[a-f0-9]{12}&quot;</span><span class="p">,</span>
-          <span class="nt">&quot;redaction&quot;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="nt">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;hash&quot;</span>
-          <span class="p">}</span>
-        <span class="p">}</span>
-      <span class="p">},</span>
-      <span class="nt">&quot;applications&quot;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="nt">&quot;freeform&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;device_id&quot;</span><span class="p">]</span>
-      <span class="p">}</span>
-    <span class="p">}</span>
-  <span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
+<p>After a few seconds, the event should appear in the issues stream in your
+project.</p>
                 
                   
                 
@@ -748,13 +887,13 @@ earlier:</p>
       <nav class="md-footer-nav__inner md-grid">
         
         
-          <a href="options/" title="Configuration Options" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="configuration/modes/" title="Relay Modes" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Configuration Options
+                Relay Modes
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">

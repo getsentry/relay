@@ -229,34 +229,70 @@
       
 
 
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
+    
+    <label class="md-nav__link" for="nav-2">
+      Advanced Configuration
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-2">
+        Advanced Configuration
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
   <li class="md-nav__item">
-    <a href="../../options/" title="Configuration Options" class="md-nav__link">
+    <a href="../../configuration/modes/" title="Relay Modes" class="md-nav__link">
+      Relay Modes
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../configuration/options/" title="Configuration Options" class="md-nav__link">
       Configuration Options
     </a>
   </li>
 
-    
-      
-      
-      
+        
+          
+          
+          
 
 
   <li class="md-nav__item">
-    <a href="../../project-config/" title="Project Configuration" class="md-nav__link">
+    <a href="../../configuration/metrics/" title="Errors and Metrics" class="md-nav__link">
+      Errors and Metrics
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../configuration/projects/" title="Project Configuration" class="md-nav__link">
       Project Configuration
     </a>
   </li>
 
-    
-      
-      
-      
-
-
-  <li class="md-nav__item">
-    <a href="../../metrics/" title="Metrics" class="md-nav__link">
-      Metrics
-    </a>
+        
+      </ul>
+    </nav>
   </li>
 
     
@@ -269,14 +305,14 @@
 
   <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3" checked>
     
-    <label class="md-nav__link" for="nav-5">
-      PII and datascrubbing
+    <label class="md-nav__link" for="nav-3">
+      PII and Data Scrubbing
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-5">
-        PII and datascrubbing
+      <label class="md-nav__title" for="nav-3">
+        PII and Data Scrubbing
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
         
@@ -400,13 +436,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
     
-    <label class="md-nav__link" for="nav-6">
+    <label class="md-nav__link" for="nav-4">
       Architecture
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-6">
+      <label class="md-nav__title" for="nav-4">
         Architecture
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -533,7 +569,7 @@
                 
                 
                 <h1 id="pii-redaction-methods">PII Redaction Methods</h1>
-<h4 id="remove">remove</h4>
+<h3 id="remove"><code>remove</code></h3>
 <p>Remove the entire field. Relay may choose to either set it to <code>null</code> or to remove it entirely.</p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
   <span class="nt">&quot;rules&quot;</span><span class="p">:</span> <span class="p">{</span>
@@ -550,7 +586,7 @@
 <span class="p">}</span>
 </code></pre></div>
 
-<h4 id="replace">replace</h4>
+<h3 id="replace"><code>replace</code></h3>
 <p>Replace the key with a static string.</p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
   <span class="nt">&quot;rules&quot;</span><span class="p">:</span> <span class="p">{</span>
@@ -568,7 +604,7 @@
 <span class="p">}</span>
 </code></pre></div>
 
-<h4 id="mask">mask</h4>
+<h3 id="mask"><code>mask</code></h3>
 <p>Replace every character of the matched string with a "masking" char. Compared to <code>replace</code> this preserves the length of the original string.</p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
   <span class="s2">&quot;rules&quot;</span><span class="o">:</span> <span class="p">{</span>
@@ -588,7 +624,7 @@
 <span class="p">}</span>
 </code></pre></div>
 
-<h4 id="hash">hash</h4>
+<h3 id="hash"><code>hash</code></h3>
 <p>Replace the string with a hashed version of itself. Equal strings will produce the same hash, so if you, for example, decide to hash the user ID instead of replacing or removing it, you will still have an accurate count of users affected.</p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
   <span class="s2">&quot;rules&quot;</span><span class="o">:</span> <span class="p">{</span>

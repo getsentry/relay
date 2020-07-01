@@ -229,34 +229,70 @@
       
 
 
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
+    
+    <label class="md-nav__link" for="nav-2">
+      Advanced Configuration
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-2">
+        Advanced Configuration
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
   <li class="md-nav__item">
-    <a href="../../options/" title="Configuration Options" class="md-nav__link">
+    <a href="../../configuration/modes/" title="Relay Modes" class="md-nav__link">
+      Relay Modes
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../configuration/options/" title="Configuration Options" class="md-nav__link">
       Configuration Options
     </a>
   </li>
 
-    
-      
-      
-      
+        
+          
+          
+          
 
 
   <li class="md-nav__item">
-    <a href="../../project-config/" title="Project Configuration" class="md-nav__link">
+    <a href="../../configuration/metrics/" title="Errors and Metrics" class="md-nav__link">
+      Errors and Metrics
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../configuration/projects/" title="Project Configuration" class="md-nav__link">
       Project Configuration
     </a>
   </li>
 
-    
-      
-      
-      
-
-
-  <li class="md-nav__item">
-    <a href="../../metrics/" title="Metrics" class="md-nav__link">
-      Metrics
-    </a>
+        
+      </ul>
+    </nav>
   </li>
 
     
@@ -269,14 +305,14 @@
 
   <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3" checked>
     
-    <label class="md-nav__link" for="nav-5">
-      PII and datascrubbing
+    <label class="md-nav__link" for="nav-3">
+      PII and Data Scrubbing
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-5">
-        PII and datascrubbing
+      <label class="md-nav__title" for="nav-3">
+        PII and Data Scrubbing
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
         
@@ -435,13 +471,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
     
-    <label class="md-nav__link" for="nav-6">
+    <label class="md-nav__link" for="nav-4">
       Architecture
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-6">
+      <label class="md-nav__title" for="nav-4">
         Architecture
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -603,7 +639,7 @@
                 
                 
                 <h1 id="pii-rule-types">PII Rule Types</h1>
-<h4 id="pattern">pattern</h4>
+<h3 id="pattern"><code>pattern</code></h3>
 <p>Custom Perl-style regex (PCRE).</p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
   <span class="nt">&quot;rules&quot;</span><span class="p">:</span> <span class="p">{</span>
@@ -621,7 +657,7 @@
 <span class="p">}</span>
 </code></pre></div>
 
-<h4 id="imei">imei</h4>
+<h3 id="imei"><code>imei</code></h3>
 <p>Matches an IMEI or IMEISV.</p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
   <span class="nt">&quot;rules&quot;</span><span class="p">:</span> <span class="p">{</span>
@@ -638,7 +674,7 @@
 <span class="p">}</span>
 </code></pre></div>
 
-<h4 id="mac">mac</h4>
+<h3 id="mac"><code>mac</code></h3>
 <p>Matches a MAC address.</p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
   <span class="nt">&quot;rules&quot;</span><span class="p">:</span> <span class="p">{</span>
@@ -655,7 +691,7 @@
 <span class="p">}</span>
 </code></pre></div>
 
-<h4 id="ip">ip</h4>
+<h3 id="ip"><code>ip</code></h3>
 <p>Matches any IP address.</p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
   <span class="nt">&quot;rules&quot;</span><span class="p">:</span> <span class="p">{</span>
@@ -672,7 +708,7 @@
 <span class="p">}</span>
 </code></pre></div>
 
-<h4 id="creditcard">creditcard</h4>
+<h3 id="creditcard"><code>creditcard</code></h3>
 <p>Matches a creditcard number.</p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
   <span class="nt">&quot;rules&quot;</span><span class="p">:</span> <span class="p">{</span>
@@ -689,7 +725,7 @@
 <span class="p">}</span>
 </code></pre></div>
 
-<h4 id="userpath">userpath</h4>
+<h3 id="userpath"><code>userpath</code></h3>
 <p>Matches a local path (e.g. <code>C:/Users/foo/</code>).</p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
   <span class="nt">&quot;rules&quot;</span><span class="p">:</span> <span class="p">{</span>
@@ -706,7 +742,7 @@
 <span class="p">}</span>
 </code></pre></div>
 
-<h4 id="anything">anything</h4>
+<h3 id="anything"><code>anything</code></h3>
 <p>Matches any value. This is basically equivalent to a wildcard regex.</p>
 <p>For example, to remove all strings:</p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
@@ -724,7 +760,7 @@
 <span class="p">}</span>
 </code></pre></div>
 
-<h4 id="multiple">multiple</h4>
+<h3 id="multiple"><code>multiple</code></h3>
 <p>Combine multiple rules into one. This is a disjunction (OR): The field in question has to match only one of the rules to match the combined rule, not all of them.</p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
   <span class="s2">&quot;rules&quot;</span><span class="o">:</span> <span class="p">{</span>
@@ -746,7 +782,7 @@
 <span class="p">}</span>
 </code></pre></div>
 
-<h4 id="alias">alias</h4>
+<h3 id="alias"><code>alias</code></h3>
 <p>Alias one rule to the other. This is the same as <code>multiple</code> except that you can only wrap one rule.</p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
   <span class="s2">&quot;rules&quot;</span><span class="o">:</span> <span class="p">{</span>

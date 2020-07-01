@@ -229,34 +229,70 @@
       
 
 
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
+    
+    <label class="md-nav__link" for="nav-2">
+      Advanced Configuration
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-2">
+        Advanced Configuration
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
   <li class="md-nav__item">
-    <a href="../../options/" title="Configuration Options" class="md-nav__link">
+    <a href="../../configuration/modes/" title="Relay Modes" class="md-nav__link">
+      Relay Modes
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../configuration/options/" title="Configuration Options" class="md-nav__link">
       Configuration Options
     </a>
   </li>
 
-    
-      
-      
-      
+        
+          
+          
+          
 
 
   <li class="md-nav__item">
-    <a href="../../project-config/" title="Project Configuration" class="md-nav__link">
+    <a href="../../configuration/metrics/" title="Errors and Metrics" class="md-nav__link">
+      Errors and Metrics
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../configuration/projects/" title="Project Configuration" class="md-nav__link">
       Project Configuration
     </a>
   </li>
 
-    
-      
-      
-      
-
-
-  <li class="md-nav__item">
-    <a href="../../metrics/" title="Metrics" class="md-nav__link">
-      Metrics
-    </a>
+        
+      </ul>
+    </nav>
   </li>
 
     
@@ -269,14 +305,14 @@
 
   <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3" checked>
     
-    <label class="md-nav__link" for="nav-5">
-      PII and datascrubbing
+    <label class="md-nav__link" for="nav-3">
+      PII and Data Scrubbing
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-5">
-        PII and datascrubbing
+      <label class="md-nav__title" for="nav-3">
+        PII and Data Scrubbing
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
         
@@ -413,13 +449,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
     
-    <label class="md-nav__link" for="nav-6">
+    <label class="md-nav__link" for="nav-4">
       Architecture
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-6">
+      <label class="md-nav__title" for="nav-4">
         Architecture
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -617,7 +653,7 @@
 <li><code>$logentry</code> (also applies to the <code>message</code> attribute)</li>
 <li><code>$thread</code> matches a single thread instance in <code>{"threads": {"values": [...]}}</code></li>
 <li><code>$breadcrumb</code> matches a single breadcrumb in <code>{"breadcrumbs": [...]}</code></li>
-<li><code>$span</code> matches a <a href="{% link _documentation/performance/performance-glossary.md %}#span">trace span</a></li>
+<li><code>$span</code> matches a <a href="https://docs.sentry.io/performance-monitoring/distributed-tracing/#spans">trace span</a></li>
 <li><code>$sdk</code> matches the SDK context in <code>{"sdk": ...}</code></li>
 </ul>
 <h4 id="examples">Examples</h4>
