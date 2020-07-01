@@ -381,8 +381,6 @@ def test_minidump_ratelimit(
     relay.send_minidump(project_id=42, files=attachments)
     outcomes_consumer.assert_rate_limited("static_disabled_quota")
 
-    # Second minidump returns 429 in endpoint
-    with pytest.raises(HTTPError) as excinfo:
-        relay.send_minidump(project_id=42, files=attachments)
-    assert excinfo.value.response.status_code == 429
+    # Minidumps never return rate limits
+    relay.send_minidump(project_id=42, files=attachments)
     outcomes_consumer.assert_rate_limited("static_disabled_quota")
