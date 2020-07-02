@@ -58,10 +58,7 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
                 "tls_cert": None,
             },
             "sentry": {"dsn": mini_sentry.internal_error_dsn, "enabled": True},
-            "limits": {
-                "max_api_file_upload_size": "1MiB",
-                "max_concurrent_requests": 1,  # less flaky tests
-            },
+            "limits": {"max_api_file_upload_size": "1MiB"},
             "cache": {"batch_interval": 0},
             "logging": {"level": "trace"},
             "http": {"timeout": 2},
