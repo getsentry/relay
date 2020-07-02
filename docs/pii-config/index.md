@@ -4,8 +4,6 @@ The following document explores the syntax and semantics of the new
 datascrubbing ("PII") configuration consumed by
 [Relay](https://github.com/getsentry/relay).
 
-This type of configuration is supposed to eventually replace our existing [server-side data scrubbing feature](https://docs.sentry.io/data-management/sensitive-data/#server-side-scrubbing). **We are currently beta-testing this feature on `sentry.io`**. If you are interested in gaining early access to this feature, please refer to [this issue](https://github.com/getsentry/relay/issues/453) or contact us at `markus@sentry.io`.
-
 ## A basic example
 
 Say you have an exception message which, unfortunately, contains IP addresses which are not supposed to be there. You'd write:
