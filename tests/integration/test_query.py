@@ -178,7 +178,7 @@ def test_query_retry_maxed_out(
         assert "error fetching project states" in str(error)
 
     _, last_error = mini_sentry.test_failures[-1]
-    "failed to resolve project information" in str(last_error)
+    assert "failed to resolve project information" in str(last_error)
 
     mini_sentry.test_failures.clear()
 
