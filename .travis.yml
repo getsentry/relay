@@ -88,7 +88,7 @@ jobs:
         - docker run -d --network host --name kafka -e KAFKA_ZOOKEEPER_CONNECT=localhost:2181 -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$KAFKA_BOOTSTRAP_SERVER -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 confluentinc/cp-kafka:4.1.2-3
         - sudo service redis-server start --bind 127.0.0.1
       script:
-        - make -e test-integration
+        - make -e test-integration CONCURRENCY=1
 
     # -------------------------------------
     # RUST RELEASE BUILDS
