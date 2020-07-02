@@ -914,7 +914,7 @@ impl EventProcessor {
         // remove it from the processing state eventually.
         let mut envelope_limiter = EnvelopeLimiter::new(|item_scope, quantity| {
             let limits = rate_limiter.is_rate_limited(quotas, item_scope, quantity)?;
-            remove_event ^= Some(item_scope.category) == category && limits.is_limited();
+            remove_event |= Some(item_scope.category) == category && limits.is_limited();
             Ok(limits)
         });
 

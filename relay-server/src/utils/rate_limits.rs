@@ -109,6 +109,7 @@ pub struct EnvelopeLimiter<F> {
     event_category: Option<DataCategory>,
     attachment_quantity: usize,
     session_quantity: usize,
+    has_plain_attachments: bool,
     remove_event: bool,
     remove_attachments: bool,
     remove_sessions: bool,
@@ -125,6 +126,7 @@ where
             event_category: None,
             attachment_quantity: 0,
             session_quantity: 0,
+            has_plain_attachments: false,
             remove_event: false,
             remove_attachments: false,
             remove_sessions: false,
@@ -153,6 +155,9 @@ where
         for item in envelope.items() {
             if item.creates_event() {
                 self.infer_category(item);
+            } else if item.ty() == ItemType::Attachment {
+                // Plain attachments do not create events.
+                self.has_plain_attachments = true;
             }
 
             match item.ty() {
@@ -184,7 +189,13 @@ where
             let item_scoping = scoping.item(DataCategory::Attachment);
             let attachment_limits = (&mut self.check)(item_scoping, self.attachment_quantity)?;
             self.remove_attachments = attachment_limits.is_limited();
-            rate_limits.merge(attachment_limits);
+
+            // Only record rate limits for plain attachments. For all other attachments, it's
+            // perfectly "legal" to send them. They will still be discarded in Sentry, but clients
+            // can continue to send them.
+            if self.has_plain_attachments {
+                rate_limits.merge(attachment_limits);
+            }
         }
 
         if self.session_quantity > 0 {
@@ -239,10 +250,14 @@ impl<F> fmt::Debug for EnvelopeLimiter<F> {
 mod tests {
     use super::*;
 
+    use std::collections::BTreeMap;
+
     use smallvec::smallvec;
 
     use relay_common::ProjectId;
     use relay_quotas::RetryAfter;
+
+    use crate::envelope::{AttachmentType, ContentType};
 
     #[test]
     fn test_format_rate_limits() {
@@ -346,5 +361,239 @@ mod tests {
                 retry_after: rate_limits[0].retry_after,
             },]
         );
+    }
+
+    macro_rules! envelope {
+        ($( $item_type:ident $( :: $attachment_type:ident )? ),*) => {{
+            let bytes = "{\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}";
+            #[allow(unused_mut)]
+            let mut envelope = Envelope::parse_bytes(bytes.into()).unwrap();
+            $(
+                let mut item = Item::new(ItemType::$item_type);
+                item.set_payload(ContentType::OctetStream, "0123456789");
+                $( item.set_attachment_type(AttachmentType::$attachment_type); )?
+                envelope.add_item(item);
+            )*
+            envelope
+        }}
+    }
+
+    fn scoping() -> Scoping {
+        Scoping {
+            organization_id: 42,
+            project_id: ProjectId::new(21),
+            public_key: "e12d836b15bb49d7bbf99e64295d995b".to_owned(),
+            key_id: Some(17),
+        }
+    }
+
+    fn rate_limit(category: DataCategory) -> RateLimit {
+        RateLimit {
+            categories: vec![category].into(),
+            scope: RateLimitScope::Organization(42),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(60),
+        }
+    }
+
+    #[derive(Debug, Default)]
+    struct MockLimiter {
+        denied: Vec<DataCategory>,
+        called: BTreeMap<DataCategory, usize>,
+    }
+
+    impl MockLimiter {
+        pub fn deny(mut self, category: DataCategory) -> Self {
+            self.denied.push(category);
+            self
+        }
+
+        pub fn check(
+            &mut self,
+            scoping: ItemScoping<'_>,
+            quantity: usize,
+        ) -> Result<RateLimits, ()> {
+            let cat = scoping.category;
+            let previous = self.called.insert(cat, quantity);
+            assert!(previous.is_none(), "rate limiter invoked twice for {}", cat);
+
+            let mut limits = RateLimits::new();
+            if self.denied.contains(&cat) {
+                limits.add(rate_limit(cat));
+            }
+            Ok(limits)
+        }
+
+        pub fn assert_call(&self, category: DataCategory, quantity: Option<usize>) {
+            assert_eq!(self.called.get(&category), quantity.as_ref());
+        }
+    }
+
+    #[test]
+    fn test_enforce_pass_empty() {
+        let mut envelope = envelope![];
+
+        let mut mock = MockLimiter::default();
+        let limits = EnvelopeLimiter::new(|s, q| mock.check(s, q))
+            .enforce(&mut envelope, &scoping())
+            .unwrap();
+
+        assert!(!limits.is_limited());
+        assert!(envelope.is_empty());
+        mock.assert_call(DataCategory::Error, None);
+        mock.assert_call(DataCategory::Attachment, None);
+        mock.assert_call(DataCategory::Session, None);
+    }
+
+    #[test]
+    fn test_enforce_limit_error_event() {
+        let mut envelope = envelope![Event];
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Error);
+        let limits = EnvelopeLimiter::new(|s, q| mock.check(s, q))
+            .enforce(&mut envelope, &scoping())
+            .unwrap();
+
+        assert!(limits.is_limited());
+        assert!(envelope.is_empty());
+        mock.assert_call(DataCategory::Error, Some(1));
+        mock.assert_call(DataCategory::Attachment, None);
+        mock.assert_call(DataCategory::Session, None);
+    }
+
+    #[test]
+    fn test_enforce_limit_error_with_attachments() {
+        let mut envelope = envelope![Event, Attachment::Attachment];
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Error);
+        let limits = EnvelopeLimiter::new(|s, q| mock.check(s, q))
+            .enforce(&mut envelope, &scoping())
+            .unwrap();
+
+        assert!(limits.is_limited());
+        assert!(envelope.is_empty());
+        mock.assert_call(DataCategory::Error, Some(1));
+        // Error is limited, so no need to call the attachment quota
+        mock.assert_call(DataCategory::Attachment, None);
+        mock.assert_call(DataCategory::Session, None);
+    }
+
+    #[test]
+    fn test_enforce_limit_minidump() {
+        let mut envelope = envelope![Attachment::Minidump];
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Error);
+        let limits = EnvelopeLimiter::new(|s, q| mock.check(s, q))
+            .enforce(&mut envelope, &scoping())
+            .unwrap();
+
+        assert!(limits.is_limited());
+        assert!(envelope.is_empty());
+        mock.assert_call(DataCategory::Error, Some(1));
+        // Error is limited, so no need to call the attachment quota
+        mock.assert_call(DataCategory::Attachment, None);
+        mock.assert_call(DataCategory::Session, None);
+    }
+
+    #[test]
+    fn test_enforce_limit_attachments() {
+        let mut envelope = envelope![Attachment::Minidump, Attachment::Attachment];
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Attachment);
+        let limits = EnvelopeLimiter::new(|s, q| mock.check(s, q))
+            .enforce(&mut envelope, &scoping())
+            .unwrap();
+
+        // Attachments would be limited, but crash reports create events and are thus allowed.
+        assert!(limits.is_limited());
+        assert_eq!(envelope.len(), 1);
+        mock.assert_call(DataCategory::Error, Some(1));
+        mock.assert_call(DataCategory::Attachment, Some(20));
+        mock.assert_call(DataCategory::Session, None);
+    }
+
+    #[test]
+    fn test_enforce_pass_minidump() {
+        let mut envelope = envelope![Attachment::Minidump];
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Attachment);
+        let limits = EnvelopeLimiter::new(|s, q| mock.check(s, q))
+            .enforce(&mut envelope, &scoping())
+            .unwrap();
+
+        // If only crash report attachments are present, we don't emit a rate limit.
+        assert!(!limits.is_limited());
+        assert_eq!(envelope.len(), 1);
+        mock.assert_call(DataCategory::Error, Some(1));
+        mock.assert_call(DataCategory::Attachment, Some(10));
+        mock.assert_call(DataCategory::Session, None);
+    }
+
+    #[test]
+    fn test_enforce_pass_sessions() {
+        let mut envelope = envelope![Session, Session, Session];
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Error);
+        let limits = EnvelopeLimiter::new(|s, q| mock.check(s, q))
+            .enforce(&mut envelope, &scoping())
+            .unwrap();
+
+        // If only crash report attachments are present, we don't emit a rate limit.
+        assert!(!limits.is_limited());
+        assert_eq!(envelope.len(), 3);
+        mock.assert_call(DataCategory::Error, None);
+        mock.assert_call(DataCategory::Attachment, None);
+        mock.assert_call(DataCategory::Session, Some(3));
+    }
+
+    #[test]
+    fn test_enforce_limit_sessions() {
+        let mut envelope = envelope![Session, Session, Event];
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Session);
+        let limits = EnvelopeLimiter::new(|s, q| mock.check(s, q))
+            .enforce(&mut envelope, &scoping())
+            .unwrap();
+
+        // If only crash report attachments are present, we don't emit a rate limit.
+        assert!(limits.is_limited());
+        assert_eq!(envelope.len(), 1);
+        mock.assert_call(DataCategory::Error, Some(1));
+        mock.assert_call(DataCategory::Attachment, None);
+        mock.assert_call(DataCategory::Session, Some(2));
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_enforce_limit_assumed_event() {
+        let mut envelope = envelope![];
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
+        let mut limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+        limiter.assume_event(DataCategory::Transaction);
+        let limits = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        assert!(limits.is_limited());
+        assert!(envelope.is_empty()); // obviously
+        mock.assert_call(DataCategory::Transaction, Some(1));
+        mock.assert_call(DataCategory::Attachment, None);
+        mock.assert_call(DataCategory::Session, None);
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_enforce_limit_assumed_attachments() {
+        let mut envelope = envelope![Attachment::Attachment, Attachment::Attachment];
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Error);
+        let mut limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+        limiter.assume_event(DataCategory::Error);
+        let limits = limiter.enforce(&mut envelope, &scoping()).unwrap();
+
+        assert!(limits.is_limited());
+        assert!(envelope.is_empty());
+        mock.assert_call(DataCategory::Error, Some(1));
+        mock.assert_call(DataCategory::Attachment, None);
+        mock.assert_call(DataCategory::Session, None);
     }
 }
