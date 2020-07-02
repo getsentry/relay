@@ -256,7 +256,7 @@ def test_store_rate_limit(mini_sentry, relay):
         # second request to mini_sentry, we want to see it so we can log an error.
         nonlocal rate_limit_sent
         if rate_limit_sent:
-            store_event_original()
+            return store_event_original()
         else:
             rate_limit_sent = True
             return "", 429, {"retry-after": "2"}
