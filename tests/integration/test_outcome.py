@@ -35,7 +35,7 @@ def test_outcomes_processing(relay_with_processing, kafka_consumer, mini_sentry)
     )
     start = datetime.utcnow()
     # polling first message can take a few good seconds
-    outcome = outcomes.poll(timeout=20)
+    outcome = outcomes.poll(timeout=5)
     end = datetime.utcnow()
 
     assert outcome is not None

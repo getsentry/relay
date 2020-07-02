@@ -82,7 +82,7 @@ def test_project_grace_period(mini_sentry, relay, grace_period):
     # project config
     relay.send_event(42)
 
-    assert fetched_project_config.wait(timeout=5)
+    assert fetched_project_config.wait(timeout=1)
     time.sleep(2)
     fetched_project_config.clear()
 
@@ -98,7 +98,7 @@ def test_project_grace_period(mini_sentry, relay, grace_period):
         assert excinfo.value.response.status_code == 403
 
         assert not fetched_project_config.is_set()
-        assert fetched_project_config.wait(timeout=5)
+        assert fetched_project_config.wait(timeout=1)
 
     assert mini_sentry.captured_events.empty()
 
@@ -130,8 +130,6 @@ def test_query_retry(failure_type, mini_sentry, relay):
 
     relay.send_event(42)
 
-    # Wait way longer than necessary because of the lack of dedicated resources
-    # in Travis
     event = mini_sentry.captured_events.get(timeout=8).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
     assert retry_count == 2
@@ -169,9 +167,10 @@ def test_query_retry_maxed_out(
     relay.wait_relay_healthcheck()
 
     relay.send_event(42)
+    time.sleep(10)  # Wait for 4 retries with backoff
 
     outcomes_consumer.assert_dropped_internal()
-    assert request_count <= 30  # 30 secs to fetch, each request takes 1 second at least
+    assert request_count == 4
 
     for (_, error) in mini_sentry.test_failures[:-1]:
         assert isinstance(error, AssertionError)

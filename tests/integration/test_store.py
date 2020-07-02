@@ -332,7 +332,7 @@ def test_store_buffer_size(mini_sentry, relay):
 
     with pytest.raises(HTTPError):
         relay.send_event(42, {"message": "pls ignore"})
-    pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=5))
+    pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
     for (_, error) in mini_sentry.test_failures:
         assert isinstance(error, AssertionError)
@@ -372,8 +372,8 @@ def test_store_max_concurrent_requests(mini_sentry, relay):
     relay.send_event(42)
     relay.send_event(42)
 
-    store_count.acquire(timeout=4)
-    store_count.acquire(timeout=4)
+    store_count.acquire(timeout=2)
+    store_count.acquire(timeout=2)
 
 
 def test_store_not_normalized(mini_sentry, relay):
