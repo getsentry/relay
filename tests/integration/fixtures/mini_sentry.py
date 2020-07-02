@@ -39,9 +39,9 @@ class Sentry(SentryLike):
         self.hits[path] += 1
 
     def format_failures(self):
-        s = ''
+        s = ""
         for route, error in self.test_failures:
-            s += '> %s: %s\n' % (route, error)
+            s += "> %s: %s\n" % (route, error)
         return s
 
 
@@ -103,7 +103,9 @@ def mini_sentry(request):
         sentry.test_failures.append(
             (
                 "/api/666/store/",
-                AssertionError("Relay sent us event: %s" % get_error_message(flask_request.data)),
+                AssertionError(
+                    "Relay sent us event: %s" % get_error_message(flask_request.data)
+                ),
             )
         )
         return jsonify({"event_id": uuid.uuid4().hex})
