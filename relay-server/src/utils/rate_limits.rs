@@ -582,7 +582,7 @@ mod tests {
 
     #[test]
     #[cfg(feature = "processing")]
-    fn test_enfroce_limit_assumed_attachments() {
+    fn test_enforce_limit_assumed_attachments() {
         let mut envelope = envelope![Attachment::Attachment, Attachment::Attachment];
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
