@@ -124,10 +124,9 @@ def kafka_consumer(request, get_topic_name, processing_config):
         }
 
         consumer = kafka.Consumer(settings)
-        consumer.subscribe(topics)
+        consumer.assign([kafka.TopicPartition(t, 0) for t in topics])
 
         def die():
-            consumer.unsubscribe()
             consumer.close()
 
         request.addfinalizer(die)
