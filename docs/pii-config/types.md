@@ -1,6 +1,6 @@
 # PII Rule Types
 
-#### pattern
+### `pattern`
 
 Custom Perl-style regex (PCRE).
 
@@ -21,7 +21,7 @@ Custom Perl-style regex (PCRE).
 }
 ```
 
-#### imei
+### `imei`
 
 Matches an IMEI or IMEISV.
 
@@ -41,7 +41,7 @@ Matches an IMEI or IMEISV.
 }
 ```
 
-#### mac
+### `mac`
 
 Matches a MAC address.
 
@@ -61,7 +61,7 @@ Matches a MAC address.
 }
 ```
 
-#### ip
+### `ip`
 
 Matches any IP address.
 
@@ -81,7 +81,7 @@ Matches any IP address.
 }
 ```
 
-#### creditcard
+### `creditcard`
 
 Matches a creditcard number.
 
@@ -101,7 +101,7 @@ Matches a creditcard number.
 }
 ```
 
-#### userpath
+### `userpath`
 
 Matches a local path (e.g. `C:/Users/foo/`).
 
@@ -121,7 +121,7 @@ Matches a local path (e.g. `C:/Users/foo/`).
 }
 ```
 
-#### anything
+### `anything`
 
 Matches any value. This is basically equivalent to a wildcard regex.
 
@@ -143,7 +143,7 @@ For example, to remove all strings:
 }
 ```
 
-#### multiple
+### `multiple`
 
 Combine multiple rules into one. This is a disjunction (OR): The field in question has to match only one of the rules to match the combined rule, not all of them.
 
@@ -168,7 +168,7 @@ Combine multiple rules into one. This is a disjunction (OR): The field in questi
 }
 ```
 
-#### alias
+### `alias`
 
 Alias one rule to the other. This is the same as `multiple` except that you can only wrap one rule.
 

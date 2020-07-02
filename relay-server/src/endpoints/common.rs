@@ -369,11 +369,12 @@ pub fn handle_store_like_request<F, R, I>(
     request: HttpRequest<ServiceState>,
     extract_envelope: F,
     create_response: R,
+    emit_rate_limit: bool,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest>
 where
     F: FnOnce(&HttpRequest<ServiceState>, RequestMeta) -> I + 'static,
     I: IntoFuture<Item = Envelope, Error = BadStoreRequest> + 'static,
-    R: FnOnce(Option<EventId>) -> HttpResponse + 'static,
+    R: FnOnce(Option<EventId>) -> HttpResponse + Copy + 'static,
 {
     let start_time = start_time.into_inner();
 
@@ -468,6 +469,10 @@ where
                     event_id: *event_id.borrow(),
                     remote_addr,
                 });
+            }
+
+            if !emit_rate_limit && matches!(error, BadStoreRequest::RateLimited(_)) {
+                return Ok(create_response(*event_id.borrow()));
             }
 
             let response = error.error_response();

@@ -132,6 +132,7 @@ fn store_event(
         request,
         extract_envelope,
         move |id| create_response(id, is_get_request),
+        true,
     )
 }
 

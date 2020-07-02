@@ -310,6 +310,7 @@ def test_minidump_with_processing(
     mini_sentry, relay_with_processing, attachments_consumer, rate_limit
 ):
     project_id = 42
+    content = b"MDMP content"
     relay = relay_with_processing()
     relay.wait_relay_healthcheck()
 
@@ -329,14 +330,14 @@ def test_minidump_with_processing(
 
     attachments_consumer = attachments_consumer()
 
-    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content")]
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
     relay.send_minidump(project_id=project_id, files=attachments)
 
     attachment = b""
     num_chunks = 0
     attachment_id = None
 
-    while attachment != b"MDMP content":
+    while attachment != content:
         chunk, message = attachments_consumer.get_attachment_chunk()
         attachment_id = attachment_id or message["id"]
         attachment += chunk
@@ -355,6 +356,7 @@ def test_minidump_with_processing(
             "content_type": "application/octet-stream",
             "attachment_type": "event.minidump",
             "chunks": num_chunks,
+            "size": len(content),
             "rate_limited": rate_limit == "attachment",
         }
     ]
@@ -379,8 +381,6 @@ def test_minidump_ratelimit(
     relay.send_minidump(project_id=42, files=attachments)
     outcomes_consumer.assert_rate_limited("static_disabled_quota")
 
-    # Second minidump returns 429 in endpoint
-    with pytest.raises(HTTPError) as excinfo:
-        relay.send_minidump(project_id=42, files=attachments)
-    assert excinfo.value.response.status_code == 429
+    # Minidumps never return rate limits
+    relay.send_minidump(project_id=42, files=attachments)
     outcomes_consumer.assert_rate_limited("static_disabled_quota")
