@@ -3,6 +3,7 @@ import json
 import uuid
 import types
 
+from pprint import pformat
 from queue import Queue
 
 import pytest
@@ -37,6 +38,12 @@ class Sentry(SentryLike):
         self.hits.setdefault(path, 0)
         self.hits[path] += 1
 
+    def format_failures(self):
+        s = ''
+        for route, error in self.test_failures:
+            s += '> %s: %s\n' % (route, error)
+        return s
+
 
 def _get_project_id(public_key, project_configs):
     for project_id, project_config in project_configs.items():
@@ -59,6 +66,13 @@ def mini_sentry(request):
         if not project_config:
             return False
         return relay_id in project_config["config"]["trustedRelays"]
+
+    def get_error_message(event):
+        data = json.loads(event)
+        exceptions = data.get("exception", {}).get("values", [])
+        exc_msg = (exceptions[0] or {}).get("value")
+        message = data.get("message", {}).get("formatted")
+        return exc_msg or message or "unknown error"
 
     @app.before_request
     def count_hits():
@@ -89,7 +103,7 @@ def mini_sentry(request):
         sentry.test_failures.append(
             (
                 "/api/666/store/",
-                AssertionError("Relay sent us event: {}".format(flask_request.data)),
+                AssertionError("Relay sent us event: %s" % get_error_message(flask_request.data)),
             )
         )
         return jsonify({"event_id": uuid.uuid4().hex})
@@ -173,7 +187,7 @@ def mini_sentry(request):
     def reraise_test_failures():
         if sentry.test_failures:
             raise AssertionError(
-                f"Exceptions happened in mini_sentry: {sentry.test_failures}"
+                f"Exceptions happened in mini_sentry: {sentry.format_failures()}"
             )
 
     server = WSGIServer(application=app, threaded=True)

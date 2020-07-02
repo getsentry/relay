@@ -303,7 +303,7 @@ def test_store_static_config(mini_sentry, relay):
     sleep(1)  # Regression test: Relay tried to issue a request for 0 states
     if mini_sentry.test_failures:
         raise AssertionError(
-            f"Exceptions happened in mini_sentry: {mini_sentry.test_failures}"
+            f"Exceptions happened in mini_sentry: {mini_sentry.format_failures()}"
         )
 
 
@@ -513,7 +513,9 @@ def test_processing_quotas(
         # max_rate_limit parameter
         retry_after = headers["retry-after"]
         assert int(retry_after) <= 120
-        assert headers["x-sentry-rate-limits"] == "120:default;error:key"
+        retry_after2, rest = headers["x-sentry-rate-limits"].split(":", 1)
+        assert int(retry_after2) == int(retry_after)
+        assert rest == "default;error:key"
         outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
 
     relay.dsn_public_key = second_key["publicKey"]

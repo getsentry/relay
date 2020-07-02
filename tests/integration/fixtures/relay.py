@@ -89,8 +89,6 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
         if prepare is not None:
             prepare(dir)
 
-        process = background_process(RELAY_BIN + ["-c", str(dir), "run"])
-
         public_key = None
         relay_id = None
 
@@ -107,6 +105,8 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
             "publicKey": public_key,
             "internal": not external,
         }
+
+        process = background_process(RELAY_BIN + ["-c", str(dir), "run"])
 
         return Relay(
             (host, port), process, upstream, public_key, relay_id, dir, default_opts

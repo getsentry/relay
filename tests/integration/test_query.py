@@ -173,9 +173,12 @@ def test_query_retry_maxed_out(
     outcomes_consumer.assert_dropped_internal()
     assert request_count <= 30  # 30 secs to fetch, each request takes 1 second at least
 
-    for (_, error) in mini_sentry.test_failures:
+    for (_, error) in mini_sentry.test_failures[:-1]:
         assert isinstance(error, AssertionError)
         assert "error fetching project states" in str(error)
+
+    _, last_error = mini_sentry.test_failures[-1]
+    "failed to resolve project information" in str(last_error)
 
     mini_sentry.test_failures.clear()
 
