@@ -10,6 +10,11 @@ import pytest
 
 from flask import abort, Flask, request as flask_request, jsonify
 from pytest_localserver.http import WSGIServer
+from werkzeug.serving import WSGIRequestHandler
+
+# Disable keep-alive for less flaky tests
+WSGIRequestHandler.protocol_version = "HTTP/1.0"
+app = Flask(__name__)
 
 from . import SentryLike, Envelope
 
