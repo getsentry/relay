@@ -68,7 +68,7 @@ Select known parts of the schema using the following:
 * `$logentry` (also applies to the `message` attribute)
 * `$thread` matches a single thread instance in `{"threads": {"values": [...]}}`
 * `$breadcrumb` matches a single breadcrumb in `{"breadcrumbs": [...]}`
-* `$span` matches a [trace span]({% link _documentation/performance/performance-glossary.md %}#span)
+* `$span` matches a [trace span]
 * `$sdk` matches the SDK context in `{"sdk": ...}`
 
 #### Examples
@@ -102,3 +102,5 @@ To escape `'` (single quote) within the quotes, replace it with `''` (two quotes
 ```
 
 This matches the key `my special ' value` in _Additional Data_.
+
+[trace span]: https://docs.sentry.io/performance-monitoring/distributed-tracing/#spans

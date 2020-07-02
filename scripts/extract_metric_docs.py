@@ -40,6 +40,7 @@ class Metric:
 @dataclass
 class MetricType:
     name: str
+    human_name: str
     description: List[str]
     metrics: List[Metric]
 
@@ -59,7 +60,7 @@ extractions = [
             "RelayCounters",
         ],
         formatter="metrics_to_markdown",
-        formatter_config="../docs/metrics.md",
+        formatter_config="../docs/configuration/metrics.md",
     )
 ]
 
@@ -78,14 +79,26 @@ def extract_metrics(file_name, enums):
         enum_defs = []
         for enum_type_name in enums:
             enum_def = _get_enum_def(enum_type_name, content)
+            human_name = _get_human_enum_name(enum_type_name)
             if enum_def is not None:
                 description = _get_enum_description(enum_type_name, lines)
                 enum_defs.append(
                     MetricType(
-                        name=enum_type_name, description=description, metrics=enum_def
+                        name=enum_type_name,
+                        human_name=human_name,
+                        description=description,
+                        metrics=enum_def,
                     )
                 )
     return enum_defs
+
+
+def _get_human_enum_name(enum_name):
+    enum_name_regex = "^Relay(.*)s$"
+    match = re.search(enum_name_regex, enum_name)
+    if match:
+        return match.group(1)
+    return enum_name
 
 
 def _get_enum_description(enum_name, lines):

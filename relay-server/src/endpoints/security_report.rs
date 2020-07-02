@@ -73,6 +73,7 @@ fn store_security_report(
         request,
         move |data, meta| extract_envelope(data, meta, params.into_inner()),
         |_| create_response(),
+        true,
     )
 }
 

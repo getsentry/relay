@@ -6,10 +6,14 @@ theme:
 
 nav:
   - index.md
-  - options.md
-  - project-config.md
-  - metrics.md
-  - PII and datascrubbing:
+
+  - Advanced Configuration:
+      - configuration/modes.md
+      - configuration/options.md
+      - configuration/metrics.md
+      - configuration/projects.md
+
+  - PII and Data Scrubbing:
       - pii-config/index.md
       - pii-config/types.md
       - pii-config/methods.md
