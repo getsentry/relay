@@ -118,7 +118,7 @@ def kafka_consumer(request, get_topic_name, processing_config):
 
         settings = {
             "bootstrap.servers": servers,
-            "group.id": "test.consumer.%s" % uuid.uuid4(),
+            "group.id": "test-consumer-%s" % uuid.uuid4().hex,
             "enable.auto.commit": True,
             "auto.offset.reset": "earliest",
         }
