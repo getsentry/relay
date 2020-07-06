@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fmt;
 use std::fs;
@@ -355,7 +355,7 @@ pub struct Relay {
     /// Password for the PKCS12 archive.
     pub tls_identity_password: Option<String>,
     /// Events for these projects will not be forwarded
-    pub _skip_projects: Option<HashSet<u64>>,
+    pub _skip_projects: Option<BTreeSet<u64>>,
 }
 
 impl Default for Relay {
@@ -1398,7 +1398,7 @@ impl Config {
     }
 
     /// Events for these projects will not be forwarded
-    pub fn skipped_projects(&self) -> Option<&HashSet<u64>> {
+    pub fn skipped_projects(&self) -> Option<&BTreeSet<u64>> {
         self.values.relay._skip_projects.as_ref()
     }
 }
