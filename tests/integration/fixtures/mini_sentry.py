@@ -68,32 +68,11 @@ def mini_sentry(request):
         return relay_id in project_config["config"]["trustedRelays"]
 
     def get_error_message(event):
-        """
-        Extracts the error message or message from the event payload.
-
-        Since Relay's events are usually gigantic, including breadcrumbs and debug meta, they just
-        clutter the error output. Additionally, test output shows logs upon failure. For this reason, we
-        can simply log the error message.
-        """
         data = json.loads(event)
         exceptions = data.get("exception", {}).get("values", [])
         exc_msg = (exceptions[0] or {}).get("value")
         message = data.get("message", {}).get("formatted")
         return exc_msg or message or "unknown error"
-
-    def is_flaky_auth_error(message):
-        """
-        At least on Travis, authentication often fails once with a "Server disconnected" error.
-
-        TODO: It is yet unclear what causes this, but since this error is recoverable and we check for
-        successful authentication in every test, we can simply ignore it.
-
-        TODO: We might want to restrict this to a single failure per Relay.
-        """
-        return (
-            "authentication encountered error" in message
-            and "caused by: Server disconnected" in message
-        )
 
     @app.before_request
     def count_hits():
@@ -121,10 +100,14 @@ def mini_sentry(request):
 
     @app.route("/api/666/store/", methods=["POST"])
     def store_internal_error_event():
-        message = get_error_message(flask_request.data)
-        if not is_flaky_auth_error(message):
-            e = AssertionError("Relay sent us event: %s" % message)
-            sentry.test_failures.append(("/api/666/store/", e))
+        sentry.test_failures.append(
+            (
+                "/api/666/store/",
+                AssertionError(
+                    "Relay sent us event: %s" % get_error_message(flask_request.data)
+                ),
+            )
+        )
         return jsonify({"event_id": uuid.uuid4().hex})
 
     @app.route("/api/42/store/", methods=["POST"])
@@ -145,8 +128,6 @@ def mini_sentry(request):
 
     @app.route("/api/<project>/store/", methods=["POST"])
     def store_event_catchall(project):
-        # Consume request body
-        _ = flask_request.data
         raise AssertionError(f"Unknown project: {project}")
 
     @app.route("/api/0/relays/projectids/", methods=["POST"])
