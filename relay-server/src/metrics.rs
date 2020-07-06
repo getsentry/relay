@@ -229,6 +229,8 @@ pub enum RelayCounters {
     /// We are scanning our in-memory project cache for stale entries. This counter is incremented
     /// before doing the expensive operation.
     EvictingStaleProjectCaches,
+    /// Counts the number of events that were skipped based on the list of test projects
+    EnvelopeSkippedProject,
 }
 
 impl CounterMetric for RelayCounters {
@@ -250,6 +252,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::Requests => "requests",
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
+            RelayCounters::EnvelopeSkippedProject => "event.skipped_project",
         }
     }
 }

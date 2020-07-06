@@ -1180,6 +1180,17 @@ impl Handler<QueueEnvelope> for EventManager {
     type Result = Result<Option<EventId>, QueueEnvelopeError>;
 
     fn handle(&mut self, mut message: QueueEnvelope, context: &mut Self::Context) -> Self::Result {
+        let event_id = message.envelope.event_id();
+
+        if let Some(skipped_projects) = self.config.skipped_projects() {
+            let project_id = message.envelope.meta().project_id().value();
+            if skipped_projects.contains(&project_id) {
+                // Stop processing the event if its project is in the list, but reply with 200
+                metric!(counter(RelayCounters::EnvelopeSkippedProject) += 1);
+                return Ok(event_id);
+            }
+        }
+
         metric!(
             histogram(RelayHistograms::EnvelopeQueueSize) = u64::from(self.current_active_events)
         );
@@ -1195,8 +1206,6 @@ impl Handler<QueueEnvelope> for EventManager {
         if self.config.event_buffer_size() <= self.current_active_events {
             return Err(QueueEnvelopeError::TooManyEvents);
         }
-
-        let event_id = message.envelope.event_id();
 
         // Split the envelope into event-related items and other items. This allows to fast-track:
         //  1. Envelopes with only session items. They only require rate limiting.

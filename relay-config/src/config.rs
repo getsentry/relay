@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::env;
 use std::fmt;
 use std::fs;
@@ -354,6 +354,8 @@ pub struct Relay {
     pub tls_identity_path: Option<PathBuf>,
     /// Password for the PKCS12 archive.
     pub tls_identity_password: Option<String>,
+    /// Events for these projects will not be forwarded
+    pub _skip_projects: Option<HashSet<u64>>,
 }
 
 impl Default for Relay {
@@ -366,6 +368,7 @@ impl Default for Relay {
             tls_port: None,
             tls_identity_path: None,
             tls_identity_password: None,
+            _skip_projects: None,
         }
     }
 }
@@ -1392,6 +1395,11 @@ impl Config {
     /// Emits flags for rate limited attachments. Disabled by default.
     pub fn emit_attachment_rate_limit_flag(&self) -> bool {
         self.values.processing._attachment_flag
+    }
+
+    /// Events for these projects will not be forwarded
+    pub fn skipped_projects(&self) -> Option<&HashSet<u64>> {
+        self.values.relay._skip_projects.as_ref()
     }
 }
 
