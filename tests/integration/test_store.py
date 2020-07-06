@@ -251,7 +251,7 @@ def test_store_rate_limit(mini_sentry, relay):
     rate_limit_sent = False
 
     @mini_sentry.app.endpoint("store_event")
-    def store_event():
+    def store_event(project_id=None):
         # Only send a rate limit header for the first request. If relay sends a
         # second request to mini_sentry, we want to see it so we can log an error.
         nonlocal rate_limit_sent
@@ -350,7 +350,7 @@ def test_store_max_concurrent_requests(mini_sentry, relay):
     mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
 
     @mini_sentry.app.endpoint("store_event")
-    def store_event():
+    def store_event(project_id=None):
         nonlocal processing_store
         assert not processing_store
 
@@ -559,3 +559,35 @@ def test_processing_quotas(
         event, _ = events_consumer.get_event()
 
         assert event["logentry"]["formatted"] == f"otherkey{i}"
+
+
+def test_skipped_project(relay, mini_sentry):
+    """
+    Test that if project is listed as part of "_skip_projects" configuration,
+    then the events we send to it are accepted, but not dropped.
+    """
+    skipped_project = 42
+    good_project = 1
+
+    config = {"relay": {"_skip_projects": [skipped_project]}}
+
+    relay = relay(mini_sentry, config)
+    relay.wait_relay_healthcheck()
+
+    mini_sentry.project_configs[skipped_project] = relay.basic_project_config()
+    mini_sentry.project_configs[good_project] = relay.basic_project_config()
+
+    # This event should be skipped
+    skipped_payload = {"message": "should be skipped"}
+    response = relay.send_event(project_id=skipped_project, payload=skipped_payload)
+    assert "id" in response
+
+    # Send a valid event
+    good_payload = {"message": "ok"}
+    response = relay.send_event(project_id=good_project, payload=good_payload)
+    assert "id" in response
+
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+
+    assert event["logentry"]["formatted"] == "ok"
+    assert mini_sentry.captured_events.empty()
