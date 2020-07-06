@@ -313,6 +313,7 @@ def test_outcome_forwarding(relay, mini_sentry, num_intermediate_relays):
     # build a chain of identical relays
     for i in range(num_intermediate_relays):
         intermediate_relay = relay(upstream, config)
+        intermediate_relay.wait_relay_healthcheck()
         upstream = intermediate_relay
 
     # mark the downstream relay so we can identify outcomes originating from it
