@@ -62,20 +62,32 @@ def config_dir(tmpdir):
 
 @pytest.fixture(  # noqa
     params=[
-        lambda s, r, g, h: r(s),
-        lambda s, r, g, h: r(r(s)),
-        lambda s, r, g, h: r(h(r(g(s)))),
-        lambda s, r, g, h: r(g(r(h(s)))),
-    ],
-    ids=[
         "relay->sentry",
         "relay->relay->sentry",
-        "relay->ha->relay->proxy->sentry",
-        "relay->proxy->relay->ha->sentry",
+        "relay->ha->relay->gb->sentry",
+        "relay->gb->relay->ha->sentry",
     ],
 )
 def relay_chain(request, mini_sentry, relay, gobetween, haproxy):  # noqa
-    return lambda: request.param(mini_sentry, relay, gobetween, haproxy)
+    parts = iter(reversed(request.param.split("->")))
+    assert next(parts) == "sentry"
+
+    def inner():
+        rv = mini_sentry
+
+        for part in parts:
+            rv = {
+                "relay": relay,
+                "gb": gobetween,
+                "ha": haproxy
+            }[part](rv)
+
+            if part == "relay":
+                rv.wait_relay_healthcheck()
+
+        return rv
+
+    return inner
 
 
 def _fixture_file_path_for_test_file(test_file_path, file_name):
