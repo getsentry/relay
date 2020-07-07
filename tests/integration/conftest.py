@@ -76,11 +76,7 @@ def relay_chain(request, mini_sentry, relay, gobetween, haproxy):  # noqa
         rv = mini_sentry
 
         for part in parts:
-            rv = {
-                "relay": relay,
-                "gb": gobetween,
-                "ha": haproxy
-            }[part](rv)
+            rv = {"relay": relay, "gb": gobetween, "ha": haproxy}[part](rv)
 
             if part == "relay":
                 rv.wait_relay_healthcheck()
