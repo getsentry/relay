@@ -1,5 +1,6 @@
 from enum import IntEnum
 
+from sentry_relay._compat import int_enum_base
 from sentry_relay._lowlevel import lib
 from sentry_relay.utils import decode_str, encode_str
 
@@ -7,7 +8,7 @@ from sentry_relay.utils import decode_str, encode_str
 __all__ = ["SPAN_STATUS_CODE_TO_NAME", "SPAN_STATUS_NAME_TO_CODE"]
 
 
-class BaseDataCategory(object):
+class BaseDataCategory(int_enum_base):
     @classmethod
     def parse(cls, name):
         """

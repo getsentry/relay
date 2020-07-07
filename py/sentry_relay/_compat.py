@@ -8,6 +8,7 @@ if PY2:
     int_types = (int, long)  # noqa
     string_types = (str, unicode)  # noqa
     range_type = xrange  # noqa
+    int_enum_base = int
     iteritems = lambda x: x.iteritems()
     itervalues = lambda x: x.itervalues()
     NUL = "\x00"
@@ -23,6 +24,7 @@ else:
     int_types = (int,)
     string_types = (str,)
     range_type = range
+    int_enum_base = object
     iteritems = lambda x: x.items()
     itervalues = lambda x: x.values()
     NUL = 0

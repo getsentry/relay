@@ -22,6 +22,12 @@ def test_data_category_api_name():
     assert DataCategory.ERROR.api_name() == "error"
 
 
+def test_data_category_compatibility():
+    assert 1 == DataCategory.ERROR
+    assert 1 in DataCategory.event_categories()
+    assert DataCategory.ERROR in (0, 1, 2)
+
+
 def test_span_mapping():
     # This is a pure regression test to protect against accidental renames.
     assert SPAN_STATUS_CODE_TO_NAME == {
