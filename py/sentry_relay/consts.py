@@ -4,7 +4,7 @@ from sentry_relay._lowlevel import lib
 from sentry_relay.utils import decode_str, encode_str
 
 
-__all__ = ["DataCategory", "SPAN_STATUS_CODE_TO_NAME", "SPAN_STATUS_NAME_TO_CODE"]
+__all__ = ["SPAN_STATUS_CODE_TO_NAME", "SPAN_STATUS_NAME_TO_CODE"]
 
 
 class BaseDataCategory(object):
@@ -14,7 +14,7 @@ class BaseDataCategory(object):
         Parses a `DataCategory` from its API name.
         """
         category = cls(lib.relay_data_category_parse(encode_str(name or "")))
-        if category == DataCategory.UNKNOWN:
+        if category == cls.UNKNOWN:
             return None  # Unknown is a Rust-only value, replace with None
         return category
 
@@ -31,21 +31,14 @@ class BaseDataCategory(object):
         """
         Returns categories that count as events, including transactions.
         """
-        return frozenset(
-            DataCategory.DEFAULT,
-            DataCategory.ERROR,
-            DataCategory.TRANSACTION,
-            DataCategory.SECURITY,
-        )
+        return [cls.DEFAULT, cls.ERROR, cls.TRANSACTION, cls.SECURITY]
 
     @classmethod
     def error_categories(cls):
         """
         Returns categories that count as traditional error tracking events.
         """
-        return frozenset(
-            DataCategory.DEFAULT, DataCategory.ERROR, DataCategory.SECURITY
-        )
+        return [cls.DEFAULT, cls.ERROR, cls.SECURITY]
 
     def api_name(self):
         """
@@ -69,6 +62,7 @@ def _make_data_categories():
         "DataCategory", categories, type=BaseDataCategory, module=__name__
     )
     globals()[data_categories.__name__] = data_categories
+    __all__.append(data_categories.__name__)
 
 
 _make_data_categories()
