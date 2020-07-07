@@ -2,8 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
-use failure::Fail;
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Serialize, Serializer};
 
 #[cfg(test)]
 use chrono::TimeZone;
@@ -63,61 +62,8 @@ impl FromStr for EventId {
 
 impl_str_serde!(EventId);
 
-/// The type of event we're dealing with.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum EventType {
-    Error,
-    Csp,
-    Hpkp,
-    ExpectCT,
-    ExpectStaple,
-    Transaction,
-    #[serde(other)]
-    Default,
-}
-
-/// An error used when parsing `EventType`.
-#[derive(Debug, Fail)]
-#[fail(display = "invalid event type")]
-pub struct ParseEventTypeError;
-
-impl Default for EventType {
-    fn default() -> Self {
-        EventType::Default
-    }
-}
-
-impl FromStr for EventType {
-    type Err = ParseEventTypeError;
-
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        Ok(match string {
-            "default" => EventType::Default,
-            "error" => EventType::Error,
-            "csp" => EventType::Csp,
-            "hpkp" => EventType::Hpkp,
-            "expectct" => EventType::ExpectCT,
-            "expectstaple" => EventType::ExpectStaple,
-            "transaction" => EventType::Transaction,
-            _ => return Err(ParseEventTypeError),
-        })
-    }
-}
-
-impl fmt::Display for EventType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            EventType::Default => write!(f, "default"),
-            EventType::Error => write!(f, "error"),
-            EventType::Csp => write!(f, "csp"),
-            EventType::Hpkp => write!(f, "hpkp"),
-            EventType::ExpectCT => write!(f, "expectct"),
-            EventType::ExpectStaple => write!(f, "expectstaple"),
-            EventType::Transaction => write!(f, "transaction"),
-        }
-    }
-}
+#[doc(inline)]
+pub use relay_common::{EventType, ParseEventTypeError};
 
 impl Empty for EventType {
     #[inline]
