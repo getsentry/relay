@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-- Add SpanStatus to span struct ([#603](https://github.com/getsentry/relay/pull/603))
+- Add SpanStatus to span struct. ([#603](https://github.com/getsentry/relay/pull/603))
+- Use clock drift normalizer to correct all timestamp issues. (#634)
+- Add missing .NET 4.8 version mapping for runtime context normalization. ([#642](https://github.com/getsentry/relay/pull/642))
+- Expose `DataCategory` and `SpanStatus` via the C-ABI to Python for code sharing. ([#651](https://github.com/getsentry/relay/pull/651))
 
 ## 0.5.10
 
