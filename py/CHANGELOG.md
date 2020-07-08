@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.11
 
 - Add SpanStatus to span struct. ([#603](https://github.com/getsentry/relay/pull/603))
 - Apply clock drift correction for timestamps that are too far in the past or future. This fixes a bug where broken transaction timestamps would lead to negative durations. ([#634](https://github.com/getsentry/relay/pull/634), [#654](https://github.com/getsentry/relay/pull/654))
