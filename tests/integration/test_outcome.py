@@ -10,7 +10,9 @@ import time
 HOUR_MILLISEC = 1000 * 3600
 
 
-def test_outcomes_processing(relay_with_processing, kafka_consumer, mini_sentry, outcomes_consumer):
+def test_outcomes_processing(
+    relay_with_processing, kafka_consumer, mini_sentry, outcomes_consumer
+):
     """
     Tests outcomes are sent to the kafka outcome topic
 
