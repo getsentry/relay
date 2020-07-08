@@ -232,13 +232,7 @@ impl ProcessEnvelopeState {
     /// the `Error` data category. If there is no Event, `None` is returned.
     #[cfg(feature = "processing")]
     fn event_category(&self) -> Option<DataCategory> {
-        self.event_type().map(|ty| match ty {
-            EventType::Default | EventType::Error => DataCategory::Error,
-            EventType::Transaction => DataCategory::Transaction,
-            EventType::Csp | EventType::Hpkp | EventType::ExpectCT | EventType::ExpectStaple => {
-                DataCategory::Security
-            }
-        })
+        self.event_type().map(DataCategory::from)
     }
 
     /// Removes the event payload from this processing state.

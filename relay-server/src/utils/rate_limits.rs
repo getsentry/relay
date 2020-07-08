@@ -323,9 +323,9 @@ mod tests {
                 },
                 RateLimit {
                     categories: smallvec![
+                        DataCategory::Unknown,
                         DataCategory::Transaction,
                         DataCategory::Security,
-                        DataCategory::Unknown,
                     ],
                     scope: RateLimitScope::Project(ProjectId::new(21)),
                     reason_code: None,
