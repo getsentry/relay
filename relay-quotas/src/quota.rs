@@ -86,6 +86,9 @@ impl ItemScoping<'_> {
     }
 }
 
+#[doc(inline)]
+pub use relay_common::DataCategory;
+
 /// The unit in which a data category is measured.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CategoryUnit {
@@ -94,77 +97,17 @@ enum CategoryUnit {
     Batched,
 }
 
-/// Classifies the type of data that is being ingested.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum DataCategory {
-    /// Events with an `event_type` not explicitly listed below.
-    Default,
-    /// Error events.
-    Error,
-    /// Transaction events.
-    Transaction,
-    /// Events with an event type of `csp`, `hpkp`, `expectct` and `expectstaple`.
-    Security,
-    /// An attachment. Quantity is the size of the attachment in bytes.
-    Attachment,
-    /// Session updates. Quantity is the number of updates in the batch.
-    Session,
-    /// Any other data category not known by this Relay.
-    #[serde(other)]
-    Unknown,
-}
-
-impl DataCategory {
-    /// Returns the data category corresponding to the given name.
-    pub fn from_name(string: &str) -> Self {
-        match string {
-            "default" => Self::Default,
-            "error" => Self::Error,
-            "transaction" => Self::Transaction,
-            "security" => Self::Security,
-            "attachment" => Self::Attachment,
-            "session" => Self::Session,
-            _ => Self::Unknown,
+impl CategoryUnit {
+    fn from(category: &DataCategory) -> Option<Self> {
+        match category {
+            DataCategory::Default
+            | DataCategory::Error
+            | DataCategory::Transaction
+            | DataCategory::Security => Some(Self::Count),
+            DataCategory::Attachment => Some(Self::Bytes),
+            DataCategory::Session => Some(Self::Batched),
+            DataCategory::Unknown => None,
         }
-    }
-
-    /// Returns the canonical name of this data category.
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Default => "default",
-            Self::Error => "error",
-            Self::Transaction => "transaction",
-            Self::Security => "security",
-            Self::Attachment => "attachment",
-            Self::Session => "session",
-            Self::Unknown => "unknown",
-        }
-    }
-
-    fn unit(self) -> Option<CategoryUnit> {
-        match self {
-            Self::Default | Self::Error | Self::Transaction | Self::Security => {
-                Some(CategoryUnit::Count)
-            }
-            Self::Attachment => Some(CategoryUnit::Bytes),
-            Self::Session => Some(CategoryUnit::Batched),
-            Self::Unknown => None,
-        }
-    }
-}
-
-impl fmt::Display for DataCategory {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name())
-    }
-}
-
-impl FromStr for DataCategory {
-    type Err = ();
-
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        Ok(Self::from_name(string))
     }
 }
 
@@ -312,7 +255,7 @@ impl Quota {
     ///  - The quota only applies to `Unknown` data categories.
     ///  - The quota is counted (not limit `0`) but specifies categories with different units.
     pub fn is_valid(&self) -> bool {
-        let mut units = self.categories.iter().filter_map(|c| c.unit());
+        let mut units = self.categories.iter().filter_map(|c| CategoryUnit::from(c));
 
         match units.next() {
             // There are only unknown categories, which is always invalid

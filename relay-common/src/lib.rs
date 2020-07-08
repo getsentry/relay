@@ -8,6 +8,7 @@ mod macros;
 pub mod metrics;
 
 mod cell;
+mod constants;
 mod glob;
 mod log;
 mod retry;
@@ -15,6 +16,7 @@ mod time;
 mod utils;
 
 pub use crate::cell::*;
+pub use crate::constants::*;
 pub use crate::glob::*;
 pub use crate::log::*;
 pub use crate::retry::*;

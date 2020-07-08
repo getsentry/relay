@@ -1094,9 +1094,12 @@ impl Config {
         self.values.relay.tls_identity_password.as_deref()
     }
 
-    /// Returns the emit_outcomes flag
+    /// Returns whether this Relay should emit outcomes.
+    ///
+    /// This is `true` either if `outcomes.emit_outcomes` is explicitly enabled, or if this Relay is
+    /// in processing mode.
     pub fn emit_outcomes(&self) -> bool {
-        self.values.outcomes.emit_outcomes
+        self.values.outcomes.emit_outcomes || self.values.processing.enabled
     }
 
     /// Returns the maximum number of outcomes that are batched before being sent

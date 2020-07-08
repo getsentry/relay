@@ -172,6 +172,10 @@ def mini_sentry(request):
 
     @app.route("/api/0/relays/outcomes/", methods=["POST"])
     def outcomes():
+        """
+        Mock endpoint for outcomes. SENTRY DOES NOT IMPLEMENT THIS ENDPOINT! This is just used to
+        verify Relay's batching behavior.
+        """
         relay_id = flask_request.headers["x-sentry-relay-id"]
         if relay_id not in authenticated_relays:
             abort(403, "relay not registered")
