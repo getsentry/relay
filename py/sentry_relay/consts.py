@@ -1,21 +1,31 @@
 from enum import IntEnum
 
-from sentry_relay._compat import int_enum_base
 from sentry_relay._lowlevel import lib
 from sentry_relay.utils import decode_str, encode_str
 
 
-__all__ = ["SPAN_STATUS_CODE_TO_NAME", "SPAN_STATUS_NAME_TO_CODE"]
+__all__ = ["DataCategory", "SPAN_STATUS_CODE_TO_NAME", "SPAN_STATUS_NAME_TO_CODE"]
 
 
-class BaseDataCategory(int_enum_base):
+def _make_data_categories(ns):
+    prefix = "RELAY_DATA_CATEGORY_"
+
+    for attr in dir(lib):
+        if attr.startswith(prefix):
+            category_name = attr[len(prefix) :]
+            ns[category_name] = getattr(lib, attr)
+
+
+class DataCategory(IntEnum):
+    _make_data_categories(locals())
+
     @classmethod
     def parse(cls, name):
         """
         Parses a `DataCategory` from its API name.
         """
-        category = cls(lib.relay_data_category_parse(encode_str(name or "")))
-        if category == cls.UNKNOWN:
+        category = DataCategory(lib.relay_data_category_parse(encode_str(name or "")))
+        if category == DataCategory.UNKNOWN:
             return None  # Unknown is a Rust-only value, replace with None
         return category
 
@@ -25,48 +35,32 @@ class BaseDataCategory(int_enum_base):
         Parses a `DataCategory` from an event type.
         """
         s = encode_str(event_type or "")
-        return cls(lib.relay_data_category_from_event_type(s))
+        return DataCategory(lib.relay_data_category_from_event_type(s))
 
     @classmethod
     def event_categories(cls):
         """
         Returns categories that count as events, including transactions.
         """
-        return [cls.DEFAULT, cls.ERROR, cls.TRANSACTION, cls.SECURITY]
+        return [
+            DataCategory.DEFAULT,
+            DataCategory.ERROR,
+            DataCategory.TRANSACTION,
+            DataCategory.SECURITY,
+        ]
 
     @classmethod
     def error_categories(cls):
         """
         Returns categories that count as traditional error tracking events.
         """
-        return [cls.DEFAULT, cls.ERROR, cls.SECURITY]
+        return [DataCategory.DEFAULT, DataCategory.ERROR, DataCategory.SECURITY]
 
     def api_name(self):
         """
         Returns the API name of the given `DataCategory`.
         """
         return decode_str(lib.relay_data_category_name(self.value), free=True)
-
-
-def _make_data_categories():
-    prefix = "RELAY_DATA_CATEGORY_"
-    categories = {}
-
-    for attr in dir(lib):
-        if not attr.startswith(prefix):
-            continue
-
-        category_name = attr[len(prefix) :]
-        categories[category_name] = getattr(lib, attr)
-
-    data_categories = IntEnum(
-        "DataCategory", categories, type=BaseDataCategory, module=__name__
-    )
-    globals()[data_categories.__name__] = data_categories
-    __all__.append(data_categories.__name__)
-
-
-_make_data_categories()
 
 
 SPAN_STATUS_CODE_TO_NAME = {}
