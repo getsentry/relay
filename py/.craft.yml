@@ -3,7 +3,7 @@ minVersion: "0.9.6"
 github:
   owner: getsentry
   repo: relay
-changelogPolicy: simple
+changelogPolicy: auto
 preReleaseCommand: ../scripts/bump-library.sh
 releaseBranchPrefix: release-library
 
