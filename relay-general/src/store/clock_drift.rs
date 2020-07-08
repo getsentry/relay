@@ -1,11 +1,10 @@
+use std::time::Duration;
+
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{Event, SessionUpdate};
 use crate::types::{Error, ErrorKind, Meta, ProcessingResult, Timestamp};
-
-/// The minimum clock drift for correction to apply.
-const MINIMUM_CLOCK_DRIFT_SECS: i64 = 55 * 60;
 
 /// A signed correction that contains the sender's timestamp as well as the drift to the receiver.
 #[derive(Clone, Copy, Debug)]
@@ -20,8 +19,8 @@ impl ClockCorrection {
         Self { sent_at, drift }
     }
 
-    fn at_least(self, lower_bound: SignedDuration) -> Option<Self> {
-        if self.drift.num_seconds().abs() >= lower_bound.num_seconds().abs() {
+    fn at_least(self, lower_bound: Duration) -> Option<Self> {
+        if self.drift.num_seconds().abs() as u64 >= lower_bound.as_secs() {
             Some(self)
         } else {
             None
@@ -60,16 +59,23 @@ impl ClockDriftProcessor {
     /// If no `sent_at` timestamp is provided, then clock drift correction is disabled. The drift is
     /// calculated from the signed difference between the receiver's and the sender's timestamp.
     pub fn new(sent_at: Option<DateTime<Utc>>, received_at: DateTime<Utc>) -> Self {
-        let correction = sent_at.and_then(|sent_at| {
-            ClockCorrection::new(sent_at, received_at)
-                .at_least(SignedDuration::seconds(MINIMUM_CLOCK_DRIFT_SECS))
-        });
+        let correction = sent_at.map(|sent_at| ClockCorrection::new(sent_at, received_at));
 
         Self {
             received_at,
             correction,
             kind: ErrorKind::ClockDrift,
         }
+    }
+
+    /// Limits clock drift correction to a minimum duration.
+    ///
+    /// If the detected clock drift is lower than the given duration, no correction is performed and
+    /// `is_drifted` returns `false`. By default, there is no lower bound and every drift is
+    /// corrected.
+    pub fn at_least(mut self, lower_bound: Duration) -> Self {
+        self.correction = self.correction.and_then(|c| c.at_least(lower_bound));
+        self
     }
 
     /// Use the given error kind for the attached eventerror instead of the default
@@ -208,7 +214,8 @@ mod tests {
         let now = end + drift;
 
         // The event was sent and received with minimal delay, which should not correct
-        let mut processor = ClockDriftProcessor::new(Some(end), now);
+        let mut processor =
+            ClockDriftProcessor::new(Some(end), now).at_least(Duration::from_secs(3600));
         let mut event = create_transaction(start, end);
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
@@ -240,7 +247,7 @@ mod tests {
         let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
         let end = Utc.ymd(2000, 1, 2).and_hms(0, 0, 0);
 
-        let drift = -SignedDuration::days(1);
+        let drift = -SignedDuration::seconds(60);
         let now = end + drift;
 
         // The event was sent and received with delay

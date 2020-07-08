@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use actix::prelude::*;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use futures::prelude::*;
 use parking_lot::RwLock;
@@ -46,6 +46,9 @@ use {
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{DataCategory, RateLimitingError, RedisRateLimiter},
 };
+
+/// The minimum clock drift for correction to apply.
+const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
 
 #[derive(Debug, Fail)]
 pub enum QueueEnvelopeError {
@@ -279,7 +282,8 @@ impl EventProcessor {
         let received = state.received_at;
 
         let project_id = envelope.meta().project_id().value();
-        let clock_drift_processor = ClockDriftProcessor::new(envelope.sent_at(), received);
+        let clock_drift_processor =
+            ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
         let client = envelope.meta().client().map(str::to_owned);
 
         envelope.retain_items(|item| {
@@ -327,13 +331,13 @@ impl EventProcessor {
                 changed = true;
             }
 
-            let max_age = Duration::seconds(self.config.max_session_secs_in_past());
+            let max_age = SignedDuration::seconds(self.config.max_session_secs_in_past());
             if (received - session.started) > max_age || (received - session.timestamp) > max_age {
                 log::trace!("skipping session older than {} days", max_age.num_days());
                 return false;
             }
 
-            let max_future = Duration::seconds(self.config.max_secs_in_future());
+            let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
             if (session.started - received) > max_age || (session.timestamp - received) > max_age {
                 log::trace!(
                     "skipping session more than {}s in the future",
@@ -820,7 +824,8 @@ impl EventProcessor {
             None => None,
         };
 
-        let mut processor = ClockDriftProcessor::new(sent_at, state.received_at);
+        let mut processor =
+            ClockDriftProcessor::new(sent_at, state.received_at).at_least(MINIMUM_CLOCK_DRIFT);
         process_value(&mut state.event, &mut processor, ProcessingState::root())
             .map_err(|_| ProcessingError::InvalidTransaction)?;
 

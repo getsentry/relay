@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Add SpanStatus to span struct. ([#603](https://github.com/getsentry/relay/pull/603))
-- Use clock drift normalizer to correct all timestamp issues. ([#634](https://github.com/getsentry/relay/pull/634))
+- Apply clock drift correction for timestamps that are too far in the past or future. This fixes a bug where broken transaction timestamps would lead to negative durations. ([#634](https://github.com/getsentry/relay/pull/634), [#654](https://github.com/getsentry/relay/pull/654))
 - Add missing .NET 4.8 version mapping for runtime context normalization. ([#642](https://github.com/getsentry/relay/pull/642))
 - Expose `DataCategory` and `SpanStatus` via the C-ABI to Python for code sharing. ([#651](https://github.com/getsentry/relay/pull/651))
 
