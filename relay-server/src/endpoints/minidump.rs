@@ -9,7 +9,7 @@ use crate::body::ForwardBody;
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::extractors::{RequestMeta, StartTime};
+use crate::extractors::RequestMeta;
 use crate::service::{ServiceApp, ServiceState};
 use crate::utils::{consume_field, get_multipart_boundary, MultipartError, MultipartItems};
 
@@ -178,13 +178,11 @@ fn extract_envelope(
 
 fn store_minidump(
     meta: RequestMeta,
-    start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     common::handle_store_like_request(
         meta,
         true,
-        start_time,
         request,
         extract_envelope,
         common::create_text_event_id_response,
