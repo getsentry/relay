@@ -23,7 +23,7 @@ use crate::actors::project::CheckEnvelope;
 use crate::actors::project_cache::{GetProject, ProjectError};
 use crate::body::StorePayloadError;
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
-use crate::extractors::{RequestMeta, StartTime};
+use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
 use crate::service::{ServiceApp, ServiceState};
 use crate::utils::{self, ApiErrorResponse, FormDataIter, MultipartError};
@@ -365,7 +365,6 @@ fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool {
 pub fn handle_store_like_request<F, R, I>(
     meta: RequestMeta,
     is_event: bool,
-    start_time: StartTime,
     request: HttpRequest<ServiceState>,
     extract_envelope: F,
     create_response: R,
@@ -376,7 +375,7 @@ where
     I: IntoFuture<Item = Envelope, Error = BadStoreRequest> + 'static,
     R: FnOnce(Option<EventId>) -> HttpResponse + Copy + 'static,
 {
-    let start_time = start_time.into_inner();
+    let start_time = meta.start_time();
 
     // For now, we only handle <= v8 and drop everything else
     let version = meta.version();

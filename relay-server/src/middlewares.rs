@@ -14,6 +14,7 @@ use crate::utils::ApiErrorResponse;
 /// Basic metrics
 pub struct Metrics;
 
+/// The time at which the request started.
 #[derive(Clone, Copy, Debug)]
 pub struct StartTime(Instant);
 
