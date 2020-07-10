@@ -70,8 +70,6 @@ mod tests {
 
     #[test]
     fn test_filter_banned_user_agents() {
-        let calypso_crawler = "Mozilla/5.0 (Linux; Android 6.0.1; Calypso AppCrawler Build/MMB30Y; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/53.0.2785.124 Mobile Safari/537.36";
-
         let user_agents = [
             "Mediapartners-Google",
             "AdsBot-Google",
@@ -95,7 +93,7 @@ mod tests {
             "pingdom",
             "lyticsbot",
             "AWS Security Scanner",
-            calypso_crawler,
+            "Mozilla/5.0 (Linux; Android 6.0.1; Calypso AppCrawler Build/MMB30Y; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/53.0.2785.124 Mobile Safari/537.36",
             "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)",
             "Slack-ImgProxy 0.19 (+https://api.slack.com/robots)",
             "Slackbot 1.0(+https://api.slack.com/robots)",
@@ -119,16 +117,14 @@ mod tests {
 
     #[test]
     fn test_dont_filter_normal_user_agents() {
-        let google_api = "APIs-Google (+https://developers.google.com/webmasters/APIs-Google.html)";
-        let mozilla = "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36";
         let normal_user_agents = [
             "some user agent",
             "IE",
             "ie",
             "opera",
             "safari",
-            google_api,
-            mozilla,
+            "APIs-Google (+https://developers.google.com/webmasters/APIs-Google.html)",
+            "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36",
         ];
         for user_agent in &normal_user_agents {
             let event = testutils::get_event_with_user_agent(user_agent);
