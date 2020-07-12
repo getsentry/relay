@@ -184,7 +184,7 @@ def mini_sentry(request):
         verify Relay's batching behavior.
         """
         # Read POST body first
-        outcomes_batch = flask_request.json
+        outcomes_batch = flask_request.get_json()
         relay_id = flask_request.headers["x-sentry-relay-id"]
         if relay_id not in authenticated_relays:
             abort(403, "relay not registered")
