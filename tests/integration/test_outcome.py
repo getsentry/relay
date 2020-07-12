@@ -160,7 +160,7 @@ def test_outcomes_non_processing_max_batch_time(relay, mini_sentry):
     for i in range(events_to_send):
         event_id = _send_event(relay)
         event_ids.add(event_id)
-        time.sleep(0.005)  # sleep more than the batch time
+        time.sleep(0.12)  # sleep more than the batch time
 
     # we should get one batch per event sent
     batches = []
