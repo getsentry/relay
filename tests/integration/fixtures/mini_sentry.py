@@ -9,6 +9,7 @@ from queue import Queue
 import pytest
 
 from flask import abort, Flask, request as flask_request, jsonify
+from werkzeug.serving import WSGIRequestHandler
 from pytest_localserver.http import WSGIServer
 
 from . import SentryLike, Envelope
@@ -196,6 +197,7 @@ def mini_sentry(request):
                 f"Exceptions happened in mini_sentry: {sentry.format_failures()}"
             )
 
+    WSGIRequestHandler.protocol_version = "HTTP/1.1"
     server = WSGIServer(application=app, threaded=True)
     server.start()
     request.addfinalizer(server.stop)
