@@ -9,7 +9,7 @@ import threading
 
 import pytest
 
-from flask import jsonify
+from flask import request as flask_request, jsonify
 
 from requests.exceptions import HTTPError
 
@@ -109,6 +109,8 @@ def test_query_retry(failure_type, mini_sentry, relay):
 
     @mini_sentry.app.endpoint("get_project_config")
     def get_project_config():
+        # ALWAYS, ensure the request body is consumed!
+        data = flask_request.data
         nonlocal retry_count
         retry_count += 1
         print("RETRY", retry_count)
