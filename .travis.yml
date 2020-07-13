@@ -167,11 +167,6 @@ jobs:
         - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
         - zeus upload -t "application/zip+wheel" py/dist/* || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
 
-    - name: "docs"
-      before_script:
-        - npm install -g @zeus-ci/cli
-      script: make -e travis-upload-prose-docs
-
 notifications:
   webhooks:
     urls:
