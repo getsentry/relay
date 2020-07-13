@@ -117,7 +117,9 @@ docserver: prose-docs
 
 travis-upload-prose-docs: prose-docs
 	cd site && zip -r gh-pages .
-	zeus upload -t "application/zip+docs" site/gh-pages.zip \
+	set -e && zeus upload -t "application/zip+docs" site/gh-pages.zip \
+		|| [[ ! "$(TRAVIS_BRANCH)" =~ ^release/ ]]
+	set -e && zeus upload -t "application/octet-stream" -n event.schema.json docs/event-schema/event.schema.json \
 		|| [[ ! "$(TRAVIS_BRANCH)" =~ ^release/ ]]
 .PHONY: travis-upload-docs
 
