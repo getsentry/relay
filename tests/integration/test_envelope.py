@@ -4,7 +4,6 @@ from sentry_sdk.envelope import Envelope
 def test_envelope(mini_sentry, relay_chain):
     relay = relay_chain()
     mini_sentry.project_configs[42] = relay.basic_project_config()
-    relay.wait_relay_healthcheck()
 
     envelope = Envelope()
     envelope.add_event({"message": "Hello, World!"})

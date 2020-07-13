@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use actix::prelude::*;
-use chrono::Utc;
+use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use futures::prelude::*;
 use parking_lot::RwLock;
@@ -17,16 +17,16 @@ use relay_general::pii::PiiProcessor;
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, LenientString,
-    Metrics, SecurityReportType, Values,
+    Metrics, SecurityReportType, SessionUpdate, Values,
 };
+use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
-    EventAction, GetEventAction, GetProjectState, GetScoping, Project, ProjectState,
-    UpdateRateLimits,
+    CheckEnvelope, GetProjectState, Project, ProjectState, UpdateRateLimits,
 };
 use crate::actors::project_cache::ProjectError;
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
@@ -39,16 +39,20 @@ use crate::utils::{self, FormDataIter, FutureExt};
 use {
     crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
     crate::service::ServerErrorKind,
+    crate::utils::EnvelopeLimiter,
     failure::ResultExt,
     relay_filter::FilterStatKey,
     relay_general::protocol::IpAddr,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    relay_quotas::{DataCategory, RateLimiter, RateLimitingError},
+    relay_quotas::{DataCategory, RateLimitingError, RedisRateLimiter},
 };
+
+/// The minimum clock drift for correction to apply.
+const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
 
 #[derive(Debug, Fail)]
 pub enum QueueEnvelopeError {
-    #[fail(display = "Too many events (max_concurrent_events reached)")]
+    #[fail(display = "Too many events (event_buffer_size reached)")]
     TooManyEvents,
 }
 
@@ -76,6 +80,9 @@ enum ProcessingError {
     #[fail(display = "duplicate {} in event", _0)]
     DuplicateItem(ItemType),
 
+    #[fail(display = "failed to extract event payload")]
+    NoEventPayload,
+
     #[fail(display = "could not schedule project fetch")]
     ScheduleFailed(#[cause] MailboxError),
 
@@ -83,7 +90,7 @@ enum ProcessingError {
     ProjectFailed(#[cause] ProjectError),
 
     #[fail(display = "invalid security report type")]
-    InvalidSecurityReportType,
+    InvalidSecurityType,
 
     #[fail(display = "invalid security report")]
     InvalidSecurityReport(#[cause] serde_json::Error),
@@ -116,12 +123,133 @@ enum ProcessingError {
     Timeout,
 }
 
+impl ProcessingError {
+    fn to_outcome(&self) -> Option<Outcome> {
+        match *self {
+            // General outcomes for invalid events
+            Self::PayloadTooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge)),
+            Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
+            Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
+            Self::EventRejected(reason) => Some(Outcome::Invalid(reason)),
+            Self::InvalidSecurityType => Some(Outcome::Invalid(DiscardReason::SecurityReportType)),
+            Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
+            Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
+            Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
+            Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
+            Self::RateLimited(ref rate_limits) => rate_limits
+                .longest()
+                .map(|r| Outcome::RateLimited(r.reason_code.clone())),
+
+            // Processing-only outcomes (Sentry-internal Relays)
+            #[cfg(feature = "processing")]
+            Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
+            #[cfg(feature = "processing")]
+            Self::EventFiltered(ref filter_stat_key) => Some(Outcome::Filtered(*filter_stat_key)),
+
+            // Internal errors
+            Self::SerializeFailed(_)
+            | Self::ScheduleFailed(_)
+            | Self::ProjectFailed(_)
+            | Self::Timeout
+            | Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
+            #[cfg(feature = "processing")]
+            Self::StoreFailed(_) | Self::QuotasFailed(_) => {
+                Some(Outcome::Invalid(DiscardReason::Internal))
+            }
+
+            // If we send to an upstream, we don't emit outcomes.
+            Self::SendFailed(_) => None,
+        }
+    }
+}
+
 type ExtractedEvent = (Annotated<Event>, usize);
 
+/// A state container for envelope processing.
+#[derive(Debug)]
+struct ProcessEnvelopeState {
+    /// The envelope.
+    ///
+    /// The pipeline can mutate the envelope and remove or add items. In particular, event items are
+    /// removed at the beginning of event processing and re-added in the end.
+    envelope: Envelope,
+
+    /// The extracted event payload.
+    ///
+    /// For Envelopes without event payloads, this contains `Annotated::empty`. If a single item has
+    /// `creates_event`, the event is required and the pipeline errors if no payload can be
+    /// extracted.
+    event: Annotated<Event>,
+
+    /// Partial metrics of the Event during construction.
+    ///
+    /// The pipeline stages can add to this metrics objects. In `finalize_event`, the metrics are
+    /// persisted into the Event. All modifications afterwards will have no effect.
+    metrics: Metrics,
+
+    /// Rate limits returned in processing mode.
+    ///
+    /// The rate limiter is invoked in processing mode, after which the resulting limits are stored
+    /// in this field. Note that there can be rate limits even if the envelope still carries items.
+    ///
+    /// These are always empty in non-processing mode, since the rate limiter is not invoked.
+    rate_limits: RateLimits,
+
+    /// The state of the project that this envelope belongs to.
+    project_state: Arc<ProjectState>,
+
+    /// UTC date time converted from the `start_time` instant.
+    received_at: DateTime<Utc>,
+}
+
+impl ProcessEnvelopeState {
+    /// Returns whether any item in the envelope creates an event.
+    ///
+    /// This is used to branch into the event processing pipeline. If this function returns false,
+    /// only rate limits are executed.
+    fn creates_event(&self) -> bool {
+        self.envelope.items().any(Item::creates_event)
+    }
+
+    /// Returns true if there is an event in the processing state.
+    ///
+    /// The event was previously removed from the Envelope. This returns false if there was an
+    /// invalid event item.
+    fn has_event(&self) -> bool {
+        self.event.value().is_some()
+    }
+
+    /// Returns the event type if there is an event.
+    ///
+    /// If the event does not have a type, `Some(EventType::Default)` is assumed. If, in contrast, there
+    /// is no event, `None` is returned.
+    fn event_type(&self) -> Option<EventType> {
+        self.event
+            .value()
+            .map(|event| event.ty.value().copied().unwrap_or_default())
+    }
+
+    /// Returns the data category if there is an event.
+    ///
+    /// The data category is computed from the event type. Both `Default` and `Error` events map to
+    /// the `Error` data category. If there is no Event, `None` is returned.
+    #[cfg(feature = "processing")]
+    fn event_category(&self) -> Option<DataCategory> {
+        self.event_type().map(DataCategory::from)
+    }
+
+    /// Removes the event payload from this processing state.
+    #[cfg(feature = "processing")]
+    fn remove_event(&mut self) {
+        self.event = Annotated::empty();
+    }
+}
+
+/// Synchronous service for processing envelopes.
 struct EventProcessor {
     config: Arc<Config>,
     #[cfg(feature = "processing")]
-    rate_limiter: Option<RateLimiter>,
+    rate_limiter: Option<RedisRateLimiter>,
     #[cfg(feature = "processing")]
     geoip_lookup: Option<Arc<GeoIpLookup>>,
 }
@@ -130,7 +258,7 @@ impl EventProcessor {
     #[cfg(feature = "processing")]
     pub fn new(
         config: Arc<Config>,
-        rate_limiter: Option<RateLimiter>,
+        rate_limiter: Option<RedisRateLimiter>,
         geoip_lookup: Option<Arc<GeoIpLookup>>,
     ) -> Self {
         Self {
@@ -145,61 +273,141 @@ impl EventProcessor {
         Self { config }
     }
 
-    /// Writes a placeholder to indicate that this event has an associated minidump or an apple
-    /// crash report.
+    /// Validates all sessions in the envelope, if any.
     ///
-    /// This will indicate to the ingestion pipeline that this event will need to be processed. The
-    /// payload can be checked via `is_minidump_event`.
+    /// Sessions are removed from the envelope if they contain invalid JSON or if their timestamps
+    /// are out of range after clock drift correction.
+    fn process_sessions(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let envelope = &mut state.envelope;
+        let received = state.received_at;
+
+        let project_id = envelope.meta().project_id().value();
+        let clock_drift_processor =
+            ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
+        let client = envelope.meta().client().map(str::to_owned);
+
+        envelope.retain_items(|item| {
+            if item.ty() != ItemType::Session {
+                return true;
+            }
+
+            let mut changed = false;
+            let payload = item.payload();
+
+            let mut session = match SessionUpdate::parse(&payload) {
+                Ok(session) => session,
+                Err(error) => {
+                    return sentry::with_scope(
+                        |scope| {
+                            scope.set_tag("project", project_id);
+                            if let Some(ref client) = client {
+                                scope.set_tag("sdk", client);
+                            }
+                            scope.set_extra("session", String::from_utf8_lossy(&payload).into());
+                        },
+                        || {
+                            // Skip gracefully here to allow sending other sessions.
+                            log::error!("failed to store session: {}", LogError(&error));
+                            false
+                        },
+                    );
+                }
+            };
+
+            if session.sequence == u64::max_value() {
+                log::trace!("skipping session due to sequence overflow");
+                return false;
+            }
+
+            if clock_drift_processor.is_drifted() {
+                log::trace!("applying clock drift correction to session");
+                clock_drift_processor.process_session(&mut session);
+                changed = true;
+            }
+
+            if session.timestamp < session.started {
+                log::trace!("fixing session timestamp to {}", session.timestamp);
+                session.timestamp = session.started;
+                changed = true;
+            }
+
+            let max_age = SignedDuration::seconds(self.config.max_session_secs_in_past());
+            if (received - session.started) > max_age || (received - session.timestamp) > max_age {
+                log::trace!("skipping session older than {} days", max_age.num_days());
+                return false;
+            }
+
+            let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
+            if (session.started - received) > max_age || (session.timestamp - received) > max_age {
+                log::trace!(
+                    "skipping session more than {}s in the future",
+                    max_future.num_seconds()
+                );
+                return false;
+            }
+
+            if changed {
+                let json_string = match serde_json::to_string(&session) {
+                    Ok(json) => json,
+                    Err(_) => return false,
+                };
+
+                item.set_payload(ContentType::Json, json_string);
+            }
+
+            true
+        });
+
+        Ok(())
+    }
+
+    /// Creates and initializes the processing state.
+    ///
+    /// This applies defaults to the envelope and initializes empty rate limits.
+    fn prepare_state(
+        &self,
+        message: ProcessEnvelope,
+    ) -> Result<ProcessEnvelopeState, ProcessingError> {
+        let ProcessEnvelope {
+            mut envelope,
+            project_state,
+            start_time,
+        } = message;
+
+        // Set the event retention. Effectively, this value will only be available in processing
+        // mode when the full project config is queried from the upstream.
+        if let Some(retention) = project_state.config.event_retention {
+            envelope.set_retention(retention);
+        }
+
+        Ok(ProcessEnvelopeState {
+            envelope,
+            event: Annotated::empty(),
+            metrics: Metrics::default(),
+            rate_limits: RateLimits::new(),
+            project_state,
+            received_at: relay_common::instant_to_date_time(start_time),
+        })
+    }
+
+    /// Expands Unreal 4 items inside an envelope.
+    ///
+    /// If the envelope does NOT contain an `UnrealReport` item, it doesn't do anything. If the envelope
+    /// contains an `UnrealReport` item, it removes it from the envelope and inserts new items for each
+    /// of its contents.
+    ///
+    /// After this, the `EventProcessor` should be able to process the envelope the same way it
+    /// processes any other envelopes.
     #[cfg(feature = "processing")]
-    fn write_native_placeholder(&self, event: &mut Annotated<Event>, is_minidump: bool) {
-        use relay_general::protocol::{Exception, JsonLenientString, Level, Mechanism};
+    fn expand_unreal(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let envelope = &mut state.envelope;
 
-        let event = event.get_or_insert_with(Event::default);
+        if let Some(item) = envelope.take_item_by(|item| item.ty() == ItemType::UnrealReport) {
+            utils::expand_unreal_envelope(item, envelope)
+                .map_err(ProcessingError::InvalidUnrealReport)?;
+        }
 
-        // Events must be native platform.
-        let platform = event.platform.value_mut();
-        *platform = Some("native".to_string());
-
-        // Assume that this minidump is the result of a crash and assign the fatal
-        // level. Note that the use of `setdefault` here doesn't generally allow the
-        // user to override the minidump's level as processing will overwrite it
-        // later.
-        event.level.get_or_insert_with(|| Level::Fatal);
-
-        // Create a placeholder exception. This signals normalization that this is an
-        // error event and also serves as a placeholder if processing of the minidump
-        // fails.
-        let exceptions = event
-            .exceptions
-            .value_mut()
-            .get_or_insert_with(Values::default)
-            .values
-            .value_mut()
-            .get_or_insert_with(Vec::new);
-
-        exceptions.clear(); // clear previous errors if any
-
-        let (type_name, value, mechanism_type) = if is_minidump {
-            ("Minidump", "Invalid Minidump", "minidump")
-        } else {
-            (
-                "AppleCrashReport",
-                "Invalid Apple Crash Report",
-                "applecrashreport",
-            )
-        };
-
-        exceptions.push(Annotated::new(Exception {
-            ty: Annotated::new(type_name.to_string()),
-            value: Annotated::new(JsonLenientString(value.to_string())),
-            mechanism: Annotated::new(Mechanism {
-                ty: Annotated::from(mechanism_type.to_string()),
-                handled: Annotated::from(false),
-                synthetic: Annotated::from(true),
-                ..Mechanism::default()
-            }),
-            ..Exception::default()
-        }));
+        Ok(())
     }
 
     fn event_from_json_payload(
@@ -224,7 +432,7 @@ impl EventProcessor {
         let data = &item.payload();
         let report_type = SecurityReportType::from_json(data)
             .map_err(ProcessingError::InvalidJson)?
-            .ok_or(ProcessingError::InvalidSecurityReportType)?;
+            .ok_or(ProcessingError::InvalidSecurityType)?;
 
         match report_type {
             SecurityReportType::Csp => Csp::apply_to_event(data, &mut event),
@@ -244,6 +452,15 @@ impl EventProcessor {
         {
             event.environment = Annotated::from(env.to_owned());
         }
+
+        // Explicitly set the event type. This is required so that a `Security` item can be created
+        // instead of a regular `Event` item.
+        event.ty = Annotated::new(match report_type {
+            SecurityReportType::Csp => EventType::Csp,
+            SecurityReportType::ExpectCt => EventType::ExpectCT,
+            SecurityReportType::ExpectStaple => EventType::ExpectStaple,
+            SecurityReportType::Hpkp => EventType::Hpkp,
+        });
 
         Ok((Annotated::new(event), len))
     }
@@ -374,6 +591,31 @@ impl EventProcessor {
         Ok((event, len))
     }
 
+    /// Checks for duplicate items in an envelope.
+    ///
+    /// An item is considered duplicate if it was not removed by sanitation in `process_event` and
+    /// `extract_event`. This partially depends on the `processing_enabled` flag.
+    fn is_duplicate(&self, item: &Item) -> bool {
+        match item.ty() {
+            // These should always be removed by `extract_event`:
+            ItemType::Event => true,
+            ItemType::Transaction => true,
+            ItemType::Security => true,
+            ItemType::FormData => true,
+            ItemType::RawSecurity => true,
+
+            // These should be removed conditionally:
+            ItemType::UnrealReport => self.config.processing_enabled(),
+
+            // These may be forwarded to upstream / store:
+            ItemType::Attachment => false,
+            ItemType::UserReport => false,
+
+            // session data is never considered as part of deduplication
+            ItemType::Session => false,
+        }
+    }
+
     /// Extracts the primary event payload from an envelope.
     ///
     /// The event is obtained from only one source in the following precedence:
@@ -382,57 +624,50 @@ impl EventProcessor {
     ///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.
     ///  4. A multipart form data body.
     ///  5. If none match, `Annotated::empty()`.
-    ///
-    /// The return value is a tuple of the extracted event and the original ingested size.
-    fn extract_event(&self, envelope: &mut Envelope) -> Result<ExtractedEvent, ProcessingError> {
+    fn extract_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let envelope = &mut state.envelope;
+
         // Remove all items first, and then process them. After this function returns, only
         // attachments can remain in the envelope. The event will be added again at the end of
         // `process_event`.
         let event_item = envelope.take_item_by(|item| item.ty() == ItemType::Event);
         let transaction_item = envelope.take_item_by(|item| item.ty() == ItemType::Transaction);
-        let security_item = envelope.take_item_by(|item| item.ty() == ItemType::SecurityReport);
+        let security_item = envelope.take_item_by(|item| item.ty() == ItemType::Security);
+        let raw_security_item = envelope.take_item_by(|item| item.ty() == ItemType::RawSecurity);
         let form_item = envelope.take_item_by(|item| item.ty() == ItemType::FormData);
         let attachment_item = envelope
             .take_item_by(|item| item.attachment_type() == Some(AttachmentType::EventPayload));
-        let breadcrumbs_item1 = envelope
+        let breadcrumbs1 = envelope
             .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
-        let breadcrumbs_item2 = envelope
+        let breadcrumbs2 = envelope
             .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Breadcrumbs));
 
-        if let Some(item) = event_item {
-            log::trace!("processing json event");
-            return Ok(metric!(timer(RelayTimers::EventProcessingDeserialize), {
-                // Event items can never include transactions, so kill the event type and let
-                // inference deal with this during store normalization.
-                self.event_from_json_payload(item, None)?
-            }));
+        // Event items can never occur twice in an envelope.
+        if let Some(duplicate) = envelope.get_item_by(|item| self.is_duplicate(item)) {
+            return Err(ProcessingError::DuplicateItem(duplicate.ty()));
         }
 
-        if let Some(item) = transaction_item {
+        let (event, event_len) = if let Some(item) = event_item.or(security_item) {
+            log::trace!("processing json event");
+            metric!(timer(RelayTimers::EventProcessingDeserialize), {
+                // Event items can never include transactions, so retain the event type and let
+                // inference deal with this during store normalization.
+                self.event_from_json_payload(item, None)?
+            })
+        } else if let Some(item) = transaction_item {
             log::trace!("processing json transaction");
-            return Ok(metric!(timer(RelayTimers::EventProcessingDeserialize), {
+            metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Transaction items can only contain transaction events. Force the event type to
                 // hint to normalization that we're dealing with a transaction now.
                 self.event_from_json_payload(item, Some(EventType::Transaction))?
-            }));
-        }
-
-        if let Some(item) = security_item {
+            })
+        } else if let Some(item) = raw_security_item {
             log::trace!("processing security report");
-            return Ok(self.event_from_security_report(item)?);
-        }
-
-        if attachment_item.is_some() || breadcrumbs_item1.is_some() || breadcrumbs_item2.is_some() {
+            self.event_from_security_report(item)?
+        } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
             log::trace!("extracting attached event data");
-            return Ok(Self::event_from_attachments(
-                &self.config,
-                attachment_item,
-                breadcrumbs_item1,
-                breadcrumbs_item2,
-            )?);
-        }
-
-        if let Some(item) = form_item {
+            Self::event_from_attachments(&self.config, attachment_item, breadcrumbs1, breadcrumbs2)?
+        } else if let Some(item) = form_item {
             log::trace!("extracting form data");
             let len = item.len();
 
@@ -440,79 +675,173 @@ impl EventProcessor {
             self.merge_formdata(&mut value, item);
             let event = Annotated::deserialize_with_meta(value).unwrap_or_default();
 
-            return Ok((event, len));
-        }
+            (event, len)
+        } else {
+            log::trace!("no event in envelope");
+            (Annotated::empty(), 0)
+        };
 
-        log::trace!("no event in envelope");
-        Ok((Annotated::empty(), 0))
+        state.event = event;
+        state.metrics.bytes_ingested_event = Annotated::new(event_len as u64);
+
+        Ok(())
     }
 
+    /// Extracts event information from an unreal context.
+    ///
+    /// If the event does not contain an unreal context, this function does not perform any action.
+    /// If there was no event payload prior to this function, it is created.
     #[cfg(feature = "processing")]
-    fn enforce_quotas(
-        &self,
-        envelope: &Envelope,
-        state: &ProjectState,
-    ) -> Result<(), ProcessingError> {
-        let rate_limiter = match self.rate_limiter.as_ref() {
-            Some(rate_limiter) => rate_limiter,
-            None => return Ok(()),
-        };
+    fn process_unreal(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        utils::process_unreal_envelope(&mut state.event, &mut state.envelope)
+            .map_err(ProcessingError::InvalidUnrealReport)
+    }
 
-        let public_key = envelope.meta().public_key();
-        let quotas = if !state.config.quotas.is_empty() {
-            state.config.quotas.as_slice()
-        } else if let Some(ref key_config) = state.get_public_key_config(public_key) {
-            key_config.legacy_quotas.as_slice()
+    /// Writes a placeholder to indicate that this event has an associated minidump or an apple
+    /// crash report.
+    ///
+    /// This will indicate to the ingestion pipeline that this event will need to be processed. The
+    /// payload can be checked via `is_minidump_event`.
+    #[cfg(feature = "processing")]
+    fn write_native_placeholder(&self, event: &mut Annotated<Event>, is_minidump: bool) {
+        use relay_general::protocol::{Exception, JsonLenientString, Level, Mechanism};
+
+        let event = event.get_or_insert_with(Event::default);
+
+        // Events must be native platform.
+        let platform = event.platform.value_mut();
+        *platform = Some("native".to_string());
+
+        // Assume that this minidump is the result of a crash and assign the fatal
+        // level. Note that the use of `setdefault` here doesn't generally allow the
+        // user to override the minidump's level as processing will overwrite it
+        // later.
+        event.level.get_or_insert_with(|| Level::Fatal);
+
+        // Create a placeholder exception. This signals normalization that this is an
+        // error event and also serves as a placeholder if processing of the minidump
+        // fails.
+        let exceptions = event
+            .exceptions
+            .value_mut()
+            .get_or_insert_with(Values::default)
+            .values
+            .value_mut()
+            .get_or_insert_with(Vec::new);
+
+        exceptions.clear(); // clear previous errors if any
+
+        let (type_name, value, mechanism_type) = if is_minidump {
+            ("Minidump", "Invalid Minidump", "minidump")
         } else {
-            &[]
+            (
+                "AppleCrashReport",
+                "Invalid Apple Crash Report",
+                "applecrashreport",
+            )
         };
 
-        if quotas.is_empty() {
-            return Ok(());
-        }
+        exceptions.push(Annotated::new(Exception {
+            ty: Annotated::new(type_name.to_string()),
+            value: Annotated::new(JsonLenientString(value.to_string())),
+            mechanism: Annotated::new(Mechanism {
+                ty: Annotated::from(mechanism_type.to_string()),
+                handled: Annotated::from(false),
+                synthetic: Annotated::from(true),
+                ..Mechanism::default()
+            }),
+            ..Exception::default()
+        }));
+    }
 
-        // Fetch scoping again from the project state. This is a rather cheap operation at this
-        // point and it is easier than passing scoping through all layers of `process_envelope`.
-        let scoping = state.get_scoping(envelope.meta());
+    /// Adds processing placeholders for special attachments.
+    ///
+    /// If special attachments are present in the envelope, this adds placeholder payloads to the
+    /// event. This indicates to the pipeline that the event needs special processing.
+    ///
+    /// If the event payload was empty before, it is created.
+    #[cfg(feature = "processing")]
+    fn create_placeholders(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let envelope = &mut state.envelope;
 
-        let rate_limits = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-            rate_limiter
-                .is_rate_limited(quotas, scoping.item(DataCategory::Error))
-                .map_err(ProcessingError::QuotasFailed)?
-        });
+        let minidump_attachment =
+            envelope.get_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump));
+        let apple_crash_report_attachment = envelope
+            .get_item_by(|item| item.attachment_type() == Some(AttachmentType::AppleCrashReport));
 
-        if rate_limits.is_limited() {
-            return Err(ProcessingError::RateLimited(rate_limits));
+        if let Some(item) = minidump_attachment {
+            state.metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
+            self.write_native_placeholder(&mut state.event, true);
+        } else if let Some(item) = apple_crash_report_attachment {
+            state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
+            self.write_native_placeholder(&mut state.event, false);
         }
 
         Ok(())
     }
 
-    fn fast_process_event(
-        &self,
-        event: &mut Annotated<Event>,
-        envelope: &Envelope,
-        start_time: Instant,
-    ) -> Result<(), ProcessingError> {
-        let sent_at = envelope.sent_at();
-        let received_at = relay_common::instant_to_date_time(start_time);
-        let mut processor = relay_general::store::ClockDriftProcessor::new(sent_at, received_at);
+    fn finalize_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let is_transaction = state.event_type() == Some(EventType::Transaction);
+        let envelope = &mut state.envelope;
 
-        process_value(event, &mut processor, ProcessingState::root())
+        let event = match state.event.value_mut() {
+            Some(event) => event,
+            None if !self.config.processing_enabled() => return Ok(()),
+            None => return Err(ProcessingError::NoEventPayload),
+        };
+
+        // Event id is set statically in the ingest path.
+        let event_id = envelope.event_id().unwrap_or_default();
+        debug_assert!(!event_id.is_nil());
+
+        // Ensure that the event id in the payload is consistent with the envelope. If an event
+        // id was ingested, this will already be the case. Otherwise, this will insert a new
+        // event id. To be defensive, we always overwrite to ensure consistency.
+        event.id = Annotated::new(event_id);
+
+        // In processing mode, also write metrics into the event. Most metrics have already been
+        // collected at this state, except for the combined size of all attachments.
+        if self.config.processing_enabled() {
+            let attachment_size = envelope
+                .items()
+                .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment))
+                .map(|item| item.len() as u64)
+                .sum::<u64>();
+
+            if attachment_size > 0 {
+                state.metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size);
+            }
+
+            event._metrics = Annotated::new(std::mem::take(&mut state.metrics));
+        }
+
+        // TODO: Temporary workaround before processing. Experimental SDKs relied on a buggy
+        // clock drift correction that assumes the event timestamp is the sent_at time. This
+        // should be removed as soon as legacy ingestion has been removed.
+        let sent_at = match envelope.sent_at() {
+            Some(sent_at) => Some(sent_at),
+            None if is_transaction => event.timestamp.value().copied(),
+            None => None,
+        };
+
+        let mut processor =
+            ClockDriftProcessor::new(sent_at, state.received_at).at_least(MINIMUM_CLOCK_DRIFT);
+        process_value(&mut state.event, &mut processor, ProcessingState::root())
             .map_err(|_| ProcessingError::InvalidTransaction)?;
 
         Ok(())
     }
 
     #[cfg(feature = "processing")]
-    fn store_process_event(
-        &self,
-        event: &mut Annotated<Event>,
-        envelope: &Envelope,
-        project_state: &ProjectState,
-        start_time: Instant,
-    ) -> Result<(), ProcessingError> {
-        let geoip_lookup = self.geoip_lookup.as_deref();
+    fn store_process_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let ProcessEnvelopeState {
+            ref envelope,
+            ref mut event,
+            ref project_state,
+            received_at,
+            ..
+        } = *state;
+
         let key_id = project_state
             .get_public_key_config(&envelope.meta().public_key())
             .and_then(|k| Some(k.numeric_id?.to_string()));
@@ -536,228 +865,169 @@ impl EventProcessor {
             remove_other: Some(true),
             normalize_user_agent: Some(true),
             sent_at: envelope.sent_at(),
-            received_at: Some(relay_common::instant_to_date_time(start_time)),
+            received_at: Some(received_at),
         };
 
-        let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
+        let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_deref());
         metric!(timer(RelayTimers::EventProcessingProcess), {
             process_value(event, &mut store_processor, ProcessingState::root())
                 .map_err(|_| ProcessingError::InvalidTransaction)?;
         });
 
-        // Event filters assume a normalized event. Unfortunately, this requires us to run
-        // expensive normalization first.
-        if let Some(event) = event.value_mut() {
-            let client_ip = envelope.meta().client_addr();
-            let filter_settings = &project_state.config.filter_settings;
-            let filter_result = metric!(timer(RelayTimers::EventProcessingFiltering), {
-                relay_filter::should_filter(event, client_ip, filter_settings)
-            });
+        Ok(())
+    }
 
-            if let Err(reason) = filter_result {
-                // If the event should be filtered, no more processing is needed
-                return Err(ProcessingError::EventFiltered(reason));
-            }
+    #[cfg(feature = "processing")]
+    fn filter_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let event = match state.event.value_mut() {
+            Some(event) => event,
+            None => return Err(ProcessingError::NoEventPayload),
+        };
+
+        let client_ip = state.envelope.meta().client_addr();
+        let filter_settings = &state.project_state.config.filter_settings;
+
+        metric!(timer(RelayTimers::EventProcessingFiltering), {
+            relay_filter::should_filter(event, client_ip, filter_settings)
+                .map_err(ProcessingError::EventFiltered)
+        })
+    }
+
+    #[cfg(feature = "processing")]
+    fn enforce_quotas(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let rate_limiter = match self.rate_limiter.as_ref() {
+            Some(rate_limiter) => rate_limiter,
+            None => return Ok(()),
+        };
+
+        let project_state = &state.project_state;
+        let quotas = project_state.config.quotas.as_slice();
+        if quotas.is_empty() {
+            return Ok(());
         }
 
-        // Run rate limiting after normalizing the event and running all filters. If the event is
-        // dropped or filtered for a different reason before that, it should not count against
-        // quotas. Also, this allows to reduce the number of requests to the rate limiter (currently
-        // implemented in Redis).
-        self.enforce_quotas(envelope, project_state)?;
+        let mut remove_event = false;
+        let category = state.event_category();
+
+        // When invoking the rate limiter, capture if the event item has been rate limited to also
+        // remove it from the processing state eventually.
+        let mut envelope_limiter = EnvelopeLimiter::new(|item_scope, quantity| {
+            let limits = rate_limiter.is_rate_limited(quotas, item_scope, quantity)?;
+            remove_event |= Some(item_scope.category) == category && limits.is_limited();
+            Ok(limits)
+        });
+
+        // Tell the envelope limiter about the event, since it has been removed from the Envelope at
+        // this stage in processing.
+        if let Some(category) = category {
+            envelope_limiter.assume_event(category);
+        }
+
+        // Fetch scoping again from the project state. This is a rather cheap operation at this
+        // point and it is easier than passing scoping through all layers of `process_envelope`.
+        let scoping = project_state.get_scoping(state.envelope.meta());
+
+        state.rate_limits = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
+            envelope_limiter
+                .enforce(&mut state.envelope, &scoping)
+                .map_err(ProcessingError::QuotasFailed)?
+        });
+
+        if remove_event {
+            state.remove_event();
+            debug_assert!(state.envelope.is_empty());
+        }
 
         Ok(())
     }
 
-    /// Checks for duplicate items in an envelope.
+    /// Apply data privacy rules to the event payload.
     ///
-    /// An item is considered duplicate if it was not removed by sanitation in `process_event` and
-    /// `extract_event`. This partially depends on the `processing_enabled` flag.
-    fn is_duplicate(&self, item: &Item) -> bool {
-        match item.ty() {
-            // These should always be removed by `extract_event`:
-            ItemType::Event => true,
-            ItemType::Transaction => true,
-            ItemType::FormData => true,
-            ItemType::SecurityReport => true,
+    /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
+    fn scrub_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let event = &mut state.event;
+        let config = &state.project_state.config;
 
-            // These should be removed conditionally:
-            ItemType::UnrealReport => self.config.processing_enabled(),
+        metric!(timer(RelayTimers::EventProcessingPii), {
+            if let Some(ref config) = config.pii_config {
+                let compiled = config.compiled();
+                let mut processor = PiiProcessor::new(&compiled);
+                process_value(event, &mut processor, ProcessingState::root())
+                    .map_err(ProcessingError::ProcessingFailed)?;
+            }
 
-            // These may be forwarded to upstream / store:
-            ItemType::Attachment => false,
-            ItemType::UserReport => false,
+            if let Some(ref config) = *config.datascrubbing_settings.pii_config() {
+                let compiled = config.compiled();
+                let mut processor = PiiProcessor::new(&compiled);
+                process_value(event, &mut processor, ProcessingState::root())
+                    .map_err(ProcessingError::ProcessingFailed)?;
+            }
+        });
 
-            // session data is never considered as part of deduplication
-            ItemType::Session => false,
-        }
+        Ok(())
+    }
+
+    fn serialize_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
+            state
+                .event
+                .to_json()
+                .map_err(ProcessingError::SerializeFailed)?
+        });
+
+        let event_type = state.event_type().unwrap_or_default();
+        let mut event_item = Item::new(ItemType::from_event_type(event_type));
+        event_item.set_payload(ContentType::Json, data);
+        state.envelope.add_item(event_item);
+
+        Ok(())
     }
 
     fn process(
         &self,
         message: ProcessEnvelope,
     ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
-        #[allow(unused_variables)]
-        let ProcessEnvelope {
-            mut envelope,
-            project_state,
-            start_time,
-        } = message;
-
         macro_rules! if_processing {
-            ($($tt:tt)*) => {
+            ($if_true:block $(, $if_not:block)?) => {
                 #[cfg(feature = "processing")] {
-                    if self.config.processing_enabled() {
-                        $($tt)*
-                    }
+                    if self.config.processing_enabled() $if_true
                 }
             };
         }
 
-        // Set the event retention. Effectively, this value will only be available in processing
-        // mode when the full project config is queried from the upstream.
-        if let Some(retention) = project_state.config.event_retention {
-            envelope.set_retention(retention);
+        let mut state = self.prepare_state(message)?;
+        self.process_sessions(&mut state)?;
+
+        if state.creates_event() {
+            if_processing!({
+                self.expand_unreal(&mut state)?;
+            });
+
+            self.extract_event(&mut state)?;
+
+            if_processing!({
+                self.process_unreal(&mut state)?;
+                self.create_placeholders(&mut state)?;
+            });
+
+            self.finalize_event(&mut state)?;
+
+            if_processing!({
+                self.store_process_event(&mut state)?;
+                self.filter_event(&mut state)?;
+            });
         }
 
-        // Unreal endpoint puts the whole request into an item. This is done to make the endpoint
-        // fast. For envelopes containing an Unreal request, we will look into the unreal item and
-        // expand it so it can be consumed like any other event (e.g. `__sentry-event`). External
-        // Relays should leave this as-is.
-        if_processing! {
-            if let Some(item) = envelope.take_item_by(|item| item.ty() == ItemType::UnrealReport) {
-                utils::expand_unreal_envelope(item, &mut envelope)
-                    .map_err(ProcessingError::InvalidUnrealReport)?;
-            }
-        }
-
-        // Carry metrics on event sizes through the entire normalization process. Without
-        // processing, this value is unused and will be optimized away. Note how we need to extract
-        // sizes at different stages of processing and apply them after `store_process_event`.
-        let mut _metrics = Metrics::default();
-
-        // Extract the event from the envelope. This removes all items from the envelope that should
-        // not be forwarded, including the event item itself.
-        let (mut event, event_len) = self.extract_event(&mut envelope)?;
-        #[allow(unused_mut)]
-        let mut event_type = event.value().and_then(|e| e.ty.value()).copied();
-        _metrics.bytes_ingested_event = Annotated::new(event_len as u64);
-
-        // `extract_event` must remove all unique items from the envelope. Once the envelope is
-        // processed, an `Event` item will be added to the envelope again. All additional items will
-        // count as duplicates.
-        if let Some(duplicate) = envelope.get_item_by(|item| self.is_duplicate(item)) {
-            return Err(ProcessingError::DuplicateItem(duplicate.ty()));
-        }
-
-        if_processing! {
-            // This envelope may contain UE4 crash report information, which needs to be patched on
-            // the event returned from `extract_event`.
-            utils::process_unreal_envelope(&mut event, &mut envelope)
-                .map_err(ProcessingError::InvalidUnrealReport)?;
-
-            // If special attachments are present in the envelope, add placeholder payloads to the
-            // event. This indicates to the pipeline that the event needs special processing.
-            let minidump_attachment = envelope
-                .get_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump));
-            let apple_crash_report_attachment = envelope
-                .get_item_by(|item| item.attachment_type() == Some(AttachmentType::AppleCrashReport));
-
-            if let Some(item) = minidump_attachment {
-                _metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
-                self.write_native_placeholder(&mut event, true);
-            } else if let Some(item) =  apple_crash_report_attachment {
-                _metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
-                self.write_native_placeholder(&mut event, false);
-            }
-
-            let attachment_size = envelope.items()
-                .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment))
-                .map(|item| item.len())
-                .sum::<usize>();
-
-            if attachment_size > 0 {
-                _metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size as u64);
-            }
-        }
-
-        if let Some(event) = event.value_mut() {
-            // Event id is set statically in the ingest path.
-            let event_id = envelope.event_id().unwrap_or_default();
-            debug_assert!(!event_id.is_nil());
-
-            // Ensure that the event id in the payload is consistent with the envelope. If an event
-            // id was ingested, this will already be the case. Otherwise, this will insert a new
-            // event id. To be defensive, we always overwrite to ensure consistency.
-            event.id = Annotated::new(event_id);
-
-            // TODO: Temporary workaround before processing. Experimental SDKs relied on a buggy
-            // clock drift correction that assumes the event timestamp is the sent_at time. This
-            // should be removed as soon as legacy ingestion has been removed.
-            if envelope.sent_at().is_none() && event_type == Some(EventType::Transaction) {
-                if let Some(&event_timestamp) = event.timestamp.value() {
-                    envelope.set_sent_at(*event_timestamp);
-                }
-            }
-        } else {
-            // If we have an envelope without event at this point, we are done with processing. This
-            // envelope only contains attachments or user reports. We should not run filters or
-            // apply rate limits.
-            log::trace!("no event for envelope, skipping processing");
-            return Ok(ProcessEnvelopeResponse { envelope });
-        }
-
-        if !self.config.processing_enabled() {
-            self.fast_process_event(&mut event, &envelope, start_time)?;
-        }
-        // else
-        if_processing! {
-            self.store_process_event(&mut event, &envelope, &project_state, start_time)?;
-
-            if let Some(event) = event.value_mut() {
-                event_type = event.ty.value().copied();
-
-                // Write metrics into the fully processed event. This ensures that whatever happens
-                // during processing is overwritten at last.
-                event._metrics = Annotated::new(_metrics);
-            }
-        }
-
-        // Run PII stripping last since normalization can add PII (e.g. IP addresses).
-        metric!(timer(RelayTimers::EventProcessingPii), {
-            if let Some(ref config) = project_state.config.pii_config {
-                let compiled = config.compiled();
-                let mut processor = PiiProcessor::new(&compiled);
-                process_value(&mut event, &mut processor, ProcessingState::root())
-                    .map_err(ProcessingError::ProcessingFailed)?;
-            }
-
-            if let Some(ref config) = *project_state.config.datascrubbing_settings.pii_config() {
-                let compiled = config.compiled();
-
-                let mut processor = PiiProcessor::new(&compiled);
-                process_value(&mut event, &mut processor, ProcessingState::root())
-                    .map_err(ProcessingError::ProcessingFailed)?;
-            }
+        if_processing!({
+            self.enforce_quotas(&mut state)?;
         });
 
-        // We're done now. Serialize the event back into JSON and put it in an envelope so that it
-        // can be sent to the upstream or processing queue.
-        let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
-            event.to_json().map_err(ProcessingError::SerializeFailed)?
-        });
+        if state.has_event() {
+            self.scrub_event(&mut state)?;
+            self.serialize_event(&mut state)?;
+        }
 
-        let item_type = match event_type {
-            Some(EventType::Transaction) => ItemType::Transaction,
-            _ => ItemType::Event,
-        };
-
-        // Add the normalized event back to the envelope. All the other items are attachments.
-        let mut event_item = Item::new(item_type);
-        event_item.set_payload(ContentType::Json, data);
-        envelope.add_item(event_item);
-
-        Ok(ProcessEnvelopeResponse { envelope })
+        Ok(ProcessEnvelopeResponse::from(state))
     }
 }
 
@@ -773,7 +1043,17 @@ struct ProcessEnvelope {
 
 #[cfg_attr(not(feature = "processing"), allow(dead_code))]
 struct ProcessEnvelopeResponse {
-    envelope: Envelope,
+    envelope: Option<Envelope>,
+    rate_limits: RateLimits,
+}
+
+impl From<ProcessEnvelopeState> for ProcessEnvelopeResponse {
+    fn from(state: ProcessEnvelopeState) -> Self {
+        Self {
+            envelope: Some(state.envelope).filter(|e| !e.is_empty()),
+            rate_limits: state.rate_limits,
+        }
+    }
 }
 
 impl Message for ProcessEnvelope {
@@ -784,8 +1064,8 @@ impl Handler<ProcessEnvelope> for EventProcessor {
     type Result = Result<ProcessEnvelopeResponse, ProcessingError>;
 
     fn handle(&mut self, message: ProcessEnvelope, _context: &mut Self::Context) -> Self::Result {
-        metric!(timer(RelayTimers::EventWaitTime) = message.start_time.elapsed());
-        metric!(timer(RelayTimers::EventProcessingTime), {
+        metric!(timer(RelayTimers::EnvelopeWaitTime) = message.start_time.elapsed());
+        metric!(timer(RelayTimers::EnvelopeProcessingTime), {
             self.process(message)
         })
     }
@@ -827,8 +1107,8 @@ impl EventManager {
                 None => None,
             };
 
-            let rate_limiter =
-                redis_pool.map(|pool| RateLimiter::new(pool).max_limit(config.max_rate_limit()));
+            let rate_limiter = redis_pool
+                .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
 
             SyncArbiter::start(
                 thread_count,
@@ -898,11 +1178,13 @@ impl Message for QueueEnvelope {
 impl Handler<QueueEnvelope> for EventManager {
     type Result = Result<Option<EventId>, QueueEnvelopeError>;
 
-    fn handle(&mut self, message: QueueEnvelope, context: &mut Self::Context) -> Self::Result {
-        metric!(histogram(RelayHistograms::EventQueueSize) = u64::from(self.current_active_events));
+    fn handle(&mut self, mut message: QueueEnvelope, context: &mut Self::Context) -> Self::Result {
+        metric!(
+            histogram(RelayHistograms::EnvelopeQueueSize) = u64::from(self.current_active_events)
+        );
 
         metric!(
-            histogram(RelayHistograms::EventQueueSizePct) = {
+            histogram(RelayHistograms::EnvelopeQueueSizePct) = {
                 let queue_size_pct = self.current_active_events as f32 * 100.0
                     / self.config.event_buffer_size() as f32;
                 queue_size_pct.floor() as u64
@@ -913,18 +1195,31 @@ impl Handler<QueueEnvelope> for EventManager {
             return Err(QueueEnvelopeError::TooManyEvents);
         }
 
-        self.current_active_events += 1;
-
         let event_id = message.envelope.event_id();
 
-        // Actual event handling is performed asynchronously in a separate future. The lifetime of
-        // that future will be tied to the EventManager's context. This allows to keep the Project
-        // actor alive even if it is cleaned up in the ProjectManager.
+        // Split the envelope into event-related items and other items. This allows to fast-track:
+        //  1. Envelopes with only session items. They only require rate limiting.
+        //  2. Event envelope processing can bail out if the event is filtered or rate limited,
+        //     since all items depend on this event.
+        if let Some(event_envelope) = message.envelope.split_by(Item::requires_event) {
+            self.current_active_events += 1;
+            context.notify(HandleEnvelope {
+                envelope: event_envelope,
+                project: message.project.clone(),
+                start_time: message.start_time,
+            });
+        }
+
+        self.current_active_events += 1;
         context.notify(HandleEnvelope {
             envelope: message.envelope,
             project: message.project,
             start_time: message.start_time,
         });
+
+        // Actual event handling is performed asynchronously in a separate future. The lifetime of
+        // that future will be tied to the EventManager's context. This allows to keep the Project
+        // actor alive even if it is cleaned up in the ProjectManager.
 
         log::trace!("queued event");
         Ok(event_id)
@@ -979,7 +1274,6 @@ impl Handler<HandleEnvelope> for EventManager {
         let event_id = envelope.event_id();
         let project_id = envelope.meta().project_id();
         let remote_addr = envelope.meta().client_addr();
-        let shared_meta = Arc::new(envelope.meta().clone());
 
         // Compute whether this envelope contains an event. This is used in error handling to
         // appropriately emit an outecome. Envelopes not containing events (such as standalone
@@ -991,27 +1285,26 @@ impl Handler<HandleEnvelope> for EventManager {
         metric!(set(RelaySets::UniqueProjects) = project_id.value() as i64);
 
         let future = project
-            .send(GetScoping::fetched(shared_meta.clone()))
+            .send(CheckEnvelope::fetched(envelope))
             .map_err(ProcessingError::ScheduleFailed)
-            .and_then(|scoping_result| scoping_result.map_err(ProcessingError::ProjectFailed))
-            .and_then(clone!(project, scoping, |new_scoping| {
-                scoping.replace(new_scoping);
-                project
-                    .send(GetEventAction::new(shared_meta))
-                    .map_err(ProcessingError::ScheduleFailed)
+            .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
+            .and_then(clone!(scoping, |response| {
+                scoping.replace(response.scoping);
+
+                let checked = response.result.map_err(ProcessingError::EventRejected)?;
+                match checked.envelope {
+                    Some(envelope) => Ok(envelope),
+                    None => Err(ProcessingError::RateLimited(checked.rate_limits)),
+                }
             }))
-            .and_then(|action| match action {
-                EventAction::Accept => Ok(()),
-                EventAction::RateLimit(limits) => Err(ProcessingError::RateLimited(limits)),
-                EventAction::Discard(reason) => Err(ProcessingError::EventRejected(reason)),
-            })
-            .and_then(clone!(project, |_| {
+            .and_then(clone!(project, |envelope| {
                 project
                     .send(GetProjectState)
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
+                    .map(|state| (envelope, state))
             }))
-            .and_then(move |project_state| {
+            .and_then(move |(envelope, project_state)| {
                 processor
                     .send(ProcessEnvelope {
                         envelope,
@@ -1021,9 +1314,21 @@ impl Handler<HandleEnvelope> for EventManager {
                     .map_err(ProcessingError::ScheduleFailed)
                     .flatten()
             })
-            .and_then(clone!(captured_events, scoping, |processed| {
-                let mut envelope = processed.envelope;
+            .and_then(clone!(project, |processed| {
+                let rate_limits = processed.rate_limits;
 
+                // Processing returned new rate limits. Cache them on the project to avoid expensive
+                // processing while the limit is active.
+                if rate_limits.is_limited() {
+                    project.do_send(UpdateRateLimits(rate_limits.clone()));
+                }
+
+                match processed.envelope {
+                    Some(envelope) => Ok(envelope),
+                    None => Err(ProcessingError::RateLimited(rate_limits)),
+                }
+            }))
+            .and_then(clone!(captured_events, scoping, |mut envelope| {
                 #[cfg(feature = "processing")]
                 {
                     if let Some(store_forwarder) = store_forwarder {
@@ -1092,6 +1397,7 @@ impl Handler<HandleEnvelope> for EventManager {
                         result.map_err(move |error| match error {
                             UpstreamRequestError::RateLimited(upstream_limits) => {
                                 let limits = upstream_limits.scope(&scoping.borrow());
+                                project.do_send(UpdateRateLimits(limits.clone()));
                                 ProcessingError::RateLimited(limits)
                             }
                             other => ProcessingError::SendFailed(other),
@@ -1102,13 +1408,9 @@ impl Handler<HandleEnvelope> for EventManager {
             }))
             .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
-            .map(|_, _, _| metric!(counter(RelayCounters::EventAccepted) += 1))
-            .map_err(clone!(project, captured_events, |error, _, _| {
-                // Rate limits need special handling: Cache them on the project to avoid
-                // expensive processing while the limit is active.
-                if let ProcessingError::RateLimited(ref rate_limits) = error {
-                    project.do_send(UpdateRateLimits(rate_limits.clone()));
-                }
+            .map(|_, _, _| metric!(counter(RelayCounters::EnvelopeAccepted) += 1))
+            .map_err(move |error, slf, _| {
+                metric!(counter(RelayCounters::EnvelopeRejected) += 1);
 
                 // if we are in capture mode, we stash away the event instead of
                 // forwarding it.
@@ -1117,7 +1419,7 @@ impl Handler<HandleEnvelope> for EventManager {
                     if let Some(event_id) = event_id {
                         log::debug!("capturing failed event {}", event_id);
                         let msg = LogError(&error).to_string();
-                        captured_events
+                        slf.captured_events
                             .write()
                             .insert(event_id, CapturedEvent::Err(msg));
                     } else {
@@ -1131,75 +1433,17 @@ impl Handler<HandleEnvelope> for EventManager {
                     return;
                 }
 
-                metric!(counter(RelayCounters::EventRejected) += 1);
-                let outcome_params = match error {
-                    // General outcomes for invalid events
-                    ProcessingError::PayloadTooLarge => {
-                        Some(Outcome::Invalid(DiscardReason::TooLarge))
-                    }
-                    ProcessingError::InvalidJson(_) => {
-                        Some(Outcome::Invalid(DiscardReason::InvalidJson))
-                    }
-                    ProcessingError::InvalidMsgpack(_) => {
-                        Some(Outcome::Invalid(DiscardReason::InvalidMsgpack))
-                    }
-                    ProcessingError::EventRejected(outcome_reason) => {
-                        Some(Outcome::Invalid(outcome_reason))
-                    }
-                    ProcessingError::InvalidSecurityReportType => {
-                        Some(Outcome::Invalid(DiscardReason::SecurityReportType))
-                    }
-                    ProcessingError::InvalidSecurityReport(_) => {
-                        Some(Outcome::Invalid(DiscardReason::SecurityReport))
-                    }
-                    ProcessingError::InvalidTransaction => {
-                        Some(Outcome::Invalid(DiscardReason::InvalidTransaction))
-                    }
-                    ProcessingError::DuplicateItem(_) => {
-                        Some(Outcome::Invalid(DiscardReason::DuplicateItem))
-                    }
-
-                    // Processing-only outcomes (Sentry-internal Relays)
-                    #[cfg(feature = "processing")]
-                    ProcessingError::InvalidUnrealReport(_) => {
-                        Some(Outcome::Invalid(DiscardReason::ProcessUnreal))
-                    }
-                    #[cfg(feature = "processing")]
-                    ProcessingError::EventFiltered(ref filter_stat_key) => {
-                        Some(Outcome::Filtered(*filter_stat_key))
-                    }
-                    // Processing-only but not feature flagged
-                    ProcessingError::RateLimited(ref rate_limits) => rate_limits
-                        .longest()
-                        .map(|r| Outcome::RateLimited(r.reason_code.clone())),
-
-                    // Internal errors
-                    ProcessingError::SerializeFailed(_)
-                    | ProcessingError::ScheduleFailed(_)
-                    | ProcessingError::ProjectFailed(_)
-                    | ProcessingError::Timeout
-                    | ProcessingError::ProcessingFailed(_) => {
-                        Some(Outcome::Invalid(DiscardReason::Internal))
-                    }
-                    #[cfg(feature = "processing")]
-                    ProcessingError::StoreFailed(_) | ProcessingError::QuotasFailed(_) => {
-                        Some(Outcome::Invalid(DiscardReason::Internal))
-                    }
-
-                    // If we send to an upstream, we don't emit outcomes.
-                    ProcessingError::SendFailed(_) => None,
-                };
-
-                if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome_params {
+                let outcome = error.to_outcome();
+                if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome {
                     // Errors are only logged for what we consider an internal discard reason. These
                     // indicate errors in the infrastructure or implementation bugs. In other cases,
-                    // we "expect" errors and log them as info level.
+                    // we "expect" errors and log them as debug level.
                     log::error!("error processing event: {}", LogError(&error));
                 } else {
                     log::debug!("dropped event: {}", LogError(&error));
                 }
 
-                if let Some(outcome) = outcome_params {
+                if let Some(outcome) = outcome {
                     outcome_producer.do_send(TrackOutcome {
                         timestamp: Instant::now(),
                         scoping: scoping.borrow().clone(),
@@ -1208,9 +1452,9 @@ impl Handler<HandleEnvelope> for EventManager {
                         remote_addr,
                     })
                 }
-            }))
+            })
             .then(move |x, slf, _| {
-                metric!(timer(RelayTimers::EventTotalTime) = start_time.elapsed());
+                metric!(timer(RelayTimers::EnvelopeTotalTime) = start_time.elapsed());
                 slf.current_active_events -= 1;
                 fut::result(x)
             })

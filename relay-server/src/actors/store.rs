@@ -6,7 +6,6 @@ use std::time::Instant;
 
 use actix::prelude::*;
 use bytes::Bytes;
-use chrono::{Duration, Utc};
 use failure::{Fail, ResultExt};
 use rdkafka::error::KafkaError;
 use rdkafka::producer::{BaseRecord, DefaultProducerContext};
@@ -14,13 +13,12 @@ use rdkafka::ClientConfig;
 use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
 
-use relay_common::{metric, LogError, ProjectId, UnixTimestamp, Uuid};
+use relay_common::{metric, ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
 use relay_general::protocol;
 use relay_general::protocol::{EventId, SessionStatus, SessionUpdate};
 use relay_quotas::Scoping;
 
-use crate::constants::MAX_SESSION_DAYS;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::metrics::RelayCounters;
 use crate::service::{ServerError, ServerErrorKind};
@@ -127,6 +125,16 @@ impl StoreForwarder {
                 .map(|content_type| content_type.as_str().to_owned()),
             attachment_type: item.attachment_type().unwrap_or_default(),
             chunks: chunk_index,
+            size: if self.config.emit_attachment_rate_limit_flag() {
+                Some(size)
+            } else {
+                None
+            },
+            rate_limited: if self.config.emit_attachment_rate_limit_flag() {
+                Some(item.get_header("rate_limited") == Some(&true.into()))
+            } else {
+                None
+            },
         })
     }
 
@@ -151,43 +159,13 @@ impl StoreForwarder {
         &self,
         org_id: u64,
         project_id: ProjectId,
-        client: Option<&str>,
         event_retention: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
         let session = match SessionUpdate::parse(&item.payload()) {
             Ok(session) => session,
-            Err(error) => {
-                sentry::with_scope(
-                    |scope| {
-                        scope.set_tag("project", project_id);
-                        if let Some(client) = client {
-                            scope.set_tag("sdk", client);
-                        }
-                        let payload = item.payload();
-                        scope.set_extra("session", String::from_utf8_lossy(&payload).into());
-                    },
-                    || {
-                        // Skip gracefully here to allow sending other messages.
-                        log::error!("failed to store session: {}", LogError(&error));
-                    },
-                );
-
-                return Ok(());
-            }
+            Err(_) => return Ok(()),
         };
-
-        if session.sequence == u64::max_value() {
-            // TODO(ja): Move this to normalization eventually.
-            log::trace!("skipping session due to sequence overflow");
-            return Ok(());
-        }
-
-        let session_age = Utc::now() - session.started;
-        if session_age > Duration::days(MAX_SESSION_DAYS.into()) {
-            log::trace!("skipping session older than {} days", MAX_SESSION_DAYS);
-            return Ok(());
-        }
 
         let message = KafkaMessage::Session(SessionKafkaMessage {
             org_id,
@@ -256,6 +234,19 @@ struct ChunkedAttachment {
 
     /// Number of chunks. Must be greater than zero.
     chunks: usize,
+
+    /// The size of the attachment in bytes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    size: Option<usize>,
+
+    /// Whether this attachment was rate limited and should be removed after processing.
+    ///
+    /// By default, rate limited attachments are immediately removed from Envelopes. For processing,
+    /// native crash reports still need to be retained. These attachments are marked with the
+    /// `"rate_limited"` header, which signals to the processing pipeline that the attachment should
+    /// not be persisted after processing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    rate_limited: Option<bool>,
 }
 
 /// A hack to make rmp-serde behave more like serde-json when serializing enums.
@@ -420,8 +411,12 @@ impl Handler<StoreEnvelope> for StoreForwarder {
 
         let retention = envelope.retention();
         let event_id = envelope.event_id();
-        let event_item = envelope
-            .get_item_by(|item| matches!(item.ty(), ItemType::Event | ItemType::Transaction));
+        let event_item = envelope.get_item_by(|item| {
+            matches!(
+                item.ty(),
+                ItemType::Event | ItemType::Transaction | ItemType::Security
+            )
+        });
 
         let topic = if envelope.get_item_by(is_slow_item).is_some() {
             KafkaTopic::Attachments
@@ -457,7 +452,6 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                     self.produce_session(
                         scoping.organization_id,
                         scoping.project_id,
-                        envelope.meta().client(),
                         retention,
                         item,
                     )?;
@@ -479,7 +473,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
 
             self.produce(topic, event_message)?;
             metric!(
-                counter(RelayCounters::ProcessingEventProduced) += 1,
+                counter(RelayCounters::ProcessingMessageProduced) += 1,
                 event_type = "event"
             );
         } else if !attachments.is_empty() {
@@ -493,7 +487,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
 
                 self.produce(topic, attachment_message)?;
                 metric!(
-                    counter(RelayCounters::ProcessingEventProduced) += 1,
+                    counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = "attachment"
                 );
             }

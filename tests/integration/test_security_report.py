@@ -1,3 +1,4 @@
+import json
 import pytest
 
 CSP_IGNORED_FIELDS = (
@@ -8,6 +9,13 @@ CSP_IGNORED_FIELDS = (
 EXPECT_CT_IGNORED_FIELDS = ("event_id",)
 EXPECT_STAPLE_IGNORED_FIELDS = ("event_id",)
 HPKP_IGNORED_FIELDS = ("event_id",)
+
+
+def get_security_report(envelope):
+    if envelope is not None:
+        for item in envelope.items:
+            if item.headers.get("type") == "security":
+                return json.loads(item.get_bytes())
 
 
 def id_fun1(origins):
@@ -24,7 +32,6 @@ def test_uses_origins(mini_sentry, relay, json_fixture_provider, allowed_origins
     fixture_provider = json_fixture_provider(__file__)
     proj_id = 42
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
     report = fixture_provider.load("csp", ".input")
     mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
 
@@ -54,7 +61,6 @@ def test_security_report_with_processing(
     test_name, ignored_properties = test_case
     proj_id = 42
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
     report = fixture_provider.load(test_name, ".input")
     mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
     events_consumer = events_consumer()
@@ -104,7 +110,6 @@ def test_security_report(mini_sentry, relay, test_case, json_fixture_provider):
     test_name, ignored_properties = test_case
     proj_id = 42
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
     report = fixture_provider.load(test_name, ".input")
     mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
 
@@ -116,7 +121,8 @@ def test_security_report(mini_sentry, relay, test_case, json_fixture_provider):
         environment="production",
     )
 
-    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = get_security_report(envelope)
     for x in ignored_properties:
         event.pop(x, None)
 

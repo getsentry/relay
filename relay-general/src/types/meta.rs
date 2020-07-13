@@ -151,6 +151,9 @@ pub enum ErrorKind {
     /// This value was too long and removed entirely.
     ValueTooLong,
 
+    /// Clock-drift of the SDK has been corrected in all timestamps.
+    ClockDrift,
+
     /// The timestamp is too old.
     PastTimestamp,
 
@@ -187,20 +190,8 @@ impl ErrorKind {
             ErrorKind::ValueTooLong => "value_too_long",
             ErrorKind::PastTimestamp => "past_timestamp",
             ErrorKind::FutureTimestamp => "future_timestamp",
+            ErrorKind::ClockDrift => "clock_drift",
             ErrorKind::Unknown(error) => &error,
-        }
-    }
-
-    /// Returns a human readable description of this error kind.
-    pub fn description(&self) -> &'static str {
-        match self {
-            ErrorKind::InvalidData => "Discarded invalid data",
-            ErrorKind::MissingAttribute => "Missing value for required attribute",
-            ErrorKind::InvalidAttribute => "Discarded unknown attribute",
-            ErrorKind::ValueTooLong => "Discarded value exceeding maximum length",
-            ErrorKind::PastTimestamp => "Invalid timestamp (too old)",
-            ErrorKind::FutureTimestamp => "Invalid timestamp (in future)",
-            ErrorKind::Unknown(_) => "Unknown error",
         }
     }
 }

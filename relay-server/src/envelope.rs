@@ -41,7 +41,7 @@ use failure::Fail;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use relay_general::protocol::EventId;
+use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
@@ -77,12 +77,14 @@ pub enum ItemType {
     Event,
     /// Transaction event payload encoded in JSON.
     Transaction,
+    /// Security report event payload encoded in JSON.
+    Security,
     /// Raw payload of an arbitrary attachment.
     Attachment,
     /// Multipart form data collected into a stream of JSON tuples.
     FormData,
     /// Security report as sent by the browser in JSON.
-    SecurityReport,
+    RawSecurity,
     /// Raw compressed UE4 crash report.
     UnrealReport,
     /// User feedback encoded as JSON.
@@ -91,14 +93,28 @@ pub enum ItemType {
     Session,
 }
 
+impl ItemType {
+    /// Returns the event item type corresponding to the given `EventType`.
+    pub fn from_event_type(event_type: EventType) -> Self {
+        match event_type {
+            EventType::Default | EventType::Error => ItemType::Event,
+            EventType::Transaction => ItemType::Transaction,
+            EventType::Csp | EventType::Hpkp | EventType::ExpectCT | EventType::ExpectStaple => {
+                ItemType::Security
+            }
+        }
+    }
+}
+
 impl fmt::Display for ItemType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::Event => write!(f, "event"),
             Self::Transaction => write!(f, "transaction"),
+            Self::Security => write!(f, "security report"),
             Self::Attachment => write!(f, "attachment"),
             Self::FormData => write!(f, "form data"),
-            Self::SecurityReport => write!(f, "security report"),
+            Self::RawSecurity => write!(f, "raw security report"),
             Self::UnrealReport => write!(f, "unreal report"),
             Self::UserReport => write!(f, "user feedback"),
             Self::Session => write!(f, "session"),
@@ -440,18 +456,25 @@ impl Item {
             // These items are direct event types.
             ItemType::Event
             | ItemType::Transaction
-            | ItemType::SecurityReport
+            | ItemType::Security
+            | ItemType::RawSecurity
             | ItemType::UnrealReport => true,
 
-            // Attachments are only event items if they are crash reports.
+            // Attachments are only event items if they are crash reports or if they carry partial
+            // event payloads. Plain attachments never create event payloads.
             ItemType::Attachment => match self.attachment_type().unwrap_or_default() {
-                AttachmentType::AppleCrashReport | AttachmentType::Minidump => true,
-                _ => false,
+                AttachmentType::AppleCrashReport
+                | AttachmentType::Minidump
+                | AttachmentType::EventPayload
+                | AttachmentType::Breadcrumbs => true,
+                AttachmentType::Attachment
+                | AttachmentType::UnrealContext
+                | AttachmentType::UnrealLogs => false,
             },
 
-            // Form data items may contain partial event payloads, but those are only ever valid if they
-            // occur together with an explicit event item, such as a minidump or apple crash report. For
-            // this reason, FormData alone does not constitute an event item.
+            // Form data items may contain partial event payloads, but those are only ever valid if
+            // they occur together with an explicit event item, such as a minidump or apple crash
+            // report. For this reason, FormData alone does not constitute an event item.
             ItemType::FormData => false,
 
             // The remaining item types cannot carry event payloads.
@@ -466,9 +489,10 @@ impl Item {
         match self.ty() {
             ItemType::Event => true,
             ItemType::Transaction => true,
+            ItemType::Security => true,
             ItemType::Attachment => true,
             ItemType::FormData => true,
-            ItemType::SecurityReport => true,
+            ItemType::RawSecurity => true,
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
             ItemType::Session => false,
@@ -697,6 +721,43 @@ impl Envelope {
         self.items.push(item)
     }
 
+    /// Splits the envelope by the given predicate.
+    ///
+    /// The predicate passed to `split_by()` can return `true`, or `false`. If it returns `true` or
+    /// `false` for all items, then this returns `None`. Otherwise, a new envelope is constructed
+    /// with all items that return `true`. Items that return `false` remain in this envelope.
+    ///
+    /// The returned envelope assumes the same headers.
+    pub fn split_by<F>(&mut self, mut f: F) -> Option<Self>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        let split_count = self.items().filter(|item| f(item)).count();
+        if split_count == self.len() || split_count == 0 {
+            return None;
+        }
+
+        let old_items = std::mem::take(&mut self.items);
+        let (split_items, own_items) = old_items.into_iter().partition(f);
+        self.items = own_items;
+
+        Some(Envelope {
+            headers: self.headers.clone(),
+            items: split_items,
+        })
+    }
+
+    /// Retains only the items specified by the predicate.
+    ///
+    /// In other words, remove all elements where `f(&item)` returns `false`. This method operates
+    /// in place and preserves the order of the retained items.
+    pub fn retain_items<F>(&mut self, f: F)
+    where
+        F: FnMut(&mut Item) -> bool,
+    {
+        self.items.retain(f)
+    }
+
     /// Serializes this envelope into the given writer.
     pub fn serialize<W>(&self, mut writer: W) -> Result<(), EnvelopeError>
     where
@@ -796,7 +857,7 @@ impl Envelope {
     fn require_termination(slice: &[u8], offset: usize) -> Result<(), EnvelopeError> {
         match slice.get(offset) {
             Some(&b'\n') | None => Ok(()),
-            _ => Err(EnvelopeError::MissingNewline),
+            Some(_) => Err(EnvelopeError::MissingNewline),
         }
     }
 
@@ -1147,5 +1208,49 @@ mod tests {
         Hello
 
         "###);
+    }
+
+    #[test]
+    fn test_split_envelope_none() {
+        let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
+        envelope.add_item(Item::new(ItemType::Attachment));
+        envelope.add_item(Item::new(ItemType::Attachment));
+
+        // Does not split when no item matches.
+        let split_opt = envelope.split_by(|item| item.ty() == ItemType::Session);
+        assert!(split_opt.is_none());
+    }
+
+    #[test]
+    fn test_split_envelope_all() {
+        let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
+        envelope.add_item(Item::new(ItemType::Session));
+        envelope.add_item(Item::new(ItemType::Session));
+
+        // Does not split when all items match.
+        let split_opt = envelope.split_by(|item| item.ty() == ItemType::Session);
+        assert!(split_opt.is_none());
+    }
+
+    #[test]
+    fn test_split_envelope_some() {
+        let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
+        envelope.add_item(Item::new(ItemType::Session));
+        envelope.add_item(Item::new(ItemType::Attachment));
+
+        let split_opt = envelope.split_by(|item| item.ty() == ItemType::Session);
+        let split_envelope = split_opt.expect("split_by returns an Envelope");
+
+        assert_eq!(split_envelope.len(), 1);
+        assert_eq!(split_envelope.event_id(), envelope.event_id());
+
+        // Matching items have moved into the split envelope.
+        for item in split_envelope.items() {
+            assert_eq!(item.ty(), ItemType::Session);
+        }
+
+        for item in envelope.items() {
+            assert_eq!(item.ty(), ItemType::Attachment);
+        }
     }
 }

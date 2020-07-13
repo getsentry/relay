@@ -6,7 +6,7 @@ use relay_general::protocol::EventId;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::Envelope;
-use crate::extractors::{RequestMeta, StartTime};
+use crate::extractors::RequestMeta;
 use crate::service::{ServiceApp, ServiceState};
 use crate::utils::MultipartItems;
 
@@ -44,16 +44,15 @@ fn create_response(_: Option<EventId>) -> HttpResponse {
 
 fn store_attachment(
     meta: RequestMeta,
-    start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     common::handle_store_like_request(
         meta,
         false,
-        start_time,
         request,
         extract_envelope,
         create_response,
+        true,
     )
 }
 

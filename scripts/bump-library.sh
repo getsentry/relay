@@ -10,7 +10,7 @@ NEW_VERSION="${2}"
 echo "Current version: ${OLD_VERSION}"
 echo "Bumping version: ${NEW_VERSION}"
 
-VERSION_RE=${VERSION//\./\\.}
+VERSION_RE=${OLD_VERSION//\./\\.}
 sed -i '' -e "1,/^version/ s/^version.*/version = \"${NEW_VERSION}\"/" relay-cabi/Cargo.toml
 
 cargo update -p relay-common --manifest-path ./relay-cabi/Cargo.toml

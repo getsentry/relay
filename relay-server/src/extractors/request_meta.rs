@@ -1,4 +1,5 @@
 use std::net::IpAddr;
+use std::time::Instant;
 
 use actix::ResponseFuture;
 use actix_web::dev::AsyncResult;
@@ -16,6 +17,7 @@ use relay_quotas::Scoping;
 
 use crate::actors::project_keys::GetProjectId;
 use crate::extractors::ForwardedFor;
+use crate::middlewares::StartTime;
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
 
@@ -23,6 +25,9 @@ use crate::utils::ApiErrorResponse;
 pub enum BadEventMeta {
     #[fail(display = "missing authorization information")]
     MissingAuth,
+
+    #[fail(display = "multiple authorization payloads detected")]
+    MultipleAuth,
 
     #[fail(display = "bad project path parameter")]
     BadProject(#[cause] ParseProjectIdError),
@@ -43,7 +48,7 @@ pub enum BadEventMeta {
 impl ResponseError for BadEventMeta {
     fn error_response(&self) -> HttpResponse {
         let mut builder = match *self {
-            Self::MissingAuth | Self::BadProjectKey | Self::BadAuth(_) => {
+            Self::MissingAuth | Self::MultipleAuth | Self::BadProjectKey | Self::BadAuth(_) => {
                 HttpResponse::Unauthorized()
             }
             Self::BadProject(_) | Self::BadDsn(_) => HttpResponse::BadRequest(),
@@ -87,6 +92,12 @@ pub struct RequestMeta<D = Dsn> {
     /// The user agent that sent this event.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     user_agent: Option<String>,
+
+    /// The time at which the request started.
+    //
+    // NOTE: This is internal-only and not exposed to Envelope headers.
+    #[serde(skip, default = "Instant::now")]
+    start_time: Instant,
 }
 
 impl<D> RequestMeta<D> {
@@ -132,6 +143,11 @@ impl<D> RequestMeta<D> {
     pub fn user_agent(&self) -> Option<&str> {
         self.user_agent.as_deref()
     }
+
+    /// The time at which the request started.
+    pub fn start_time(&self) -> Instant {
+        self.start_time
+    }
 }
 
 impl RequestMeta {
@@ -145,6 +161,7 @@ impl RequestMeta {
             remote_addr: Some("192.168.0.1".parse().unwrap()),
             forwarded_for: String::new(),
             user_agent: Some("sentry/agent".to_string()),
+            start_time: Instant::now(),
         }
     }
 
@@ -246,30 +263,45 @@ fn get_auth_header<'a, S>(req: &'a HttpRequest<S>, header_name: &str) -> Option<
 }
 
 fn auth_from_request<S>(req: &HttpRequest<S>) -> Result<Auth, BadEventMeta> {
+    let mut auth = None;
+
     // try to extract authentication info from http header "x-sentry-auth"
-    if let Some(auth) = get_auth_header(req, "x-sentry-auth") {
-        return auth.parse::<Auth>().map_err(BadEventMeta::BadAuth);
+    if let Some(header) = get_auth_header(req, "x-sentry-auth") {
+        auth = Some(header.parse::<Auth>().map_err(BadEventMeta::BadAuth)?);
     }
 
     // try to extract authentication info from http header "authorization"
-    if let Some(auth) = get_auth_header(req, "authorization") {
-        return auth.parse::<Auth>().map_err(BadEventMeta::BadAuth);
+    if let Some(header) = get_auth_header(req, "authorization") {
+        if auth.is_some() {
+            return Err(BadEventMeta::MultipleAuth);
+        }
+
+        auth = Some(header.parse::<Auth>().map_err(BadEventMeta::BadAuth)?);
     }
 
     // try to extract authentication info from URL query_param .../?sentry_...=<key>...
     let query = req.query_string();
     if query.contains("sentry_") {
-        return Auth::from_querystring(query.as_bytes()).map_err(BadEventMeta::BadAuth);
+        if auth.is_some() {
+            return Err(BadEventMeta::MultipleAuth);
+        }
+
+        auth = Some(Auth::from_querystring(query.as_bytes()).map_err(BadEventMeta::BadAuth)?);
     }
 
     // try to extract authentication info from URL path segment .../{sentry_key}/...
-    let sentry_key = req
-        .match_info()
-        .get("sentry_key")
-        .ok_or(BadEventMeta::MissingAuth)?;
+    if let Some(sentry_key) = req.match_info().get("sentry_key") {
+        if auth.is_some() {
+            return Err(BadEventMeta::MultipleAuth);
+        }
 
-    Auth::from_pairs(std::iter::once(("sentry_key", sentry_key)))
-        .map_err(|_| BadEventMeta::MissingAuth)
+        auth = Some(
+            Auth::from_pairs(std::iter::once(("sentry_key", sentry_key)))
+                .map_err(|_| BadEventMeta::MissingAuth)?,
+        );
+    }
+
+    auth.ok_or(BadEventMeta::MissingAuth)
 }
 
 fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Option<Url> {
@@ -286,6 +318,7 @@ fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Opti
 fn extract_event_meta(
     request: &HttpRequest<ServiceState>,
 ) -> ResponseFuture<RequestMeta, BadEventMeta> {
+    let start_time = StartTime::from_request(request, &()).into_inner();
     let auth = tryf!(auth_from_request(request));
 
     let version = auth.version();
@@ -343,6 +376,7 @@ fn extract_event_meta(
             remote_addr,
             forwarded_for,
             user_agent,
+            start_time,
         })
     }))
 }

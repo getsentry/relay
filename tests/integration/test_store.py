@@ -13,7 +13,6 @@ from requests.exceptions import HTTPError
 def test_store(mini_sentry, relay_chain):
     relay = relay_chain()
     mini_sentry.project_configs[42] = relay.basic_project_config()
-    relay.wait_relay_healthcheck()
 
     relay.send_event(42)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
@@ -25,7 +24,6 @@ def test_store(mini_sentry, relay_chain):
 def test_store_external_relay(mini_sentry, relay, whitelisted):
     # Use 3 Relays to force the middle one to fetch public keys
     relay = relay(relay(relay(mini_sentry)), external=True)
-    relay.wait_relay_healthcheck()
 
     if whitelisted:
         project_config = relay.basic_project_config()
@@ -49,7 +47,6 @@ def test_store_external_relay(mini_sentry, relay, whitelisted):
 def test_legacy_store(mini_sentry, relay_chain):
     relay = relay_chain()
     mini_sentry.project_configs[42] = relay.basic_project_config()
-    relay.wait_relay_healthcheck()
 
     relay.send_event(42, legacy=True)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
@@ -79,7 +76,6 @@ def test_filters_are_applied(
     Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
     """
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
     project_config = relay.full_project_config()
     filter_settings = project_config["config"]["filterSettings"]
     for key in filter_config.keys():
@@ -129,7 +125,6 @@ def test_web_crawlers_filter_are_applied(
     Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
     """
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
     project_config = relay.full_project_config()
     filter_settings = project_config["config"]["filterSettings"]
     filter_settings["webCrawlers"] = {"isEnabled": is_enabled}
@@ -161,7 +156,6 @@ def test_options_response(mini_sentry, relay, method_to_test):
     method, should_succeed = method_to_test
     relay = relay(mini_sentry)
     mini_sentry.project_configs[42] = relay.basic_project_config()
-    relay.wait_relay_healthcheck()
 
     headers = {
         "Access-Control-Request-Method": method,
@@ -177,7 +171,6 @@ def test_options_response(mini_sentry, relay, method_to_test):
 
 def test_store_node_base64(mini_sentry, relay_chain):
     relay = relay_chain()
-    relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = relay.basic_project_config()
     payload = (
@@ -204,7 +197,6 @@ def test_store_node_base64(mini_sentry, relay_chain):
 
 def test_store_pii_stripping(mini_sentry, relay):
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = relay.basic_project_config()
     relay.send_event(42, {"message": "hi", "extra": {"foo": "test@mail.org"}})
@@ -226,7 +218,6 @@ def test_store_timeout(mini_sentry, relay):
         return get_project_config_original()
 
     relay = relay(mini_sentry, {"cache": {"event_expiry": 1}})
-    relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = relay.basic_project_config()
 
@@ -256,13 +247,12 @@ def test_store_rate_limit(mini_sentry, relay):
         # second request to mini_sentry, we want to see it so we can log an error.
         nonlocal rate_limit_sent
         if rate_limit_sent:
-            store_event_original()
+            return store_event_original()
         else:
             rate_limit_sent = True
             return "", 429, {"retry-after": "2"}
 
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[42] = relay.basic_project_config()
 
     # This message should return the initial 429 and start rate limiting
@@ -294,7 +284,6 @@ def test_store_static_config(mini_sentry, relay):
     relay_options = {"relay": {"mode": "static"}}
     relay = relay(mini_sentry, options=relay_options, prepare=configure_static_project)
     mini_sentry.project_configs[42] = project_config
-    relay.wait_relay_healthcheck()
 
     relay.send_event(42)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
@@ -303,7 +292,7 @@ def test_store_static_config(mini_sentry, relay):
     sleep(1)  # Regression test: Relay tried to issue a request for 0 states
     if mini_sentry.test_failures:
         raise AssertionError(
-            f"Exceptions happened in mini_sentry: {mini_sentry.test_failures}"
+            f"Exceptions happened in mini_sentry: {mini_sentry.format_failures()}"
         )
 
 
@@ -327,16 +316,15 @@ def test_store_proxy_config(mini_sentry, relay):
 
 def test_store_buffer_size(mini_sentry, relay):
     relay = relay(mini_sentry, {"cache": {"event_buffer_size": 0}})
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[42] = relay.basic_project_config()
 
     with pytest.raises(HTTPError):
         relay.send_event(42, {"message": "pls ignore"})
-    pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=5))
+    pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
     for (_, error) in mini_sentry.test_failures:
         assert isinstance(error, AssertionError)
-        assert "Too many events (max_concurrent_events reached)" in str(error)
+        assert "Too many events (event_buffer_size reached)" in str(error)
     mini_sentry.test_failures.clear()
 
 
@@ -367,13 +355,12 @@ def test_store_max_concurrent_requests(mini_sentry, relay):
         mini_sentry,
         {"limits": {"max_concurrent_requests": 1}, "cache": {"event_buffer_expiry": 2}},
     )
-    relay.wait_relay_healthcheck()
 
     relay.send_event(42)
     relay.send_event(42)
 
-    store_count.acquire(timeout=4)
-    store_count.acquire(timeout=4)
+    store_count.acquire(timeout=2)
+    store_count.acquire(timeout=2)
 
 
 def test_store_not_normalized(mini_sentry, relay):
@@ -381,13 +368,45 @@ def test_store_not_normalized(mini_sentry, relay):
     Tests that relay does not normalize when processing is disabled
     """
     relay = relay(mini_sentry, {"processing": {"enabled": False}})
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
     relay.send_event(42, {"message": "some_message"})
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event.get("key_id") is None
     assert event.get("project") is None
     assert event.get("version") is None
+
+
+def make_transaction(event):
+    now = datetime.datetime.utcnow()
+    event.update(
+        {
+            "type": "transaction",
+            "timestamp": now.isoformat(),
+            "start_timestamp": (now - datetime.timedelta(seconds=2)).isoformat(),
+            "spans": [],
+            "contexts": {
+                "trace": {
+                    "op": "hi",
+                    "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                    "span_id": "968cff94913ebb07",
+                }
+            },
+            "transaction": "hi",
+        }
+    )
+    return event
+
+
+def make_error(event):
+    event.update(
+        {
+            "type": "error",
+            "exception": {
+                "values": [{"type": "ValueError", "value": "Should not happen"}]
+            },
+        }
+    )
+    return event
 
 
 @pytest.mark.parametrize("event_type", ["default", "transaction"])
@@ -402,7 +421,6 @@ def test_processing(
     Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
     """
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[42] = mini_sentry.full_project_config()
 
     if event_type == "default":
@@ -411,30 +429,14 @@ def test_processing(
         events_consumer = transactions_consumer()
 
     # create a unique message so we can make sure we don't test with stale data
-    now = datetime.datetime.utcnow()
-    message_text = "some message {}".format(now.isoformat())
+    message_text = "some message {}".format(uuid.uuid4())
     event = {
         "message": message_text,
         "extra": {"msg_text": message_text},
-        "type": event_type,
-        "timestamp": now.isoformat(),
     }
 
     if event_type == "transaction":
-        event.update(
-            {
-                "start_timestamp": (now - datetime.timedelta(seconds=2)).isoformat(),
-                "spans": [],
-                "contexts": {
-                    "trace": {
-                        "op": "hi",
-                        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-                        "span_id": "968cff94913ebb07",
-                    }
-                },
-                "transaction": "hi",
-            }
-        )
+        make_transaction(event)
 
     relay.send_event(42, event)
 
@@ -460,66 +462,30 @@ def test_processing(
     assert event.get("version") is not None
 
 
-def test_processing_quotas_legacy(
-    mini_sentry, relay_with_processing, outcomes_consumer, events_consumer
-):
-    relay = relay_with_processing({"processing": {"max_rate_limit": 120}})
-    relay.wait_relay_healthcheck()
-
-    mini_sentry.project_configs[42] = projectconfig = mini_sentry.full_project_config()
-    public_keys = projectconfig["publicKeys"]
-    key_id = public_keys[0]["numericId"]
-    public_keys[0]["quotas"] = [
-        {
-            "prefix": "test_rate_limiting_{}".format(uuid.uuid4().hex),
-            "limit": 5,
-            "window": 3600,
-            "reasonCode": "get_lost",
-        }
-    ]
-
-    events_consumer = events_consumer()
-    outcomes_consumer = outcomes_consumer()
-
-    for i in range(5):
-        relay.send_event(42, {"message": f"regular{i}"})
-
-        event, _ = events_consumer.get_event()
-        assert event["logentry"]["formatted"] == f"regular{i}"
-
-    # this one will not get a 429 but still get rate limited (silently) because
-    # of our caching
-    relay.send_event(42, {"message": "some_message"})
-
-    outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
-
-    for _ in range(5):
-        with pytest.raises(HTTPError) as excinfo:
-            relay.send_event(42, {"message": "rate_limited"})
-
-        # The rate limit is actually for 1 hour, but we cap at 120s with the
-        # max_rate_limit parameter
-        retry_after = excinfo.value.response.headers["retry-after"]
-        assert int(retry_after) <= 120
-
-        outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
-
-
+@pytest.mark.parametrize("event_type", ["default", "error", "transaction"])
 def test_processing_quotas(
-    mini_sentry, relay_with_processing, outcomes_consumer, events_consumer
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+    events_consumer,
+    transactions_consumer,
+    event_type,
 ):
     relay = relay_with_processing({"processing": {"max_rate_limit": 120}})
-    relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = projectconfig = mini_sentry.full_project_config()
     public_keys = projectconfig["publicKeys"]
     key_id = public_keys[0]["numericId"]
+
+    # Default events are also mapped to "error" by Relay.
+    category = "error" if event_type == "default" else event_type
 
     projectconfig["config"]["quotas"] = [
         {
             "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
             "scope": "key",
             "scopeId": six.text_type(key_id),
+            "categories": [category],
             "limit": 5,
             "window": 3600,
             "reasonCode": "get_lost",
@@ -530,41 +496,52 @@ def test_processing_quotas(
         "publicKey": "31a5a894b4524f74a9a8d0e27e21ba92",
         "isEnabled": True,
         "numericId": 1234,
-        "quotas": [],
     }
     public_keys.append(second_key)
 
-    events_consumer = events_consumer()
+    if event_type == "transaction":
+        events_consumer = transactions_consumer()
+    else:
+        events_consumer = events_consumer()
     outcomes_consumer = outcomes_consumer()
 
+    if event_type == "transaction":
+        transform = make_transaction
+    elif event_type == "error":
+        transform = make_error
+    elif event_type == "default":
+        transform = lambda e: e
+
     for i in range(5):
-        relay.send_event(42, {"message": f"regular{i}"})
+        relay.send_event(42, transform({"message": f"regular{i}"}))
 
         event, _ = events_consumer.get_event()
         assert event["logentry"]["formatted"] == f"regular{i}"
 
     # this one will not get a 429 but still get rate limited (silently) because
     # of our caching
-    relay.send_event(42, {"message": "some_message"})
+    relay.send_event(42, transform({"message": "some_message"}))
 
     outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
 
     for _ in range(5):
         with pytest.raises(HTTPError) as excinfo:
-            relay.send_event(42, {"message": "rate_limited"})
+            relay.send_event(42, transform({"message": "rate_limited"}))
         headers = excinfo.value.response.headers
 
         # The rate limit is actually for 1 hour, but we cap at 120s with the
         # max_rate_limit parameter
         retry_after = headers["retry-after"]
         assert int(retry_after) <= 120
-        assert headers["x-sentry-rate-limits"] == "120::key"
+        retry_after2, rest = headers["x-sentry-rate-limits"].split(":", 1)
+        assert int(retry_after2) == int(retry_after)
+        assert rest == "%s:key" % category
         outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
 
     relay.dsn_public_key = second_key["publicKey"]
 
     for i in range(10):
-        relay.send_event(42, {"message": f"otherkey{i}"})
+        relay.send_event(42, transform({"message": f"otherkey{i}"}))
         event, _ = events_consumer.get_event()
 
         assert event["logentry"]["formatted"] == f"otherkey{i}"

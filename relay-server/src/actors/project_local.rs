@@ -120,7 +120,7 @@ fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectId, Arc<
         };
 
         let state = serde_json::from_reader(io::BufReader::new(fs::File::open(path)?))?;
-        states.insert(id, Arc::new(state));
+        states.insert(id, Arc::new(ProjectState::sanitize(state)));
     }
 
     Ok(states)

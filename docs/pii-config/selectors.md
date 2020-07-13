@@ -102,3 +102,5 @@ To escape `'` (single quote) within the quotes, replace it with `''` (two quotes
 ```
 
 This matches the key `my special ' value` in _Additional Data_.
+
+[trace span]: https://docs.sentry.io/performance-monitoring/distributed-tracing/#spans

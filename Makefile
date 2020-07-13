@@ -10,7 +10,7 @@ check: style lint
 
 clean:
 	cargo clean
-	cargo clean --manifest-path cabi/Cargo.toml
+	cargo clean --manifest-path relay-cabi/Cargo.toml
 	rm -rf .venv
 .PHONY: clean
 
@@ -68,7 +68,7 @@ test-python: setup-git setup-venv
 
 test-integration: build setup-venv
 	.venv/bin/pip install -U -r requirements-test.txt
-	.venv/bin/pytest tests -n12 --reruns 5 -v
+	.venv/bin/pytest tests -n auto -v -ra
 .PHONY: test-integration
 
 test-process-event:

@@ -1,11 +1,11 @@
 //! A simple healthcheck endpoint for the relay.
 use ::actix::prelude::*;
-use actix_web::{Error, HttpResponse, Scope};
+use actix_web::{Error, HttpResponse};
 use futures::prelude::*;
 use serde::Serialize;
 
 use crate::extractors::CurrentServiceState;
-use crate::service::ServiceState;
+use crate::service::ServiceApp;
 
 use crate::actors::healthcheck::IsHealthy;
 
@@ -61,14 +61,13 @@ fn liveness_healthcheck(state: CurrentServiceState) -> ResponseFuture<HttpRespon
     healthcheck_impl(state, IsHealthy::Liveness)
 }
 
-pub fn configure_scope(scope: Scope<ServiceState>) -> Scope<ServiceState> {
-    scope
-        .resource("/healthcheck/ready/", |r| {
-            r.name("internal-healthcheck-ready");
-            r.get().with(readiness_healthcheck);
-        })
-        .resource("/healthcheck/live/", |r| {
-            r.name("internal-healthcheck-live");
-            r.get().with(liveness_healthcheck);
-        })
+pub fn configure_app(app: ServiceApp) -> ServiceApp {
+    app.resource("/api/relay/healthcheck/ready/", |r| {
+        r.name("internal-healthcheck-ready");
+        r.get().with(readiness_healthcheck);
+    })
+    .resource("/api/relay/healthcheck/live/", |r| {
+        r.name("internal-healthcheck-live");
+        r.get().with(liveness_healthcheck);
+    })
 }

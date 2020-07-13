@@ -1,13 +1,10 @@
-use std::fmt;
+use std::time::Duration;
 
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{Event, Timestamp};
 use crate::types::{Error, ErrorKind, Meta, ProcessingResult};
-
-/// The minimum clock drift for correction to apply.
-const MINIMUM_CLOCK_DRIFT_SECS: i64 = 55 * 60;
 
 /// A signed correction that contains the sender's timestamp as well as the drift to the receiver.
 #[derive(Clone, Copy, Debug)]
@@ -22,33 +19,11 @@ impl ClockCorrection {
         Self { sent_at, drift }
     }
 
-    fn at_least(self, lower_bound: SignedDuration) -> Option<Self> {
-        if self.drift.num_seconds().abs() >= lower_bound.num_seconds().abs() {
+    fn at_least(self, lower_bound: Duration) -> Option<Self> {
+        if self.drift.num_seconds().abs() as u64 >= lower_bound.as_secs() {
             Some(self)
         } else {
             None
-        }
-    }
-}
-
-/// Prints a duration with minimum precision.
-///
-/// Uses days if the duration is at least 1 day, otherwise falls back to hours and then seconds.
-/// Also supports negative durations.
-#[derive(Clone, Copy, Debug)]
-struct HumanDuration(SignedDuration);
-
-impl fmt::Display for HumanDuration {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let days = self.0.num_days();
-        if days.abs() == 1 {
-            write!(f, "{} day", days)
-        } else if days != 0 {
-            write!(f, "{} days", days)
-        } else if self.0.num_hours() != 0 {
-            write!(f, "{}h", self.0.num_hours())
-        } else {
-            write!(f, "{}s", self.0.num_seconds())
         }
     }
 }
@@ -75,6 +50,7 @@ impl fmt::Display for HumanDuration {
 pub struct ClockDriftProcessor {
     received_at: DateTime<Utc>,
     correction: Option<ClockCorrection>,
+    kind: ErrorKind,
 }
 
 impl ClockDriftProcessor {
@@ -83,14 +59,42 @@ impl ClockDriftProcessor {
     /// If no `sent_at` timestamp is provided, then clock drift correction is disabled. The drift is
     /// calculated from the signed difference between the receiver's and the sender's timestamp.
     pub fn new(sent_at: Option<DateTime<Utc>>, received_at: DateTime<Utc>) -> Self {
-        let correction = sent_at.and_then(|sent_at| {
-            ClockCorrection::new(sent_at, received_at)
-                .at_least(SignedDuration::seconds(MINIMUM_CLOCK_DRIFT_SECS))
-        });
+        let correction = sent_at.map(|sent_at| ClockCorrection::new(sent_at, received_at));
 
         Self {
             received_at,
             correction,
+            kind: ErrorKind::ClockDrift,
+        }
+    }
+
+    /// Limits clock drift correction to a minimum duration.
+    ///
+    /// If the detected clock drift is lower than the given duration, no correction is performed and
+    /// `is_drifted` returns `false`. By default, there is no lower bound and every drift is
+    /// corrected.
+    pub fn at_least(mut self, lower_bound: Duration) -> Self {
+        self.correction = self.correction.and_then(|c| c.at_least(lower_bound));
+        self
+    }
+
+    /// Use the given error kind for the attached eventerror instead of the default
+    /// `ErrorKind::ClockDrift`.
+    pub fn error_kind(mut self, kind: ErrorKind) -> Self {
+        self.kind = kind;
+        self
+    }
+
+    /// Returns `true` if the clocks are significantly drifted.
+    pub fn is_drifted(&self) -> bool {
+        self.correction.is_some()
+    }
+
+    /// Processes the given session.
+    pub fn process_session(&self, session: &mut SessionUpdate) {
+        if let Some(correction) = self.correction {
+            session.timestamp = session.timestamp + correction.drift;
+            session.started = session.started + correction.drift;
         }
     }
 }
@@ -102,19 +106,13 @@ impl Processor for ClockDriftProcessor {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        event.process_child_values(self, state)?;
-
         if let Some(correction) = self.correction {
-            let timestamp_meta = event.timestamp.meta_mut();
-            timestamp_meta.add_error(Error::with(ErrorKind::InvalidData, |e| {
-                let reason = format!(
-                    "clock drift: all timestamps adjusted by {}",
-                    HumanDuration(correction.drift)
-                );
+            event.process_child_values(self, state)?;
 
-                e.insert("reason", reason);
-                e.insert("sdk_time", correction.sent_at.to_string());
-                e.insert("server_time", self.received_at.to_string());
+            let timestamp_meta = event.timestamp.meta_mut();
+            timestamp_meta.add_error(Error::with(self.kind.clone(), |e| {
+                e.insert("sdk_time", correction.sent_at.to_rfc3339());
+                e.insert("server_time", self.received_at.to_rfc3339());
             }));
         }
 
@@ -216,7 +214,8 @@ mod tests {
         let now = end + drift;
 
         // The event was sent and received with minimal delay, which should not correct
-        let mut processor = ClockDriftProcessor::new(Some(end), now);
+        let mut processor =
+            ClockDriftProcessor::new(Some(end), now).at_least(Duration::from_secs(3600));
         let mut event = create_transaction(start, end);
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
@@ -248,7 +247,7 @@ mod tests {
         let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
         let end = Utc.ymd(2000, 1, 2).and_hms(0, 0, 0);
 
-        let drift = -SignedDuration::days(1);
+        let drift = -SignedDuration::seconds(60);
         let now = end + drift;
 
         // The event was sent and received with delay

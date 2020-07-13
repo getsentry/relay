@@ -2,13 +2,17 @@
 
 #![warn(missing_docs)]
 
-mod types;
-pub use self::types::*;
+/// The default timeout to apply when a scope is fully rejected. This
+/// typically happens for disabled keys, projects, or organizations.
+const REJECT_ALL_SECS: u64 = 60;
 
-#[cfg(feature = "legacy")]
-pub mod legacy;
+mod quota;
+mod rate_limit;
 
-#[cfg(feature = "rate-limiter")]
-mod rate_limiter;
-#[cfg(feature = "rate-limiter")]
-pub use self::rate_limiter::*;
+pub use self::quota::*;
+pub use self::rate_limit::*;
+
+#[cfg(feature = "redis")]
+mod redis;
+#[cfg(feature = "redis")]
+pub use self::redis::*;

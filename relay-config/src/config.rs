@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::env;
 use std::fmt;
 use std::fs;
@@ -230,6 +231,8 @@ pub struct OverridableConfig {
     pub secret_key: Option<String>,
     /// The public key of the relay
     pub public_key: Option<String>,
+    /// Outcome source
+    pub outcome_source: Option<String>,
 }
 
 /// The relay credentials
@@ -415,6 +418,10 @@ struct Metrics {
     statsd: Option<String>,
     /// The prefix that should be added to all metrics.
     prefix: String,
+    /// Default tags to apply to all outgoing metrics.
+    default_tags: BTreeMap<String, String>,
+    /// A tag name to report the hostname to, for each metric. Defaults to not sending such a tag.
+    hostname_tag: Option<String>,
 }
 
 impl Default for Metrics {
@@ -422,6 +429,8 @@ impl Default for Metrics {
         Metrics {
             statsd: None,
             prefix: "sentry.relay".into(),
+            default_tags: BTreeMap::new(),
+            hostname_tag: None,
         }
     }
 }
@@ -643,6 +652,10 @@ fn default_max_secs_in_past() -> u32 {
     30 * 24 * 3600 // 30 days
 }
 
+fn default_max_session_secs_in_past() -> u32 {
+    5 * 24 * 3600 // 5 days
+}
+
 fn default_chunk_size() -> ByteSize {
     ByteSize::from_megabytes(1)
 }
@@ -669,6 +682,9 @@ pub struct Processing {
     /// Maximum age of ingested events. Older events will be adjusted to `now()`.
     #[serde(default = "default_max_secs_in_past")]
     pub max_secs_in_past: u32,
+    /// Maximum age of ingested sessions. Older sessions will be dropped.
+    #[serde(default = "default_max_session_secs_in_past")]
+    pub max_session_secs_in_past: u32,
     /// Kafka producer configurations.
     pub kafka_config: Vec<KafkaConfigParam>,
     /// Kafka topic names.
@@ -686,6 +702,9 @@ pub struct Processing {
     /// Maximum rate limit to report to clients.
     #[serde(default = "default_max_rate_limit")]
     pub max_rate_limit: Option<u32>,
+    /// Emits flags for rate limited attachments. Disabled by default.
+    #[serde(default)]
+    pub _attachment_flag: bool,
 }
 
 impl Default for Processing {
@@ -696,12 +715,43 @@ impl Default for Processing {
             geoip_path: None,
             max_secs_in_future: 0,
             max_secs_in_past: 0,
+            max_session_secs_in_past: 0,
             kafka_config: Vec::new(),
             topics: TopicNames::default(),
             redis: None,
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
+            _attachment_flag: false,
+        }
+    }
+}
+
+/// Outcome generation specific configuration values.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+pub struct Outcomes {
+    /// Controls whether outcomes will be emitted when processing is disabled.
+    /// Processing relays always emit outcomes (for backwards compatibility).
+    pub emit_outcomes: bool,
+    /// The maximum number of outcomes that are batched before being sent
+    /// via http to the upstream (only applies to non processing relays).
+    pub batch_size: usize,
+    /// The maximum time interval (in milliseconds) that an outcome may be batched
+    /// via http to the upstream (only applies to non processing relays).
+    pub batch_interval: u64,
+    /// Defines the source string registered in the outcomes originating from
+    /// this Relay (typically something like the region or the layer).
+    pub source: Option<String>,
+}
+
+impl Default for Outcomes {
+    fn default() -> Self {
+        Outcomes {
+            emit_outcomes: false,
+            batch_size: 1000,
+            batch_interval: 500,
+            source: None,
         }
     }
 }
@@ -753,6 +803,8 @@ struct ConfigValues {
     sentry: Sentry,
     #[serde(default)]
     processing: Processing,
+    #[serde(default)]
+    outcomes: Outcomes,
 }
 
 impl ConfigObject for ConfigValues {
@@ -807,7 +859,7 @@ impl Config {
     /// command line parameters)
     pub fn apply_override(
         &mut self,
-        overrides: OverridableConfig,
+        mut overrides: OverridableConfig,
     ) -> Result<&mut Self, ConfigError> {
         let relay = &mut self.values.relay;
 
@@ -834,7 +886,7 @@ impl Config {
                 "true" | "1" => processing.enabled = true,
                 "false" | "0" | "" => processing.enabled = false,
                 _ => {
-                    return Err(ConfigError::new(ConfigErrorKind::InvalidValue).field("processing"))
+                    return Err(ConfigError::new(ConfigErrorKind::InvalidValue).field("processing"));
                 }
             }
         }
@@ -882,6 +934,10 @@ impl Config {
         } else {
             None
         };
+        let mut outcomes = &mut self.values.outcomes;
+        if overrides.outcome_source.is_some() {
+            outcomes.source = overrides.outcome_source.take();
+        }
 
         if let Some(credentials) = &mut self.credentials {
             //we have existing credentials we may override some entries
@@ -1038,6 +1094,29 @@ impl Config {
         self.values.relay.tls_identity_password.as_deref()
     }
 
+    /// Returns whether this Relay should emit outcomes.
+    ///
+    /// This is `true` either if `outcomes.emit_outcomes` is explicitly enabled, or if this Relay is
+    /// in processing mode.
+    pub fn emit_outcomes(&self) -> bool {
+        self.values.outcomes.emit_outcomes || self.values.processing.enabled
+    }
+
+    /// Returns the maximum number of outcomes that are batched before being sent
+    pub fn outcome_batch_size(&self) -> usize {
+        self.values.outcomes.batch_size
+    }
+
+    /// Returns the maximum interval that an outcome may be batched
+    pub fn outcome_batch_interval(&self) -> Duration {
+        Duration::from_millis(self.values.outcomes.batch_interval)
+    }
+
+    /// The originating source of the outcome
+    pub fn outcome_source(&self) -> Option<&str> {
+        self.values.outcomes.source.as_deref()
+    }
+
     /// Returns the log level.
     pub fn log_level_filter(&self) -> log::LevelFilter {
         self.values.logging.level
@@ -1077,6 +1156,16 @@ impl Config {
     /// Return the prefix for statsd metrics.
     pub fn metrics_prefix(&self) -> &str {
         &self.values.metrics.prefix
+    }
+
+    /// Returns the default tags for statsd metrics.
+    pub fn metrics_default_tags(&self) -> &BTreeMap<String, String> {
+        &self.values.metrics.default_tags
+    }
+
+    /// Returns the name of the hostname tag that should be attached to each outgoing metric.
+    pub fn metrics_hostname_tag(&self) -> Option<&str> {
+        self.values.metrics.hostname_tag.as_deref()
     }
 
     /// Returns the default timeout for all upstream HTTP requests.
@@ -1248,7 +1337,9 @@ impl Config {
         self.values.processing.geoip_path.as_deref()
     }
 
-    /// Maximum future timestamp of ingested events.
+    /// Maximum future timestamp of ingested data.
+    ///
+    /// Events past this timestamp will be adjusted to `now()`. Sessions will be dropped.
     pub fn max_secs_in_future(&self) -> i64 {
         self.values.processing.max_secs_in_future.into()
     }
@@ -1256,6 +1347,11 @@ impl Config {
     /// Maximum age of ingested events. Older events will be adjusted to `now()`.
     pub fn max_secs_in_past(&self) -> i64 {
         self.values.processing.max_secs_in_past.into()
+    }
+
+    /// Maximum age of ingested sessions. Older sessions will be dropped.
+    pub fn max_session_secs_in_past(&self) -> i64 {
+        self.values.processing.max_session_secs_in_past.into()
     }
 
     /// The list of Kafka configuration parameters.
@@ -1294,6 +1390,11 @@ impl Config {
     /// Maximum rate limit to report to clients in seconds.
     pub fn max_rate_limit(&self) -> Option<u64> {
         self.values.processing.max_rate_limit.map(u32::into)
+    }
+
+    /// Emits flags for rate limited attachments. Disabled by default.
+    pub fn emit_attachment_rate_limit_flag(&self) -> bool {
+        self.values.processing._attachment_flag
     }
 }
 

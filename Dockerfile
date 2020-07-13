@@ -21,8 +21,6 @@ ENV OPENSSL_STATIC=1
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
     curl build-essential git zip \
-    # For librdkafka
-    libclang-3.9-dev clang-3.9 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

@@ -23,8 +23,6 @@ def test_graceful_shutdown(mini_sentry, relay):
         return get_project_config_original()
 
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
-
     mini_sentry.project_configs[42] = relay.basic_project_config()
     relay.send_event(42)
 
@@ -44,8 +42,6 @@ def test_forced_shutdown(mini_sentry, relay):
         return get_project_config_original()
 
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
-
     mini_sentry.project_configs[42] = relay.basic_project_config()
     relay.send_event(42)
 
@@ -70,8 +66,6 @@ def test_store_pixel_gif(mini_sentry, relay, input, trailing_slash):
     mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
     relay = relay(mini_sentry)
 
-    relay.wait_relay_healthcheck()
-
     response = relay.get(
         "/api/42/store/?sentry_data=%s"
         "&sentry_key=%s" % (input, relay.dsn_public_key,)
@@ -87,8 +81,6 @@ def test_store_pixel_gif(mini_sentry, relay, input, trailing_slash):
 def test_store_post_trailing_slash(mini_sentry, relay, route):
     mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
     relay = relay(mini_sentry)
-
-    relay.wait_relay_healthcheck()
 
     response = relay.post(
         "%s?sentry_key=%s" % (route, relay.dsn_public_key,), json={"message": "hi"},
@@ -123,7 +115,6 @@ def test_store_allowed_origins_passes(mini_sentry, relay, allowed_origins):
     config["config"]["allowedDomains"] = allowed_domains
 
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
 
     response = relay.post(
         "/api/42/store/?sentry_key=%s" % (relay.dsn_public_key,),

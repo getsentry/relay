@@ -8,6 +8,16 @@ language = "C"
 
 [parse]
 expand = ["relay-cabi"]
+include = ["relay-common"]
+parse_deps = true
 
 [enum]
-rename_variants = "QualifiedScreamingSnakeCase"
+rename_variants = "ScreamingSnakeCase"
+prefix_with_name = true
+
+[export]
+include = ["SpanStatus"]
+
+[export.rename]
+"DataCategory" = "RelayDataCategory"
+"SpanStatus" = "RelaySpanStatus"

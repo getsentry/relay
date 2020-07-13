@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
@@ -12,13 +13,14 @@ use relay_common::{metric, ProjectId};
 use relay_config::{Config, RelayMode};
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
+use relay_quotas::{Quota, RateLimits, Scoping};
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};
+use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
-use crate::utils::Response;
+use crate::utils::{ActorResponse, EnvelopeLimiter, Response};
 
 /// The current status of a project state. Return value of `ProjectState::outdated`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -106,9 +108,6 @@ pub struct LimitedProjectConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectState {
-    /// The timestamp of when the state was received.
-    #[serde(default = "Utc::now")]
-    pub last_fetch: DateTime<Utc>,
     /// The timestamp of when the state was last changed.
     ///
     /// This might be `None` in some rare cases like where states
@@ -131,6 +130,10 @@ pub struct ProjectState {
     #[serde(default)]
     pub organization_id: Option<u64>,
 
+    /// The time at which this project state was last updated.
+    #[serde(skip, default = "Instant::now")]
+    pub last_fetch: Instant,
+
     /// True if this project state was fetched but incompatible with this Relay.
     #[serde(skip, default)]
     pub invalid: bool,
@@ -140,7 +143,6 @@ pub struct ProjectState {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase", remote = "ProjectState")]
 pub struct LimitedProjectState {
-    pub last_fetch: DateTime<Utc>,
     pub last_change: Option<DateTime<Utc>>,
     pub disabled: bool,
     #[serde(with = "limited_public_key_comfigs")]
@@ -155,13 +157,13 @@ impl ProjectState {
     /// Project state for a missing project.
     pub fn missing() -> Self {
         ProjectState {
-            last_fetch: Utc::now(),
             last_change: None,
             disabled: true,
             public_keys: Vec::new(),
             slug: None,
             config: ProjectConfig::default(),
             organization_id: None,
+            last_fetch: Instant::now(),
             invalid: false,
         }
     }
@@ -219,39 +221,16 @@ impl ProjectState {
     }
 
     /// Returns whether this state is outdated and needs to be refetched.
-    pub fn outdated(&self, project_id: ProjectId, config: &Config) -> Outdated {
+    pub fn outdated(&self, config: &Config) -> Outdated {
         let expiry = match self.slug {
             Some(_) => config.project_cache_expiry(),
             None => config.cache_miss_expiry(),
         };
 
-        // Project state updates are aligned to a fixed grid based on the expiry interval. By
-        // default, that's a grid of 1 minute intervals for invalid projects, and a grid of 5
-        // minutes for existing projects (cache hits). The exception to this is when a project is
-        // seen for the first time, where it is fetched immediately.
-        let window = expiry.as_secs();
-
-        // To spread out project state updates more evenly, they are shifted deterministically
-        // within the grid window. A 5 minute interval results in 300 theoretical slots that can be
-        // chosen for each project based on its project id.
-        let project_shift = project_id.value() % window;
-
-        // Based on the last fetch, compute the timestamp of the next fetch. The time stamp is
-        // shifted by the project shift to move the grid accordingly. Note that if the remainder is
-        // zero, the next fetch is one full window ahead to avoid instant reloading.
-        let last_fetch = self.last_fetch.timestamp() as u64;
-        let remainder = (last_fetch - project_shift) % window;
-        let next_fetch = last_fetch + (window - remainder);
-
-        // See the below assertion for constraints on the next fetch time.
-        debug_assert!(next_fetch > last_fetch && next_fetch <= last_fetch + window);
-
-        let now = Utc::now().timestamp() as u64;
-
-        // A project state counts as outdated when the time of the next fetch has passed.
-        if now >= next_fetch + config.project_grace_period().as_secs() {
+        let elapsed = self.last_fetch.elapsed();
+        if elapsed >= expiry + config.project_grace_period() {
             Outdated::HardOutdated
-        } else if now >= next_fetch {
+        } else if elapsed >= expiry {
             Outdated::SoftOutdated
         } else {
             Outdated::Updated
@@ -294,8 +273,8 @@ impl ProjectState {
         let mut scoping = meta.get_partial_scoping();
 
         // The key configuration may be missing if the event has been queued for extended times and
-        // project was refetched in between. In such a case, access to legacy-qutoas and the key id
-        // are not availabe, but we can gracefully execute all other rate limiting.
+        // project was refetched in between. In such a case, access to key quotas is not availabe,
+        // but we can gracefully execute all other rate limiting.
         scoping.key_id = self
             .get_public_key_config(&scoping.public_key)
             .and_then(|config| config.numeric_id);
@@ -316,19 +295,26 @@ impl ProjectState {
         scoping
     }
 
-    /// Determines whether the given event should be accepted or dropped.
-    pub fn get_event_action(
-        &self,
-        project_id: ProjectId,
-        meta: &RequestMeta,
-        config: &Config,
-    ) -> EventAction {
+    /// Returns quotas declared in this project state.
+    pub fn get_quotas(&self) -> &[Quota] {
+        self.config.quotas.as_slice()
+    }
+
+    /// Determines whether the given request should be accepted or discarded.
+    ///
+    /// Returns `Ok(())` if the request should be accepted. Returns `Err(DiscardReason)` if the
+    /// request should be discarded, by indicating the reason. The checks preformed for this are:
+    ///
+    ///  - Allowed origin headers
+    ///  - Disabled or unknown projects
+    ///  - Disabled project keys (DSN)
+    pub fn check_request(&self, meta: &RequestMeta, config: &Config) -> Result<(), DiscardReason> {
         // Try to verify the request origin with the project config.
         if !self.is_valid_origin(meta.origin()) {
-            return EventAction::Discard(DiscardReason::Cors);
+            return Err(DiscardReason::Cors);
         }
 
-        if self.outdated(project_id, config) == Outdated::HardOutdated {
+        if self.outdated(config) == Outdated::HardOutdated {
             // if the state is out of date, we proceed as if it was still up to date. The
             // upstream relay (or sentry) will still filter events.
 
@@ -337,20 +323,20 @@ impl ProjectState {
             // except queueing events for unknown DSNs as they might have become
             // available in the meanwhile.
             match self.get_public_key_status(meta.public_key()) {
-                PublicKeyStatus::Enabled => EventAction::Accept,
-                PublicKeyStatus::Disabled => EventAction::Discard(DiscardReason::ProjectId),
-                PublicKeyStatus::Unknown => EventAction::Accept,
+                PublicKeyStatus::Enabled => Ok(()),
+                PublicKeyStatus::Disabled => Err(DiscardReason::ProjectId),
+                PublicKeyStatus::Unknown => Ok(()),
             }
         } else {
             // if we recorded an invalid project state response from the upstream (i.e. parsing
             // failed), discard the event with a s
             if self.invalid() {
-                return EventAction::Discard(DiscardReason::ProjectState);
+                return Err(DiscardReason::ProjectState);
             }
 
             // only drop events if we know for sure the project is disabled.
             if self.disabled() {
-                return EventAction::Discard(DiscardReason::ProjectId);
+                return Err(DiscardReason::ProjectId);
             }
 
             // since the config has been fetched recently, we assume unknown
@@ -358,14 +344,20 @@ impl ProjectState {
             // an exception, where public keys are backfilled lazily after
             // events are sent to the upstream.
             match self.get_public_key_status(meta.public_key()) {
-                PublicKeyStatus::Enabled => EventAction::Accept,
-                PublicKeyStatus::Disabled => EventAction::Discard(DiscardReason::ProjectId),
+                PublicKeyStatus::Enabled => Ok(()),
+                PublicKeyStatus::Disabled => Err(DiscardReason::ProjectId),
                 PublicKeyStatus::Unknown => match config.relay_mode() {
-                    RelayMode::Proxy => EventAction::Accept,
-                    _ => EventAction::Discard(DiscardReason::ProjectId),
+                    RelayMode::Proxy => Ok(()),
+                    _ => Err(DiscardReason::ProjectId),
                 },
             }
         }
+    }
+
+    /// Validates data in this project state and removes values that are partially invalid.
+    pub fn sanitize(mut self) -> Self {
+        self.config.quotas.retain(Quota::is_valid);
+        self
     }
 }
 
@@ -384,17 +376,6 @@ pub struct PublicKeyConfig {
     /// Only available for internal relays.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub numeric_id: Option<u64>,
-
-    /// List of quotas to apply to events that use this key.
-    ///
-    /// Only available for internal relays.
-    #[serde(
-        default,
-        rename = "quotas",
-        with = "relay_quotas::legacy",
-        skip_serializing_if = "Vec::is_empty"
-    )]
-    pub legacy_quotas: Vec<Quota>,
 }
 
 mod limited_public_key_comfigs {
@@ -460,7 +441,7 @@ impl Project {
 
         let state = self.state.as_ref();
         let outdated = state
-            .map(|s| s.outdated(self.id, &self.config))
+            .map(|s| s.outdated(&self.config))
             .unwrap_or(Outdated::HardOutdated);
 
         let alternative_rv = match (state, outdated, self.is_local) {
@@ -499,7 +480,7 @@ impl Project {
             .map(|shared| (*shared).clone())
             .map_err(|_| ProjectError::FetchFailed);
 
-        Response::r#async(future)
+        Response::future(future)
     }
 
     fn fetch_state(
@@ -537,6 +518,41 @@ impl Project {
             None => meta.get_partial_scoping(),
         }
     }
+
+    fn check_envelope(
+        &mut self,
+        mut envelope: Envelope,
+        scoping: &Scoping,
+    ) -> Result<CheckedEnvelope, DiscardReason> {
+        if let Some(state) = self.state() {
+            state.check_request(envelope.meta(), &self.config)?;
+        }
+
+        self.rate_limits.clean_expired();
+
+        let quotas = self.state().map(|s| s.get_quotas()).unwrap_or(&[]);
+        let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
+            Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
+        });
+
+        let rate_limits = envelope_limiter.enforce(&mut envelope, scoping)?;
+        let envelope = if envelope.is_empty() {
+            None
+        } else {
+            Some(envelope)
+        };
+
+        Ok(CheckedEnvelope {
+            envelope,
+            rate_limits,
+        })
+    }
+
+    fn check_envelope_scoped(&mut self, message: CheckEnvelope) -> CheckEnvelopeResponse {
+        let scoping = self.get_scoping(message.envelope.meta());
+        let result = self.check_envelope(message.envelope, &scoping);
+        CheckEnvelopeResponse { result, scoping }
+    }
 }
 
 impl Actor for Project {
@@ -551,6 +567,9 @@ impl Actor for Project {
     }
 }
 
+/// Returns the project state.
+///
+/// The project state is fetched if it is missing or outdated.
 pub struct GetProjectState;
 
 impl Message for GetProjectState {
@@ -565,88 +584,78 @@ impl Handler<GetProjectState> for Project {
     }
 }
 
-pub struct GetScoping {
-    meta: Arc<RequestMeta>,
+/// Checks the envelope against project configuration and rate limits.
+///
+/// When `fetched`, then the project state is ensured to be up to date. When `cached`, an outdated
+/// project state may be used, or otherwise the envelope is passed through unaltered.
+///
+/// To check the envelope, this runs:
+///  - Validate origins and public keys
+///  - Quotas with a limit of `0`
+///  - Cached rate limits
+#[derive(Debug)]
+pub struct CheckEnvelope {
+    envelope: Envelope,
     fetch: bool,
 }
 
-impl GetScoping {
-    pub fn fetched(meta: Arc<RequestMeta>) -> Self {
-        Self { meta, fetch: true }
+impl CheckEnvelope {
+    /// Fetches the project state and checks the envelope.
+    pub fn fetched(envelope: Envelope) -> Self {
+        Self {
+            envelope,
+            fetch: true,
+        }
     }
 
-    pub fn cached(meta: Arc<RequestMeta>) -> Self {
-        Self { meta, fetch: false }
-    }
-}
-
-impl Message for GetScoping {
-    type Result = Result<Scoping, ProjectError>;
-}
-
-impl Handler<GetScoping> for Project {
-    type Result = Response<Scoping, ProjectError>;
-
-    fn handle(&mut self, message: GetScoping, context: &mut Self::Context) -> Self::Result {
-        if message.fetch {
-            // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
-            // This will return synchronously if the state is still cached.
-            self.get_or_fetch_state(context)
-                .map(move |state| state.get_scoping(&message.meta))
-        } else {
-            self.get_or_fetch_state(context);
-            // message.fetch == false: Fetching must not block the store request. The EventManager
-            // will later fetch the project state.
-            Response::ok(self.get_scoping(&message.meta))
+    /// Uses a cached project state and checks the envelope.
+    pub fn cached(envelope: Envelope) -> Self {
+        Self {
+            envelope,
+            fetch: false,
         }
     }
 }
 
-pub struct GetEventAction {
-    meta: Arc<RequestMeta>,
+/// A checked envelope and associated rate limits.
+///
+/// Items violating the rate limits have been removed from the envelope. If all items are removed
+/// from the envelope, `None` is returned in place of the envelope.
+#[derive(Debug)]
+pub struct CheckedEnvelope {
+    pub envelope: Option<Envelope>,
+    pub rate_limits: RateLimits,
 }
 
-impl GetEventAction {
-    pub fn new(meta: Arc<RequestMeta>) -> Self {
-        GetEventAction { meta }
-    }
+/// Scoping information along with a checked envelope.
+#[derive(Debug)]
+pub struct CheckEnvelopeResponse {
+    pub result: Result<CheckedEnvelope, DiscardReason>,
+    pub scoping: Scoping,
 }
 
-/// Indicates what should happen to events based on their meta data.
-#[derive(Clone, Debug)]
-pub enum EventAction {
-    /// The event should be discarded.
-    Discard(DiscardReason),
-    /// The event should be discarded and the client should back off for some time.
-    RateLimit(RateLimits),
-    /// The event should be processed and sent to upstream.
-    Accept,
+impl Message for CheckEnvelope {
+    type Result = Result<CheckEnvelopeResponse, ProjectError>;
 }
 
-impl Message for GetEventAction {
-    type Result = EventAction;
-}
+impl Handler<CheckEnvelope> for Project {
+    type Result = ActorResponse<Self, CheckEnvelopeResponse, ProjectError>;
 
-impl Handler<GetEventAction> for Project {
-    type Result = MessageResult<GetEventAction>;
-
-    fn handle(&mut self, message: GetEventAction, _context: &mut Self::Context) -> Self::Result {
-        let project_id = self.id;
-
-        let scoping = self.get_scoping(&message.meta);
-        let rate_limits = self.rate_limits.check(scoping.item(DataCategory::Error));
-
-        let event_action = if rate_limits.is_limited() {
-            EventAction::RateLimit(rate_limits)
+    fn handle(&mut self, message: CheckEnvelope, context: &mut Self::Context) -> Self::Result {
+        if message.fetch {
+            // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
+            // This will return synchronously if the state is still cached.
+            self.get_or_fetch_state(context)
+                .into_actor()
+                .map(self, context, move |_, slf, _ctx| {
+                    slf.check_envelope_scoped(message)
+                })
         } else {
-            // If the state is not loaded, we're probably in a preflight request. `EventManager`
-            // ensures to load the state before calling this function.
-            self.state().map_or(EventAction::Accept, |state| {
-                state.get_event_action(project_id, &message.meta, &self.config)
-            })
-        };
-
-        MessageResult(event_action)
+            self.get_or_fetch_state(context);
+            // message.fetch == false: Fetching must not block the store request. The EventManager
+            // will later fetch the project state.
+            ActorResponse::ok(self.check_envelope_scoped(message))
+        }
     }
 }
 
