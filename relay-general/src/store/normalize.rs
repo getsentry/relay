@@ -1503,15 +1503,15 @@ fn test_future_timestamp() {
     use insta::assert_ron_snapshot;
 
     let mut event = Annotated::new(Event {
-        timestamp: Annotated::new(Utc.ymd(1970, 1, 1).and_hms(0, 0, 0)),
+        timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 2, 0)),
         ..Default::default()
     });
 
     let mut processor = NormalizeProcessor::new(
         Arc::new(StoreConfig {
             received_at: Some(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0)),
-            max_secs_in_past: Some(0),
-            max_secs_in_future: Some(0),
+            max_secs_in_past: Some(30 * 24 * 3600),
+            max_secs_in_future: Some(60),
             ..Default::default()
         }),
         None,
@@ -1534,10 +1534,63 @@ fn test_future_timestamp() {
           "": Meta(Some(MetaInner(
             err: [
               [
+                "future_timestamp",
+                {
+                  "sdk_time": "2000-01-03T00:02:00+00:00",
+                  "server_time": "2000-01-03T00:00:00+00:00",
+                },
+              ],
+            ],
+          ))),
+        },
+      },
+    }
+    "###);
+}
+
+#[test]
+fn test_past_timestamp() {
+    use crate::types::SerializableAnnotated;
+
+    use chrono::TimeZone;
+    use insta::assert_ron_snapshot;
+
+    let mut event = Annotated::new(Event {
+        timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0)),
+        ..Default::default()
+    });
+
+    let mut processor = NormalizeProcessor::new(
+        Arc::new(StoreConfig {
+            received_at: Some(Utc.ymd(2000, 3, 3).and_hms(0, 0, 0)),
+            max_secs_in_past: Some(30 * 24 * 3600),
+            max_secs_in_future: Some(60),
+            ..Default::default()
+        }),
+        None,
+    );
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+    assert_ron_snapshot!(SerializableAnnotated(&event), {
+        ".event_id" => "[event-id]",
+    }, @r###"
+    {
+      "event_id": "[event-id]",
+      "level": "error",
+      "type": "default",
+      "logger": "",
+      "platform": "other",
+      "timestamp": 952041600,
+      "received": 952041600,
+      "_meta": {
+        "timestamp": {
+          "": Meta(Some(MetaInner(
+            err: [
+              [
                 "past_timestamp",
                 {
-                  "sdk_time": "1970-01-01T00:00:00+00:00",
-                  "server_time": "2000-01-03T00:00:00+00:00",
+                  "sdk_time": "2000-01-03T00:00:00+00:00",
+                  "server_time": "2000-03-03T00:00:00+00:00",
                 },
               ],
             ],

@@ -10,7 +10,7 @@ use relay_general::protocol::EventId;
 use crate::body::StoreBody;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::Envelope;
-use crate::extractors::{RequestMeta, StartTime};
+use crate::extractors::RequestMeta;
 use crate::service::{ServiceApp, ServiceState};
 
 fn extract_envelope(
@@ -44,18 +44,9 @@ fn create_response(id: Option<EventId>) -> HttpResponse {
 /// Handler for the envelope store endpoint.
 fn store_envelope(
     meta: RequestMeta,
-    start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
-    common::handle_store_like_request(
-        meta,
-        true,
-        start_time,
-        request,
-        extract_envelope,
-        create_response,
-        true,
-    )
+    common::handle_store_like_request(meta, true, request, extract_envelope, create_response, true)
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {

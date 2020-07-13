@@ -1,4 +1,5 @@
 use std::net::IpAddr;
+use std::time::Instant;
 
 use actix::ResponseFuture;
 use actix_web::dev::AsyncResult;
@@ -16,6 +17,7 @@ use relay_quotas::Scoping;
 
 use crate::actors::project_keys::GetProjectId;
 use crate::extractors::ForwardedFor;
+use crate::middlewares::StartTime;
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
 
@@ -90,6 +92,12 @@ pub struct RequestMeta<D = Dsn> {
     /// The user agent that sent this event.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     user_agent: Option<String>,
+
+    /// The time at which the request started.
+    //
+    // NOTE: This is internal-only and not exposed to Envelope headers.
+    #[serde(skip, default = "Instant::now")]
+    start_time: Instant,
 }
 
 impl<D> RequestMeta<D> {
@@ -135,6 +143,11 @@ impl<D> RequestMeta<D> {
     pub fn user_agent(&self) -> Option<&str> {
         self.user_agent.as_deref()
     }
+
+    /// The time at which the request started.
+    pub fn start_time(&self) -> Instant {
+        self.start_time
+    }
 }
 
 impl RequestMeta {
@@ -148,6 +161,7 @@ impl RequestMeta {
             remote_addr: Some("192.168.0.1".parse().unwrap()),
             forwarded_for: String::new(),
             user_agent: Some("sentry/agent".to_string()),
+            start_time: Instant::now(),
         }
     }
 
@@ -304,6 +318,7 @@ fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Opti
 fn extract_event_meta(
     request: &HttpRequest<ServiceState>,
 ) -> ResponseFuture<RequestMeta, BadEventMeta> {
+    let start_time = StartTime::from_request(request, &()).into_inner();
     let auth = tryf!(auth_from_request(request));
 
     let version = auth.version();
@@ -361,6 +376,7 @@ fn extract_event_meta(
             remote_addr,
             forwarded_for,
             user_agent,
+            start_time,
         })
     }))
 }

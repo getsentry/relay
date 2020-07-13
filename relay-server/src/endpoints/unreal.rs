@@ -7,7 +7,7 @@ use crate::body::ForwardBody;
 use crate::constants::UNREAL_USER_HEADER;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::extractors::{RequestMeta, StartTime};
+use crate::extractors::RequestMeta;
 use crate::service::{ServiceApp, ServiceState};
 
 fn extract_envelope(
@@ -38,13 +38,11 @@ fn extract_envelope(
 
 fn store_unreal(
     meta: RequestMeta,
-    start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     common::handle_store_like_request(
         meta,
         true,
-        start_time,
         request,
         extract_envelope,
         // The return here is only useful for consistency because the UE4 crash reporter doesn't

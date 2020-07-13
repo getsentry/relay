@@ -10,7 +10,7 @@ use relay_general::protocol::EventId;
 use crate::body::StoreBody;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::extractors::{RequestMeta, StartTime};
+use crate::extractors::RequestMeta;
 use crate::service::{ServiceApp, ServiceState};
 
 #[derive(Debug, Deserialize)]
@@ -62,14 +62,12 @@ fn create_response() -> HttpResponse {
 /// The security reports will be checked.
 fn store_security_report(
     meta: RequestMeta,
-    start_time: StartTime,
     request: HttpRequest<ServiceState>,
     params: Query<SecurityReportParams>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     common::handle_store_like_request(
         meta,
         true,
-        start_time,
         request,
         move |data, meta| extract_envelope(data, meta, params.into_inner()),
         |_| create_response(),

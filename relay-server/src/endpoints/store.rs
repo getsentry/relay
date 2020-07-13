@@ -11,7 +11,7 @@ use relay_general::protocol::EventId;
 use crate::body::StoreBody;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::extractors::{RequestMeta, StartTime};
+use crate::extractors::RequestMeta;
 use crate::service::{ServiceApp, ServiceState};
 
 // Transparent 1x1 gif
@@ -117,7 +117,6 @@ fn create_response(id: Option<EventId>, is_get_request: bool) -> HttpResponse {
 /// implement the FromRequest trait.
 fn store_event(
     meta: RequestMeta,
-    start_time: StartTime,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     let is_get_request = request.method() == "GET";
@@ -128,7 +127,6 @@ fn store_event(
         // We need to fix this before external relays go live or we will create outcomes and rate
         // limits for individual attachment requests.
         true,
-        start_time,
         request,
         extract_envelope,
         move |id| create_response(id, is_get_request),
