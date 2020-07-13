@@ -4,7 +4,7 @@ use failure::Fail;
 
 use schemars::gen::SchemaGenerator;
 use schemars::schema::Schema;
-use schemars::JsonSchema;
+
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -402,9 +402,9 @@ impl<T> Default for Annotated<T> {
     }
 }
 
-impl<T> JsonSchema for Annotated<T>
+impl<T> schemars::JsonSchema for Annotated<T>
 where
-    T: JsonSchema,
+    T: schemars::JsonSchema,
 {
     fn schema_name() -> String {
         format!("Annotated_{}", T::schema_name())

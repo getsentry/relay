@@ -4,7 +4,7 @@ use std::str::FromStr;
 use failure::Fail;
 use schemars::gen::SchemaGenerator;
 use schemars::schema::Schema;
-use schemars::JsonSchema;
+
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::processor::ProcessValue;
@@ -18,7 +18,7 @@ use crate::types::{
 };
 
 /// Wrapper around a UUID with slightly different formatting.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, DocumentValue)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, JsonSchema)]
 pub struct EventId(pub uuid::Uuid);
 
 impl EventId {
@@ -64,7 +64,17 @@ impl_str_serde!(EventId);
 
 /// The type of event we're dealing with.
 #[derive(
-    Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize, JsonSchema,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Deserialize,
+    Serialize,
+    schemars::JsonSchema,
 )]
 #[serde(rename_all = "lowercase")]
 pub enum EventType {
@@ -165,7 +175,7 @@ impl ProcessValue for EventType {}
 #[derive(Debug, FromValue, ToValue, ProcessValue, Empty, Clone, PartialEq)]
 pub struct ExtraValue(#[metastructure(bag_size = "larger")] pub Value);
 
-impl JsonSchema for ExtraValue {
+impl schemars::JsonSchema for ExtraValue {
     fn schema_name() -> String {
         Value::schema_name()
     }
@@ -186,9 +196,7 @@ impl<T: Into<Value>> From<T> for ExtraValue {
 }
 
 /// An event processing error.
-#[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue,
-)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
 pub struct EventProcessingError {
     /// The error kind.
     #[metastructure(field = "type", required = "true")]
@@ -219,9 +227,7 @@ pub struct GroupingConfig {
 }
 
 /// The sentry v7 event structure.
-#[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue,
-)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
 #[metastructure(process_func = "process_event", value_type = "Event")]
 pub struct Event {
     /// Unique identifier of this event.

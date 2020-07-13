@@ -4,7 +4,7 @@ use std::str;
 
 use schemars::gen::SchemaGenerator;
 use schemars::schema::Schema;
-use schemars::JsonSchema;
+
 use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
@@ -32,7 +32,7 @@ pub enum Value {
     Object(Object<Value>),
 }
 
-impl JsonSchema for Value {
+impl schemars::JsonSchema for Value {
     fn schema_name() -> String {
         "Value".to_owned()
     }

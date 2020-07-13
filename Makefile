@@ -102,10 +102,10 @@ extract-metric-docs: .venv/bin/python
 
 extract-jsonschema-docs: install-jsonschema-docs
 	rm -rf docs/event-schema/event.schema.*
-	cargo run -- event-json-schema \
+	set -e && cargo run -- event-json-schema \
 		| sed -e 's/"properties":/"additionalProperties":false,"properties":/g' \
 		> docs/event-schema/event.schema.json
-	./node_modules/.bin/quicktype-markdown \
+	set -e && ./node_modules/.bin/quicktype-markdown \
 		Event docs/event-schema/event.schema.json \
 		> docs/event-schema/event.schema.md
 

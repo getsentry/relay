@@ -6,9 +6,7 @@ use crate::protocol::Stacktrace;
 use crate::types::{Annotated, Empty, Error, FromValue, Object, SkipSerialization, ToValue, Value};
 
 /// Represents a thread id.
-#[derive(
-    Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, DocumentValue,
-)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, JsonSchema)]
 #[serde(untagged)]
 pub enum ThreadId {
     /// Integer representation of the thread id.
@@ -70,9 +68,7 @@ impl Empty for ThreadId {
 }
 
 /// A process thread of an event.
-#[derive(
-    Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, DocumentValue,
-)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
 #[metastructure(process_func = "process_thread", value_type = "Thread")]
 pub struct Thread {
     /// Identifier of this thread within the process (usually an integer).

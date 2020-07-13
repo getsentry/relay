@@ -4,7 +4,7 @@ use syn::Visibility;
 
 use crate::parse_field_attributes;
 
-pub fn derive_document_value(mut s: synstructure::Structure<'_>) -> TokenStream {
+pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
     let _ = s.add_bounds(synstructure::AddBounds::Generics);
 
     let mut arms = quote!();

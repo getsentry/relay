@@ -21,7 +21,7 @@ nav:
     - architecture/ingest-event-path.md
     - architecture/project-configuration.md
 
-  - event-schema/index.md
+  - "": event-schema/index.md
 
 markdown_extensions:
   - admonition: {}

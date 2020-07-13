@@ -2,8 +2,8 @@
 #![allow(clippy::cognitive_complexity)]
 #![deny(unused_must_use)]
 
-mod document;
 mod empty;
+mod jsonschema;
 mod process;
 
 use std::str::FromStr;
@@ -23,7 +23,7 @@ decl_derive!([Empty, attributes(metastructure)] => empty::derive_empty);
 decl_derive!([ToValue, attributes(metastructure)] => derive_to_value);
 decl_derive!([FromValue, attributes(metastructure)] => derive_from_value);
 decl_derive!([ProcessValue, attributes(metastructure)] => process::derive_process_value);
-decl_derive!([DocumentValue, attributes(metastructure)] => document::derive_document_value);
+decl_derive!([JsonSchema, attributes(metastructure)] => jsonschema::derive_jsonschema);
 
 fn derive_to_value(s: synstructure::Structure<'_>) -> TokenStream {
     derive_metastructure(s, Trait::To)

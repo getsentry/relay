@@ -10,7 +10,7 @@ use chrono::{DateTime, Datelike, LocalResult, NaiveDateTime, TimeZone, Utc};
 use failure::Fail;
 use schemars::gen::SchemaGenerator;
 use schemars::schema::Schema;
-use schemars::JsonSchema;
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
@@ -32,18 +32,18 @@ pub struct Values<T> {
     pub other: Object<Value>,
 }
 
-impl<T> JsonSchema for Values<T>
+impl<T> schemars::JsonSchema for Values<T>
 where
-    T: JsonSchema,
+    T: schemars::JsonSchema,
 {
     fn schema_name() -> String {
         format!("Values_for_{}", T::schema_name())
     }
 
     fn json_schema(gen: &mut SchemaGenerator) -> Schema {
-        #[derive(JsonSchema)]
+        #[derive(schemars::JsonSchema)]
         #[allow(unused)]
-        struct Helper<T: JsonSchema> {
+        struct Helper<T: schemars::JsonSchema> {
             values: T,
         }
 
@@ -293,20 +293,20 @@ impl<T: FromValue> FromValue for PairList<T> {
     }
 }
 
-impl<T> JsonSchema for PairList<T>
+impl<T> schemars::JsonSchema for PairList<T>
 where
-    T: JsonSchema + AsPair,
-    <T as AsPair>::Value: JsonSchema,
+    T: schemars::JsonSchema + AsPair,
+    <T as AsPair>::Value: schemars::JsonSchema,
 {
     fn schema_name() -> String {
         format!("PairList_of_{}", T::schema_name())
     }
 
     fn json_schema(gen: &mut SchemaGenerator) -> Schema {
-        #[derive(JsonSchema)]
+        #[derive(schemars::JsonSchema)]
         #[schemars(untagged)]
         #[allow(unused)]
-        enum Helper<T: AsPair + JsonSchema, V: JsonSchema> {
+        enum Helper<T: AsPair + schemars::JsonSchema, V: schemars::JsonSchema> {
             Object(Object<V>),
             Array(Array<T>),
         }
@@ -429,7 +429,7 @@ macro_rules! hex_metrastructure {
 
         impl ProcessValue for $type {}
 
-        impl JsonSchema for $type {
+        impl schemars::JsonSchema for $type {
             fn schema_name() -> String {
                 stringify!($type).to_owned()
             }
@@ -468,7 +468,7 @@ hex_metrastructure!(Addr, "address");
 )]
 pub struct IpAddr(pub String);
 
-impl JsonSchema for IpAddr {
+impl schemars::JsonSchema for IpAddr {
     fn schema_name() -> String {
         String::schema_name()
     }
@@ -575,7 +575,7 @@ impl FromValue for IpAddr {
 pub struct ParseLevelError;
 
 /// Severity level of an event or breadcrumb.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, JsonSchema)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, schemars::JsonSchema)]
 #[schemars(rename_all = "lowercase")]
 pub enum Level {
     /// Indicates very spammy debug information.
@@ -702,7 +702,7 @@ impl Empty for Level {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
 pub struct LenientString(pub String);
 
-impl JsonSchema for LenientString {
+impl schemars::JsonSchema for LenientString {
     fn schema_name() -> String {
         "LenientString".to_owned()
     }
@@ -785,7 +785,7 @@ impl FromValue for LenientString {
 
 /// A "into-string" type of value. All non-string values are serialized as JSON.
 #[derive(
-    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue, DocumentValue,
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue, JsonSchema,
 )]
 pub struct JsonLenientString(pub String);
 
@@ -998,7 +998,7 @@ impl Empty for Timestamp {
     }
 }
 
-impl JsonSchema for Timestamp {
+impl schemars::JsonSchema for Timestamp {
     fn schema_name() -> String {
         "Timestamp".to_owned()
     }
@@ -1008,7 +1008,7 @@ impl JsonSchema for Timestamp {
         /// values allowed).
         ///
         /// Must be UTC.
-        #[derive(JsonSchema)]
+        #[derive(schemars::JsonSchema)]
         #[schemars(untagged)]
         #[allow(unused)]
         enum Helper {
