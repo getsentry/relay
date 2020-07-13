@@ -20,7 +20,6 @@ def test_outcomes_processing(
     kafka outcomes topic and the event has the proper information.
     """
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
 
     outcomes_consumer = outcomes_consumer()
     # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
@@ -83,7 +82,6 @@ def test_outcomes_non_processing(relay, relay_with_processing, mini_sentry):
     }
 
     relay = relay(mini_sentry, config)
-    relay.wait_relay_healthcheck()
     # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
     mini_sentry.project_configs[42] = None
 
@@ -125,7 +123,6 @@ def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
     }
 
     relay = relay(mini_sentry, config)
-    relay.wait_relay_healthcheck()
     # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
     mini_sentry.project_configs[42] = None
 
@@ -151,7 +148,6 @@ def test_outcomes_non_processing_max_batch_time(relay, mini_sentry):
         }
     }
     relay = relay(mini_sentry, config)
-    relay.wait_relay_healthcheck()
     # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
     mini_sentry.project_configs[42] = None
 
@@ -160,12 +156,12 @@ def test_outcomes_non_processing_max_batch_time(relay, mini_sentry):
     for i in range(events_to_send):
         event_id = _send_event(relay)
         event_ids.add(event_id)
-        time.sleep(0.005)  # sleep more than the batch time
+        time.sleep(0.12)  # sleep more than the batch time
 
     # we should get one batch per event sent
     batches = []
     for batch_id in range(events_to_send):
-        batch = mini_sentry.captured_outcomes.get(timeout=0.2)
+        batch = mini_sentry.captured_outcomes.get(timeout=1)
         batches.append(batch)
 
     # verify that the batches contain one outcome each and the event_ids are ok
@@ -192,7 +188,6 @@ def test_outcomes_non_processing_batching(relay, mini_sentry):
     }
 
     relay = relay(mini_sentry, config)
-    relay.wait_relay_healthcheck()
     # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
     mini_sentry.project_configs[42] = None
 
@@ -259,7 +254,6 @@ def test_outcome_source(relay, mini_sentry):
     }
 
     relay = relay(mini_sentry, config)
-    relay.wait_relay_healthcheck()
     # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
     mini_sentry.project_configs[42] = None
 
@@ -303,7 +297,6 @@ def test_outcome_forwarding(
 
     # The innermost Relay needs to be in processing mode
     upstream = relay_with_processing(processing_config)
-    upstream.wait_relay_healthcheck()
 
     intermediate_config = {
         "outcomes": {
@@ -317,14 +310,12 @@ def test_outcome_forwarding(
     # build a chain of identical relays
     for i in range(num_intermediate_relays):
         upstream = relay(upstream, intermediate_config)
-        upstream.wait_relay_healthcheck()
 
     # mark the downstream relay so we can identify outcomes originating from it
     config_downstream = deepcopy(intermediate_config)
     config_downstream["outcomes"]["source"] = "downstream-layer"
 
     downstream_relay = relay(upstream, config_downstream)
-    downstream_relay.wait_relay_healthcheck()
 
     # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
     mini_sentry.project_configs[42] = None

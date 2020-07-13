@@ -44,7 +44,9 @@ class Relay(SentryLike):
 
 @pytest.fixture
 def relay(tmpdir, mini_sentry, request, random_port, background_process, config_dir):
-    def inner(upstream, options=None, prepare=None, external=None):
+    def inner(
+        upstream, options=None, prepare=None, external=None, wait_healthcheck=True
+    ):
         host = "127.0.0.1"
         port = random_port()
 
@@ -90,8 +92,6 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
         if prepare is not None:
             prepare(dir)
 
-        process = background_process(RELAY_BIN + ["-c", str(dir), "run"])
-
         public_key = None
         relay_id = None
 
@@ -109,8 +109,15 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
             "internal": not external,
         }
 
-        return Relay(
+        process = background_process(RELAY_BIN + ["-c", str(dir), "run"])
+
+        relay = Relay(
             (host, port), process, upstream, public_key, relay_id, dir, default_opts
         )
+
+        if wait_healthcheck:
+            relay.wait_relay_healthcheck()
+
+        return relay
 
     return inner

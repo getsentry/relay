@@ -31,7 +31,6 @@ def test_forwarding_content_encoding(
         return Response(_data, headers=headers)
 
     relay = relay_chain()
-    relay.wait_relay_healthcheck()
 
     headers = {"Content-Type": "application/octet-stream"}
 
@@ -47,14 +46,12 @@ def test_forwarding_content_encoding(
 
 
 def test_forwarding_routes(mini_sentry, relay):
-    r = relay(mini_sentry)
-
     @mini_sentry.app.route("/")
     @mini_sentry.app.route("/<path:x>")
     def hi(x=None):
         return "ok"
 
-    r.wait_relay_healthcheck()
+    r = relay(mini_sentry)
 
     assert r.get("/").status_code == 404
     assert r.get("/foo").status_code == 404
@@ -72,7 +69,6 @@ def test_limits(mini_sentry, relay):
         return Response(request.data, content_type="application/octet-stream")
 
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
 
     response = relay.post(
         "/api/0/projects/a/b/releases/1.0/files/",

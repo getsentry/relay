@@ -41,7 +41,6 @@ def assert_only_minidump(envelope, assert_payload=True):
 def test_minidump(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
 
     attachments = [
@@ -66,7 +65,6 @@ def test_minidump(mini_sentry, relay):
 def test_minidump_attachments(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
 
     event = {"event_id": "2dd132e467174db48dbaddabd3cbed57", "user": {"id": "123"}}
@@ -135,7 +133,6 @@ def test_minidump_attachments(mini_sentry, relay):
 def test_minidump_multipart(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
 
     attachments = [
@@ -165,7 +162,6 @@ def test_minidump_multipart(mini_sentry, relay):
 def test_minidump_sentry_json(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
 
     attachments = [
@@ -195,7 +191,6 @@ def test_minidump_sentry_json(mini_sentry, relay):
 def test_minidump_invalid_json(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
 
     attachments = [
@@ -216,7 +211,6 @@ def test_minidump_invalid_json(mini_sentry, relay):
 def test_minidump_invalid_magic(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
 
     attachments = [
@@ -230,7 +224,6 @@ def test_minidump_invalid_magic(mini_sentry, relay):
 def test_minidump_invalid_field(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
 
     attachments = [
@@ -247,7 +240,6 @@ def test_minidump_invalid_field(mini_sentry, relay):
 def test_minidump_raw(mini_sentry, relay, content_type):
     project_id = 42
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
 
     relay.request(
@@ -267,7 +259,6 @@ def test_minidump_raw(mini_sentry, relay, content_type):
 def test_minidump_nested_formdata(mini_sentry, relay, test_file_name):
     project_id = 42
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
 
     dmp_path = os.path.join(
@@ -289,7 +280,6 @@ def test_minidump_nested_formdata(mini_sentry, relay, test_file_name):
 def test_minidump_invalid_nested_formdata(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
 
     dmp_path = os.path.join(
@@ -312,7 +302,6 @@ def test_minidump_with_processing(
     project_id = 42
     content = b"MDMP content"
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
 
     project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
 
@@ -367,7 +356,6 @@ def test_minidump_ratelimit(
     mini_sentry, relay_with_processing, outcomes_consumer, rate_limits
 ):
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
 
     project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
     project_config["config"]["quotas"] = [

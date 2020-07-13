@@ -118,23 +118,18 @@ def kafka_consumer(request, get_topic_name, processing_config):
 
         settings = {
             "bootstrap.servers": servers,
-            "group.id": "test.consumer",
+            "group.id": "test-consumer-%s" % uuid.uuid4().hex,
             "enable.auto.commit": True,
             "auto.offset.reset": "earliest",
         }
 
         consumer = kafka.Consumer(settings)
-        consumer.subscribe(topics)
+        consumer.assign([kafka.TopicPartition(t, 0) for t in topics])
 
         def die():
-            consumer.unsubscribe()
             consumer.close()
 
         request.addfinalizer(die)
-
-        while consumer.poll(timeout=0.1) is not None:
-            pass
-
         return consumer
 
     return inner
@@ -142,11 +137,8 @@ def kafka_consumer(request, get_topic_name, processing_config):
 
 class ConsumerBase(object):
     # First poll takes forever, the next ones are fast
-    timeout = 20
-
     def poll(self):
-        rv = self.consumer.poll(timeout=self.timeout)
-        self.timeout = 5
+        rv = self.consumer.poll(timeout=5)
         return rv
 
 

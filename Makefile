@@ -68,7 +68,7 @@ test-python: setup-git setup-venv
 
 test-integration: build setup-venv
 	.venv/bin/pip install -U -r requirements-test.txt
-	.venv/bin/pytest tests -n12 --reruns 5 -v
+	.venv/bin/pytest tests -n auto -v -ra
 .PHONY: test-integration
 
 test-process-event:
