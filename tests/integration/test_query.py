@@ -16,7 +16,7 @@ from requests.exceptions import HTTPError
 
 def test_local_project_config(mini_sentry, relay):
     config = mini_sentry.basic_project_config()
-    relay = relay(mini_sentry, {"cache": {"file_interval": 1}})
+    relay = relay(mini_sentry, {"cache": {"file_interval": 1}}, wait_healthcheck=False)
     relay.config_dir.mkdir("projects").join("42.json").write(
         json.dumps(
             {
@@ -74,7 +74,6 @@ def test_project_grace_period(mini_sentry, relay, grace_period):
             }
         },
     )
-    relay.wait_relay_healthcheck()
 
     assert not fetched_project_config.is_set()
 
@@ -126,8 +125,6 @@ def test_query_retry(failure_type, mini_sentry, relay):
             return jsonify(configs={"42": relay.basic_project_config()})
 
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
-
     relay.send_event(42)
 
     event = mini_sentry.captured_events.get(timeout=8).get_event()
@@ -164,8 +161,6 @@ def test_query_retry_maxed_out(
         return "no", 500
 
     relay = relay_with_processing({"limits": {"query_timeout": 10}})
-    relay.wait_relay_healthcheck()
-
     relay.send_event(42)
     time.sleep(10)  # Wait for 4 retries with backoff
 
@@ -190,8 +185,6 @@ def test_processing_redis_query(
     events_consumer = events_consumer()
 
     relay = relay_with_processing({"limits": {"query_timeout": 10}})
-    relay.wait_relay_healthcheck()
-
     cfg = mini_sentry.full_project_config()
     cfg["disabled"] = disabled
 

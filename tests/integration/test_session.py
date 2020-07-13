@@ -7,8 +7,6 @@ import uuid
 
 def test_session_with_processing(mini_sentry, relay_with_processing, sessions_consumer):
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
-
     sessions_consumer = sessions_consumer()
 
     timestamp = datetime.now(tz=timezone.utc)
@@ -54,8 +52,6 @@ def test_session_with_processing_two_events(
     mini_sentry, relay_with_processing, sessions_consumer
 ):
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
-
     sessions_consumer = sessions_consumer()
 
     timestamp = datetime.now(tz=timezone.utc)
@@ -128,8 +124,6 @@ def test_session_with_custom_retention(
     mini_sentry, relay_with_processing, sessions_consumer
 ):
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
-
     sessions_consumer = sessions_consumer()
 
     project_config = mini_sentry.full_project_config()
@@ -153,8 +147,6 @@ def test_session_with_custom_retention(
 
 def test_session_age_discard(mini_sentry, relay_with_processing, sessions_consumer):
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
-
     sessions_consumer = sessions_consumer()
 
     project_config = mini_sentry.full_project_config()
@@ -181,8 +173,6 @@ def test_session_force_errors_on_crash(
     mini_sentry, relay_with_processing, sessions_consumer
 ):
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
-
     sessions_consumer = sessions_consumer()
 
     timestamp = datetime.now(tz=timezone.utc)
@@ -226,8 +216,6 @@ def test_session_release_required(
     mini_sentry, relay_with_processing, sessions_consumer
 ):
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
-
     sessions_consumer = sessions_consumer()
 
     project_config = mini_sentry.full_project_config()
@@ -253,8 +241,6 @@ def test_session_release_required(
 
 def test_session_quotas(mini_sentry, relay_with_processing, sessions_consumer):
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
-
     sessions_consumer = sessions_consumer()
 
     project_config = mini_sentry.full_project_config()
@@ -297,8 +283,6 @@ def test_session_quotas(mini_sentry, relay_with_processing, sessions_consumer):
 
 def test_session_disabled(mini_sentry, relay_with_processing, sessions_consumer):
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
-
     sessions_consumer = sessions_consumer()
 
     project_config = mini_sentry.full_project_config()

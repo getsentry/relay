@@ -72,15 +72,12 @@ def relay_chain(request, mini_sentry, relay, gobetween, haproxy):  # noqa
     parts = iter(reversed(request.param.split("->")))
     assert next(parts) == "sentry"
 
+    factories = {"relay": relay, "gb": gobetween, "ha": haproxy}
+
     def inner():
         rv = mini_sentry
-
         for part in parts:
-            rv = {"relay": relay, "gb": gobetween, "ha": haproxy}[part](rv)
-
-            if part == "relay":
-                rv.wait_relay_healthcheck()
-
+            rv = factories[part](rv)
         return rv
 
     return inner

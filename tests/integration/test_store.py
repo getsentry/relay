@@ -13,7 +13,6 @@ from requests.exceptions import HTTPError
 def test_store(mini_sentry, relay_chain):
     relay = relay_chain()
     mini_sentry.project_configs[42] = relay.basic_project_config()
-    relay.wait_relay_healthcheck()
 
     relay.send_event(42)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
@@ -25,7 +24,6 @@ def test_store(mini_sentry, relay_chain):
 def test_store_external_relay(mini_sentry, relay, whitelisted):
     # Use 3 Relays to force the middle one to fetch public keys
     relay = relay(relay(relay(mini_sentry)), external=True)
-    relay.wait_relay_healthcheck()
 
     if whitelisted:
         project_config = relay.basic_project_config()
@@ -49,7 +47,6 @@ def test_store_external_relay(mini_sentry, relay, whitelisted):
 def test_legacy_store(mini_sentry, relay_chain):
     relay = relay_chain()
     mini_sentry.project_configs[42] = relay.basic_project_config()
-    relay.wait_relay_healthcheck()
 
     relay.send_event(42, legacy=True)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
@@ -79,7 +76,6 @@ def test_filters_are_applied(
     Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
     """
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
     project_config = relay.full_project_config()
     filter_settings = project_config["config"]["filterSettings"]
     for key in filter_config.keys():
@@ -129,7 +125,6 @@ def test_web_crawlers_filter_are_applied(
     Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
     """
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
     project_config = relay.full_project_config()
     filter_settings = project_config["config"]["filterSettings"]
     filter_settings["webCrawlers"] = {"isEnabled": is_enabled}
@@ -161,7 +156,6 @@ def test_options_response(mini_sentry, relay, method_to_test):
     method, should_succeed = method_to_test
     relay = relay(mini_sentry)
     mini_sentry.project_configs[42] = relay.basic_project_config()
-    relay.wait_relay_healthcheck()
 
     headers = {
         "Access-Control-Request-Method": method,
@@ -177,7 +171,6 @@ def test_options_response(mini_sentry, relay, method_to_test):
 
 def test_store_node_base64(mini_sentry, relay_chain):
     relay = relay_chain()
-    relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = relay.basic_project_config()
     payload = (
@@ -204,7 +197,6 @@ def test_store_node_base64(mini_sentry, relay_chain):
 
 def test_store_pii_stripping(mini_sentry, relay):
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = relay.basic_project_config()
     relay.send_event(42, {"message": "hi", "extra": {"foo": "test@mail.org"}})
@@ -226,7 +218,6 @@ def test_store_timeout(mini_sentry, relay):
         return get_project_config_original()
 
     relay = relay(mini_sentry, {"cache": {"event_expiry": 1}})
-    relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = relay.basic_project_config()
 
@@ -262,7 +253,6 @@ def test_store_rate_limit(mini_sentry, relay):
             return "", 429, {"retry-after": "2"}
 
     relay = relay(mini_sentry)
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[42] = relay.basic_project_config()
 
     # This message should return the initial 429 and start rate limiting
@@ -294,7 +284,6 @@ def test_store_static_config(mini_sentry, relay):
     relay_options = {"relay": {"mode": "static"}}
     relay = relay(mini_sentry, options=relay_options, prepare=configure_static_project)
     mini_sentry.project_configs[42] = project_config
-    relay.wait_relay_healthcheck()
 
     relay.send_event(42)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
@@ -327,7 +316,6 @@ def test_store_proxy_config(mini_sentry, relay):
 
 def test_store_buffer_size(mini_sentry, relay):
     relay = relay(mini_sentry, {"cache": {"event_buffer_size": 0}})
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[42] = relay.basic_project_config()
 
     with pytest.raises(HTTPError):
@@ -367,7 +355,6 @@ def test_store_max_concurrent_requests(mini_sentry, relay):
         mini_sentry,
         {"limits": {"max_concurrent_requests": 1}, "cache": {"event_buffer_expiry": 2}},
     )
-    relay.wait_relay_healthcheck()
 
     relay.send_event(42)
     relay.send_event(42)
@@ -381,7 +368,6 @@ def test_store_not_normalized(mini_sentry, relay):
     Tests that relay does not normalize when processing is disabled
     """
     relay = relay(mini_sentry, {"processing": {"enabled": False}})
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
     relay.send_event(42, {"message": "some_message"})
     event = mini_sentry.captured_events.get(timeout=1).get_event()
@@ -435,7 +421,6 @@ def test_processing(
     Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
     """
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[42] = mini_sentry.full_project_config()
 
     if event_type == "default":
@@ -487,7 +472,6 @@ def test_processing_quotas(
     event_type,
 ):
     relay = relay_with_processing({"processing": {"max_rate_limit": 120}})
-    relay.wait_relay_healthcheck()
 
     mini_sentry.project_configs[42] = projectconfig = mini_sentry.full_project_config()
     public_keys = projectconfig["publicKeys"]

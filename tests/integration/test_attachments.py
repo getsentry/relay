@@ -10,7 +10,6 @@ def test_attachments_400(
 ):
     proj_id = 42
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
     attachments_consumer = attachments_consumer()
 
@@ -29,7 +28,6 @@ def test_attachments_with_processing(
     event_id = "515539018c9b4260a6f999572f1661ee"
 
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
     attachments_consumer = attachments_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -115,7 +113,6 @@ def test_empty_attachments_with_processing(
     event_id = "515539018c9b4260a6f999572f1661ee"
 
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
     mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
     attachments_consumer = attachments_consumer()
 
@@ -149,8 +146,6 @@ def test_attachments_ratelimit(
     event_id = "515539018c9b4260a6f999572f1661ee"
 
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
-
     project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
     project_config["config"]["quotas"] = [
         {"categories": rate_limits, "limit": 0, "reasonCode": "static_disabled_quota"}
@@ -180,8 +175,6 @@ def test_attachments_quotas(
     attachment_body = b"blabla"
 
     relay = relay_with_processing()
-    relay.wait_relay_healthcheck()
-
     project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
     project_config["config"]["quotas"] = [
         {
@@ -209,7 +202,7 @@ def test_attachments_quotas(
     # TODO: There are no outcomes emitted for attachments yet. Instead, sleep to allow Relay to
     # process the event and cache the rate limit
     # outcomes_consumer.assert_rate_limited("static_disabled_quota")
-    time.sleep(0.2)
+    time.sleep(1)
 
     # Second attachment returns 429 in endpoint
     with pytest.raises(HTTPError) as excinfo:
