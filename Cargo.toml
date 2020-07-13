@@ -26,6 +26,7 @@ exclude = [
 default = []
 with_ssl = ["relay-server/with_ssl"]
 processing = ["relay-server/processing"]
+jsonschema = ["relay-server/jsonschema"]
 
 [profile.release]
 debug = true

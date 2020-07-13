@@ -11,6 +11,8 @@ mod logentry;
 mod mechanism;
 mod metrics;
 mod request;
+#[cfg(feature = "jsonschema")]
+mod schema;
 mod security_report;
 mod session;
 mod span;
@@ -21,7 +23,6 @@ mod thread;
 mod types;
 mod user;
 mod user_report;
-mod utils;
 
 pub use self::breadcrumb::Breadcrumb;
 pub use self::clientsdk::{ClientSdkInfo, ClientSdkPackage};
@@ -44,6 +45,8 @@ pub use self::logentry::{LogEntry, Message};
 pub use self::mechanism::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
 pub use self::metrics::Metrics;
 pub use self::request::{Cookies, HeaderName, HeaderValue, Headers, Query, Request};
+#[cfg(feature = "jsonschema")]
+pub use self::schema::event_json_schema;
 pub use self::security_report::{Csp, ExpectCt, ExpectStaple, Hpkp, SecurityReportType};
 pub use self::session::{ParseSessionStatusError, SessionAttributes, SessionStatus, SessionUpdate};
 pub use self::span::Span;
@@ -57,4 +60,3 @@ pub use self::types::{
 };
 pub use self::user::{Geo, User};
 pub use self::user_report::UserReport;
-pub use self::utils::event_json_schema;

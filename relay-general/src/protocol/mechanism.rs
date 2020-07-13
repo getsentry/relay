@@ -1,7 +1,8 @@
 use crate::types::{Annotated, Error, FromValue, Object, Value};
 
 /// POSIX signal with optional extended data.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct CError {
     /// The error code as specified by ISO C99, POSIX.1-2001 or POSIX.1-2008.
     pub number: Annotated<i64>,
@@ -11,7 +12,8 @@ pub struct CError {
 }
 
 /// Mach exception information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct MachException {
     /// The mach exception type.
     #[metastructure(field = "exception")]
@@ -28,7 +30,8 @@ pub struct MachException {
 }
 
 /// POSIX signal with optional extended data.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct PosixSignal {
     /// The POSIX signal number.
     pub number: Annotated<i64>,
@@ -44,7 +47,8 @@ pub struct PosixSignal {
 }
 
 /// Operating system or runtime meta information to an exception mechanism.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct MechanismMeta {
     /// Optional ISO C standard error code.
     pub errno: Annotated<CError>,
@@ -61,7 +65,8 @@ pub struct MechanismMeta {
 }
 
 /// The mechanism by which an exception was generated and handled.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Mechanism {
     /// Mechanism type (required).
     #[metastructure(

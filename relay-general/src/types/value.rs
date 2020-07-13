@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::str;
 
+#[cfg(feature = "jsonschema")]
 use schemars::gen::SchemaGenerator;
+#[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
 
 use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
@@ -32,6 +34,7 @@ pub enum Value {
     Object(Object<Value>),
 }
 
+#[cfg(feature = "jsonschema")]
 impl schemars::JsonSchema for Value {
     fn schema_name() -> String {
         "Value".to_owned()

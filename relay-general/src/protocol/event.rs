@@ -1,7 +1,9 @@
 use std::fmt;
 use std::str::FromStr;
 
+#[cfg(feature = "jsonschema")]
 use schemars::gen::SchemaGenerator;
+#[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
 
 use serde::{Serialize, Serializer};
@@ -17,7 +19,8 @@ use crate::types::{
 };
 
 /// Wrapper around a UUID with slightly different formatting.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, JsonSchema)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct EventId(pub uuid::Uuid);
 
 impl EventId {
@@ -109,6 +112,7 @@ impl ProcessValue for EventType {}
 #[derive(Debug, FromValue, ToValue, ProcessValue, Empty, Clone, PartialEq)]
 pub struct ExtraValue(#[metastructure(bag_size = "larger")] pub Value);
 
+#[cfg(feature = "jsonschema")]
 impl schemars::JsonSchema for ExtraValue {
     fn schema_name() -> String {
         Value::schema_name()
@@ -130,7 +134,8 @@ impl<T: Into<Value>> From<T> for ExtraValue {
 }
 
 /// An event processing error.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct EventProcessingError {
     /// The error kind.
     #[metastructure(field = "type", required = "true")]
@@ -161,7 +166,8 @@ pub struct GroupingConfig {
 }
 
 /// The sentry v7 event structure.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_event", value_type = "Event")]
 pub struct Event {
     /// Unique identifier of this event.

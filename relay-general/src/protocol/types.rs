@@ -8,7 +8,9 @@ use std::str::FromStr;
 
 use chrono::{DateTime, Datelike, LocalResult, NaiveDateTime, TimeZone, Utc};
 use failure::Fail;
+#[cfg(feature = "jsonschema")]
 use schemars::gen::SchemaGenerator;
+#[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -32,6 +34,7 @@ pub struct Values<T> {
     pub other: Object<Value>,
 }
 
+#[cfg(feature = "jsonschema")]
 impl<T> schemars::JsonSchema for Values<T>
 where
     T: schemars::JsonSchema,
@@ -293,6 +296,7 @@ impl<T: FromValue> FromValue for PairList<T> {
     }
 }
 
+#[cfg(feature = "jsonschema")]
 impl<T> schemars::JsonSchema for PairList<T>
 where
     T: schemars::JsonSchema + AsPair,
@@ -304,7 +308,7 @@ where
 
     fn json_schema(gen: &mut SchemaGenerator) -> Schema {
         #[derive(schemars::JsonSchema)]
-        #[schemars(untagged)]
+        #[cfg_attr(feature = "jsonschema", schemars(untagged))]
         #[allow(unused)]
         enum Helper<T: AsPair + schemars::JsonSchema, V: schemars::JsonSchema> {
             Object(Object<V>),
@@ -428,7 +432,7 @@ macro_rules! hex_metrastructure {
         }
 
         impl ProcessValue for $type {}
-
+        #[cfg(feature = "jsonschema")]
         impl schemars::JsonSchema for $type {
             fn schema_name() -> String {
                 stringify!($type).to_owned()
@@ -468,6 +472,7 @@ hex_metrastructure!(Addr, "address");
 )]
 pub struct IpAddr(pub String);
 
+#[cfg(feature = "jsonschema")]
 impl schemars::JsonSchema for IpAddr {
     fn schema_name() -> String {
         String::schema_name()
@@ -575,8 +580,9 @@ impl FromValue for IpAddr {
 pub struct ParseLevelError;
 
 /// Severity level of an event or breadcrumb.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, schemars::JsonSchema)]
-#[schemars(rename_all = "lowercase")]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "jsonschema", schemars(rename_all = "lowercase"))]
 pub enum Level {
     /// Indicates very spammy debug information.
     Debug,
@@ -702,6 +708,7 @@ impl Empty for Level {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
 pub struct LenientString(pub String);
 
+#[cfg(feature = "jsonschema")]
 impl schemars::JsonSchema for LenientString {
     fn schema_name() -> String {
         "LenientString".to_owned()
@@ -784,9 +791,8 @@ impl FromValue for LenientString {
 }
 
 /// A "into-string" type of value. All non-string values are serialized as JSON.
-#[derive(
-    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue, JsonSchema,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct JsonLenientString(pub String);
 
 impl JsonLenientString {
@@ -998,6 +1004,7 @@ impl Empty for Timestamp {
     }
 }
 
+#[cfg(feature = "jsonschema")]
 impl schemars::JsonSchema for Timestamp {
     fn schema_name() -> String {
         "Timestamp".to_owned()
@@ -1009,7 +1016,7 @@ impl schemars::JsonSchema for Timestamp {
         ///
         /// Must be UTC.
         #[derive(schemars::JsonSchema)]
-        #[schemars(untagged)]
+        #[cfg_attr(feature = "jsonschema", schemars(untagged))]
         #[allow(unused)]
         enum Helper {
             UnixTimestamp(f64),

@@ -46,8 +46,12 @@ pub fn execute() -> Result<(), Error> {
         return generate_completions(&matches);
     } else if let Some(matches) = matches.subcommand_matches("process-event") {
         return process_event(&matches);
-    } else if let Some(matches) = matches.subcommand_matches("event-json-schema") {
-        return event_json_schema(&matches);
+    } else if let Some(_matches) = matches.subcommand_matches("event-json-schema") {
+        #[cfg(feature = "jsonschema")]
+        return event_json_schema(&_matches);
+
+        #[cfg(not(feature = "jsonschema"))]
+        failure::bail!("Relay needs to be compiled with the 'jsonschema' feature for this command to be available.");
     }
 
     // Commands that need a loaded config:
@@ -392,6 +396,7 @@ pub fn process_event<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
     Ok(())
 }
 
+#[cfg(feature = "jsonschema")]
 pub fn event_json_schema<'a>(_matches: &ArgMatches<'a>) -> Result<(), Error> {
     serde_json::to_writer(
         &mut io::stdout().lock(),

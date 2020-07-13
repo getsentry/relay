@@ -70,8 +70,8 @@ pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
 
             fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
                 #[derive(schemars::JsonSchema)]
-                #[schemars(untagged)]
-                #[schemars(deny_unknown_fields)]
+                #[cfg_attr(feature = "jsonschema", schemars(untagged))]
+                #[cfg_attr(feature = "jsonschema", schemars(deny_unknown_fields))]
                 enum Helper {
                     #arms
                 }

@@ -1,5 +1,7 @@
 use derive_more::{Deref, Display, FromStr};
+#[cfg(feature = "jsonschema")]
 use schemars::gen::SchemaGenerator;
+#[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
 
 use serde::{Deserialize, Serialize};
@@ -16,7 +18,8 @@ use crate::types::{
 /// be stripped liberally because it would break processing for certain platforms.
 ///
 /// Those strings get special treatment in our PII processor to avoid stripping the basename.
-#[derive(Debug, FromValue, ToValue, Empty, Clone, PartialEq, JsonSchema)]
+#[derive(Debug, FromValue, ToValue, Empty, Clone, PartialEq)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct NativeImagePath(pub String);
 
 impl NativeImagePath {
@@ -66,7 +69,8 @@ impl ProcessValue for NativeImagePath {
 ///
 /// This is relevant for iOS and other platforms that have a system
 /// SDK.  Not to be confused with the client SDK.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SystemSdkInfo {
     /// The internal name of the SDK.
     pub sdk_name: Annotated<String>,
@@ -86,7 +90,8 @@ pub struct SystemSdkInfo {
 }
 
 /// Apple debug image in
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct AppleDebugImage {
     /// Path and name of the debug image (required).
     #[metastructure(required = "true")]
@@ -123,6 +128,7 @@ pub struct AppleDebugImage {
 
 macro_rules! impl_traits {
     ($type:ident, $expectation:literal) => {
+        #[cfg(feature = "jsonschema")]
         impl schemars::JsonSchema for $type {
             fn schema_name() -> String {
                 stringify!($type).to_owned()
@@ -210,7 +216,8 @@ where
 }
 
 /// A native platform debug information file.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct NativeDebugImage {
     /// Optional identifier of the code file.
     ///
@@ -250,7 +257,8 @@ pub struct NativeDebugImage {
 }
 
 /// Proguard mapping file.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ProguardDebugImage {
     /// UUID computed from the file contents.
     #[metastructure(required = "true")]
@@ -262,7 +270,8 @@ pub struct ProguardDebugImage {
 }
 
 /// A debug information file (debug image).
-#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_debug_image")]
 pub enum DebugImage {
     /// Legacy apple debug images (MachO).
@@ -285,7 +294,8 @@ pub enum DebugImage {
 }
 
 /// Debugging and processing meta information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_debug_meta")]
 pub struct DebugMeta {
     /// Information about the system SDK (e.g. iOS SDK).

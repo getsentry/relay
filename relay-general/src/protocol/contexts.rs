@@ -6,7 +6,8 @@ use crate::protocol::LenientString;
 use crate::types::{Annotated, Empty, Error, FromValue, Object, SkipSerialization, ToValue, Value};
 
 /// Device information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct DeviceContext {
     /// Name of the device.
     #[metastructure(pii = "maybe")]
@@ -109,7 +110,8 @@ impl DeviceContext {
 }
 
 /// Operating system information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct OsContext {
     /// Name of the operating system.
     pub name: Annotated<String>,
@@ -145,7 +147,8 @@ impl OsContext {
 }
 
 /// Runtime information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct RuntimeContext {
     /// Runtime name.
     pub name: Annotated<String>,
@@ -174,7 +177,8 @@ impl RuntimeContext {
 }
 
 /// Application information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct AppContext {
     /// Start time of the app.
     #[metastructure(pii = "maybe")]
@@ -212,7 +216,8 @@ impl AppContext {
 }
 
 /// Web browser information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct BrowserContext {
     /// Runtime name.
     pub name: Annotated<String>,
@@ -242,7 +247,8 @@ lazy_static::lazy_static! {
 }
 
 /// GPU information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct GpuContext(#[metastructure(pii = "maybe")] pub Object<Value>);
 
 impl From<Object<Value>> for GpuContext {
@@ -273,7 +279,8 @@ impl GpuContext {
 }
 
 /// Monitor information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct MonitorContext(#[metastructure(pii = "maybe")] pub Object<Value>);
 
 impl From<Object<Value>> for MonitorContext {
@@ -304,7 +311,8 @@ impl MonitorContext {
 }
 
 /// A 32-character hex string as described in the W3C trace context spec.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct TraceId(pub String);
 
 impl FromValue for TraceId {
@@ -330,7 +338,8 @@ impl FromValue for TraceId {
 }
 
 /// A 16-character hex string as described in the W3C trace context spec.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SpanId(pub String);
 
 impl FromValue for SpanId {
@@ -356,7 +365,8 @@ impl FromValue for SpanId {
 }
 
 /// Trace context
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct TraceContext {
     /// The trace ID.
     #[metastructure(required = "true")]
@@ -465,7 +475,8 @@ impl TraceContext {
 }
 
 /// A context describes environment info (e.g. device, os or browser).
-#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_context")]
 pub enum Context {
     /// Device information.
@@ -508,7 +519,8 @@ impl Context {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ContextInner(#[metastructure(bag_size = "large")] pub Context);
 
 impl std::ops::Deref for ContextInner {
@@ -532,7 +544,8 @@ impl From<Context> for ContextInner {
 }
 
 /// An object holding multiple contexts.
-#[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue, Default, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue, Default)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Contexts(pub Object<ContextInner>);
 
 impl Contexts {

@@ -2,11 +2,14 @@ use std::fs;
 
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
-use relay_general::protocol::{event_json_schema, Event};
+use relay_general::protocol::Event;
 use relay_general::store::{StoreConfig, StoreProcessor};
 use relay_general::types::{Annotated, SerializableAnnotated};
 
-use insta::{assert_json_snapshot, assert_yaml_snapshot};
+use insta::assert_yaml_snapshot;
+
+#[cfg(feature = "jsonschema")]
+use {insta::assert_json_snapshot, relay_general::protocol::event_json_schema};
 
 macro_rules! event_snapshot {
     ($id:ident) => {
@@ -81,13 +84,16 @@ macro_rules! event_snapshot {
                     ".timestamp" => "[timestamp]"
                 });
 
-                let event_schema = serde_json::to_value(event_json_schema()).unwrap();
-                let event = serde_json::to_value(SerializableAnnotated(&event)).unwrap();
-                let mut scope = valico::json_schema::Scope::new();
-                let schema = scope.compile_and_return(event_schema, false).unwrap();
-                let validation_state = schema.validate(&event);
-                dbg!(&validation_state.errors);
-                assert!(validation_state.is_valid());
+                #[cfg(feature = "jsonschema")]
+                {
+                    let event_schema = serde_json::to_value(event_json_schema()).unwrap();
+                    let event = serde_json::to_value(SerializableAnnotated(&event)).unwrap();
+                    let mut scope = valico::json_schema::Scope::new();
+                    let schema = scope.compile_and_return(event_schema, false).unwrap();
+                    let validation_state = schema.validate(&event);
+                    dbg!(&validation_state.errors);
+                    assert!(validation_state.is_valid());
+                }
             }
         }
     }
@@ -101,6 +107,7 @@ event_snapshot!(legacy_python);
 event_snapshot!(legacy_node_exception);
 
 #[test]
+#[cfg(feature = "jsonschema")]
 fn test_event_schema_snapshot() {
     assert_json_snapshot!("event_schema", event_json_schema());
 }

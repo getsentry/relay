@@ -5,7 +5,8 @@ use crate::protocol::{Level, Timestamp};
 use crate::types::{Annotated, Object, Value};
 
 /// A breadcrumb.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_breadcrumb", value_type = "Breadcrumb")]
 pub struct Breadcrumb {
     /// The timestamp of the breadcrumb.

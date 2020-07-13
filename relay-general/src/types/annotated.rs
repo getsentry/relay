@@ -2,7 +2,9 @@ use std::fmt;
 
 use failure::Fail;
 
+#[cfg(feature = "jsonschema")]
 use schemars::gen::SchemaGenerator;
+#[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
 
 use serde::ser::SerializeMap;
@@ -417,6 +419,7 @@ impl<T> Default for Annotated<T> {
 // This hack is needed to make our custom derive for JsonSchema simpler. However, Serialize should
 // not be implemented on Annotated as one should usually use ToValue directly, or
 // SerializableAnnotated explicitly if really needed (eg: tests)
+#[cfg(feature = "jsonschema")]
 impl<T> schemars::JsonSchema for Annotated<T>
 where
     T: schemars::JsonSchema,
