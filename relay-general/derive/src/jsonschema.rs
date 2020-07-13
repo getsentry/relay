@@ -21,7 +21,7 @@ pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
             fields = quote!(#fields #[schemars(rename = #name)]);
 
             if !field_attrs.required.unwrap_or(false) {
-                fields = quote!(#fields #[schemars(default)]);
+                fields = quote!(#fields #[schemars(default = "__schemars_null")]);
             }
 
             if field_attrs.additional_properties || field_attrs.omit_from_schema {
@@ -56,6 +56,12 @@ pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
     let ident = &s.ast().ident;
 
     s.gen_impl(quote! {
+        // Massive hack to tell schemars that fields are nullable. Causes it to emit {"default":
+        // null} even though Option<()> is not a valid instance of T.
+        fn __schemars_null() -> Option<()> {
+            None
+        }
+
         #[automatically_derived]
         gen impl schemars::JsonSchema for @Self {
             fn schema_name() -> String {
@@ -65,6 +71,7 @@ pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
             fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
                 #[derive(schemars::JsonSchema)]
                 #[schemars(untagged)]
+                #[schemars(deny_unknown_fields)]
                 enum Helper {
                     #arms
                 }

@@ -11,7 +11,7 @@ expression: event_json_schema()
       "properties": {
         "breadcrumbs": {
           "description": "List of breadcrumbs recorded before this event.",
-          "default": {},
+          "default": null,
           "type": [
             "object",
             "null"
@@ -37,7 +37,7 @@ expression: event_json_schema()
         },
         "contexts": {
           "description": "Contexts describing the environment (e.g. device, os or browser).",
-          "default": {},
+          "default": null,
           "anyOf": [
             {
               "$ref": "#/definitions/Contexts"
@@ -49,7 +49,7 @@ expression: event_json_schema()
         },
         "culprit": {
           "description": "Custom culprit of the event.",
-          "default": {},
+          "default": null,
           "type": [
             "string",
             "null"
@@ -57,7 +57,7 @@ expression: event_json_schema()
         },
         "debug_meta": {
           "description": "Meta data for event processing and debugging.",
-          "default": {},
+          "default": null,
           "anyOf": [
             {
               "$ref": "#/definitions/DebugMeta"
@@ -69,7 +69,7 @@ expression: event_json_schema()
         },
         "dist": {
           "description": "Program's distribution identifier.",
-          "default": {},
+          "default": null,
           "type": [
             "string",
             "null"
@@ -77,7 +77,7 @@ expression: event_json_schema()
         },
         "environment": {
           "description": "Environment the environment was generated in (\"production\" or \"development\").",
-          "default": {},
+          "default": null,
           "type": [
             "string",
             "null"
@@ -85,7 +85,7 @@ expression: event_json_schema()
         },
         "errors": {
           "description": "Errors encountered during processing. Intended to be phased out in favor of annotation/metadata system.",
-          "default": {},
+          "default": null,
           "type": [
             "array",
             "null"
@@ -103,7 +103,7 @@ expression: event_json_schema()
         },
         "event_id": {
           "description": "Unique identifier of this event.",
-          "default": {},
+          "default": null,
           "anyOf": [
             {
               "$ref": "#/definitions/EventId"
@@ -115,7 +115,7 @@ expression: event_json_schema()
         },
         "exception": {
           "description": "One or multiple chained (nested) exceptions.",
-          "default": {},
+          "default": null,
           "type": [
             "object",
             "null"
@@ -141,7 +141,7 @@ expression: event_json_schema()
         },
         "extra": {
           "description": "Arbitrary extra information set by the user.",
-          "default": {},
+          "default": null,
           "type": [
             "object",
             "null"
@@ -150,7 +150,7 @@ expression: event_json_schema()
         },
         "fingerprint": {
           "description": "Manual fingerprint override.",
-          "default": {},
+          "default": null,
           "anyOf": [
             {
               "$ref": "#/definitions/Fingerprint"
@@ -162,7 +162,7 @@ expression: event_json_schema()
         },
         "key_id": {
           "description": "Project key which sent this event.",
-          "default": {},
+          "default": null,
           "type": [
             "string",
             "null"
@@ -170,7 +170,7 @@ expression: event_json_schema()
         },
         "level": {
           "description": "Severity level of the event.",
-          "default": {},
+          "default": null,
           "anyOf": [
             {
               "$ref": "#/definitions/Level"
@@ -182,7 +182,7 @@ expression: event_json_schema()
         },
         "logentry": {
           "description": "Custom parameterized message for this event.",
-          "default": {},
+          "default": null,
           "anyOf": [
             {
               "$ref": "#/definitions/LogEntry"
@@ -194,7 +194,7 @@ expression: event_json_schema()
         },
         "logger": {
           "description": "Logger that created the event.",
-          "default": {},
+          "default": null,
           "type": [
             "string",
             "null"
@@ -202,7 +202,7 @@ expression: event_json_schema()
         },
         "modules": {
           "description": "Name and versions of installed modules.",
-          "default": {},
+          "default": null,
           "type": [
             "object",
             "null"
@@ -216,7 +216,7 @@ expression: event_json_schema()
         },
         "platform": {
           "description": "Platform identifier of this event (defaults to \"other\").",
-          "default": {},
+          "default": null,
           "type": [
             "string",
             "null"
@@ -224,7 +224,7 @@ expression: event_json_schema()
         },
         "project": {
           "description": "Project which sent this event.",
-          "default": {},
+          "default": null,
           "type": [
             "integer",
             "null"
@@ -234,7 +234,7 @@ expression: event_json_schema()
         },
         "received": {
           "description": "Timestamp when the event has been received by Sentry.",
-          "default": {},
+          "default": null,
           "anyOf": [
             {
               "$ref": "#/definitions/Timestamp"
@@ -246,7 +246,7 @@ expression: event_json_schema()
         },
         "release": {
           "description": "Program's release identifier.",
-          "default": {},
+          "default": null,
           "type": [
             "string",
             "null"
@@ -254,7 +254,7 @@ expression: event_json_schema()
         },
         "request": {
           "description": "Information about a web request that occurred during the event.",
-          "default": {},
+          "default": null,
           "anyOf": [
             {
               "$ref": "#/definitions/Request"
@@ -266,7 +266,7 @@ expression: event_json_schema()
         },
         "sdk": {
           "description": "Information about the Sentry SDK that generated this event.",
-          "default": {},
+          "default": null,
           "anyOf": [
             {
               "$ref": "#/definitions/ClientSdkInfo"
@@ -278,7 +278,7 @@ expression: event_json_schema()
         },
         "server_name": {
           "description": "Server or device name the event was generated on.",
-          "default": {},
+          "default": null,
           "type": [
             "string",
             "null"
@@ -286,7 +286,7 @@ expression: event_json_schema()
         },
         "site": {
           "description": "Deprecated in favor of tags.",
-          "default": {},
+          "default": null,
           "type": [
             "string",
             "null"
@@ -294,7 +294,7 @@ expression: event_json_schema()
         },
         "spans": {
           "description": "Spans for tracing.",
-          "default": {},
+          "default": null,
           "type": [
             "array",
             "null"
@@ -312,7 +312,7 @@ expression: event_json_schema()
         },
         "stacktrace": {
           "description": "Event stacktrace.\n\nDEPRECATED: Prefer `threads` or `exception` depending on which is more appropriate.",
-          "default": {},
+          "default": null,
           "anyOf": [
             {
               "$ref": "#/definitions/Stacktrace"
@@ -324,7 +324,7 @@ expression: event_json_schema()
         },
         "start_timestamp": {
           "description": "Timestamp when the event has started (relevant for event type = \"transaction\")",
-          "default": {},
+          "default": null,
           "anyOf": [
             {
               "$ref": "#/definitions/Timestamp"
@@ -336,7 +336,7 @@ expression: event_json_schema()
         },
         "tags": {
           "description": "Custom tags for this event.",
-          "default": {},
+          "default": null,
           "anyOf": [
             {
               "$ref": "#/definitions/Tags"
@@ -348,7 +348,7 @@ expression: event_json_schema()
         },
         "threads": {
           "description": "Threads that were active when the event occurred.",
-          "default": {},
+          "default": null,
           "type": [
             "object",
             "null"
@@ -374,7 +374,7 @@ expression: event_json_schema()
         },
         "time_spent": {
           "description": "Time since the start of the transaction until the error occurred.",
-          "default": {},
+          "default": null,
           "type": [
             "integer",
             "null"
@@ -384,7 +384,7 @@ expression: event_json_schema()
         },
         "timestamp": {
           "description": "Timestamp when the event was created.",
-          "default": {},
+          "default": null,
           "anyOf": [
             {
               "$ref": "#/definitions/Timestamp"
@@ -396,7 +396,7 @@ expression: event_json_schema()
         },
         "transaction": {
           "description": "Transaction name of the event.",
-          "default": {},
+          "default": null,
           "type": [
             "string",
             "null"
@@ -404,7 +404,7 @@ expression: event_json_schema()
         },
         "type": {
           "description": "Type of event: error, csp, default",
-          "default": {},
+          "default": null,
           "anyOf": [
             {
               "$ref": "#/definitions/EventType"
@@ -416,7 +416,7 @@ expression: event_json_schema()
         },
         "user": {
           "description": "Information about the user who triggered this event.",
-          "default": {},
+          "default": null,
           "anyOf": [
             {
               "$ref": "#/definitions/User"
@@ -428,7 +428,7 @@ expression: event_json_schema()
         },
         "version": {
           "description": "Version",
-          "default": {},
+          "default": null,
           "type": [
             "string",
             "null"
@@ -448,7 +448,7 @@ expression: event_json_schema()
           "properties": {
             "app_build": {
               "description": "Internal build ID as it appears on the platform.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -456,7 +456,7 @@ expression: event_json_schema()
             },
             "app_identifier": {
               "description": "App identifier (dotted bundle id).",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -464,7 +464,7 @@ expression: event_json_schema()
             },
             "app_name": {
               "description": "Application name as it appears on the platform.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -472,7 +472,7 @@ expression: event_json_schema()
             },
             "app_start_time": {
               "description": "Start time of the app.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -480,7 +480,7 @@ expression: event_json_schema()
             },
             "app_version": {
               "description": "Application version as it appears on the platform.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -488,7 +488,7 @@ expression: event_json_schema()
             },
             "build_type": {
               "description": "Build identicator.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -496,7 +496,7 @@ expression: event_json_schema()
             },
             "device_app_hash": {
               "description": "Device app hash (app specific device ID)",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -519,7 +519,7 @@ expression: event_json_schema()
           "properties": {
             "arch": {
               "description": "CPU architecture target.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -527,7 +527,7 @@ expression: event_json_schema()
             },
             "cpu_subtype": {
               "description": "MachO CPU subtype identifier.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -537,7 +537,7 @@ expression: event_json_schema()
             },
             "cpu_type": {
               "description": "MachO CPU type identifier.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -567,7 +567,7 @@ expression: event_json_schema()
             },
             "image_vmaddr": {
               "description": "Loading address in virtual memory.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/Addr"
@@ -603,7 +603,7 @@ expression: event_json_schema()
           "properties": {
             "category": {
               "description": "The optional category of the breadcrumb.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -611,7 +611,7 @@ expression: event_json_schema()
             },
             "data": {
               "description": "Custom user-defined data of this breadcrumb.",
-              "default": {},
+              "default": null,
               "type": [
                 "object",
                 "null"
@@ -620,7 +620,7 @@ expression: event_json_schema()
             },
             "level": {
               "description": "Severity level of the breadcrumb.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/Level"
@@ -632,7 +632,7 @@ expression: event_json_schema()
             },
             "message": {
               "description": "Human readable message for the breadcrumb.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -640,7 +640,7 @@ expression: event_json_schema()
             },
             "timestamp": {
               "description": "The timestamp of the breadcrumb.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/Timestamp"
@@ -652,7 +652,7 @@ expression: event_json_schema()
             },
             "type": {
               "description": "The type of the breadcrumb.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -669,7 +669,7 @@ expression: event_json_schema()
           "properties": {
             "name": {
               "description": "Runtime name.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -677,7 +677,7 @@ expression: event_json_schema()
             },
             "version": {
               "description": "Runtime version.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -694,7 +694,7 @@ expression: event_json_schema()
           "properties": {
             "name": {
               "description": "Optional name of the errno constant.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -702,7 +702,7 @@ expression: event_json_schema()
             },
             "number": {
               "description": "The error code as specified by ISO C99, POSIX.1-2001 or POSIX.1-2008.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -724,7 +724,7 @@ expression: event_json_schema()
           "properties": {
             "client_ip": {
               "description": "IP Address of sender??? Seems unused.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/String"
@@ -736,7 +736,7 @@ expression: event_json_schema()
             },
             "integrations": {
               "description": "List of integrations that are enabled in the SDK.",
-              "default": {},
+              "default": null,
               "type": [
                 "array",
                 "null"
@@ -757,7 +757,7 @@ expression: event_json_schema()
             },
             "packages": {
               "description": "List of installed and loaded SDK packages.",
-              "default": {},
+              "default": null,
               "type": [
                 "array",
                 "null"
@@ -791,7 +791,7 @@ expression: event_json_schema()
           "properties": {
             "name": {
               "description": "Name of the package.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -799,7 +799,7 @@ expression: event_json_schema()
             },
             "version": {
               "description": "Version of the package.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -946,7 +946,7 @@ expression: event_json_schema()
           "properties": {
             "images": {
               "description": "List of debug information files (debug images).",
-              "default": {},
+              "default": null,
               "type": [
                 "array",
                 "null"
@@ -964,7 +964,7 @@ expression: event_json_schema()
             },
             "sdk_info": {
               "description": "Information about the system SDK (e.g. iOS SDK).",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/SystemSdkInfo"
@@ -985,7 +985,7 @@ expression: event_json_schema()
           "properties": {
             "arch": {
               "description": "Native cpu architecture of the device.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -993,7 +993,7 @@ expression: event_json_schema()
             },
             "battery_level": {
               "description": "Current battery level (0-100).",
-              "default": {},
+              "default": null,
               "type": [
                 "number",
                 "null"
@@ -1002,7 +1002,7 @@ expression: event_json_schema()
             },
             "boot_time": {
               "description": "Indicator when the device was booted.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1010,7 +1010,7 @@ expression: event_json_schema()
             },
             "brand": {
               "description": "Brand of the device.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1018,7 +1018,7 @@ expression: event_json_schema()
             },
             "charging": {
               "description": "Whether the device was charging or not.",
-              "default": {},
+              "default": null,
               "type": [
                 "boolean",
                 "null"
@@ -1026,7 +1026,7 @@ expression: event_json_schema()
             },
             "external_free_storage": {
               "description": "Free size of the attached external storage in bytes (eg: android SDK card).",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -1036,7 +1036,7 @@ expression: event_json_schema()
             },
             "external_storage_size": {
               "description": "Total size of the attached external storage in bytes (eg: android SDK card).",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -1046,7 +1046,7 @@ expression: event_json_schema()
             },
             "family": {
               "description": "Family of the device model.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1054,7 +1054,7 @@ expression: event_json_schema()
             },
             "free_memory": {
               "description": "How much memory is still available in bytes.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -1064,7 +1064,7 @@ expression: event_json_schema()
             },
             "free_storage": {
               "description": "How much storage is free in bytes.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -1074,7 +1074,7 @@ expression: event_json_schema()
             },
             "low_memory": {
               "description": "Whether the device was low on memory.",
-              "default": {},
+              "default": null,
               "type": [
                 "boolean",
                 "null"
@@ -1082,7 +1082,7 @@ expression: event_json_schema()
             },
             "manufacturer": {
               "description": "Manufacturer of the device",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1090,7 +1090,7 @@ expression: event_json_schema()
             },
             "memory_size": {
               "description": "Total memory available in bytes.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -1100,7 +1100,7 @@ expression: event_json_schema()
             },
             "model": {
               "description": "Device model (human readable).",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1108,7 +1108,7 @@ expression: event_json_schema()
             },
             "model_id": {
               "description": "Device model (internal identifier).",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1116,7 +1116,7 @@ expression: event_json_schema()
             },
             "name": {
               "description": "Name of the device.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1124,7 +1124,7 @@ expression: event_json_schema()
             },
             "online": {
               "description": "Whether the device was online or not.",
-              "default": {},
+              "default": null,
               "type": [
                 "boolean",
                 "null"
@@ -1132,7 +1132,7 @@ expression: event_json_schema()
             },
             "orientation": {
               "description": "Current screen orientation.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1140,7 +1140,7 @@ expression: event_json_schema()
             },
             "screen_density": {
               "description": "Device screen density.",
-              "default": {},
+              "default": null,
               "type": [
                 "number",
                 "null"
@@ -1149,7 +1149,7 @@ expression: event_json_schema()
             },
             "screen_dpi": {
               "description": "Screen density as dots-per-inch.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -1159,7 +1159,7 @@ expression: event_json_schema()
             },
             "screen_resolution": {
               "description": "Device screen resolution.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1167,7 +1167,7 @@ expression: event_json_schema()
             },
             "simulator": {
               "description": "Simulator/prod indicator.",
-              "default": {},
+              "default": null,
               "type": [
                 "boolean",
                 "null"
@@ -1175,7 +1175,7 @@ expression: event_json_schema()
             },
             "storage_size": {
               "description": "Total storage size of the device in bytes.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -1185,7 +1185,7 @@ expression: event_json_schema()
             },
             "timezone": {
               "description": "Timezone of the device.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1193,7 +1193,7 @@ expression: event_json_schema()
             },
             "usable_memory": {
               "description": "How much memory is usable for the app in bytes.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -1223,7 +1223,7 @@ expression: event_json_schema()
           "properties": {
             "name": {
               "description": "Affected key or deep path.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1238,7 +1238,7 @@ expression: event_json_schema()
             },
             "value": {
               "description": "The original value causing this error.",
-              "default": {}
+              "default": null
             }
           }
         }
@@ -1264,7 +1264,7 @@ expression: event_json_schema()
           "properties": {
             "mechanism": {
               "description": "Mechanism by which this exception was generated and handled.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/Mechanism"
@@ -1276,7 +1276,7 @@ expression: event_json_schema()
             },
             "module": {
               "description": "Module name of this exception.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1284,7 +1284,7 @@ expression: event_json_schema()
             },
             "raw_stacktrace": {
               "description": "Optional unprocessed stack trace.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/RawStacktrace"
@@ -1296,7 +1296,7 @@ expression: event_json_schema()
             },
             "stacktrace": {
               "description": "Stack trace containing frames of this exception.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/Stacktrace"
@@ -1308,7 +1308,7 @@ expression: event_json_schema()
             },
             "thread_id": {
               "description": "Identifier of the thread this exception occurred in.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/ThreadId"
@@ -1320,7 +1320,7 @@ expression: event_json_schema()
             },
             "type": {
               "description": "Exception type. One of value or exception is required, checked in StoreNormalizeProcessor",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1328,7 +1328,7 @@ expression: event_json_schema()
             },
             "value": {
               "description": "Human readable display value.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/JsonLenientString"
@@ -1359,7 +1359,7 @@ expression: event_json_schema()
           "properties": {
             "abs_path": {
               "description": "Absolute path to the source file.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/NativeImagePath"
@@ -1371,7 +1371,7 @@ expression: event_json_schema()
             },
             "colno": {
               "description": "Column number within the source file.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -1381,7 +1381,7 @@ expression: event_json_schema()
             },
             "context_line": {
               "description": "Source code of the current line.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1389,7 +1389,7 @@ expression: event_json_schema()
             },
             "data": {
               "description": "Auxiliary information about the frame that is platform specific.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/FrameData"
@@ -1401,7 +1401,7 @@ expression: event_json_schema()
             },
             "filename": {
               "description": "The source file name (basename only).",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/NativeImagePath"
@@ -1413,7 +1413,7 @@ expression: event_json_schema()
             },
             "function": {
               "description": "Name of the frame's function. This might include the name of a class.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1421,7 +1421,7 @@ expression: event_json_schema()
             },
             "image_addr": {
               "description": "Start address of the containing code module (image).",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/Addr"
@@ -1433,7 +1433,7 @@ expression: event_json_schema()
             },
             "in_app": {
               "description": "Override whether this frame should be considered in-app.",
-              "default": {},
+              "default": null,
               "type": [
                 "boolean",
                 "null"
@@ -1441,7 +1441,7 @@ expression: event_json_schema()
             },
             "instruction_addr": {
               "description": "Absolute address of the frame's CPU instruction.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/Addr"
@@ -1453,7 +1453,7 @@ expression: event_json_schema()
             },
             "lang": {
               "description": "The language of the frame if it overrides the stacktrace language.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1461,7 +1461,7 @@ expression: event_json_schema()
             },
             "lineno": {
               "description": "Line number within the source file.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -1471,7 +1471,7 @@ expression: event_json_schema()
             },
             "module": {
               "description": "Name of the module the frame is contained in.\n\nNote that this might also include a class name if that is something the language natively considers to be part of the stack (for instance in Java).",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1479,7 +1479,7 @@ expression: event_json_schema()
             },
             "package": {
               "description": "Name of the package that contains the frame.\n\nFor instance this can be a dylib for native languages, the name of the jar or .NET assembly.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1487,7 +1487,7 @@ expression: event_json_schema()
             },
             "platform": {
               "description": "Which platform this frame is from.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1495,7 +1495,7 @@ expression: event_json_schema()
             },
             "post_context": {
               "description": "Source code of the lines after the current line.",
-              "default": {},
+              "default": null,
               "type": [
                 "array",
                 "null"
@@ -1509,7 +1509,7 @@ expression: event_json_schema()
             },
             "pre_context": {
               "description": "Source code leading up to the current line.",
-              "default": {},
+              "default": null,
               "type": [
                 "array",
                 "null"
@@ -1523,7 +1523,7 @@ expression: event_json_schema()
             },
             "raw_function": {
               "description": "A raw (but potentially truncated) function value.\n\nIf this has the same value as `function` it's best to be omitted.  This exists because on many platforms the function itself contains additional information like overload specifies or a lot of generics which can make it exceed the maximum limit we provide for the field.  In those cases then we cannot reliably trim down the function any more at a later point because the more valuable information has been removed.\n\nThe logic to be applied is that an intelligently trimmed function name should be stored in `function` and the value before trimming is stored in this field instead.  However also this field will be capped at 256 characters at the moment which often means that not the entire original value can be stored.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1531,7 +1531,7 @@ expression: event_json_schema()
             },
             "symbol": {
               "description": "Potentially mangled name of the symbol as it appears in an executable.\n\nThis is different from a function name by generally being the mangled name that appears natively in the binary.  This is relevant for languages like Swift, C++ or Rust.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1539,7 +1539,7 @@ expression: event_json_schema()
             },
             "symbol_addr": {
               "description": "Start address of the frame's function.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/Addr"
@@ -1551,7 +1551,7 @@ expression: event_json_schema()
             },
             "trust": {
               "description": "Used for native crashes to indicate how much we can \"trust\" the instruction_addr",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1559,7 +1559,7 @@ expression: event_json_schema()
             },
             "vars": {
               "description": "Local variables in a convenient format.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/FrameVars"
@@ -1580,7 +1580,7 @@ expression: event_json_schema()
           "properties": {
             "orig_colno": {
               "description": "The original column number.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -1590,7 +1590,7 @@ expression: event_json_schema()
             },
             "orig_filename": {
               "description": "The original minified filename.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1598,7 +1598,7 @@ expression: event_json_schema()
             },
             "orig_function": {
               "description": "The original function name before it was resolved.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1606,7 +1606,7 @@ expression: event_json_schema()
             },
             "orig_in_app": {
               "description": "The original value of the in_app flag before grouping enhancers ran.\n\nBecause we need to handle more cases the following values are used:\n\n- missing / `null`: information not available - `-1`: in_app was set to `null` - `0`: in_app was set to `false` - `1`: in_app was set to `true`",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -1615,7 +1615,7 @@ expression: event_json_schema()
             },
             "orig_lineno": {
               "description": "The original line number.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -1625,7 +1625,7 @@ expression: event_json_schema()
             },
             "sourcemap": {
               "description": "A reference to the sourcemap used.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1650,7 +1650,7 @@ expression: event_json_schema()
           "properties": {
             "city": {
               "description": "Human readable city name.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1658,7 +1658,7 @@ expression: event_json_schema()
             },
             "country_code": {
               "description": "Two-letter country code (ISO 3166-1 alpha-2).",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1666,7 +1666,7 @@ expression: event_json_schema()
             },
             "region": {
               "description": "Human readable region name or code.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1777,7 +1777,7 @@ expression: event_json_schema()
           "properties": {
             "formatted": {
               "description": "The formatted message",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/Message"
@@ -1789,7 +1789,7 @@ expression: event_json_schema()
             },
             "message": {
               "description": "The log message with parameter placeholders.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/Message"
@@ -1801,7 +1801,7 @@ expression: event_json_schema()
             },
             "params": {
               "description": "Positional parameters to be interpolated into the log message.",
-              "default": {}
+              "default": null
             }
           }
         }
@@ -1814,7 +1814,7 @@ expression: event_json_schema()
           "properties": {
             "code": {
               "description": "The mach exception code.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -1824,7 +1824,7 @@ expression: event_json_schema()
             },
             "exception": {
               "description": "The mach exception type.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -1833,7 +1833,7 @@ expression: event_json_schema()
             },
             "name": {
               "description": "Optional name of the mach exception.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1841,7 +1841,7 @@ expression: event_json_schema()
             },
             "subcode": {
               "description": "The mach exception subcode.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -1863,7 +1863,7 @@ expression: event_json_schema()
           "properties": {
             "data": {
               "description": "Additional attributes depending on the mechanism type.",
-              "default": {},
+              "default": null,
               "type": [
                 "object",
                 "null"
@@ -1872,7 +1872,7 @@ expression: event_json_schema()
             },
             "description": {
               "description": "Human readable detail description.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1880,7 +1880,7 @@ expression: event_json_schema()
             },
             "handled": {
               "description": "Flag indicating whether this exception was handled.",
-              "default": {},
+              "default": null,
               "type": [
                 "boolean",
                 "null"
@@ -1888,7 +1888,7 @@ expression: event_json_schema()
             },
             "help_link": {
               "description": "Link to online resources describing this error.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -1896,7 +1896,7 @@ expression: event_json_schema()
             },
             "meta": {
               "description": "Operating system or runtime meta information.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/MechanismMeta"
@@ -1908,7 +1908,7 @@ expression: event_json_schema()
             },
             "synthetic": {
               "description": "If this is set then the exception is not a real exception but some form of synthetic error for instance from a signal handler, a hard segfault or similar where type and value are not useful for grouping or display purposes.",
-              "default": {},
+              "default": null,
               "type": [
                 "boolean",
                 "null"
@@ -1932,7 +1932,7 @@ expression: event_json_schema()
           "properties": {
             "errno": {
               "description": "Optional ISO C standard error code.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/CError"
@@ -1944,7 +1944,7 @@ expression: event_json_schema()
             },
             "mach_exception": {
               "description": "Optional mach exception information.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/MachException"
@@ -1956,7 +1956,7 @@ expression: event_json_schema()
             },
             "signal": {
               "description": "Optional POSIX signal number.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/PosixSignal"
@@ -1998,7 +1998,7 @@ expression: event_json_schema()
           "properties": {
             "arch": {
               "description": "CPU architecture target.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2017,7 +2017,7 @@ expression: event_json_schema()
             },
             "code_id": {
               "description": "Optional identifier of the code file.\n\nIf not specified, it is assumed to be identical to the debug identifier.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/CodeId"
@@ -2029,7 +2029,7 @@ expression: event_json_schema()
             },
             "debug_file": {
               "description": "Path and name of the debug companion file (required).",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/NativeImagePath"
@@ -2072,7 +2072,7 @@ expression: event_json_schema()
             },
             "image_vmaddr": {
               "description": "Loading address in virtual memory.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/Addr"
@@ -2100,7 +2100,7 @@ expression: event_json_schema()
           "properties": {
             "build": {
               "description": "Internal build number of the operating system.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2108,7 +2108,7 @@ expression: event_json_schema()
             },
             "kernel_version": {
               "description": "Current kernel version.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2116,7 +2116,7 @@ expression: event_json_schema()
             },
             "name": {
               "description": "Name of the operating system.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2124,7 +2124,7 @@ expression: event_json_schema()
             },
             "raw_description": {
               "description": "Unprocessed operating system info.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2132,7 +2132,7 @@ expression: event_json_schema()
             },
             "rooted": {
               "description": "Indicator if the OS is rooted (mobile mostly).",
-              "default": {},
+              "default": null,
               "type": [
                 "boolean",
                 "null"
@@ -2140,7 +2140,7 @@ expression: event_json_schema()
             },
             "version": {
               "description": "Version of the operating system.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2157,7 +2157,7 @@ expression: event_json_schema()
           "properties": {
             "code": {
               "description": "An optional signal code present on Apple systems.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -2166,7 +2166,7 @@ expression: event_json_schema()
             },
             "code_name": {
               "description": "Optional name of the errno constant.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2174,7 +2174,7 @@ expression: event_json_schema()
             },
             "name": {
               "description": "Optional name of the errno constant.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2182,7 +2182,7 @@ expression: event_json_schema()
             },
             "number": {
               "description": "The POSIX signal number.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -2289,7 +2289,7 @@ expression: event_json_schema()
             },
             "lang": {
               "description": "The language of the stacktrace.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2297,7 +2297,7 @@ expression: event_json_schema()
             },
             "registers": {
               "description": "Register values of the thread (top frame).",
-              "default": {},
+              "default": null,
               "type": [
                 "object",
                 "null"
@@ -2327,7 +2327,7 @@ expression: event_json_schema()
           "properties": {
             "cookies": {
               "description": "URL encoded contents of the Cookie header.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/Cookies"
@@ -2339,11 +2339,11 @@ expression: event_json_schema()
             },
             "data": {
               "description": "Request data in any format that makes sense.",
-              "default": {}
+              "default": null
             },
             "env": {
               "description": "Server environment data, such as CGI/WSGI.",
-              "default": {},
+              "default": null,
               "type": [
                 "object",
                 "null"
@@ -2352,7 +2352,7 @@ expression: event_json_schema()
             },
             "fragment": {
               "description": "The fragment of the request URL.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2360,7 +2360,7 @@ expression: event_json_schema()
             },
             "headers": {
               "description": "HTTP request headers.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/Headers"
@@ -2372,7 +2372,7 @@ expression: event_json_schema()
             },
             "inferred_content_type": {
               "description": "The inferred content type of the request payload.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2380,7 +2380,7 @@ expression: event_json_schema()
             },
             "method": {
               "description": "HTTP request method.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2388,7 +2388,7 @@ expression: event_json_schema()
             },
             "query_string": {
               "description": "URL encoded HTTP query string.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/Query"
@@ -2400,7 +2400,7 @@ expression: event_json_schema()
             },
             "url": {
               "description": "URL of the request.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2417,7 +2417,7 @@ expression: event_json_schema()
           "properties": {
             "build": {
               "description": "Application build string, if it is separate from the version.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2425,7 +2425,7 @@ expression: event_json_schema()
             },
             "name": {
               "description": "Runtime name.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2433,7 +2433,7 @@ expression: event_json_schema()
             },
             "raw_description": {
               "description": "Unprocessed runtime info.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2441,7 +2441,7 @@ expression: event_json_schema()
             },
             "version": {
               "description": "Runtime version string.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2464,7 +2464,7 @@ expression: event_json_schema()
           "properties": {
             "description": {
               "description": "Human readable description of a span (e.g. method URL).",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2472,7 +2472,7 @@ expression: event_json_schema()
             },
             "op": {
               "description": "Span type (see `OperationType` docs).",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2480,7 +2480,7 @@ expression: event_json_schema()
             },
             "parent_span_id": {
               "description": "The ID of the span enclosing this span.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/SpanId"
@@ -2585,7 +2585,7 @@ expression: event_json_schema()
           "properties": {
             "sdk_name": {
               "description": "The internal name of the SDK.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2593,7 +2593,7 @@ expression: event_json_schema()
             },
             "version_major": {
               "description": "The major version of the SDK as integer or 0.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -2603,7 +2603,7 @@ expression: event_json_schema()
             },
             "version_minor": {
               "description": "The minor version of the SDK as integer or 0.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -2613,7 +2613,7 @@ expression: event_json_schema()
             },
             "version_patchlevel": {
               "description": "The patch version of the SDK as integer or 0.",
-              "default": {},
+              "default": null,
               "type": [
                 "integer",
                 "null"
@@ -2685,7 +2685,7 @@ expression: event_json_schema()
           "properties": {
             "crashed": {
               "description": "Indicates that this thread requested the event (usually by crashing).",
-              "default": {},
+              "default": null,
               "type": [
                 "boolean",
                 "null"
@@ -2693,7 +2693,7 @@ expression: event_json_schema()
             },
             "current": {
               "description": "Indicates that the thread was not suspended when the event was created.",
-              "default": {},
+              "default": null,
               "type": [
                 "boolean",
                 "null"
@@ -2701,7 +2701,7 @@ expression: event_json_schema()
             },
             "id": {
               "description": "Identifier of this thread within the process (usually an integer).",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/ThreadId"
@@ -2713,7 +2713,7 @@ expression: event_json_schema()
             },
             "name": {
               "description": "Display name of this thread.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2721,7 +2721,7 @@ expression: event_json_schema()
             },
             "raw_stacktrace": {
               "description": "Optional unprocessed stack trace.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/RawStacktrace"
@@ -2733,7 +2733,7 @@ expression: event_json_schema()
             },
             "stacktrace": {
               "description": "Stack trace containing frames of this exception.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/Stacktrace"
@@ -2775,10 +2775,15 @@ expression: event_json_schema()
       "anyOf": [
         {
           "type": "object",
+          "required": [
+            "span_id",
+            "status",
+            "trace_id"
+          ],
           "properties": {
             "op": {
               "description": "Span type (see `OperationType` docs).",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2786,7 +2791,7 @@ expression: event_json_schema()
             },
             "parent_span_id": {
               "description": "The ID of the span enclosing this span.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/SpanId"
@@ -2798,7 +2803,6 @@ expression: event_json_schema()
             },
             "span_id": {
               "description": "The ID of the span.",
-              "default": {},
               "anyOf": [
                 {
                   "$ref": "#/definitions/SpanId"
@@ -2810,7 +2814,6 @@ expression: event_json_schema()
             },
             "status": {
               "description": "Whether the trace failed or succeeded. Currently only used to indicate status of individual transactions.",
-              "default": {},
               "anyOf": [
                 {
                   "$ref": "#/definitions/SpanStatus"
@@ -2822,7 +2825,6 @@ expression: event_json_schema()
             },
             "trace_id": {
               "description": "The trace ID.",
-              "default": {},
               "anyOf": [
                 {
                   "$ref": "#/definitions/TraceId"
@@ -2850,7 +2852,7 @@ expression: event_json_schema()
           "properties": {
             "data": {
               "description": "Additional arbitrary fields, as stored in the database (and sometimes as sent by clients). All data from `self.other` should end up here after store normalization.",
-              "default": {},
+              "default": null,
               "type": [
                 "object",
                 "null"
@@ -2859,7 +2861,7 @@ expression: event_json_schema()
             },
             "email": {
               "description": "Email address of the user.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2867,7 +2869,7 @@ expression: event_json_schema()
             },
             "geo": {
               "description": "Approximate geographical location of the end user or device.",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/Geo"
@@ -2879,7 +2881,7 @@ expression: event_json_schema()
             },
             "id": {
               "description": "Unique identifier of the user.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2887,7 +2889,7 @@ expression: event_json_schema()
             },
             "ip_address": {
               "description": "Remote IP address of the user. Defaults to \"{{auto}}\".",
-              "default": {},
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/String"
@@ -2899,7 +2901,7 @@ expression: event_json_schema()
             },
             "name": {
               "description": "Human readable name of the user.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"
@@ -2907,7 +2909,7 @@ expression: event_json_schema()
             },
             "username": {
               "description": "Username of the user.",
-              "default": {},
+              "default": null,
               "type": [
                 "string",
                 "null"

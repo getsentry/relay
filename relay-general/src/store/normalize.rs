@@ -1432,6 +1432,7 @@ fn test_discards_received() {
 #[test]
 fn test_grouping_config() {
     use crate::protocol::LogEntry;
+    use crate::types::SerializableAnnotated;
     use insta::assert_ron_snapshot;
     use serde_json::json;
 
@@ -1455,7 +1456,7 @@ fn test_grouping_config() {
 
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    assert_ron_snapshot!((&event), {
+    assert_ron_snapshot!(SerializableAnnotated(&event), {
         ".event_id" => "[event-id]",
         ".received" => "[received]",
         ".timestamp" => "[timestamp]"

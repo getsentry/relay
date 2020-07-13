@@ -82,6 +82,18 @@ pub enum ProcessingAction {
 #[derive(Clone, PartialEq)]
 pub struct Annotated<T>(pub Option<T>, pub Meta);
 
+/// An utility to serialize annotated objects with payload.
+pub struct SerializableAnnotated<'a, T>(pub &'a Annotated<T>);
+
+impl<'a, T: ToValue> Serialize for SerializableAnnotated<'a, T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.0.serialize_with_meta(serializer)
+    }
+}
+
 impl<T: fmt::Debug> fmt::Debug for Annotated<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
@@ -402,6 +414,9 @@ impl<T> Default for Annotated<T> {
     }
 }
 
+// This hack is needed to make our custom derive for JsonSchema simpler. However, Serialize should
+// not be implemented on Annotated as one should usually use ToValue directly, or
+// SerializableAnnotated explicitly if really needed (eg: tests)
 impl<T> schemars::JsonSchema for Annotated<T>
 where
     T: schemars::JsonSchema,
@@ -416,15 +431,6 @@ where
 
     fn is_referenceable() -> bool {
         false
-    }
-}
-
-impl<T: ToValue> Serialize for Annotated<T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        self.serialize_with_meta(serializer)
     }
 }
 

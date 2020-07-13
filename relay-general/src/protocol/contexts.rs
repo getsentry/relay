@@ -363,9 +363,11 @@ impl FromValue for SpanId {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue, JsonSchema)]
 pub struct TraceContext {
     /// The trace ID.
+    #[metastructure(required = "true")]
     pub trace_id: Annotated<TraceId>,
 
     /// The ID of the span.
+    #[metastructure(required = "true")]
     pub span_id: Annotated<SpanId>,
 
     /// The ID of the span enclosing this span.
@@ -377,6 +379,7 @@ pub struct TraceContext {
 
     /// Whether the trace failed or succeeded. Currently only used to indicate status of individual
     /// transactions.
+    #[metastructure(required = "true")]
     pub status: Annotated<SpanStatus>,
 
     /// Additional arbitrary fields for forwards compatibility.
