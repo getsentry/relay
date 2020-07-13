@@ -90,13 +90,13 @@ def test_project_grace_period(mini_sentry, relay, grace_period):
         # because the project config has expired again and needs to be refetched
         relay.send_event(42)
     else:
+        assert not fetched_project_config.is_set()
+
         # With a non-zero grace period the request should fail during the grace period
         with pytest.raises(HTTPError) as excinfo:
             relay.send_event(42)
 
         assert excinfo.value.response.status_code == 403
-
-        assert not fetched_project_config.is_set()
         assert fetched_project_config.wait(timeout=1)
 
     assert mini_sentry.captured_events.empty()
