@@ -16,3 +16,6 @@ find . -name Cargo.toml.bak -exec rm {} \;
 
 cargo update -p relay
 cargo update -p relay-common --manifest-path ./relay-cabi/Cargo.toml
+
+sed -i -e "s/\(Change Date:\s*\)[-0-9]\+\$/\\1$(date +'%Y-%m-%d')/" LICENSE
+
