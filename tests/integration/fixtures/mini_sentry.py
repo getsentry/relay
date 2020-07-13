@@ -101,9 +101,6 @@ def mini_sentry(request):
 
     @app.route("/api/666/store/", methods=["POST"])
     def store_internal_error_event():
-        # Consume POST body even if we don't like this request
-        # to no clobber the socket and buffers
-        event = flask_request.json
         sentry.test_failures.append(
             (
                 "/api/666/store/",
@@ -132,9 +129,6 @@ def mini_sentry(request):
 
     @app.route("/api/<project>/store/", methods=["POST"])
     def store_event_catchall(project):
-        # Consume POST body even if we don't like this request
-        # to no clobber the socket and buffers
-        event = flask_request.json
         raise AssertionError(f"Unknown project: {project}")
 
     @app.route("/api/0/relays/projectids/", methods=["POST"])
