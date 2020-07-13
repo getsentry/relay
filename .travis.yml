@@ -87,8 +87,6 @@ jobs:
         - docker run -d --network host --name zookeeper -e ZOOKEEPER_CLIENT_PORT=2181 confluentinc/cp-zookeeper:4.1.2-3
         - docker run -d --network host --name kafka -e KAFKA_ZOOKEEPER_CONNECT=localhost:2181 -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$KAFKA_BOOTSTRAP_SERVER -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 confluentinc/cp-kafka:4.1.2-3
         - sudo service redis-server start --bind 127.0.0.1
-      before_script:
-        - ulimit -a
       script:
         - make -e test-integration
 
