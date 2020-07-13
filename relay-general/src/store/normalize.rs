@@ -131,7 +131,7 @@ impl<'a> NormalizeProcessor<'a> {
 
         event.timestamp.apply(|timestamp, _meta| {
             if let Some(secs) = self.config.max_secs_in_future {
-                if *timestamp > received_at + Duration::seconds(secs) {
+                if **timestamp > received_at + Duration::seconds(secs) {
                     error_kind = ErrorKind::FutureTimestamp;
                     sent_at = Some(*timestamp);
                     return Ok(());
@@ -139,7 +139,7 @@ impl<'a> NormalizeProcessor<'a> {
             }
 
             if let Some(secs) = self.config.max_secs_in_past {
-                if *timestamp < received_at - Duration::seconds(secs) {
+                if **timestamp < received_at - Duration::seconds(secs) {
                     error_kind = ErrorKind::PastTimestamp;
                     sent_at = Some(*timestamp);
                     return Ok(());
@@ -149,12 +149,12 @@ impl<'a> NormalizeProcessor<'a> {
             Ok(())
         })?;
 
-        ClockDriftProcessor::new(sent_at, received_at)
+        ClockDriftProcessor::new(sent_at.map(|x| *x), received_at)
             .error_kind(error_kind)
             .process_event(event, meta, state)?;
 
         // Apply this after clock drift correction, otherwise we will malform it.
-        event.received = Annotated::new(received_at);
+        event.received = Annotated::new(received_at.into());
 
         if event.timestamp.value().is_none() {
             event.timestamp.set_value(Some(received_at.into()));
@@ -1503,7 +1503,7 @@ fn test_future_timestamp() {
     use insta::assert_ron_snapshot;
 
     let mut event = Annotated::new(Event {
-        timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 2, 0)),
+        timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 2, 0).into()),
         ..Default::default()
     });
 
@@ -1556,7 +1556,7 @@ fn test_past_timestamp() {
     use insta::assert_ron_snapshot;
 
     let mut event = Annotated::new(Event {
-        timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0)),
+        timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0).into()),
         ..Default::default()
     });
 

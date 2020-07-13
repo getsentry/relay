@@ -3,7 +3,7 @@ use std::time::Duration;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::protocol::{Event, Timestamp};
+use crate::protocol::{Event, SessionUpdate, Timestamp};
 use crate::types::{Error, ErrorKind, Meta, ProcessingResult};
 
 /// A signed correction that contains the sender's timestamp as well as the drift to the receiver.

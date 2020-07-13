@@ -1,5 +1,3 @@
-use chrono::{DateTime, Utc};
-
 use crate::protocol::{OperationType, SpanId, SpanStatus, Timestamp, TraceId};
 use crate::types::{Annotated, Object, Value};
 

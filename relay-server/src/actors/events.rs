@@ -820,7 +820,7 @@ impl EventProcessor {
         // should be removed as soon as legacy ingestion has been removed.
         let sent_at = match envelope.sent_at() {
             Some(sent_at) => Some(sent_at),
-            None if is_transaction => event.timestamp.value().copied(),
+            None if is_transaction => event.timestamp.value().map(|x| **x),
             None => None,
         };
 
