@@ -334,6 +334,17 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     filename: Option<String>,
 
+    /// Indicates that this item is being rate limited.
+    ///
+    /// By default, rate limited items are immediately removed from Envelopes. For processing,
+    /// native crash reports still need to be retained. These attachments are marked with the
+    /// `rate_limited` header, which signals to the processing pipeline that the attachment should
+    /// not be persisted after processing.
+    ///
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    rate_limited: bool,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -355,6 +366,7 @@ impl Item {
                 attachment_type: None,
                 content_type: None,
                 filename: None,
+                rate_limited: false,
                 other: BTreeMap::new(),
             },
             payload: Bytes::new(),
@@ -428,6 +440,16 @@ impl Item {
         S: Into<String>,
     {
         self.headers.filename = Some(filename.into());
+    }
+
+    /// Returns whether this item should be rate limited.
+    pub fn rate_limited(&self) -> bool {
+        self.headers.rate_limited
+    }
+
+    /// Sets whether this item should be rate limited.
+    pub fn set_rate_limited(&mut self, rate_limited: bool) {
+        self.headers.rate_limited = rate_limited;
     }
 
     /// Returns the specified header value, if present.
