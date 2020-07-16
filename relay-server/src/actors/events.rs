@@ -11,6 +11,7 @@ use futures::prelude::*;
 use parking_lot::RwLock;
 use serde_json::Value as SerdeValue;
 
+use relay_common::metrics::CounterMetric;
 use relay_common::{clone, metric, LogError};
 use relay_config::{Config, RelayMode};
 use relay_general::pii::PiiProcessor;
@@ -49,6 +50,17 @@ use {
 
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
+
+/// Counter for minidump parsing.
+///
+/// Emits metrics under the "minidump.parse" name.
+struct MinidumpParseCounter;
+
+impl CounterMetric for MinidumpParseCounter {
+    fn name(&self) -> &'static str {
+        "minidump.parse"
+    }
+}
 
 #[derive(Debug, Fail)]
 pub enum QueueEnvelopeError {
@@ -703,10 +715,8 @@ impl EventProcessor {
     /// This will indicate to the ingestion pipeline that this event will need to be processed. The
     /// payload can be checked via `is_minidump_event`.
     #[cfg(feature = "processing")]
-    fn write_native_placeholder(&self, event: &mut Annotated<Event>, is_minidump: bool) {
+    fn write_native_placeholder(&self, event: &mut Event, is_minidump: bool) {
         use relay_general::protocol::{Exception, JsonLenientString, Level, Mechanism};
-
-        let event = event.get_or_insert_with(Event::default);
 
         // Events must be native platform.
         let platform = event.platform.value_mut();
@@ -754,6 +764,31 @@ impl EventProcessor {
         }));
     }
 
+    /// Extracts the timestamp from the minidump and uses it as the event timestamp.
+    #[cfg(feature = "processing")]
+    fn write_minidump_timestamp(event: &mut Event, minidump_item: &envelope::Item) {
+        use std::time::SystemTime;
+
+        assert_eq!(
+            minidump_item.content_type(),
+            Some(&envelope::ContentType::Minidump)
+        );
+        let cursor = std::io::Cursor::new(minidump_item.payload());
+        let minidump = match minidump::Minidump::read(cursor) {
+            Ok(minidump) => minidump,
+            Err(err) => {
+                log::error!("Failed to parse minidump: {:?}", err);
+                metric!(counter(MinidumpParseCounter) += 1, status = "err");
+                return;
+            }
+        };
+        let epoch_offset = Duration::from_secs(minidump.header.time_date_stamp.into());
+        let when: DateTime<Utc> = DateTime::from(SystemTime::UNIX_EPOCH + epoch_offset);
+        let event_timestamp = event.timestamp.value_mut();
+        *event_timestamp = Some(when);
+        metric!(counter(MinidumpParseCounter) += 1, status = "ok");
+    }
+
     /// Adds processing placeholders for special attachments.
     ///
     /// If special attachments are present in the envelope, this adds placeholder payloads to the
@@ -769,12 +804,14 @@ impl EventProcessor {
         let apple_crash_report_attachment = envelope
             .get_item_by(|item| item.attachment_type() == Some(AttachmentType::AppleCrashReport));
 
+        let mut event = state.event.get_or_insert_with(Event::default);
         if let Some(item) = minidump_attachment {
             state.metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
-            self.write_native_placeholder(&mut state.event, true);
+            self.write_native_placeholder(&mut event, true);
+            Self::write_minidump_timestamp(&mut event, item);
         } else if let Some(item) = apple_crash_report_attachment {
             state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
-            self.write_native_placeholder(&mut state.event, false);
+            self.write_native_placeholder(&mut event, false);
         }
 
         Ok(())
