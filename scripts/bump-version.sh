@@ -10,12 +10,12 @@ NEW_VERSION="${2}"
 echo "Current version: ${OLD_VERSION}"
 echo "Bumping version: ${NEW_VERSION}"
 
-VERSION_RE=${OLD_VERSION//\./\\.}
-find . -name Cargo.toml -not -path './relay-cabi/*' -exec sed -i.bak -e "1,/^version/ s/^version.*/version = \"${NEW_VERSION}\"/" {} \;
-find . -name Cargo.toml.bak -exec rm {} \;
+TOML_FILES="$(git ls-files '*Cargo.toml' | grep -v cabi)"
+perl -pi -e "s/^version = .*\$/version = \"$NEW_VERSION\"/" $TOML_FILES
 
 cargo update -p relay
 cargo update -p relay-common --manifest-path ./relay-cabi/Cargo.toml
 
-sed -i -e "s/\(Change Date:\s*\)[-0-9]\+\$/\\1$(date +'%Y-%m-%d' -d '3 years')/" LICENSE
-
+CHANGE_DATE="$(perl -MPOSIX -e '@a=gmtime(); @a[5]+=3; print(strftime("%Y-%m-%d", @a))')"
+echo "Bumping Change Date to $CHANGE_DATE"
+perl -pi -e "s/^(Change Date: +)[-0-9]+\$/\${1}$CHANGE_DATE/" LICENSE
