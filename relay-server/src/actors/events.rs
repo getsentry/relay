@@ -11,7 +11,6 @@ use futures::prelude::*;
 use parking_lot::RwLock;
 use serde_json::Value as SerdeValue;
 
-use relay_common::metrics::CounterMetric;
 use relay_common::{clone, metric, LogError};
 use relay_config::{Config, RelayMode};
 use relay_general::pii::PiiProcessor;
@@ -50,17 +49,6 @@ use {
 
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
-
-/// Counter for minidump parsing.
-///
-/// Emits metrics under the "minidump.parse" name.
-struct MinidumpParseCounter;
-
-impl CounterMetric for MinidumpParseCounter {
-    fn name(&self) -> &'static str {
-        "minidump.parse"
-    }
-}
 
 #[derive(Debug, Fail)]
 pub enum QueueEnvelopeError {
@@ -777,8 +765,7 @@ impl EventProcessor {
         let minidump = match minidump::Minidump::read(cursor) {
             Ok(minidump) => minidump,
             Err(err) => {
-                log::error!("Failed to parse minidump: {:?}", err);
-                metric!(counter(MinidumpParseCounter) += 1, status = "err");
+                log::debug!("Failed to parse minidump: {:?}", err);
                 return;
             }
         };
@@ -786,7 +773,6 @@ impl EventProcessor {
         let when: DateTime<Utc> = DateTime::from(SystemTime::UNIX_EPOCH + epoch_offset);
         let event_timestamp = event.timestamp.value_mut();
         *event_timestamp = Some(when);
-        metric!(counter(MinidumpParseCounter) += 1, status = "ok");
     }
 
     /// Adds processing placeholders for special attachments.
