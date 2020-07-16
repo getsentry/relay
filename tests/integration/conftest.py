@@ -161,3 +161,20 @@ def json_fixture_provider():
         return _JsonFixtureProvider(test_file_path)
 
     return inner
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_call(item):
+    """This handles the extra_failure_checks mark to perform further assertians.
+
+    The mark can be added by fixture which want to run something which
+    can raise pytest.fail.Exception after the test has completed.
+
+    Such checks will not be run when the test already failed, just
+    multiple assertions within a test will stop the test execution at
+    the first failure.
+    """
+    yield
+    for marker in item.iter_markers("extra_failure_checks"):
+        for check_func in marker.kwargs.get("checks", []):
+            check_func()

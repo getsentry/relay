@@ -105,12 +105,14 @@ def mini_sentry(request):
 
     @app.route("/api/666/store/", methods=["POST"])
     def store_internal_error_event():
+        try:
+            data = json.loads(flask_request.data)
+        except json.JSONDecodeError:
+            data = flask_request.data
         sentry.test_failures.append(
             (
                 "/api/666/store/",
-                AssertionError(
-                    "Relay sent us event: %s" % get_error_message(flask_request.data)
-                ),
+                AssertionError("Relay sent us event:\n{}".format(pformat(data))),
             )
         )
         return jsonify({"event_id": uuid.uuid4().hex})
@@ -191,15 +193,24 @@ def mini_sentry(request):
 
     @app.errorhandler(500)
     def fail(e):
-        sentry.test_failures.append((flask_request.url, e))
+        sentry.test_failures.append((flask_request.url, type(e)))
         raise e
 
-    @request.addfinalizer
     def reraise_test_failures():
+        from pprint import pprint
+
         if sentry.test_failures:
-            raise AssertionError(
-                f"Exceptions happened in mini_sentry: {sentry.format_failures()}"
+            msg = "{n} exceptions happened in mini_sentry:\n\n".format(
+                n=len(sentry.test_failures)
             )
+            for url, error in sentry.test_failures:
+                msg += f"Endpoint: {url}\n"
+                msg += f"Exception: {error}\n\n"
+            pytest.fail(msg)
+
+    # This marker is used by pytest_runtest_call in our conftest.py
+    mark = pytest.mark.extra_failure_checks(checks=[reraise_test_failures])
+    request.node.add_marker(mark)
 
     WSGIRequestHandler.protocol_version = "HTTP/1.1"
     server = WSGIServer(application=app, threaded=True)
