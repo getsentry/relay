@@ -192,7 +192,7 @@ def mini_sentry(request):
 
     @app.errorhandler(500)
     def fail(e):
-        sentry.test_failures.append((flask_request.url, type(e)))
+        sentry.test_failures.append((flask_request.url, e))
         raise e
 
     def reraise_test_failures():
