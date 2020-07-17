@@ -86,13 +86,13 @@ impl Processor for TransactionsProcessor {
             }
         }
 
-        if let Some(spans) = event.spans.value() {
-            for span in spans {
-                if span.value().is_none() {
-                    return Err(ProcessingAction::InvalidTransaction(
-                        "spans must be valid in transaction event",
-                    ));
-                }
+        let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
+
+        for span in spans {
+            if span.value().is_none() {
+                return Err(ProcessingAction::InvalidTransaction(
+                    "spans must be valid in transaction event",
+                ));
             }
         }
 
