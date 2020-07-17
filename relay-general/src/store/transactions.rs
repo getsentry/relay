@@ -501,6 +501,43 @@ mod tests {
     }
 
     #[test]
+    fn test_allows_transaction_event_with_null_span_list() {
+        let mut event = new_test_event();
+
+        event
+            .apply(|event, _| {
+                event.spans.set_value(None);
+                Ok(())
+            })
+            .unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor,
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event, @r###"
+        {
+          "type": "transaction",
+          "transaction": "/",
+          "timestamp": 946684810.0,
+          "start_timestamp": 946684800.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "http.server",
+              "type": "trace"
+            }
+          },
+          "spans": []
+        }
+        "###);
+    }
+
+    #[test]
     fn test_discards_transaction_event_with_nulled_out_span() {
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
