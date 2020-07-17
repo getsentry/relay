@@ -109,7 +109,7 @@ def mini_sentry(request):
                 "/api/666/store/",
                 AssertionError(
                     "Relay sent us event: {}".format(
-                        get_error_message(flas_request.data)
+                        get_error_message(flask_request.data)
                     ),
                 ),
             )
