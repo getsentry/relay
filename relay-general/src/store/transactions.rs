@@ -427,7 +427,8 @@ mod tests {
               "op": "default",
               "type": "trace"
             }
-          }
+          },
+          "spans": []
         }
         "###);
     }
