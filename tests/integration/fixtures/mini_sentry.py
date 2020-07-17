@@ -196,14 +196,12 @@ def mini_sentry(request):
         raise e
 
     def reraise_test_failures():
-        from pprint import pprint
-
         if sentry.test_failures:
-            msg = "{n} exceptions happened in mini_sentry:\n\n".format(
-                n=len(sentry.test_failures)
+            pytest.fail(
+                "{n} exceptions happened in mini_sentry:\n\n{failures}".format(
+                    n=len(sentry.test_failures, failures=sentry.format_failures())
+                )
             )
-            msg += sentry.format_failures()
-            pytest.fail(msg)
 
     # This marker is used by pytest_runtest_call in our conftest.py
     mark = pytest.mark.extra_failure_checks(checks=[reraise_test_failures])
