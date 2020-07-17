@@ -202,9 +202,7 @@ def mini_sentry(request):
             msg = "{n} exceptions happened in mini_sentry:\n\n".format(
                 n=len(sentry.test_failures)
             )
-            for url, error in sentry.test_failures:
-                msg += f"Endpoint: {url}\n"
-                msg += f"Exception: {error}\n\n"
+            msg += sentry.format_failures()
             pytest.fail(msg)
 
     # This marker is used by pytest_runtest_call in our conftest.py
