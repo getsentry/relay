@@ -3,7 +3,6 @@ import json
 import uuid
 import types
 
-from pprint import pformat
 from queue import Queue
 
 import pytest
@@ -105,14 +104,14 @@ def mini_sentry(request):
 
     @app.route("/api/666/store/", methods=["POST"])
     def store_internal_error_event():
-        try:
-            data = json.loads(flask_request.data)
-        except json.JSONDecodeError:
-            data = flask_request.data
         sentry.test_failures.append(
             (
                 "/api/666/store/",
-                AssertionError("Relay sent us event:\n{}".format(pformat(data))),
+                AssertionError(
+                    "Relay sent us event: {}".format(
+                        get_error_message(flas_request.data)
+                    ),
+                ),
             )
         )
         return jsonify({"event_id": uuid.uuid4().hex})
