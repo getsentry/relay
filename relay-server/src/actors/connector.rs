@@ -26,7 +26,7 @@ use crate::metrics::{RelayCounters, RelayHistograms};
 /// connector and registers it as default system service. After that, each client request uses this
 /// connector by default.
 ///
-/// ```
+/// ```ignore
 /// use std::sync::Arc;
 /// use relay_config::Config;
 ///
