@@ -54,6 +54,8 @@ pub enum RelayHistograms {
     ProjectStateReceived,
     /// Number of project states currently held in the in-memory project cache.
     ProjectStateCacheSize,
+    /// The number of upstream requests queued up for a connection in the connection pool.
+    ConnectorWaitQueue,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -67,6 +69,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
             RelayHistograms::ProjectStateReceived => "project_state.received",
             RelayHistograms::ProjectStateCacheSize => "project_cache.size",
+            RelayHistograms::ConnectorWaitQueue => "connector.wait_queue",
         }
     }
 }
@@ -229,6 +232,22 @@ pub enum RelayCounters {
     /// We are scanning our in-memory project cache for stale entries. This counter is incremented
     /// before doing the expensive operation.
     EvictingStaleProjectCaches,
+    /// The number of requests that reused an already open upstream connection.
+    ///
+    /// Relay employs connection keep-alive whenever possible. Connections are kept open for 15
+    /// seconds of inactivity, or 75 seconds of activity.
+    ConnectorReused,
+    /// The number of upstream connections opened.
+    ConnectorOpened,
+    /// The number of upstream connections closed due to connection timeouts.
+    ///
+    /// Relay employs connection keep-alive whenever possible. Connections are kept open for 15
+    /// seconds of inactivity, or 75 seconds of activity.
+    ConnectorClosed,
+    /// The number of upstream connections that experienced errors.
+    ConnectorErrors,
+    /// The number of upstream connections that experienced a timeout.
+    ConnectorTimeouts,
 }
 
 impl CounterMetric for RelayCounters {
@@ -250,6 +269,11 @@ impl CounterMetric for RelayCounters {
             RelayCounters::Requests => "requests",
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
+            RelayCounters::ConnectorReused => "connector.reused",
+            RelayCounters::ConnectorOpened => "connector.opened",
+            RelayCounters::ConnectorClosed => "connector.closed",
+            RelayCounters::ConnectorErrors => "connector.errors",
+            RelayCounters::ConnectorTimeouts => "connector.timeouts",
         }
     }
 }
