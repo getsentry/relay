@@ -27,6 +27,8 @@ def test_outcomes_processing(
 
     message_text = "some message {}".format(datetime.now())
     event_id = "11122233344455566677788899900011"
+    start = datetime.utcnow()
+
     relay.send_event(
         42,
         {
@@ -36,10 +38,7 @@ def test_outcomes_processing(
         },
     )
 
-    start = datetime.utcnow()
     outcome = outcomes_consumer.get_outcome()
-    end = datetime.utcnow()
-
     assert outcome["project_id"] == 42
     assert outcome["event_id"] == event_id
     assert outcome.get("org_id") is None
@@ -51,6 +50,7 @@ def test_outcomes_processing(
     # deal with the timestamp separately (we can't control it exactly)
     timestamp = outcome.get("timestamp")
     event_emission = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+    end = datetime.utcnow()
     assert start <= event_emission <= end
 
 
