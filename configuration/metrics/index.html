@@ -407,6 +407,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#connectorwait_queue" class="md-nav__link">
+    connector.wait_queue
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#event_processingdeserialize" class="md-nav__link">
     event_processing.deserialize
   </a>
@@ -598,6 +605,41 @@
           <li class="md-nav__item">
   <a href="#project_cacheeviction" class="md-nav__link">
     project_cache.eviction
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connectorreused" class="md-nav__link">
+    connector.reused
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connectoropened" class="md-nav__link">
+    connector.opened
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connectorclosed" class="md-nav__link">
+    connector.closed
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connectorerrors" class="md-nav__link">
+    connector.errors
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connectortimeouts" class="md-nav__link">
+    connector.timeouts
   </a>
   
 </li>
@@ -905,6 +947,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#connectorwait_queue" class="md-nav__link">
+    connector.wait_queue
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#event_processingdeserialize" class="md-nav__link">
     event_processing.deserialize
   </a>
@@ -1100,6 +1149,41 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#connectorreused" class="md-nav__link">
+    connector.reused
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connectoropened" class="md-nav__link">
+    connector.opened
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connectorclosed" class="md-nav__link">
+    connector.closed
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connectorerrors" class="md-nav__link">
+    connector.errors
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connectortimeouts" class="md-nav__link">
+    connector.timeouts
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1198,6 +1282,9 @@ Number of project states received from the Upstream for the current batch reques
 <h3 id="project_cachesize"><code>project_cache.size</code></h3>
 <p><em>Histogram.</em>
 Number of project states currently held in the in-memory project cache.</p>
+<h3 id="connectorwait_queue"><code>connector.wait_queue</code></h3>
+<p><em>Histogram.</em>
+The number of upstream requests queued up for a connection in the connection pool.</p>
 <h3 id="event_processingdeserialize"><code>event_processing.deserialize</code></h3>
 <p><em>Timer.</em>
 The time spent deserializing an event from a JSON byte array into the native data structure
@@ -1357,6 +1444,25 @@ The counter has the following tags:</p>
 <p><em>Counter.</em>
 We are scanning our in-memory project cache for stale entries. This counter is incremented
 before doing the expensive operation.</p>
+<h3 id="connectorreused"><code>connector.reused</code></h3>
+<p><em>Counter.</em>
+The number of requests that reused an already open upstream connection.</p>
+<p>Relay employs connection keep-alive whenever possible. Connections are kept open for 15
+seconds of inactivity, or 75 seconds of activity.</p>
+<h3 id="connectoropened"><code>connector.opened</code></h3>
+<p><em>Counter.</em>
+The number of upstream connections opened.</p>
+<h3 id="connectorclosed"><code>connector.closed</code></h3>
+<p><em>Counter.</em>
+The number of upstream connections closed due to connection timeouts.</p>
+<p>Relay employs connection keep-alive whenever possible. Connections are kept open for 15
+seconds of inactivity, or 75 seconds of activity.</p>
+<h3 id="connectorerrors"><code>connector.errors</code></h3>
+<p><em>Counter.</em>
+The number of upstream connections that experienced errors.</p>
+<h3 id="connectortimeouts"><code>connector.timeouts</code></h3>
+<p><em>Counter.</em>
+The number of upstream connections that experienced a timeout.</p>
                 
                   
                 

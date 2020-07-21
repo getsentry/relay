@@ -1423,12 +1423,12 @@ rates of incoming events.</p>
 <p><em>Integer, default: <code>60</code> (seconds)</em></p>
 <p>Interval for evicting outdated project configs from memory.</p>
 <h2 id="size-limits">Size Limits</h2>
-<p>Controls various HTTP-related limits.  All values are either integers or are human-readable strings of a number
-and a human-readable unit, such as:</p>
+<p>Controls various HTTP-related limits. All values are either integers or are
+human-readable strings of a number and a human-readable unit, such as:</p>
 <ul>
 <li><code>500B</code></li>
-<li><code>1KB</code> (<em>1,000</em> bytes)</li>
-<li><code>1KiB</code> (<em>1,024</em> bytes)</li>
+<li><code>1kB</code> (<em>1,000</em> bytes)</li>
+<li><code>1KB</code> or <code>1KiB</code> (<em>1,024</em> bytes)</li>
 <li><code>1MB</code> (<em>1,000,000</em> bytes)</li>
 <li><code>1MiB</code> (<em>1,048,576</em> bytes)</li>
 </ul>
@@ -1443,28 +1443,28 @@ to the upstream for obtaining information and explicitly exclude event
 submission.</p>
 <p>The concurrency of queries is additionally constrained by <code>max_concurrent_requests</code>.</p>
 <h3 id="limitsmax_event_size"><code>limits.max_event_size</code></h3>
-<p><em>String, default: <code>1MB</code></em></p>
+<p><em>String, default: <code>1MiB</code></em></p>
 <p>The maximum payload size for events.</p>
 <h3 id="limitsmax_attachment_size"><code>limits.max_attachment_size</code></h3>
-<p><em>String, default: <code>50Mb</code></em></p>
+<p><em>String, default: <code>50MiB</code></em></p>
 <p>The maximum size for each attachment.</p>
 <h3 id="limitsmax_attachments_size"><code>limits.max_attachments_size</code></h3>
-<p><em>String, default: <code>50Mb</code></em></p>
+<p><em>String, default: <code>50MiB</code></em></p>
 <p>The maximum combined size for all attachments in an envelope or request.</p>
 <h3 id="limitsmax_envelope_size"><code>limits.max_envelope_size</code></h3>
-<p><em>String, default: <code>50Mb</code></em></p>
+<p><em>String, default: <code>50MiB</code></em></p>
 <p>The maximum payload size for an entire envelopes. Individual limits still apply.</p>
 <h3 id="limitsmax_session_count"><code>limits.max_session_count</code></h3>
 <p><em>Integer, default: <code>100</code></em></p>
 <p>The maximum number of session items per envelope.</p>
 <h3 id="limitsmax_api_payload_size"><code>limits.max_api_payload_size</code></h3>
-<p><em>String, default: <code>20MB</code></em></p>
+<p><em>String, default: <code>20MiB</code></em></p>
 <p>The maximum payload size for general API requests.</p>
 <h3 id="limitsmax_api_file_upload_size"><code>limits.max_api_file_upload_size</code></h3>
-<p><em>String, default: <code>40MB</code></em></p>
+<p><em>String, default: <code>40MiB</code></em></p>
 <p>The maximum payload size for file uploads and chunks.</p>
 <h3 id="limitsmax_api_chunk_upload_size"><code>limits.max_api_chunk_upload_size</code></h3>
-<p><em>String, default: <code>100MB</code></em></p>
+<p><em>String, default: <code>100MiB</code></em></p>
 <p>The maximum payload size for chunks</p>
 <h3 id="limitsmax_thread_count"><code>limits.max_thread_count</code></h3>
 <p><em>Integer, default: number of cpus</em></p>
