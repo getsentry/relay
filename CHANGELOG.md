@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Report metrics for connections to the upstream. These metrics are reported under `connector.*` and include information on connection reuse, timeouts and errors. ([#669](https://github.com/getsentry/relay/pull/669))
+
+**Internal**:
+
+- Always create a spans array for transactions in normalization. This allows Sentry to render the spans UI even if the transaction is empty. ([#667](https://github.com/getsentry/relay/pull/667))
+
 ## 20.7.1
 
 - No documented changes.
