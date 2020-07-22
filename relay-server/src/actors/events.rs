@@ -1,11 +1,12 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::io::Cursor;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
-use chrono::{DateTime, Duration as SignedDuration, Utc};
+use chrono::{DateTime, Duration as SignedDuration, TimeZone, Utc};
 use failure::Fail;
 use futures::prelude::*;
 use parking_lot::RwLock;
@@ -754,14 +755,8 @@ impl EventProcessor {
 
     /// Extracts the timestamp from the minidump and uses it as the event timestamp.
     #[cfg(feature = "processing")]
-    fn write_minidump_timestamp(event: &mut Event, minidump_item: &envelope::Item) {
-        use std::time::SystemTime;
-
-        assert_eq!(
-            minidump_item.content_type(),
-            Some(&envelope::ContentType::Minidump)
-        );
-        let cursor = std::io::Cursor::new(minidump_item.payload());
+    fn write_minidump_timestamp(&self, event: &mut Event, minidump_item: &Item) {
+        let cursor = Cursor::new(minidump_item.payload());
         let minidump = match minidump::Minidump::read(cursor) {
             Ok(minidump) => minidump,
             Err(err) => {
@@ -769,10 +764,8 @@ impl EventProcessor {
                 return;
             }
         };
-        let epoch_offset = Duration::from_secs(minidump.header.time_date_stamp.into());
-        let when: DateTime<Utc> = DateTime::from(SystemTime::UNIX_EPOCH + epoch_offset);
-        let event_timestamp = event.timestamp.value_mut();
-        *event_timestamp = Some(when);
+        let timestamp = Utc.timestamp(minidump.header.time_date_stamp.into(), 0);
+        event.timestamp.set_value(Some(timestamp));
     }
 
     /// Adds processing placeholders for special attachments.
@@ -790,12 +783,13 @@ impl EventProcessor {
         let apple_crash_report_attachment = envelope
             .get_item_by(|item| item.attachment_type() == Some(AttachmentType::AppleCrashReport));
 
-        let mut event = state.event.get_or_insert_with(Event::default);
         if let Some(item) = minidump_attachment {
+            let mut event = state.event.get_or_insert_with(Event::default);
             state.metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
             self.write_native_placeholder(&mut event, true);
-            Self::write_minidump_timestamp(&mut event, item);
+            self.write_minidump_timestamp(&mut event, item);
         } else if let Some(item) = apple_crash_report_attachment {
+            let mut event = state.event.get_or_insert_with(Event::default);
             state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
             self.write_native_placeholder(&mut event, false);
         }
