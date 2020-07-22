@@ -698,7 +698,9 @@
 <p>Sentry Relay is a standalone service that allows you to scrub personal
 information and improve event response time. It acts as a middle layer between
 your application and Sentry.io.</p>
-<p><strong>Relay is still work in progress.</strong></p>
+<p><strong>Relay is still work in progress. The default Relay mode is not supported by
+Sentry, so Relay has to be switched into <code>proxy</code> or <code>static</code> mode. See <em><a href="./configuration/modes">Relay
+Modes</a></em> for more information.</strong></p>
 <h2 id="use-cases-for-relay">Use Cases for Relay</h2>
 <p>Relay was designed with a few usage scenarios in mind.</p>
 <h3 id="scrubbing-personally-identifiable-information-pii">Scrubbing Personally Identifiable Information (PII)</h3>
@@ -795,6 +797,8 @@ Options</a>.</p>
 
 <p>You will be using the <code>public_key</code> to register your Relay with the upstream server when running it in <code>managed</code> mode.</p>
 <h3 id="registering-relay-with-sentry">Registering Relay with Sentry</h3>
+<p><strong>This option is not available on Sentry.io. Instead, configure Relay in <code>proxy</code>
+or <code>static</code> mode and skip this step.</strong></p>
 <p>To operate in <code>managed</code> mode, Relay pulls configuration for PII stripping,
 filtering, and rate limiting from your organization and project settings at
 Sentry. Since these settings may contain sensitive information, their access is
