@@ -199,7 +199,7 @@ def mini_sentry(request):
         if sentry.test_failures:
             pytest.fail(
                 "{n} exceptions happened in mini_sentry:\n\n{failures}".format(
-                    n=len(sentry.test_failures, failures=sentry.format_failures())
+                    n=len(sentry.test_failures), failures=sentry.format_failures()
                 )
             )
 
