@@ -299,9 +299,16 @@ def test_minidump_invalid_nested_formdata(mini_sentry, relay):
 def test_minidump_with_processing(
     mini_sentry, relay_with_processing, attachments_consumer, rate_limit
 ):
-    project_id = 42
-    content = b"MDMP content"
-    relay = relay_with_processing()
+    dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
+    with open(dmp_path, "rb") as f:
+        content = f.read()
+
+    relay = relay_with_processing(
+        {
+            # Prevent normalization from overwriting the minidump timestamp
+            "processing": {"max_secs_in_past": 2 ** 32 - 1}
+        }
+    )
 
     project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
 
@@ -320,7 +327,7 @@ def test_minidump_with_processing(
     attachments_consumer = attachments_consumer()
 
     attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
-    relay.send_minidump(project_id=project_id, files=attachments)
+    relay.send_minidump(project_id=42, files=attachments)
 
     attachment = b""
     num_chunks = 0
@@ -337,6 +344,9 @@ def test_minidump_with_processing(
     # Check the placeholder payload
     assert event["platform"] == "native"
     assert event["exception"]["values"][0]["mechanism"]["type"] == "minidump"
+
+    # Check information extracted from the minidump
+    assert event["timestamp"] == 1574692481.0  # 11/25/2019 @ 2:34pm (UTC)
 
     assert list(message["attachments"]) == [
         {
