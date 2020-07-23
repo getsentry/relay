@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
-use chrono::{DateTime, Duration as SignedDuration, TimeZone, Utc};
+use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use futures::prelude::*;
 use parking_lot::RwLock;
@@ -40,6 +40,7 @@ use {
     crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
     crate::service::ServerErrorKind,
     crate::utils::EnvelopeLimiter,
+    chrono::TimeZone,
     failure::ResultExt,
     relay_filter::FilterStatKey,
     relay_general::protocol::IpAddr,
