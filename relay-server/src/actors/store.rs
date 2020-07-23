@@ -8,8 +8,8 @@ use actix::prelude::*;
 use bytes::Bytes;
 use failure::{Fail, ResultExt};
 use rdkafka::error::KafkaError;
-use rdkafka::producer::{BaseRecord, DefaultProducerContext};
-use rdkafka::ClientConfig;
+use rdkafka::producer::{BaseRecord, DeliveryResult, ProducerContext};
+use rdkafka::{ClientConfig, ClientContext};
 use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
 
@@ -23,7 +23,22 @@ use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::metrics::RelayCounters;
 use crate::service::{ServerError, ServerErrorKind};
 
-type ThreadedProducer = rdkafka::producer::ThreadedProducer<DefaultProducerContext>;
+struct CaptureErrorContext;
+
+impl ClientContext for CaptureErrorContext {}
+impl ProducerContext for CaptureErrorContext {
+    type DeliveryOpaque = ();
+    fn delivery(&self, result: &DeliveryResult, _delivery_opaque: Self::DeliveryOpaque) {
+        if let Err((e, _message)) = result {
+            println!("BLABLA Error: {}", e);
+
+            // TODO send a metric
+            // metric!(counter(RelayCounters::EventProtocol) += 1);
+        }
+    }
+}
+
+type ThreadedProducer = rdkafka::producer::ThreadedProducer<CaptureErrorContext>;
 
 lazy_static::lazy_static! {
     static ref NAMESPACE_DID: Uuid =
@@ -61,7 +76,7 @@ impl StoreForwarder {
         }
 
         let producer = client_config
-            .create()
+            .create_with_context(CaptureErrorContext)
             .context(ServerErrorKind::KafkaError)?;
 
         Ok(Self {
