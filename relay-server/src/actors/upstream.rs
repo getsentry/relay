@@ -1,6 +1,7 @@
 //! This actor can be used for sending signed requests to the upstream relay.
 use std::borrow::Cow;
 use std::str;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use ::actix::fut;
@@ -20,12 +21,10 @@ use relay_config::{Config, RelayMode};
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
-// use crate::actors::outcome::SendOutcomes;
-// use crate::actors::project_upstream::GetProjectStates;
+
 use crate::actors::outcome::SendOutcomes;
 use crate::actors::project_upstream::GetProjectStates;
 use crate::utils;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
@@ -357,12 +356,6 @@ pub trait RequestBuilder: 'static {
     fn build_request(self, _: &mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>;
 }
 
-pub trait ResponseTransformer: 'static {
-    type Result: 'static;
-
-    fn transform_response(self, _: ClientResponse) -> Self::Result;
-}
-
 impl RequestBuilder for () {
     fn build_request(
         self,
@@ -384,31 +377,10 @@ where
     }
 }
 
-impl ResponseTransformer for () {
-    type Result = Result<(), UpstreamRequestError>;
-
-    fn transform_response(self, _: ClientResponse) -> Self::Result {
-        Ok(())
-    }
-}
-
-//NOT USED
-impl<F, T: 'static> ResponseTransformer for F
-where
-    F: FnOnce(ClientResponse) -> T + 'static,
-{
-    type Result = T;
-
-    fn transform_response(self, response: ClientResponse) -> Self::Result {
-        self(response)
-    }
-}
-
-pub struct SendRequest<B = (), T = ()> {
+pub struct SendRequest<B = ()> {
     method: Method,
     path: String,
     builder: B,
-    transformer: T,
 }
 
 impl SendRequest {
@@ -417,7 +389,6 @@ impl SendRequest {
             method,
             path: path.into(),
             builder: (),
-            transformer: (),
         }
     }
 
@@ -426,8 +397,8 @@ impl SendRequest {
     }
 }
 
-impl<B, T> SendRequest<B, T> {
-    pub fn build<F>(self, callback: F) -> SendRequest<F, T>
+impl<B> SendRequest<B> {
+    pub fn build<F>(self, callback: F) -> SendRequest<F>
     where
         F: FnOnce(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError> + 'static,
     {
@@ -435,41 +406,31 @@ impl<B, T> SendRequest<B, T> {
             method: self.method,
             path: self.path,
             builder: callback,
-            transformer: self.transformer,
         }
     }
 }
 
-impl<B, R, T: 'static, E: 'static> Message for SendRequest<B, R>
-where
-    R: ResponseTransformer,
-    R::Result: IntoFuture<Item = T, Error = E>,
-{
-    type Result = Result<T, E>;
+impl<B> Message for SendRequest<B> {
+    type Result = Result<(), UpstreamRequestError>;
 }
 
-impl<B, R, T: 'static, E: 'static> Handler<SendRequest<B, R>> for UpstreamRelay
+impl<B> Handler<SendRequest<B>> for UpstreamRelay
 where
     B: RequestBuilder,
-    R: ResponseTransformer,
-    R::Result: IntoFuture<Item = T, Error = E>,
-    T: Send,
-    E: From<UpstreamRequestError> + Send,
 {
-    type Result = ResponseFuture<T, E>;
+    type Result = ResponseFuture<(), UpstreamRequestError>;
 
-    fn handle(&mut self, message: SendRequest<B, R>, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: SendRequest<B>, _ctx: &mut Self::Context) -> Self::Result {
         let SendRequest {
             method,
             path,
             builder,
-            transformer,
         } = message;
 
         Box::new(
             self.send_request(method, path, |b| builder.build_request(b))
                 .from_err()
-                .and_then(|r| transformer.transform_response(r)),
+                .and_then(|_| Ok(())),
         )
     }
 }
@@ -534,16 +495,19 @@ impl WithRequestPriority for SendOutcomes {
         RequestPriority::Low
     }
 }
+
 impl WithRequestPriority for GetProjectStates {
     fn priority() -> RequestPriority {
         RequestPriority::High
     }
 }
+
 impl WithRequestPriority for RegisterRequest {
     fn priority() -> RequestPriority {
         RequestPriority::High
     }
 }
+
 impl WithRequestPriority for RegisterResponse {
     fn priority() -> RequestPriority {
         RequestPriority::High
