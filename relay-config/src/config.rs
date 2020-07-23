@@ -15,7 +15,7 @@ use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, Secre
 use relay_common::{Dsn, Uuid};
 use relay_redis::RedisConfig;
 
-use crate::types::ByteSize;
+use crate::byte_size::ByteSize;
 use crate::upstream::UpstreamDescriptor;
 
 /// Defines the source of a config error
@@ -487,14 +487,14 @@ impl Default for Limits {
         Limits {
             max_concurrent_requests: 100,
             max_concurrent_queries: 5,
-            max_event_size: ByteSize::from_megabytes(1),
-            max_attachment_size: ByteSize::from_megabytes(50),
-            max_attachments_size: ByteSize::from_megabytes(50),
-            max_envelope_size: ByteSize::from_megabytes(50),
+            max_event_size: ByteSize::mebibytes(1),
+            max_attachment_size: ByteSize::mebibytes(100),
+            max_attachments_size: ByteSize::mebibytes(100),
+            max_envelope_size: ByteSize::mebibytes(100),
             max_session_count: 100,
-            max_api_payload_size: ByteSize::from_megabytes(20),
-            max_api_file_upload_size: ByteSize::from_megabytes(40),
-            max_api_chunk_upload_size: ByteSize::from_megabytes(100),
+            max_api_payload_size: ByteSize::mebibytes(20),
+            max_api_file_upload_size: ByteSize::mebibytes(40),
+            max_api_chunk_upload_size: ByteSize::mebibytes(100),
             max_thread_count: num_cpus::get(),
             query_timeout: 30,
             max_connection_rate: 256,
@@ -657,7 +657,7 @@ fn default_max_session_secs_in_past() -> u32 {
 }
 
 fn default_chunk_size() -> ByteSize {
-    ByteSize::from_megabytes(1)
+    ByteSize::mebibytes(1)
 }
 
 fn default_projectconfig_cache_prefix() -> String {
@@ -1227,25 +1227,25 @@ impl Config {
 
     /// Returns the maximum size of an event payload in bytes.
     pub fn max_event_size(&self) -> usize {
-        self.values.limits.max_event_size.as_bytes() as usize
+        self.values.limits.max_event_size.as_bytes()
     }
 
     /// Returns the maximum size of each attachment.
     pub fn max_attachment_size(&self) -> usize {
-        self.values.limits.max_attachment_size.as_bytes() as usize
+        self.values.limits.max_attachment_size.as_bytes()
     }
 
     /// Returns the maxmium combined size of attachments or payloads containing attachments
     /// (minidump, unreal, standalone attachments) in bytes.
     pub fn max_attachments_size(&self) -> usize {
-        self.values.limits.max_attachments_size.as_bytes() as usize
+        self.values.limits.max_attachments_size.as_bytes()
     }
 
     /// Returns the maximum size of an envelope payload in bytes.
     ///
     /// Individual item size limits still apply.
     pub fn max_envelope_size(&self) -> usize {
-        self.values.limits.max_envelope_size.as_bytes() as usize
+        self.values.limits.max_envelope_size.as_bytes()
     }
 
     /// Returns the maximum number of sessions per envelope.
@@ -1255,17 +1255,17 @@ impl Config {
 
     /// Returns the maximum payload size for general API requests.
     pub fn max_api_payload_size(&self) -> usize {
-        self.values.limits.max_api_payload_size.as_bytes() as usize
+        self.values.limits.max_api_payload_size.as_bytes()
     }
 
     /// Returns the maximum payload size for file uploads and chunks.
     pub fn max_api_file_upload_size(&self) -> usize {
-        self.values.limits.max_api_file_upload_size.as_bytes() as usize
+        self.values.limits.max_api_file_upload_size.as_bytes()
     }
 
     /// Returns the maximum payload size for chunks
     pub fn max_api_chunk_upload_size(&self) -> usize {
-        self.values.limits.max_api_chunk_upload_size.as_bytes() as usize
+        self.values.limits.max_api_chunk_upload_size.as_bytes()
     }
 
     /// Returns the maximum number of active requests
@@ -1378,7 +1378,7 @@ impl Config {
 
     /// Chunk size of attachments in bytes.
     pub fn attachment_chunk_size(&self) -> usize {
-        self.values.processing.attachment_chunk_size.as_bytes() as usize
+        self.values.processing.attachment_chunk_size.as_bytes()
     }
 
     /// Default prefix to use when looking up project configs in Redis. This is only done when

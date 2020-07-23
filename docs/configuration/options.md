@@ -155,12 +155,12 @@ Interval for evicting outdated project configs from memory.
 
 ## Size Limits
 
-Controls various HTTP-related limits.  All values are either integers or are human-readable strings of a number
-and a human-readable unit, such as:
+Controls various HTTP-related limits. All values are either integers or are
+human-readable strings of a number and a human-readable unit, such as:
 
 - `500B`
-- `1KB` (*1,000* bytes)
-- `1KiB` (*1,024* bytes)
+- `1kB` (*1,000* bytes)
+- `1KB` or `1KiB` (*1,024* bytes)
 - `1MB` (*1,000,000* bytes)
 - `1MiB` (*1,048,576* bytes)
 
@@ -183,25 +183,25 @@ The concurrency of queries is additionally constrained by `max_concurrent_reques
 
 ### `limits.max_event_size`
 
-*String, default: `1MB`*
+*String, default: `1MiB`*
 
 The maximum payload size for events.
 
 ### `limits.max_attachment_size`
 
-*String, default: `50Mb`*
+*String, default: `50MiB`*
 
 The maximum size for each attachment.
 
 ### `limits.max_attachments_size`
 
-*String, default: `50Mb`*
+*String, default: `50MiB`*
 
 The maximum combined size for all attachments in an envelope or request.
 
 ### `limits.max_envelope_size`
 
-*String, default: `50Mb`*
+*String, default: `50MiB`*
 
 The maximum payload size for an entire envelopes. Individual limits still apply.
 
@@ -213,19 +213,19 @@ The maximum number of session items per envelope.
 
 ### `limits.max_api_payload_size`
 
-*String, default: `20MB`*
+*String, default: `20MiB`*
 
 The maximum payload size for general API requests.
 
 ### `limits.max_api_file_upload_size`
 
-*String, default: `40MB`*
+*String, default: `40MiB`*
 
 The maximum payload size for file uploads and chunks.
 
 ### `limits.max_api_chunk_upload_size`
 
-*String, default: `100MB`*
+*String, default: `100MiB`*
 
 The maximum payload size for chunks
 
