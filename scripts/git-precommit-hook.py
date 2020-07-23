@@ -1,6 +1,6 @@
-#!/usr/bin/env python2
-from __future__ import print_function
+#!/usr/bin/env python3
 import os
+import pathlib
 import sys
 import subprocess
 
@@ -8,43 +8,40 @@ import subprocess
 def has_cargo_fmt():
     """Runs a quick check to see if cargo fmt is installed."""
     try:
-        c = subprocess.Popen(
-            ["cargo", "fmt", "--", "--help"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        return c.wait() == 0
+        c = subprocess.run(["cargo", "fmt", "--", "--help"], capture_output=True)
     except OSError:
         return False
+    else:
+        return c.returncode == 0
 
 
 def get_modified_files():
     """Returns a list of all modified files."""
-    c = subprocess.Popen(
-        ["git", "diff-index", "--cached", "--name-only", "HEAD"], stdout=subprocess.PIPE
+    c = subprocess.run(
+        ["git", "diff-index", "--cached", "--name-only", "HEAD"], capture_output=True
     )
-    return c.communicate()[0].splitlines()
+    return [pathlib.Path(os.fsdecode(p)) for p in c.stdout.splitlines()]
 
 
 def run_format_check(files):
-    rust_files = [x for x in files if x.endswith(".rs") and os.path.isfile(x)]
+    rust_files = [x for x in files if x.suffix == "rs" and x.isfile()]
     if not rust_files:
         return 0
-    rv = subprocess.Popen(
+    ret = subprocess.run(
         ["cargo", "fmt", "--", "--check", "--color=always"] + rust_files
-    ).wait()
-    if rv != 0:
+    )
+    if ret.returncode != 0:
         print("", file=sys.stderr)
         print(
             "\033[1m\033[2minfo: to fix this run `cargo fmt --all` and "
             "commit again\033[0m",
             file=sys.stderr,
         )
-    return rv
+    return ret.returncode
 
 
 def main():
-    if not has_cargo_fmt:
+    if not has_cargo_fmt():
         print("warning: cargo fmt not installed")
         return
     sys.exit(run_format_check(get_modified_files()))
