@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
-use std::io::Cursor;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -756,8 +755,7 @@ impl EventProcessor {
     /// Extracts the timestamp from the minidump and uses it as the event timestamp.
     #[cfg(feature = "processing")]
     fn write_minidump_timestamp(&self, event: &mut Event, minidump_item: &Item) {
-        let cursor = Cursor::new(minidump_item.payload());
-        let minidump = match minidump::Minidump::read(cursor) {
+        let minidump = match minidump::Minidump::read(minidump_item.payload()) {
             Ok(minidump) => minidump,
             Err(err) => {
                 log::debug!("Failed to parse minidump: {:?}", err);
@@ -784,14 +782,14 @@ impl EventProcessor {
             .get_item_by(|item| item.attachment_type() == Some(AttachmentType::AppleCrashReport));
 
         if let Some(item) = minidump_attachment {
-            let mut event = state.event.get_or_insert_with(Event::default);
+            let event = state.event.get_or_insert_with(Event::default);
             state.metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
-            self.write_native_placeholder(&mut event, true);
-            self.write_minidump_timestamp(&mut event, item);
+            self.write_native_placeholder(event, true);
+            self.write_minidump_timestamp(event, item);
         } else if let Some(item) = apple_crash_report_attachment {
-            let mut event = state.event.get_or_insert_with(Event::default);
+            let event = state.event.get_or_insert_with(Event::default);
             state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
-            self.write_native_placeholder(&mut event, false);
+            self.write_native_placeholder(event, false);
         }
 
         Ok(())
