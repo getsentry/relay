@@ -20,8 +20,12 @@ use relay_config::{Config, RelayMode};
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
-
+// use crate::actors::outcome::SendOutcomes;
+// use crate::actors::project_upstream::GetProjectStates;
+use crate::actors::outcome::SendOutcomes;
+use crate::actors::project_upstream::GetProjectStates;
 use crate::utils;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
@@ -133,6 +137,8 @@ pub struct UpstreamRelay {
     backoff: RetryBackoff,
     config: Arc<Config>,
     auth_state: AuthState,
+    max_inflight_requests: usize,
+    num_inflight_requests: Arc<AtomicUsize>,
 }
 
 impl UpstreamRelay {
@@ -141,11 +147,15 @@ impl UpstreamRelay {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             config,
             auth_state: AuthState::Unknown,
+            // TODO get the real value from a config and use it with ClientConnector::limit
+            max_inflight_requests: 100,
+            num_inflight_requests: Arc::new(AtomicUsize::new(0)),
         }
     }
 
     fn assert_authenticated(&self) -> Result<(), UpstreamRequestError> {
         if !self.auth_state.is_authenticated() {
+            self.num_inflight_requests.fetch_add(2, Ordering::AcqRel);
             Err(UpstreamRequestError::NotAuthenticated)
         } else {
             Ok(())
@@ -382,6 +392,7 @@ impl ResponseTransformer for () {
     }
 }
 
+//NOT USED
 impl<F, T: 'static> ResponseTransformer for F
 where
     F: FnOnce(ClientResponse) -> T + 'static,
@@ -505,5 +516,36 @@ impl UpstreamQuery for RegisterResponse {
     }
     fn path(&self) -> Cow<'static, str> {
         Cow::Borrowed("/api/0/relays/register/response/")
+    }
+}
+
+enum RequestPriority {
+    High,
+    Low,
+}
+
+trait WithRequestPriority {
+    fn priority() -> RequestPriority;
+}
+
+//TODO RaduW maybe implement WithRequestPriority with a macro_rules
+impl WithRequestPriority for SendOutcomes {
+    fn priority() -> RequestPriority {
+        RequestPriority::Low
+    }
+}
+impl WithRequestPriority for GetProjectStates {
+    fn priority() -> RequestPriority {
+        RequestPriority::High
+    }
+}
+impl WithRequestPriority for RegisterRequest {
+    fn priority() -> RequestPriority {
+        RequestPriority::High
+    }
+}
+impl WithRequestPriority for RegisterResponse {
+    fn priority() -> RequestPriority {
+        RequestPriority::High
     }
 }
