@@ -39,6 +39,7 @@
 //! [`EventProcessor`]: controller/struct.EventProcessor.html
 //! [`UpstreamRelay`]: controller/struct.UpstreamRelay.html
 
+pub mod connector;
 pub mod controller;
 pub mod events;
 pub mod healthcheck;

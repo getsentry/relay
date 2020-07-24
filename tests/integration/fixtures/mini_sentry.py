@@ -3,7 +3,6 @@ import json
 import uuid
 import types
 
-from pprint import pformat
 from queue import Queue
 
 import pytest
@@ -109,7 +108,9 @@ def mini_sentry(request):
             (
                 "/api/666/store/",
                 AssertionError(
-                    "Relay sent us event: %s" % get_error_message(flask_request.data)
+                    "Relay sent us event: {}".format(
+                        get_error_message(flask_request.data)
+                    ),
                 ),
             )
         )
@@ -194,12 +195,17 @@ def mini_sentry(request):
         sentry.test_failures.append((flask_request.url, e))
         raise e
 
-    @request.addfinalizer
     def reraise_test_failures():
         if sentry.test_failures:
-            raise AssertionError(
-                f"Exceptions happened in mini_sentry: {sentry.format_failures()}"
+            pytest.fail(
+                "{n} exceptions happened in mini_sentry:\n\n{failures}".format(
+                    n=len(sentry.test_failures), failures=sentry.format_failures()
+                )
             )
+
+    # This marker is used by pytest_runtest_call in our conftest.py
+    mark = pytest.mark.extra_failure_checks(checks=[reraise_test_failures])
+    request.node.add_marker(mark)
 
     WSGIRequestHandler.protocol_version = "HTTP/1.1"
     server = WSGIServer(application=app, threaded=True)

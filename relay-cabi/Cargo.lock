@@ -958,7 +958,7 @@ checksum = "26412eb97c6b088a6997e05f69403a802a92d520de2f8e63c2b65f9e0f47c4e8"
 
 [[package]]
 name = "relay-auth"
-version = "20.6.0"
+version = "20.7.2"
 dependencies = [
  "base64",
  "chrono",
@@ -989,7 +989,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "20.6.0"
+version = "20.7.2"
 dependencies = [
  "backoff",
  "cadence",
@@ -1008,7 +1008,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general"
-version = "20.6.0"
+version = "20.7.2"
 dependencies = [
  "bytecount",
  "chrono",
@@ -1042,7 +1042,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general-derive"
-version = "20.6.0"
+version = "20.7.2"
 dependencies = [
  "proc-macro2 1.0.18",
  "quote 1.0.3",

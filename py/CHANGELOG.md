@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Always create a spans array for transactions in normalization. ([#667](https://github.com/getsentry/relay/pull/667))
+
 ## 0.5.11
 
 - Add SpanStatus to span struct. ([#603](https://github.com/getsentry/relay/pull/603))

@@ -54,6 +54,10 @@ development:
   also performed in CI.
 - `make clean`: Removes all build artifacts, the virtualenv and cached files.
 
+For a lot of tests you will need Redis and Kafka running in their respective
+default configuration. `sentry devservices` from
+[sentry](github.com/getsentry/sentry) does this for you.
+
 ### Building and Running
 
 The easiest way to rebuild and run Relay is using `cargo`. Depending on the

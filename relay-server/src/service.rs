@@ -2,7 +2,6 @@ use std::fmt;
 use std::sync::Arc;
 
 use actix::prelude::*;
-use actix_web::client::ClientConnector;
 use actix_web::{server, App};
 use failure::ResultExt;
 use failure::{Backtrace, Context, Fail};
@@ -13,6 +12,7 @@ use relay_common::clone;
 use relay_config::Config;
 use relay_redis::RedisPool;
 
+use crate::actors::connector::MeteredConnector;
 use crate::actors::controller::{Configure, Controller};
 use crate::actors::events::EventManager;
 use crate::actors::healthcheck::Healthcheck;
@@ -301,11 +301,7 @@ pub fn start(config: Config) -> Result<Recipient<server::StopServer>, ServerErro
 
     // Start the connector before creating the ServiceState. The service state will spawn Arbiters
     // that immediately start the authentication process. The connector must be available before.
-    let connector = ClientConnector::default()
-        .limit(config.max_concurrent_requests())
-        .start();
-
-    System::current().registry().set(connector);
+    MeteredConnector::start(config.clone());
 
     let state = ServiceState::start(config.clone())?;
     let mut server = server::new(move || make_app(state.clone()));

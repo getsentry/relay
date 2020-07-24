@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Extract the event `timestamp` from Minidump files during event normalization. ([#662](https://github.com/getsentry/relay/pull/662))
+
+## 20.7.2
+
+**Features**:
+
+- Report metrics for connections to the upstream. These metrics are reported under `connector.*` and include information on connection reuse, timeouts and errors. ([#669](https://github.com/getsentry/relay/pull/669))
+- Increased the maximum size of attachments from _50MiB_ to _100MiB_. Most notably, this allows to upload larger minidumps. ([#671](https://github.com/getsentry/relay/pull/671))
+
+**Internal**:
+
+- Always create a spans array for transactions in normalization. This allows Sentry to render the spans UI even if the transaction is empty. ([#667](https://github.com/getsentry/relay/pull/667))
+
+## 20.7.1
+
+- No documented changes.
+
+## 20.7.0
+
 **Features**:
 
 - Sessions and attachments can be rate limited now. These rate limits apply separately from error events, which means that you can continue to send Release Health sessions while you're out of quota with errors. ([#636](https://github.com/getsentry/relay/pull/636))
