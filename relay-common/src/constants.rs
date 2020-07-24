@@ -5,7 +5,6 @@ use std::str::FromStr;
 
 use failure::Fail;
 #[cfg(feature = "jsonschema")]
-#[cfg(feature = "jsonschema")]
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
