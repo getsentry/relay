@@ -215,6 +215,12 @@ pub enum RelayCounters {
     /// either `event` or `attachment` representing the type of message produced on the Kafka queue.
     #[cfg(feature = "processing")]
     ProcessingMessageProduced,
+    /// Counts the number of producer errors occurred after an event was already enqueued for
+    /// sending to Kafka. These errors might include e.g. MessageTooLarge errors when the broker
+    /// does not accept the requests over a certain size, which is usually due to invalic or
+    /// inconsistent broker/producer configurations.
+    #[cfg(feature = "processing")]
+    ProcessingProduceError,
     /// Counts the number of events that hit any of the Store like endpoints (Store, Security,
     /// MiniDump, Unreal). The events are counted before they are rate limited , filtered or
     /// processed in any way. The counter has a `version` tag that tracks the message event
@@ -265,6 +271,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ServerStarting => "server.starting",
             #[cfg(feature = "processing")]
             RelayCounters::ProcessingMessageProduced => "processing.event.produced",
+            #[cfg(feature = "processing")]
+            RelayCounters::ProcessingProduceError => "processing.produce.error",
             RelayCounters::EventProtocol => "event.protocol",
             RelayCounters::Requests => "requests",
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",

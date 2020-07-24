@@ -1,6 +1,10 @@
 use rdkafka::producer::{DeliveryResult, ProducerContext};
 use rdkafka::ClientContext;
 
+use relay_common::{metric, LogError};
+
+use crate::metrics::RelayCounters;
+
 pub struct CaptureErrorContext;
 
 impl ClientContext for CaptureErrorContext {}
@@ -8,11 +12,10 @@ impl ClientContext for CaptureErrorContext {}
 impl ProducerContext for CaptureErrorContext {
     type DeliveryOpaque = ();
     fn delivery(&self, result: &DeliveryResult, _delivery_opaque: Self::DeliveryOpaque) {
-        if let Err((e, _message)) = result {
-            log::error!("producer error: {}", e);
+        if let Err((error, _message)) = result {
+            log::error!("callback producer error: {}", LogError(error));
 
-            // TODO send a metric
-            // metric!(counter(RelayCounters::EventProtocol) += 1);
+            metric!(counter(RelayCounters::ProcessingProduceError) += 1);
         }
     }
 }
