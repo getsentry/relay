@@ -764,7 +764,7 @@ impl EventProcessor {
             }
         };
         let timestamp = Utc.timestamp(minidump.header.time_date_stamp.into(), 0);
-        event.timestamp.set_value(Some(timestamp));
+        event.timestamp.set_value(Some(timestamp.into()));
     }
 
     /// Adds processing placeholders for special attachments.
