@@ -230,8 +230,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         }
 
         // apply rules based on key/path
-        self.apply_all_rules(meta, state, None)?;
-        Ok(())
+        self.apply_all_rules(meta, state, None)
     }
 
     fn process_string(
