@@ -12,8 +12,7 @@ use crate::pii::compiledconfig::RuleRef;
 use crate::pii::utils::process_pairlist;
 use crate::pii::{CompiledPiiConfig, HashAlgorithm, Redaction, RuleType};
 use crate::processor::{
-    process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, SelectorSpec,
-    ValueType,
+    process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
 use crate::protocol::{AsPair, NativeImagePath, PairList};
 use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
@@ -186,7 +185,12 @@ impl<'a> PiiProcessor<'a> {
         PiiProcessor { compiled_config }
     }
 
-    fn apply_all_rules<'b>(&self, meta: &mut Meta, state: &'b ProcessingState<'b>, mut value: Option<&mut String>) -> ProcessingResult {
+    fn apply_all_rules<'b>(
+        &self,
+        meta: &mut Meta,
+        state: &'b ProcessingState<'b>,
+        mut value: Option<&mut String>,
+    ) -> ProcessingResult {
         let pii = state.attrs().pii;
         if pii == Pii::False {
             return Ok(());
