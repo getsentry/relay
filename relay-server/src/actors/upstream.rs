@@ -1,9 +1,9 @@
 //! This actor can be used for sending signed requests to the upstream relay.
 use std::borrow::Cow;
 use std::collections::VecDeque;
-use std::str;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::{str, thread, time};
 
 use ::actix::fut;
 use ::actix::prelude::*;
@@ -145,104 +145,16 @@ struct UpstreamRequest {
     build: Box<dyn Send + FnOnce(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>>,
 }
 
-pub struct UpstreamRelay {
-    backoff: RetryBackoff,
+/// Structure controlling the http request loop
+struct UpstreamHttpRequestLoopState {
     config: Arc<Config>,
-    auth_state: AuthState,
     max_inflight_requests: usize,
     num_inflight_requests: Arc<AtomicUsize>,
     messages: Arc<Mutex<VecDeque<UpstreamRequest>>>,
 }
 
-impl UpstreamRelay {
-    pub fn new(config: Arc<Config>) -> Self {
-        UpstreamRelay {
-            backoff: RetryBackoff::new(config.http_max_retry_interval()),
-            config,
-            auth_state: AuthState::Unknown,
-            // TODO get the real value from a config and use it with ClientConnector::limit
-            max_inflight_requests: 100,
-            num_inflight_requests: Arc::new(AtomicUsize::new(0)),
-            messages: Arc::new(Mutex::new(VecDeque::new())),
-        }
-    }
-
-    fn assert_authenticated(&self) -> Result<(), UpstreamRequestError> {
-        if !self.auth_state.is_authenticated() {
-            self.num_inflight_requests.fetch_add(2, Ordering::AcqRel);
-            Err(UpstreamRequestError::NotAuthenticated)
-        } else {
-            Ok(())
-        }
-    }
-
-    fn send_request<P, F>(
-        &self,
-        method: Method,
-        path: P,
-        build: F,
-    ) -> ResponseFuture<ClientResponse, UpstreamRequestError>
-    where
-        F: 'static + Send + FnOnce(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>,
-        P: AsRef<str>,
-    {
-        let (tx, rx) = oneshot::channel::<Result<ClientResponse, UpstreamRequestError>>();
-
-        let request = UpstreamRequest {
-            method: method,
-            path: path.as_ref().to_owned(),
-            response_sender: tx,
-            build: Box::new(build),
-        };
-
-        match self.messages.lock() {
-            Ok(mut queue) => queue.push_front(request),
-            Err(_) => log::error!(
-                "Could not access the message queue in UpstreamRelay,\nthread died without releasing the lock."
-            ),
-        }
-
-        let future = rx
-            // map errors caused by the oneshot channel being closed (unlikely)
-            .map_err(|_| UpstreamRequestError::ChannelClosed)
-            //unwrap the result (this is how we transport the http failure through the channel)
-            .and_then(|result| result);
-
-        return Box::new(future);
-    }
-
-    fn send_query<Q: UpstreamQuery>(
-        &self,
-        query: Q,
-    ) -> ResponseFuture<Q::Response, UpstreamRequestError> {
-        let method = query.method();
-        let path = query.path();
-
-        let credentials = tryf!(self
-            .config
-            .credentials()
-            .ok_or(UpstreamRequestError::NoCredentials));
-
-        let (json, signature) = credentials.secret_key.pack(query);
-
-        let max_response_size = self.config.max_api_payload_size();
-
-        let future = self
-            .send_request(method, path, |builder| {
-                builder
-                    .header("X-Sentry-Relay-Signature", signature)
-                    .header(header::CONTENT_TYPE, "application/json")
-                    .body(json)
-            })
-            .and_then(move |r| {
-                r.json()
-                    .limit(max_response_size)
-                    .map_err(UpstreamRequestError::InvalidJson)
-            });
-
-        Box::new(future)
-    }
-    fn request_sender(&self, request: UpstreamRequest) {
+impl UpstreamHttpRequestLoopState {
+    fn send_http_request(&self, request: UpstreamRequest) {
         let UpstreamRequest {
             response_sender,
             method,
@@ -322,6 +234,136 @@ impl UpstreamRelay {
         // TODO RaduW send to the channel on error and on resolve
         // TODO see what to do with the future (spawn it or return it to be spawned by caller)
         // TOOD this should be called from the queue emptying loop
+    }
+}
+
+/// runs the request loop
+fn upstream_http_request_loop(loop_state: UpstreamHttpRequestLoopState) {
+    //TODO should we make this configurable
+    let sleep_time = time::Duration::from_millis(5);
+    loop {
+        // if we have free connections
+        while loop_state.num_inflight_requests.load(Ordering::AcqRel)
+            < loop_state.max_inflight_requests
+        {
+            let mut message = None;
+            match loop_state.messages.lock() {
+                Ok(mut queue) => {
+                    message = queue.pop_back();
+                }
+                Err(_) => {
+                    log::error!(
+                        "Could not access the message queue in UpstreamRelay,\nthread died without releasing the lock."
+                    );
+                    break; //TODO should we panic here ?
+                }
+            }
+
+            // if we have found a message in the queue send it
+            if let Some(message) = message {
+                loop_state.send_http_request(message)
+            }
+        }
+        thread::sleep(sleep_time)
+    }
+}
+
+pub struct UpstreamRelay {
+    backoff: RetryBackoff,
+    config: Arc<Config>,
+    auth_state: AuthState,
+    max_inflight_requests: usize,
+    num_inflight_requests: Arc<AtomicUsize>,
+    messages: Arc<Mutex<VecDeque<UpstreamRequest>>>,
+}
+
+impl UpstreamRelay {
+    pub fn new(config: Arc<Config>) -> Self {
+        UpstreamRelay {
+            backoff: RetryBackoff::new(config.http_max_retry_interval()),
+            config,
+            auth_state: AuthState::Unknown,
+            // TODO get the real value from a config and use it with ClientConnector::limit
+            max_inflight_requests: 100,
+            num_inflight_requests: Arc::new(AtomicUsize::new(0)),
+            messages: Arc::new(Mutex::new(VecDeque::new())),
+        }
+    }
+
+    fn assert_authenticated(&self) -> Result<(), UpstreamRequestError> {
+        if !self.auth_state.is_authenticated() {
+            self.num_inflight_requests.fetch_add(2, Ordering::AcqRel);
+            Err(UpstreamRequestError::NotAuthenticated)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn send_request<P, F>(
+        &self,
+        method: Method,
+        path: P,
+        build: F,
+    ) -> ResponseFuture<ClientResponse, UpstreamRequestError>
+    where
+        F: 'static + Send + FnOnce(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>,
+        P: AsRef<str>,
+    {
+        let (tx, rx) = oneshot::channel::<Result<ClientResponse, UpstreamRequestError>>();
+
+        let request = UpstreamRequest {
+            method: method,
+            path: path.as_ref().to_owned(),
+            response_sender: tx,
+            build: Box::new(build),
+        };
+
+        match self.messages.lock() {
+            Ok(mut queue) => queue.push_front(request),
+            Err(_) => log::error!(
+                "Could not access the message queue in UpstreamRelay,\nthread died without releasing the lock."
+            ),
+        }
+
+        let future = rx
+            // map errors caused by the oneshot channel being closed (unlikely)
+            .map_err(|_| UpstreamRequestError::ChannelClosed)
+            //unwrap the result (this is how we transport the http failure through the channel)
+            .and_then(|result| result);
+
+        Box::new(future)
+    }
+
+    fn send_query<Q: UpstreamQuery>(
+        &self,
+        query: Q,
+    ) -> ResponseFuture<Q::Response, UpstreamRequestError> {
+        let method = query.method();
+        let path = query.path();
+
+        let credentials = tryf!(self
+            .config
+            .credentials()
+            .ok_or(UpstreamRequestError::NoCredentials));
+
+        let (json, signature) = credentials.secret_key.pack(query);
+
+        let max_response_size = self.config.max_api_payload_size();
+
+        let future = self
+            .send_request(method, path, |builder| {
+                builder
+                    .header("X-Sentry-Relay-Signature", signature)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(json)
+            })
+            .and_then(move |r| {
+                r.json()
+                    .limit(max_response_size)
+                    .map_err(UpstreamRequestError::InvalidJson)
+            });
+
+        Box::new(future)
     }
 }
 
