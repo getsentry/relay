@@ -185,10 +185,10 @@ impl<'a> PiiProcessor<'a> {
         PiiProcessor { compiled_config }
     }
 
-    fn apply_all_rules<'b>(
+    fn apply_all_rules(
         &self,
         meta: &mut Meta,
-        state: &'b ProcessingState<'b>,
+        state: &ProcessingState<'_>,
         mut value: Option<&mut String>,
     ) -> ProcessingResult {
         let pii = state.attrs().pii;
@@ -246,8 +246,7 @@ impl<'a> Processor for PiiProcessor<'a> {
 
         // same as before_process. duplicated here because we can only check for "true",
         // "false" etc in process_string.
-        self.apply_all_rules(meta, state, Some(value))?;
-        Ok(())
+        self.apply_all_rules(meta, state, Some(value))
     }
 
     fn process_native_image_path(
