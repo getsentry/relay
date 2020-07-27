@@ -199,7 +199,7 @@ impl_traits!(DebugId, "a debug identifier");
 
 impl<T> From<T> for DebugId
 where
-    T: Into<debugid::DebugId>,
+    debugid::DebugId: From<T>,
 {
     fn from(t: T) -> Self {
         DebugId(t.into())
