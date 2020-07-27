@@ -299,9 +299,16 @@ def test_minidump_invalid_nested_formdata(mini_sentry, relay):
 def test_minidump_with_processing(
     mini_sentry, relay_with_processing, attachments_consumer, rate_limit
 ):
-    project_id = 42
-    content = b"MDMP content"
-    relay = relay_with_processing()
+    dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
+    with open(dmp_path, "rb") as f:
+        content = f.read()
+
+    relay = relay_with_processing(
+        {
+            # Prevent normalization from overwriting the minidump timestamp
+            "processing": {"max_secs_in_past": 2 ** 32 - 1}
+        }
+    )
 
     project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
 
@@ -320,7 +327,53 @@ def test_minidump_with_processing(
     attachments_consumer = attachments_consumer()
 
     attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
-    relay.send_minidump(project_id=project_id, files=attachments)
+    relay.send_minidump(project_id=42, files=attachments)
+
+    attachment = b""
+    num_chunks = 0
+    attachment_id = None
+
+    while attachment != content:
+        chunk, message = attachments_consumer.get_attachment_chunk()
+        attachment_id = attachment_id or message["id"]
+        attachment += chunk
+        num_chunks += 1
+
+    event, message = attachments_consumer.get_event()
+
+    # Check the placeholder payload
+    assert event["platform"] == "native"
+    assert event["exception"]["values"][0]["mechanism"]["type"] == "minidump"
+
+    # Check information extracted from the minidump
+    assert event["timestamp"] == 1574692481.0  # 11/25/2019 @ 2:34pm (UTC)
+
+    assert list(message["attachments"]) == [
+        {
+            "id": attachment_id,
+            "name": "minidump.dmp",
+            "content_type": "application/octet-stream",
+            "attachment_type": "event.minidump",
+            "chunks": num_chunks,
+            "size": len(content),
+            "rate_limited": rate_limit == "attachment",
+        }
+    ]
+
+
+def test_minidump_with_processing_invalid(
+    mini_sentry, relay_with_processing, attachments_consumer
+):
+    content = b"MDMP invalid garbage"
+
+    relay = relay_with_processing()
+
+    project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+
+    attachments_consumer = attachments_consumer()
+
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
+    relay.send_minidump(project_id=42, files=attachments)
 
     attachment = b""
     num_chunks = 0
@@ -346,7 +399,7 @@ def test_minidump_with_processing(
             "attachment_type": "event.minidump",
             "chunks": num_chunks,
             "size": len(content),
-            "rate_limited": rate_limit == "attachment",
+            "rate_limited": False,
         }
     ]
 
