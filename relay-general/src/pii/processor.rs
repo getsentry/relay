@@ -12,8 +12,7 @@ use crate::pii::compiledconfig::RuleRef;
 use crate::pii::utils::process_pairlist;
 use crate::pii::{CompiledPiiConfig, HashAlgorithm, Redaction, RuleType};
 use crate::processor::{
-    process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, SelectorSpec,
-    ValueType,
+    process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
 use crate::protocol::{AsPair, NativeImagePath, PairList};
 use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
@@ -183,53 +182,34 @@ impl<'a> PiiProcessor<'a> {
     pub fn new(compiled_config: &'a CompiledPiiConfig) -> PiiProcessor<'a> {
         // this constructor needs to be cheap... a new PiiProcessor is created for each event. Move
         // any init logic into CompiledPiiConfig::new.
-        //
-        // Note: We accept both `PiiConfig` and `CompiledPiiConfig` because the latter makes more
-        // sense for benchmarks while the former is obviously the cleaner API for relay-server.
         PiiProcessor { compiled_config }
     }
 
-    /// Iterate over all matching rules.
-    fn iter_rules<'b>(&self, state: &'b ProcessingState<'b>) -> RuleIterator<'a, 'b> {
-        RuleIterator {
-            state,
-            application_iter: self.compiled_config.applications.iter(),
-            pending_refs: None,
-        }
-    }
-}
-
-struct RuleIterator<'a, 'b> {
-    state: &'b ProcessingState<'b>,
-    application_iter: std::slice::Iter<'a, (SelectorSpec, BTreeSet<RuleRef>)>,
-    pending_refs: Option<std::collections::btree_set::Iter<'a, RuleRef>>,
-}
-
-impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
-    type Item = &'a RuleRef;
-
-    fn next(&mut self) -> Option<&'a RuleRef> {
-        if self.state.attrs().pii == Pii::False {
-            return None;
+    fn apply_all_rules(
+        &self,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+        mut value: Option<&mut String>,
+    ) -> ProcessingResult {
+        let pii = state.attrs().pii;
+        if pii == Pii::False {
+            return Ok(());
         }
 
-        'outer: loop {
-            if let Some(rv) = self.pending_refs.as_mut().and_then(Iterator::next) {
-                return Some(rv);
+        for (selector, rules) in self.compiled_config.applications.iter() {
+            if pii == Pii::Maybe && !selector.is_specific() {
+                continue;
             }
 
-            while let Some((selector, rules)) = self.application_iter.next() {
-                if self.state.attrs().pii == Pii::Maybe && !selector.is_specific() {
-                    continue;
-                }
-                if self.state.path().matches_selector(selector) {
-                    self.pending_refs = Some(rules.iter());
-                    continue 'outer;
+            if state.path().matches_selector(selector) {
+                for rule in rules {
+                    let reborrowed_value = value.as_deref_mut();
+                    apply_rule_to_value(meta, rule, state.path().key(), reborrowed_value)?;
                 }
             }
-
-            return None;
         }
+
+        Ok(())
     }
 }
 
@@ -250,13 +230,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         }
 
         // apply rules based on key/path
-        for rule in self.iter_rules(state) {
-            match apply_rule_to_value(meta, rule, state.path().key(), None) {
-                Ok(()) => continue,
-                other => return other,
-            }
-        }
-        Ok(())
+        self.apply_all_rules(meta, state, None)
     }
 
     fn process_string(
@@ -271,13 +245,7 @@ impl<'a> Processor for PiiProcessor<'a> {
 
         // same as before_process. duplicated here because we can only check for "true",
         // "false" etc in process_string.
-        for rule in self.iter_rules(state) {
-            match apply_rule_to_value(meta, rule, state.path().key(), Some(value)) {
-                Ok(()) => continue,
-                other => return other,
-            }
-        }
-        Ok(())
+        self.apply_all_rules(meta, state, Some(value))
     }
 
     fn process_native_image_path(
