@@ -68,7 +68,7 @@ Select known parts of the schema using the following:
 * `$logentry` (also applies to the `message` attribute)
 * `$thread` matches a single thread instance in `{"threads": {"values": [...]}}`
 * `$breadcrumb` matches a single breadcrumb in `{"breadcrumbs": [...]}`
-* `$span` matches a trace span
+* `$span` matches a [trace span]
 * `$sdk` matches the SDK context in `{"sdk": ...}`
 
 #### Examples

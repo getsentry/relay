@@ -3,10 +3,10 @@ use std::borrow::Cow;
 use std::fmt;
 use std::iter::{FromIterator, IntoIterator};
 use std::net;
-use std::ops::{Deref, DerefMut};
+use std::ops::{Add, Deref, DerefMut};
 use std::str::FromStr;
 
-use chrono::{DateTime, Datelike, LocalResult, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Duration, LocalResult, NaiveDateTime, TimeZone, Utc};
 use failure::Fail;
 #[cfg(feature = "jsonschema")]
 use schemars::gen::SchemaGenerator;
@@ -885,6 +885,14 @@ impl Deref for Timestamp {
 impl DerefMut for Timestamp {
     fn deref_mut(&mut self) -> &mut <Self as Deref>::Target {
         &mut self.0
+    }
+}
+
+impl Add<Duration> for Timestamp {
+    type Output = Self;
+
+    fn add(self, duration: Duration) -> Self::Output {
+        Timestamp(*self + duration)
     }
 }
 

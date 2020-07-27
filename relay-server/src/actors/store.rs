@@ -15,8 +15,7 @@ use serde::{ser::Error, Serialize};
 
 use relay_common::{metric, ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
-use relay_general::protocol;
-use relay_general::protocol::{EventId, SessionStatus, SessionUpdate};
+use relay_general::protocol::{self, EventId, SessionStatus, SessionUpdate};
 use relay_quotas::Scoping;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};

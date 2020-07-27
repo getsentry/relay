@@ -22,7 +22,6 @@ processing = [
     "relay-redis/impl",
     "symbolic",
 ]
-jsonschema = ["relay-general/jsonschema"]
 
 [dependencies]
 actix = "0.7.9"

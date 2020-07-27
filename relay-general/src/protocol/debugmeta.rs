@@ -1,4 +1,7 @@
-use derive_more::{Deref, Display, FromStr};
+use std::fmt;
+use std::ops::{Deref, DerefMut};
+use std::str::FromStr;
+
 #[cfg(feature = "jsonschema")]
 use schemars::gen::SchemaGenerator;
 #[cfg(feature = "jsonschema")]
@@ -127,7 +130,7 @@ pub struct AppleDebugImage {
 }
 
 macro_rules! impl_traits {
-    ($type:ident, $expectation:literal) => {
+    ($type:ident, $inner:path, $expectation:literal) => {
         #[cfg(feature = "jsonschema")]
         impl schemars::JsonSchema for $type {
             fn schema_name() -> String {
@@ -185,17 +188,45 @@ macro_rules! impl_traits {
         }
 
         impl ProcessValue for $type {}
+
+        impl fmt::Display for $type {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                self.0.fmt(f)
+            }
+        }
+
+        impl FromStr for $type {
+            type Err = <$inner as FromStr>::Err;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                FromStr::from_str(s).map($type)
+            }
+        }
+
+        impl Deref for $type {
+            type Target = $inner;
+
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+
+        impl DerefMut for $type {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.0
+            }
+        }
     };
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Display, FromStr, Deref)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DebugId(pub debugid::DebugId);
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Display, FromStr, Deref)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CodeId(pub debugid::CodeId);
 
-impl_traits!(CodeId, "a code identifier");
-impl_traits!(DebugId, "a debug identifier");
+impl_traits!(CodeId, debugid::CodeId, "a code identifier");
+impl_traits!(DebugId, debugid::DebugId, "a debug identifier");
 
 impl<T> From<T> for DebugId
 where
@@ -208,7 +239,7 @@ where
 
 impl<T> From<T> for CodeId
 where
-    T: Into<debugid::CodeId>,
+    debugid::CodeId: From<T>,
 {
     fn from(t: T) -> Self {
         CodeId(t.into())

@@ -128,7 +128,7 @@ impl Processor for ClockDriftProcessor {
         if let Some(correction) = self.correction {
             // NB: We're not setting the original value here, as this could considerably increase
             // the event's size. Instead, attach an error message to the top-level event.
-            **timestamp = **timestamp + correction.drift;
+            *timestamp = *timestamp + correction.drift;
         }
 
         Ok(())

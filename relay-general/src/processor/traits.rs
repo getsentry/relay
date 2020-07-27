@@ -56,7 +56,6 @@ pub trait Processor: Sized {
     process_method!(process_i64, i64);
     process_method!(process_f64, f64);
     process_method!(process_bool, bool);
-    process_method!(process_timestamp, crate::protocol::Timestamp);
 
     process_method!(process_value, crate::types::Value);
     process_method!(process_array, crate::types::Array<T>);
@@ -68,6 +67,7 @@ pub trait Processor: Sized {
         T: crate::protocol::AsPair
     );
     process_method!(process_values, crate::protocol::Values<T>);
+    process_method!(process_timestamp, crate::protocol::Timestamp);
 
     process_method!(process_event, crate::protocol::Event);
     process_method!(process_exception, crate::protocol::Exception);

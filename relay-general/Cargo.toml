@@ -36,7 +36,6 @@ url = "2.1.1"
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
 relay-common = { path = "../relay-common" }
 schemars = { version = "0.7.1", features = ["uuid", "chrono"], optional = true }
-derive_more = "0.99.5"
 
 [dev-dependencies]
 difference = "2.0.0"
