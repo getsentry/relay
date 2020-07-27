@@ -9,6 +9,9 @@ mod shutdown;
 mod timer;
 
 #[cfg(feature = "processing")]
+mod kafka;
+
+#[cfg(feature = "processing")]
 mod unreal;
 
 pub use self::actix::*;
@@ -20,6 +23,9 @@ pub use self::rate_limits::*;
 pub use self::request::*;
 pub use self::shutdown::*;
 pub use self::timer::*;
+
+#[cfg(feature = "processing")]
+pub use self::kafka::*;
 
 #[cfg(feature = "processing")]
 pub use self::unreal::*;

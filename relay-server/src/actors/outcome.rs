@@ -338,7 +338,7 @@ mod processing {
 
     use failure::{Fail, ResultExt};
     use rdkafka::error::KafkaError;
-    use rdkafka::producer::{BaseRecord, DefaultProducerContext};
+    use rdkafka::producer::BaseRecord;
     use rdkafka::ClientConfig;
     use serde_json::Error as SerdeSerializationError;
 
@@ -347,8 +347,7 @@ mod processing {
 
     use crate::metrics::RelayCounters;
     use crate::service::ServerErrorKind;
-
-    type ThreadedProducer = rdkafka::producer::ThreadedProducer<DefaultProducerContext>;
+    use crate::utils::{CaptureErrorContext, ThreadedProducer};
 
     #[derive(Fail, Debug)]
     pub enum OutcomeError {
@@ -388,7 +387,7 @@ mod processing {
                     client_config.set(config_p.name.as_str(), config_p.value.as_str());
                 }
                 let future_producer = client_config
-                    .create()
+                    .create_with_context(CaptureErrorContext)
                     .context(ServerErrorKind::KafkaError)?;
                 (Some(future_producer), None)
             } else {
