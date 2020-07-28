@@ -214,7 +214,7 @@ impl<'a> PiiProcessor<'a> {
 }
 
 impl<'a> Processor for PiiProcessor<'a> {
-    fn before_process<T: ProcessValue>(
+    fn after_process<T: ProcessValue>(
         &mut self,
         value: Option<&T>,
         meta: &mut Meta,
@@ -539,8 +539,8 @@ use {
     crate::pii::PiiConfig,
     crate::processor::process_value,
     crate::protocol::{
-        Addr, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry, NativeDebugImage,
-        Request,
+        Addr, DebugImage, DebugMeta, Event, ExtraValue, Headers, IpAddr, LogEntry,
+        NativeDebugImage, Request, User,
     },
     crate::types::{Annotated, Object, Value},
 };
@@ -1050,4 +1050,44 @@ fn test_logentry_value_types() {
             .value()
             .is_none());
     }
+}
+
+#[test]
+fn test_ip_address_hashing() {
+    let config = PiiConfig::from_json(
+        r##"
+            {
+                "applications": {
+                    "$user.ip_address": ["@ip:hash"]
+                }
+            }
+        "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        user: Annotated::new(User {
+            ip_address: Annotated::new(IpAddr("127.0.0.1".to_string())),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&compiled);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+    assert_eq!(
+        event
+            .value()
+            .unwrap()
+            .user
+            .value()
+            .unwrap()
+            .ip_address
+            .value()
+            .unwrap()
+            .as_str(),
+        "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
+    );
 }
