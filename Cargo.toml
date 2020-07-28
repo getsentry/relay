@@ -57,3 +57,11 @@ openssl-probe = "0.1.2"
 
 [build-dependencies]
 clap = { version = "2.33.1", default-features = false }
+
+[dev-dependencies]
+anyhow = "1.0.31"
+failure = "0.1.8"
+minidump = { git = "https://github.com/luser/rust-minidump", rev = "4d95707b20bf15fb37de5f6d7ba7d7e0f8ab4afd" }
+paw = "1.0.0"
+scroll = "0.9.0"
+structopt = { version = "0.3.15", features = ["paw"] }
