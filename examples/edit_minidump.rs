@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use failure::Fail;
-use scroll::Pread;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
@@ -23,78 +22,33 @@ fn main(argv: CliArgs) -> Result<()> {
         .context("Failed to read minidump")?;
     println!("{:?}", dump.header.version);
 
-    let mem_list_raw: &[u8] = dump
-        .get_raw_stream(minidump::format::MINIDUMP_STREAM_TYPE::MemoryListStream)
-        .map_err(|e| e.compat())?;
-    println!("{:?}", mem_list_raw);
+    let thread_list: minidump::MinidumpThreadList = dump.get_stream().map_err(|e| e.compat())?;
+    let stack_rvas: Vec<minidump::format::RVA> = thread_list
+        .threads
+        .iter()
+        .map(|t| t.raw.stack.memory.rva)
+        .collect();
 
-    let mut offset = 0;
-    let descriptors: Vec<minidump::format::MINIDUMP_MEMORY_DESCRIPTOR> =
-        read_stream_list(&mut offset, mem_list_raw, dump.endian).map_err(|e| e.compat())?;
-    // println!("{:?}", descriptors);
-
-    // Time to modify the data
-    for location in descriptors {
-        let nulls = vec![0 as u8; location.memory.data_size as usize];
+    let mem_list: minidump::MinidumpMemoryList = dump.get_stream().map_err(|e| e.compat())?;
+    let mem_descriptors: Vec<minidump::format::MINIDUMP_MEMORY_DESCRIPTOR> = mem_list
+        .iter()
+        .filter(|mem| !stack_rvas.contains(&mem.desc.memory.rva))
+        .map(|mem| mem.desc)
+        .collect();
+    let mut count = 0;
+    for mem_desc in mem_descriptors {
+        count += 1;
+        let nulls = vec![0 as u8; mem_desc.memory.data_size as usize];
         let range: std::ops::Range<usize> = std::ops::Range {
-            start: location.memory.rva as usize,
-            end: (location.memory.rva + location.memory.data_size) as usize,
+            start: mem_desc.memory.rva as usize,
+            end: (mem_desc.memory.rva + mem_desc.memory.data_size) as usize,
         };
         let dest = &mut data[range];
         dest.copy_from_slice(nulls.as_slice());
     }
+    println!("Modified {} memory regions", count);
 
     std::fs::write(argv.output, data)?;
 
     Ok(())
-}
-
-fn read_stream_list<'a, T>(
-    offset: &mut usize,
-    bytes: &'a [u8],
-    endian: scroll::Endian,
-) -> Result<Vec<T>, minidump::Error>
-where
-    T: scroll::ctx::TryFromCtx<'a, scroll::Endian, [u8], Error = scroll::Error, Size = usize>,
-    T: scroll::ctx::SizeWith<scroll::Endian, Units = usize>,
-{
-    let u: u32 = bytes
-        .gread_with(offset, endian)
-        .or(Err(minidump::Error::StreamReadFailure))?;
-    let count = u as usize;
-    let counted_size = match count
-        .checked_mul(<T>::size_with(&endian))
-        .and_then(|v| v.checked_add(std::mem::size_of::<u32>()))
-    {
-        Some(s) => s,
-        None => return Err(minidump::Error::StreamReadFailure),
-    };
-    if bytes.len() < counted_size {
-        return Err(minidump::Error::StreamSizeMismatch {
-            expected: counted_size,
-            actual: bytes.len(),
-        });
-    }
-    match bytes.len() - counted_size {
-        0 => {}
-        4 => {
-            // 4 bytes of padding.
-            *offset += 4;
-        }
-        _ => {
-            return Err(minidump::Error::StreamSizeMismatch {
-                expected: counted_size,
-                actual: bytes.len(),
-            })
-        }
-    };
-    // read count T raw stream entries
-    let mut raw_entries = Vec::with_capacity(count);
-    for _ in 0..count {
-        let raw: T = bytes
-            .gread_with(offset, endian)
-            .or(Err(minidump::Error::StreamReadFailure))?;
-        raw_entries.push(raw);
-    }
-    Ok(raw_entries)
 }
