@@ -14,7 +14,6 @@ pub struct Span {
     pub start_timestamp: Annotated<Timestamp>,
 
     /// Human readable description of a span (e.g. method URL).
-    #[metastructure(max_chars = "summary")]
     #[metastructure(pii = "maybe")]
     pub description: Annotated<String>,
 

@@ -8,7 +8,7 @@ use actix::prelude::*;
 use bytes::Bytes;
 use failure::{Fail, ResultExt};
 use rdkafka::error::KafkaError;
-use rdkafka::producer::{BaseRecord, DefaultProducerContext};
+use rdkafka::producer::BaseRecord;
 use rdkafka::ClientConfig;
 use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
@@ -21,8 +21,7 @@ use relay_quotas::Scoping;
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::metrics::RelayCounters;
 use crate::service::{ServerError, ServerErrorKind};
-
-type ThreadedProducer = rdkafka::producer::ThreadedProducer<DefaultProducerContext>;
+use crate::utils::{CaptureErrorContext, ThreadedProducer};
 
 lazy_static::lazy_static! {
     static ref NAMESPACE_DID: Uuid =
@@ -60,7 +59,7 @@ impl StoreForwarder {
         }
 
         let producer = client_config
-            .create()
+            .create_with_context(CaptureErrorContext)
             .context(ServerErrorKind::KafkaError)?;
 
         Ok(Self {

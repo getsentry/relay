@@ -101,10 +101,12 @@ pub struct ReadRequestMiddleware;
 
 impl<S> Middleware<S> for ReadRequestMiddleware {
     fn response(&self, req: &HttpRequest<S>, resp: HttpResponse) -> Result<Response, Error> {
-        let consume_request = req.payload().for_each(|_| Ok(()));
+        let future = req
+            .payload()
+            .for_each(|_| Ok(()))
+            .map(|_| resp)
+            .map_err(Error::from);
 
-        Ok(Response::Future(Box::new(
-            consume_request.map(|_| resp).map_err(Error::from),
-        )))
+        Ok(Response::Future(Box::new(future)))
     }
 }
