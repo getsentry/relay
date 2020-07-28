@@ -37,14 +37,14 @@ pub type OutcomeProducer = processing::ProcessingOutcomeProducer;
 pub type OutcomeProducer = HttpOutcomeProducer;
 
 /// Defines the structure of the HTTP outcomes requests
-#[derive(Deserialize, Serialize, Debug, Default)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub struct SendOutcomes {
     #[serde(default)]
     pub outcomes: Vec<TrackRawOutcome>,
 }
 
 impl UpstreamQuery for SendOutcomes {
-    type Response = SendOutcomes;
+    type Response = SendOutcomesResponse;
 
     fn method(&self) -> Method {
         Method::POST
@@ -56,7 +56,7 @@ impl UpstreamQuery for SendOutcomes {
 }
 
 /// Defines the structure of the HTTP outcomes responses for successful requests
-#[derive(Serialize, Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct SendOutcomesResponse {
     // nothing yet, future features will go here
 }
