@@ -6,8 +6,9 @@ use std::sync::Arc;
 use ::actix::fut;
 use ::actix::prelude::*;
 use actix_web::client::{ClientRequest, ClientRequestBuilder, ClientResponse, SendRequestError};
+use actix_web::error::{JsonPayloadError, PayloadError};
 use actix_web::http::{header, Method, StatusCode};
-use actix_web::{error::JsonPayloadError, Error as ActixError, HttpMessage};
+use actix_web::{Error as ActixError, HttpMessage};
 use failure::Fail;
 use futures::prelude::*;
 use itertools::Itertools;
@@ -39,6 +40,9 @@ pub enum UpstreamRequestError {
 
     #[fail(display = "failed to create upstream request: {}", _0)]
     BuildFailed(ActixError),
+
+    #[fail(display = "failed to receive response from upstream")]
+    ResponseFailed(#[cause] PayloadError),
 
     #[fail(display = "upstream requests rate limited")]
     RateLimited(UpstreamRateLimits),
@@ -375,10 +379,15 @@ where
 }
 
 impl ResponseTransformer for () {
-    type Result = Result<(), UpstreamRequestError>;
+    type Result = ResponseFuture<(), UpstreamRequestError>;
 
-    fn transform_response(self, _: ClientResponse) -> Self::Result {
-        Ok(())
+    fn transform_response(self, response: ClientResponse) -> Self::Result {
+        let future = response
+            .payload()
+            .for_each(|_| Ok(()))
+            .map_err(UpstreamRequestError::ResponseFailed);
+
+        Box::new(future)
     }
 }
 
