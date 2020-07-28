@@ -3,8 +3,8 @@ use std::time::Duration;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::protocol::{Event, SessionUpdate};
-use crate::types::{Error, ErrorKind, Meta, ProcessingResult, Timestamp};
+use crate::protocol::{Event, SessionUpdate, Timestamp};
+use crate::types::{Error, ErrorKind, Meta, ProcessingResult};
 
 /// A signed correction that contains the sender's timestamp as well as the drift to the receiver.
 #[derive(Clone, Copy, Debug)]
@@ -150,8 +150,8 @@ mod tests {
     fn create_transaction(start: DateTime<Utc>, end: DateTime<Utc>) -> Annotated<Event> {
         Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(end),
-            start_timestamp: Annotated::new(start),
+            timestamp: Annotated::new(end.into()),
+            start_timestamp: Annotated::new(start.into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(

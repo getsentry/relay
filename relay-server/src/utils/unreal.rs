@@ -4,7 +4,8 @@ use symbolic::unreal::{
 
 use relay_general::protocol::{
     AsPair, Breadcrumb, Context, Contexts, DeviceContext, Event, EventId, GpuContext,
-    LenientString, LogEntry, Message, OsContext, TagEntry, Tags, User, UserReport, Values,
+    LenientString, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp, User, UserReport,
+    Values,
 };
 use relay_general::types::{self, Annotated, Array, Object, Value};
 
@@ -97,7 +98,7 @@ fn merge_unreal_logs(event: &mut Event, data: &[u8]) -> Result<(), Unreal4Error>
 
     for log in logs {
         breadcrumbs.push(Annotated::new(Breadcrumb {
-            timestamp: Annotated::from(log.timestamp),
+            timestamp: Annotated::from(log.timestamp.map(Timestamp)),
             category: Annotated::from(log.component),
             message: Annotated::new(log.message),
             ..Breadcrumb::default()

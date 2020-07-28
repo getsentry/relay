@@ -17,7 +17,7 @@ use relay_general::pii::PiiProcessor;
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, LenientString,
-    Metrics, SecurityReportType, SessionUpdate, Values,
+    Metrics, SecurityReportType, SessionUpdate, Timestamp, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
@@ -764,7 +764,7 @@ impl EventProcessor {
             }
         };
         let timestamp = Utc.timestamp(minidump.header.time_date_stamp.into(), 0);
-        event.timestamp.set_value(Some(timestamp));
+        event.timestamp.set_value(Some(timestamp.into()));
     }
 
     /// Adds processing placeholders for special attachments.
@@ -836,7 +836,7 @@ impl EventProcessor {
         // should be removed as soon as legacy ingestion has been removed.
         let sent_at = match envelope.sent_at() {
             Some(sent_at) => Some(sent_at),
-            None if is_transaction => event.timestamp.value().copied(),
+            None if is_transaction => event.timestamp.value().copied().map(Timestamp::into_inner),
             None => None,
         };
 

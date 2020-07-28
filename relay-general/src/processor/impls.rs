@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
@@ -101,26 +100,6 @@ impl ProcessValue for f64 {
         P: Processor,
     {
         processor.process_f64(self, meta, state)
-    }
-}
-
-impl ProcessValue for DateTime<Utc> {
-    #[inline]
-    fn value_type(&self) -> Option<ValueType> {
-        Some(ValueType::DateTime)
-    }
-
-    #[inline]
-    fn process_value<P>(
-        &mut self,
-        meta: &mut Meta,
-        processor: &mut P,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult
-    where
-        P: Processor,
-    {
-        processor.process_timestamp(self, meta, state)
     }
 }
 

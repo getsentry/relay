@@ -1,17 +1,18 @@
 use std::fmt;
 use std::str::FromStr;
 
-use chrono::{DateTime, Utc};
-use serde::{Serialize, Serializer};
+#[cfg(feature = "jsonschema")]
+use schemars::gen::SchemaGenerator;
+#[cfg(feature = "jsonschema")]
+use schemars::schema::Schema;
 
-#[cfg(test)]
-use chrono::TimeZone;
+use serde::{Serialize, Serializer};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt, ExpectStaple,
     Fingerprint, Hpkp, LenientString, Level, LogEntry, Metrics, Request, Span, Stacktrace, Tags,
-    TemplateInfo, Thread, User, Values,
+    TemplateInfo, Thread, Timestamp, User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
@@ -19,6 +20,7 @@ use crate::types::{
 
 /// Wrapper around a UUID with slightly different formatting.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct EventId(pub uuid::Uuid);
 
 impl EventId {
@@ -110,6 +112,21 @@ impl ProcessValue for EventType {}
 #[derive(Debug, FromValue, ToValue, ProcessValue, Empty, Clone, PartialEq)]
 pub struct ExtraValue(#[metastructure(bag_size = "larger")] pub Value);
 
+#[cfg(feature = "jsonschema")]
+impl schemars::JsonSchema for ExtraValue {
+    fn schema_name() -> String {
+        Value::schema_name()
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        Value::json_schema(gen)
+    }
+
+    fn is_referenceable() -> bool {
+        false
+    }
+}
+
 impl<T: Into<Value>> From<T> for ExtraValue {
     fn from(value: T) -> ExtraValue {
         ExtraValue(value.into())
@@ -118,9 +135,10 @@ impl<T: Into<Value>> From<T> for ExtraValue {
 
 /// An event processing error.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct EventProcessingError {
-    #[metastructure(field = "type", required = "true")]
     /// The error kind.
+    #[metastructure(field = "type", required = "true")]
     pub ty: Annotated<String>,
 
     /// Affected key or deep path.
@@ -149,6 +167,7 @@ pub struct GroupingConfig {
 
 /// The sentry v7 event structure.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_event", value_type = "Event")]
 pub struct Event {
     /// Unique identifier of this event.
@@ -200,13 +219,13 @@ pub struct Event {
     pub platform: Annotated<String>,
 
     /// Timestamp when the event was created.
-    pub timestamp: Annotated<DateTime<Utc>>,
+    pub timestamp: Annotated<Timestamp>,
 
     /// Timestamp when the event has started (relevant for event type = "transaction")
-    pub start_timestamp: Annotated<DateTime<Utc>>,
+    pub start_timestamp: Annotated<Timestamp>,
 
     /// Timestamp when the event has been received by Sentry.
-    pub received: Annotated<DateTime<Utc>>,
+    pub received: Annotated<Timestamp>,
 
     /// Server or device name the event was generated on.
     #[metastructure(pii = "true", max_chars = "symbol")]
@@ -270,13 +289,18 @@ pub struct Event {
     #[metastructure(skip_serialization = "empty")]
     pub exceptions: Annotated<Values<Exception>>,
 
-    /// Deprecated event stacktrace.
+    /// Event stacktrace.
+    ///
+    /// DEPRECATED: Prefer `threads` or `exception` depending on which is more appropriate.
     #[metastructure(skip_serialization = "empty")]
     #[metastructure(legacy_alias = "sentry.interfaces.Stacktrace")]
     pub stacktrace: Annotated<Stacktrace>,
 
     /// Simplified template error location information.
+    /// DEPRECATED: Non-Raven clients are not supposed to send this anymore, but rather just report
+    /// synthetic frames.
     #[metastructure(legacy_alias = "sentry.interfaces.Template")]
+    #[metastructure(omit_from_schema)]
     pub template: Annotated<TemplateInfo>,
 
     /// Threads that were active when the event occurred.
@@ -313,26 +337,32 @@ pub struct Event {
     pub project: Annotated<u64>,
 
     /// The grouping configuration for this event.
+    #[metastructure(omit_from_schema)]
     pub grouping_config: Annotated<Object<Value>>,
 
     /// Legacy checksum used for grouping before fingerprint hashes.
     #[metastructure(max_chars = "hash")]
+    #[metastructure(omit_from_schema)]
     pub checksum: Annotated<String>,
 
     /// CSP (security) reports.
     #[metastructure(legacy_alias = "sentry.interfaces.Csp")]
+    #[metastructure(omit_from_schema)]
     pub csp: Annotated<Csp>,
 
     /// HPKP (security) reports.
     #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.Hpkp")]
+    #[metastructure(omit_from_schema)]
     pub hpkp: Annotated<Hpkp>,
 
     /// ExpectCT (security) reports.
     #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.ExpectCT")]
+    #[metastructure(omit_from_schema)]
     pub expectct: Annotated<ExpectCt>,
 
     /// ExpectStaple (security) reports.
     #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.ExpectStaple")]
+    #[metastructure(omit_from_schema)]
     pub expectstaple: Annotated<ExpectStaple>,
 
     /// Spans for tracing.
@@ -341,6 +371,7 @@ pub struct Event {
     /// Internal ingestion and processing metrics.
     ///
     /// This value should not be ingested and will be overwritten by the store normalizer.
+    #[metastructure(omit_from_schema)]
     pub _metrics: Annotated<Metrics>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -350,6 +381,8 @@ pub struct Event {
 
 #[test]
 fn test_event_roundtrip() {
+    use chrono::{TimeZone, Utc};
+
     use crate::protocol::TagEntry;
     use crate::types::{Map, Meta};
 
@@ -416,7 +449,7 @@ fn test_event_roundtrip() {
             Annotated::new(map)
         },
         platform: Annotated::new("myplatform".to_string()),
-        timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0)),
+        timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
         server_name: Annotated::new("myhost".to_string()),
         release: Annotated::new("myrelease".to_string().into()),
         dist: Annotated::new("mydist".to_string()),

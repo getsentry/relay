@@ -16,3 +16,7 @@ target
 # Editors
 /.idea/
 .DS_Store
+
+# NPM utilities for building docs
+/node_modules/
+package-lock.json

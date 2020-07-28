@@ -1,4 +1,13 @@
-use debugid::{CodeId, DebugId};
+use std::fmt;
+use std::ops::{Deref, DerefMut};
+use std::str::FromStr;
+
+#[cfg(feature = "jsonschema")]
+use schemars::gen::SchemaGenerator;
+#[cfg(feature = "jsonschema")]
+use schemars::schema::Schema;
+
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::processor::{ProcessValue, ProcessingState, Processor, ValueType};
@@ -13,6 +22,7 @@ use crate::types::{
 ///
 /// Those strings get special treatment in our PII processor to avoid stripping the basename.
 #[derive(Debug, FromValue, ToValue, Empty, Clone, PartialEq)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct NativeImagePath(pub String);
 
 impl NativeImagePath {
@@ -63,6 +73,7 @@ impl ProcessValue for NativeImagePath {
 /// This is relevant for iOS and other platforms that have a system
 /// SDK.  Not to be confused with the client SDK.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SystemSdkInfo {
     /// The internal name of the SDK.
     pub sdk_name: Annotated<String>,
@@ -83,6 +94,7 @@ pub struct SystemSdkInfo {
 
 /// Apple debug image in
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct AppleDebugImage {
     /// Path and name of the debug image (required).
     #[metastructure(required = "true")]
@@ -118,7 +130,18 @@ pub struct AppleDebugImage {
 }
 
 macro_rules! impl_traits {
-    ($type:ty, $expectation:literal) => {
+    ($type:ident, $inner:path, $expectation:literal) => {
+        #[cfg(feature = "jsonschema")]
+        impl schemars::JsonSchema for $type {
+            fn schema_name() -> String {
+                stringify!($type).to_owned()
+            }
+
+            fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+                String::json_schema(gen)
+            }
+        }
+
         impl Empty for $type {
             #[inline]
             fn is_empty(&self) -> bool {
@@ -165,14 +188,67 @@ macro_rules! impl_traits {
         }
 
         impl ProcessValue for $type {}
+
+        impl fmt::Display for $type {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                self.0.fmt(f)
+            }
+        }
+
+        impl FromStr for $type {
+            type Err = <$inner as FromStr>::Err;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                FromStr::from_str(s).map($type)
+            }
+        }
+
+        impl Deref for $type {
+            type Target = $inner;
+
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+
+        impl DerefMut for $type {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.0
+            }
+        }
     };
 }
 
-impl_traits!(CodeId, "a code identifier");
-impl_traits!(DebugId, "a debug identifier");
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DebugId(pub debugid::DebugId);
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CodeId(pub debugid::CodeId);
+
+impl_traits!(CodeId, debugid::CodeId, "a code identifier");
+impl_traits!(DebugId, debugid::DebugId, "a debug identifier");
+
+impl<T> From<T> for DebugId
+where
+    debugid::DebugId: From<T>,
+{
+    fn from(t: T) -> Self {
+        DebugId(t.into())
+    }
+}
+
+impl<T> From<T> for CodeId
+where
+    debugid::CodeId: From<T>,
+{
+    fn from(t: T) -> Self {
+        CodeId(t.into())
+    }
+}
 
 /// A native platform debug information file.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct NativeDebugImage {
     /// Optional identifier of the code file.
     ///
@@ -213,6 +289,7 @@ pub struct NativeDebugImage {
 
 /// Proguard mapping file.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ProguardDebugImage {
     /// UUID computed from the file contents.
     #[metastructure(required = "true")]
@@ -225,6 +302,7 @@ pub struct ProguardDebugImage {
 
 /// A debug information file (debug image).
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_debug_image")]
 pub enum DebugImage {
     /// Legacy apple debug images (MachO).
@@ -248,6 +326,7 @@ pub enum DebugImage {
 
 /// Debugging and processing meta information.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_debug_meta")]
 pub struct DebugMeta {
     /// Information about the system SDK (e.g. iOS SDK).

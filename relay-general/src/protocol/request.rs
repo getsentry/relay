@@ -10,6 +10,7 @@ type CookieEntry = Annotated<(Annotated<String>, Annotated<String>)>;
 
 /// A map holding cookies.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Cookies(pub PairList<(Annotated<String>, Annotated<String>)>);
 
 impl Cookies {
@@ -84,6 +85,7 @@ impl FromValue for Cookies {
 
 /// A "into-string" type that normalizes header names.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_header_name")]
 pub struct HeaderName(String);
 
@@ -156,6 +158,7 @@ impl FromValue for HeaderName {
 
 /// A "into-string" type that normalizes header values.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct HeaderValue(String);
 
 impl HeaderValue {
@@ -225,6 +228,7 @@ impl FromValue for HeaderValue {
 
 /// A map holding headers.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Headers(pub PairList<(Annotated<HeaderName>, Annotated<HeaderValue>)>);
 
 impl Headers {
@@ -279,6 +283,7 @@ impl FromValue for Headers {
 
 /// A map holding query string pairs.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Query(pub PairList<(Annotated<String>, Annotated<JsonLenientString>)>);
 
 impl Query {
@@ -343,6 +348,7 @@ impl FromValue for Query {
 
 /// Http request information.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_request", value_type = "Request")]
 pub struct Request {
     /// URL of the request.

@@ -6,6 +6,7 @@ use crate::types::Annotated;
 /// These values are collected in Relay and Sentry and finally persisted into the event payload. A
 /// value of `0` is equivalent to N/A and should not be considered in aggregations and analysis.
 #[derive(Clone, Debug, Default, Empty, PartialEq, FromValue, ToValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Metrics {
     /// The size of the original event payload ingested into Sentry.
     ///
