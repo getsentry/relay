@@ -11,8 +11,8 @@ license-file = "../LICENSE"
 publish = false
 
 [features]
-default = ["with_ssl"]
-with_ssl = ["native-tls", "actix-web/tls"]
+default = ["ssl"]
+ssl = ["native-tls", "actix-web/tls"]
 processing = [
     "minidump",
     "rdkafka",
