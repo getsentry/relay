@@ -131,7 +131,7 @@ impl<'a> NormalizeProcessor<'a> {
 
         event.timestamp.apply(|timestamp, _meta| {
             if let Some(secs) = self.config.max_secs_in_future {
-                if **timestamp > received_at + Duration::seconds(secs) {
+                if *timestamp > received_at + Duration::seconds(secs) {
                     error_kind = ErrorKind::FutureTimestamp;
                     sent_at = Some(*timestamp);
                     return Ok(());
@@ -139,7 +139,7 @@ impl<'a> NormalizeProcessor<'a> {
             }
 
             if let Some(secs) = self.config.max_secs_in_past {
-                if **timestamp < received_at - Duration::seconds(secs) {
+                if *timestamp < received_at - Duration::seconds(secs) {
                     error_kind = ErrorKind::PastTimestamp;
                     sent_at = Some(*timestamp);
                     return Ok(());

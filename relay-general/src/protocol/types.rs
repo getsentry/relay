@@ -5,6 +5,7 @@ use std::iter::{FromIterator, IntoIterator};
 use std::net;
 use std::ops::{Add, Deref, DerefMut};
 use std::str::FromStr;
+use std::cmp::Ordering;
 
 use chrono::{DateTime, Datelike, Duration, LocalResult, NaiveDateTime, TimeZone, Utc};
 use failure::Fail;
@@ -892,7 +893,25 @@ impl Add<Duration> for Timestamp {
     type Output = Self;
 
     fn add(self, duration: Duration) -> Self::Output {
-        Timestamp(*self + duration)
+        Timestamp(self.0 + duration)
+    }
+}
+
+impl PartialEq<DateTime<Utc>> for Timestamp {
+    fn eq(&self, other: &DateTime<Utc>) -> bool {
+        &self.0 == other
+    }
+}
+
+impl PartialOrd<DateTime<Utc>> for Timestamp {
+    fn partial_cmp(&self, other: &DateTime<Utc>) -> Option<Ordering> {
+        self.0.partial_cmp(other)
+    }
+}
+
+impl fmt::Display for Timestamp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 

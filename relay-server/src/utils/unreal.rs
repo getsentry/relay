@@ -386,7 +386,7 @@ mod tests {
         assert_eq!(breadcrumbs.len(), 4);
         let first_message = breadcrumbs[0].value().unwrap();
 
-        let timestamp_str = format!("{}", **first_message.timestamp.value().unwrap());
+        let timestamp_str = format!("{}", first_message.timestamp.value().unwrap());
         assert_eq!(timestamp_str, "2018-10-29 16:56:38 UTC");
 
         let category = first_message.category.value().unwrap().as_str();

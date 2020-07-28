@@ -184,8 +184,8 @@ mod tests {
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
-        assert_eq!(**event.timestamp.value().unwrap(), end);
-        assert_eq!(**event.start_timestamp.value().unwrap(), start);
+        assert_eq!(*event.timestamp.value().unwrap(), end);
+        assert_eq!(*event.start_timestamp.value().unwrap(), start);
     }
 
     #[test]
@@ -201,8 +201,8 @@ mod tests {
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
-        assert_eq!(**event.timestamp.value().unwrap(), end);
-        assert_eq!(**event.start_timestamp.value().unwrap(), start);
+        assert_eq!(*event.timestamp.value().unwrap(), end);
+        assert_eq!(*event.start_timestamp.value().unwrap(), start);
     }
 
     #[test]
@@ -220,8 +220,8 @@ mod tests {
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
-        assert_eq!(**event.timestamp.value().unwrap(), end);
-        assert_eq!(**event.start_timestamp.value().unwrap(), start);
+        assert_eq!(*event.timestamp.value().unwrap(), end);
+        assert_eq!(*event.start_timestamp.value().unwrap(), start);
     }
 
     #[test]
@@ -238,8 +238,8 @@ mod tests {
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
-        assert_eq!(**event.timestamp.value().unwrap(), now);
-        assert_eq!(**event.start_timestamp.value().unwrap(), start + drift);
+        assert_eq!(*event.timestamp.value().unwrap(), now);
+        assert_eq!(*event.start_timestamp.value().unwrap(), start + drift);
     }
 
     #[test]
@@ -256,7 +256,7 @@ mod tests {
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
-        assert_eq!(**event.timestamp.value().unwrap(), now);
-        assert_eq!(**event.start_timestamp.value().unwrap(), start + drift);
+        assert_eq!(*event.timestamp.value().unwrap(), now);
+        assert_eq!(*event.start_timestamp.value().unwrap(), start + drift);
     }
 }
