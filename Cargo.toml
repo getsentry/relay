@@ -23,7 +23,7 @@ exclude = [
 [workspace]
 
 [features]
-default = []
+default = ["ssl"]
 ssl = ["relay-server/ssl"]
 processing = ["relay-server/processing"]
 
