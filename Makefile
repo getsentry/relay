@@ -1,6 +1,6 @@
 SHELL=/bin/bash
 export RELAY_PYTHON_VERSION := python3.7
-export RELAY_FEATURES := with_ssl
+export RELAY_FEATURES := ssl
 
 all: check test
 .PHONY: all

@@ -23,8 +23,8 @@ exclude = [
 [workspace]
 
 [features]
-default = []
-with_ssl = ["relay-server/with_ssl"]
+default = ["ssl"]
+ssl = ["relay-server/ssl"]
 processing = ["relay-server/processing"]
 
 [profile.release]
