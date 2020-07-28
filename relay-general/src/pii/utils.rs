@@ -41,3 +41,18 @@ pub fn process_pairlist<P: Processor, T: ProcessValue + AsPair>(
 
     Ok(())
 }
+
+
+pub fn in_range(range: (Option<i32>, Option<i32>), pos: usize, len: usize) -> bool {
+    fn get_range_index(idx: Option<i32>, len: usize, default: usize) -> usize {
+        match idx {
+            None => default,
+            Some(idx) if idx < 0 => len.saturating_sub(-idx as usize),
+            Some(idx) => cmp::min(idx as usize, len),
+        }
+    }
+
+    let start = get_range_index(range.0, len, 0);
+    let end = get_range_index(range.1, len, len);
+    pos >= start && pos < end
+}
