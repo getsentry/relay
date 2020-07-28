@@ -18,6 +18,7 @@ pub struct UnknownValueTypeError;
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum ValueType {
     String,
+    Binary,
     Number,
     Boolean,
     DateTime,
@@ -45,6 +46,7 @@ impl ValueType {
     pub fn name(self) -> &'static str {
         match self {
             ValueType::String => "string",
+            ValueType::Binary => "binary",
             ValueType::Number => "number",
             ValueType::Boolean => "boolean",
             ValueType::DateTime => "datetime",
@@ -78,6 +80,7 @@ impl FromStr for ValueType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             "string" => ValueType::String,
+            "binary" => ValueType::Binary,
             "number" => ValueType::Number,
             "bool" | "boolean" => ValueType::Boolean,
             "datetime" => ValueType::DateTime,
