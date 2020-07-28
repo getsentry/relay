@@ -8,9 +8,11 @@ fn send_outcomes(state: CurrentServiceState, body: SignedJson<SendOutcomes>) -> 
     if !body.relay.internal || !state.config().emit_outcomes() {
         return HttpResponse::Forbidden().finish();
     }
+
     for outcome in body.inner.outcomes {
         state.outcome_producer().do_send(outcome);
     }
+
     HttpResponse::Accepted().json(SendOutcomesResponse {})
 }
 
