@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Always create a spans array for transactions in normalization. ([#667](https://github.com/getsentry/relay/pull/667))
+- Retain the full span description in transaction events instead of trimming it. ([#674](https://github.com/getsentry/relay/pull/674))
 
 ## 0.5.11
 
