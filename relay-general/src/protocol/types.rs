@@ -1,11 +1,11 @@
 //! Common types of the protocol.
 use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::fmt;
 use std::iter::{FromIterator, IntoIterator};
 use std::net;
 use std::ops::{Add, Deref, DerefMut};
 use std::str::FromStr;
-use std::cmp::Ordering;
 
 use chrono::{DateTime, Datelike, Duration, LocalResult, NaiveDateTime, TimeZone, Utc};
 use failure::Fail;
@@ -848,6 +848,12 @@ impl From<String> for JsonLenientString {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Timestamp(pub DateTime<Utc>);
+
+impl Timestamp {
+    pub fn into_inner(self) -> DateTime<Utc> {
+        self.0
+    }
+}
 
 impl ProcessValue for Timestamp {
     #[inline]
