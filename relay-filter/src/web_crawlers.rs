@@ -43,9 +43,10 @@ lazy_static! {
         Calypso\sAppCrawler|        # Google indexing bot
         pingdom|                    # Pingdom
         lyticsbot|                  # Lytics
-        AWS\sSecurity\sScanner      # AWS Security Scanner causing DisallowedHost errors in Django, see
+        AWS\sSecurity\sScanner|     # AWS Security Scanner causing DisallowedHost errors in Django, see
                                     # https://forums.aws.amazon.com/thread.jspa?messageID=932404
                                     # and https://github.com/getsentry/sentry-python/issues/641
+        HubSpot\sCrawler            # HubSpot web crawler (web-crawlers@hubspot.com)
     "#
     )
     .expect("Invalid web crawlers filter Regex");
@@ -101,6 +102,7 @@ mod tests {
             "FeedFetcher-Google; (+http://www.google.com/feedfetcher.html)",
             "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
             "AdsBot-Google (+http://www.google.com/adsbot.html)",
+            "Mozilla/5.0 (compatible; HubSpot Crawler; web-crawlers@hubspot.com)",
         ];
 
         for banned_user_agent in &user_agents {
