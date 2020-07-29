@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add the `http.connection_timeout` configuration option to adjust the connection and SSL handshake timeout. ([#688](https://github.com/getsentry/relay/pull/688))
+- Add the `http.connection_timeout` configuration option to adjust the connection and SSL handshake timeout. The default connect timeout is now increased from 1s to 3s. ([#688](https://github.com/getsentry/relay/pull/688))
 
 **Bug Fixes**:
 

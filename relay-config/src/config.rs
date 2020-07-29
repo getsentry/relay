@@ -530,7 +530,7 @@ impl Default for Http {
     fn default() -> Self {
         Http {
             timeout: 5,
-            connection_timeout: 1,
+            connection_timeout: 3,
             max_retry_interval: 60,
             host_header: None,
         }

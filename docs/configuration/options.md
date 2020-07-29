@@ -78,7 +78,7 @@ body is covered in this timeout.
 
 ### `http.connection_timeout`
 
-*Integer, default: `1`*
+*Integer, default: `3`*
 
 Timeout for establishing connections with the upstream in seconds.
 
