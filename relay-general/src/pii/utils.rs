@@ -1,5 +1,10 @@
 use std::cmp;
 
+use hmac::{Hmac, Mac};
+use sha1::Sha1;
+use sha2::{Sha256, Sha512};
+
+use crate::pii::{HashAlgorithm};
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::protocol::{AsPair, PairList};
 use crate::types::ProcessingResult;
@@ -57,4 +62,21 @@ pub fn in_range(range: (Option<i32>, Option<i32>), pos: usize, len: usize) -> bo
     let start = get_range_index(range.0, len, 0);
     let end = get_range_index(range.1, len, len);
     pos >= start && pos < end
+}
+
+
+pub fn hash_value(algorithm: HashAlgorithm, data: &[u8], key: Option<&str>) -> String {
+    let key = key.unwrap_or("");
+    macro_rules! hmac {
+        ($ty:ident) => {{
+            let mut mac = Hmac::<$ty>::new_varkey(key.as_bytes()).unwrap();
+            mac.input(data);
+            format!("{:X}", mac.result().code())
+        }};
+    }
+    match algorithm {
+        HashAlgorithm::HmacSha1 => hmac!(Sha1),
+        HashAlgorithm::HmacSha256 => hmac!(Sha256),
+        HashAlgorithm::HmacSha512 => hmac!(Sha512),
+    }
 }

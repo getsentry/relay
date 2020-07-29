@@ -2,16 +2,13 @@ use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::mem;
 
-use hmac::{Hmac, Mac};
 use lazy_static::lazy_static;
 use regex::Regex;
-use sha1::Sha1;
-use sha2::{Sha256, Sha512};
 
 use crate::pii::compiledconfig::RuleRef;
 use crate::pii::regexes::{get_regex_for_rule_type, PatternType, ReplaceBehavior, ANYTHING_REGEX};
-use crate::pii::utils::{process_pairlist, in_range};
-use crate::pii::{CompiledPiiConfig, HashAlgorithm, Redaction, RuleType};
+use crate::pii::utils::{process_pairlist, in_range, hash_value};
+use crate::pii::{CompiledPiiConfig, Redaction, RuleType};
 use crate::processor::{
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
@@ -353,7 +350,7 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
             output.push(Chunk::Redaction {
                 ty: RemarkType::Pseudonymized,
                 rule_id: Cow::Owned(rule.origin.to_string()),
-                text: Cow::Owned(hash_value(hash.algorithm, text, hash.key.as_deref())),
+                text: Cow::Owned(hash_value(hash.algorithm, text.as_bytes(), hash.key.as_deref())),
             });
         }
         Redaction::Replace(replace) => {
@@ -363,22 +360,6 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
                 text: Cow::Owned(replace.text.clone()),
             });
         }
-    }
-}
-
-fn hash_value(algorithm: HashAlgorithm, text: &str, key: Option<&str>) -> String {
-    let key = key.unwrap_or("");
-    macro_rules! hmac {
-        ($ty:ident) => {{
-            let mut mac = Hmac::<$ty>::new_varkey(key.as_bytes()).unwrap();
-            mac.input(text.as_bytes());
-            format!("{:X}", mac.result().code())
-        }};
-    }
-    match algorithm {
-        HashAlgorithm::HmacSha1 => hmac!(Sha1),
-        HashAlgorithm::HmacSha256 => hmac!(Sha256),
-        HashAlgorithm::HmacSha512 => hmac!(Sha512),
     }
 }
 
