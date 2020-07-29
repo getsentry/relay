@@ -1,11 +1,11 @@
 use regex::Regex;
 use regex::bytes::Regex as BytesRegex;
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 use std::collections::BTreeSet;
 
 use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::pii::compiledconfig::RuleRef;
-use crate::pii::utils::in_range;
+use crate::pii::utils::{in_range, hash_value};
 use crate::pii::regexes::{get_regex_for_rule_type, ReplaceBehavior};
 use crate::processor::{ProcessingState, ValueType};
 
@@ -15,8 +15,35 @@ lazy_static::lazy_static! {
         .enter_static("attachments", None, None);
 }
 
-fn plain_attachment_state(filename: &str) -> ProcessingState<'_> {
-    ATTACHMENT_STATE.enter_borrowed(filename, None, Some(ValueType::Binary))
+fn attachment_state(filename: &str, value_type: ValueType) -> ProcessingState<'_> {
+    ATTACHMENT_STATE.enter_borrowed(filename, None, Some(value_type))
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum AttachmentBytesType {
+    PlainAttachment,
+    MinidumpHeap,
+    MinidumpStack,
+}
+
+impl AttachmentBytesType {
+    fn get_states_by_filename(self, filename: &str) -> SmallVec<[ProcessingState<'_>; 3]> {
+        let binary_state = attachment_state(filename, ValueType::Binary);
+        let memory_state = attachment_state(filename, ValueType::Memory);
+        let stack_state = attachment_state(filename, ValueType::StackMemory);
+
+        match self {
+            AttachmentBytesType::MinidumpStack => smallvec![
+                binary_state,memory_state,stack_state
+            ],
+            AttachmentBytesType::MinidumpHeap => smallvec![
+                binary_state,memory_state
+            ],
+            AttachmentBytesType::PlainAttachment => smallvec![
+                binary_state
+            ],
+        }
+    }
 }
 
 pub struct PiiAttachmentsProcessor<'a> {
@@ -30,11 +57,11 @@ impl<'a> PiiAttachmentsProcessor<'a> {
         PiiAttachmentsProcessor { compiled_config }
     }
 
-    pub fn scrub_attachment_bytes(&self, filename: &str, data: &mut [u8]) {
-        let state = plain_attachment_state(filename);
+    pub fn scrub_attachment_bytes(&self, filename: &str, data: &mut [u8], bytes_type: AttachmentBytesType) {
+        let states = bytes_type.get_states_by_filename(filename);
 
         for (selector, rules) in &self.compiled_config.applications {
-            if state.path().matches_selector(&selector) {
+            if states.iter().any(|state| state.path().matches_selector(&selector)) {
                 for rule in rules {
                     // Note:
                     //
@@ -57,7 +84,7 @@ impl<'a> PiiAttachmentsProcessor<'a> {
 fn apply_regex_to_bytes(data: &mut [u8], rule: &RuleRef, regex: &Regex, replace_behavior: &ReplaceBehavior) -> bool {
     let regex = match BytesRegex::new(regex.as_str()) {
         Ok(x) => x,
-        Err(e) => {
+        Err(_) => {
             // XXX: This is not going to fly long-term
             // Idea: Disable unicode support for regexes entirely, that drastically increases the
             // likelihood this conversion will never fail.
@@ -111,14 +138,39 @@ fn apply_regex_to_bytes(data: &mut [u8], rule: &RuleRef, regex: &Regex, replace_
 
             for (start, end) in matches {
                 let match_slice = &mut data[start..end];
-                for (idx, c) in match_slice.iter().enumerate() {
-                    if in_range(mask.range, idx, match_slice.len()) && !chars_to_ignore.contains(c) {
+                let match_slice_len = match_slice.len();
+                for (idx, c) in match_slice.iter_mut().enumerate() {
+                    if in_range(mask.range, idx, match_slice_len) && !chars_to_ignore.contains(c) {
                         *c = mask_char;
                     }
                 }
             }
         },
+        Redaction::Hash(ref hash) => {
+            for (start, end) in matches {
+                let hashed = hash_value(hash.algorithm, &data[start..end], hash.key.as_deref());
+                replace_bytes_padded(hashed.as_bytes(), &mut data[start..end], DEFAULT_PADDING);
+            }
+        },
+        Redaction::Replace(ref replace) => {
+            for (start, end) in matches {
+                replace_bytes_padded(replace.text.as_bytes(), &mut data[start..end], DEFAULT_PADDING);
+            }
+        },
     }
 
     true
+}
+
+/// Copy `source` into `target`, trunchating/padding with `padding` if necessary.
+fn replace_bytes_padded(source: &[u8], target: &mut [u8], padding: u8) {
+    for (a, b) in source.iter().zip(target.iter_mut()) {
+        *b = *a;
+    }
+
+    if source.len() < target.len() {
+        for x in &mut target[source.len()..] {
+            *x = padding;
+        }
+    }
 }

@@ -36,6 +36,8 @@ pub enum ValueType {
     Breadcrumb,
     Span,
     ClientSdkInfo,
+    Memory,
+    StackMemory,
 }
 
 impl ValueType {
@@ -64,6 +66,8 @@ impl ValueType {
             ValueType::Breadcrumb => "breadcrumb",
             ValueType::Span => "span",
             ValueType::ClientSdkInfo => "sdk",
+            ValueType::Memory => "memory",
+            ValueType::StackMemory => "stackmemory",
         }
     }
 }
@@ -97,6 +101,8 @@ impl FromStr for ValueType {
             "thread" => ValueType::Thread,
             "breadcrumb" => ValueType::Breadcrumb,
             "sdk" => ValueType::ClientSdkInfo,
+            "memory" => ValueType::Memory,
+            "stackmemory" => ValueType::StackMemory,
             _ => return Err(UnknownValueTypeError),
         })
     }
