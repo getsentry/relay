@@ -198,6 +198,7 @@ impl UpstreamRelay {
             //   1. Have own connection pool for `store` requests
             //   2. Buffer up/queue/synchronize events before creating the request
             .wait_timeout(self.config.event_buffer_expiry())
+            .conn_timeout(self.config.http_connection_timeout())
             // This is the timeout after wait + connect.
             .timeout(self.config.http_timeout())
             .map_err(UpstreamRequestError::SendFailed)

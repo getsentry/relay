@@ -509,8 +509,10 @@ impl Default for Limits {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Http {
-    /// Timeout for upstream requests in seconds.
+    /// Timeout for upstream requests in seconds (excluding connecting).
     timeout: u32,
+    /// Timeout for establishing connections with the upstream in seconds.
+    connection_timeout: u32,
     /// Maximum interval between failed request retries in seconds.
     max_retry_interval: u32,
     /// The custom HTTP Host header to send to the upstream.
@@ -521,6 +523,7 @@ impl Default for Http {
     fn default() -> Self {
         Http {
             timeout: 5,
+            connection_timeout: 1,
             max_retry_interval: 60,
             host_header: None,
         }
@@ -1171,6 +1174,11 @@ impl Config {
     /// Returns the default timeout for all upstream HTTP requests.
     pub fn http_timeout(&self) -> Duration {
         Duration::from_secs(self.values.http.timeout.into())
+    }
+
+    /// Returns the connection timeout for all upstream HTTP requests.
+    pub fn http_connection_timeout(&self) -> Duration {
+        Duration::from_secs(self.values.http.connection_timeout.into())
     }
 
     /// Returns the failed upstream request retry interval.

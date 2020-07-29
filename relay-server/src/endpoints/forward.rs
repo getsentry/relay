@@ -96,13 +96,18 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
         .uri(upstream.get_url(path_and_query))
         .set_header("Host", host_header)
         .set_header("X-Forwarded-For", ForwardedFor::from(request))
-        .set_header("Connection", "close")
-        .timeout(config.http_timeout());
+        .set_header("Connection", "close");
 
     ForwardBody::new(request, limit)
         .map_err(Error::from)
         .and_then(move |data| forwarded_request_builder.body(data).map_err(Error::from))
-        .and_then(move |request| request.send().map_err(Error::from))
+        .and_then(move |request| {
+            request
+                .send()
+                .conn_timeout(config.http_connection_timeout())
+                .timeout(config.http_timeout())
+                .map_err(Error::from)
+        })
         .and_then(move |response| {
             let mut forwarded_response = HttpResponse::build(response.status());
 
