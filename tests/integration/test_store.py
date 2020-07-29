@@ -20,15 +20,15 @@ def test_store(mini_sentry, relay_chain):
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
-@pytest.mark.parametrize("whitelisted", [True, False])
-def test_store_external_relay(mini_sentry, relay, whitelisted):
+@pytest.mark.parametrize("allowed", [True, False])
+def test_store_external_relay(mini_sentry, relay, allowed):
     # Use 3 Relays to force the middle one to fetch public keys
     relay = relay(relay(relay(mini_sentry)), external=True)
 
-    if whitelisted:
+    if allowed:
         project_config = relay.basic_project_config()
     else:
-        # Use `mini_sentry` to create the project config, which does not whitelist the Relay in the
+        # Use `mini_sentry` to create the project config, which does not allow the Relay in the
         # project config.
         project_config = mini_sentry.basic_project_config()
     mini_sentry.project_configs[42] = project_config
@@ -37,7 +37,7 @@ def test_store_external_relay(mini_sentry, relay, whitelisted):
     # drops the event internally if it does not have permissions.
     relay.send_event(42)
 
-    if whitelisted:
+    if allowed:
         event = mini_sentry.captured_events.get(timeout=1).get_event()
         assert event["logentry"] == {"formatted": "Hello, World!"}
     else:

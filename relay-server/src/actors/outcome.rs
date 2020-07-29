@@ -163,7 +163,7 @@ pub enum DiscardReason {
     /// id or project id are extracted for a request.
     DisallowedMethod,
 
-    /// [Relay] The content type for a specific endpoint did not match the whitelist.
+    /// [Relay] The content type for a specific endpoint was not allowed.
     ///
     /// While the standard store endpoint allows all content types, other endpoints may have
     /// stricter requirements.

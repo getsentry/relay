@@ -294,8 +294,8 @@ pub enum RelayMode {
     /// Project configurations are managed by the upstream.
     ///
     /// Project configurations are always fetched from the upstream, unless they are statically
-    /// overridden in the file system. This relay must be white-listed in the upstream Sentry. This
-    /// is only possible, if the upstream is Sentry directly, or another managed Relay.
+    /// overridden in the file system. This relay must be allowed in the upstream Sentry. This is
+    /// only possible, if the upstream is Sentry directly, or another managed Relay.
     Managed,
 
     /// Events are held in memory for inspection only.
