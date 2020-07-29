@@ -171,10 +171,26 @@ pub struct GroupingConfig {
 #[metastructure(process_func = "process_event", value_type = "Event")]
 pub struct Event {
     /// Unique identifier of this event.
+    ///
+    /// Hexadecimal string representing a uuid4 value. The length is exactly 32 characters. Dashes
+    /// are not allowed. Has to be lowercase.
+    ///
+    /// Even though this field is backfilled on the server with a new uuid4, it is strongly
+    /// recommended to generate that uuid4 clientside. There are some features like user feedback
+    /// which are easier to implement that way, and debugging in case events get lost in your
+    /// Sentry installation is also easier.
+    ///
+    /// Example:
+    ///
+    /// ```json
+    /// {
+    ///   "event_id": "fc6d8c0c43fc4630ad850ee518f1b9d0"
+    /// }
+    /// ```
     #[metastructure(field = "event_id")]
     pub id: Annotated<EventId>,
 
-    /// Severity level of the event.
+    /// Severity level of the event. Defaults to `error`.
     pub level: Annotated<Level>,
 
     /// Version
@@ -185,6 +201,10 @@ pub struct Event {
     pub ty: Annotated<EventType>,
 
     /// Manual fingerprint override.
+    ///
+    /// A list of strings used to dictate how this event is supposed to be grouped with other
+    /// events into issues. For more information about overriding grouping see [Customize Grouping
+    /// with Fingerprints](https://docs.sentry.io/data-management/event-grouping/).
     #[metastructure(skip_serialization = "empty")]
     pub fingerprint: Annotated<Fingerprint>,
 
@@ -193,6 +213,9 @@ pub struct Event {
     pub culprit: Annotated<String>,
 
     /// Transaction name of the event.
+    ///
+    /// For example, in a web app, this might be the route name (`"/users/<username>/"` or
+    /// `UserView`), in a task queue it might be the function + module name.
     #[metastructure(max_chars = "culprit", trim_whitespace = "true")]
     pub transaction: Annotated<String>,
 
@@ -211,14 +234,50 @@ pub struct Event {
     )]
     pub logger: Annotated<String>,
 
-    /// Name and versions of installed modules.
+    /// Name and versions of all installed modules/packages/dependencies in the current
+    /// environment/application.
+    ///
+    /// ```json
+    /// { "django": "3.0.0", "celery": "4.2.1" }
+    /// ```
+    ///
+    /// In Python this is a list of installed packages as reported by `pkg_resources` together with
+    /// their reported version string.
+    ///
+    /// This is primarily used for suggesting to enable certain SDK integrations from within the UI
+    /// and for making informed decisions on which frameworks to support in future development
+    /// efforts.
     #[metastructure(skip_serialization = "empty_deep", bag_size = "large")]
     pub modules: Annotated<Object<String>>,
 
     /// Platform identifier of this event (defaults to "other").
+    ///
+    /// A string representing the platform the SDK is submitting from. This will be used by the
+    /// Sentry interface to customize various components in the interface, but also to enter or
+    /// skip stacktrace processing.
+    ///
+    /// Acceptable values are: `as3`, `c`, `cfml`, `cocoa`, `csharp`, `elixir`, `haskell`, `go`,
+    /// `groovy`, `java`, `javascript`, `native`, `node`, `objc`, `other`, `perl`, `php`, `python`,
+    /// `ruby`
     pub platform: Annotated<String>,
 
     /// Timestamp when the event was created.
+    ///
+    /// Indicates when the event was created in the Sentry SDK. The format is either a string as
+    /// defined in [RFC 3339](https://tools.ietf.org/html/rfc3339) or a numeric (integer or float)
+    /// value representing the number of seconds that have elapsed since the [Unix
+    /// epoch](https://en.wikipedia.org/wiki/Unix_time).
+    ///
+    /// Sub-microsecond precision is not preserved with numeric values due to precision
+    /// limitations with floats (at least in our systems). With that caveat in mind, just send
+    /// whatever is easiest to produce.
+    ///
+    /// All timestamps in the event protocol are formatted this way.
+    ///
+    /// ```json
+    /// { "timestamp": "2011-05-02T17:41:36Z" }
+    /// { "timestamp": 1304358096.0 }
+    /// ```
     pub timestamp: Annotated<Timestamp>,
 
     /// Timestamp when the event has started (relevant for event type = "transaction")
@@ -228,10 +287,15 @@ pub struct Event {
     pub received: Annotated<Timestamp>,
 
     /// Server or device name the event was generated on.
+    ///
+    /// This is supposed to be a hostname.
     #[metastructure(pii = "true", max_chars = "symbol")]
     pub server_name: Annotated<String>,
 
-    /// Program's release identifier.
+    /// The release version of the application.
+    ///
+    /// **Release versions must be unique across all projects in your organization.** This value
+    /// can be the git SHA for the given project, or a product identifier with a semantic version.
     #[metastructure(
         max_chars = "tag_value",  // release ends in tag
         match_regex = r"^[^\r\n\f\t/]*\z",
@@ -243,6 +307,12 @@ pub struct Event {
     pub release: Annotated<LenientString>,
 
     /// Program's distribution identifier.
+    ///
+    /// The distribution of the application.
+    ///
+    /// Distributions are used to disambiguate build or deployment variants of the same release of
+    /// an application. For example, the dist can be the build number of an XCode build or the
+    /// version code of an Android build.
     // Match whitespace here, which will later get trimmed
     #[metastructure(
         max_chars = "tag_value",  // dist ends in tag
@@ -252,7 +322,7 @@ pub struct Event {
     )]
     pub dist: Annotated<String>,
 
-    /// Environment the environment was generated in ("production" or "development").
+    /// The environment name, such as `production` or `staging`.
     #[metastructure(
         max_chars = "environment",
         match_regex = r"^[^\r\n\x0C/]+$",
@@ -308,6 +378,8 @@ pub struct Event {
     pub threads: Annotated<Values<Thread>>,
 
     /// Custom tags for this event.
+    ///
+    /// A map or list of tags for this event. Each tag must be less than 200 characters.
     #[metastructure(skip_serialization = "empty", pii = "maybe")]
     pub tags: Annotated<Tags>,
 

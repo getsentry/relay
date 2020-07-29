@@ -1,6 +1,10 @@
 use crate::types::{Annotated, Error, FromValue, Object, Value};
 
 /// POSIX signal with optional extended data.
+///
+/// Error codes set by Linux system calls and some library functions as specified in ISO C99,
+/// POSIX.1-2001, and POSIX.1-2008. See
+/// [`errno(3)`](https://man7.org/linux/man-pages/man3/errno.3.html) for more information.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct CError {
@@ -30,6 +34,9 @@ pub struct MachException {
 }
 
 /// POSIX signal with optional extended data.
+///
+/// On Apple systems, signals also carry a code in addition to the signal number describing the
+/// signal in more detail. On Linux, this code does not exist.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct PosixSignal {
@@ -47,16 +54,22 @@ pub struct PosixSignal {
 }
 
 /// Operating system or runtime meta information to an exception mechanism.
+///
+/// The mechanism metadata usually carries error codes reported by the runtime or operating system,
+/// along with a platform-dependent interpretation of these codes. SDKs can safely omit code names
+/// and descriptions for well-known error codes, as it will be filled out by Sentry. For
+/// proprietary or vendor-specific error codes, adding these values will give additional
+/// information to the user.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct MechanismMeta {
     /// Optional ISO C standard error code.
     pub errno: Annotated<CError>,
 
-    /// Optional POSIX signal number.
+    /// Information on the POSIX signal.
     pub signal: Annotated<PosixSignal>,
 
-    /// Optional mach exception information.
+    /// A Mach Exception on Apple systems comprising a code triple and optional descriptions.
     pub mach_exception: Annotated<MachException>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -65,10 +78,21 @@ pub struct MechanismMeta {
 }
 
 /// The mechanism by which an exception was generated and handled.
+///
+/// The exception mechanism is an optional field residing in the [exception](#Exception). It carries
+/// additional information about the way the exception was created on the target system. This
+/// includes general exception values obtained from the operating system or runtime APIs, as well
+/// as mechanism-specific values.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Mechanism {
     /// Mechanism type (required).
+    ///
+    /// Required unique identifier of this mechanism determining rendering and processing of the
+    /// mechanism data.
+    ///
+    /// In the Python SDK this is merely the name of the framework integration that produced the
+    /// exception, while for native it is e.g. `"minidump"` or `"applecrashreport"`.
     #[metastructure(
         field = "type",
         required = "true",
@@ -83,7 +107,9 @@ pub struct Mechanism {
     /// or display purposes.
     pub synthetic: Annotated<bool>,
 
-    /// Human readable detail description.
+    /// Optional human-readable description of the error mechanism.
+    ///
+    /// May include a possible hint on how to solve this error.
     #[metastructure(pii = "true", max_chars = "message")]
     pub description: Annotated<String>,
 
@@ -92,6 +118,16 @@ pub struct Mechanism {
     pub help_link: Annotated<String>,
 
     /// Flag indicating whether this exception was handled.
+    ///
+    /// This is a best-effort guess at whether the exception was handled by user code or not. For
+    /// example:
+    ///
+    /// - Exceptions leading to a 500 Internal Server Error or to a hard process crash are
+    ///   `handled=false`, as the SDK typically has an integration that automatically captures the
+    ///   error.
+    ///
+    /// - Exceptions captured using `capture_exception` (called from user code) are `handled=true`
+    ///   as the user explicitly captured the exception (and therefore kind of handled it)
     pub handled: Annotated<bool>,
 
     /// Additional attributes depending on the mechanism type.

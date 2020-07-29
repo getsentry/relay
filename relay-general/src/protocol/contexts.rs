@@ -6,6 +6,9 @@ use crate::protocol::LenientString;
 use crate::types::{Annotated, Empty, Error, FromValue, Object, SkipSerialization, ToValue, Value};
 
 /// Device information.
+///
+/// Device context describes the device that caused the event. This is most appropriate for mobile
+/// applications. 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct DeviceContext {
@@ -14,30 +17,44 @@ pub struct DeviceContext {
     pub name: Annotated<String>,
 
     /// Family of the device model.
+    ///
+    /// This is usually the common part of model names across generations. For instance, `iPhone`
+    /// would be a reasonable family, so would be `Samsung Galaxy`.
     pub family: Annotated<String>,
 
-    /// Device model (human readable).
+    /// Device model.
+    ///
+    /// This, for example, can be `Samsung Galaxy S3`.
     pub model: Annotated<String>,
 
     /// Device model (internal identifier).
+    ///
+    /// An internal hardware revision to identify the device exactly.
     pub model_id: Annotated<String>,
 
     /// Native cpu architecture of the device.
     pub arch: Annotated<String>,
 
-    /// Current battery level (0-100).
+    /// Current battery level in %.
+    ///
+    /// If the device has a battery, this can be a floating point value defining the battery level
+    /// (in the range 0-100).
     pub battery_level: Annotated<f64>,
 
     /// Current screen orientation.
+    ///
+    /// This can be a string `portrait` or `landscape` to define the orientation of a device.
     pub orientation: Annotated<String>,
 
-    /// Manufacturer of the device
+    /// Manufacturer of the device.
     pub manufacturer: Annotated<String>,
 
     /// Brand of the device.
     pub brand: Annotated<String>,
 
     /// Device screen resolution.
+    ///
+    /// (e.g.: 800x600, 3040x1444)
     #[metastructure(pii = "maybe")]
     pub screen_resolution: Annotated<String>,
 
@@ -110,6 +127,9 @@ impl DeviceContext {
 }
 
 /// Operating system information.
+///
+/// OS context describes the operating system on which the event was created. In web contexts, this
+/// is the operating system of the browser (generally pulled from the User-Agent string).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct OsContext {
@@ -124,6 +144,8 @@ pub struct OsContext {
     pub build: Annotated<LenientString>,
 
     /// Current kernel version.
+    ///
+    /// This is typically the entire output of the `uname` syscall.
     #[metastructure(pii = "maybe")]
     pub kernel_version: Annotated<String>,
 
@@ -131,6 +153,10 @@ pub struct OsContext {
     pub rooted: Annotated<bool>,
 
     /// Unprocessed operating system info.
+    ///
+    /// An unprocessed description string obtained by the operating system. For some well-known
+    /// runtimes, Sentry will attempt to parse `name` and `version` from this string, if they are
+    /// not explicitly given.
     #[metastructure(pii = "maybe")]
     pub raw_description: Annotated<String>,
 
@@ -147,6 +173,10 @@ impl OsContext {
 }
 
 /// Runtime information.
+///
+/// Runtime context describes a runtime in more detail. Typically, this context is present in
+/// `contexts` multiple times if multiple runtimes are involved (for instance, if you have a
+/// JavaScript application running on top of JVM).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct RuntimeContext {
@@ -161,6 +191,10 @@ pub struct RuntimeContext {
     pub build: Annotated<LenientString>,
 
     /// Unprocessed runtime info.
+    ///
+    /// An unprocessed description string obtained by the runtime. For some well-known runtimes,
+    /// Sentry will attempt to parse `name` and `version` from this string, if they are not
+    /// explicitly given.
     #[metastructure(pii = "maybe")]
     pub raw_description: Annotated<String>,
 
@@ -177,21 +211,26 @@ impl RuntimeContext {
 }
 
 /// Application information.
+///
+/// App context describes the application. As opposed to the runtime, this is the actual
+/// application that was running and carries metadata about the current session.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct AppContext {
     /// Start time of the app.
+    ///
+    /// Formatted UTC timestamp when the user started the application.
     #[metastructure(pii = "maybe")]
     pub app_start_time: Annotated<String>,
 
-    /// Device app hash (app specific device ID)
+    /// Application-specific device identifier.
     #[metastructure(pii = "maybe")]
     pub device_app_hash: Annotated<String>,
 
-    /// Build identicator.
+    /// String identifying the kind of build. For example, `testflight`.
     pub build_type: Annotated<String>,
 
-    /// App identifier (dotted bundle id).
+    /// Version-independent application identifier, often a dotted bundle ID.
     pub app_identifier: Annotated<String>,
 
     /// Application name as it appears on the platform.
@@ -219,10 +258,10 @@ impl AppContext {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct BrowserContext {
-    /// Runtime name.
+    /// Display name of the browser application.
     pub name: Annotated<String>,
 
-    /// Runtime version.
+    /// Version string of the browser.
     pub version: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -247,28 +286,64 @@ lazy_static::lazy_static! {
 }
 
 /// GPU information.
+///
+/// Example:
+///
+/// ```json
+/// "gpu": {
+///   "name": "AMD Radeon Pro 560",
+///   "vendor_name": "Apple",
+///   "memory_size": 4096,
+///   "api_type": "Metal",
+///   "multi_threaded_rendering": true,
+///   "version": "Metal",
+///   "npot_support": "Full"
+/// }
+/// ```
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct GpuContext(#[metastructure(pii = "maybe")] pub Object<Value>);
+pub struct GpuContext {
+    /// The name of the graphics device.
+    #[metastructure(pii = "maybe")]
+    name: Annotated<String>,
 
-impl From<Object<Value>> for GpuContext {
-    fn from(object: Object<Value>) -> Self {
-        Self(object)
-    }
-}
+    /// The Version of the graphics device.
+    #[metastructure(pii = "maybe")]
+    version: Annotated<String>,
 
-impl std::ops::Deref for GpuContext {
-    type Target = Object<Value>;
+    /// The PCI identifier of the graphics device.
+    #[metastructure(pii = "maybe")]
+    id: Annotated<Value>,
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+    /// The PCI vendor identifier of the graphics device.
+    #[metastructure(pii = "maybe")]
+    vendor_id: Annotated<String>,
 
-impl std::ops::DerefMut for GpuContext {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
+    /// The vendor name as reported by the graphics device.
+    #[metastructure(pii = "maybe")]
+    vendor_name: Annotated<String>,
+
+    /// The total GPU memory available in Megabytes.
+    #[metastructure(pii = "maybe")]
+    memory_size: Annotated<u64>,
+
+    /// The device low-level API type.
+    ///
+    /// Examples: `"Apple Metal"` or `"Direct3D11"`
+    #[metastructure(pii = "maybe")]
+    api_type: Annotated<String>,
+
+    /// Whether the GPU has multi-threaded rendering or not.
+    #[metastructure(pii = "maybe")]
+    multi_threaded_rendering: Annotated<bool>,
+
+    /// The Non-Power-Of-Two support.
+    #[metastructure(pii = "maybe")]
+    npot_support: Annotated<String>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties, retain = "true", pii = "maybe")]
+    pub other: Object<Value>,
 }
 
 impl GpuContext {
@@ -543,7 +618,19 @@ impl From<Context> for ContextInner {
     }
 }
 
-/// An object holding multiple contexts.
+/// The Contexts Interface provides additional context data. Typically, this is data related to the
+/// current user and the environment. For example, the device or application version. Its canonical
+/// name is `contexts`.
+///
+/// The `contexts` type can be used to define arbitrary contextual data on the event. It accepts an
+/// object of key/value pairs. The key is the “alias” of the context and can be freely chosen.
+/// However, as per policy, it should match the type of the context unless there are two values for
+/// a type. You can omit `type` if the key name is the type.
+///
+/// Unknown data for the contexts is rendered as a key/value list.
+///
+/// For more details about sending additional data with your event, see the [full documentation on
+/// Additional Data](https://docs.sentry.io/enriching-error-data/additional-data/).
 #[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue, Default)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Contexts(pub Object<ContextInner>);
