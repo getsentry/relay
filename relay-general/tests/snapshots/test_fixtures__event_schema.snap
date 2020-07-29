@@ -722,18 +722,6 @@ expression: event_json_schema()
             "version"
           ],
           "properties": {
-            "client_ip": {
-              "description": "IP Address of sender??? Seems unused.",
-              "default": null,
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/String"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
             "integrations": {
               "description": "List of integrations that are enabled in the SDK.",
               "default": null,

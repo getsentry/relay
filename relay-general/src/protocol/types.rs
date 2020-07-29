@@ -514,9 +514,19 @@ impl IpAddr {
         self.0 == "{{auto}}"
     }
 
+    /// Checks whether the contained ip address is still valid (relevant for PII processing).
+    pub fn is_valid(&self) -> bool {
+        Self::parse(&self.0).is_ok()
+    }
+
     /// Returns the string value of this ip address.
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+
+    /// Convert IP address into owned string.
+    pub fn into_inner(self) -> String {
+        self.0
     }
 }
 

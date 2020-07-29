@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::cmp;
 use std::collections::BTreeSet;
+use std::mem;
 
 use hmac::{Hmac, Mac};
 use lazy_static::lazy_static;
@@ -15,8 +16,8 @@ use crate::pii::{CompiledPiiConfig, HashAlgorithm, Redaction, RuleType};
 use crate::processor::{
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
-use crate::protocol::{AsPair, NativeImagePath, PairList};
-use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
+use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, User};
+use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
 lazy_static! {
     static ref NULL_SPLIT_RE: Regex = #[allow(clippy::trivial_regex)]
@@ -138,6 +139,39 @@ impl<'a> Processor for PiiProcessor<'a> {
         state: &ProcessingState,
     ) -> ProcessingResult {
         process_pairlist(self, value, state)
+    }
+
+    fn process_user(
+        &mut self,
+        user: &mut User,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        let ip_was_valid = user.ip_address.value().map_or(true, IpAddr::is_valid);
+
+        // Recurse into the user and does PII processing on fields.
+        user.process_child_values(self, state)?;
+
+        let has_other_fields = user.id.value().is_some() || user.username.value().is_some() || user.email.value().is_some();
+
+        let ip_is_still_valid = user.ip_address.value().map_or(true, IpAddr::is_valid);
+
+        // If the IP address has become invalid as part of PII processing, we move it into the user
+        // ID. That ensures people can do IP hashing and still have a correct users-affected count.
+        //
+        // Right now both Snuba and EventUser discard unparseable IPs for indexing, and we assume
+        // we want to keep it that way.
+        //
+        // If there are any other fields set that take priority over the IP for uniquely
+        // identifying a user (has_other_fields), we do not want to do anything. The value will be
+        // wiped out in renormalization anyway.
+        if ip_was_valid && !has_other_fields && !ip_is_still_valid {
+            let mut user_ip = Annotated::empty();
+            mem::swap(&mut user.ip_address, &mut user_ip);
+            user.id = user_ip.map_value(IpAddr::into_inner).map_value(From::from);
+        }
+
+        Ok(())
     }
 }
 
@@ -370,7 +404,7 @@ use {
         Addr, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry, NativeDebugImage,
         Request,
     },
-    crate::types::{Annotated, Object, Value},
+    crate::types::{Object, Value},
 };
 
 #[test]
@@ -878,4 +912,41 @@ fn test_logentry_value_types() {
             .value()
             .is_none());
     }
+}
+
+#[test]
+fn test_ip_address_hashing() {
+    let config = PiiConfig::from_json(
+        r##"
+            {
+                "applications": {
+                    "$user.ip_address": ["@ip:hash"]
+                }
+            }
+        "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        user: Annotated::new(User {
+            ip_address: Annotated::new(IpAddr("127.0.0.1".to_string())),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&compiled);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+    let user = event.value().unwrap().user.value().unwrap();
+
+    assert!(user.ip_address.value().is_none());
+
+    assert_eq!(
+            user.id
+            .value()
+            .unwrap().as_str(),
+        "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
+    );
 }
