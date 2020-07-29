@@ -100,17 +100,19 @@ fn apply_regex_to_bytes(data: &mut [u8], rule: &RuleRef, regex: &Regex, replace_
             }
         },
         Redaction::Mask(ref mask) => {
-            let chars_to_ignore: BTreeSet<char> = mask.chars_to_ignore.chars().collect();
+            let chars_to_ignore: BTreeSet<u8> = mask.chars_to_ignore.chars().filter_map(|x|
+                if x.is_ascii() { Some(x as u8) } else { None }
+            ).collect();
             let mask_char = if mask.mask_char.is_ascii() {
                 mask.mask_char as u8
             } else {
                 DEFAULT_PADDING
             };
 
-            let match_slice = &mut data[start..end];
             for (start, end) in matches {
+                let match_slice = &mut data[start..end];
                 for (idx, c) in match_slice.iter().enumerate() {
-                    if in_range(mask.range, idx, match_slice.len()) && !chars_to_ignore.contains(&c) {
+                    if in_range(mask.range, idx, match_slice.len()) && !chars_to_ignore.contains(c) {
                         *c = mask_char;
                     }
                 }
