@@ -509,9 +509,16 @@ impl Default for Limits {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Http {
-    /// Timeout for upstream requests in seconds (excluding connecting).
+    /// Timeout for upstream requests in seconds.
+    ///
+    /// This timeout covers the time from sending the request until receiving response headers.
+    /// Neither the connection process and handshakes, nor reading the response body is covered in
+    /// this timeout.
     timeout: u32,
     /// Timeout for establishing connections with the upstream in seconds.
+    ///
+    /// This includes SSL handshakes. Relay reuses connections when the upstream supports connection
+    /// keep-alive. Connections are retained for a maximum 75 seconds, or 15 seconds of inactivity.
     connection_timeout: u32,
     /// Maximum interval between failed request retries in seconds.
     max_retry_interval: u32,

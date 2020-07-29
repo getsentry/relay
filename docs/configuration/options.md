@@ -72,6 +72,20 @@ Set various network-related settings.
 
 Timeout for upstream requests in seconds.
 
+This timeout covers the time from sending the request until receiving response
+headers. Neither the connection process and handshakes, nor reading the response
+body is covered in this timeout.
+
+### `http.connection_timeout`
+
+*Integer, default: `1`*
+
+Timeout for establishing connections with the upstream in seconds.
+
+This includes SSL handshakes. Relay reuses connections when the upstream
+supports connection keep-alive. Connections are retained for a maximum 75
+seconds, or 15 seconds of inactivity.
+
 ### `http.max_retry_interval`
 
 *Integer, default: `60`*
