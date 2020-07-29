@@ -20,35 +20,65 @@ fn main(argv: CliArgs) -> Result<()> {
     let dump = minidump::Minidump::read(data.as_slice())
         .map_err(|e| e.compat())
         .context("Failed to read minidump")?;
-    println!("{:?}", dump.header.version);
 
-    let thread_list: minidump::MinidumpThreadList = dump.get_stream().map_err(|e| e.compat())?;
+    let thread_list: minidump::MinidumpThreadList = dump
+        .get_stream()
+        .map_err(|e| e.compat())
+        .context("Failed to parse thread information from minidump")?;
+
+    // The Relative Virtual Addresses (offsets into the minidump) of the start of memory
+    // regions referenced by threads.  These identify memory regions that are stack memory.
     let stack_rvas: Vec<minidump::format::RVA> = thread_list
         .threads
         .iter()
         .map(|t| t.raw.stack.memory.rva)
         .collect();
 
-    let mem_list: minidump::MinidumpMemoryList = dump.get_stream().map_err(|e| e.compat())?;
-    let mem_descriptors: Vec<minidump::format::MINIDUMP_MEMORY_DESCRIPTOR> = mem_list
-        .iter()
-        .filter(|mem| !stack_rvas.contains(&mem.desc.memory.rva))
-        .map(|mem| mem.desc)
-        .collect();
-    let mut count = 0;
+    // We would like to modify `data` directly, `mem_list` however refers to data
+    // non-mutably so we can not directly iterate over the `mem_list` and collect the memory
+    // descriptors instead.
+    let mem_list: minidump::MinidumpMemoryList = dump
+        .get_stream()
+        .map_err(|e| e.compat())
+        .context("Failed to parse memory regions from minidump")?;
+    let mem_descriptors: Vec<minidump::format::MINIDUMP_MEMORY_DESCRIPTOR> =
+        mem_list.iter().map(|mem| mem.desc).collect();
+
     for mem_desc in mem_descriptors {
-        count += 1;
-        let nulls = vec![0 as u8; mem_desc.memory.data_size as usize];
-        let range: std::ops::Range<usize> = std::ops::Range {
+        let kind = if stack_rvas.contains(&mem_desc.memory.rva) {
+            MemoryKind::Stack
+        } else {
+            MemoryKind::NonStack
+        };
+        let range = std::ops::Range {
             start: mem_desc.memory.rva as usize,
             end: (mem_desc.memory.rva + mem_desc.memory.data_size) as usize,
         };
         let dest = &mut data[range];
-        dest.copy_from_slice(nulls.as_slice());
+        scrub_memory_region(kind, dest);
     }
-    println!("Modified {} memory regions", count);
 
     std::fs::write(argv.output, data)?;
 
     Ok(())
+}
+
+enum MemoryKind {
+    /// Stack memory.
+    Stack,
+    /// All other memory, likely heap memory.
+    NonStack,
+}
+
+fn scrub_memory_region(kind: MemoryKind, data: &mut [u8]) {
+    match kind {
+        MemoryKind::Stack => (),
+        MemoryKind::NonStack => null_data(data),
+    }
+}
+
+/// Zero-out all data in the slice.
+fn null_data(data: &mut [u8]) {
+    let nulls = vec![0 as u8; data.len()];
+    data.copy_from_slice(nulls.as_slice());
 }
