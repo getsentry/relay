@@ -57,8 +57,10 @@ impl<'a> PiiAttachmentsProcessor<'a> {
         PiiAttachmentsProcessor { compiled_config }
     }
 
-    pub fn scrub_attachment_bytes(&self, filename: &str, data: &mut [u8], bytes_type: AttachmentBytesType) {
+    pub fn scrub_attachment_bytes(&self, filename: &str, data: &mut [u8], bytes_type: AttachmentBytesType) -> bool {
         let states = bytes_type.get_states_by_filename(filename);
+
+        let mut changed = false;
 
         for (selector, rules) in &self.compiled_config.applications {
             if states.iter().any(|state| state.path().matches_selector(&selector)) {
@@ -73,11 +75,13 @@ impl<'a> PiiAttachmentsProcessor<'a> {
                     // - We impose severe restrictions on how redaction methods work, as we must
                     //   not change the lengths of attachments.
                     for (_pattern_type, regex, replace_behavior) in get_regex_for_rule_type(&rule.ty) {
-                        apply_regex_to_bytes(data, rule, regex, &replace_behavior);
+                        changed |= apply_regex_to_bytes(data, rule, regex, &replace_behavior);
                     }
                 }
             }
         }
+
+        changed
     }
 }
 
@@ -171,6 +175,120 @@ fn replace_bytes_padded(source: &[u8], target: &mut [u8], padding: u8) {
     if source.len() < target.len() {
         for x in &mut target[source.len()..] {
             *x = padding;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::pii::PiiConfig;
+
+    use super::*;
+
+    struct AttachmentBytesTestCase<'a> {
+        selector: &'a str,
+        rule: &'a str,
+        filename: &'a str,
+        bytes_type: AttachmentBytesType, 
+        input: &'a [u8],
+        output: &'a [u8],
+        changed: bool
+    }
+
+    impl<'a> AttachmentBytesTestCase<'a> {
+        fn run(&self) {
+           let config = PiiConfig::from_json(&format!(
+                r##"
+                {{
+                    "applications": {{
+                        "{selector}": ["{rule}"]
+                    }}
+                }}
+            "##,
+            selector=self.selector,
+            rule=self.rule,
+            ))
+            .unwrap();
+
+            let compiled = config.compiled();
+            let processor = PiiAttachmentsProcessor::new(&compiled);
+            let mut data = self.input.to_owned();
+            let has_changed = processor.scrub_attachment_bytes(self.filename, &mut data, self.bytes_type);
+            assert_eq!(data, self.output);
+            assert_eq!(self.changed, has_changed);
+        }
+    }
+
+    #[test]
+    fn test_ip_replace_padding() {
+        AttachmentBytesTestCase {
+            selector: "$binary",
+            rule: "@ip",
+            filename: "foo.txt",
+            bytes_type: AttachmentBytesType::PlainAttachment,
+            input : b"before 127.0.0.1 after",
+            output: b"before [ip]xxxxx after",
+            changed: true,
+        }.run();
+    }
+
+    #[test]
+    fn test_ip_hash_trunchating() {
+        AttachmentBytesTestCase {
+            selector: "$binary",
+            rule: "@ip:hash",
+            filename: "foo.txt",
+            bytes_type: AttachmentBytesType::PlainAttachment,
+            input : b"before 127.0.0.1 after",
+            output: b"before AE12FE3B5 after",
+            changed: true,
+        }.run();
+    }
+
+    #[test]
+    fn test_ip_masking() {
+        AttachmentBytesTestCase {
+            selector: "$binary",
+            rule: "@ip:mask",
+            filename: "foo.txt",
+            bytes_type: AttachmentBytesType::PlainAttachment,
+            input : b"before 127.0.0.1 after",
+            output: b"before ********* after",
+            changed: true,
+        }.run();
+    }
+
+    #[test]
+    fn test_ip_removing() {
+        AttachmentBytesTestCase {
+            selector: "$binary",
+            rule: "@ip:mask",
+            filename: "foo.txt",
+            bytes_type: AttachmentBytesType::PlainAttachment,
+            input : b"before 127.0.0.1 after",
+            output: b"before xxxxxxxxx after",
+            changed: true,
+        }.run();
+    }
+
+    #[test]
+    fn test_selectors() {
+        for wrong_selector in &[
+            "$string",
+            "$number",
+            "$attachments.* && $string",
+            "$attachments",
+            "** && !$binary"
+        ] {
+            AttachmentBytesTestCase {
+                selector: wrong_selector,
+                rule: "@ip:mask",
+                filename: "foo.txt",
+                bytes_type: AttachmentBytesType::PlainAttachment,
+                input : b"before 127.0.0.1 after",
+                output: b"before 127.0.0.1 after",
+                changed: false,
+            }.run();
         }
     }
 }
