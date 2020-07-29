@@ -38,6 +38,7 @@ pub enum ValueType {
     ClientSdkInfo,
     Memory,
     StackMemory,
+    Attachments,
 }
 
 impl ValueType {
@@ -68,6 +69,7 @@ impl ValueType {
             ValueType::ClientSdkInfo => "sdk",
             ValueType::Memory => "memory",
             ValueType::StackMemory => "stackmemory",
+            ValueType::Attachments => "attachments",
         }
     }
 }
@@ -103,6 +105,7 @@ impl FromStr for ValueType {
             "sdk" => ValueType::ClientSdkInfo,
             "memory" => ValueType::Memory,
             "stackmemory" => ValueType::StackMemory,
+            "attachments" => ValueType::Attachments,
             _ => return Err(UnknownValueTypeError),
         })
     }
