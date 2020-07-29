@@ -102,7 +102,6 @@ impl SelectorSpec {
                         SelectorPathItem::Type(ty) => match ty {
                             // "Generic" JSON value types cannot be part of a specific path
                             ValueType::String
-                            | ValueType::Binary
                             | ValueType::Number
                             | ValueType::Boolean
                             | ValueType::DateTime
