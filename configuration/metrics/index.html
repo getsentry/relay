@@ -582,6 +582,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#processingproduceerror" class="md-nav__link">
+    processing.produce.error
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#eventprotocol" class="md-nav__link">
     event.protocol
   </a>
@@ -818,6 +825,18 @@
         
       </ul>
     </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../event-schema/" title="" class="md-nav__link">
+      
+    </a>
   </li>
 
     
@@ -1117,6 +1136,13 @@
           <li class="md-nav__item">
   <a href="#processingeventproduced" class="md-nav__link">
     processing.event.produced
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#processingproduceerror" class="md-nav__link">
+    processing.produce.error
   </a>
   
 </li>
@@ -1422,6 +1448,13 @@ Counts the number of messages placed on the Kafka queue.</p>
 <p>When Relay operates with processing enabled and an item is successfully processed, each item
 will generate a message on the Kafka. The counter has an <code>event_type</code> tag which is set to
 either <code>event</code> or <code>attachment</code> representing the type of message produced on the Kafka queue.</p>
+<h3 id="processingproduceerror"><code>processing.produce.error</code></h3>
+<p><strong>Note</strong>: This metric is emitted only when Relay is built with the <code>processing</code> feature.</p>
+<p><em>Counter.</em>
+Counts the number of producer errors occurred after an event was already enqueued for
+sending to Kafka. These errors might include e.g. MessageTooLarge errors when the broker
+does not accept the requests over a certain size, which is usually due to invalic or
+inconsistent broker/producer configurations.</p>
 <h3 id="eventprotocol"><code>event.protocol</code></h3>
 <p><em>Counter.</em>
 Counts the number of events that hit any of the Store like endpoints (Store, Security,

@@ -367,6 +367,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#httpconnection_timeout" class="md-nav__link">
+    http.connection_timeout
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#httpmax_retry_interval" class="md-nav__link">
     http.max_retry_interval
   </a>
@@ -886,6 +893,18 @@
   </li>
 
     
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../event-schema/" title="" class="md-nav__link">
+      
+    </a>
+  </li>
+
+    
   </ul>
 </nav>
                   </div>
@@ -979,6 +998,13 @@
           <li class="md-nav__item">
   <a href="#httptimeout" class="md-nav__link">
     http.timeout
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#httpconnection_timeout" class="md-nav__link">
+    http.connection_timeout
   </a>
   
 </li>
@@ -1378,6 +1404,15 @@ server. Relative paths are evaluated in the current working directory.  Example:
 <h3 id="httptimeout"><code>http.timeout</code></h3>
 <p><em>Integer, default: <code>5</code></em></p>
 <p>Timeout for upstream requests in seconds.</p>
+<p>This timeout covers the time from sending the request until receiving response
+headers. Neither the connection process and handshakes, nor reading the response
+body is covered in this timeout.</p>
+<h3 id="httpconnection_timeout"><code>http.connection_timeout</code></h3>
+<p><em>Integer, default: <code>3</code></em></p>
+<p>Timeout for establishing connections with the upstream in seconds.</p>
+<p>This includes SSL handshakes. Relay reuses connections when the upstream
+supports connection keep-alive. Connections are retained for a maximum 75
+seconds, or 15 seconds of inactivity.</p>
 <h3 id="httpmax_retry_interval"><code>http.max_retry_interval</code></h3>
 <p><em>Integer, default: <code>60</code></em></p>
 <p>Maximum interval between failed request retries in seconds.</p>
