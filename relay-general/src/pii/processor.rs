@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::cmp;
 use std::collections::BTreeSet;
 use std::mem;
 

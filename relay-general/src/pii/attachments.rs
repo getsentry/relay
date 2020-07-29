@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::pii::compiledconfig::RuleRef;
 use crate::pii::utils::in_range;
-use crate::pii::regexes::{get_regex_for_rule_type, PatternType, ReplaceBehavior, ANYTHING_REGEX};
+use crate::pii::regexes::{get_regex_for_rule_type, ReplaceBehavior};
 use crate::processor::{ProcessingState, ValueType};
 
 lazy_static::lazy_static! {
