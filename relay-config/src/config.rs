@@ -510,7 +510,16 @@ impl Default for Limits {
 #[serde(default)]
 struct Http {
     /// Timeout for upstream requests in seconds.
+    ///
+    /// This timeout covers the time from sending the request until receiving response headers.
+    /// Neither the connection process and handshakes, nor reading the response body is covered in
+    /// this timeout.
     timeout: u32,
+    /// Timeout for establishing connections with the upstream in seconds.
+    ///
+    /// This includes SSL handshakes. Relay reuses connections when the upstream supports connection
+    /// keep-alive. Connections are retained for a maximum 75 seconds, or 15 seconds of inactivity.
+    connection_timeout: u32,
     /// Maximum interval between failed request retries in seconds.
     max_retry_interval: u32,
     /// The custom HTTP Host header to send to the upstream.
@@ -521,6 +530,7 @@ impl Default for Http {
     fn default() -> Self {
         Http {
             timeout: 5,
+            connection_timeout: 3,
             max_retry_interval: 60,
             host_header: None,
         }
@@ -1171,6 +1181,11 @@ impl Config {
     /// Returns the default timeout for all upstream HTTP requests.
     pub fn http_timeout(&self) -> Duration {
         Duration::from_secs(self.values.http.timeout.into())
+    }
+
+    /// Returns the connection timeout for all upstream HTTP requests.
+    pub fn http_connection_timeout(&self) -> Duration {
+        Duration::from_secs(self.values.http.connection_timeout.into())
     }
 
     /// Returns the failed upstream request retry interval.
