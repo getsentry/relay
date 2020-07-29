@@ -1,22 +1,18 @@
-use regex::Regex;
 use regex::bytes::Regex as BytesRegex;
-use smallvec::{smallvec, SmallVec};
+use regex::Regex;
+use smallvec::SmallVec;
 use std::collections::BTreeSet;
 
-use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::pii::compiledconfig::RuleRef;
-use crate::pii::utils::{in_range, hash_value};
 use crate::pii::regexes::{get_regex_for_rule_type, ReplaceBehavior};
+use crate::pii::utils::{hash_value, in_range};
+use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::processor::{ProcessingState, ValueType};
 
 lazy_static::lazy_static! {
     // TODO: This could be const
     static ref ATTACHMENT_STATE: ProcessingState<'static> = ProcessingState::root()
-        .enter_static("attachments", None, None);
-}
-
-fn attachment_state(filename: &str, value_type: ValueType) -> ProcessingState<'_> {
-    ATTACHMENT_STATE.enter_borrowed(filename, None, Some(value_type))
+        .enter_static("", None, Some(ValueType::Attachments));
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -27,22 +23,14 @@ pub enum AttachmentBytesType {
 }
 
 impl AttachmentBytesType {
-    fn get_states_by_filename(self, filename: &str) -> SmallVec<[ProcessingState<'_>; 3]> {
-        let binary_state = attachment_state(filename, ValueType::Binary);
-        let memory_state = attachment_state(filename, ValueType::Memory);
-        let stack_state = attachment_state(filename, ValueType::StackMemory);
+    fn get_state_by_filename(self, filename: &str) -> ProcessingState<'_> {
+        let value_type = match self {
+            AttachmentBytesType::MinidumpStack => ValueType::StackMemory,
+            AttachmentBytesType::MinidumpHeap => ValueType::Memory,
+            AttachmentBytesType::PlainAttachment => ValueType::Binary,
+        };
 
-        match self {
-            AttachmentBytesType::MinidumpStack => smallvec![
-                binary_state,memory_state,stack_state
-            ],
-            AttachmentBytesType::MinidumpHeap => smallvec![
-                binary_state,memory_state
-            ],
-            AttachmentBytesType::PlainAttachment => smallvec![
-                binary_state
-            ],
-        }
+        ATTACHMENT_STATE.enter_borrowed(filename, None, Some(value_type))
     }
 }
 
@@ -57,13 +45,18 @@ impl<'a> PiiAttachmentsProcessor<'a> {
         PiiAttachmentsProcessor { compiled_config }
     }
 
-    pub fn scrub_attachment_bytes(&self, filename: &str, data: &mut [u8], bytes_type: AttachmentBytesType) -> bool {
-        let states = bytes_type.get_states_by_filename(filename);
+    pub fn scrub_attachment_bytes(
+        &self,
+        filename: &str,
+        data: &mut [u8],
+        bytes_type: AttachmentBytesType,
+    ) -> bool {
+        let state = bytes_type.get_state_by_filename(filename);
 
         let mut changed = false;
 
         for (selector, rules) in &self.compiled_config.applications {
-            if states.iter().any(|state| state.path().matches_selector(&selector)) {
+            if state.path().matches_selector(&selector) {
                 for rule in rules {
                     // Note:
                     //
@@ -74,7 +67,9 @@ impl<'a> PiiAttachmentsProcessor<'a> {
                     //
                     // - We impose severe restrictions on how redaction methods work, as we must
                     //   not change the lengths of attachments.
-                    for (_pattern_type, regex, replace_behavior) in get_regex_for_rule_type(&rule.ty) {
+                    for (_pattern_type, regex, replace_behavior) in
+                        get_regex_for_rule_type(&rule.ty)
+                    {
                         changed |= apply_regex_to_bytes(data, rule, regex, &replace_behavior);
                     }
                 }
@@ -85,7 +80,12 @@ impl<'a> PiiAttachmentsProcessor<'a> {
     }
 }
 
-fn apply_regex_to_bytes(data: &mut [u8], rule: &RuleRef, regex: &Regex, replace_behavior: &ReplaceBehavior) -> bool {
+fn apply_regex_to_bytes(
+    data: &mut [u8],
+    rule: &RuleRef,
+    regex: &Regex,
+    replace_behavior: &ReplaceBehavior,
+) -> bool {
     let regex = match BytesRegex::new(regex.as_str()) {
         Ok(x) => x,
         Err(_) => {
@@ -106,7 +106,7 @@ fn apply_regex_to_bytes(data: &mut [u8], rule: &RuleRef, regex: &Regex, replace_
                         if replace_groups.contains(&(idx as u8)) {
                             matches.push((group.start(), group.end()));
                         }
-                    },
+                    }
                     ReplaceBehavior::Value => {
                         matches.push((0, data.len()));
                         break;
@@ -129,11 +129,13 @@ fn apply_regex_to_bytes(data: &mut [u8], rule: &RuleRef, regex: &Regex, replace_
                     *c = DEFAULT_PADDING;
                 }
             }
-        },
+        }
         Redaction::Mask(ref mask) => {
-            let chars_to_ignore: BTreeSet<u8> = mask.chars_to_ignore.chars().filter_map(|x|
-                if x.is_ascii() { Some(x as u8) } else { None }
-            ).collect();
+            let chars_to_ignore: BTreeSet<u8> = mask
+                .chars_to_ignore
+                .chars()
+                .filter_map(|x| if x.is_ascii() { Some(x as u8) } else { None })
+                .collect();
             let mask_char = if mask.mask_char.is_ascii() {
                 mask.mask_char as u8
             } else {
@@ -149,18 +151,22 @@ fn apply_regex_to_bytes(data: &mut [u8], rule: &RuleRef, regex: &Regex, replace_
                     }
                 }
             }
-        },
+        }
         Redaction::Hash(ref hash) => {
             for (start, end) in matches {
                 let hashed = hash_value(hash.algorithm, &data[start..end], hash.key.as_deref());
                 replace_bytes_padded(hashed.as_bytes(), &mut data[start..end], DEFAULT_PADDING);
             }
-        },
+        }
         Redaction::Replace(ref replace) => {
             for (start, end) in matches {
-                replace_bytes_padded(replace.text.as_bytes(), &mut data[start..end], DEFAULT_PADDING);
+                replace_bytes_padded(
+                    replace.text.as_bytes(),
+                    &mut data[start..end],
+                    DEFAULT_PADDING,
+                );
             }
-        },
+        }
     }
 
     true
@@ -189,15 +195,15 @@ mod tests {
         selector: &'a str,
         rule: &'a str,
         filename: &'a str,
-        bytes_type: AttachmentBytesType, 
+        bytes_type: AttachmentBytesType,
         input: &'a [u8],
         output: &'a [u8],
-        changed: bool
+        changed: bool,
     }
 
     impl<'a> AttachmentBytesTestCase<'a> {
         fn run(&self) {
-           let config = PiiConfig::from_json(&format!(
+            let config = PiiConfig::from_json(&format!(
                 r##"
                 {{
                     "applications": {{
@@ -205,16 +211,17 @@ mod tests {
                     }}
                 }}
             "##,
-            selector=self.selector,
-            rule=self.rule,
+                selector = self.selector,
+                rule = self.rule,
             ))
             .unwrap();
 
             let compiled = config.compiled();
             let processor = PiiAttachmentsProcessor::new(&compiled);
             let mut data = self.input.to_owned();
-            let has_changed = processor.scrub_attachment_bytes(self.filename, &mut data, self.bytes_type);
-            assert_eq!(data, self.output);
+            let has_changed =
+                processor.scrub_attachment_bytes(self.filename, &mut data, self.bytes_type);
+            assert_eq_bytes_str!(data, self.output);
             assert_eq!(self.changed, has_changed);
         }
     }
@@ -226,10 +233,11 @@ mod tests {
             rule: "@ip",
             filename: "foo.txt",
             bytes_type: AttachmentBytesType::PlainAttachment,
-            input : b"before 127.0.0.1 after",
+            input: b"before 127.0.0.1 after",
             output: b"before [ip]xxxxx after",
             changed: true,
-        }.run();
+        }
+        .run();
     }
 
     #[test]
@@ -239,10 +247,11 @@ mod tests {
             rule: "@ip:hash",
             filename: "foo.txt",
             bytes_type: AttachmentBytesType::PlainAttachment,
-            input : b"before 127.0.0.1 after",
+            input: b"before 127.0.0.1 after",
             output: b"before AE12FE3B5 after",
             changed: true,
-        }.run();
+        }
+        .run();
     }
 
     #[test]
@@ -252,23 +261,25 @@ mod tests {
             rule: "@ip:mask",
             filename: "foo.txt",
             bytes_type: AttachmentBytesType::PlainAttachment,
-            input : b"before 127.0.0.1 after",
+            input: b"before 127.0.0.1 after",
             output: b"before ********* after",
             changed: true,
-        }.run();
+        }
+        .run();
     }
 
     #[test]
     fn test_ip_removing() {
         AttachmentBytesTestCase {
             selector: "$binary",
-            rule: "@ip:mask",
+            rule: "@ip:remove",
             filename: "foo.txt",
             bytes_type: AttachmentBytesType::PlainAttachment,
-            input : b"before 127.0.0.1 after",
+            input: b"before 127.0.0.1 after",
             output: b"before xxxxxxxxx after",
             changed: true,
-        }.run();
+        }
+        .run();
     }
 
     #[test]
@@ -278,17 +289,18 @@ mod tests {
             "$number",
             "$attachments.* && $string",
             "$attachments",
-            "** && !$binary"
+            "** && !$binary",
         ] {
             AttachmentBytesTestCase {
                 selector: wrong_selector,
                 rule: "@ip:mask",
                 filename: "foo.txt",
                 bytes_type: AttachmentBytesType::PlainAttachment,
-                input : b"before 127.0.0.1 after",
+                input: b"before 127.0.0.1 after",
                 output: b"before 127.0.0.1 after",
                 changed: false,
-            }.run();
+            }
+            .run();
         }
     }
 }

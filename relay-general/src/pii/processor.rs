@@ -6,7 +6,7 @@ use regex::Regex;
 
 use crate::pii::compiledconfig::RuleRef;
 use crate::pii::regexes::{get_regex_for_rule_type, PatternType, ReplaceBehavior, ANYTHING_REGEX};
-use crate::pii::utils::{process_pairlist, in_range, hash_value};
+use crate::pii::utils::{hash_value, in_range, process_pairlist};
 use crate::pii::{CompiledPiiConfig, Redaction, RuleType};
 use crate::processor::{
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
@@ -285,7 +285,6 @@ fn apply_regex_to_chunks<'a>(
     rv
 }
 
-
 fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<'_>>) {
     match &rule.redaction {
         Redaction::Default | Redaction::Remove => {
@@ -316,7 +315,11 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
             output.push(Chunk::Redaction {
                 ty: RemarkType::Pseudonymized,
                 rule_id: Cow::Owned(rule.origin.to_string()),
-                text: Cow::Owned(hash_value(hash.algorithm, text.as_bytes(), hash.key.as_deref())),
+                text: Cow::Owned(hash_value(
+                    hash.algorithm,
+                    text.as_bytes(),
+                    hash.key.as_deref(),
+                )),
             });
         }
         Redaction::Replace(replace) => {

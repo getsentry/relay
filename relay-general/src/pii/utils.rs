@@ -4,7 +4,7 @@ use hmac::{Hmac, Mac};
 use sha1::Sha1;
 use sha2::{Sha256, Sha512};
 
-use crate::pii::{HashAlgorithm};
+use crate::pii::HashAlgorithm;
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::protocol::{AsPair, PairList};
 use crate::types::ProcessingResult;
@@ -49,7 +49,6 @@ pub fn process_pairlist<P: Processor, T: ProcessValue + AsPair>(
     Ok(())
 }
 
-
 pub fn in_range(range: (Option<i32>, Option<i32>), pos: usize, len: usize) -> bool {
     fn get_range_index(idx: Option<i32>, len: usize, default: usize) -> usize {
         match idx {
@@ -63,7 +62,6 @@ pub fn in_range(range: (Option<i32>, Option<i32>), pos: usize, len: usize) -> bo
     let end = get_range_index(range.1, len, len);
     pos >= start && pos < end
 }
-
 
 pub fn hash_value(algorithm: HashAlgorithm, data: &[u8], key: Option<&str>) -> String {
     let key = key.unwrap_or("");
