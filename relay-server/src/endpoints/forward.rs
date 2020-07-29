@@ -95,8 +95,7 @@ fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpR
         .method(request.method().clone())
         .uri(upstream.get_url(path_and_query))
         .set_header("Host", host_header)
-        .set_header("X-Forwarded-For", ForwardedFor::from(request))
-        .set_header("Connection", "close");
+        .set_header("X-Forwarded-For", ForwardedFor::from(request));
 
     ForwardBody::new(request, limit)
         .map_err(Error::from)
