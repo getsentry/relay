@@ -152,7 +152,9 @@ impl<'a> Processor for PiiProcessor<'a> {
         // Recurse into the user and does PII processing on fields.
         user.process_child_values(self, state)?;
 
-        let has_other_fields = user.id.value().is_some() || user.username.value().is_some() || user.email.value().is_some();
+        let has_other_fields = user.id.value().is_some()
+            || user.username.value().is_some()
+            || user.email.value().is_some();
 
         let ip_is_still_valid = user.ip_address.value().map_or(true, IpAddr::is_valid);
 
@@ -944,9 +946,7 @@ fn test_ip_address_hashing() {
     assert!(user.ip_address.value().is_none());
 
     assert_eq!(
-            user.id
-            .value()
-            .unwrap().as_str(),
+        user.id.value().unwrap().as_str(),
         "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
     );
 }
