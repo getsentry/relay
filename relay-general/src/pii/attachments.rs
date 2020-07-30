@@ -223,13 +223,21 @@ mod tests {
             input: &'a [u8],
             output: &'a [u8],
             changed: bool,
-        }
+        },
     }
 
     impl<'a> AttachmentBytesTestCase<'a> {
         fn run(self) {
             let (config, filename, bytes_type, input, output, changed) = match self {
-                AttachmentBytesTestCase::Builtin { selector, rule, filename, bytes_type, input, output, changed } => {
+                AttachmentBytesTestCase::Builtin {
+                    selector,
+                    rule,
+                    filename,
+                    bytes_type,
+                    input,
+                    output,
+                    changed,
+                } => {
                     let config = serde_json::from_value::<PiiConfig>(serde_json::json!(
                         {
                             "applications": {
@@ -239,8 +247,16 @@ mod tests {
                     ))
                     .unwrap();
                     (config, filename, bytes_type, input, output, changed)
-                },
-                AttachmentBytesTestCase::Regex { selector, regex, filename, bytes_type, input, output, changed } => {
+                }
+                AttachmentBytesTestCase::Regex {
+                    selector,
+                    regex,
+                    filename,
+                    bytes_type,
+                    input,
+                    output,
+                    changed,
+                } => {
                     let config = serde_json::from_value::<PiiConfig>(serde_json::json!(
                         {
                             "rules": {
@@ -265,8 +281,7 @@ mod tests {
             let compiled = config.compiled();
             let processor = PiiAttachmentsProcessor::new(&compiled);
             let mut data = input.to_owned();
-            let has_changed =
-                processor.scrub_attachment_bytes(filename, &mut data, bytes_type);
+            let has_changed = processor.scrub_attachment_bytes(filename, &mut data, bytes_type);
             assert_eq_bytes_str!(data, output);
             assert_eq!(changed, has_changed);
         }
@@ -370,14 +385,14 @@ mod tests {
         //
         // From https://www.php.net/manual/en/reference.pcre.pattern.modifiers.php#54805
         let samples: &[&[u8]] = &[
-            b"\xc3\x28", // Invalid 2 Octet Sequence
-            b"\xa0\xa1", // Invalid Sequence Identifier
-            b"\xe2\x28\xa1", // Invalid 3 Octet Sequence (in 2nd Octet)
-            b"\xe2\x82\x28", // Invalid 3 Octet Sequence (in 3rd Octet)
-            b"\xf0\x28\x8c\xbc", // Invalid 4 Octet Sequence (in 2nd Octet)
-            b"\xf0\x90\x28\xbc", // Invalid 4 Octet Sequence (in 3rd Octet)
-            b"\xf0\x28\x8c\x28", // Invalid 4 Octet Sequence (in 4th Octet)
-            b"\xf8\xa1\xa1\xa1\xa1", // Valid 5 Octet Sequence (but not Unicode!)
+            b"\xc3\x28",                 // Invalid 2 Octet Sequence
+            b"\xa0\xa1",                 // Invalid Sequence Identifier
+            b"\xe2\x28\xa1",             // Invalid 3 Octet Sequence (in 2nd Octet)
+            b"\xe2\x82\x28",             // Invalid 3 Octet Sequence (in 3rd Octet)
+            b"\xf0\x28\x8c\xbc",         // Invalid 4 Octet Sequence (in 2nd Octet)
+            b"\xf0\x90\x28\xbc",         // Invalid 4 Octet Sequence (in 3rd Octet)
+            b"\xf0\x28\x8c\x28",         // Invalid 4 Octet Sequence (in 4th Octet)
+            b"\xf8\xa1\xa1\xa1\xa1",     // Valid 5 Octet Sequence (but not Unicode!)
             b"\xfc\xa1\xa1\xa1\xa1\xa1", // Valid 6 Octet Sequence (but not Unicode!)
         ];
 
@@ -392,7 +407,8 @@ mod tests {
                 input: bytes,
                 output: &vec![b'x'; bytes.len()],
                 changed: true,
-            }.run()
+            }
+            .run()
         }
     }
 }
