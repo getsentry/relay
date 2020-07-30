@@ -67,7 +67,7 @@ fn main(argv: CliArgs) -> Result<()> {
         .map(|t| t.raw.stack.memory.rva)
         .collect();
 
-    // First we need to collect all the locations we would like to mutate.  The Minidump are
+    // First we need to collect all the locations we would like to mutate.  The Minidump and
     // its related types borrow the data immutably, however they also have "descriptor"
     // structs which point at locations inside the minidup without borrowing any data from
     // them.  So we first collect all those descriptors using the normal API before starting
@@ -81,21 +81,43 @@ fn main(argv: CliArgs) -> Result<()> {
     let mem_descriptors: Vec<minidump::format::MINIDUMP_MEMORY_DESCRIPTOR> =
         mem_list.iter().map(|mem| mem.desc).collect();
 
+    // Collect the descriptors for mutating linux raw streams.
+    let mut raw_descriptors: Vec<minidump::format::MINIDUMP_LOCATION_DESCRIPTOR> = Vec::new();
+    let raw_stream_types = [
+        minidump::format::MINIDUMP_STREAM_TYPE::LinuxEnviron,
+        minidump::format::MINIDUMP_STREAM_TYPE::LinuxCmdLine,
+    ];
+    for stream_type in &raw_stream_types {
+        match dump.get_raw_stream(*stream_type) {
+            Ok(stream) => {
+                let stream_p = stream.as_ptr() as usize;
+                let data_p = data.as_ptr() as usize;
+                let offset = stream_p - data_p;
+                raw_descriptors.push(minidump::format::MINIDUMP_LOCATION_DESCRIPTOR {
+                    rva: offset as u32,
+                    data_size: stream.len() as u32,
+                });
+            }
+            Err(minidump::Error::StreamNotFound) => (),
+            Err(e) => return Err(e.compat()).context("Unexpected error getting raw stream"),
+        }
+    }
+
     // Collect the descriptors to mutate the filenames in referenced modules.
     let mod_list: minidump::MinidumpModuleList = dump
         .get_stream()
         .map_err(|e| e.compat())
         .context("Failed to parse modules from minidump")?;
-    let mut file_name_descriptors: Vec<UTF16Descriptor> = Vec::new();
+    let mut file_name_descriptors: Vec<minidump::format::MINIDUMP_LOCATION_DESCRIPTOR> = Vec::new();
     for module in mod_list.iter() {
         let name_size: u32 = data.pread_with(module.raw.module_name_rva as usize, dump.endian)?;
-        file_name_descriptors.push(UTF16Descriptor {
+        file_name_descriptors.push(minidump::format::MINIDUMP_LOCATION_DESCRIPTOR {
             rva: module.raw.module_name_rva + std::mem::size_of::<u32>() as u32,
-            size: name_size,
+            data_size: name_size,
         });
         // TODO: add debug names
         // TODO: deduplicate descriptors.  E.g. a code and debug name could both point to
-        // the same memory.
+        // the same string.
     }
 
     // Time to modify things!
@@ -118,6 +140,14 @@ fn main(argv: CliArgs) -> Result<()> {
         changed |= pii_processor.scrub_attachment_bytes(&filename, dest, bytes_type);
     }
 
+    for raw_desc in raw_descriptors {
+        changed |= pii_processor.scrub_attachment_bytes(
+            &filename,
+            data.desc_mut_slice(&raw_desc),
+            AttachmentBytesType::PlainAttachment,
+        );
+    }
+
     //for desc in file_name_descriptors {
     //let range = std::ops::Range {
     //start: desc.rva as usize,
@@ -138,10 +168,31 @@ fn main(argv: CliArgs) -> Result<()> {
     Ok(())
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-struct UTF16Descriptor {
-    rva: u32,
-    size: u32,
+/// Easy slices for our raw data from minidump descriptors.
+trait MinidumpSlicer {
+    fn desc_slice(&self, desc: &minidump::format::MINIDUMP_LOCATION_DESCRIPTOR) -> &[u8];
+
+    fn desc_mut_slice(
+        &mut self,
+        desc: &minidump::format::MINIDUMP_LOCATION_DESCRIPTOR,
+    ) -> &mut [u8];
+}
+
+impl MinidumpSlicer for Vec<u8> {
+    fn desc_slice(&self, desc: &minidump::format::MINIDUMP_LOCATION_DESCRIPTOR) -> &[u8] {
+        let start = desc.rva as usize;
+        let end = (desc.rva + desc.data_size) as usize;
+        &self[start..end]
+    }
+
+    fn desc_mut_slice(
+        &mut self,
+        desc: &minidump::format::MINIDUMP_LOCATION_DESCRIPTOR,
+    ) -> &mut [u8] {
+        let start = desc.rva as usize;
+        let end = (desc.rva + desc.data_size) as usize;
+        &mut self[start..end]
+    }
 }
 
 ///// Modify a module's code name
