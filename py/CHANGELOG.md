@@ -4,6 +4,7 @@
 
 - Always create a spans array for transactions in normalization. ([#667](https://github.com/getsentry/relay/pull/667))
 - Retain the full span description in transaction events instead of trimming it. ([#674](https://github.com/getsentry/relay/pull/674))
+- Add "HubSpot Crawler" to the list of web crawlers for inbound filters. ([#693](https://github.com/getsentry/relay/pull/693))
 
 ## 0.5.11
 
