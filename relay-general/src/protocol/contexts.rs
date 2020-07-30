@@ -8,7 +8,7 @@ use crate::types::{Annotated, Empty, Error, FromValue, Object, SkipSerialization
 /// Device information.
 ///
 /// Device context describes the device that caused the event. This is most appropriate for mobile
-/// applications. 
+/// applications.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct DeviceContext {

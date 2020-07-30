@@ -10,7 +10,7 @@ use crate::types::{Annotated, Object, Value};
 /// An event may contain one or more breadcrumbs in an attribute named `breadcrumbs`. The entries
 /// are ordered from oldest to newest. Consequently, the last entry in the list should be the last
 /// entry before the event occurred.
-/// 
+///
 /// While breadcrumb attributes are not strictly validated in Sentry, a breadcrumb is most useful
 /// when it includes at least a `timestamp` and `type`, `category` or `message`. The rendering of
 /// breadcrumbs in Sentry depends on what is provided.

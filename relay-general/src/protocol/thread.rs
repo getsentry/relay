@@ -75,7 +75,7 @@ impl Empty for ThreadId {
 /// An event may contain one or more threads in an attribute named `threads`.
 ///
 /// The following example illustrates the threads part of the event payload and omits other attributes for simplicity.
-/// 
+///
 /// ```json
 /// {
 ///   "threads": {

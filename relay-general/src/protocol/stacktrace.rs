@@ -213,13 +213,13 @@ impl FromValue for FrameVars {
 /// def foo():
 ///     my_var = 'foo'
 ///     raise ValueError()
-/// 
+///
 /// def main():
 ///     foo()
 /// ```
 ///
 /// A minimalistic stack trace for the above program in the correct order:
-/// 
+///
 /// ```json
 /// {
 ///   "frames": [

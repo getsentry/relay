@@ -322,10 +322,7 @@ mod tests {
         assert_eq!(&**os_name, "Windows 10");
 
         let gpu_context = get_context!(contexts, GpuContext::default_key(), Context::Gpu);
-        let gpu_name = gpu_context.name
-            .value()
-            .unwrap()
-            .as_str();
+        let gpu_name = gpu_context.name.value().unwrap().as_str();
 
         assert_eq!(gpu_name, "Parallels Display Adapter (WDDM)");
 

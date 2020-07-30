@@ -11,7 +11,7 @@ use crate::types::{Annotated, Object, Value};
 /// except Exception as e:
 ///     raise ValueError("something went wrong, help!") from e
 /// ```
-/// 
+///
 /// `Exception` would be described first in the values list, followed by a description of `ValueError`:
 ///
 /// ```json

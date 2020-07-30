@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Attribute,Visibility};
+use syn::{Attribute, Visibility};
 
 use crate::parse_field_attributes;
 
