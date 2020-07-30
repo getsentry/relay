@@ -1,4 +1,4 @@
-use regex::bytes::Regex as BytesRegex;
+use regex::bytes::RegexBuilder as BytesRegexBuilder;
 use regex::Regex;
 use smallvec::SmallVec;
 use std::collections::BTreeSet;
@@ -86,7 +86,13 @@ fn apply_regex_to_bytes(
     regex: &Regex,
     replace_behavior: &ReplaceBehavior,
 ) -> bool {
-    let regex = match BytesRegex::new(regex.as_str()) {
+    let regex = match BytesRegexBuilder::new(regex.as_str())
+        // https://github.com/rust-lang/regex/issues/697
+        .unicode(false)
+        .multi_line(false)
+        .dot_matches_new_line(true)
+        .build()
+    {
         Ok(x) => x,
         Err(_) => {
             // XXX: This is not going to fly long-term
@@ -101,6 +107,10 @@ fn apply_regex_to_bytes(
     for captures in regex.captures_iter(data) {
         for (idx, group) in captures.iter().enumerate() {
             if let Some(group) = group {
+                if group.start() == group.end() {
+                    continue;
+                }
+
                 match replace_behavior {
                     ReplaceBehavior::Groups(ref replace_groups) => {
                         if replace_groups.contains(&(idx as u8)) {
@@ -119,6 +129,8 @@ fn apply_regex_to_bytes(
     if matches.is_empty() {
         return false;
     }
+
+    println!("number of matches: {}", matches.len());
 
     const DEFAULT_PADDING: u8 = b'x';
 
@@ -302,5 +314,19 @@ mod tests {
             }
             .run();
         }
+    }
+
+    #[test]
+    fn test_all_the_bytes() {
+        AttachmentBytesTestCase {
+            selector: "$binary",
+            rule: "@anything:remove",
+            filename: "foo.txt",
+            bytes_type: AttachmentBytesType::PlainAttachment,
+            input: (0..255 as u8).collect::<Vec<_>>().as_slice(),
+            output: &[b'x'; 255],
+            changed: true,
+        }
+        .run();
     }
 }
