@@ -199,48 +199,82 @@ fn replace_bytes_padded(source: &[u8], target: &mut [u8], padding: u8) {
 
 #[cfg(test)]
 mod tests {
+    use itertools::Itertools;
+
     use crate::pii::PiiConfig;
 
     use super::*;
 
-    struct AttachmentBytesTestCase<'a> {
-        selector: &'a str,
-        rule: &'a str,
-        filename: &'a str,
-        bytes_type: AttachmentBytesType,
-        input: &'a [u8],
-        output: &'a [u8],
-        changed: bool,
+    enum AttachmentBytesTestCase<'a> {
+        Builtin {
+            selector: &'a str,
+            rule: &'a str,
+            filename: &'a str,
+            bytes_type: AttachmentBytesType,
+            input: &'a [u8],
+            output: &'a [u8],
+            changed: bool,
+        },
+        Regex {
+            selector: &'a str,
+            regex: &'a str,
+            filename: &'a str,
+            bytes_type: AttachmentBytesType,
+            input: &'a [u8],
+            output: &'a [u8],
+            changed: bool,
+        }
     }
 
     impl<'a> AttachmentBytesTestCase<'a> {
-        fn run(&self) {
-            let config = PiiConfig::from_json(&format!(
-                r##"
-                {{
-                    "applications": {{
-                        "{selector}": ["{rule}"]
-                    }}
-                }}
-            "##,
-                selector = self.selector,
-                rule = self.rule,
-            ))
-            .unwrap();
+        fn run(self) {
+            let (config, filename, bytes_type, input, output, changed) = match self {
+                AttachmentBytesTestCase::Builtin { selector, rule, filename, bytes_type, input, output, changed } => {
+                    let config = serde_json::from_value::<PiiConfig>(serde_json::json!(
+                        {
+                            "applications": {
+                                selector: [rule]
+                            }
+                        }
+                    ))
+                    .unwrap();
+                    (config, filename, bytes_type, input, output, changed)
+                },
+                AttachmentBytesTestCase::Regex { selector, regex, filename, bytes_type, input, output, changed } => {
+                    let config = serde_json::from_value::<PiiConfig>(serde_json::json!(
+                        {
+                            "rules": {
+                                "custom": {
+                                    "type": "pattern",
+                                    "pattern": regex,
+                                    "redaction": {
+                                      "method": "remove"
+                                    }
+                                }
+                            },
+                            "applications": {
+                                selector: ["custom"]
+                            }
+                        }
+                    ))
+                    .unwrap();
+                    (config, filename, bytes_type, input, output, changed)
+                }
+            };
 
             let compiled = config.compiled();
             let processor = PiiAttachmentsProcessor::new(&compiled);
-            let mut data = self.input.to_owned();
+            let mut data = input.to_owned();
             let has_changed =
-                processor.scrub_attachment_bytes(self.filename, &mut data, self.bytes_type);
-            assert_eq_bytes_str!(data, self.output);
-            assert_eq!(self.changed, has_changed);
+                processor.scrub_attachment_bytes(filename, &mut data, bytes_type);
+            assert_eq_bytes_str!(data, output);
+            assert_eq!(changed, has_changed);
         }
     }
 
     #[test]
     fn test_ip_replace_padding() {
-        AttachmentBytesTestCase {
+        AttachmentBytesTestCase::Builtin {
             selector: "$binary",
             rule: "@ip",
             filename: "foo.txt",
@@ -254,7 +288,7 @@ mod tests {
 
     #[test]
     fn test_ip_hash_trunchating() {
-        AttachmentBytesTestCase {
+        AttachmentBytesTestCase::Builtin {
             selector: "$binary",
             rule: "@ip:hash",
             filename: "foo.txt",
@@ -268,7 +302,7 @@ mod tests {
 
     #[test]
     fn test_ip_masking() {
-        AttachmentBytesTestCase {
+        AttachmentBytesTestCase::Builtin {
             selector: "$binary",
             rule: "@ip:mask",
             filename: "foo.txt",
@@ -282,7 +316,7 @@ mod tests {
 
     #[test]
     fn test_ip_removing() {
-        AttachmentBytesTestCase {
+        AttachmentBytesTestCase::Builtin {
             selector: "$binary",
             rule: "@ip:remove",
             filename: "foo.txt",
@@ -303,7 +337,7 @@ mod tests {
             "$attachments",
             "** && !$binary",
         ] {
-            AttachmentBytesTestCase {
+            AttachmentBytesTestCase::Builtin {
                 selector: wrong_selector,
                 rule: "@ip:mask",
                 filename: "foo.txt",
@@ -318,7 +352,7 @@ mod tests {
 
     #[test]
     fn test_all_the_bytes() {
-        AttachmentBytesTestCase {
+        AttachmentBytesTestCase::Builtin {
             selector: "$binary",
             rule: "@anything:remove",
             filename: "foo.txt",
@@ -328,5 +362,37 @@ mod tests {
             changed: true,
         }
         .run();
+    }
+
+    #[test]
+    fn test_bytes_regexes() {
+        // Test that specifically bytes patterns that are not valid UTF-8 can be matched against.
+        //
+        // From https://www.php.net/manual/en/reference.pcre.pattern.modifiers.php#54805
+        let samples: &[&[u8]] = &[
+            b"\xc3\x28", // Invalid 2 Octet Sequence
+            b"\xa0\xa1", // Invalid Sequence Identifier
+            b"\xe2\x28\xa1", // Invalid 3 Octet Sequence (in 2nd Octet)
+            b"\xe2\x82\x28", // Invalid 3 Octet Sequence (in 3rd Octet)
+            b"\xf0\x28\x8c\xbc", // Invalid 4 Octet Sequence (in 2nd Octet)
+            b"\xf0\x90\x28\xbc", // Invalid 4 Octet Sequence (in 3rd Octet)
+            b"\xf0\x28\x8c\x28", // Invalid 4 Octet Sequence (in 4th Octet)
+            b"\xf8\xa1\xa1\xa1\xa1", // Valid 5 Octet Sequence (but not Unicode!)
+            b"\xfc\xa1\xa1\xa1\xa1\xa1", // Valid 6 Octet Sequence (but not Unicode!)
+        ];
+
+        for bytes in samples {
+            assert!(String::from_utf8(bytes.to_vec()).is_err());
+
+            AttachmentBytesTestCase::Regex {
+                selector: "$binary",
+                regex: &bytes.iter().map(|x| format!("\\x{:02x}", x)).join(""),
+                filename: "foo.txt",
+                bytes_type: AttachmentBytesType::PlainAttachment,
+                input: bytes,
+                output: &vec![b'x'; bytes.len()],
+                changed: true,
+            }.run()
+        }
     }
 }
