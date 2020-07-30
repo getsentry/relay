@@ -346,15 +346,25 @@ impl Handler<Authenticate> for UpstreamRelay {
             })
             .map_err(|err, slf, ctx| {
                 log::error!("authentication encountered error: {}", LogError(&err));
-
-                let interval = slf.backoff.next_backoff();
-                log::debug!(
-                    "scheduling authentication retry in {} seconds",
-                    interval.as_secs()
-                );
-
                 slf.auth_state = AuthState::Error;
-                ctx.notify_later(Authenticate, interval);
+
+                // Do not retry client errors including authentication failures since client errors
+                // are usually permanent. This allows the upstream to reject unsupported Relays
+                // without infinite retries.
+                let should_retry = match err {
+                    UpstreamRequestError::ResponseError(code, _) => !code.is_client_error(),
+                    _ => true,
+                };
+
+                if should_retry {
+                    let interval = slf.backoff.next_backoff();
+                    log::debug!(
+                        "scheduling authentication retry in {} seconds",
+                        interval.as_secs()
+                    );
+
+                    ctx.notify_later(Authenticate, interval);
+                }
             });
 
         Box::new(future)
