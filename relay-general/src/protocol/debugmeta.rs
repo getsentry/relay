@@ -308,7 +308,7 @@ pub struct NativeDebugImage {
     ///
     /// - `pe`: Identifier of the executable or DLL. It contains the values of the `time_date_stamp` from the COFF header and `size_of_image` from the optional header formatted together into a hex string using `%08x%X` (note that the second value is not padded):
     ///
-    ///   ```
+    ///   ```text
     ///   time_date_stamp: 0x5ab38077
     ///   size_of_image:           0x9000
     ///   code_id:           5ab380779000
@@ -334,7 +334,7 @@ pub struct NativeDebugImage {
     /// - `elf`: Debug identifier of the dynamic library or executable. If a code identifier is available, the debug identifier is the little-endian UUID representation of the first 16-bytes of that
     /// identifier. Spaces are inserted for readability, note the byte order of the first fields:
     ///
-    ///   ```
+    ///   ```text
     ///   code id:  f1c3bcc0 2798 65fe 3058 404b2831d9e6 4135386c
     ///   debug id: c0bcc3f1-9827-fe65-3058-404b2831d9e6
     ///   ```
@@ -343,7 +343,7 @@ pub struct NativeDebugImage {
     ///
     /// - `pe`: `signature` and `age` of the PDB file. Both values can be read from the CodeView PDB70 debug information header in the PE. The value should be represented as little-endian UUID, with the age appended at the end. Note that the byte order of the UUID fields must be swapped (spaces inserted for readability):
     ///
-    ///   ```
+    ///   ```text
     ///   signature: f1c3bcc0 2798 65fe 3058 404b2831d9e6
     ///   age:                                            1
     ///   debug_id:  c0bcc3f1-9827-fe65-3058-404b2831d9e6-1

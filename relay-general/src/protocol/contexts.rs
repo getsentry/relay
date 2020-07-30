@@ -305,41 +305,41 @@ lazy_static::lazy_static! {
 pub struct GpuContext {
     /// The name of the graphics device.
     #[metastructure(pii = "maybe")]
-    name: Annotated<String>,
+    pub name: Annotated<String>,
 
     /// The Version of the graphics device.
     #[metastructure(pii = "maybe")]
-    version: Annotated<String>,
+    pub version: Annotated<String>,
 
     /// The PCI identifier of the graphics device.
     #[metastructure(pii = "maybe")]
-    id: Annotated<Value>,
+    pub id: Annotated<Value>,
 
     /// The PCI vendor identifier of the graphics device.
     #[metastructure(pii = "maybe")]
-    vendor_id: Annotated<String>,
+    pub vendor_id: Annotated<String>,
 
     /// The vendor name as reported by the graphics device.
     #[metastructure(pii = "maybe")]
-    vendor_name: Annotated<String>,
+    pub vendor_name: Annotated<String>,
 
     /// The total GPU memory available in Megabytes.
     #[metastructure(pii = "maybe")]
-    memory_size: Annotated<u64>,
+    pub memory_size: Annotated<u64>,
 
     /// The device low-level API type.
     ///
     /// Examples: `"Apple Metal"` or `"Direct3D11"`
     #[metastructure(pii = "maybe")]
-    api_type: Annotated<String>,
+    pub api_type: Annotated<String>,
 
     /// Whether the GPU has multi-threaded rendering or not.
     #[metastructure(pii = "maybe")]
-    multi_threaded_rendering: Annotated<bool>,
+    pub multi_threaded_rendering: Annotated<bool>,
 
     /// The Non-Power-Of-Two support.
     #[metastructure(pii = "maybe")]
-    npot_support: Annotated<String>,
+    pub npot_support: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
