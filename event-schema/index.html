@@ -536,6 +536,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#gpucontext" class="md-nav__link">
+    GPUContext
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#tracecontext" class="md-nav__link">
     TraceContext
   </a>
@@ -655,13 +662,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#framedata" class="md-nav__link">
-    FrameData
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#logentry" class="md-nav__link">
     LogEntry
   </a>
@@ -672,6 +672,19 @@
   <a href="#request" class="md-nav__link">
     Request
   </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ordered-maps" class="md-nav__link">
+    Ordered Maps
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -826,6 +839,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#gpucontext" class="md-nav__link">
+    GPUContext
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#tracecontext" class="md-nav__link">
     TraceContext
   </a>
@@ -945,13 +965,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#framedata" class="md-nav__link">
-    FrameData
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#logentry" class="md-nav__link">
     LogEntry
   </a>
@@ -962,6 +975,19 @@
   <a href="#request" class="md-nav__link">
     Request
   </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ordered-maps" class="md-nav__link">
+    Ordered Maps
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1049,6 +1075,7 @@
 </ul>
 <p><a name='typedef-Event'></a></p>
 <h2 id="event"><code>Event</code></h2>
+<p>The sentry v7 event structure.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -1056,7 +1083,7 @@
 <p>List of breadcrumbs recorded before this event.</p>
 </li>
 <li>
-<p><code>contexts</code> (optional): <code>{ [key: string]: null | ({ [key: string]: any } | <a href='#typedef-DeviceContext'>DeviceContext</a> | <a href='#typedef-OSContext'>OSContext</a> | <a href='#typedef-RuntimeContext'>RuntimeContext</a> | <a href='#typedef-AppContext'>AppContext</a> | <a href='#typedef-BrowserContext'>BrowserContext</a> | <a href='#typedef-TraceContext'>TraceContext</a>) } | null</code></p>
+<p><code>contexts</code> (optional): <code>{ [key: string]: null | ({ [key: string]: any } | <a href='#typedef-DeviceContext'>DeviceContext</a> | <a href='#typedef-OSContext'>OSContext</a> | <a href='#typedef-RuntimeContext'>RuntimeContext</a> | <a href='#typedef-AppContext'>AppContext</a> | <a href='#typedef-BrowserContext'>BrowserContext</a> | <a href='#typedef-GPUContext'>GPUContext</a> | <a href='#typedef-TraceContext'>TraceContext</a>) } | null</code></p>
 <p>Contexts describing the environment (e.g. device, os or browser).</p>
 </li>
 <li>
@@ -1070,10 +1097,14 @@
 <li>
 <p><code>dist</code> (optional): <code>null | string</code></p>
 <p>Program's distribution identifier.</p>
+<p>The distribution of the application.</p>
+<p>Distributions are used to disambiguate build or deployment variants of the same release
+of an application. For example, the dist can be the build number of an XCode build or the
+version code of an Android build.</p>
 </li>
 <li>
 <p><code>environment</code> (optional): <code>null | string</code></p>
-<p>Environment the environment was generated in ("production" or "development").</p>
+<p>The environment name, such as <code>production</code> or <code>staging</code>.</p>
 </li>
 <li>
 <p><code>errors</code> (optional): <code>Array&lt;null | <a href='#typedef-EventProcessingError'>EventProcessingError</a>&gt; | null</code></p>
@@ -1083,6 +1114,14 @@ annotation/metadata system.</p>
 <li>
 <p><code>event_id</code> (optional): <code>null | string</code></p>
 <p>Unique identifier of this event.</p>
+<p>Hexadecimal string representing a uuid4 value. The length is exactly 32 characters.
+Dashes are not allowed. Has to be lowercase.</p>
+<p>Even though this field is backfilled on the server with a new uuid4, it is strongly
+recommended to generate that uuid4 clientside. There are some features like user feedback
+which are easier to implement that way, and debugging in case events get lost in your
+Sentry installation is also easier.</p>
+<p>Example:</p>
+<p><code>json { "event_id": "fc6d8c0c43fc4630ad850ee518f1b9d0" }</code></p>
 </li>
 <li>
 <p><code>exception</code> (optional): <code>null | <a href='#typedef-Exception'>Exception</a></code></p>
@@ -1095,6 +1134,9 @@ annotation/metadata system.</p>
 <li>
 <p><code>fingerprint</code> (optional): <code>string[] | null</code></p>
 <p>Manual fingerprint override.</p>
+<p>A list of strings used to dictate how this event is supposed to be grouped with other
+events into issues. For more information about overriding grouping see <a href="https://docs.sentry.io/data-management/event-grouping/">Customize
+Grouping with Fingerprints</a>.</p>
 </li>
 <li>
 <p><code>key_id</code> (optional): <code>null | string</code></p>
@@ -1102,7 +1144,7 @@ annotation/metadata system.</p>
 </li>
 <li>
 <p><code>level</code> (optional): <code><a href='#typedef-Level'>Level</a> | null</code></p>
-<p>Severity level of the event.</p>
+<p>Severity level of the event. Defaults to <code>error</code>.</p>
 </li>
 <li>
 <p><code>logentry</code> (optional): <code>null | <a href='#typedef-LogEntry'>LogEntry</a></code></p>
@@ -1114,11 +1156,24 @@ annotation/metadata system.</p>
 </li>
 <li>
 <p><code>modules</code> (optional): <code>{ [key: string]: null | string } | null</code></p>
-<p>Name and versions of installed modules.</p>
+<p>Name and versions of all installed modules/packages/dependencies in the current
+environment/application.</p>
+<p><code>json { "django": "3.0.0", "celery": "4.2.1" }</code></p>
+<p>In Python this is a list of installed packages as reported by <code>pkg_resources</code> together
+with their reported version string.</p>
+<p>This is primarily used for suggesting to enable certain SDK integrations from within the
+UI and for making informed decisions on which frameworks to support in future development
+efforts.</p>
 </li>
 <li>
 <p><code>platform</code> (optional): <code>null | string</code></p>
 <p>Platform identifier of this event (defaults to "other").</p>
+<p>A string representing the platform the SDK is submitting from. This will be used by the
+Sentry interface to customize various components in the interface, but also to enter or
+skip stacktrace processing.</p>
+<p>Acceptable values are: <code>as3</code>, <code>c</code>, <code>cfml</code>, <code>cocoa</code>, <code>csharp</code>, <code>elixir</code>, <code>haskell</code>, <code>go</code>,
+<code>groovy</code>, <code>java</code>, <code>javascript</code>, <code>native</code>, <code>node</code>, <code>objc</code>, <code>other</code>, <code>perl</code>, <code>php</code>,
+<code>python</code>, <code>ruby</code></p>
 </li>
 <li>
 <p><code>project</code> (optional): <code>number | null</code></p>
@@ -1130,7 +1185,9 @@ annotation/metadata system.</p>
 </li>
 <li>
 <p><code>release</code> (optional): <code>null | string</code></p>
-<p>Program's release identifier.</p>
+<p>The release version of the application.</p>
+<p><strong>Release versions must be unique across all projects in your organization.</strong> This value
+can be the git SHA for the given project, or a product identifier with a semantic version.</p>
 </li>
 <li>
 <p><code>request</code> (optional): <code>null | <a href='#typedef-Request'>Request</a></code></p>
@@ -1143,6 +1200,7 @@ annotation/metadata system.</p>
 <li>
 <p><code>server_name</code> (optional): <code>null | string</code></p>
 <p>Server or device name the event was generated on.</p>
+<p>This is supposed to be a hostname.</p>
 </li>
 <li>
 <p><code>site</code> (optional): <code>null | string</code></p>
@@ -1164,6 +1222,7 @@ annotation/metadata system.</p>
 <li>
 <p><code>tags</code> (optional): <code>null | (Array&lt;Array&lt;(null | string)&gt; | null&gt; | { [key: string]: null | string })</code></p>
 <p>Custom tags for this event.</p>
+<p>A map or list of tags for this event. Each tag must be less than 200 characters.</p>
 </li>
 <li>
 <p><code>threads</code> (optional): <code>null | <a href='#typedef-Threads'>Threads</a></code></p>
@@ -1176,10 +1235,21 @@ annotation/metadata system.</p>
 <li>
 <p><code>timestamp</code> (optional): <code>null | (number | string)</code></p>
 <p>Timestamp when the event was created.</p>
+<p>Indicates when the event was created in the Sentry SDK. The format is either a string as
+defined in <a href="https://tools.ietf.org/html/rfc3339">RFC 3339</a> or a numeric (integer or
+float) value representing the number of seconds that have elapsed since the <a href="https://en.wikipedia.org/wiki/Unix_time">Unix
+epoch</a>.</p>
+<p>Sub-microsecond precision is not preserved with numeric values due to precision
+limitations with floats (at least in our systems). With that caveat in mind, just send
+whatever is easiest to produce.</p>
+<p>All timestamps in the event protocol are formatted this way.</p>
+<p><code>json { "timestamp": "2011-05-02T17:41:36Z" } { "timestamp": 1304358096.0 }</code></p>
 </li>
 <li>
 <p><code>transaction</code> (optional): <code>null | string</code></p>
 <p>Transaction name of the event.</p>
+<p>For example, in a web app, this might be the route name (<code>"/users/&lt;username&gt;/"</code> or
+<code>UserView</code>), in a task queue it might be the function + module name.</p>
 </li>
 <li>
 <p><code>type</code> (optional): <code><a href='#typedef-EventType'>EventType</a> | null</code></p>
@@ -1202,31 +1272,81 @@ annotation/metadata system.</p>
 </ul>
 <p><a name='typedef-Breadcrumb'></a></p>
 <h2 id="breadcrumb"><code>Breadcrumb</code></h2>
+<p>The Breadcrumbs Interface specifies a series of application events, or "breadcrumbs",
+that occurred before an event.</p>
+<p>An event may contain one or more breadcrumbs in an attribute named <code>breadcrumbs</code>. The
+entries are ordered from oldest to newest. Consequently, the last entry in the list
+should be the last entry before the event occurred.</p>
+<p>While breadcrumb attributes are not strictly validated in Sentry, a breadcrumb is most
+useful when it includes at least a <code>timestamp</code> and <code>type</code>, <code>category</code> or <code>message</code>. The
+rendering of breadcrumbs in Sentry depends on what is provided.</p>
+<p>The following example illustrates the breadcrumbs part of the event payload and omits
+other attributes for simplicity.</p>
+<p><code>json { "breadcrumbs": { "values": [ { "timestamp": "2016-04-20T20:55:53.845Z",
+"message": "Something happened", "category": "log", "data": { "foo": "bar", "blub":
+"blah" } }, { "timestamp": "2016-04-20T20:55:53.847Z", "type": "navigation", "data": {
+"from": "/login", "to": "/dashboard" } } ] } }</code></p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
 <p><code>category</code> (optional): <code>null | string</code></p>
-<p>The optional category of the breadcrumb.</p>
+<p>A dotted string indicating what the crumb is or from where it comes. <em>Optional.</em></p>
+<p>Typically it is a module name or a descriptive string. For instance, <em>ui.click</em> could be
+used to indicate that a click happened in the UI or <em>flask</em> could be used to indicate
+that the event originated in the Flask framework.</p>
 </li>
 <li>
 <p><code>data</code> (optional): <code>{ [key: string]: any } | null</code></p>
-<p>Custom user-defined data of this breadcrumb.</p>
+<p>Arbitrary data associated with this breadcrumb.</p>
+<p>Contains a dictionary whose contents depend on the breadcrumb <code>type</code>. Additional
+parameters that are unsupported by the type are rendered as a key/value table.</p>
 </li>
 <li>
 <p><code>level</code> (optional): <code><a href='#typedef-Level'>Level</a> | null</code></p>
-<p>Severity level of the breadcrumb.</p>
+<p>Severity level of the breadcrumb. <em>Optional.</em></p>
+<p>Allowed values are, from highest to lowest: <code>fatal</code>, <code>error</code>, <code>warning</code>, <code>info</code>, and
+<code>debug</code>. Levels are used in the UI to emphasize and deemphasize the crumb. Defaults to
+<code>info</code>.</p>
 </li>
 <li>
 <p><code>message</code> (optional): <code>null | string</code></p>
 <p>Human readable message for the breadcrumb.</p>
+<p>If a message is provided, it is rendered as text with all whitespace preserved. Very long
+text might be truncated in the UI.</p>
 </li>
 <li>
 <p><code>timestamp</code> (optional): <code>null | (number | string)</code></p>
-<p>The timestamp of the breadcrumb.</p>
+<p>The timestamp of the breadcrumb. Recommended.</p>
+<p>A timestamp representing when the breadcrumb occurred. The format is either a string as
+defined in <a href="https://tools.ietf.org/html/rfc3339">RFC 3339</a> or a numeric (integer or
+float) value representing the number of seconds that have elapsed since the <a href="https://en.wikipedia.org/wiki/Unix_time">Unix
+epoch</a>.</p>
+<p>Breadcrumbs are most useful when they include a timestamp, as it creates a timeline
+leading up to an event.</p>
 </li>
 <li>
 <p><code>type</code> (optional): <code>null | string</code></p>
-<p>The type of the breadcrumb.</p>
+<p>The type of the breadcrumb. <em>Optional</em>, defaults to <code>default</code>.</p>
+<ul>
+<li>
+<p><code>default</code>: Describes a generic breadcrumb. This is typically a log message or
+user-generated breadcrumb. The <code>data</code> field is entirely undefined and as such, completely
+rendered as a key/value table.</p>
+</li>
+<li>
+<p><code>navigation</code>: Describes a navigation breadcrumb. A navigation event can be a URL change
+in a web application, or a UI transition in a mobile or desktop application, etc.</p>
+</li>
+</ul>
+<p>Such a breadcrumb's <code>data</code> object has the required fields <code>from</code> and <code>to</code>, which
+represent an application route/url each.</p>
+<ul>
+<li><code>http</code>: Describes an HTTP request breadcrumb. This represents an HTTP request
+transmitted from your application. This could be an AJAX request from a web application,
+or a server-to-server HTTP request to an API service provider, etc.</li>
+</ul>
+<p>Such a breadcrumb's <code>data</code> property has the fields <code>url</code>, <code>method</code>, <code>status_code</code>
+(integer) and <code>reason</code> (string).</p>
 </li>
 </ul>
 <p><a name='typedef-Level'></a></p>
@@ -1242,6 +1362,9 @@ annotation/metadata system.</p>
 </ul>
 <p><a name='typedef-DeviceContext'></a></p>
 <h2 id="devicecontext"><code>DeviceContext</code></h2>
+<p>Device information.</p>
+<p>Device context describes the device that caused the event. This is most appropriate for
+mobile applications.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -1250,7 +1373,9 @@ annotation/metadata system.</p>
 </li>
 <li>
 <p><code>battery_level</code> (optional): <code>number | null</code></p>
-<p>Current battery level (0-100).</p>
+<p>Current battery level in %.</p>
+<p>If the device has a battery, this can be a floating point value defining the battery
+level (in the range 0-100).</p>
 </li>
 <li>
 <p><code>boot_time</code> (optional): <code>null | string</code></p>
@@ -1275,6 +1400,8 @@ annotation/metadata system.</p>
 <li>
 <p><code>family</code> (optional): <code>null | string</code></p>
 <p>Family of the device model.</p>
+<p>This is usually the common part of model names across generations. For instance, <code>iPhone</code>
+would be a reasonable family, so would be <code>Samsung Galaxy</code>.</p>
 </li>
 <li>
 <p><code>free_memory</code> (optional): <code>number | null</code></p>
@@ -1290,7 +1417,7 @@ annotation/metadata system.</p>
 </li>
 <li>
 <p><code>manufacturer</code> (optional): <code>null | string</code></p>
-<p>Manufacturer of the device</p>
+<p>Manufacturer of the device.</p>
 </li>
 <li>
 <p><code>memory_size</code> (optional): <code>number | null</code></p>
@@ -1298,11 +1425,13 @@ annotation/metadata system.</p>
 </li>
 <li>
 <p><code>model</code> (optional): <code>null | string</code></p>
-<p>Device model (human readable).</p>
+<p>Device model.</p>
+<p>This, for example, can be <code>Samsung Galaxy S3</code>.</p>
 </li>
 <li>
 <p><code>model_id</code> (optional): <code>null | string</code></p>
 <p>Device model (internal identifier).</p>
+<p>An internal hardware revision to identify the device exactly.</p>
 </li>
 <li>
 <p><code>name</code> (optional): <code>null | string</code></p>
@@ -1315,6 +1444,7 @@ annotation/metadata system.</p>
 <li>
 <p><code>orientation</code> (optional): <code>null | string</code></p>
 <p>Current screen orientation.</p>
+<p>This can be a string <code>portrait</code> or <code>landscape</code> to define the orientation of a device.</p>
 </li>
 <li>
 <p><code>screen_density</code> (optional): <code>number | null</code></p>
@@ -1327,6 +1457,7 @@ annotation/metadata system.</p>
 <li>
 <p><code>screen_resolution</code> (optional): <code>null | string</code></p>
 <p>Device screen resolution.</p>
+<p>(e.g.: 800x600, 3040x1444)</p>
 </li>
 <li>
 <p><code>simulator</code> (optional): <code>boolean | null</code></p>
@@ -1347,6 +1478,10 @@ annotation/metadata system.</p>
 </ul>
 <p><a name='typedef-OSContext'></a></p>
 <h2 id="oscontext"><code>OSContext</code></h2>
+<p>Operating system information.</p>
+<p>OS context describes the operating system on which the event was created. In web
+contexts, this is the operating system of the browser (generally pulled from the
+User-Agent string).</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -1356,6 +1491,7 @@ annotation/metadata system.</p>
 <li>
 <p><code>kernel_version</code> (optional): <code>null | string</code></p>
 <p>Current kernel version.</p>
+<p>This is typically the entire output of the <code>uname</code> syscall.</p>
 </li>
 <li>
 <p><code>name</code> (optional): <code>null | string</code></p>
@@ -1364,6 +1500,9 @@ annotation/metadata system.</p>
 <li>
 <p><code>raw_description</code> (optional): <code>null | string</code></p>
 <p>Unprocessed operating system info.</p>
+<p>An unprocessed description string obtained by the operating system. For some well-known
+runtimes, Sentry will attempt to parse <code>name</code> and <code>version</code> from this string, if they are
+not explicitly given.</p>
 </li>
 <li>
 <p><code>rooted</code> (optional): <code>boolean | null</code></p>
@@ -1376,6 +1515,10 @@ annotation/metadata system.</p>
 </ul>
 <p><a name='typedef-RuntimeContext'></a></p>
 <h2 id="runtimecontext"><code>RuntimeContext</code></h2>
+<p>Runtime information.</p>
+<p>Runtime context describes a runtime in more detail. Typically, this context is present in
+<code>contexts</code> multiple times if multiple runtimes are involved (for instance, if you have a
+JavaScript application running on top of JVM).</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -1389,6 +1532,9 @@ annotation/metadata system.</p>
 <li>
 <p><code>raw_description</code> (optional): <code>null | string</code></p>
 <p>Unprocessed runtime info.</p>
+<p>An unprocessed description string obtained by the runtime. For some well-known runtimes,
+Sentry will attempt to parse <code>name</code> and <code>version</code> from this string, if they are not
+explicitly given.</p>
 </li>
 <li>
 <p><code>version</code> (optional): <code>null | string</code></p>
@@ -1397,6 +1543,9 @@ annotation/metadata system.</p>
 </ul>
 <p><a name='typedef-AppContext'></a></p>
 <h2 id="appcontext"><code>AppContext</code></h2>
+<p>Application information.</p>
+<p>App context describes the application. As opposed to the runtime, this is the actual
+application that was running and carries metadata about the current session.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -1405,7 +1554,7 @@ annotation/metadata system.</p>
 </li>
 <li>
 <p><code>app_identifier</code> (optional): <code>null | string</code></p>
-<p>App identifier (dotted bundle id).</p>
+<p>Version-independent application identifier, often a dotted bundle ID.</p>
 </li>
 <li>
 <p><code>app_name</code> (optional): <code>null | string</code></p>
@@ -1414,6 +1563,7 @@ annotation/metadata system.</p>
 <li>
 <p><code>app_start_time</code> (optional): <code>null | string</code></p>
 <p>Start time of the app.</p>
+<p>Formatted UTC timestamp when the user started the application.</p>
 </li>
 <li>
 <p><code>app_version</code> (optional): <code>null | string</code></p>
@@ -1421,28 +1571,77 @@ annotation/metadata system.</p>
 </li>
 <li>
 <p><code>build_type</code> (optional): <code>null | string</code></p>
-<p>Build identicator.</p>
+<p>String identifying the kind of build. For example, <code>testflight</code>.</p>
 </li>
 <li>
 <p><code>device_app_hash</code> (optional): <code>null | string</code></p>
-<p>Device app hash (app specific device ID)</p>
+<p>Application-specific device identifier.</p>
 </li>
 </ul>
 <p><a name='typedef-BrowserContext'></a></p>
 <h2 id="browsercontext"><code>BrowserContext</code></h2>
+<p>Web browser information.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
 <p><code>name</code> (optional): <code>null | string</code></p>
-<p>Runtime name.</p>
+<p>Display name of the browser application.</p>
 </li>
 <li>
 <p><code>version</code> (optional): <code>null | string</code></p>
-<p>Runtime version.</p>
+<p>Version string of the browser.</p>
+</li>
+</ul>
+<p><a name='typedef-GPUContext'></a></p>
+<h2 id="gpucontext"><code>GPUContext</code></h2>
+<p>GPU information.</p>
+<p>Example:</p>
+<p><code>json "gpu": { "name": "AMD Radeon Pro 560", "vendor_name": "Apple", "memory_size":
+4096, "api_type": "Metal", "multi_threaded_rendering": true, "version": "Metal",
+"npot_support": "Full" }</code></p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>api_type</code> (optional): <code>null | string</code></p>
+<p>The device low-level API type.</p>
+<p>Examples: <code>"Apple Metal"</code> or <code>"Direct3D11"</code></p>
+</li>
+<li>
+<p><code>id</code> (optional): <code>any</code></p>
+<p>The PCI identifier of the graphics device.</p>
+</li>
+<li>
+<p><code>memory_size</code> (optional): <code>number | null</code></p>
+<p>The total GPU memory available in Megabytes.</p>
+</li>
+<li>
+<p><code>multi_threaded_rendering</code> (optional): <code>boolean | null</code></p>
+<p>Whether the GPU has multi-threaded rendering or not.</p>
+</li>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>The name of the graphics device.</p>
+</li>
+<li>
+<p><code>npot_support</code> (optional): <code>null | string</code></p>
+<p>The Non-Power-Of-Two support.</p>
+</li>
+<li>
+<p><code>vendor_id</code> (optional): <code>null | string</code></p>
+<p>The PCI vendor identifier of the graphics device.</p>
+</li>
+<li>
+<p><code>vendor_name</code> (optional): <code>null | string</code></p>
+<p>The vendor name as reported by the graphics device.</p>
+</li>
+<li>
+<p><code>version</code> (optional): <code>null | string</code></p>
+<p>The Version of the graphics device.</p>
 </li>
 </ul>
 <p><a name='typedef-TraceContext'></a></p>
 <h2 id="tracecontext"><code>TraceContext</code></h2>
+<p>Trace context</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -1496,6 +1695,12 @@ https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e
 </ul>
 <p><a name='typedef-DebugMeta'></a></p>
 <h2 id="debugmeta"><code>DebugMeta</code></h2>
+<p>Debugging and processing meta information.</p>
+<p>The debug meta interface carries debug information for processing errors and crash
+reports. Sentry amends the information in this interface.</p>
+<p>Example (look at field types to see more detail):</p>
+<p><code>json { "debug_meta": { "images": [], "sdk_info": { "sdk_name": "iOS", "version_major":
+10, "version_minor": 3, "version_patchlevel": 0 } } }</code></p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -1509,6 +1714,8 @@ https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e
 </ul>
 <p><a name='typedef-AppleDebugImage'></a></p>
 <h2 id="appledebugimage"><code>AppleDebugImage</code></h2>
+<p>Legacy apple debug images (MachO).</p>
+<p>This was also used for non-apple platforms with similar debug setups.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -1546,53 +1753,164 @@ https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e
 </ul>
 <p><a name='typedef-NativeDebugImage'></a></p>
 <h2 id="nativedebugimage"><code>NativeDebugImage</code></h2>
+<p>A generic (new-style) native platform debug information file.</p>
+<p>The <code>type</code> key must be one of:</p>
+<ul>
+<li><code>macho</code> - <code>elf</code>: ELF images are used on Linux platforms. Their structure is identical
+to other native images. - <code>pe</code></li>
+</ul>
+<p>Examples:</p>
+<p><code>json { "type": "elf", "code_id": "68220ae2c65d65c1b6aaa12fa6765a6ec2f5f434",
+"code_file": "/lib/x86_64-linux-gnu/libgcc_s.so.1", "debug_id":
+"e20a2268-5dc6-c165-b6aa-a12fa6765a6e", "image_addr": "0x7f5140527000", "image_size":
+90112, "image_vmaddr": "0x40000", "arch": "x86_64" }</code></p>
+<p><code>json { "type": "pe", "code_id": "57898e12145000", "code_file":
+"C:\\Windows\\System32\\dbghelp.dll", "debug_id":
+"9c2a902b-6fdf-40ad-8308-588a41d572a0-1", "debug_file": "dbghelp.pdb", "image_addr":
+"0x70850000", "image_size": "1331200", "image_vmaddr": "0x40000", "arch": "x86" }</code></p>
+<p><code>json { "type": "macho", "debug_id": "84a04d24-0e60-3810-a8c0-90a65e2df61a",
+"debug_file": "libDiagnosticMessagesClient.dylib", "code_file":
+"/usr/lib/libDiagnosticMessagesClient.dylib", "image_addr": "0x7fffe668e000",
+"image_size": 8192, "image_vmaddr": "0x40000", "arch": "x86_64", }</code></p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
 <p><code>arch</code> (optional): <code>null | string</code></p>
 <p>CPU architecture target.</p>
+<p>Architecture of the module. If missing, this will be backfilled by Sentry.</p>
 </li>
 <li>
 <p><code>code_file</code>: <code>null | string</code></p>
 <p>Path and name of the image file (required).</p>
+<p>The absolute path to the dynamic library or executable. This helps to locate the file if
+it is missing on Sentry.</p>
+<ul>
+<li><code>pe</code>: The code file should be provided to allow server-side stack walking of binary
+crash reports, such as Minidumps.</li>
+</ul>
 </li>
 <li>
 <p><code>code_id</code> (optional): <code>null | string</code></p>
 <p>Optional identifier of the code file.</p>
-<p>If not specified, it is assumed to be identical to the debug identifier.</p>
+<ul>
+<li><code>elf</code>: If the program was compiled with a relatively recent compiler, this should be
+the hex representation of the <code>NT_GNU_BUILD_ID</code> program header (type <code>PT_NOTE</code>), or the
+value of the <code>.note.gnu.build-id</code> note section (type <code>SHT_NOTE</code>). Otherwise, leave this
+value empty.</li>
+</ul>
+<p>Certain symbol servers use the code identifier to locate debug information for ELF
+images, in which case this field should be included if possible.</p>
+<ul>
+<li><code>pe</code>: Identifier of the executable or DLL. It contains the values of the
+<code>time_date_stamp</code> from the COFF header and <code>size_of_image</code> from the optional header
+formatted together into a hex string using <code>%08x%X</code> (note that the second value is not
+padded):</li>
+</ul>
+<p><code>text time_date_stamp: 0x5ab38077 size_of_image:           0x9000 code_id:
+5ab380779000</code></p>
+<p>The code identifier should be provided to allow server-side stack walking of binary crash
+reports, such as Minidumps.</p>
+<ul>
+<li><code>macho</code>: Identifier of the dynamic library or executable. It is the value of the
+<code>LC_UUID</code> load command in the Mach header, formatted as UUID. Can be empty for Mach
+images, as it is equivalent to the debug identifier.</li>
+</ul>
 </li>
 <li>
 <p><code>debug_file</code> (optional): <code>null | string</code></p>
-<p>Path and name of the debug companion file (required).</p>
+<p>Path and name of the debug companion file.</p>
+<ul>
+<li>
+<p><code>elf</code>: Name or absolute path to the file containing stripped debug information for this
+image. This value might be <em>required</em> to retrieve debug files from certain symbol
+servers.</p>
+</li>
+<li>
+<p><code>pe</code>: Name of the PDB file containing debug information for this image. This value is
+often required to retrieve debug files from specific symbol servers.</p>
+</li>
+<li>
+<p><code>macho</code>: Name or absolute path to the dSYM file containing debug information for this
+image. This value might be required to retrieve debug files from certain symbol servers.</p>
+</li>
+</ul>
 </li>
 <li>
 <p><code>debug_id</code>: <code>null | string</code></p>
 <p>Unique debug identifier of the image.</p>
+<ul>
+<li><code>elf</code>: Debug identifier of the dynamic library or executable. If a code identifier is
+available, the debug identifier is the little-endian UUID representation of the first
+16-bytes of that identifier. Spaces are inserted for readability, note the byte order of
+the first fields:</li>
+</ul>
+<p><code>text code id:  f1c3bcc0 2798 65fe 3058 404b2831d9e6 4135386c debug id:
+c0bcc3f1-9827-fe65-3058-404b2831d9e6</code></p>
+<p>If no code id is available, the debug id should be computed by XORing the first 4096
+bytes of the <code>.text</code> section in 16-byte chunks, and representing it as a little-endian
+UUID (again swapping the byte order).</p>
+<ul>
+<li><code>pe</code>: <code>signature</code> and <code>age</code> of the PDB file. Both values can be read from the CodeView
+PDB70 debug information header in the PE. The value should be represented as
+little-endian UUID, with the age appended at the end. Note that the byte order of the
+UUID fields must be swapped (spaces inserted for readability):</li>
+</ul>
+<p><code>text signature: f1c3bcc0 2798 65fe 3058 404b2831d9e6
+age:                                            1 debug_id:
+c0bcc3f1-9827-fe65-3058-404b2831d9e6-1</code></p>
+<ul>
+<li><code>macho</code>: Identifier of the dynamic library or executable. It is the value of the
+<code>LC_UUID</code> load command in the Mach header, formatted as UUID.</li>
+</ul>
 </li>
 <li>
 <p><code>image_addr</code>: <code>null | string</code></p>
 <p>Starting memory address of the image (required).</p>
+<p>Memory address, at which the image is mounted in the virtual address space of the
+process. Should be a string in hex representation prefixed with <code>"0x"</code>.</p>
 </li>
 <li>
 <p><code>image_size</code>: <code>number | null</code></p>
 <p>Size of the image in bytes (required).</p>
+<p>The size of the image in virtual memory. If missing, Sentry will assume that the image
+spans up to the next image, which might lead to invalid stack traces.</p>
 </li>
 <li>
 <p><code>image_vmaddr</code> (optional): <code>null | string</code></p>
 <p>Loading address in virtual memory.</p>
+<p>Preferred load address of the image in virtual memory, as declared in the headers of the
+image. When loading an image, the operating system may still choose to place it at a
+different address.</p>
+<p>Symbols and addresses in the native image are always relative to the start of the image
+and do not consider the preferred load address. It is merely a hint to the loader.</p>
+<ul>
+<li><code>elf</code>/<code>macho</code>: If this value is non-zero, all symbols and addresses declared in the
+native image start at this address, rather than 0. By contrast, Sentry deals with
+addresses relative to the start of the image. For example, with <code>image_vmaddr: 0x40000</code>,
+a symbol located at <code>0x401000</code> has a relative address of <code>0x1000</code>.</li>
+</ul>
+<p>Relative addresses used in Apple Crash Reports and <code>addr2line</code> are usually in the
+preferred address space, and not relative address space.</p>
 </li>
 </ul>
 <p><a name='typedef-ProguardDebugImage'></a></p>
 <h2 id="proguarddebugimage"><code>ProguardDebugImage</code></h2>
+<p>Proguard mapping file.</p>
+<p>Proguard images refer to <code>mapping.txt</code> files generated when Proguard obfuscates function
+names. The Java SDK integrations assign this file a unique identifier, which has to be
+included in the list of images.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
 <p><code>uuid</code>: <code>null | string</code></p>
-<p>UUID computed from the file contents.</p>
+<p>UUID computed from the file contents, assigned by the Java SDK.</p>
 </li>
 </ul>
 <p><a name='typedef-SystemSDKInfo'></a></p>
 <h2 id="systemsdkinfo"><code>SystemSDKInfo</code></h2>
+<p>Holds information about the system SDK.</p>
+<p>This is relevant for iOS and other platforms that have a system SDK.  Not to be confused
+with the client SDK.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -1614,6 +1932,7 @@ https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e
 </ul>
 <p><a name='typedef-EventProcessingError'></a></p>
 <h2 id="eventprocessingerror"><code>EventProcessingError</code></h2>
+<p>An event processing error.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -1637,6 +1956,16 @@ https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e
 </ul>
 <p><a name='typedef-ValueObject'></a></p>
 <h2 id="valueobject"><code>ValueObject</code></h2>
+<p>A single exception.</p>
+<p>Multiple values inside of an <a href="#Event">event</a> represent chained exceptions and should be
+sorted oldest to newest. For example, consider this Python code snippet:</p>
+<p><code>python try: raise Exception("random boring invariant was not met!") except Exception
+as e: raise ValueError("something went wrong, help!") from e</code></p>
+<p><code>Exception</code> would be described first in the values list, followed by a description of
+<code>ValueError</code>:</p>
+<p><code>json { "exception": { "values": [ {"type": "Exception": "value": "random boring
+invariant was not met!"}, {"type": "ValueError", "value": "something went wrong, help!"},
+] } }</code></p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -1645,11 +1974,7 @@ https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e
 </li>
 <li>
 <p><code>module</code> (optional): <code>null | string</code></p>
-<p>Module name of this exception.</p>
-</li>
-<li>
-<p><code>raw_stacktrace</code> (optional): <code>null | <a href='#typedef-Stacktrace'>Stacktrace</a></code></p>
-<p>Optional unprocessed stack trace.</p>
+<p>The optional module, or package which the exception type lives in.</p>
 </li>
 <li>
 <p><code>stacktrace</code> (optional): <code>null | <a href='#typedef-Stacktrace'>Stacktrace</a></code></p>
@@ -1657,19 +1982,26 @@ https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e
 </li>
 <li>
 <p><code>thread_id</code> (optional): <code>null | (number | string)</code></p>
-<p>Identifier of the thread this exception occurred in.</p>
+<p>An optional value which refers to a <a href="#Thread">thread</a>.</p>
 </li>
 <li>
 <p><code>type</code> (optional): <code>null | string</code></p>
-<p>Exception type. One of value or exception is required, checked in StoreNormalizeProcessor</p>
+<p>Exception type, e.g. <code>ValueError</code>.</p>
+<p>At least one of <code>type</code> or <code>value</code> is required, otherwise the exception is discarded.</p>
 </li>
 <li>
 <p><code>value</code> (optional): <code>null | string</code></p>
 <p>Human readable display value.</p>
+<p>At least one of <code>type</code> or <code>value</code> is required, otherwise the exception is discarded.</p>
 </li>
 </ul>
 <p><a name='typedef-Mechanism'></a></p>
 <h2 id="mechanism"><code>Mechanism</code></h2>
+<p>The mechanism by which an exception was generated and handled.</p>
+<p>The exception mechanism is an optional field residing in the <a href="#Exception">exception</a>. It
+carries additional information about the way the exception was created on the target
+system. This includes general exception values obtained from the operating system or
+runtime APIs, as well as mechanism-specific values.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -1678,11 +2010,26 @@ https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e
 </li>
 <li>
 <p><code>description</code> (optional): <code>null | string</code></p>
-<p>Human readable detail description.</p>
+<p>Optional human-readable description of the error mechanism.</p>
+<p>May include a possible hint on how to solve this error.</p>
 </li>
 <li>
 <p><code>handled</code> (optional): <code>boolean | null</code></p>
 <p>Flag indicating whether this exception was handled.</p>
+<p>This is a best-effort guess at whether the exception was handled by user code or not. For
+example:</p>
+<ul>
+<li>
+<p>Exceptions leading to a 500 Internal Server Error or to a hard process crash are
+<code>handled=false</code>, as the SDK typically has an integration that automatically captures the
+error.</p>
+</li>
+<li>
+<p>Exceptions captured using <code>capture_exception</code> (called from user code) are
+<code>handled=true</code> as the user explicitly captured the exception (and therefore kind of
+handled it)</p>
+</li>
+</ul>
 </li>
 <li>
 <p><code>help_link</code> (optional): <code>null | string</code></p>
@@ -1701,10 +2048,20 @@ are not useful for grouping or display purposes.</p>
 <li>
 <p><code>type</code>: <code>null | string</code></p>
 <p>Mechanism type (required).</p>
+<p>Required unique identifier of this mechanism determining rendering and processing of the
+mechanism data.</p>
+<p>In the Python SDK this is merely the name of the framework integration that produced the
+exception, while for native it is e.g. <code>"minidump"</code> or <code>"applecrashreport"</code>.</p>
 </li>
 </ul>
 <p><a name='typedef-MechanismMeta'></a></p>
 <h2 id="mechanismmeta"><code>MechanismMeta</code></h2>
+<p>Operating system or runtime meta information to an exception mechanism.</p>
+<p>The mechanism metadata usually carries error codes reported by the runtime or operating
+system, along with a platform-dependent interpretation of these codes. SDKs can safely
+omit code names and descriptions for well-known error codes, as it will be filled out by
+Sentry. For proprietary or vendor-specific error codes, adding these values will give
+additional information to the user.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -1713,15 +2070,19 @@ are not useful for grouping or display purposes.</p>
 </li>
 <li>
 <p><code>mach_exception</code> (optional): <code>null | <a href='#typedef-MachException'>MachException</a></code></p>
-<p>Optional mach exception information.</p>
+<p>A Mach Exception on Apple systems comprising a code triple and optional descriptions.</p>
 </li>
 <li>
 <p><code>signal</code> (optional): <code>null | <a href='#typedef-POSIXSignal'>POSIXSignal</a></code></p>
-<p>Optional POSIX signal number.</p>
+<p>Information on the POSIX signal.</p>
 </li>
 </ul>
 <p><a name='typedef-CError'></a></p>
 <h2 id="cerror"><code>CError</code></h2>
+<p>POSIX signal with optional extended data.</p>
+<p>Error codes set by Linux system calls and some library functions as specified in ISO C99,
+POSIX.1-2001, and POSIX.1-2008. See
+<a href="https://man7.org/linux/man-pages/man3/errno.3.html"><code>errno(3)</code></a> for more information.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -1735,6 +2096,7 @@ are not useful for grouping or display purposes.</p>
 </ul>
 <p><a name='typedef-MachException'></a></p>
 <h2 id="machexception"><code>MachException</code></h2>
+<p>Mach exception information.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -1756,6 +2118,9 @@ are not useful for grouping or display purposes.</p>
 </ul>
 <p><a name='typedef-POSIXSignal'></a></p>
 <h2 id="posixsignal"><code>POSIXSignal</code></h2>
+<p>POSIX signal with optional extended data.</p>
+<p>On Apple systems, signals also carry a code in addition to the signal number describing
+the signal in more detail. On Linux, this code does not exist.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -1777,9 +2142,31 @@ are not useful for grouping or display purposes.</p>
 </ul>
 <p><a name='typedef-Stacktrace'></a></p>
 <h2 id="stacktrace"><code>Stacktrace</code></h2>
+<p>A stack trace of a single thread.</p>
+<p>A stack trace contains a list of frames, each with various bits (most optional)
+describing the context of that frame. Frames should be sorted from oldest to newest.</p>
+<p>For the given example program written in Python:</p>
+<p>```python def foo(): my_var = 'foo' raise ValueError()</p>
+<p>def main(): foo() ```</p>
+<p>A minimalistic stack trace for the above program in the correct order:</p>
+<p><code>json { "frames": [ {"function": "main"}, {"function": "foo"} ] }</code></p>
+<p>The top frame fully symbolicated with five lines of source context:</p>
+<p><code>json { "frames": [{ "in_app": true, "function": "myfunction", "abs_path":
+"/real/file/name.py", "filename": "file/name.py", "lineno": 3, "vars": { "my_var":
+"'value'" }, "pre_context": [ "def foo():", "  my_var = 'foo'", ], "context_line": "
+raise ValueError()", "post_context": [ "", "def main():" ], }] }</code></p>
+<p>A minimal native stack trace with register values. Note that the <code>package</code> event
+attribute must be "native" for these frames to be symbolicated.</p>
+<p><code>json { "frames": [ {"instruction_addr": "0x7fff5bf3456c"}, {"instruction_addr":
+"0x7fff5bf346c0"}, ], "registers": { "rip": "0x00007ff6eef54be2", "rsp":
+"0x0000003b710cd9e0" } }</code></p>
 <p><strong>Properties:</strong></p>
 <ul>
-<li><code>frames</code>: <code>Array&lt;null | <a href='#typedef-Frame'>Frame</a>&gt; | null</code></li>
+<li>
+<p><code>frames</code>: <code>Array&lt;null | <a href='#typedef-Frame'>Frame</a>&gt; | null</code></p>
+<p>Required. A non-empty list of stack frames. The list is ordered from caller to callee, or
+oldest to youngest. The last frame is the one creating the exception.</p>
+</li>
 <li>
 <p><code>lang</code> (optional): <code>null | string</code></p>
 <p>The language of the stacktrace.</p>
@@ -1787,10 +2174,15 @@ are not useful for grouping or display purposes.</p>
 <li>
 <p><code>registers</code> (optional): <code>{ [key: string]: null | string } | null</code></p>
 <p>Register values of the thread (top frame).</p>
+<p>A map of register names and their values. The values should contain the actual register
+values of the thread, thus mapping to the last frame in the list.</p>
 </li>
 </ul>
 <p><a name='typedef-Frame'></a></p>
 <h2 id="frame"><code>Frame</code></h2>
+<p>Holds information about a single stacktrace frame.</p>
+<p>Each object should contain <strong>at least</strong> a <code>filename</code>, <code>function</code> or <code>instruction_addr</code>
+attribute. All values are optional, but recommended.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -1799,15 +2191,11 @@ are not useful for grouping or display purposes.</p>
 </li>
 <li>
 <p><code>colno</code> (optional): <code>number | null</code></p>
-<p>Column number within the source file.</p>
+<p>Column number within the source file, starting at 1.</p>
 </li>
 <li>
 <p><code>context_line</code> (optional): <code>null | string</code></p>
-<p>Source code of the current line.</p>
-</li>
-<li>
-<p><code>data</code> (optional): <code>null | <a href='#typedef-FrameData'>FrameData</a></code></p>
-<p>Auxiliary information about the frame that is platform specific.</p>
+<p>Source code of the current line (<code>lineno</code>).</p>
 </li>
 <li>
 <p><code>filename</code> (optional): <code>null | string</code></p>
@@ -1816,26 +2204,28 @@ are not useful for grouping or display purposes.</p>
 <li>
 <p><code>function</code> (optional): <code>null | string</code></p>
 <p>Name of the frame's function. This might include the name of a class.</p>
+<p>This function name may be shortened or demangled. If not, Sentry will demangle and
+shorten it for some platforms. The original function name will be stored in
+<code>raw_function</code>.</p>
 </li>
 <li>
 <p><code>image_addr</code> (optional): <code>null | string</code></p>
-<p>Start address of the containing code module (image).</p>
+<p>(C/C++/Native) Start address of the containing code module (image).</p>
 </li>
 <li>
 <p><code>in_app</code> (optional): <code>boolean | null</code></p>
-<p>Override whether this frame should be considered in-app.</p>
+<p>Override whether this frame should be considered part of application code, or part of
+libraries/frameworks/dependencies.</p>
+<p>Setting this attribute to <code>false</code> causes the frame to be hidden/collapsed by default and
+mostly ignored during issue grouping.</p>
 </li>
 <li>
 <p><code>instruction_addr</code> (optional): <code>null | string</code></p>
-<p>Absolute address of the frame's CPU instruction.</p>
-</li>
-<li>
-<p><code>lang</code> (optional): <code>null | string</code></p>
-<p>The language of the frame if it overrides the stacktrace language.</p>
+<p>(C/C++/Native) Absolute address of the frame's CPU instruction.</p>
 </li>
 <li>
 <p><code>lineno</code> (optional): <code>number | null</code></p>
-<p>Line number within the source file.</p>
+<p>Line number within the source file, starting at 1.</p>
 </li>
 <li>
 <p><code>module</code> (optional): <code>null | string</code></p>
@@ -1852,18 +2242,22 @@ assembly.</p>
 <li>
 <p><code>platform</code> (optional): <code>null | string</code></p>
 <p>Which platform this frame is from.</p>
+<p>This can override the platform for a single frame. Otherwise, the platform of the event
+is assumed. This can be used for multi-platform stack traces, such as in React Native.</p>
 </li>
 <li>
 <p><code>post_context</code> (optional): <code>Array&lt;null | string&gt; | null</code></p>
-<p>Source code of the lines after the current line.</p>
+<p>Source code of the lines after <code>lineno</code>.</p>
 </li>
 <li>
 <p><code>pre_context</code> (optional): <code>Array&lt;null | string&gt; | null</code></p>
-<p>Source code leading up to the current line.</p>
+<p>Source code leading up to <code>lineno</code>.</p>
 </li>
 <li>
 <p><code>raw_function</code> (optional): <code>null | string</code></p>
 <p>A raw (but potentially truncated) function value.</p>
+<p>The original function name, if the function name is shortened or demangled. Sentry shows
+the raw function when clicking on the shortened one in the UI.</p>
 <p>If this has the same value as <code>function</code> it's best to be omitted.  This exists because on
 many platforms the function itself contains additional information like overload
 specifies or a lot of generics which can make it exceed the maximum limit we provide for
@@ -1882,83 +2276,88 @@ natively in the binary.  This is relevant for languages like Swift, C++ or Rust.
 </li>
 <li>
 <p><code>symbol_addr</code> (optional): <code>null | string</code></p>
-<p>Start address of the frame's function.</p>
-</li>
-<li>
-<p><code>trust</code> (optional): <code>null | string</code></p>
-<p>Used for native crashes to indicate how much we can "trust" the instruction_addr</p>
+<p>(C/C++/Native) Start address of the frame's function.</p>
 </li>
 <li>
 <p><code>vars</code> (optional): <code>{ [key: string]: any } | null</code></p>
-<p>Local variables in a convenient format.</p>
-</li>
-</ul>
-<p><a name='typedef-FrameData'></a></p>
-<h2 id="framedata"><code>FrameData</code></h2>
-<p><strong>Properties:</strong></p>
-<ul>
-<li>
-<p><code>orig_colno</code> (optional): <code>number | null</code></p>
-<p>The original column number.</p>
-</li>
-<li>
-<p><code>orig_filename</code> (optional): <code>null | string</code></p>
-<p>The original minified filename.</p>
-</li>
-<li>
-<p><code>orig_function</code> (optional): <code>null | string</code></p>
-<p>The original function name before it was resolved.</p>
-</li>
-<li>
-<p><code>orig_in_app</code> (optional): <code>number | null</code></p>
-<p>The original value of the in_app flag before grouping enhancers ran.</p>
-<p>Because we need to handle more cases the following values are used:</p>
-<ul>
-<li>missing / <code>null</code>: information not available - <code>-1</code>: in_app was set to <code>null</code> - <code>0</code>:
-in_app was set to <code>false</code> - <code>1</code>: in_app was set to <code>true</code></li>
-</ul>
-</li>
-<li>
-<p><code>orig_lineno</code> (optional): <code>number | null</code></p>
-<p>The original line number.</p>
-</li>
-<li>
-<p><code>sourcemap</code> (optional): <code>null | string</code></p>
-<p>A reference to the sourcemap used.</p>
+<p>Mapping of local variables and expression names that were available in this frame.</p>
 </li>
 </ul>
 <p><a name='typedef-LogEntry'></a></p>
 <h2 id="logentry"><code>LogEntry</code></h2>
+<p>A log entry message.</p>
+<p>A log message is similar to the <code>message</code> attribute on the event itself but can
+additionally hold optional parameters.</p>
+<p><code>json { "message": { "message": "My raw message with interpreted strings like %s",
+"params": ["this"] } }</code></p>
+<p><code>json { "message": { "message": "My raw message with interpreted strings like {foo}",
+"params": {"foo": "this"} } }</code></p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
 <p><code>formatted</code> (optional): <code>null | string</code></p>
-<p>The formatted message</p>
+<p>The formatted message. If <code>message</code> and <code>params</code> are given, Sentry will attempt to
+backfill <code>formatted</code> if empty.</p>
+<p>It must not exceed 8192 characters. Longer messages will be truncated.</p>
 </li>
 <li>
 <p><code>message</code> (optional): <code>null | string</code></p>
 <p>The log message with parameter placeholders.</p>
+<p>This attribute is primarily used for grouping related events together into issues.
+Therefore this really should just be a string template, i.e. <code>Sending %d requests</code>
+instead of <code>Sending 9999 requests</code>. The latter is much better at home in <code>formatted</code>.</p>
+<p>It must not exceed 8192 characters. Longer messages will be truncated.</p>
 </li>
 <li>
 <p><code>params</code> (optional): <code>any</code></p>
-<p>Positional parameters to be interpolated into the log message.</p>
+<p>Parameters to be interpolated into the log message. This can be an array of positional
+parameters as well as a mapping of named arguments to their values.</p>
 </li>
 </ul>
 <p><a name='typedef-Request'></a></p>
 <h2 id="request"><code>Request</code></h2>
+<p>Http request information.</p>
+<p>The Request interface contains information on a HTTP request related to the event. In
+client SDKs, this can be an outgoing request, or the request that rendered the current
+web page. On server SDKs, this could be the incoming web request that is being handled.</p>
+<p>The data variable should only contain the request body (not the query string). It can
+either be a dictionary (for standard HTTP requests) or a raw request body.</p>
+<h3 id="ordered-maps">Ordered Maps</h3>
+<p>In the Request interface, several attributes can either be declared as string, object, or
+list of tuples. Sentry attempts to parse structured information from the string
+representation in such cases.</p>
+<p>Sometimes, keys can be declared multiple times, or the order of elements matters. In such
+cases, use the tuple representation over a plain object.</p>
+<p>Example of request headers as object:</p>
+<p><code>json { "content-type": "application/json", "accept": "application/json,
+application/xml" }</code></p>
+<p>Example of the same headers as list of tuples:</p>
+<p><code>json [ ["content-type", "application/json"], ["accept", "application/json"],
+["accept", "application/xml"] ]</code></p>
+<p>Example of a fully populated request object:</p>
+<p><code>json { "request": { "method": "POST", "url": "http://absolute.uri/foo",
+"query_string": "query=foobar&amp;page=2", "data": { "foo": "bar" }, "cookies":
+"PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;", "headers": {
+"content-type": "text/html" }, "env": { "REMOTE_ADDR": "192.168.0.1" } } }</code></p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
 <p><code>cookies</code> (optional): <code>null | (Array&lt;Array&lt;(null | string)&gt; | null&gt; | { [key: string]: null | string })</code></p>
-<p>URL encoded contents of the Cookie header.</p>
+<p>The cookie values.</p>
+<p>Can be given unparsed as string, as dictionary, or as a list of tuples.</p>
 </li>
 <li>
 <p><code>data</code> (optional): <code>any</code></p>
 <p>Request data in any format that makes sense.</p>
+<p>SDKs should discard large and binary bodies by default. Can be given as string or
+structural data of any format.</p>
 </li>
 <li>
 <p><code>env</code> (optional): <code>{ [key: string]: any } | null</code></p>
 <p>Server environment data, such as CGI/WSGI.</p>
+<p>A dictionary containing environment information passed from the server. This is where
+information such as CGI/WSGI/Rack keys go that are not HTTP headers.</p>
+<p>Sentry will explicitly look for <code>REMOTE_ADDR</code> to extract an IP address.</p>
 </li>
 <li>
 <p><code>fragment</code> (optional): <code>null | string</code></p>
@@ -1966,7 +2365,9 @@ in_app was set to <code>false</code> - <code>1</code>: in_app was set to <code>t
 </li>
 <li>
 <p><code>headers</code> (optional): <code>null | (Array&lt;Array&lt;(null | string)&gt; | null&gt; | { [key: string]: null | string })</code></p>
-<p>HTTP request headers.</p>
+<p>A dictionary of submitted headers.</p>
+<p>If a header appears multiple times it, needs to be merged according to the HTTP standard
+for header merging. Header names are treated case-insensitively by Sentry.</p>
 </li>
 <li>
 <p><code>inferred_content_type</code> (optional): <code>null | string</code></p>
@@ -1978,40 +2379,60 @@ in_app was set to <code>false</code> - <code>1</code>: in_app was set to <code>t
 </li>
 <li>
 <p><code>query_string</code> (optional): <code>null | (Array&lt;Array&lt;(null | string)&gt; | null&gt; | { [key: string]: null | string })</code></p>
-<p>URL encoded HTTP query string.</p>
+<p>The query string component of the URL.</p>
+<p>Can be given as unparsed string, dictionary, or list of tuples.</p>
+<p>If the query string is not declared and part of the <code>url</code>, Sentry moves it to the query
+string.</p>
 </li>
 <li>
 <p><code>url</code> (optional): <code>null | string</code></p>
-<p>URL of the request.</p>
+<p>The URL of the request if available.</p>
+<p>The query string can be declared either as part of the <code>url</code>, or separately in
+<code>query_string</code>.</p>
 </li>
 </ul>
 <p><a name='typedef-ClientSDKInfo'></a></p>
 <h2 id="clientsdkinfo"><code>ClientSDKInfo</code></h2>
+<p>The SDK Interface describes the Sentry SDK and its configuration used to capture and
+transmit an event.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
-<p><code>client_ip</code> (optional): <code>null | string</code></p>
-<p>IP Address of sender??? Seems unused.</p>
-</li>
-<li>
 <p><code>integrations</code> (optional): <code>Array&lt;null | string&gt; | null</code></p>
-<p>List of integrations that are enabled in the SDK.</p>
+<p>List of integrations that are enabled in the SDK. <em>Optional.</em></p>
+<p>The list should have all enabled integrations, including default integrations. Default
+integrations are included because different SDK releases may contain different default
+integrations.</p>
 </li>
 <li>
 <p><code>name</code>: <code>null | string</code></p>
-<p>Unique SDK name.</p>
+<p>Unique SDK name. <em>Required.</em></p>
+<p>The name of the SDK. The format is <code>entity.ecosystem[.flavor]</code> where entity identifies
+the developer of the SDK, ecosystem refers to the programming language or platform where
+the SDK is to be used and the optional flavor is used to identify standalone SDKs that
+are part of a major ecosystem.</p>
+<p>Official Sentry SDKs use the entity <code>sentry</code>, as in <code>sentry.python</code> or
+<code>sentry.javascript.react-native</code>. Please use a different entity for your own SDKs.</p>
 </li>
 <li>
 <p><code>packages</code> (optional): <code>Array&lt;null | <a href='#typedef-ClientSDKPackage'>ClientSDKPackage</a>&gt; | null</code></p>
-<p>List of installed and loaded SDK packages.</p>
+<p>List of installed and loaded SDK packages. <em>Optional.</em></p>
+<p>A list of packages that were installed as part of this SDK or the activated integrations.
+Each package consists of a name in the format <code>source:identifier</code> and <code>version</code>. If the
+source is a Git repository, the <code>source</code> should be <code>git</code>, the identifier should be a
+checkout link and the version should be a Git reference (branch, tag or SHA).</p>
 </li>
 <li>
 <p><code>version</code>: <code>null | string</code></p>
-<p>SDK version.</p>
+<p>The version of the SDK. <em>Required.</em></p>
+<p>It should have the <a href="https://semver.org/">Semantic Versioning</a> format <code>MAJOR.MINOR.PATCH</code>,
+without any prefix (no <code>v</code> or anything else in front of the major version number).</p>
+<p>Examples: <code>0.1.0</code>, <code>1.0.0</code>, <code>4.3.12</code></p>
 </li>
 </ul>
 <p><a name='typedef-ClientSDKPackage'></a></p>
 <h2 id="clientsdkpackage"><code>ClientSDKPackage</code></h2>
+<p>An installed and loaded package as part of the Sentry SDK.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -2068,31 +2489,39 @@ in_app was set to <code>false</code> - <code>1</code>: in_app was set to <code>t
 </ul>
 <p><a name='typedef-Thread'></a></p>
 <h2 id="thread"><code>Thread</code></h2>
+<p>A process thread of an event.</p>
+<p>The Threads Interface specifies threads that were running at the time an event happened.
+These threads can also contain stack traces.</p>
+<p>An event may contain one or more threads in an attribute named <code>threads</code>.</p>
+<p>The following example illustrates the threads part of the event payload and omits other
+attributes for simplicity.</p>
+<p><code>json { "threads": { "values": [ { "id": "0", "name": "main", "crashed": true,
+"stacktrace": {} } ] } }</code></p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
 <p><code>crashed</code> (optional): <code>boolean | null</code></p>
-<p>Indicates that this thread requested the event (usually by crashing).</p>
+<p>A flag indicating whether the thread crashed. Defaults to <code>false</code>.</p>
 </li>
 <li>
 <p><code>current</code> (optional): <code>boolean | null</code></p>
-<p>Indicates that the thread was not suspended when the event was created.</p>
+<p>A flag indicating whether the thread was in the foreground.  Defaults to <code>false</code>.</p>
 </li>
 <li>
 <p><code>id</code> (optional): <code>null | (number | string)</code></p>
-<p>Identifier of this thread within the process (usually an integer).</p>
+<p>The ID of the thread. Typically a number or numeric string.</p>
+<p>Needs to be unique among the threads. An exception can set the <code>thread_id</code> attribute to
+cross-reference this thread.</p>
 </li>
 <li>
 <p><code>name</code> (optional): <code>null | string</code></p>
 <p>Display name of this thread.</p>
 </li>
 <li>
-<p><code>raw_stacktrace</code> (optional): <code>null | <a href='#typedef-Stacktrace'>Stacktrace</a></code></p>
-<p>Optional unprocessed stack trace.</p>
-</li>
-<li>
 <p><code>stacktrace</code> (optional): <code>null | <a href='#typedef-Stacktrace'>Stacktrace</a></code></p>
 <p>Stack trace containing frames of this exception.</p>
+<p>The thread that crashed with an exception should not have a stack trace, but instead, the
+<code>thread_id</code> attribute should be set on the exception and Sentry will connect the two.</p>
 </li>
 </ul>
 <p><a name='typedef-EventType'></a></p>
@@ -2110,6 +2539,9 @@ in_app was set to <code>false</code> - <code>1</code>: in_app was set to <code>t
 </ul>
 <p><a name='typedef-User'></a></p>
 <h2 id="user"><code>User</code></h2>
+<p>Information about the user who triggered an event.</p>
+<p><code>json { "user": { "id": "unique_id", "username": "my_user", "email": "foo@example.com",
+"ip_address": "127.0.0.1", "subscription": "basic" } }</code></p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
@@ -2144,6 +2576,7 @@ clients). All data from <code>self.other</code> should end up here after store n
 </ul>
 <p><a name='typedef-Geo'></a></p>
 <h2 id="geo"><code>Geo</code></h2>
+<p>Geographical location of the end user or device.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li>
