@@ -130,11 +130,7 @@ fn main(argv: CliArgs) -> Result<()> {
         } else {
             AttachmentBytesType::MinidumpHeap
         };
-        let range = std::ops::Range {
-            start: mem_desc.memory.rva as usize,
-            end: (mem_desc.memory.rva + mem_desc.memory.data_size) as usize,
-        };
-        let dest = &mut data[range];
+        let dest = data.desc_mut_slice(&mem_desc.memory);
         assert!(dest.len() > 0);
 
         changed |= pii_processor.scrub_attachment_bytes(&filename, dest, bytes_type);
