@@ -4,11 +4,12 @@ use failure::Fail;
 use serde::{Deserialize, Serialize};
 
 /// An error response from an api.
-#[derive(Serialize, Deserialize, Default, Debug)]
+#[derive(Serialize, Deserialize, Default, Debug, Fail)]
 pub struct ApiErrorResponse {
+    #[serde(default)]
     detail: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    causes: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    causes: Vec<String>,
 }
 
 impl ApiErrorResponse {
@@ -16,7 +17,7 @@ impl ApiErrorResponse {
     pub fn with_detail<S: AsRef<str>>(s: S) -> ApiErrorResponse {
         ApiErrorResponse {
             detail: Some(s.as_ref().to_string()),
-            causes: None,
+            causes: Vec::new(),
         }
     }
 
@@ -33,11 +34,7 @@ impl ApiErrorResponse {
 
         ApiErrorResponse {
             detail: Some(messages.remove(0)),
-            causes: if messages.is_empty() {
-                None
-            } else {
-                Some(messages)
-            },
+            causes: messages,
         }
     }
 }
