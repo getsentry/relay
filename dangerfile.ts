@@ -10,7 +10,7 @@ export default async () => {
 
   const skipChangelog = (danger.github.pr.body + danger.github.pr.title).includes('#skip-changelog');
 
-  if (!hasChangelog !hasPyChangelog && !skipChangelog) {
+  if (!hasChangelog && !hasPyChangelog && !skipChangelog) {
     warn('Please add a changelog entry in either CHANGELOG.md or py/CHANGELOG.md, or add #skip-changelog to the PR description or title.');
   }
 };
