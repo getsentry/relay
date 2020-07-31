@@ -33,6 +33,7 @@ jobs:
 
     - name: "check: danger.js"
       language: node_js
+      node_js: '12'
       dist: bionic
       cache:
         yarn: true
