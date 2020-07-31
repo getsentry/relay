@@ -31,6 +31,15 @@ jobs:
     - name: "check: lints"
       script: make -e style lint
 
+    - name: "check: danger.js"
+      language: node_js
+      dist: bionic
+      cache:
+        yarn: true
+        directories:
+          - node_modules
+      script: make -e travis-run-danger
+
     # -------------------------------------
     # RUST TESTS
     # -------------------------------------
