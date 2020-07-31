@@ -1,5 +1,7 @@
 import gzip
 import json
+import os
+import re
 import uuid
 import types
 
@@ -12,6 +14,11 @@ from werkzeug.serving import WSGIRequestHandler
 from pytest_localserver.http import WSGIServer
 
 from . import SentryLike, Envelope
+
+
+_version_re = re.compile(r'^version\s*=\s*"(.*?)"\s*$(?m)')
+with open(os.path.join(os.path.dirname(__file__), "../../../Cargo.toml")) as f:
+    CURRENT_VERSION = _version_re.search(f.read()).group(1)
 
 
 class Sentry(SentryLike):
@@ -87,10 +94,14 @@ def mini_sentry(request):
     def get_challenge():
         relay_id = flask_request.json["relay_id"]
         public_key = flask_request.json["public_key"]
+        version = flask_request.json["version"]
 
         assert relay_id == flask_request.headers["x-sentry-relay-id"]
         if relay_id not in sentry.known_relays:
             abort(403, "unknown relay")
+
+        if version != CURRENT_VERSION:
+            abort(403, "outdated version")
 
         authenticated_relays[relay_id] = sentry.known_relays[relay_id]
         return jsonify({"token": "123", "relay_id": relay_id})
