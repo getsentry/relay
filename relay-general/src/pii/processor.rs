@@ -17,7 +17,7 @@ use crate::processor::{
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
 use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, User};
-use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
+use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
 lazy_static! {
     static ref NULL_SPLIT_RE: Regex = #[allow(clippy::trivial_regex)]
@@ -404,7 +404,7 @@ use {
         Addr, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry, NativeDebugImage,
         Request,
     },
-    crate::types::{Object, Value},
+    crate::types::{Annotated, Object, Value},
 };
 
 #[test]
