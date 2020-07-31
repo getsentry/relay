@@ -11,7 +11,7 @@ expression: event_json_schema()
       "type": "object",
       "properties": {
         "breadcrumbs": {
-          "description": "List of breadcrumbs recorded before this event.",
+          "description": " List of breadcrumbs recorded before this event.",
           "default": null,
           "type": [
             "object",
@@ -37,7 +37,7 @@ expression: event_json_schema()
           }
         },
         "contexts": {
-          "description": "Contexts describing the environment (e.g. device, os or browser).",
+          "description": " Contexts describing the environment (e.g. device, os or browser).",
           "default": null,
           "anyOf": [
             {
@@ -49,7 +49,7 @@ expression: event_json_schema()
           ]
         },
         "culprit": {
-          "description": "Custom culprit of the event.",
+          "description": " Custom culprit of the event.",
           "default": null,
           "type": [
             "string",
@@ -57,7 +57,7 @@ expression: event_json_schema()
           ]
         },
         "debug_meta": {
-          "description": "Meta data for event processing and debugging.",
+          "description": " Meta data for event processing and debugging.",
           "default": null,
           "anyOf": [
             {
@@ -69,7 +69,7 @@ expression: event_json_schema()
           ]
         },
         "dist": {
-          "description": "Program's distribution identifier.\n\nThe distribution of the application.\n\nDistributions are used to disambiguate build or deployment variants of the same release of an application. For example, the dist can be the build number of an XCode build or the version code of an Android build.",
+          "description": " Program's distribution identifier.\n\n The distribution of the application.\n\n Distributions are used to disambiguate build or deployment variants of the same release of\n an application. For example, the dist can be the build number of an XCode build or the\n version code of an Android build.",
           "default": null,
           "type": [
             "string",
@@ -77,7 +77,7 @@ expression: event_json_schema()
           ]
         },
         "environment": {
-          "description": "The environment name, such as `production` or `staging`.",
+          "description": " The environment name, such as `production` or `staging`.",
           "default": null,
           "type": [
             "string",
@@ -85,7 +85,7 @@ expression: event_json_schema()
           ]
         },
         "errors": {
-          "description": "Errors encountered during processing. Intended to be phased out in favor of annotation/metadata system.",
+          "description": " Errors encountered during processing. Intended to be phased out in favor of\n annotation/metadata system.",
           "default": null,
           "type": [
             "array",
@@ -115,7 +115,7 @@ expression: event_json_schema()
           ]
         },
         "exception": {
-          "description": "One or multiple chained (nested) exceptions.",
+          "description": " One or multiple chained (nested) exceptions.",
           "default": null,
           "type": [
             "object",
@@ -141,7 +141,7 @@ expression: event_json_schema()
           }
         },
         "extra": {
-          "description": "Arbitrary extra information set by the user.",
+          "description": " Arbitrary extra information set by the user.",
           "default": null,
           "type": [
             "object",
@@ -150,7 +150,7 @@ expression: event_json_schema()
           "additionalProperties": true
         },
         "fingerprint": {
-          "description": "Manual fingerprint override.\n\nA list of strings used to dictate how this event is supposed to be grouped with other events into issues. For more information about overriding grouping see [Customize Grouping with Fingerprints](https://docs.sentry.io/data-management/event-grouping/).",
+          "description": " Manual fingerprint override.\n\n A list of strings used to dictate how this event is supposed to be grouped with other\n events into issues. For more information about overriding grouping see [Customize Grouping\n with Fingerprints](https://docs.sentry.io/data-management/event-grouping/).",
           "default": null,
           "anyOf": [
             {
@@ -162,7 +162,7 @@ expression: event_json_schema()
           ]
         },
         "key_id": {
-          "description": "Project key which sent this event.",
+          "description": " Project key which sent this event.",
           "default": null,
           "type": [
             "string",
@@ -170,7 +170,7 @@ expression: event_json_schema()
           ]
         },
         "level": {
-          "description": "Severity level of the event. Defaults to `error`.",
+          "description": " Severity level of the event. Defaults to `error`.",
           "default": null,
           "anyOf": [
             {
@@ -182,7 +182,7 @@ expression: event_json_schema()
           ]
         },
         "logentry": {
-          "description": "Custom parameterized message for this event.",
+          "description": " Custom parameterized message for this event.",
           "default": null,
           "anyOf": [
             {
@@ -194,7 +194,7 @@ expression: event_json_schema()
           ]
         },
         "logger": {
-          "description": "Logger that created the event.",
+          "description": " Logger that created the event.",
           "default": null,
           "type": [
             "string",
@@ -202,7 +202,7 @@ expression: event_json_schema()
           ]
         },
         "modules": {
-          "description": "Name and versions of all installed modules/packages/dependencies in the current environment/application.\n\n```json { \"django\": \"3.0.0\", \"celery\": \"4.2.1\" } ```\n\nIn Python this is a list of installed packages as reported by `pkg_resources` together with their reported version string.\n\nThis is primarily used for suggesting to enable certain SDK integrations from within the UI and for making informed decisions on which frameworks to support in future development efforts.",
+          "description": " Name and versions of all installed modules/packages/dependencies in the current\n environment/application.\n\n ```json\n { \"django\": \"3.0.0\", \"celery\": \"4.2.1\" }\n ```\n\n In Python this is a list of installed packages as reported by `pkg_resources` together with\n their reported version string.\n\n This is primarily used for suggesting to enable certain SDK integrations from within the UI\n and for making informed decisions on which frameworks to support in future development\n efforts.",
           "default": null,
           "type": [
             "object",
@@ -216,7 +216,7 @@ expression: event_json_schema()
           }
         },
         "platform": {
-          "description": "Platform identifier of this event (defaults to \"other\").\n\nA string representing the platform the SDK is submitting from. This will be used by the Sentry interface to customize various components in the interface, but also to enter or skip stacktrace processing.\n\nAcceptable values are: `as3`, `c`, `cfml`, `cocoa`, `csharp`, `elixir`, `haskell`, `go`, `groovy`, `java`, `javascript`, `native`, `node`, `objc`, `other`, `perl`, `php`, `python`, `ruby`",
+          "description": " Platform identifier of this event (defaults to \"other\").\n\n A string representing the platform the SDK is submitting from. This will be used by the\n Sentry interface to customize various components in the interface, but also to enter or\n skip stacktrace processing.\n\n Acceptable values are: `as3`, `c`, `cfml`, `cocoa`, `csharp`, `elixir`, `haskell`, `go`,\n `groovy`, `java`, `javascript`, `native`, `node`, `objc`, `other`, `perl`, `php`, `python`,\n `ruby`",
           "default": null,
           "type": [
             "string",
@@ -224,7 +224,7 @@ expression: event_json_schema()
           ]
         },
         "project": {
-          "description": "Project which sent this event.",
+          "description": " Project which sent this event.",
           "default": null,
           "type": [
             "integer",
@@ -234,7 +234,7 @@ expression: event_json_schema()
           "minimum": 0.0
         },
         "received": {
-          "description": "Timestamp when the event has been received by Sentry.",
+          "description": " Timestamp when the event has been received by Sentry.",
           "default": null,
           "anyOf": [
             {
@@ -246,7 +246,7 @@ expression: event_json_schema()
           ]
         },
         "release": {
-          "description": "The release version of the application.\n\n**Release versions must be unique across all projects in your organization.** This value can be the git SHA for the given project, or a product identifier with a semantic version.",
+          "description": " The release version of the application.\n\n **Release versions must be unique across all projects in your organization.** This value\n can be the git SHA for the given project, or a product identifier with a semantic version.",
           "default": null,
           "type": [
             "string",
@@ -254,7 +254,7 @@ expression: event_json_schema()
           ]
         },
         "request": {
-          "description": "Information about a web request that occurred during the event.",
+          "description": " Information about a web request that occurred during the event.",
           "default": null,
           "anyOf": [
             {
@@ -266,7 +266,7 @@ expression: event_json_schema()
           ]
         },
         "sdk": {
-          "description": "Information about the Sentry SDK that generated this event.",
+          "description": " Information about the Sentry SDK that generated this event.",
           "default": null,
           "anyOf": [
             {
@@ -278,7 +278,7 @@ expression: event_json_schema()
           ]
         },
         "server_name": {
-          "description": "Server or device name the event was generated on.\n\nThis is supposed to be a hostname.",
+          "description": " Server or device name the event was generated on.\n\n This is supposed to be a hostname.",
           "default": null,
           "type": [
             "string",
@@ -286,7 +286,7 @@ expression: event_json_schema()
           ]
         },
         "site": {
-          "description": "Deprecated in favor of tags.",
+          "description": " Deprecated in favor of tags.",
           "default": null,
           "type": [
             "string",
@@ -294,7 +294,7 @@ expression: event_json_schema()
           ]
         },
         "spans": {
-          "description": "Spans for tracing.",
+          "description": " Spans for tracing.",
           "default": null,
           "type": [
             "array",
@@ -312,7 +312,7 @@ expression: event_json_schema()
           }
         },
         "stacktrace": {
-          "description": "Event stacktrace.\n\nDEPRECATED: Prefer `threads` or `exception` depending on which is more appropriate.",
+          "description": " Event stacktrace.\n\n DEPRECATED: Prefer `threads` or `exception` depending on which is more appropriate.",
           "default": null,
           "anyOf": [
             {
@@ -324,7 +324,7 @@ expression: event_json_schema()
           ]
         },
         "start_timestamp": {
-          "description": "Timestamp when the event has started (relevant for event type = \"transaction\")",
+          "description": " Timestamp when the event has started (relevant for event type = \"transaction\")",
           "default": null,
           "anyOf": [
             {
@@ -336,7 +336,7 @@ expression: event_json_schema()
           ]
         },
         "tags": {
-          "description": "Custom tags for this event.\n\nA map or list of tags for this event. Each tag must be less than 200 characters.",
+          "description": " Custom tags for this event.\n\n A map or list of tags for this event. Each tag must be less than 200 characters.",
           "default": null,
           "anyOf": [
             {
@@ -348,7 +348,7 @@ expression: event_json_schema()
           ]
         },
         "threads": {
-          "description": "Threads that were active when the event occurred.",
+          "description": " Threads that were active when the event occurred.",
           "default": null,
           "type": [
             "object",
@@ -374,7 +374,7 @@ expression: event_json_schema()
           }
         },
         "time_spent": {
-          "description": "Time since the start of the transaction until the error occurred.",
+          "description": " Time since the start of the transaction until the error occurred.",
           "default": null,
           "type": [
             "integer",
@@ -384,7 +384,7 @@ expression: event_json_schema()
           "minimum": 0.0
         },
         "timestamp": {
-          "description": "Timestamp when the event was created.\n\nIndicates when the event was created in the Sentry SDK. The format is either a string as defined in [RFC 3339](https://tools.ietf.org/html/rfc3339) or a numeric (integer or float) value representing the number of seconds that have elapsed since the [Unix epoch](https://en.wikipedia.org/wiki/Unix_time).\n\nSub-microsecond precision is not preserved with numeric values due to precision limitations with floats (at least in our systems). With that caveat in mind, just send whatever is easiest to produce.\n\nAll timestamps in the event protocol are formatted this way.\n\n```json { \"timestamp\": \"2011-05-02T17:41:36Z\" } { \"timestamp\": 1304358096.0 } ```",
+          "description": " Timestamp when the event was created.\n\n Indicates when the event was created in the Sentry SDK. The format is either a string as\n defined in [RFC 3339](https://tools.ietf.org/html/rfc3339) or a numeric (integer or float)\n value representing the number of seconds that have elapsed since the [Unix\n epoch](https://en.wikipedia.org/wiki/Unix_time).\n\n Sub-microsecond precision is not preserved with numeric values due to precision\n limitations with floats (at least in our systems). With that caveat in mind, just send\n whatever is easiest to produce.\n\n All timestamps in the event protocol are formatted this way.\n\n ```json\n { \"timestamp\": \"2011-05-02T17:41:36Z\" }\n { \"timestamp\": 1304358096.0 }\n ```",
           "default": null,
           "anyOf": [
             {
@@ -396,7 +396,7 @@ expression: event_json_schema()
           ]
         },
         "transaction": {
-          "description": "Transaction name of the event.\n\nFor example, in a web app, this might be the route name (`\"/users/<username>/\"` or `UserView`), in a task queue it might be the function + module name.",
+          "description": " Transaction name of the event.\n\n For example, in a web app, this might be the route name (`\"/users/<username>/\"` or\n `UserView`), in a task queue it might be the function + module name.",
           "default": null,
           "type": [
             "string",
@@ -404,7 +404,7 @@ expression: event_json_schema()
           ]
         },
         "type": {
-          "description": "Type of event: error, csp, default",
+          "description": " Type of event: error, csp, default",
           "default": null,
           "anyOf": [
             {
@@ -416,7 +416,7 @@ expression: event_json_schema()
           ]
         },
         "user": {
-          "description": "Information about the user who triggered this event.",
+          "description": " Information about the user who triggered this event.",
           "default": null,
           "anyOf": [
             {
@@ -428,7 +428,7 @@ expression: event_json_schema()
           ]
         },
         "version": {
-          "description": "Version",
+          "description": " Version",
           "default": null,
           "type": [
             "string",
@@ -449,7 +449,7 @@ expression: event_json_schema()
           "type": "object",
           "properties": {
             "app_build": {
-              "description": "Internal build ID as it appears on the platform.",
+              "description": " Internal build ID as it appears on the platform.",
               "default": null,
               "type": [
                 "string",
@@ -457,7 +457,7 @@ expression: event_json_schema()
               ]
             },
             "app_identifier": {
-              "description": "Version-independent application identifier, often a dotted bundle ID.",
+              "description": " Version-independent application identifier, often a dotted bundle ID.",
               "default": null,
               "type": [
                 "string",
@@ -465,7 +465,7 @@ expression: event_json_schema()
               ]
             },
             "app_name": {
-              "description": "Application name as it appears on the platform.",
+              "description": " Application name as it appears on the platform.",
               "default": null,
               "type": [
                 "string",
@@ -481,7 +481,7 @@ expression: event_json_schema()
               ]
             },
             "app_version": {
-              "description": "Application version as it appears on the platform.",
+              "description": " Application version as it appears on the platform.",
               "default": null,
               "type": [
                 "string",
@@ -489,7 +489,7 @@ expression: event_json_schema()
               ]
             },
             "build_type": {
-              "description": "String identifying the kind of build. For example, `testflight`.",
+              "description": " String identifying the kind of build. For example, `testflight`.",
               "default": null,
               "type": [
                 "string",
@@ -497,7 +497,7 @@ expression: event_json_schema()
               ]
             },
             "device_app_hash": {
-              "description": "Application-specific device identifier.",
+              "description": " Application-specific device identifier.",
               "default": null,
               "type": [
                 "string",
@@ -521,7 +521,7 @@ expression: event_json_schema()
           ],
           "properties": {
             "arch": {
-              "description": "CPU architecture target.",
+              "description": " CPU architecture target.",
               "default": null,
               "type": [
                 "string",
@@ -529,7 +529,7 @@ expression: event_json_schema()
               ]
             },
             "cpu_subtype": {
-              "description": "MachO CPU subtype identifier.",
+              "description": " MachO CPU subtype identifier.",
               "default": null,
               "type": [
                 "integer",
@@ -539,7 +539,7 @@ expression: event_json_schema()
               "minimum": 0.0
             },
             "cpu_type": {
-              "description": "MachO CPU type identifier.",
+              "description": " MachO CPU type identifier.",
               "default": null,
               "type": [
                 "integer",
@@ -549,7 +549,7 @@ expression: event_json_schema()
               "minimum": 0.0
             },
             "image_addr": {
-              "description": "Starting memory address of the image (required).",
+              "description": " Starting memory address of the image (required).",
               "anyOf": [
                 {
                   "$ref": "#/definitions/Addr"
@@ -560,7 +560,7 @@ expression: event_json_schema()
               ]
             },
             "image_size": {
-              "description": "Size of the image in bytes (required).",
+              "description": " Size of the image in bytes (required).",
               "type": [
                 "integer",
                 "null"
@@ -569,7 +569,7 @@ expression: event_json_schema()
               "minimum": 0.0
             },
             "image_vmaddr": {
-              "description": "Loading address in virtual memory.",
+              "description": " Loading address in virtual memory.",
               "default": null,
               "anyOf": [
                 {
@@ -588,7 +588,7 @@ expression: event_json_schema()
               ]
             },
             "uuid": {
-              "description": "The unique UUID of the image.",
+              "description": " The unique UUID of the image.",
               "type": [
                 "string",
                 "null"
@@ -606,7 +606,7 @@ expression: event_json_schema()
           "type": "object",
           "properties": {
             "category": {
-              "description": "A dotted string indicating what the crumb is or from where it comes. _Optional._\n\nTypically it is a module name or a descriptive string. For instance, _ui.click_ could be used to indicate that a click happened in the UI or _flask_ could be used to indicate that the event originated in the Flask framework.",
+              "description": " A dotted string indicating what the crumb is or from where it comes. _Optional._\n\n Typically it is a module name or a descriptive string. For instance, _ui.click_ could be\n used to indicate that a click happened in the UI or _flask_ could be used to indicate that\n the event originated in the Flask framework.",
               "default": null,
               "type": [
                 "string",
@@ -614,7 +614,7 @@ expression: event_json_schema()
               ]
             },
             "data": {
-              "description": "Arbitrary data associated with this breadcrumb.\n\nContains a dictionary whose contents depend on the breadcrumb `type`. Additional parameters that are unsupported by the type are rendered as a key/value table.",
+              "description": " Arbitrary data associated with this breadcrumb.\n\n Contains a dictionary whose contents depend on the breadcrumb `type`. Additional parameters\n that are unsupported by the type are rendered as a key/value table.",
               "default": null,
               "type": [
                 "object",
@@ -623,7 +623,7 @@ expression: event_json_schema()
               "additionalProperties": true
             },
             "level": {
-              "description": "Severity level of the breadcrumb. _Optional._\n\nAllowed values are, from highest to lowest: `fatal`, `error`, `warning`, `info`, and `debug`. Levels are used in the UI to emphasize and deemphasize the crumb. Defaults to `info`.",
+              "description": " Severity level of the breadcrumb. _Optional._\n\n Allowed values are, from highest to lowest: `fatal`, `error`, `warning`, `info`, and\n `debug`. Levels are used in the UI to emphasize and deemphasize the crumb. Defaults to\n `info`.",
               "default": null,
               "anyOf": [
                 {
@@ -635,7 +635,7 @@ expression: event_json_schema()
               ]
             },
             "message": {
-              "description": "Human readable message for the breadcrumb.\n\nIf a message is provided, it is rendered as text with all whitespace preserved. Very long text might be truncated in the UI.",
+              "description": " Human readable message for the breadcrumb.\n\n If a message is provided, it is rendered as text with all whitespace preserved. Very long\n text might be truncated in the UI.",
               "default": null,
               "type": [
                 "string",
@@ -655,7 +655,7 @@ expression: event_json_schema()
               ]
             },
             "type": {
-              "description": "The type of the breadcrumb. _Optional_, defaults to `default`.\n\n- `default`: Describes a generic breadcrumb. This is typically a log message or user-generated breadcrumb. The `data` field is entirely undefined and as such, completely rendered as a key/value table.\n\n- `navigation`: Describes a navigation breadcrumb. A navigation event can be a URL change in a web application, or a UI transition in a mobile or desktop application, etc.\n\nSuch a breadcrumb's `data` object has the required fields `from` and `to`, which represent an application route/url each.\n\n- `http`: Describes an HTTP request breadcrumb. This represents an HTTP request transmitted from your application. This could be an AJAX request from a web application, or a server-to-server HTTP request to an API service provider, etc.\n\nSuch a breadcrumb's `data` property has the fields `url`, `method`, `status_code` (integer) and `reason` (string).",
+              "description": " The type of the breadcrumb. _Optional_, defaults to `default`.\n\n - `default`: Describes a generic breadcrumb. This is typically a log message or\n   user-generated breadcrumb. The `data` field is entirely undefined and as such, completely\n   rendered as a key/value table.\n\n - `navigation`: Describes a navigation breadcrumb. A navigation event can be a URL change\n   in a web application, or a UI transition in a mobile or desktop application, etc.\n\n   Such a breadcrumb's `data` object has the required fields `from` and `to`, which\n   represent an application route/url each.\n\n - `http`: Describes an HTTP request breadcrumb. This represents an HTTP request transmitted\n   from your application. This could be an AJAX request from a web application, or a\n   server-to-server HTTP request to an API service provider, etc.\n\n   Such a breadcrumb's `data` property has the fields `url`, `method`, `status_code`\n   (integer) and `reason` (string).",
               "default": null,
               "type": [
                 "string",
@@ -681,7 +681,7 @@ expression: event_json_schema()
               ]
             },
             "version": {
-              "description": "Version string of the browser.",
+              "description": " Version string of the browser.",
               "default": null,
               "type": [
                 "string",
@@ -699,7 +699,7 @@ expression: event_json_schema()
           "type": "object",
           "properties": {
             "name": {
-              "description": "Optional name of the errno constant.",
+              "description": " Optional name of the errno constant.",
               "default": null,
               "type": [
                 "string",
@@ -730,7 +730,7 @@ expression: event_json_schema()
           ],
           "properties": {
             "integrations": {
-              "description": "List of integrations that are enabled in the SDK. _Optional._\n\nThe list should have all enabled integrations, including default integrations. Default integrations are included because different SDK releases may contain different default integrations.",
+              "description": " List of integrations that are enabled in the SDK. _Optional._\n\n The list should have all enabled integrations, including default integrations. Default\n integrations are included because different SDK releases may contain different default\n integrations.",
               "default": null,
               "type": [
                 "array",
@@ -751,7 +751,7 @@ expression: event_json_schema()
               ]
             },
             "packages": {
-              "description": "List of installed and loaded SDK packages. _Optional._\n\nA list of packages that were installed as part of this SDK or the activated integrations. Each package consists of a name in the format `source:identifier` and `version`. If the source is a Git repository, the `source` should be `git`, the identifier should be a checkout link and the version should be a Git reference (branch, tag or SHA).",
+              "description": " List of installed and loaded SDK packages. _Optional._\n\n A list of packages that were installed as part of this SDK or the activated integrations.\n Each package consists of a name in the format `source:identifier` and `version`. If the\n source is a Git repository, the `source` should be `git`, the identifier should be a\n checkout link and the version should be a Git reference (branch, tag or SHA).",
               "default": null,
               "type": [
                 "array",
@@ -769,7 +769,7 @@ expression: event_json_schema()
               }
             },
             "version": {
-              "description": "The version of the SDK. _Required._\n\nIt should have the [Semantic Versioning](https://semver.org/) format `MAJOR.MINOR.PATCH`, without any prefix (no `v` or anything else in front of the major version number).\n\nExamples: `0.1.0`, `1.0.0`, `4.3.12`",
+              "description": " The version of the SDK. _Required._\n\n It should have the [Semantic Versioning](https://semver.org/) format `MAJOR.MINOR.PATCH`,\n without any prefix (no `v` or anything else in front of the major version number).\n\n Examples: `0.1.0`, `1.0.0`, `4.3.12`",
               "type": [
                 "string",
                 "null"
@@ -794,7 +794,7 @@ expression: event_json_schema()
               ]
             },
             "version": {
-              "description": "Version of the package.",
+              "description": " Version of the package.",
               "default": null,
               "type": [
                 "string",
@@ -946,7 +946,7 @@ expression: event_json_schema()
           "type": "object",
           "properties": {
             "images": {
-              "description": "List of debug information files (debug images).",
+              "description": " List of debug information files (debug images).",
               "default": null,
               "type": [
                 "array",
@@ -986,7 +986,7 @@ expression: event_json_schema()
           "type": "object",
           "properties": {
             "arch": {
-              "description": "Native cpu architecture of the device.",
+              "description": " Native cpu architecture of the device.",
               "default": null,
               "type": [
                 "string",
@@ -994,7 +994,7 @@ expression: event_json_schema()
               ]
             },
             "battery_level": {
-              "description": "Current battery level in %.\n\nIf the device has a battery, this can be a floating point value defining the battery level (in the range 0-100).",
+              "description": " Current battery level in %.\n\n If the device has a battery, this can be a floating point value defining the battery level\n (in the range 0-100).",
               "default": null,
               "type": [
                 "number",
@@ -1003,7 +1003,7 @@ expression: event_json_schema()
               "format": "double"
             },
             "boot_time": {
-              "description": "Indicator when the device was booted.",
+              "description": " Indicator when the device was booted.",
               "default": null,
               "type": [
                 "string",
@@ -1011,7 +1011,7 @@ expression: event_json_schema()
               ]
             },
             "brand": {
-              "description": "Brand of the device.",
+              "description": " Brand of the device.",
               "default": null,
               "type": [
                 "string",
@@ -1019,7 +1019,7 @@ expression: event_json_schema()
               ]
             },
             "charging": {
-              "description": "Whether the device was charging or not.",
+              "description": " Whether the device was charging or not.",
               "default": null,
               "type": [
                 "boolean",
@@ -1027,7 +1027,7 @@ expression: event_json_schema()
               ]
             },
             "external_free_storage": {
-              "description": "Free size of the attached external storage in bytes (eg: android SDK card).",
+              "description": " Free size of the attached external storage in bytes (eg: android SDK card).",
               "default": null,
               "type": [
                 "integer",
@@ -1037,7 +1037,7 @@ expression: event_json_schema()
               "minimum": 0.0
             },
             "external_storage_size": {
-              "description": "Total size of the attached external storage in bytes (eg: android SDK card).",
+              "description": " Total size of the attached external storage in bytes (eg: android SDK card).",
               "default": null,
               "type": [
                 "integer",
@@ -1047,7 +1047,7 @@ expression: event_json_schema()
               "minimum": 0.0
             },
             "family": {
-              "description": "Family of the device model.\n\nThis is usually the common part of model names across generations. For instance, `iPhone` would be a reasonable family, so would be `Samsung Galaxy`.",
+              "description": " Family of the device model.\n\n This is usually the common part of model names across generations. For instance, `iPhone`\n would be a reasonable family, so would be `Samsung Galaxy`.",
               "default": null,
               "type": [
                 "string",
@@ -1055,7 +1055,7 @@ expression: event_json_schema()
               ]
             },
             "free_memory": {
-              "description": "How much memory is still available in bytes.",
+              "description": " How much memory is still available in bytes.",
               "default": null,
               "type": [
                 "integer",
@@ -1065,7 +1065,7 @@ expression: event_json_schema()
               "minimum": 0.0
             },
             "free_storage": {
-              "description": "How much storage is free in bytes.",
+              "description": " How much storage is free in bytes.",
               "default": null,
               "type": [
                 "integer",
@@ -1075,7 +1075,7 @@ expression: event_json_schema()
               "minimum": 0.0
             },
             "low_memory": {
-              "description": "Whether the device was low on memory.",
+              "description": " Whether the device was low on memory.",
               "default": null,
               "type": [
                 "boolean",
@@ -1083,7 +1083,7 @@ expression: event_json_schema()
               ]
             },
             "manufacturer": {
-              "description": "Manufacturer of the device.",
+              "description": " Manufacturer of the device.",
               "default": null,
               "type": [
                 "string",
@@ -1091,7 +1091,7 @@ expression: event_json_schema()
               ]
             },
             "memory_size": {
-              "description": "Total memory available in bytes.",
+              "description": " Total memory available in bytes.",
               "default": null,
               "type": [
                 "integer",
@@ -1101,7 +1101,7 @@ expression: event_json_schema()
               "minimum": 0.0
             },
             "model": {
-              "description": "Device model.\n\nThis, for example, can be `Samsung Galaxy S3`.",
+              "description": " Device model.\n\n This, for example, can be `Samsung Galaxy S3`.",
               "default": null,
               "type": [
                 "string",
@@ -1109,7 +1109,7 @@ expression: event_json_schema()
               ]
             },
             "model_id": {
-              "description": "Device model (internal identifier).\n\nAn internal hardware revision to identify the device exactly.",
+              "description": " Device model (internal identifier).\n\n An internal hardware revision to identify the device exactly.",
               "default": null,
               "type": [
                 "string",
@@ -1125,7 +1125,7 @@ expression: event_json_schema()
               ]
             },
             "online": {
-              "description": "Whether the device was online or not.",
+              "description": " Whether the device was online or not.",
               "default": null,
               "type": [
                 "boolean",
@@ -1133,7 +1133,7 @@ expression: event_json_schema()
               ]
             },
             "orientation": {
-              "description": "Current screen orientation.\n\nThis can be a string `portrait` or `landscape` to define the orientation of a device.",
+              "description": " Current screen orientation.\n\n This can be a string `portrait` or `landscape` to define the orientation of a device.",
               "default": null,
               "type": [
                 "string",
@@ -1141,7 +1141,7 @@ expression: event_json_schema()
               ]
             },
             "screen_density": {
-              "description": "Device screen density.",
+              "description": " Device screen density.",
               "default": null,
               "type": [
                 "number",
@@ -1150,7 +1150,7 @@ expression: event_json_schema()
               "format": "double"
             },
             "screen_dpi": {
-              "description": "Screen density as dots-per-inch.",
+              "description": " Screen density as dots-per-inch.",
               "default": null,
               "type": [
                 "integer",
@@ -1160,7 +1160,7 @@ expression: event_json_schema()
               "minimum": 0.0
             },
             "screen_resolution": {
-              "description": "Device screen resolution.\n\n(e.g.: 800x600, 3040x1444)",
+              "description": " Device screen resolution.\n\n (e.g.: 800x600, 3040x1444)",
               "default": null,
               "type": [
                 "string",
@@ -1168,7 +1168,7 @@ expression: event_json_schema()
               ]
             },
             "simulator": {
-              "description": "Simulator/prod indicator.",
+              "description": " Simulator/prod indicator.",
               "default": null,
               "type": [
                 "boolean",
@@ -1176,7 +1176,7 @@ expression: event_json_schema()
               ]
             },
             "storage_size": {
-              "description": "Total storage size of the device in bytes.",
+              "description": " Total storage size of the device in bytes.",
               "default": null,
               "type": [
                 "integer",
@@ -1186,7 +1186,7 @@ expression: event_json_schema()
               "minimum": 0.0
             },
             "timezone": {
-              "description": "Timezone of the device.",
+              "description": " Timezone of the device.",
               "default": null,
               "type": [
                 "string",
@@ -1194,7 +1194,7 @@ expression: event_json_schema()
               ]
             },
             "usable_memory": {
-              "description": "How much memory is usable for the app in bytes.",
+              "description": " How much memory is usable for the app in bytes.",
               "default": null,
               "type": [
                 "integer",
@@ -1226,7 +1226,7 @@ expression: event_json_schema()
           ],
           "properties": {
             "name": {
-              "description": "Affected key or deep path.",
+              "description": " Affected key or deep path.",
               "default": null,
               "type": [
                 "string",
@@ -1241,7 +1241,7 @@ expression: event_json_schema()
               ]
             },
             "value": {
-              "description": "The original value causing this error.",
+              "description": " The original value causing this error.",
               "default": null
             }
           }
@@ -1268,7 +1268,7 @@ expression: event_json_schema()
           "type": "object",
           "properties": {
             "mechanism": {
-              "description": "Mechanism by which this exception was generated and handled.",
+              "description": " Mechanism by which this exception was generated and handled.",
               "default": null,
               "anyOf": [
                 {
@@ -1280,7 +1280,7 @@ expression: event_json_schema()
               ]
             },
             "module": {
-              "description": "The optional module, or package which the exception type lives in.",
+              "description": " The optional module, or package which the exception type lives in.",
               "default": null,
               "type": [
                 "string",
@@ -1288,7 +1288,7 @@ expression: event_json_schema()
               ]
             },
             "stacktrace": {
-              "description": "Stack trace containing frames of this exception.",
+              "description": " Stack trace containing frames of this exception.",
               "default": null,
               "anyOf": [
                 {
@@ -1300,7 +1300,7 @@ expression: event_json_schema()
               ]
             },
             "thread_id": {
-              "description": "An optional value which refers to a [thread](#Thread).",
+              "description": " An optional value which refers to a [thread](#Thread).",
               "default": null,
               "anyOf": [
                 {
@@ -1320,7 +1320,7 @@ expression: event_json_schema()
               ]
             },
             "value": {
-              "description": "Human readable display value.\n\nAt least one of `type` or `value` is required, otherwise the exception is discarded.",
+              "description": " Human readable display value.\n\n At least one of `type` or `value` is required, otherwise the exception is discarded.",
               "default": null,
               "anyOf": [
                 {
@@ -1353,7 +1353,7 @@ expression: event_json_schema()
           "type": "object",
           "properties": {
             "abs_path": {
-              "description": "Absolute path to the source file.",
+              "description": " Absolute path to the source file.",
               "default": null,
               "anyOf": [
                 {
@@ -1365,7 +1365,7 @@ expression: event_json_schema()
               ]
             },
             "colno": {
-              "description": "Column number within the source file, starting at 1.",
+              "description": " Column number within the source file, starting at 1.",
               "default": null,
               "type": [
                 "integer",
@@ -1375,7 +1375,7 @@ expression: event_json_schema()
               "minimum": 0.0
             },
             "context_line": {
-              "description": "Source code of the current line (`lineno`).",
+              "description": " Source code of the current line (`lineno`).",
               "default": null,
               "type": [
                 "string",
@@ -1383,7 +1383,7 @@ expression: event_json_schema()
               ]
             },
             "filename": {
-              "description": "The source file name (basename only).",
+              "description": " The source file name (basename only).",
               "default": null,
               "anyOf": [
                 {
@@ -1403,7 +1403,7 @@ expression: event_json_schema()
               ]
             },
             "image_addr": {
-              "description": "(C/C++/Native) Start address of the containing code module (image).",
+              "description": " (C/C++/Native) Start address of the containing code module (image).",
               "default": null,
               "anyOf": [
                 {
@@ -1415,7 +1415,7 @@ expression: event_json_schema()
               ]
             },
             "in_app": {
-              "description": "Override whether this frame should be considered part of application code, or part of libraries/frameworks/dependencies.\n\nSetting this attribute to `false` causes the frame to be hidden/collapsed by default and mostly ignored during issue grouping.",
+              "description": " Override whether this frame should be considered part of application code, or part of\n libraries/frameworks/dependencies.\n\n Setting this attribute to `false` causes the frame to be hidden/collapsed by default and\n mostly ignored during issue grouping.",
               "default": null,
               "type": [
                 "boolean",
@@ -1423,7 +1423,7 @@ expression: event_json_schema()
               ]
             },
             "instruction_addr": {
-              "description": "(C/C++/Native) Absolute address of the frame's CPU instruction.",
+              "description": " (C/C++/Native) Absolute address of the frame's CPU instruction.",
               "default": null,
               "anyOf": [
                 {
@@ -1435,7 +1435,7 @@ expression: event_json_schema()
               ]
             },
             "lineno": {
-              "description": "Line number within the source file, starting at 1.",
+              "description": " Line number within the source file, starting at 1.",
               "default": null,
               "type": [
                 "integer",
@@ -1445,7 +1445,7 @@ expression: event_json_schema()
               "minimum": 0.0
             },
             "module": {
-              "description": "Name of the module the frame is contained in.\n\nNote that this might also include a class name if that is something the language natively considers to be part of the stack (for instance in Java).",
+              "description": " Name of the module the frame is contained in.\n\n Note that this might also include a class name if that is something the\n language natively considers to be part of the stack (for instance in Java).",
               "default": null,
               "type": [
                 "string",
@@ -1453,7 +1453,7 @@ expression: event_json_schema()
               ]
             },
             "package": {
-              "description": "Name of the package that contains the frame.\n\nFor instance this can be a dylib for native languages, the name of the jar or .NET assembly.",
+              "description": " Name of the package that contains the frame.\n\n For instance this can be a dylib for native languages, the name of the jar\n or .NET assembly.",
               "default": null,
               "type": [
                 "string",
@@ -1461,7 +1461,7 @@ expression: event_json_schema()
               ]
             },
             "platform": {
-              "description": "Which platform this frame is from.\n\nThis can override the platform for a single frame. Otherwise, the platform of the event is assumed. This can be used for multi-platform stack traces, such as in React Native.",
+              "description": " Which platform this frame is from.\n\n This can override the platform for a single frame. Otherwise, the platform of the event is\n assumed. This can be used for multi-platform stack traces, such as in React Native.",
               "default": null,
               "type": [
                 "string",
@@ -1469,7 +1469,7 @@ expression: event_json_schema()
               ]
             },
             "post_context": {
-              "description": "Source code of the lines after `lineno`.",
+              "description": " Source code of the lines after `lineno`.",
               "default": null,
               "type": [
                 "array",
@@ -1483,7 +1483,7 @@ expression: event_json_schema()
               }
             },
             "pre_context": {
-              "description": "Source code leading up to `lineno`.",
+              "description": " Source code leading up to `lineno`.",
               "default": null,
               "type": [
                 "array",
@@ -1497,7 +1497,7 @@ expression: event_json_schema()
               }
             },
             "raw_function": {
-              "description": "A raw (but potentially truncated) function value.\n\nThe original function name, if the function name is shortened or demangled. Sentry shows the raw function when clicking on the shortened one in the UI.\n\nIf this has the same value as `function` it's best to be omitted.  This exists because on many platforms the function itself contains additional information like overload specifies or a lot of generics which can make it exceed the maximum limit we provide for the field.  In those cases then we cannot reliably trim down the function any more at a later point because the more valuable information has been removed.\n\nThe logic to be applied is that an intelligently trimmed function name should be stored in `function` and the value before trimming is stored in this field instead.  However also this field will be capped at 256 characters at the moment which often means that not the entire original value can be stored.",
+              "description": " A raw (but potentially truncated) function value.\n\n The original function name, if the function name is shortened or demangled. Sentry shows\n the raw function when clicking on the shortened one in the UI.\n\n If this has the same value as `function` it's best to be omitted.  This\n exists because on many platforms the function itself contains additional\n information like overload specifies or a lot of generics which can make\n it exceed the maximum limit we provide for the field.  In those cases\n then we cannot reliably trim down the function any more at a later point\n because the more valuable information has been removed.\n\n The logic to be applied is that an intelligently trimmed function name\n should be stored in `function` and the value before trimming is stored\n in this field instead.  However also this field will be capped at 256\n characters at the moment which often means that not the entire original\n value can be stored.",
               "default": null,
               "type": [
                 "string",
@@ -1505,7 +1505,7 @@ expression: event_json_schema()
               ]
             },
             "symbol": {
-              "description": "Potentially mangled name of the symbol as it appears in an executable.\n\nThis is different from a function name by generally being the mangled name that appears natively in the binary.  This is relevant for languages like Swift, C++ or Rust.",
+              "description": " Potentially mangled name of the symbol as it appears in an executable.\n\n This is different from a function name by generally being the mangled\n name that appears natively in the binary.  This is relevant for languages\n like Swift, C++ or Rust.",
               "default": null,
               "type": [
                 "string",
@@ -1513,7 +1513,7 @@ expression: event_json_schema()
               ]
             },
             "symbol_addr": {
-              "description": "(C/C++/Native) Start address of the frame's function.",
+              "description": " (C/C++/Native) Start address of the frame's function.",
               "default": null,
               "anyOf": [
                 {
@@ -1525,7 +1525,7 @@ expression: event_json_schema()
               ]
             },
             "vars": {
-              "description": "Mapping of local variables and expression names that were available in this frame.",
+              "description": " Mapping of local variables and expression names that were available in this frame.",
               "default": null,
               "anyOf": [
                 {
@@ -1556,7 +1556,7 @@ expression: event_json_schema()
           "type": "object",
           "properties": {
             "city": {
-              "description": "Human readable city name.",
+              "description": " Human readable city name.",
               "default": null,
               "type": [
                 "string",
@@ -1572,7 +1572,7 @@ expression: event_json_schema()
               ]
             },
             "region": {
-              "description": "Human readable region name or code.",
+              "description": " Human readable region name or code.",
               "default": null,
               "type": [
                 "string",
@@ -1590,7 +1590,7 @@ expression: event_json_schema()
           "type": "object",
           "properties": {
             "api_type": {
-              "description": "The device low-level API type.\n\nExamples: `\"Apple Metal\"` or `\"Direct3D11\"`",
+              "description": " The device low-level API type.\n\n Examples: `\"Apple Metal\"` or `\"Direct3D11\"`",
               "default": null,
               "type": [
                 "string",
@@ -1598,11 +1598,11 @@ expression: event_json_schema()
               ]
             },
             "id": {
-              "description": "The PCI identifier of the graphics device.",
+              "description": " The PCI identifier of the graphics device.",
               "default": null
             },
             "memory_size": {
-              "description": "The total GPU memory available in Megabytes.",
+              "description": " The total GPU memory available in Megabytes.",
               "default": null,
               "type": [
                 "integer",
@@ -1612,7 +1612,7 @@ expression: event_json_schema()
               "minimum": 0.0
             },
             "multi_threaded_rendering": {
-              "description": "Whether the GPU has multi-threaded rendering or not.",
+              "description": " Whether the GPU has multi-threaded rendering or not.",
               "default": null,
               "type": [
                 "boolean",
@@ -1628,7 +1628,7 @@ expression: event_json_schema()
               ]
             },
             "npot_support": {
-              "description": "The Non-Power-Of-Two support.",
+              "description": " The Non-Power-Of-Two support.",
               "default": null,
               "type": [
                 "string",
@@ -1636,7 +1636,7 @@ expression: event_json_schema()
               ]
             },
             "vendor_id": {
-              "description": "The PCI vendor identifier of the graphics device.",
+              "description": " The PCI vendor identifier of the graphics device.",
               "default": null,
               "type": [
                 "string",
@@ -1644,7 +1644,7 @@ expression: event_json_schema()
               ]
             },
             "vendor_name": {
-              "description": "The vendor name as reported by the graphics device.",
+              "description": " The vendor name as reported by the graphics device.",
               "default": null,
               "type": [
                 "string",
@@ -1652,7 +1652,7 @@ expression: event_json_schema()
               ]
             },
             "version": {
-              "description": "The Version of the graphics device.",
+              "description": " The Version of the graphics device.",
               "default": null,
               "type": [
                 "string",
@@ -1760,7 +1760,7 @@ expression: event_json_schema()
           "type": "object",
           "properties": {
             "formatted": {
-              "description": "The formatted message. If `message` and `params` are given, Sentry will attempt to backfill `formatted` if empty.\n\nIt must not exceed 8192 characters. Longer messages will be truncated.",
+              "description": " The formatted message. If `message` and `params` are given, Sentry\n will attempt to backfill `formatted` if empty.\n\n It must not exceed 8192 characters. Longer messages will be truncated.",
               "default": null,
               "anyOf": [
                 {
@@ -1784,7 +1784,7 @@ expression: event_json_schema()
               ]
             },
             "params": {
-              "description": "Parameters to be interpolated into the log message. This can be an array of positional parameters as well as a mapping of named arguments to their values.",
+              "description": " Parameters to be interpolated into the log message. This can be an array of positional\n parameters as well as a mapping of named arguments to their values.",
               "default": null
             }
           }
@@ -1798,7 +1798,7 @@ expression: event_json_schema()
           "type": "object",
           "properties": {
             "code": {
-              "description": "The mach exception code.",
+              "description": " The mach exception code.",
               "default": null,
               "type": [
                 "integer",
@@ -1817,7 +1817,7 @@ expression: event_json_schema()
               "format": "int64"
             },
             "name": {
-              "description": "Optional name of the mach exception.",
+              "description": " Optional name of the mach exception.",
               "default": null,
               "type": [
                 "string",
@@ -1825,7 +1825,7 @@ expression: event_json_schema()
               ]
             },
             "subcode": {
-              "description": "The mach exception subcode.",
+              "description": " The mach exception subcode.",
               "default": null,
               "type": [
                 "integer",
@@ -1848,7 +1848,7 @@ expression: event_json_schema()
           ],
           "properties": {
             "data": {
-              "description": "Additional attributes depending on the mechanism type.",
+              "description": " Additional attributes depending on the mechanism type.",
               "default": null,
               "type": [
                 "object",
@@ -1857,7 +1857,7 @@ expression: event_json_schema()
               "additionalProperties": true
             },
             "description": {
-              "description": "Optional human-readable description of the error mechanism.\n\nMay include a possible hint on how to solve this error.",
+              "description": " Optional human-readable description of the error mechanism.\n\n May include a possible hint on how to solve this error.",
               "default": null,
               "type": [
                 "string",
@@ -1865,7 +1865,7 @@ expression: event_json_schema()
               ]
             },
             "handled": {
-              "description": "Flag indicating whether this exception was handled.\n\nThis is a best-effort guess at whether the exception was handled by user code or not. For example:\n\n- Exceptions leading to a 500 Internal Server Error or to a hard process crash are `handled=false`, as the SDK typically has an integration that automatically captures the error.\n\n- Exceptions captured using `capture_exception` (called from user code) are `handled=true` as the user explicitly captured the exception (and therefore kind of handled it)",
+              "description": " Flag indicating whether this exception was handled.\n\n This is a best-effort guess at whether the exception was handled by user code or not. For\n example:\n\n - Exceptions leading to a 500 Internal Server Error or to a hard process crash are\n   `handled=false`, as the SDK typically has an integration that automatically captures the\n   error.\n\n - Exceptions captured using `capture_exception` (called from user code) are `handled=true`\n   as the user explicitly captured the exception (and therefore kind of handled it)",
               "default": null,
               "type": [
                 "boolean",
@@ -1873,7 +1873,7 @@ expression: event_json_schema()
               ]
             },
             "help_link": {
-              "description": "Link to online resources describing this error.",
+              "description": " Link to online resources describing this error.",
               "default": null,
               "type": [
                 "string",
@@ -1881,7 +1881,7 @@ expression: event_json_schema()
               ]
             },
             "meta": {
-              "description": "Operating system or runtime meta information.",
+              "description": " Operating system or runtime meta information.",
               "default": null,
               "anyOf": [
                 {
@@ -1893,7 +1893,7 @@ expression: event_json_schema()
               ]
             },
             "synthetic": {
-              "description": "If this is set then the exception is not a real exception but some form of synthetic error for instance from a signal handler, a hard segfault or similar where type and value are not useful for grouping or display purposes.",
+              "description": " If this is set then the exception is not a real exception but some\n form of synthetic error for instance from a signal handler, a hard\n segfault or similar where type and value are not useful for grouping\n or display purposes.",
               "default": null,
               "type": [
                 "boolean",
@@ -1930,7 +1930,7 @@ expression: event_json_schema()
               ]
             },
             "mach_exception": {
-              "description": "A Mach Exception on Apple systems comprising a code triple and optional descriptions.",
+              "description": " A Mach Exception on Apple systems comprising a code triple and optional descriptions.",
               "default": null,
               "anyOf": [
                 {
@@ -1942,7 +1942,7 @@ expression: event_json_schema()
               ]
             },
             "signal": {
-              "description": "Information on the POSIX signal.",
+              "description": " Information on the POSIX signal.",
               "default": null,
               "anyOf": [
                 {
@@ -1986,7 +1986,7 @@ expression: event_json_schema()
           ],
           "properties": {
             "arch": {
-              "description": "CPU architecture target.\n\nArchitecture of the module. If missing, this will be backfilled by Sentry.",
+              "description": " CPU architecture target.\n\n Architecture of the module. If missing, this will be backfilled by Sentry.",
               "default": null,
               "type": [
                 "string",
@@ -1994,7 +1994,7 @@ expression: event_json_schema()
               ]
             },
             "code_file": {
-              "description": "Path and name of the image file (required).\n\nThe absolute path to the dynamic library or executable. This helps to locate the file if it is missing on Sentry.\n\n- `pe`: The code file should be provided to allow server-side stack walking of binary crash reports, such as Minidumps.",
+              "description": " Path and name of the image file (required).\n\n The absolute path to the dynamic library or executable. This helps to locate the file if it is missing on Sentry.\n\n - `pe`: The code file should be provided to allow server-side stack walking of binary crash reports, such as Minidumps.",
               "anyOf": [
                 {
                   "$ref": "#/definitions/NativeImagePath"
@@ -2017,7 +2017,7 @@ expression: event_json_schema()
               ]
             },
             "debug_file": {
-              "description": "Path and name of the debug companion file.\n\n- `elf`: Name or absolute path to the file containing stripped debug information for this image. This value might be _required_ to retrieve debug files from certain symbol servers.\n\n- `pe`: Name of the PDB file containing debug information for this image. This value is often required to retrieve debug files from specific symbol servers.\n\n- `macho`: Name or absolute path to the dSYM file containing debug information for this image. This value might be required to retrieve debug files from certain symbol servers.",
+              "description": " Path and name of the debug companion file.\n\n - `elf`: Name or absolute path to the file containing stripped debug information for this image. This value might be _required_ to retrieve debug files from certain symbol servers.\n\n - `pe`: Name of the PDB file containing debug information for this image. This value is often required to retrieve debug files from specific symbol servers.\n\n - `macho`: Name or absolute path to the dSYM file containing debug information for this image. This value might be required to retrieve debug files from certain symbol servers.",
               "default": null,
               "anyOf": [
                 {
@@ -2029,7 +2029,7 @@ expression: event_json_schema()
               ]
             },
             "debug_id": {
-              "description": "Unique debug identifier of the image.\n\n- `elf`: Debug identifier of the dynamic library or executable. If a code identifier is available, the debug identifier is the little-endian UUID representation of the first 16-bytes of that identifier. Spaces are inserted for readability, note the byte order of the first fields:\n\n```text code id:  f1c3bcc0 2798 65fe 3058 404b2831d9e6 4135386c debug id: c0bcc3f1-9827-fe65-3058-404b2831d9e6 ```\n\nIf no code id is available, the debug id should be computed by XORing the first 4096 bytes of the `.text` section in 16-byte chunks, and representing it as a little-endian UUID (again swapping the byte order).\n\n- `pe`: `signature` and `age` of the PDB file. Both values can be read from the CodeView PDB70 debug information header in the PE. The value should be represented as little-endian UUID, with the age appended at the end. Note that the byte order of the UUID fields must be swapped (spaces inserted for readability):\n\n```text signature: f1c3bcc0 2798 65fe 3058 404b2831d9e6 age:                                            1 debug_id:  c0bcc3f1-9827-fe65-3058-404b2831d9e6-1 ```\n\n- `macho`: Identifier of the dynamic library or executable. It is the value of the `LC_UUID` load command in the Mach header, formatted as UUID.",
+              "description": " Unique debug identifier of the image.\n\n - `elf`: Debug identifier of the dynamic library or executable. If a code identifier is available, the debug identifier is the little-endian UUID representation of the first 16-bytes of that\n identifier. Spaces are inserted for readability, note the byte order of the first fields:\n\n   ```text\n   code id:  f1c3bcc0 2798 65fe 3058 404b2831d9e6 4135386c\n   debug id: c0bcc3f1-9827-fe65-3058-404b2831d9e6\n   ```\n\n   If no code id is available, the debug id should be computed by XORing the first 4096 bytes of the `.text` section in 16-byte chunks, and representing it as a little-endian UUID (again swapping the byte order).\n\n - `pe`: `signature` and `age` of the PDB file. Both values can be read from the CodeView PDB70 debug information header in the PE. The value should be represented as little-endian UUID, with the age appended at the end. Note that the byte order of the UUID fields must be swapped (spaces inserted for readability):\n\n   ```text\n   signature: f1c3bcc0 2798 65fe 3058 404b2831d9e6\n   age:                                            1\n   debug_id:  c0bcc3f1-9827-fe65-3058-404b2831d9e6-1\n   ```\n\n - `macho`: Identifier of the dynamic library or executable. It is the value of the `LC_UUID` load command in the Mach header, formatted as UUID.",
               "anyOf": [
                 {
                   "$ref": "#/definitions/DebugId"
@@ -2040,7 +2040,7 @@ expression: event_json_schema()
               ]
             },
             "image_addr": {
-              "description": "Starting memory address of the image (required).\n\nMemory address, at which the image is mounted in the virtual address space of the process. Should be a string in hex representation prefixed with `\"0x\"`.",
+              "description": " Starting memory address of the image (required).\n\n Memory address, at which the image is mounted in the virtual address space of the process. Should be a string in hex representation prefixed with `\"0x\"`.",
               "anyOf": [
                 {
                   "$ref": "#/definitions/Addr"
@@ -2051,7 +2051,7 @@ expression: event_json_schema()
               ]
             },
             "image_size": {
-              "description": "Size of the image in bytes (required).\n\nThe size of the image in virtual memory. If missing, Sentry will assume that the image spans up to the next image, which might lead to invalid stack traces.",
+              "description": " Size of the image in bytes (required).\n\n The size of the image in virtual memory. If missing, Sentry will assume that the image spans up to the next image, which might lead to invalid stack traces.",
               "type": [
                 "integer",
                 "null"
@@ -2060,7 +2060,7 @@ expression: event_json_schema()
               "minimum": 0.0
             },
             "image_vmaddr": {
-              "description": "Loading address in virtual memory.\n\nPreferred load address of the image in virtual memory, as declared in the headers of the image. When loading an image, the operating system may still choose to place it at a different address.\n\nSymbols and addresses in the native image are always relative to the start of the image and do not consider the preferred load address. It is merely a hint to the loader.\n\n- `elf`/`macho`: If this value is non-zero, all symbols and addresses declared in the native image start at this address, rather than 0. By contrast, Sentry deals with addresses relative to the start of the image. For example, with `image_vmaddr: 0x40000`, a symbol located at `0x401000` has a relative address of `0x1000`.\n\nRelative addresses used in Apple Crash Reports and `addr2line` are usually in the preferred address space, and not relative address space.",
+              "description": " Loading address in virtual memory.\n\n Preferred load address of the image in virtual memory, as declared in the headers of the\n image. When loading an image, the operating system may still choose to place it at a\n different address.\n\n Symbols and addresses in the native image are always relative to the start of the image and do not consider the preferred load address. It is merely a hint to the loader.\n\n - `elf`/`macho`: If this value is non-zero, all symbols and addresses declared in the native image start at this address, rather than 0. By contrast, Sentry deals with addresses relative to the start of the image. For example, with `image_vmaddr: 0x40000`, a symbol located at `0x401000` has a relative address of `0x1000`.\n\n   Relative addresses used in Apple Crash Reports and `addr2line` are usually in the preferred address space, and not relative address space.",
               "default": null,
               "anyOf": [
                 {
@@ -2090,7 +2090,7 @@ expression: event_json_schema()
           "type": "object",
           "properties": {
             "build": {
-              "description": "Internal build number of the operating system.",
+              "description": " Internal build number of the operating system.",
               "default": null,
               "type": [
                 "string",
@@ -2098,7 +2098,7 @@ expression: event_json_schema()
               ]
             },
             "kernel_version": {
-              "description": "Current kernel version.\n\nThis is typically the entire output of the `uname` syscall.",
+              "description": " Current kernel version.\n\n This is typically the entire output of the `uname` syscall.",
               "default": null,
               "type": [
                 "string",
@@ -2114,7 +2114,7 @@ expression: event_json_schema()
               ]
             },
             "raw_description": {
-              "description": "Unprocessed operating system info.\n\nAn unprocessed description string obtained by the operating system. For some well-known runtimes, Sentry will attempt to parse `name` and `version` from this string, if they are not explicitly given.",
+              "description": " Unprocessed operating system info.\n\n An unprocessed description string obtained by the operating system. For some well-known\n runtimes, Sentry will attempt to parse `name` and `version` from this string, if they are\n not explicitly given.",
               "default": null,
               "type": [
                 "string",
@@ -2122,7 +2122,7 @@ expression: event_json_schema()
               ]
             },
             "rooted": {
-              "description": "Indicator if the OS is rooted (mobile mostly).",
+              "description": " Indicator if the OS is rooted (mobile mostly).",
               "default": null,
               "type": [
                 "boolean",
@@ -2130,7 +2130,7 @@ expression: event_json_schema()
               ]
             },
             "version": {
-              "description": "Version of the operating system.",
+              "description": " Version of the operating system.",
               "default": null,
               "type": [
                 "string",
@@ -2148,7 +2148,7 @@ expression: event_json_schema()
           "type": "object",
           "properties": {
             "code": {
-              "description": "An optional signal code present on Apple systems.",
+              "description": " An optional signal code present on Apple systems.",
               "default": null,
               "type": [
                 "integer",
@@ -2157,7 +2157,7 @@ expression: event_json_schema()
               "format": "int64"
             },
             "code_name": {
-              "description": "Optional name of the errno constant.",
+              "description": " Optional name of the errno constant.",
               "default": null,
               "type": [
                 "string",
@@ -2165,7 +2165,7 @@ expression: event_json_schema()
               ]
             },
             "name": {
-              "description": "Optional name of the errno constant.",
+              "description": " Optional name of the errno constant.",
               "default": null,
               "type": [
                 "string",
@@ -2284,7 +2284,7 @@ expression: event_json_schema()
               }
             },
             "lang": {
-              "description": "The language of the stacktrace.",
+              "description": " The language of the stacktrace.",
               "default": null,
               "type": [
                 "string",
@@ -2292,7 +2292,7 @@ expression: event_json_schema()
               ]
             },
             "registers": {
-              "description": "Register values of the thread (top frame).\n\nA map of register names and their values. The values should contain the actual register values of the thread, thus mapping to the last frame in the list.",
+              "description": " Register values of the thread (top frame).\n\n A map of register names and their values. The values should contain the actual register values of the thread, thus mapping to the last frame in the list.",
               "default": null,
               "type": [
                 "object",
@@ -2323,7 +2323,7 @@ expression: event_json_schema()
           "type": "object",
           "properties": {
             "cookies": {
-              "description": "The cookie values.\n\nCan be given unparsed as string, as dictionary, or as a list of tuples.",
+              "description": " The cookie values.\n\n Can be given unparsed as string, as dictionary, or as a list of tuples.",
               "default": null,
               "anyOf": [
                 {
@@ -2335,11 +2335,11 @@ expression: event_json_schema()
               ]
             },
             "data": {
-              "description": "Request data in any format that makes sense.\n\nSDKs should discard large and binary bodies by default. Can be given as string or structural data of any format.",
+              "description": " Request data in any format that makes sense.\n\n SDKs should discard large and binary bodies by default. Can be given as string or\n structural data of any format.",
               "default": null
             },
             "env": {
-              "description": "Server environment data, such as CGI/WSGI.\n\nA dictionary containing environment information passed from the server. This is where information such as CGI/WSGI/Rack keys go that are not HTTP headers.\n\nSentry will explicitly look for `REMOTE_ADDR` to extract an IP address.",
+              "description": " Server environment data, such as CGI/WSGI.\n\n A dictionary containing environment information passed from the server. This is where\n information such as CGI/WSGI/Rack keys go that are not HTTP headers.\n\n Sentry will explicitly look for `REMOTE_ADDR` to extract an IP address.",
               "default": null,
               "type": [
                 "object",
@@ -2348,7 +2348,7 @@ expression: event_json_schema()
               "additionalProperties": true
             },
             "fragment": {
-              "description": "The fragment of the request URL.",
+              "description": " The fragment of the request URL.",
               "default": null,
               "type": [
                 "string",
@@ -2356,7 +2356,7 @@ expression: event_json_schema()
               ]
             },
             "headers": {
-              "description": "A dictionary of submitted headers.\n\nIf a header appears multiple times it, needs to be merged according to the HTTP standard for header merging. Header names are treated case-insensitively by Sentry.",
+              "description": " A dictionary of submitted headers.\n\n If a header appears multiple times it, needs to be merged according to the HTTP standard\n for header merging. Header names are treated case-insensitively by Sentry.",
               "default": null,
               "anyOf": [
                 {
@@ -2368,7 +2368,7 @@ expression: event_json_schema()
               ]
             },
             "inferred_content_type": {
-              "description": "The inferred content type of the request payload.",
+              "description": " The inferred content type of the request payload.",
               "default": null,
               "type": [
                 "string",
@@ -2376,7 +2376,7 @@ expression: event_json_schema()
               ]
             },
             "method": {
-              "description": "HTTP request method.",
+              "description": " HTTP request method.",
               "default": null,
               "type": [
                 "string",
@@ -2384,7 +2384,7 @@ expression: event_json_schema()
               ]
             },
             "query_string": {
-              "description": "The query string component of the URL.\n\nCan be given as unparsed string, dictionary, or list of tuples.\n\nIf the query string is not declared and part of the `url`, Sentry moves it to the query string.",
+              "description": " The query string component of the URL.\n\n Can be given as unparsed string, dictionary, or list of tuples.\n\n If the query string is not declared and part of the `url`, Sentry moves it to the\n query string.",
               "default": null,
               "anyOf": [
                 {
@@ -2414,7 +2414,7 @@ expression: event_json_schema()
           "type": "object",
           "properties": {
             "build": {
-              "description": "Application build string, if it is separate from the version.",
+              "description": " Application build string, if it is separate from the version.",
               "default": null,
               "type": [
                 "string",
@@ -2430,7 +2430,7 @@ expression: event_json_schema()
               ]
             },
             "raw_description": {
-              "description": "Unprocessed runtime info.\n\nAn unprocessed description string obtained by the runtime. For some well-known runtimes, Sentry will attempt to parse `name` and `version` from this string, if they are not explicitly given.",
+              "description": " Unprocessed runtime info.\n\n An unprocessed description string obtained by the runtime. For some well-known runtimes,\n Sentry will attempt to parse `name` and `version` from this string, if they are not\n explicitly given.",
               "default": null,
               "type": [
                 "string",
@@ -2438,7 +2438,7 @@ expression: event_json_schema()
               ]
             },
             "version": {
-              "description": "Runtime version string.",
+              "description": " Runtime version string.",
               "default": null,
               "type": [
                 "string",
@@ -2461,7 +2461,7 @@ expression: event_json_schema()
           ],
           "properties": {
             "description": {
-              "description": "Human readable description of a span (e.g. method URL).",
+              "description": " Human readable description of a span (e.g. method URL).",
               "default": null,
               "type": [
                 "string",
@@ -2469,7 +2469,7 @@ expression: event_json_schema()
               ]
             },
             "op": {
-              "description": "Span type (see `OperationType` docs).",
+              "description": " Span type (see `OperationType` docs).",
               "default": null,
               "type": [
                 "string",
@@ -2477,7 +2477,7 @@ expression: event_json_schema()
               ]
             },
             "parent_span_id": {
-              "description": "The ID of the span enclosing this span.",
+              "description": " The ID of the span enclosing this span.",
               "default": null,
               "anyOf": [
                 {
@@ -2489,7 +2489,7 @@ expression: event_json_schema()
               ]
             },
             "span_id": {
-              "description": "The Span id.",
+              "description": " The Span id.",
               "anyOf": [
                 {
                   "$ref": "#/definitions/SpanId"
@@ -2500,7 +2500,7 @@ expression: event_json_schema()
               ]
             },
             "start_timestamp": {
-              "description": "Timestamp when the span started.",
+              "description": " Timestamp when the span started.",
               "anyOf": [
                 {
                   "$ref": "#/definitions/Timestamp"
@@ -2511,7 +2511,7 @@ expression: event_json_schema()
               ]
             },
             "status": {
-              "description": "The status of a span",
+              "description": " The status of a span",
               "default": null,
               "anyOf": [
                 {
@@ -2534,7 +2534,7 @@ expression: event_json_schema()
               ]
             },
             "trace_id": {
-              "description": "The ID of the trace the span belongs to.",
+              "description": " The ID of the trace the span belongs to.",
               "anyOf": [
                 {
                   "$ref": "#/definitions/TraceId"
@@ -2604,7 +2604,7 @@ expression: event_json_schema()
               ]
             },
             "version_major": {
-              "description": "The major version of the SDK as integer or 0.",
+              "description": " The major version of the SDK as integer or 0.",
               "default": null,
               "type": [
                 "integer",
@@ -2614,7 +2614,7 @@ expression: event_json_schema()
               "minimum": 0.0
             },
             "version_minor": {
-              "description": "The minor version of the SDK as integer or 0.",
+              "description": " The minor version of the SDK as integer or 0.",
               "default": null,
               "type": [
                 "integer",
@@ -2624,7 +2624,7 @@ expression: event_json_schema()
               "minimum": 0.0
             },
             "version_patchlevel": {
-              "description": "The patch version of the SDK as integer or 0.",
+              "description": " The patch version of the SDK as integer or 0.",
               "default": null,
               "type": [
                 "integer",
@@ -2698,7 +2698,7 @@ expression: event_json_schema()
           "type": "object",
           "properties": {
             "crashed": {
-              "description": "A flag indicating whether the thread crashed. Defaults to `false`.",
+              "description": " A flag indicating whether the thread crashed. Defaults to `false`.",
               "default": null,
               "type": [
                 "boolean",
@@ -2706,7 +2706,7 @@ expression: event_json_schema()
               ]
             },
             "current": {
-              "description": "A flag indicating whether the thread was in the foreground.  Defaults to `false`.",
+              "description": " A flag indicating whether the thread was in the foreground.  Defaults to `false`.",
               "default": null,
               "type": [
                 "boolean",
@@ -2726,7 +2726,7 @@ expression: event_json_schema()
               ]
             },
             "name": {
-              "description": "Display name of this thread.",
+              "description": " Display name of this thread.",
               "default": null,
               "type": [
                 "string",
@@ -2734,7 +2734,7 @@ expression: event_json_schema()
               ]
             },
             "stacktrace": {
-              "description": "Stack trace containing frames of this exception.\n\nThe thread that crashed with an exception should not have a stack trace, but instead, the `thread_id` attribute should be set on the exception and Sentry will connect the two.",
+              "description": " Stack trace containing frames of this exception.\n\n The thread that crashed with an exception should not have a stack trace, but instead, the `thread_id` attribute should be set on the exception and Sentry will connect the two.",
               "default": null,
               "anyOf": [
                 {
@@ -2785,7 +2785,7 @@ expression: event_json_schema()
           ],
           "properties": {
             "op": {
-              "description": "Span type (see `OperationType` docs).",
+              "description": " Span type (see `OperationType` docs).",
               "default": null,
               "type": [
                 "string",
@@ -2793,7 +2793,7 @@ expression: event_json_schema()
               ]
             },
             "parent_span_id": {
-              "description": "The ID of the span enclosing this span.",
+              "description": " The ID of the span enclosing this span.",
               "default": null,
               "anyOf": [
                 {
@@ -2805,7 +2805,7 @@ expression: event_json_schema()
               ]
             },
             "span_id": {
-              "description": "The ID of the span.",
+              "description": " The ID of the span.",
               "anyOf": [
                 {
                   "$ref": "#/definitions/SpanId"
@@ -2816,7 +2816,7 @@ expression: event_json_schema()
               ]
             },
             "status": {
-              "description": "Whether the trace failed or succeeded. Currently only used to indicate status of individual transactions.",
+              "description": " Whether the trace failed or succeeded. Currently only used to indicate status of individual\n transactions.",
               "default": null,
               "anyOf": [
                 {
@@ -2857,7 +2857,7 @@ expression: event_json_schema()
           "type": "object",
           "properties": {
             "data": {
-              "description": "Additional arbitrary fields, as stored in the database (and sometimes as sent by clients). All data from `self.other` should end up here after store normalization.",
+              "description": " Additional arbitrary fields, as stored in the database (and sometimes as sent by clients).\n All data from `self.other` should end up here after store normalization.",
               "default": null,
               "type": [
                 "object",
@@ -2866,7 +2866,7 @@ expression: event_json_schema()
               "additionalProperties": true
             },
             "email": {
-              "description": "Email address of the user.",
+              "description": " Email address of the user.",
               "default": null,
               "type": [
                 "string",
@@ -2874,7 +2874,7 @@ expression: event_json_schema()
               ]
             },
             "geo": {
-              "description": "Approximate geographical location of the end user or device.",
+              "description": " Approximate geographical location of the end user or device.",
               "default": null,
               "anyOf": [
                 {
@@ -2894,7 +2894,7 @@ expression: event_json_schema()
               ]
             },
             "ip_address": {
-              "description": "Remote IP address of the user. Defaults to \"{{auto}}\".",
+              "description": " Remote IP address of the user. Defaults to \"{{auto}}\".",
               "default": null,
               "anyOf": [
                 {
@@ -2906,7 +2906,7 @@ expression: event_json_schema()
               ]
             },
             "name": {
-              "description": "Human readable name of the user.",
+              "description": " Human readable name of the user.",
               "default": null,
               "type": [
                 "string",
@@ -2914,7 +2914,7 @@ expression: event_json_schema()
               ]
             },
             "username": {
-              "description": "Username of the user.",
+              "description": " Username of the user.",
               "default": null,
               "type": [
                 "string",
