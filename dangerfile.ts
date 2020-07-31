@@ -13,4 +13,4 @@ export default async () => {
   if (!hasChangelog !hasPyChangelog && !skipChangelog) {
     warn('Please add a changelog entry in either CHANGELOG.md or py/CHANGELOG.md, or add #skip-changelog to the PR description or title.');
   }
-}
+};
