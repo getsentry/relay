@@ -2781,7 +2781,6 @@ expression: event_json_schema()
           "type": "object",
           "required": [
             "span_id",
-            "status",
             "trace_id"
           ],
           "properties": {
@@ -2818,6 +2817,7 @@ expression: event_json_schema()
             },
             "status": {
               "description": "Whether the trace failed or succeeded. Currently only used to indicate status of individual transactions.",
+              "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/SpanStatus"

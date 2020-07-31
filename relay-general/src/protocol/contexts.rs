@@ -460,7 +460,6 @@ pub struct TraceContext {
 
     /// Whether the trace failed or succeeded. Currently only used to indicate status of individual
     /// transactions.
-    #[metastructure(required = "true")]
     pub status: Annotated<SpanStatus>,
 
     /// Additional arbitrary fields for forwards compatibility.
