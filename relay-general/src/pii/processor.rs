@@ -948,3 +948,40 @@ fn test_ip_address_hashing() {
         "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
     );
 }
+
+#[test]
+fn test_ip_address_hashing_does_not_overwrite_id() {
+    let config = PiiConfig::from_json(
+        r##"
+            {
+                "applications": {
+                    "$user.ip_address": ["@ip:hash"]
+                }
+            }
+        "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        user: Annotated::new(User {
+            id: Annotated::new("123".to_string().into()),
+            ip_address: Annotated::new(IpAddr("127.0.0.1".to_string())),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&compiled);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+    let user = event.value().unwrap().user.value().unwrap();
+
+    // This will get wiped out in renormalization though
+    assert_eq!(
+        user.ip_address.value().unwrap().as_str(),
+        "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
+    );
+
+    assert_eq!(user.id.value().unwrap().as_str(), "123");
+}
