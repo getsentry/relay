@@ -54,7 +54,8 @@ pub struct ClientSdkInfo {
     #[metastructure(skip_serialization = "empty_deep")]
     pub packages: Annotated<Array<ClientSdkPackage>>,
 
-    /// IP Address of sender??? Seems unused.
+    /// IP Address of sender??? Seems unused. Do not send, this only leads to surprises wrt PII, as
+    /// the value appears nowhere in the UI.
     #[metastructure(pii = "true", skip_serialization = "empty", omit_from_schema)]
     pub client_ip: Annotated<IpAddr>,
 
