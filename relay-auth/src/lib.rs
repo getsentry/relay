@@ -78,7 +78,7 @@ impl FromStr for RelayVersion {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut iter = s
-            .split('.')
+            .split(&['.', '-'][..])
             .map(|s| s.parse().map_err(|_| ParseRelayVersionError));
 
         let major = iter.next().ok_or(ParseRelayVersionError)??;
@@ -657,6 +657,14 @@ fn test_relay_version_oldest() {
 }
 
 #[test]
+fn test_relay_version_parse() {
+    assert_eq!(
+        RelayVersion::new(20, 7, 0),
+        "20.7.0-beta.0".parse().unwrap()
+    );
+}
+
+#[test]
 fn test_relay_version_oldest_supported() {
     assert!(RelayVersion::oldest().supported());
 }
@@ -670,11 +678,5 @@ fn test_relay_version_any_supported() {
 
 #[test]
 fn test_relay_version_from_str() {
-    let expected = RelayVersion {
-        major: 20,
-        minor: 7,
-        patch: 0,
-    };
-
-    assert_eq!(expected, "20.7.0".parse().unwrap())
+    assert_eq!(RelayVersion::new(20, 7, 0), "20.7.0".parse().unwrap());
 }
