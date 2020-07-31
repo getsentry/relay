@@ -195,6 +195,11 @@ ffi_fn! {
 ffi_fn! {
     /// Returns true if the given version is supported by this library.
     unsafe fn relay_version_supported(version: &RelayStr) -> Result<bool> {
-        Ok(version.as_str().parse::<RelayVersion>()?.supported())
+        let relay_version = match version.as_str() {
+            "" => RelayVersion::default(),
+            s => s.parse::<RelayVersion>()?,
+        };
+
+        Ok(relay_version.supported())
     }
 }

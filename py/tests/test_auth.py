@@ -49,3 +49,11 @@ def test_register_response():
         == "iiWGyrgBZDOOclHjnQILU6zHL1Mjl-yXUpjHOIaArowhrZ2djSUkzPuH_l7UF6sKYpbKD4C2nZWCBhuULLJE-w"
     )
     assert resp["relay_id"] == uuid.UUID("2ffe6ba6-3a27-4936-b30f-d6944a4f1216")
+
+
+def test_is_version_supported():
+    assert sentry_relay.is_version_supported("99.99.99")
+
+    # These can be updated when deprecating legacy versions:
+    assert sentry_relay.is_version_supported("")
+    assert sentry_relay.is_version_supported(None)

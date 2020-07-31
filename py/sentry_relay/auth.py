@@ -20,6 +20,7 @@ __all__ = [
     "create_register_challenge",
     "get_register_response_relay_id",
     "validate_register_response",
+    "is_version_supported",
 ]
 
 
@@ -121,3 +122,11 @@ def validate_register_response(public_key, data, signature, max_age=60 * 15):
 
     response = json.loads(decode_str(response_json, free=True))
     return {"relay_id": uuid.UUID(response["relay_id"]), "token": response["token"]}
+
+
+def is_version_supported(version):
+    """
+    Checks if the provided Relay version is still compatible with this library. The version can be
+    ``None``, in which case a legacy Relay is assumed.
+    """
+    return rustcall(lib.relay_version_supported, encode_str(version or ""))
