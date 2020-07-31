@@ -168,9 +168,8 @@ impl<'a> Processor for PiiProcessor<'a> {
         // identifying a user (has_other_fields), we do not want to do anything. The value will be
         // wiped out in renormalization anyway.
         if ip_was_valid && !has_other_fields && !ip_is_still_valid {
-            let mut user_ip = Annotated::empty();
-            mem::swap(&mut user.ip_address, &mut user_ip);
-            user.id = user_ip.map_value(IpAddr::into_inner).map_value(From::from);
+            user.id = mem::take(&mut user.ip_address)
+                .map_value(|ip| ip.into_inner().into());
         }
 
         Ok(())
