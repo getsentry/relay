@@ -481,4 +481,9 @@ RelayStr relay_validate_register_response(const RelayPublicKey *pk,
                                           const RelayStr *signature,
                                           uint32_t max_age);
 
+/**
+ * Returns true if the given version is supported by this library.
+ */
+bool relay_version_supported(const RelayStr *version);
+
 #endif /* RELAY_H_INCLUDED */

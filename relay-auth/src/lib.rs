@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 
@@ -9,9 +10,103 @@ use sha2::Sha512;
 
 use relay_common::Uuid;
 
-/// Alias for relay IDs (UUIDs)
+include!(concat!(env!("OUT_DIR"), "/constants.gen.rs"));
+
+/// The latest Relay version known to this Relay. This is the current version.
+const LATEST_VERSION: RelayVersion = RelayVersion::new(VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
+
+/// The oldest downstream Relay version still supported by this Relay.
+const OLDEST_VERSION: RelayVersion = RelayVersion::new(0, 0, 0); // support all
+
+/// Alias for relay IDs (UUIDs).
 pub type RelayId = Uuid;
 
+/// The version of a Relay.
+#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
+pub struct RelayVersion {
+    major: u8,
+    minor: u8,
+    patch: u8,
+}
+
+impl RelayVersion {
+    /// Returns the current Relay version.
+    pub fn current() -> Self {
+        LATEST_VERSION
+    }
+
+    /// Returns the oldest compatible Relay version.
+    ///
+    /// Relays older than this cannot authenticate with this Relay. It is possible for newer Relays
+    /// to authenticate.
+    pub fn oldest() -> Self {
+        OLDEST_VERSION
+    }
+
+    /// Creates a new version with the given components.
+    pub const fn new(major: u8, minor: u8, patch: u8) -> Self {
+        Self {
+            major,
+            minor,
+            patch,
+        }
+    }
+
+    /// Returns `true` if this version is still supported.
+    pub fn supported(self) -> bool {
+        self >= Self::oldest()
+    }
+
+    /// Returns `true` if this version is older than the current version.
+    pub fn outdated(self) -> bool {
+        self < Self::current()
+    }
+}
+
+impl fmt::Display for RelayVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Fail)]
+#[fail(display = "hello")]
+pub struct ParseRelayVersionError;
+
+impl FromStr for RelayVersion {
+    type Err = ParseRelayVersionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut iter = s
+            .split(&['.', '-'][..])
+            .map(|s| s.parse().map_err(|_| ParseRelayVersionError));
+
+        let major = iter.next().ok_or(ParseRelayVersionError)??;
+        let minor = iter.next().ok_or(ParseRelayVersionError)??;
+        let patch = iter.next().ok_or(ParseRelayVersionError)??;
+
+        Ok(Self::new(major, minor, patch))
+    }
+}
+
+impl<'de> Deserialize<'de> for RelayVersion {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        let string = Cow::<str>::deserialize(deserializer)?;
+        Ok(string.parse().map_err(serde::de::Error::custom)?)
+    }
+}
+
+impl Serialize for RelayVersion {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
 /// Raised if a key could not be parsed.
 #[derive(Debug, Fail, PartialEq, Eq, Hash)]
 pub enum KeyParseError {
@@ -338,6 +433,8 @@ pub fn generate_key_pair() -> (SecretKey, PublicKey) {
 pub struct RegisterRequest {
     relay_id: RelayId,
     public_key: PublicKey,
+    #[serde(default)]
+    version: RelayVersion,
 }
 
 impl RegisterRequest {
@@ -346,6 +443,7 @@ impl RegisterRequest {
         RegisterRequest {
             relay_id: *relay_id,
             public_key: public_key.clone(),
+            version: RelayVersion::current(),
         }
     }
 
@@ -542,4 +640,43 @@ fn test_registration() {
         .unwrap();
     assert_eq!(reg_resp.relay_id(), &relay_id);
     assert_eq!(reg_resp.token(), challenge.token());
+}
+
+#[test]
+fn test_relay_version_current() {
+    assert_eq!(
+        env!("CARGO_PKG_VERSION"),
+        RelayVersion::current().to_string()
+    );
+}
+
+#[test]
+fn test_relay_version_oldest() {
+    // Regression test against unintentional changes.
+    assert_eq!("0.0.0", RelayVersion::oldest().to_string());
+}
+
+#[test]
+fn test_relay_version_parse() {
+    assert_eq!(
+        RelayVersion::new(20, 7, 0),
+        "20.7.0-beta.0".parse().unwrap()
+    );
+}
+
+#[test]
+fn test_relay_version_oldest_supported() {
+    assert!(RelayVersion::oldest().supported());
+}
+
+#[test]
+fn test_relay_version_any_supported() {
+    // Every version must be supported at the moment.
+    // This test can be changed when dropping support for older versions.
+    assert!(RelayVersion::default().supported());
+}
+
+#[test]
+fn test_relay_version_from_str() {
+    assert_eq!(RelayVersion::new(20, 7, 0), "20.7.0".parse().unwrap());
 }

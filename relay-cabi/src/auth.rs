@@ -2,7 +2,8 @@ use chrono::Duration;
 use serde::Serialize;
 
 use relay_auth::{
-    generate_key_pair, generate_relay_id, PublicKey, RegisterRequest, RegisterResponse, SecretKey,
+    generate_key_pair, generate_relay_id, PublicKey, RegisterRequest, RegisterResponse,
+    RelayVersion, SecretKey,
 };
 use relay_common::Uuid;
 
@@ -188,5 +189,17 @@ ffi_fn! {
             relay_id: *reg_resp.relay_id(),
             token: reg_resp.token().to_string(),
         })?))
+    }
+}
+
+ffi_fn! {
+    /// Returns true if the given version is supported by this library.
+    unsafe fn relay_version_supported(version: &RelayStr) -> Result<bool> {
+        let relay_version = match version.as_str() {
+            "" => RelayVersion::default(),
+            s => s.parse::<RelayVersion>()?,
+        };
+
+        Ok(relay_version.supported())
     }
 }

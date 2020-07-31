@@ -8,6 +8,7 @@ version = "20.7.2"
 edition = "2018"
 license-file = "../LICENSE"
 publish = false
+build = "build.rs"
 
 [dependencies]
 base64 = "0.10.1"
