@@ -4,30 +4,107 @@ use chrono::{TimeZone, Utc};
 use crate::protocol::{Level, Timestamp};
 use crate::types::{Annotated, Object, Value};
 
-/// A breadcrumb.
+/// The Breadcrumbs Interface specifies a series of application events, or "breadcrumbs", that
+/// occurred before an event.
+///
+/// An event may contain one or more breadcrumbs in an attribute named `breadcrumbs`. The entries
+/// are ordered from oldest to newest. Consequently, the last entry in the list should be the last
+/// entry before the event occurred.
+///
+/// While breadcrumb attributes are not strictly validated in Sentry, a breadcrumb is most useful
+/// when it includes at least a `timestamp` and `type`, `category` or `message`. The rendering of
+/// breadcrumbs in Sentry depends on what is provided.
+///
+/// The following example illustrates the breadcrumbs part of the event payload and omits other
+/// attributes for simplicity.
+///
+/// ```json
+/// {
+///   "breadcrumbs": {
+///     "values": [
+///       {
+///         "timestamp": "2016-04-20T20:55:53.845Z",
+///         "message": "Something happened",
+///         "category": "log",
+///         "data": {
+///           "foo": "bar",
+///           "blub": "blah"
+///         }
+///       },
+///       {
+///         "timestamp": "2016-04-20T20:55:53.847Z",
+///         "type": "navigation",
+///         "data": {
+///           "from": "/login",
+///           "to": "/dashboard"
+///         }
+///       }
+///     ]
+///   }
+/// }
+/// ```
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_breadcrumb", value_type = "Breadcrumb")]
 pub struct Breadcrumb {
-    /// The timestamp of the breadcrumb.
+    /// The timestamp of the breadcrumb. Recommended.
+    ///
+    /// A timestamp representing when the breadcrumb occurred. The format is either a string as
+    /// defined in [RFC 3339](https://tools.ietf.org/html/rfc3339) or a numeric (integer or float)
+    /// value representing the number of seconds that have elapsed since the [Unix
+    /// epoch](https://en.wikipedia.org/wiki/Unix_time).
+    ///
+    /// Breadcrumbs are most useful when they include a timestamp, as it creates a timeline leading
+    /// up to an event.
     pub timestamp: Annotated<Timestamp>,
 
-    /// The type of the breadcrumb.
+    /// The type of the breadcrumb. _Optional_, defaults to `default`.
+    ///
+    /// - `default`: Describes a generic breadcrumb. This is typically a log message or
+    ///   user-generated breadcrumb. The `data` field is entirely undefined and as such, completely
+    ///   rendered as a key/value table.
+    ///
+    /// - `navigation`: Describes a navigation breadcrumb. A navigation event can be a URL change
+    ///   in a web application, or a UI transition in a mobile or desktop application, etc.
+    ///
+    ///   Such a breadcrumb's `data` object has the required fields `from` and `to`, which
+    ///   represent an application route/url each.
+    ///
+    /// - `http`: Describes an HTTP request breadcrumb. This represents an HTTP request transmitted
+    ///   from your application. This could be an AJAX request from a web application, or a
+    ///   server-to-server HTTP request to an API service provider, etc.
+    ///
+    ///   Such a breadcrumb's `data` property has the fields `url`, `method`, `status_code`
+    ///   (integer) and `reason` (string).
     #[metastructure(field = "type", max_chars = "enumlike")]
     pub ty: Annotated<String>,
 
-    /// The optional category of the breadcrumb.
+    /// A dotted string indicating what the crumb is or from where it comes. _Optional._
+    ///
+    /// Typically it is a module name or a descriptive string. For instance, _ui.click_ could be
+    /// used to indicate that a click happened in the UI or _flask_ could be used to indicate that
+    /// the event originated in the Flask framework.
     #[metastructure(max_chars = "enumlike")]
     pub category: Annotated<String>,
 
-    /// Severity level of the breadcrumb.
+    /// Severity level of the breadcrumb. _Optional._
+    ///
+    /// Allowed values are, from highest to lowest: `fatal`, `error`, `warning`, `info`, and
+    /// `debug`. Levels are used in the UI to emphasize and deemphasize the crumb. Defaults to
+    /// `info`.
     pub level: Annotated<Level>,
 
     /// Human readable message for the breadcrumb.
+    ///
+    /// If a message is provided, it is rendered as text with all whitespace preserved. Very long
+    /// text might be truncated in the UI.
     #[metastructure(pii = "true", max_chars = "message")]
     pub message: Annotated<String>,
 
-    /// Custom user-defined data of this breadcrumb.
+    /// Arbitrary data associated with this breadcrumb.
+    ///
+    /// Contains a dictionary whose contents depend on the breadcrumb `type`. Additional parameters
+    /// that are unsupported by the type are rendered as a key/value table.
     #[metastructure(pii = "true", bag_size = "medium")]
     #[metastructure(skip_serialization = "empty")]
     pub data: Annotated<Object<Value>>,

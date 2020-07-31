@@ -2,19 +2,46 @@ use crate::protocol::{JsonLenientString, Mechanism, RawStacktrace, Stacktrace, T
 use crate::types::{Annotated, Object, Value};
 
 /// A single exception.
+///
+/// Multiple values inside of an [event](#Event) represent chained exceptions and should be sorted oldest to newest. For example, consider this Python code snippet:
+///
+/// ```python
+/// try:
+///     raise Exception("random boring invariant was not met!")
+/// except Exception as e:
+///     raise ValueError("something went wrong, help!") from e
+/// ```
+///
+/// `Exception` would be described first in the values list, followed by a description of `ValueError`:
+///
+/// ```json
+/// {
+///   "exception": {
+///     "values": [
+///       {"type": "Exception": "value": "random boring invariant was not met!"},
+///       {"type": "ValueError", "value": "something went wrong, help!"},
+///     ]
+///   }
+/// }
+/// ```
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_exception", value_type = "Exception")]
 pub struct Exception {
-    /// Exception type. One of value or exception is required, checked in StoreNormalizeProcessor
+    /// Exception type, e.g. `ValueError`.
+    ///
+    /// At least one of `type` or `value` is required, otherwise the exception is discarded.
+    // (note: requirement checked in checked in StoreNormalizeProcessor)
     #[metastructure(field = "type", max_chars = "symbol")]
     pub ty: Annotated<String>,
 
     /// Human readable display value.
+    ///
+    /// At least one of `type` or `value` is required, otherwise the exception is discarded.
     #[metastructure(max_chars = "message", pii = "maybe")]
     pub value: Annotated<JsonLenientString>,
 
-    /// Module name of this exception.
+    /// The optional module, or package which the exception type lives in.
     #[metastructure(max_chars = "symbol")]
     pub module: Annotated<String>,
 
@@ -26,10 +53,10 @@ pub struct Exception {
     pub stacktrace: Annotated<Stacktrace>,
 
     /// Optional unprocessed stack trace.
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty", omit_from_schema)]
     pub raw_stacktrace: Annotated<RawStacktrace>,
 
-    /// Identifier of the thread this exception occurred in.
+    /// An optional value which refers to a [thread](#Thread).
     #[metastructure(max_chars = "enumlike")]
     pub thread_id: Annotated<ThreadId>,
 

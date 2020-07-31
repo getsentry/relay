@@ -24,6 +24,18 @@ pub struct Geo {
 }
 
 /// Information about the user who triggered an event.
+///
+/// ```json
+/// {
+///   "user": {
+///     "id": "unique_id",
+///     "username": "my_user",
+///     "email": "foo@example.com",
+///     "ip_address": "127.0.0.1",
+///     "subscription": "basic"
+///   }
+/// }
+/// ```
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_user", value_type = "User")]

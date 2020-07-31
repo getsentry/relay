@@ -69,11 +69,34 @@ impl Empty for ThreadId {
 }
 
 /// A process thread of an event.
+///
+/// The Threads Interface specifies threads that were running at the time an event happened. These threads can also contain stack traces.
+///
+/// An event may contain one or more threads in an attribute named `threads`.
+///
+/// The following example illustrates the threads part of the event payload and omits other attributes for simplicity.
+///
+/// ```json
+/// {
+///   "threads": {
+///     "values": [
+///       {
+///         "id": "0",
+///         "name": "main",
+///         "crashed": true,
+///         "stacktrace": {}
+///       }
+///     ]
+///   }
+/// }
+/// ```
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_thread", value_type = "Thread")]
 pub struct Thread {
-    /// Identifier of this thread within the process (usually an integer).
+    /// The ID of the thread. Typically a number or numeric string.
+    ///
+    /// Needs to be unique among the threads. An exception can set the `thread_id` attribute to cross-reference this thread.
     #[metastructure(max_chars = "symbol")]
     pub id: Annotated<ThreadId>,
 
@@ -82,17 +105,19 @@ pub struct Thread {
     pub name: Annotated<String>,
 
     /// Stack trace containing frames of this exception.
+    ///
+    /// The thread that crashed with an exception should not have a stack trace, but instead, the `thread_id` attribute should be set on the exception and Sentry will connect the two.
     #[metastructure(skip_serialization = "empty")]
     pub stacktrace: Annotated<Stacktrace>,
 
     /// Optional unprocessed stack trace.
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty", omit_from_schema)]
     pub raw_stacktrace: Annotated<RawStacktrace>,
 
-    /// Indicates that this thread requested the event (usually by crashing).
+    /// A flag indicating whether the thread crashed. Defaults to `false`.
     pub crashed: Annotated<bool>,
 
-    /// Indicates that the thread was not suspended when the event was created.
+    /// A flag indicating whether the thread was in the foreground.  Defaults to `false`.
     pub current: Annotated<bool>,
 
     /// Additional arbitrary fields for forwards compatibility.

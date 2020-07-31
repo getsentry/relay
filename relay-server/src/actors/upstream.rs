@@ -10,7 +10,7 @@ use actix_web::error::{JsonPayloadError, PayloadError};
 use actix_web::http::{header, Method, StatusCode};
 use actix_web::{Error as ActixError, HttpMessage};
 use failure::Fail;
-use futures::prelude::*;
+use futures::{future, prelude::*};
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
@@ -22,7 +22,7 @@ use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
 
-use crate::utils;
+use crate::utils::{self, ApiErrorResponse};
 
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
@@ -42,13 +42,13 @@ pub enum UpstreamRequestError {
     BuildFailed(ActixError),
 
     #[fail(display = "failed to receive response from upstream")]
-    ResponseFailed(#[cause] PayloadError),
+    PayloadFailed(#[cause] PayloadError),
 
     #[fail(display = "upstream requests rate limited")]
     RateLimited(UpstreamRateLimits),
 
     #[fail(display = "upstream request returned error {}", _0)]
-    ResponseError(StatusCode),
+    ResponseError(StatusCode, #[cause] ApiErrorResponse),
 }
 
 /// Represents the current auth state.
@@ -133,6 +133,54 @@ impl UpstreamRateLimits {
     }
 }
 
+/// Handles a response returned from the upstream.
+///
+/// If the response indicates success via 2XX status codes, `Ok(response)` is returned. Otherwise,
+/// the response is consumed and an error is returned. Depending on the status code and details
+/// provided in the payload, one of the following errors can be returned:
+///
+///  1. `RateLimited` for a `429` status code.
+///  2. `ResponseError` in all other cases.
+fn handle_response(
+    response: ClientResponse,
+) -> ResponseFuture<ClientResponse, UpstreamRequestError> {
+    let status = response.status();
+
+    if status.is_success() {
+        return Box::new(future::ok(response));
+    }
+
+    // At this point, we consume the ClientResponse. This means we need to consume the response
+    // payload stream, regardless of the status code. Parsing the JSON body may fail, which is a
+    // non-fatal failure as the upstream is not expected to always include a valid JSON response.
+    let future = response.json().then(move |json_result| {
+        if response.status() == StatusCode::TOO_MANY_REQUESTS {
+            let headers = response.headers();
+            let retry_after = headers
+                .get(header::RETRY_AFTER)
+                .and_then(|v| v.to_str().ok());
+
+            let rate_limits = headers
+                .get_all(utils::RATE_LIMITS_HEADER)
+                .iter()
+                .filter_map(|v| v.to_str().ok())
+                .join(", ");
+
+            let upstream_limits = UpstreamRateLimits::new()
+                .retry_after(retry_after)
+                .rate_limits(rate_limits);
+
+            Err(UpstreamRequestError::RateLimited(upstream_limits))
+        } else {
+            // Coerce the result into an empty `ApiErrorResponse` if parsing JSON did not succeed.
+            let api_response = json_result.unwrap_or_default();
+            Err(UpstreamRequestError::ResponseError(status, api_response))
+        }
+    });
+
+    Box::new(future)
+}
+
 pub struct UpstreamRelay {
     backoff: RetryBackoff,
     config: Arc<Config>,
@@ -198,31 +246,11 @@ impl UpstreamRelay {
             //   1. Have own connection pool for `store` requests
             //   2. Buffer up/queue/synchronize events before creating the request
             .wait_timeout(self.config.event_buffer_expiry())
+            .conn_timeout(self.config.http_connection_timeout())
             // This is the timeout after wait + connect.
             .timeout(self.config.http_timeout())
             .map_err(UpstreamRequestError::SendFailed)
-            .and_then(|response| match response.status() {
-                StatusCode::TOO_MANY_REQUESTS => {
-                    let headers = response.headers();
-                    let retry_after = headers
-                        .get(header::RETRY_AFTER)
-                        .and_then(|v| v.to_str().ok());
-
-                    let rate_limits = headers
-                        .get_all(utils::RATE_LIMITS_HEADER)
-                        .iter()
-                        .filter_map(|v| v.to_str().ok())
-                        .join(", ");
-
-                    let upstream_limits = UpstreamRateLimits::new()
-                        .retry_after(retry_after)
-                        .rate_limits(rate_limits);
-
-                    Err(UpstreamRequestError::RateLimited(upstream_limits))
-                }
-                code if !code.is_success() => Err(UpstreamRequestError::ResponseError(code)),
-                _ => Ok(response),
-            });
+            .and_then(handle_response);
 
         Box::new(future)
     }
@@ -318,15 +346,25 @@ impl Handler<Authenticate> for UpstreamRelay {
             })
             .map_err(|err, slf, ctx| {
                 log::error!("authentication encountered error: {}", LogError(&err));
-
-                let interval = slf.backoff.next_backoff();
-                log::debug!(
-                    "scheduling authentication retry in {} seconds",
-                    interval.as_secs()
-                );
-
                 slf.auth_state = AuthState::Error;
-                ctx.notify_later(Authenticate, interval);
+
+                // Do not retry client errors including authentication failures since client errors
+                // are usually permanent. This allows the upstream to reject unsupported Relays
+                // without infinite retries.
+                let should_retry = match err {
+                    UpstreamRequestError::ResponseError(code, _) => !code.is_client_error(),
+                    _ => true,
+                };
+
+                if should_retry {
+                    let interval = slf.backoff.next_backoff();
+                    log::debug!(
+                        "scheduling authentication retry in {} seconds",
+                        interval.as_secs()
+                    );
+
+                    ctx.notify_later(Authenticate, interval);
+                }
             });
 
         Box::new(future)
@@ -385,7 +423,7 @@ impl ResponseTransformer for () {
         let future = response
             .payload()
             .for_each(|_| Ok(()))
-            .map_err(UpstreamRequestError::ResponseFailed);
+            .map_err(UpstreamRequestError::PayloadFailed);
 
         Box::new(future)
     }

@@ -1,8 +1,15 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::Visibility;
+use syn::{Attribute, Visibility};
 
 use crate::parse_field_attributes;
+
+fn is_doc_attr(attr: &Attribute) -> bool {
+    attr.parse_meta()
+        .ok()
+        .and_then(|meta| Some(meta.path().get_ident()? == "doc"))
+        .unwrap_or(false)
+}
 
 pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
     let _ = s.add_bounds(synstructure::AddBounds::Generics);
@@ -30,12 +37,7 @@ pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
 
             let mut ast = bi.ast().clone();
             ast.vis = Visibility::Inherited;
-            ast.attrs.retain(|attr| {
-                attr.parse_meta()
-                    .ok()
-                    .and_then(|meta| Some(meta.path().get_ident()? == "doc"))
-                    .unwrap_or(false)
-            });
+            ast.attrs.retain(is_doc_attr);
             fields = quote!(#fields #ast,);
         }
 
@@ -54,6 +56,12 @@ pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
     }
 
     let ident = &s.ast().ident;
+    let mut attrs = quote!();
+    for attr in &s.ast().attrs {
+        if is_doc_attr(attr) {
+            attrs = quote!(#attrs #attr);
+        }
+    }
 
     s.gen_impl(quote! {
         // Massive hack to tell schemars that fields are nullable. Causes it to emit {"default":
@@ -72,6 +80,7 @@ pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
                 #[derive(schemars::JsonSchema)]
                 #[cfg_attr(feature = "jsonschema", schemars(untagged))]
                 #[cfg_attr(feature = "jsonschema", schemars(deny_unknown_fields))]
+                #attrs
                 enum Helper {
                     #arms
                 }
