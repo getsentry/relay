@@ -25,7 +25,11 @@ pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
             let field_attrs = parse_field_attributes(index, &bi.ast(), &mut is_tuple_struct);
             let name = field_attrs.field_name;
 
-            fields = quote!(#fields #[schemars(rename = #name)]);
+            fields = quote! {
+                #fields
+                #[schemars_preserve_doc_formatting]
+                #[schemars(rename = #name)]
+            };
 
             if !field_attrs.required.unwrap_or(false) {
                 fields = quote!(#fields #[schemars(default = "__schemars_null")]);
@@ -80,6 +84,7 @@ pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
                 #[derive(schemars::JsonSchema)]
                 #[cfg_attr(feature = "jsonschema", schemars(untagged))]
                 #[cfg_attr(feature = "jsonschema", schemars(deny_unknown_fields))]
+                #[schemars_preserve_doc_formatting]
                 #attrs
                 enum Helper {
                     #arms
