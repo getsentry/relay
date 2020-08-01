@@ -1,4 +1,4 @@
-import { danger, fail, message, schedule, warn } from 'danger';
+import { danger, warn } from 'danger';
 
 export default async () => {
   if (!danger.github) {
