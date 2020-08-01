@@ -39,10 +39,10 @@ fn transform_attributes(attrs: &mut Vec<Attribute>) {
 pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
     let _ = s.add_bounds(synstructure::AddBounds::Generics);
 
-    let mut arms = quote!();
+    let mut arms = Vec::new();
 
     for variant in s.variants() {
-        let mut fields = quote!();
+        let mut fields = Vec::new();
 
         let mut is_tuple_struct = false;
 
@@ -50,37 +50,33 @@ pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
             let field_attrs = parse_field_attributes(index, &bi.ast(), &mut is_tuple_struct);
             let name = field_attrs.field_name;
 
-            fields = quote! {
-                #fields
-                #[schemars(rename = #name)]
-            };
-
-            if !field_attrs.required.unwrap_or(false) {
-                fields = quote!(#fields #[schemars(default = "__schemars_null")]);
-            }
-
-            if field_attrs.additional_properties || field_attrs.omit_from_schema {
-                fields = quote!(#fields #[schemars(skip)]);
-            }
-
             let mut ast = bi.ast().clone();
             ast.vis = Visibility::Inherited;
             transform_attributes(&mut ast.attrs);
-            fields = quote!(#fields #ast,);
+
+            ast.attrs.push(parse_quote!(#[schemars(rename = #name)]));
+
+            if !field_attrs.required.unwrap_or(false) {
+                ast.attrs
+                    .push(parse_quote!(#[schemars(default = "__schemars_null")]));
+            }
+
+            if field_attrs.additional_properties || field_attrs.omit_from_schema {
+                ast.attrs.push(parse_quote!(#[schemars(skip)]));
+            }
+
+            fields.push(ast);
         }
 
         let ident = variant.ast().ident;
 
         let arm = if is_tuple_struct {
-            quote!( #ident( #fields ) )
+            quote!( #ident( #(#fields),* ) )
         } else {
-            quote!( #ident { #fields } )
+            quote!( #ident { #(#fields),* } )
         };
 
-        arms = quote! {
-            #arms
-            #arm,
-        };
+        arms.push(arm);
     }
 
     let ident = &s.ast().ident;
@@ -106,7 +102,7 @@ pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
                 #[cfg_attr(feature = "jsonschema", schemars(deny_unknown_fields))]
                 #(#attrs)*
                 enum Helper {
-                    #arms
+                    #(#arms),*
                 }
 
                 Helper::json_schema(gen)
