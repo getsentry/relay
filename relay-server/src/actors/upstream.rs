@@ -1,9 +1,8 @@
 //! This actor can be used for sending signed requests to the upstream relay.
 use std::borrow::Cow;
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
-use std::{str, thread, time};
+use std::str;
+use std::sync::Arc;
 
 use ::actix::fut;
 use ::actix::prelude::*;
@@ -26,8 +25,9 @@ use relay_quotas::{
 use crate::actors::outcome::SendOutcomes;
 use crate::actors::project_upstream::GetProjectStates;
 use crate::utils;
+use crate::utils::IntoTracked;
 use futures::future::Shared;
-use futures::sync::oneshot;
+use futures::sync::{mpsc, oneshot};
 
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
@@ -145,16 +145,45 @@ struct UpstreamRequest {
     build: Box<dyn Send + FnOnce(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>>,
 }
 
-/// Structure controlling the http request loop
-struct UpstreamHttpRequestLoopState {
+pub struct UpstreamRelay {
+    pump_http_queue_notifications: mpsc::Receiver<()>,
+    backoff: RetryBackoff,
     config: Arc<Config>,
+    auth_state: AuthState,
     max_inflight_requests: usize,
-    num_inflight_requests: Arc<AtomicUsize>,
-    messages: Arc<Mutex<VecDeque<UpstreamRequest>>>,
+    num_inflight_requests: usize,
+    //high priority messages
+    hp_messages: VecDeque<UpstreamRequest>,
+    //low priority messages
+    lp_messages: VecDeque<UpstreamRequest>,
 }
 
-impl UpstreamHttpRequestLoopState {
-    fn send_http_request(&self, request: UpstreamRequest) {
+impl UpstreamRelay {
+    pub fn new(config: Arc<Config>) -> Self {
+        //TODO discus size (probably shouldn't be very big, if notifications accumulate we
+        // have a problem, unbounded probably a bad idea)
+        let (sender, receiver) = mpsc::channel(1000);
+        UpstreamRelay {
+            pump_http_queue_notifications: receiver,
+            backoff: RetryBackoff::new(config.http_max_retry_interval()),
+            config,
+            auth_state: AuthState::Unknown,
+            // TODO get the real value from a config and use it with ClientConnector::limit
+            max_inflight_requests: 100,
+            num_inflight_requests: 0,
+            hp_messages: VecDeque::new(),
+            lp_messages: VecDeque::new(),
+        }
+    }
+
+    fn assert_authenticated(&self) -> Result<(), UpstreamRequestError> {
+        if !self.auth_state.is_authenticated() {
+            Err(UpstreamRequestError::NotAuthenticated)
+        } else {
+            Ok(())
+        }
+    }
+    fn send_http_request(&mut self, request: UpstreamRequest) {
         let UpstreamRequest {
             response_sender,
             method,
@@ -184,6 +213,7 @@ impl UpstreamHttpRequestLoopState {
                 ()
             })
             .map(|client_request| {
+                self.num_inflight_requests += 1;
                 client_request
                     .send()
                     // We currently use the main connection pool size limit to control how many events get
@@ -202,6 +232,7 @@ impl UpstreamHttpRequestLoopState {
                     .wait_timeout(self.config.event_buffer_expiry())
                     // This is the timeout after wait + connect.
                     .timeout(self.config.http_timeout())
+                    //.to_tracked()
                     //TODO send error into the channel
                     .map_err(UpstreamRequestError::SendFailed)
                     .and_then(|response| match response.status() {
@@ -235,72 +266,9 @@ impl UpstreamHttpRequestLoopState {
         // TODO see what to do with the future (spawn it or return it to be spawned by caller)
         // TOOD this should be called from the queue emptying loop
     }
-}
-
-/// runs the request loop
-fn upstream_http_request_loop(loop_state: UpstreamHttpRequestLoopState) {
-    //TODO should we make this configurable
-    let sleep_time = time::Duration::from_millis(5);
-    loop {
-        // if we have free connections
-        while loop_state.num_inflight_requests.load(Ordering::AcqRel)
-            < loop_state.max_inflight_requests
-        {
-            let mut message = None;
-            match loop_state.messages.lock() {
-                Ok(mut queue) => {
-                    message = queue.pop_back();
-                }
-                Err(_) => {
-                    log::error!(
-                        "Could not access the message queue in UpstreamRelay,\nthread died without releasing the lock."
-                    );
-                    break; //TODO should we panic here ?
-                }
-            }
-
-            // if we have found a message in the queue send it
-            if let Some(message) = message {
-                loop_state.send_http_request(message)
-            }
-        }
-        thread::sleep(sleep_time)
-    }
-}
-
-pub struct UpstreamRelay {
-    backoff: RetryBackoff,
-    config: Arc<Config>,
-    auth_state: AuthState,
-    max_inflight_requests: usize,
-    num_inflight_requests: Arc<AtomicUsize>,
-    messages: Arc<Mutex<VecDeque<UpstreamRequest>>>,
-}
-
-impl UpstreamRelay {
-    pub fn new(config: Arc<Config>) -> Self {
-        UpstreamRelay {
-            backoff: RetryBackoff::new(config.http_max_retry_interval()),
-            config,
-            auth_state: AuthState::Unknown,
-            // TODO get the real value from a config and use it with ClientConnector::limit
-            max_inflight_requests: 100,
-            num_inflight_requests: Arc::new(AtomicUsize::new(0)),
-            messages: Arc::new(Mutex::new(VecDeque::new())),
-        }
-    }
-
-    fn assert_authenticated(&self) -> Result<(), UpstreamRequestError> {
-        if !self.auth_state.is_authenticated() {
-            self.num_inflight_requests.fetch_add(2, Ordering::AcqRel);
-            Err(UpstreamRequestError::NotAuthenticated)
-        } else {
-            Ok(())
-        }
-    }
 
     fn send_request<P, F>(
-        &self,
+        &mut self,
         method: Method,
         path: P,
         build: F,
@@ -318,12 +286,8 @@ impl UpstreamRelay {
             build: Box::new(build),
         };
 
-        match self.messages.lock() {
-            Ok(mut queue) => queue.push_front(request),
-            Err(_) => log::error!(
-                "Could not access the message queue in UpstreamRelay,\nthread died without releasing the lock."
-            ),
-        }
+        //TODO send to lp or hp based on the type of message
+        self.lp_messages.push_front(request);
 
         let future = rx
             // map errors caused by the oneshot channel being closed (unlikely)
@@ -335,7 +299,7 @@ impl UpstreamRelay {
     }
 
     fn send_query<Q: UpstreamQuery>(
-        &self,
+        &mut self,
         query: Q,
     ) -> ResponseFuture<Q::Response, UpstreamRequestError> {
         let method = query.method();
@@ -454,6 +418,27 @@ impl Handler<IsAuthenticated> for UpstreamRelay {
     }
 }
 
+/// Message send to drive the HttpMessage queue
+struct PumpHttpMessageQueue;
+
+impl Message for PumpHttpMessageQueue {
+    type Result = ();
+}
+
+impl Handler<PumpHttpMessageQueue> for UpstreamRelay {
+    type Result = ();
+
+    fn handle(&mut self, _msg: PumpHttpMessageQueue, _ctx: &mut Self::Context) -> Self::Result {
+        while self.num_inflight_requests < self.max_inflight_requests {
+            if let Some(msg) = self.hp_messages.pop_back() {
+                self.send_http_request(msg);
+            } else if let Some(msg) = self.lp_messages.pop_back() {
+                self.send_http_request(msg);
+            }
+        }
+    }
+}
+
 pub trait RequestBuilder: 'static {
     fn build_request(self, _: &mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>;
 }
@@ -522,18 +507,30 @@ where
 {
     type Result = ResponseFuture<(), UpstreamRequestError>;
 
-    fn handle(&mut self, message: SendRequest<B>, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: SendRequest<B>, ctx: &mut Self::Context) -> Self::Result {
         let SendRequest {
             method,
             path,
             builder,
         } = message;
 
-        Box::new(
+        let ret_val = Box::new(
             self.send_request(method, path, |b| builder.build_request(b))
                 .from_err()
                 .and_then(|_| Ok(())),
-        )
+        );
+
+        ctx.notify(PumpHttpMessageQueue);
+        ret_val
+    }
+}
+
+/// Stream handler for the mpsc tracked future stream
+impl StreamHandler<(), ()> for UpstreamRelay {
+    /// handle notifications received from the tracked future stream
+    fn handle(&mut self, item: (), ctx: &mut Self::Context) {
+        // an HTTP request has finished ... pump the message queue
+        ctx.notify(PumpHttpMessageQueue)
     }
 }
 
@@ -554,9 +551,11 @@ impl<T: UpstreamQuery> Message for SendQuery<T> {
 impl<T: UpstreamQuery> Handler<SendQuery<T>> for UpstreamRelay {
     type Result = ResponseFuture<T::Response, UpstreamRequestError>;
 
-    fn handle(&mut self, message: SendQuery<T>, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: SendQuery<T>, ctx: &mut Self::Context) -> Self::Result {
         tryf!(self.assert_authenticated());
-        self.send_query(message.0)
+        let ret_val = self.send_query(message.0);
+        ctx.notify(PumpHttpMessageQueue);
+        ret_val
     }
 }
 
