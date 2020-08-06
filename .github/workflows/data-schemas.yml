@@ -12,7 +12,7 @@ jobs:
           toolchain: stable
       - run: make jsonschema
       - env:
-          GITHUB_TOKEN: ${secrets.DATA_SCHEMAS_GITHUB_TOKEN}
+          GITHUB_TOKEN: ${{ secrets.DATA_SCHEMAS_GITHUB_TOKEN }}
         run: |
           git config --global user.email "markus+ghbot@sentry.io"
           git config --global user.name "sentry-bot"
