@@ -56,7 +56,7 @@ pub struct Exception {
     #[metastructure(skip_serialization = "empty", omit_from_schema)]
     pub raw_stacktrace: Annotated<RawStacktrace>,
 
-    /// An optional value which refers to a [thread](#typedef-Thread).
+    /// An optional value that refers to a [thread](#typedef-Thread).
     #[metastructure(max_chars = "enumlike")]
     pub thread_id: Annotated<ThreadId>,
 
