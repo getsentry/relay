@@ -100,15 +100,18 @@ extract-metric-docs: .venv/bin/python
 	.venv/bin/pip install -U -r requirements-doc.txt
 	cd scripts && ../.venv/bin/python extract_metric_docs.py
 
-extract-jsonschema-docs: install-jsonschema-docs
+jsonschema: init-submodules
 	rm -rf docs/event-schema/event.schema.*
 	set -e && cargo run --features jsonschema -- event-json-schema \
 		> docs/event-schema/event.schema.json
+.PHONY: jsonschema
+
+extract-jsonschema-docs: install-jsonschema-docs
 	set -e && ./node_modules/.bin/quicktype-markdown \
 		Event docs/event-schema/event.schema.json \
 		> docs/event-schema/event.schema.md
 
-install-jsonschema-docs:
+install-jsonschema-docs: jsonschema
 	npm install git+https://github.com/untitaker/quicktype-markdown
 
 docserver: prose-docs
