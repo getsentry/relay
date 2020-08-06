@@ -1244,7 +1244,7 @@ expression: event_json_schema()
               ]
             },
             "thread_id": {
-              "description": " An optional value which refers to a [thread](#typedef-Thread).",
+              "description": " An optional value that refers to a [thread](#typedef-Thread).",
               "default": null,
               "anyOf": [
                 {
