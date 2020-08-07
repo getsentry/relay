@@ -79,10 +79,10 @@ pub struct MechanismMeta {
 
 /// The mechanism by which an exception was generated and handled.
 ///
-/// The exception mechanism is an optional field residing in the [exception](#Exception). It carries
-/// additional information about the way the exception was created on the target system. This
-/// includes general exception values obtained from the operating system or runtime APIs, as well
-/// as mechanism-specific values.
+/// The exception mechanism is an optional field residing in the [exception](#typedef-Exception).
+/// It carries additional information about the way the exception was created on the target system.
+/// This includes general exception values obtained from the operating system or runtime APIs, as
+/// well as mechanism-specific values.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Mechanism {

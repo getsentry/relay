@@ -161,14 +161,6 @@ expression: event_json_schema()
             }
           ]
         },
-        "key_id": {
-          "description": " Project key which sent this event.",
-          "default": null,
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "level": {
           "description": " Severity level of the event. Defaults to `error`.",
           "default": null,
@@ -223,16 +215,6 @@ expression: event_json_schema()
             "null"
           ]
         },
-        "project": {
-          "description": " Project which sent this event.",
-          "default": null,
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0.0
-        },
         "received": {
           "description": " Timestamp when the event has been received by Sentry.",
           "default": null,
@@ -285,50 +267,12 @@ expression: event_json_schema()
             "null"
           ]
         },
-        "site": {
-          "description": " Deprecated in favor of tags.",
-          "default": null,
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "spans": {
-          "description": " Spans for tracing.",
-          "default": null,
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/Span"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
         "stacktrace": {
           "description": " Event stacktrace.\n\n DEPRECATED: Prefer `threads` or `exception` depending on which is more appropriate.",
           "default": null,
           "anyOf": [
             {
               "$ref": "#/definitions/Stacktrace"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "start_timestamp": {
-          "description": " Timestamp when the event has started (relevant for event type = \"transaction\")",
-          "default": null,
-          "anyOf": [
-            {
-              "$ref": "#/definitions/Timestamp"
             },
             {
               "type": "null"
@@ -1262,7 +1206,7 @@ expression: event_json_schema()
       ]
     },
     "Exception": {
-      "description": " A single exception.\n\n Multiple values inside of an [event](#Event) represent chained exceptions and should be sorted oldest to newest. For example, consider this Python code snippet:\n\n ```python\n try:\n     raise Exception(\"random boring invariant was not met!\")\n except Exception as e:\n     raise ValueError(\"something went wrong, help!\") from e\n ```\n\n `Exception` would be described first in the values list, followed by a description of `ValueError`:\n\n ```json\n {\n   \"exception\": {\n     \"values\": [\n       {\"type\": \"Exception\": \"value\": \"random boring invariant was not met!\"},\n       {\"type\": \"ValueError\", \"value\": \"something went wrong, help!\"},\n     ]\n   }\n }\n ```",
+      "description": " A single exception.\n\n Multiple values inside of an [event](#typedef-Event) represent chained exceptions and should be sorted oldest to newest. For example, consider this Python code snippet:\n\n ```python\n try:\n     raise Exception(\"random boring invariant was not met!\")\n except Exception as e:\n     raise ValueError(\"something went wrong, help!\") from e\n ```\n\n `Exception` would be described first in the values list, followed by a description of `ValueError`:\n\n ```json\n {\n   \"exception\": {\n     \"values\": [\n       {\"type\": \"Exception\": \"value\": \"random boring invariant was not met!\"},\n       {\"type\": \"ValueError\", \"value\": \"something went wrong, help!\"},\n     ]\n   }\n }\n ```",
       "anyOf": [
         {
           "type": "object",
@@ -1300,7 +1244,7 @@ expression: event_json_schema()
               ]
             },
             "thread_id": {
-              "description": " An optional value which refers to a [thread](#Thread).",
+              "description": " An optional value that refers to a [thread](#typedef-Thread).",
               "default": null,
               "anyOf": [
                 {
@@ -1839,7 +1783,7 @@ expression: event_json_schema()
       ]
     },
     "Mechanism": {
-      "description": " The mechanism by which an exception was generated and handled.\n\n The exception mechanism is an optional field residing in the [exception](#Exception). It carries\n additional information about the way the exception was created on the target system. This\n includes general exception values obtained from the operating system or runtime APIs, as well\n as mechanism-specific values.",
+      "description": " The mechanism by which an exception was generated and handled.\n\n The exception mechanism is an optional field residing in the [exception](#typedef-Exception).\n It carries additional information about the way the exception was created on the target system.\n This includes general exception values obtained from the operating system or runtime APIs, as\n well as mechanism-specific values.",
       "anyOf": [
         {
           "type": "object",
@@ -2443,105 +2387,6 @@ expression: event_json_schema()
               "type": [
                 "string",
                 "null"
-              ]
-            }
-          }
-        }
-      ]
-    },
-    "Span": {
-      "anyOf": [
-        {
-          "type": "object",
-          "required": [
-            "span_id",
-            "start_timestamp",
-            "timestamp",
-            "trace_id"
-          ],
-          "properties": {
-            "description": {
-              "description": " Human readable description of a span (e.g. method URL).",
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "op": {
-              "description": " Span type (see `OperationType` docs).",
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "parent_span_id": {
-              "description": " The ID of the span enclosing this span.",
-              "default": null,
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/SpanId"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "span_id": {
-              "description": " The Span id.",
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/SpanId"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "start_timestamp": {
-              "description": " Timestamp when the span started.",
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Timestamp"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "status": {
-              "description": " The status of a span",
-              "default": null,
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/SpanStatus"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "timestamp": {
-              "description": " Timestamp when the span was ended.",
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Timestamp"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "trace_id": {
-              "description": " The ID of the trace the span belongs to.",
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/TraceId"
-                },
-                {
-                  "type": "null"
-                }
               ]
             }
           }

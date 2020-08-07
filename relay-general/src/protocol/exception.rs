@@ -3,7 +3,7 @@ use crate::types::{Annotated, Object, Value};
 
 /// A single exception.
 ///
-/// Multiple values inside of an [event](#Event) represent chained exceptions and should be sorted oldest to newest. For example, consider this Python code snippet:
+/// Multiple values inside of an [event](#typedef-Event) represent chained exceptions and should be sorted oldest to newest. For example, consider this Python code snippet:
 ///
 /// ```python
 /// try:
@@ -56,7 +56,7 @@ pub struct Exception {
     #[metastructure(skip_serialization = "empty", omit_from_schema)]
     pub raw_stacktrace: Annotated<RawStacktrace>,
 
-    /// An optional value which refers to a [thread](#Thread).
+    /// An optional value that refers to a [thread](#typedef-Thread).
     #[metastructure(max_chars = "enumlike")]
     pub thread_id: Annotated<ThreadId>,
 

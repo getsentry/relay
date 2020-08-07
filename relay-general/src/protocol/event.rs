@@ -281,6 +281,7 @@ pub struct Event {
     pub timestamp: Annotated<Timestamp>,
 
     /// Timestamp when the event has started (relevant for event type = "transaction")
+    #[metastructure(omit_from_schema)] // we only document error events for now
     pub start_timestamp: Annotated<Timestamp>,
 
     /// Timestamp when the event has been received by Sentry.
@@ -332,6 +333,7 @@ pub struct Event {
 
     /// Deprecated in favor of tags.
     #[metastructure(max_chars = "symbol")]
+    #[metastructure(omit_from_schema)] // deprecated
     pub site: Annotated<String>,
 
     /// Information about the user who triggered this event.
@@ -403,41 +405,44 @@ pub struct Event {
     pub errors: Annotated<Array<EventProcessingError>>,
 
     /// Project key which sent this event.
+    #[metastructure(omit_from_schema)] // not part of external schema
     pub key_id: Annotated<String>,
 
     /// Project which sent this event.
+    #[metastructure(omit_from_schema)] // not part of external schema
     pub project: Annotated<u64>,
 
     /// The grouping configuration for this event.
-    #[metastructure(omit_from_schema)]
+    #[metastructure(omit_from_schema)] // not part of external schema
     pub grouping_config: Annotated<Object<Value>>,
 
     /// Legacy checksum used for grouping before fingerprint hashes.
     #[metastructure(max_chars = "hash")]
-    #[metastructure(omit_from_schema)]
+    #[metastructure(omit_from_schema)] // deprecated
     pub checksum: Annotated<String>,
 
     /// CSP (security) reports.
     #[metastructure(legacy_alias = "sentry.interfaces.Csp")]
-    #[metastructure(omit_from_schema)]
+    #[metastructure(omit_from_schema)] // we only document error events for now
     pub csp: Annotated<Csp>,
 
     /// HPKP (security) reports.
     #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.Hpkp")]
-    #[metastructure(omit_from_schema)]
+    #[metastructure(omit_from_schema)] // we only document error events for now
     pub hpkp: Annotated<Hpkp>,
 
     /// ExpectCT (security) reports.
     #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.ExpectCT")]
-    #[metastructure(omit_from_schema)]
+    #[metastructure(omit_from_schema)] // we only document error events for now
     pub expectct: Annotated<ExpectCt>,
 
     /// ExpectStaple (security) reports.
     #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.ExpectStaple")]
-    #[metastructure(omit_from_schema)]
+    #[metastructure(omit_from_schema)] // we only document error events for now
     pub expectstaple: Annotated<ExpectStaple>,
 
     /// Spans for tracing.
+    #[metastructure(omit_from_schema)] // we only document error events for now
     pub spans: Annotated<Array<Span>>,
 
     /// Internal ingestion and processing metrics.
