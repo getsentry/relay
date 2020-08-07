@@ -77,7 +77,7 @@ expression: event_json_schema()
           ]
         },
         "environment": {
-          "description": " The environment name, such as `production` or `staging`.",
+          "description": " The environment name, such as `production` or `staging`.\n\n ```json\n { \"environment\": \"production\" }\n ```",
           "default": null,
           "type": [
             "string",
@@ -141,7 +141,7 @@ expression: event_json_schema()
           }
         },
         "extra": {
-          "description": " Arbitrary extra information set by the user.",
+          "description": " Arbitrary extra information set by the user.\n\n ```json\n {\n     \"extra\": {\n         \"my_key\": 1,\n         \"some_other_value\": \"foo bar\"\n     }\n }```",
           "default": null,
           "type": [
             "object",
@@ -150,7 +150,7 @@ expression: event_json_schema()
           "additionalProperties": true
         },
         "fingerprint": {
-          "description": " Manual fingerprint override.\n\n A list of strings used to dictate how this event is supposed to be grouped with other\n events into issues. For more information about overriding grouping see [Customize Grouping\n with Fingerprints](https://docs.sentry.io/data-management/event-grouping/).",
+          "description": " Manual fingerprint override.\n\n A list of strings used to dictate how this event is supposed to be grouped with other\n events into issues. For more information about overriding grouping see [Customize Grouping\n with Fingerprints](https://docs.sentry.io/data-management/event-grouping/).\n\n ```json\n {\n     \"fingerprint\": [\"myrpc\", \"POST\", \"/foo.bar\"]\n }",
           "default": null,
           "anyOf": [
             {
@@ -170,7 +170,7 @@ expression: event_json_schema()
           ]
         },
         "level": {
-          "description": " Severity level of the event. Defaults to `error`.",
+          "description": " Severity level of the event. Defaults to `error`.\n Example:\n\n ```json\n {\"level\": \"warning\"}\n ```",
           "default": null,
           "anyOf": [
             {
@@ -1423,7 +1423,7 @@ expression: event_json_schema()
               ]
             },
             "instruction_addr": {
-              "description": " (C/C++/Native) Absolute address of the frame's CPU instruction.",
+              "description": " (C/C++/Native) An optional instruction address for symbolication.\n This should be a string with a hexadecimal number that includes a 0x prefix.\n If this is set and a known image is defined in the\n [Debug Meta Interface]({%- link _documentation/development/sdk-dev/event-payloads/debugmeta.md -%}),\n then symbolication can take place.",
               "default": null,
               "anyOf": [
                 {
@@ -1513,7 +1513,7 @@ expression: event_json_schema()
               ]
             },
             "symbol_addr": {
-              "description": " (C/C++/Native) Start address of the frame's function.",
+              "description": " (C/C++/Native) Start address of the frame's function.\n We use the instruction address for symbolication, but this can be used to calculate\n an instruction offset automatically.",
               "default": null,
               "anyOf": [
                 {
@@ -1848,7 +1848,7 @@ expression: event_json_schema()
           ],
           "properties": {
             "data": {
-              "description": " Additional attributes depending on the mechanism type.",
+              "description": " Arbitrary extra data that might help the user understand the error thrown by this mechanism.",
               "default": null,
               "type": [
                 "object",
