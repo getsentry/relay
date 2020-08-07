@@ -130,7 +130,7 @@ pub struct Mechanism {
     ///   as the user explicitly captured the exception (and therefore kind of handled it)
     pub handled: Annotated<bool>,
 
-    /// Additional attributes depending on the mechanism type.
+    /// Arbitrary extra data that might help the user understand the error thrown by this mechanism.
     #[metastructure(pii = "true", bag_size = "medium")]
     #[metastructure(skip_serialization = "empty")]
     pub data: Annotated<Object<Value>>,
