@@ -118,10 +118,16 @@ pub struct Frame {
     /// (C/C++/Native) Start address of the containing code module (image).
     pub image_addr: Annotated<Addr>,
 
-    /// (C/C++/Native) Absolute address of the frame's CPU instruction.
+    /// (C/C++/Native) An optional instruction address for symbolication.
+    /// This should be a string with a hexadecimal number that includes a 0x prefix.
+    /// If this is set and a known image is defined in the
+    /// [Debug Meta Interface]({%- link _documentation/development/sdk-dev/event-payloads/debugmeta.md -%}),
+    /// then symbolication can take place.
     pub instruction_addr: Annotated<Addr>,
 
     /// (C/C++/Native) Start address of the frame's function.
+    /// We use the instruction address for symbolication, but this can be used to calculate
+    /// an instruction offset automatically.
     pub symbol_addr: Annotated<Addr>,
 
     /// (C/C++/Native) Used for native crashes to indicate how much we can "trust" the instruction_addr

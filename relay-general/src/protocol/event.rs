@@ -191,6 +191,11 @@ pub struct Event {
     pub id: Annotated<EventId>,
 
     /// Severity level of the event. Defaults to `error`.
+    /// Example:
+    ///
+    /// ```json
+    /// {"level": "warning"}
+    /// ```
     pub level: Annotated<Level>,
 
     /// Version
@@ -205,6 +210,11 @@ pub struct Event {
     /// A list of strings used to dictate how this event is supposed to be grouped with other
     /// events into issues. For more information about overriding grouping see [Customize Grouping
     /// with Fingerprints](https://docs.sentry.io/data-management/event-grouping/).
+    ///
+    /// ```json
+    /// {
+    ///     "fingerprint": ["myrpc", "POST", "/foo.bar"]
+    /// }
     #[metastructure(skip_serialization = "empty")]
     pub fingerprint: Annotated<Fingerprint>,
 
@@ -324,6 +334,10 @@ pub struct Event {
     pub dist: Annotated<String>,
 
     /// The environment name, such as `production` or `staging`.
+    ///
+    /// ```json
+    /// { "environment": "production" }
+    /// ```
     #[metastructure(
         max_chars = "environment",
         match_regex = r"^[^\r\n\x0C/]+$",
@@ -386,6 +400,14 @@ pub struct Event {
     pub tags: Annotated<Tags>,
 
     /// Arbitrary extra information set by the user.
+    ///
+    /// ```json
+    /// {
+    ///     "extra": {
+    ///         "my_key": 1,
+    ///         "some_other_value": "foo bar"
+    ///     }
+    /// }```
     #[metastructure(bag_size = "massive")]
     #[metastructure(pii = "true", skip_serialization = "empty")]
     pub extra: Annotated<Object<ExtraValue>>,
