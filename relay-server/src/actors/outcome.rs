@@ -56,7 +56,7 @@ impl UpstreamQuery for SendOutcomes {
 }
 
 impl WithRequestPriority for SendOutcomes {
-    fn priority(&self) -> RequestPriority {
+    fn priority() -> RequestPriority {
         RequestPriority::Low
     }
 }

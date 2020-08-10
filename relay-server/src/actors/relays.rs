@@ -337,7 +337,7 @@ impl UpstreamQuery for GetRelays {
 }
 
 impl WithRequestPriority for GetRelays {
-    fn priority(&self) -> RequestPriority {
+    fn priority() -> RequestPriority {
         RequestPriority::High
     }
 }

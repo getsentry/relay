@@ -30,7 +30,7 @@ pub struct GetProjectStates {
 }
 
 impl WithRequestPriority for GetProjectStates {
-    fn priority(&self) -> RequestPriority {
+    fn priority() -> RequestPriority {
         RequestPriority::High
     }
 }

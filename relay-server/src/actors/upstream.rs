@@ -148,10 +148,10 @@ pub enum RequestPriority {
     Low,
 }
 
-/// An type implementing this trait is aware of its priority
-/// This trait is implemented by messages that need to be sent via http
+/// An type implementing this trait can be placed in a queue according to its priority.
+/// This trait is implemented by message types that need to be sent via http
 pub trait WithRequestPriority {
-    fn priority(&self) -> RequestPriority;
+    fn priority() -> RequestPriority;
 }
 
 /// UpstreamRequest objects are queued inside the Upstream actor.
@@ -352,7 +352,7 @@ impl UpstreamRelay {
     ) -> ResponseFuture<Q::Response, UpstreamRequestError> {
         let method = query.method();
         let path = query.path();
-        let priority = query.priority();
+        let priority = Q::priority();
 
         let credentials = tryf!(self
             .config
@@ -632,7 +632,7 @@ impl UpstreamQuery for RegisterRequest {
 }
 
 impl WithRequestPriority for RegisterRequest {
-    fn priority(&self) -> RequestPriority {
+    fn priority() -> RequestPriority {
         RequestPriority::High
     }
 }
@@ -648,7 +648,7 @@ impl UpstreamQuery for RegisterResponse {
     }
 }
 impl WithRequestPriority for RegisterResponse {
-    fn priority(&self) -> RequestPriority {
+    fn priority() -> RequestPriority {
         RequestPriority::High
     }
 }

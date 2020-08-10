@@ -50,7 +50,7 @@ impl UpstreamQuery for GetProjectIds {
 }
 
 impl WithRequestPriority for GetProjectIds {
-    fn priority(&self) -> RequestPriority {
+    fn priority() -> RequestPriority {
         RequestPriority::High
     }
 }
