@@ -17,13 +17,14 @@ use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
-use relay_common::{tryf, LogError, RetryBackoff};
+use relay_common::{metric, tryf, LogError, RetryBackoff};
 use relay_config::{Config, RelayMode};
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
 
-use crate::utils::{self, ApiErrorResponse};
+use crate::metrics::RelayHistograms;
+use crate::utils::{self, ApiErrorResponse, IntoTracked};
 use futures::sync::{mpsc, oneshot};
 
 #[derive(Fail, Debug)]
@@ -167,6 +168,7 @@ struct UpstreamRequest {
 pub struct UpstreamRelay {
     // receiver queue
     pump_http_queue_notifications: mpsc::Receiver<()>,
+    http_request_finished_notifier: mpsc::Sender<()>,
     backoff: RetryBackoff,
     config: Arc<Config>,
     auth_state: AuthState,
@@ -185,6 +187,7 @@ impl UpstreamRelay {
         let (sender, receiver) = mpsc::channel(1000);
         UpstreamRelay {
             pump_http_queue_notifications: receiver,
+            http_request_finished_notifier: sender,
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             config,
             auth_state: AuthState::Unknown,
@@ -203,6 +206,7 @@ impl UpstreamRelay {
             Ok(())
         }
     }
+
     fn send_http_request(&mut self, request: UpstreamRequest) {
         let UpstreamRequest {
             response_sender,
@@ -253,7 +257,7 @@ impl UpstreamRelay {
                     // This is the timeout after wait + connect.
                     .timeout(self.config.http_timeout())
                     .conn_timeout(self.config.http_connection_timeout())
-                    //.to_tracked()
+                    .to_tracked(self.http_request_finished_notifier.clone())
                     //TODO send error into the channel
                     .map_err(UpstreamRequestError::SendFailed)
                     .and_then(|response| self.handle_response(response))
@@ -331,10 +335,21 @@ impl UpstreamRelay {
             response_sender: tx,
             build: Box::new(build),
         };
-
         match priority {
-            RequestPriority::Low => self.lp_messages.push_front(request),
-            RequestPriority::High => self.hp_messages.push_front(request),
+            RequestPriority::Low => {
+                self.lp_messages.push_front(request);
+                metric!(
+                    histogram(RelayHistograms::UpstreamLowPriorityMessageQueueSize) =
+                        self.lp_messages.len() as u64
+                );
+            }
+            RequestPriority::High => {
+                self.hp_messages.push_front(request);
+                metric!(
+                    histogram(RelayHistograms::UpstreamHighPriorityMessageQueueSize) =
+                        self.hp_messages.len() as u64
+                );
+            }
         };
 
         let future = rx
@@ -590,7 +605,8 @@ where
 impl StreamHandler<(), ()> for UpstreamRelay {
     /// handle notifications received from the tracked future stream
     fn handle(&mut self, item: (), ctx: &mut Self::Context) {
-        // an HTTP request has finished ... pump the message queue
+        // an HTTP request has finished update the inflight requests and pump the message queue
+        self.num_inflight_requests -= 1;
         ctx.notify(PumpHttpMessageQueue)
     }
 }
