@@ -1,5 +1,8 @@
 name: data-schemas
-on: [push]
+on:
+  push:
+    branches:
+      - master
 
 jobs:
   event_schema:
