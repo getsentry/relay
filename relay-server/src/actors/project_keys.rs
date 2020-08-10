@@ -13,7 +13,9 @@ use serde::{Deserialize, Serialize};
 use relay_common::{metric, LogError, ProjectId};
 use relay_config::Config;
 
-use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::actors::upstream::{
+    RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, WithRequestPriority,
+};
 use crate::metrics::{RelayCounters, RelayTimers};
 use crate::utils::Response;
 
@@ -44,6 +46,12 @@ impl UpstreamQuery for GetProjectIds {
 
     fn path(&self) -> Cow<'static, str> {
         Cow::Borrowed("/api/0/relays/projectids/")
+    }
+}
+
+impl WithRequestPriority for GetProjectIds {
+    fn priority(&self) -> RequestPriority {
+        RequestPriority::High
     }
 }
 

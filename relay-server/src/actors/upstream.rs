@@ -23,8 +23,6 @@ use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
 
-use crate::actors::outcome::SendOutcomes;
-use crate::actors::project_upstream::GetProjectStates;
 use crate::utils::{self, ApiErrorResponse};
 use futures::sync::{mpsc, oneshot};
 
@@ -140,6 +138,25 @@ impl UpstreamRateLimits {
     }
 }
 
+/// Requests are queued and send to the HTTP connections according to their priorities
+/// High priority messages are sent first and then, when no high priority message is pending,
+/// low priority messages are sent. Within the same priority messages are sent FIFO.
+pub enum RequestPriority {
+    /// High priority, low volume messages (e.g. ProjectConfig, ProjectStates, Registration messages)
+    High,
+    /// Low priority, high volume messages (e.g. Events and Outcomes)
+    Low,
+}
+
+/// An type implementing this trait is aware of its priority
+/// This trait is implemented by messages that need to be sent via http
+pub trait WithRequestPriority {
+    fn priority(&self) -> RequestPriority;
+}
+
+/// UpstreamRequest objects are queued inside the Upstream actor.
+/// The objects are transformed int HTTP requests, and send to upstream as HTTP connections
+/// become available.
 struct UpstreamRequest {
     response_sender: oneshot::Sender<Result<ClientResponse, UpstreamRequestError>>,
     method: Method,
@@ -148,15 +165,16 @@ struct UpstreamRequest {
 }
 
 pub struct UpstreamRelay {
+    // receiver queue
     pump_http_queue_notifications: mpsc::Receiver<()>,
     backoff: RetryBackoff,
     config: Arc<Config>,
     auth_state: AuthState,
     max_inflight_requests: usize,
     num_inflight_requests: usize,
-    //high priority messages
+    // high priority messages
     hp_messages: VecDeque<UpstreamRequest>,
-    //low priority messages
+    // low priority messages
     lp_messages: VecDeque<UpstreamRequest>,
 }
 
@@ -296,6 +314,7 @@ impl UpstreamRelay {
 
     fn send_request<P, F>(
         &mut self,
+        priority: RequestPriority,
         method: Method,
         path: P,
         build: F,
@@ -307,14 +326,16 @@ impl UpstreamRelay {
         let (tx, rx) = oneshot::channel::<Result<ClientResponse, UpstreamRequestError>>();
 
         let request = UpstreamRequest {
-            method: method,
+            method,
             path: path.as_ref().to_owned(),
             response_sender: tx,
             build: Box::new(build),
         };
 
-        //TODO send to lp or hp based on the type of message
-        self.lp_messages.push_front(request);
+        match priority {
+            RequestPriority::Low => self.lp_messages.push_front(request),
+            RequestPriority::High => self.hp_messages.push_front(request),
+        };
 
         let future = rx
             // map errors caused by the oneshot channel being closed (unlikely)
@@ -331,6 +352,7 @@ impl UpstreamRelay {
     ) -> ResponseFuture<Q::Response, UpstreamRequestError> {
         let method = query.method();
         let path = query.path();
+        let priority = query.priority();
 
         let credentials = tryf!(self
             .config
@@ -342,7 +364,7 @@ impl UpstreamRelay {
         let max_response_size = self.config.max_api_payload_size();
 
         let future = self
-            .send_request(method, path, |builder| {
+            .send_request(priority, method, path, |builder| {
                 builder
                     .header("X-Sentry-Relay-Signature", signature)
                     .header(header::CONTENT_TYPE, "application/json")
@@ -552,9 +574,11 @@ where
         } = message;
 
         let ret_val = Box::new(
-            self.send_request(method, path, |b| builder.build_request(b))
-                .from_err()
-                .and_then(|_| Ok(())),
+            self.send_request(RequestPriority::Low, method, path, |b| {
+                builder.build_request(b)
+            })
+            .from_err()
+            .and_then(|_| Ok(())),
         );
 
         ctx.notify(PumpHttpMessageQueue);
@@ -571,7 +595,7 @@ impl StreamHandler<(), ()> for UpstreamRelay {
     }
 }
 
-pub trait UpstreamQuery: Serialize {
+pub trait UpstreamQuery: Serialize + WithRequestPriority {
     type Response: DeserializeOwned + 'static + Send;
 
     fn method(&self) -> Method;
@@ -607,6 +631,12 @@ impl UpstreamQuery for RegisterRequest {
     }
 }
 
+impl WithRequestPriority for RegisterRequest {
+    fn priority(&self) -> RequestPriority {
+        RequestPriority::High
+    }
+}
+
 impl UpstreamQuery for RegisterResponse {
     type Response = Registration;
 
@@ -617,37 +647,8 @@ impl UpstreamQuery for RegisterResponse {
         Cow::Borrowed("/api/0/relays/register/response/")
     }
 }
-
-enum RequestPriority {
-    High,
-    Low,
-}
-
-trait WithRequestPriority {
-    fn priority() -> RequestPriority;
-}
-
-//TODO RaduW maybe implement WithRequestPriority with a macro_rules
-impl WithRequestPriority for SendOutcomes {
-    fn priority() -> RequestPriority {
-        RequestPriority::Low
-    }
-}
-
-impl WithRequestPriority for GetProjectStates {
-    fn priority() -> RequestPriority {
-        RequestPriority::High
-    }
-}
-
-impl WithRequestPriority for RegisterRequest {
-    fn priority() -> RequestPriority {
-        RequestPriority::High
-    }
-}
-
 impl WithRequestPriority for RegisterResponse {
-    fn priority() -> RequestPriority {
+    fn priority(&self) -> RequestPriority {
         RequestPriority::High
     }
 }
