@@ -10,7 +10,9 @@ Sentry Relay is a standalone service that allows you to scrub personal
 information and improve event response time. It acts as a middle layer between
 your application and Sentry.io.
 
-**Relay is still work in progress.**
+**Relay is still work in progress. The default Relay mode is not supported by
+Sentry, so Relay has to be switched into `proxy` or `static` mode. See _[Relay
+Modes]_ for more information.**
 
 ## Use Cases for Relay
 
@@ -128,6 +130,9 @@ Here's an example of the contents of a typical credentials file:
 You will be using the `public_key` to register your Relay with the upstream server when running it in `managed` mode.
 
 ### Registering Relay with Sentry
+
+**This option is not available on Sentry.io. Instead, configure Relay in `proxy`
+or `static` mode and skip this step.**
 
 To operate in `managed` mode, Relay pulls configuration for PII stripping,
 filtering, and rate limiting from your organization and project settings at

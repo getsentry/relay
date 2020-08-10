@@ -11,9 +11,10 @@ license-file = "../LICENSE"
 publish = false
 
 [features]
-default = ["with_ssl"]
-with_ssl = ["native-tls", "actix-web/tls"]
+default = []
+ssl = ["native-tls", "actix-web/tls"]
 processing = [
+    "minidump",
     "rdkafka",
     "rdkafka-sys",
     "relay-config/processing",
@@ -37,6 +38,7 @@ json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-
 lazy_static = "1.4.0"
 listenfd = "0.3.3"
 log = "0.4.8"
+minidump = { git = "https://github.com/luser/rust-minidump", rev = "4d95707b20bf15fb37de5f6d7ba7d7e0f8ab4afd", optional = true }
 native-tls = { version = "0.2.4", optional = true }
 parking_lot = "0.10.0"
 rdkafka = { version = "0.23.1", optional = true }

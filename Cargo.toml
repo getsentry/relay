@@ -23,13 +23,15 @@ exclude = [
 [workspace]
 
 [features]
-default = []
-with_ssl = ["relay-server/with_ssl"]
+default = ["ssl"]
+ssl = ["relay-server/ssl"]
 processing = ["relay-server/processing"]
+jsonschema = ["relay-general/jsonschema"]
 
 [profile.release]
 debug = true
 
+# Direct dependencies of the main application in `src/`
 [dependencies]
 chrono = "0.4.11"
 clap = { version = "2.33.0", default-features = false, features = ["wrap_help"] }

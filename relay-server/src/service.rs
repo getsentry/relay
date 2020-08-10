@@ -46,7 +46,7 @@ pub enum ServerErrorKind {
     TlsInitFailed,
 
     /// TLS support was not compiled in.
-    #[fail(display = "compile with the `with_ssl` feature to enable SSL support")]
+    #[fail(display = "compile with the `ssl` feature to enable SSL support")]
     TlsNotSupported,
 
     /// GeoIp construction failed.
@@ -235,7 +235,7 @@ where
     )
 }
 
-#[cfg(feature = "with_ssl")]
+#[cfg(feature = "ssl")]
 fn listen_ssl<H, F>(
     mut server: server::HttpServer<H, F>,
     config: &Config,
@@ -271,7 +271,7 @@ where
     Ok(server)
 }
 
-#[cfg(not(feature = "with_ssl"))]
+#[cfg(not(feature = "ssl"))]
 fn listen_ssl<H>(
     server: server::HttpServer<H>,
     config: &Config,

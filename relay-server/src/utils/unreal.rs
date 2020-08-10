@@ -4,7 +4,8 @@ use symbolic::unreal::{
 
 use relay_general::protocol::{
     AsPair, Breadcrumb, Context, Contexts, DeviceContext, Event, EventId, GpuContext,
-    LenientString, LogEntry, Message, OsContext, TagEntry, Tags, User, UserReport, Values,
+    LenientString, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp, User, UserReport,
+    Values,
 };
 use relay_general::types::{self, Annotated, Array, Object, Value};
 
@@ -97,7 +98,7 @@ fn merge_unreal_logs(event: &mut Event, data: &[u8]) -> Result<(), Unreal4Error>
 
     for log in logs {
         breadcrumbs.push(Annotated::new(Breadcrumb {
-            timestamp: Annotated::from(log.timestamp),
+            timestamp: Annotated::from(log.timestamp.map(Timestamp)),
             category: Annotated::from(log.component),
             message: Annotated::new(log.message),
             ..Breadcrumb::default()
@@ -189,7 +190,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
         });
 
         if let Context::Gpu(gpu_context) = gpu_context {
-            gpu_context.insert("name".to_owned(), Annotated::new(Value::String(gpu_brand)));
+            gpu_context.name = Annotated::new(gpu_brand);
         }
     }
 
@@ -321,13 +322,7 @@ mod tests {
         assert_eq!(&**os_name, "Windows 10");
 
         let gpu_context = get_context!(contexts, GpuContext::default_key(), Context::Gpu);
-        let gpu_name = gpu_context
-            .get("name")
-            .unwrap()
-            .value()
-            .unwrap()
-            .as_str()
-            .unwrap();
+        let gpu_name = gpu_context.name.value().unwrap().as_str();
 
         assert_eq!(gpu_name, "Parallels Display Adapter (WDDM)");
 

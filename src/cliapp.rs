@@ -248,6 +248,7 @@ pub fn make_app() -> App<'static, 'static> {
         )
         .subcommand(
             App::new("process-event")
+                .setting(AppSettings::Hidden)
                 .about("Processes a single event piped in")
                 .after_help(
                     "This takes an event on stdin and puts the processed event to stdout. \
@@ -276,6 +277,11 @@ pub fn make_app() -> App<'static, 'static> {
                         .long("store")
                         .help("Run through store normalization"),
                 ),
+        )
+        .subcommand(
+            App::new("event-json-schema")
+                .about("Dump JSON schema representation of event schema to stdout.")
+                .setting(AppSettings::Hidden),
         )
         .subcommand(
             App::new("generate-completions")

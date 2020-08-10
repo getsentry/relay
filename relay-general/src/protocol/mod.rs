@@ -11,6 +11,8 @@ mod logentry;
 mod mechanism;
 mod metrics;
 mod request;
+#[cfg(feature = "jsonschema")]
+mod schema;
 mod security_report;
 mod session;
 mod span;
@@ -30,7 +32,8 @@ pub use self::contexts::{
     OperationType, OsContext, RuntimeContext, SpanId, SpanStatus, TraceContext, TraceId,
 };
 pub use self::debugmeta::{
-    AppleDebugImage, DebugImage, DebugMeta, NativeDebugImage, NativeImagePath, SystemSdkInfo,
+    AppleDebugImage, CodeId, DebugId, DebugImage, DebugMeta, NativeDebugImage, NativeImagePath,
+    SystemSdkInfo,
 };
 pub use self::event::{
     Event, EventId, EventProcessingError, EventType, ExtraValue, GroupingConfig,
@@ -42,6 +45,8 @@ pub use self::logentry::{LogEntry, Message};
 pub use self::mechanism::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
 pub use self::metrics::Metrics;
 pub use self::request::{Cookies, HeaderName, HeaderValue, Headers, Query, Request};
+#[cfg(feature = "jsonschema")]
+pub use self::schema::event_json_schema;
 pub use self::security_report::{Csp, ExpectCt, ExpectStaple, Hpkp, SecurityReportType};
 pub use self::session::{ParseSessionStatusError, SessionAttributes, SessionStatus, SessionUpdate};
 pub use self::span::Span;
@@ -50,8 +55,8 @@ pub use self::tags::{TagEntry, Tags};
 pub use self::templateinfo::TemplateInfo;
 pub use self::thread::{Thread, ThreadId};
 pub use self::types::{
-    Addr, AsPair, InvalidRegVal, IpAddr, JsonLenientString, LenientString, Level, PairList,
-    ParseLevelError, RegVal, Values,
+    datetime_to_timestamp, Addr, AsPair, InvalidRegVal, IpAddr, JsonLenientString, LenientString,
+    Level, PairList, ParseLevelError, RegVal, Timestamp, Values,
 };
 pub use self::user::{Geo, User};
 pub use self::user_report::UserReport;

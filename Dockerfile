@@ -63,7 +63,7 @@ RUN echo "Building OpenSSL" \
 FROM getsentry/sentry-cli:1 AS sentry-cli
 FROM relay-deps AS relay-builder
 
-ARG RELAY_FEATURES=with_ssl,processing
+ARG RELAY_FEATURES=ssl,processing
 ENV RELAY_FEATURES=${RELAY_FEATURES}
 
 COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli

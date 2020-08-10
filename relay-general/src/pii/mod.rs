@@ -8,6 +8,7 @@ mod generate_selectors;
 mod legacy;
 mod processor;
 mod redactions;
+mod regexes;
 mod utils;
 
 pub use self::builtin::BUILTIN_RULES;

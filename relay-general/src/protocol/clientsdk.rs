@@ -3,6 +3,7 @@ use crate::types::{Annotated, Array, Object, Value};
 
 /// An installed and loaded package as part of the Sentry SDK.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ClientSdkPackage {
     /// Name of the package.
     pub name: Annotated<String>,
@@ -10,28 +11,52 @@ pub struct ClientSdkPackage {
     pub version: Annotated<String>,
 }
 
-/// Information about the Sentry SDK.
+/// The SDK Interface describes the Sentry SDK and its configuration used to capture and transmit an event.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_client_sdk_info", value_type = "ClientSdkInfo")]
 pub struct ClientSdkInfo {
-    /// Unique SDK name.
+    /// Unique SDK name. _Required._
+    ///
+    /// The name of the SDK. The format is `entity.ecosystem[.flavor]` where entity identifies the
+    /// developer of the SDK, ecosystem refers to the programming language or platform where the
+    /// SDK is to be used and the optional flavor is used to identify standalone SDKs that are part
+    /// of a major ecosystem.
+    ///
+    /// Official Sentry SDKs use the entity `sentry`, as in `sentry.python` or
+    /// `sentry.javascript.react-native`. Please use a different entity for your own SDKs.
     #[metastructure(required = "true", max_chars = "symbol")]
     pub name: Annotated<String>,
 
-    /// SDK version.
+    /// The version of the SDK. _Required._
+    ///
+    /// It should have the [Semantic Versioning](https://semver.org/) format `MAJOR.MINOR.PATCH`,
+    /// without any prefix (no `v` or anything else in front of the major version number).
+    ///
+    /// Examples: `0.1.0`, `1.0.0`, `4.3.12`
     #[metastructure(required = "true", max_chars = "symbol")]
     pub version: Annotated<String>,
 
-    /// List of integrations that are enabled in the SDK.
+    /// List of integrations that are enabled in the SDK. _Optional._
+    ///
+    /// The list should have all enabled integrations, including default integrations. Default
+    /// integrations are included because different SDK releases may contain different default
+    /// integrations.
     #[metastructure(skip_serialization = "empty_deep")]
     pub integrations: Annotated<Array<String>>,
 
-    /// List of installed and loaded SDK packages.
+    /// List of installed and loaded SDK packages. _Optional._
+    ///
+    /// A list of packages that were installed as part of this SDK or the activated integrations.
+    /// Each package consists of a name in the format `source:identifier` and `version`. If the
+    /// source is a Git repository, the `source` should be `git`, the identifier should be a
+    /// checkout link and the version should be a Git reference (branch, tag or SHA).
     #[metastructure(skip_serialization = "empty_deep")]
     pub packages: Annotated<Array<ClientSdkPackage>>,
 
-    /// IP Address of sender??? Seems unused.
-    #[metastructure(pii = "true", skip_serialization = "empty")]
+    /// IP Address of sender??? Seems unused. Do not send, this only leads to surprises wrt PII, as
+    /// the value appears nowhere in the UI.
+    #[metastructure(pii = "true", skip_serialization = "empty", omit_from_schema)]
     pub client_ip: Annotated<IpAddr>,
 
     /// Additional arbitrary fields for forwards compatibility.

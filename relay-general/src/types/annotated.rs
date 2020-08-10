@@ -2,6 +2,11 @@ use std::fmt;
 
 use failure::Fail;
 
+#[cfg(feature = "jsonschema")]
+use schemars::gen::SchemaGenerator;
+#[cfg(feature = "jsonschema")]
+use schemars::schema::Schema;
+
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -81,6 +86,15 @@ pub struct Annotated<T>(pub Option<T>, pub Meta);
 
 /// An utility to serialize annotated objects with payload.
 pub struct SerializableAnnotated<'a, T>(pub &'a Annotated<T>);
+
+impl<'a, T: ToValue> Serialize for SerializableAnnotated<'a, T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.0.serialize_with_meta(serializer)
+    }
+}
 
 impl<T: fmt::Debug> fmt::Debug for Annotated<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -402,12 +416,24 @@ impl<T> Default for Annotated<T> {
     }
 }
 
-impl<'a, T: ToValue> Serialize for SerializableAnnotated<'a, T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        self.0.serialize_with_meta(serializer)
+// This hack is needed to make our custom derive for JsonSchema simpler. However, Serialize should
+// not be implemented on Annotated as one should usually use ToValue directly, or
+// SerializableAnnotated explicitly if really needed (eg: tests)
+#[cfg(feature = "jsonschema")]
+impl<T> schemars::JsonSchema for Annotated<T>
+where
+    T: schemars::JsonSchema,
+{
+    fn schema_name() -> String {
+        format!("Annotated_{}", T::schema_name())
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        Option::<T>::json_schema(gen)
+    }
+
+    fn is_referenceable() -> bool {
+        false
     }
 }
 

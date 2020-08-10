@@ -99,7 +99,7 @@ used for Relays operating as proxys. There are two optional features:
   into a Kafka topic instead of forwarding to the configured upstream. Also, it
   will perform full event normalization, filtering, and rate limiting.
 
-- **`with_ssl`**: Enables SSL support in the Server.
+- **`ssl`**: Enables SSL support in the Server.
 
 To enable a feature, pass it to the cargo invocation. For example, to run tests
 across all workspace crates with the `processing` feature enabled, run:

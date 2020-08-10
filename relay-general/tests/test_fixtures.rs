@@ -8,6 +8,9 @@ use relay_general::types::{Annotated, SerializableAnnotated};
 
 use insta::assert_yaml_snapshot;
 
+#[cfg(feature = "jsonschema")]
+use {insta::assert_json_snapshot, relay_general::protocol::event_json_schema};
+
 macro_rules! event_snapshot {
     ($id:ident) => {
         mod $id {
@@ -80,6 +83,17 @@ macro_rules! event_snapshot {
                     ".received" => "[received]",
                     ".timestamp" => "[timestamp]"
                 });
+
+                #[cfg(feature = "jsonschema")]
+                {
+                    let event_schema = serde_json::to_value(event_json_schema()).unwrap();
+                    let event = serde_json::to_value(SerializableAnnotated(&event)).unwrap();
+                    let mut scope = valico::json_schema::Scope::new();
+                    let schema = scope.compile_and_return(event_schema, false).unwrap();
+                    let validation_state = schema.validate(&event);
+                    dbg!(&validation_state.errors);
+                    assert!(validation_state.is_valid());
+                }
             }
         }
     }
@@ -91,3 +105,9 @@ event_snapshot!(cordova);
 event_snapshot!(dotnet);
 event_snapshot!(legacy_python);
 event_snapshot!(legacy_node_exception);
+
+#[test]
+#[cfg(feature = "jsonschema")]
+fn test_event_schema_snapshot() {
+    assert_json_snapshot!("event_schema", event_json_schema());
+}

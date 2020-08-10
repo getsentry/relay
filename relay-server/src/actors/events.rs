@@ -17,7 +17,7 @@ use relay_general::pii::PiiProcessor;
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, LenientString,
-    Metrics, SecurityReportType, SessionUpdate, Values,
+    Metrics, SecurityReportType, SessionUpdate, Timestamp, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
@@ -40,6 +40,7 @@ use {
     crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
     crate::service::ServerErrorKind,
     crate::utils::EnvelopeLimiter,
+    chrono::TimeZone,
     failure::ResultExt,
     relay_filter::FilterStatKey,
     relay_general::protocol::IpAddr,
@@ -703,10 +704,8 @@ impl EventProcessor {
     /// This will indicate to the ingestion pipeline that this event will need to be processed. The
     /// payload can be checked via `is_minidump_event`.
     #[cfg(feature = "processing")]
-    fn write_native_placeholder(&self, event: &mut Annotated<Event>, is_minidump: bool) {
+    fn write_native_placeholder(&self, event: &mut Event, is_minidump: bool) {
         use relay_general::protocol::{Exception, JsonLenientString, Level, Mechanism};
-
-        let event = event.get_or_insert_with(Event::default);
 
         // Events must be native platform.
         let platform = event.platform.value_mut();
@@ -754,6 +753,20 @@ impl EventProcessor {
         }));
     }
 
+    /// Extracts the timestamp from the minidump and uses it as the event timestamp.
+    #[cfg(feature = "processing")]
+    fn write_minidump_timestamp(&self, event: &mut Event, minidump_item: &Item) {
+        let minidump = match minidump::Minidump::read(minidump_item.payload()) {
+            Ok(minidump) => minidump,
+            Err(err) => {
+                log::debug!("Failed to parse minidump: {:?}", err);
+                return;
+            }
+        };
+        let timestamp = Utc.timestamp(minidump.header.time_date_stamp.into(), 0);
+        event.timestamp.set_value(Some(timestamp.into()));
+    }
+
     /// Adds processing placeholders for special attachments.
     ///
     /// If special attachments are present in the envelope, this adds placeholder payloads to the
@@ -770,11 +783,14 @@ impl EventProcessor {
             .get_item_by(|item| item.attachment_type() == Some(AttachmentType::AppleCrashReport));
 
         if let Some(item) = minidump_attachment {
+            let event = state.event.get_or_insert_with(Event::default);
             state.metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
-            self.write_native_placeholder(&mut state.event, true);
+            self.write_native_placeholder(event, true);
+            self.write_minidump_timestamp(event, item);
         } else if let Some(item) = apple_crash_report_attachment {
+            let event = state.event.get_or_insert_with(Event::default);
             state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
-            self.write_native_placeholder(&mut state.event, false);
+            self.write_native_placeholder(event, false);
         }
 
         Ok(())
@@ -820,7 +836,7 @@ impl EventProcessor {
         // should be removed as soon as legacy ingestion has been removed.
         let sent_at = match envelope.sent_at() {
             Some(sent_at) => Some(sent_at),
-            None if is_transaction => event.timestamp.value().copied(),
+            None if is_transaction => event.timestamp.value().copied().map(Timestamp::into_inner),
             None => None,
         };
 

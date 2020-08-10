@@ -25,6 +25,8 @@ nav:
       - architecture/ingest-event-path.md
       - architecture/project-configuration.md
 
+  - "": event-schema/index.md
+
 markdown_extensions:
   - admonition: {}
   - tables: {}
@@ -36,6 +38,15 @@ markdown_extensions:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_div_format
+
+plugins:
+  - search
+  # Used in event schema docs
+  - macros
+
+  - exclude:
+      glob:
+        - event-schema/event.schema.md
 
 extra_css:
   # Config for diagrams

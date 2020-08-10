@@ -5,18 +5,47 @@ use crate::types::{Annotated, Error, FromValue, Meta, Object, Value};
 ///
 /// A log message is similar to the `message` attribute on the event itself but
 /// can additionally hold optional parameters.
+///
+/// ```json
+/// {
+///   "message": {
+///     "message": "My raw message with interpreted strings like %s",
+///     "params": ["this"]
+///   }
+/// }
+/// ```
+///
+/// ```json
+/// {
+///   "message": {
+///     "message": "My raw message with interpreted strings like {foo}",
+///     "params": {"foo": "this"}
+///   }
+/// }
+/// ```
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_logentry", value_type = "LogEntry")]
 pub struct LogEntry {
     /// The log message with parameter placeholders.
+    ///
+    /// This attribute is primarily used for grouping related events together into issues.
+    /// Therefore this really should just be a string template, i.e. `Sending %d requests` instead
+    /// of `Sending 9999 requests`. The latter is much better at home in `formatted`.
+    ///
+    /// It must not exceed 8192 characters. Longer messages will be truncated.
     #[metastructure(max_chars = "message")]
     pub message: Annotated<Message>,
 
-    /// The formatted message
+    /// The formatted message. If `message` and `params` are given, Sentry
+    /// will attempt to backfill `formatted` if empty.
+    ///
+    /// It must not exceed 8192 characters. Longer messages will be truncated.
     #[metastructure(max_chars = "message", pii = "true")]
     pub formatted: Annotated<Message>,
 
-    /// Positional parameters to be interpolated into the log message.
+    /// Parameters to be interpolated into the log message. This can be an array of positional
+    /// parameters as well as a mapping of named arguments to their values.
     #[metastructure(bag_size = "medium")]
     pub params: Annotated<Value>,
 
@@ -35,6 +64,7 @@ impl From<String> for LogEntry {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(value_type = "Message")]
 pub struct Message(String);
 

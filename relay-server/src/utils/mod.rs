@@ -10,6 +10,9 @@ mod timer;
 mod tracked_future;
 
 #[cfg(feature = "processing")]
+mod kafka;
+
+#[cfg(feature = "processing")]
 mod unreal;
 
 pub use self::actix::*;
@@ -22,6 +25,9 @@ pub use self::request::*;
 pub use self::shutdown::*;
 pub use self::timer::*;
 pub use self::tracked_future::*;
+
+#[cfg(feature = "processing")]
+pub use self::kafka::*;
 
 #[cfg(feature = "processing")]
 pub use self::unreal::*;

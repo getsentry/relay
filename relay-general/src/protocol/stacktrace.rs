@@ -4,15 +4,24 @@ use crate::protocol::{Addr, NativeImagePath, RegVal};
 use crate::types::{Annotated, Array, FromValue, Object, Value};
 
 /// Holds information about a single stacktrace frame.
+///
+/// Each object should contain **at least** a `filename`, `function` or `instruction_addr` attribute. All values are optional, but recommended.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_frame", value_type = "Frame")]
 pub struct Frame {
     /// Name of the frame's function. This might include the name of a class.
+    ///
+    /// This function name may be shortened or demangled. If not, Sentry will demangle and shorten
+    /// it for some platforms. The original function name will be stored in `raw_function`.
     #[metastructure(max_chars = "symbol")]
     #[metastructure(skip_serialization = "empty")]
     pub function: Annotated<String>,
 
     /// A raw (but potentially truncated) function value.
+    ///
+    /// The original function name, if the function name is shortened or demangled. Sentry shows
+    /// the raw function when clicking on the shortened one in the UI.
     ///
     /// If this has the same value as `function` it's best to be omitted.  This
     /// exists because on many platforms the function itself contains additional
@@ -35,6 +44,8 @@ pub struct Frame {
     /// This is different from a function name by generally being the mangled
     /// name that appears natively in the binary.  This is relevant for languages
     /// like Swift, C++ or Rust.
+    // XXX(markus): How is this different from just storing the mangled function name in
+    // `function`?
     #[metastructure(max_chars = "symbol")]
     pub symbol: Annotated<String>,
 
@@ -64,53 +75,69 @@ pub struct Frame {
     #[metastructure(skip_serialization = "empty", pii = "maybe")]
     pub abs_path: Annotated<NativeImagePath>,
 
-    /// Line number within the source file.
+    /// Line number within the source file, starting at 1.
     pub lineno: Annotated<u64>,
 
-    /// Column number within the source file.
+    /// Column number within the source file, starting at 1.
     pub colno: Annotated<u64>,
 
     /// Which platform this frame is from.
+    ///
+    /// This can override the platform for a single frame. Otherwise, the platform of the event is
+    /// assumed. This can be used for multi-platform stack traces, such as in React Native.
     #[metastructure(skip_serialization = "empty")]
     pub platform: Annotated<String>,
 
-    /// Source code leading up to the current line.
+    /// Source code leading up to `lineno`.
     #[metastructure(skip_serialization = "empty")]
     pub pre_context: Annotated<Array<String>>,
 
-    /// Source code of the current line.
+    /// Source code of the current line (`lineno`).
     pub context_line: Annotated<String>,
 
-    /// Source code of the lines after the current line.
+    /// Source code of the lines after `lineno`.
     #[metastructure(skip_serialization = "empty")]
     pub post_context: Annotated<Array<String>>,
 
-    /// Override whether this frame should be considered in-app.
+    /// Override whether this frame should be considered part of application code, or part of
+    /// libraries/frameworks/dependencies.
+    ///
+    /// Setting this attribute to `false` causes the frame to be hidden/collapsed by default and
+    /// mostly ignored during issue grouping.
     pub in_app: Annotated<bool>,
 
-    /// Local variables in a convenient format.
+    /// Mapping of local variables and expression names that were available in this frame.
     // XXX: Probably want to trim per-var => new bag size?
     #[metastructure(pii = "true", bag_size = "medium")]
     pub vars: Annotated<FrameVars>,
 
     /// Auxiliary information about the frame that is platform specific.
+    #[metastructure(omit_from_schema)]
     pub data: Annotated<FrameData>,
 
-    /// Start address of the containing code module (image).
+    /// (C/C++/Native) Start address of the containing code module (image).
     pub image_addr: Annotated<Addr>,
 
-    /// Absolute address of the frame's CPU instruction.
+    /// (C/C++/Native) An optional instruction address for symbolication.
+    /// This should be a string with a hexadecimal number that includes a 0x prefix.
+    /// If this is set and a known image is defined in the
+    /// [Debug Meta Interface]({%- link _documentation/development/sdk-dev/event-payloads/debugmeta.md -%}),
+    /// then symbolication can take place.
     pub instruction_addr: Annotated<Addr>,
 
-    /// Start address of the frame's function.
+    /// (C/C++/Native) Start address of the frame's function.
+    /// We use the instruction address for symbolication, but this can be used to calculate
+    /// an instruction offset automatically.
     pub symbol_addr: Annotated<Addr>,
 
-    /// Used for native crashes to indicate how much we can "trust" the instruction_addr
+    /// (C/C++/Native) Used for native crashes to indicate how much we can "trust" the instruction_addr
     #[metastructure(max_chars = "enumlike")]
+    #[metastructure(omit_from_schema)]
     pub trust: Annotated<String>,
 
     /// The language of the frame if it overrides the stacktrace language.
     #[metastructure(max_chars = "enumlike")]
+    #[metastructure(omit_from_schema)]
     pub lang: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -120,10 +147,14 @@ pub struct Frame {
 
 /// Frame local variables.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct FrameVars(#[metastructure(skip_serialization = "empty")] pub Object<Value>);
 
 /// Additional frame data information.
+///
+/// This value is set by the server and should not be set by the SDK.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct FrameData {
     /// A reference to the sourcemap used.
     #[metastructure(max_chars = "path")]
@@ -178,14 +209,83 @@ impl FromValue for FrameVars {
     }
 }
 
-/// Holds information about an entirey stacktrace.
+/// A stack trace of a single thread.
+///
+/// A stack trace contains a list of frames, each with various bits (most optional) describing the context of that frame. Frames should be sorted from oldest to newest.
+///
+/// For the given example program written in Python:
+///
+/// ```python
+/// def foo():
+///     my_var = 'foo'
+///     raise ValueError()
+///
+/// def main():
+///     foo()
+/// ```
+///
+/// A minimalistic stack trace for the above program in the correct order:
+///
+/// ```json
+/// {
+///   "frames": [
+///     {"function": "main"},
+///     {"function": "foo"}
+///   ]
+/// }
+/// ```
+///
+/// The top frame fully symbolicated with five lines of source context:
+///
+/// ```json
+/// {
+///   "frames": [{
+///     "in_app": true,
+///     "function": "myfunction",
+///     "abs_path": "/real/file/name.py",
+///     "filename": "file/name.py",
+///     "lineno": 3,
+///     "vars": {
+///       "my_var": "'value'"
+///     },
+///     "pre_context": [
+///       "def foo():",
+///       "  my_var = 'foo'",
+///     ],
+///     "context_line": "  raise ValueError()",
+///     "post_context": [
+///       "",
+///       "def main():"
+///     ],
+///   }]
+/// }
+/// ```
+///
+/// A minimal native stack trace with register values. Note that the `package` event attribute must be "native" for these frames to be symbolicated.
+///
+/// ```json
+/// {
+///   "frames": [
+///     {"instruction_addr": "0x7fff5bf3456c"},
+///     {"instruction_addr": "0x7fff5bf346c0"},
+///   ],
+///   "registers": {
+///     "rip": "0x00007ff6eef54be2",
+///     "rsp": "0x0000003b710cd9e0"
+///   }
+/// }
+/// ```
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_raw_stacktrace", value_type = "Stacktrace")]
 pub struct RawStacktrace {
+    /// Required. A non-empty list of stack frames. The list is ordered from caller to callee, or oldest to youngest. The last frame is the one creating the exception.
     #[metastructure(required = "true", nonempty = "true", skip_serialization = "empty")]
     pub frames: Annotated<Array<Frame>>,
 
     /// Register values of the thread (top frame).
+    ///
+    /// A map of register names and their values. The values should contain the actual register values of the thread, thus mapping to the last frame in the list.
     pub registers: Annotated<Object<RegVal>>,
 
     /// The language of the stacktrace.
@@ -197,8 +297,10 @@ pub struct RawStacktrace {
     pub other: Object<Value>,
 }
 
-/// Newtype to distinguish `raw_stacktrace` attributes from the rest.
+// NOTE: This is not a doc comment because otherwise it will show up in public docs.
+// Newtype to distinguish `raw_stacktrace` attributes from the rest.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace(pub RawStacktrace);
 

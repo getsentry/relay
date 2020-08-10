@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::cmp;
 use std::collections::BTreeSet;
+use std::mem;
 
 use hmac::{Hmac, Mac};
 use lazy_static::lazy_static;
@@ -9,168 +10,18 @@ use sha1::Sha1;
 use sha2::{Sha256, Sha512};
 
 use crate::pii::compiledconfig::RuleRef;
+use crate::pii::regexes::{get_regex_for_rule_type, PatternType, ReplaceBehavior, ANYTHING_REGEX};
 use crate::pii::utils::process_pairlist;
 use crate::pii::{CompiledPiiConfig, HashAlgorithm, Redaction, RuleType};
 use crate::processor::{
-    process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, SelectorSpec,
-    ValueType,
+    process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
-use crate::protocol::{AsPair, NativeImagePath, PairList};
+use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, User};
 use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
 lazy_static! {
     static ref NULL_SPLIT_RE: Regex = #[allow(clippy::trivial_regex)]
     Regex::new("\x00").unwrap();
-}
-
-#[rustfmt::skip]
-macro_rules! ip {
-    (v4s) => { "(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)" };
-    (v4a) => { concat!(ip!(v4s), "\\.", ip!(v4s), "\\.", ip!(v4s), "\\.", ip!(v4s)) };
-    (v6s) => { "[0-9a-fA-F]{1,4}" };
-}
-
-#[rustfmt::skip]
-lazy_static! {
-    static ref GROUP_0: BTreeSet<u8> = {
-        let mut set = BTreeSet::new();
-        set.insert(0);
-        set
-    };
-    static ref GROUP_1: BTreeSet<u8> = {
-        let mut set = BTreeSet::new();
-        set.insert(1);
-        set
-    };
-    static ref ANYTHING_REGEX: Regex = Regex::new(".*").unwrap();
-    static ref IMEI_REGEX: Regex = Regex::new(
-        r#"(?x)
-            \b
-                (\d{2}-?
-                 \d{6}-?
-                 \d{6}-?
-                 \d{1,2})
-            \b
-        "#
-    ).unwrap();
-    static ref MAC_REGEX: Regex = Regex::new(
-        r#"(?x)
-            \b([[:xdigit:]]{2}[:-]){5}[[:xdigit:]]{2}\b
-        "#
-    ).unwrap();
-    static ref UUID_REGEX: Regex = Regex::new(
-        r#"(?ix)
-            \b
-            [a-z0-9]{8}-?
-            [a-z0-9]{4}-?
-            [a-z0-9]{4}-?
-            [a-z0-9]{4}-?
-            [a-z0-9]{12}
-            \b
-        "#
-    ).unwrap();
-    static ref EMAIL_REGEX: Regex = Regex::new(
-        r#"(?x)
-            \b
-                [a-zA-Z0-9.!\#$%&'*+/=?^_`{|}~-]+
-                @
-                [a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*
-            \b
-        "#
-    ).unwrap();
-    static ref IPV4_REGEX: Regex = Regex::new(concat!("\\b", ip!(v4a), "\\b")).unwrap();
-    static ref IPV6_REGEX: Regex = Regex::new(
-        concat!(
-            "(?i)(?:[\\s]|[[:punct:]]|^)(",
-                "(", ip!(v6s), ":){7}", ip!(v6s), "|",
-                "(", ip!(v6s), ":){1,7}:|",
-                "(", ip!(v6s), ":){1,6}::", ip!(v6s), "|",
-                "(", ip!(v6s), ":){1,5}:(:", ip!(v6s), "){1,2}|",
-                "(", ip!(v6s), ":){1,4}:(:", ip!(v6s), "){1,3}|",
-                "(", ip!(v6s), ":){1,3}:(:", ip!(v6s), "){1,4}|",
-                "(", ip!(v6s), ":){1,2}:(:", ip!(v6s), "){1,5}|",
-                ip!(v6s), ":((:", ip!(v6s), "){1,6})|",
-                ":((:", ip!(v6s), "){1,7}|:)|",
-                "fe80:(:", ip!(v6s), "){0,4}%[0-9a-zA-Z]{1,}",
-                "::(ffff(:0{1,4}){0,1}:){0,1}", ip!(v4a), "|",
-                "(", ip!(v6s), ":){1,4}:", ip!(v4a),
-            ")([\\s]|[[:punct:]]|$)",
-        )
-    ).unwrap();
-
-    // http://www.richardsramblings.com/regex/credit-card-numbers/
-    // Re-formatted with comments and dashes support
-    //
-    // Why so complicated? Because creditcard numbers are variable length and we do not want to
-    // strip any number that just happens to have the same length.
-    static ref CREDITCARD_REGEX: Regex = Regex::new(
-        r#"(?x)
-        \b(
-            (?:  # vendor specific prefixes
-                  3[47]\d      # amex (no 13-digit version) (length: 15)
-                | 4\d{3}       # visa (16-digit version only)
-                | 5[1-5]\d\d   # mastercard
-                | 65\d\d       # discover network (subset)
-                | 6011         # discover network (subset)
-            )
-
-            # "wildcard" remainder (allowing dashes in every position because of variable length)
-            ([-\s]?\d){12}
-        )\b
-        "#
-    ).unwrap();
-    static ref PATH_REGEX: Regex = Regex::new(
-        r#"(?ix)
-            (?:
-                (?:
-                    \b(?:[a-zA-Z]:[\\/])?
-                    (?:users|home|documents and settings|[^/\\]+[/\\]profiles)[\\/]
-                ) | (?:
-                    /(?:home|users)/
-                )
-            )
-            (
-                [^/\\]+
-            )
-        "#
-    ).unwrap();
-    static ref PEM_KEY_REGEX: Regex = Regex::new(
-        r#"(?sx)
-            (?:
-                -----
-                BEGIN[A-Z\ ]+(?:PRIVATE|PUBLIC)\ KEY
-                -----
-                [\t\ ]*\r?\n?
-            )
-            (.+?)
-            (?:
-                \r?\n?
-                -----
-                END[A-Z\ ]+(?:PRIVATE|PUBLIC)\ KEY
-                -----
-            )
-        "#
-    ).unwrap();
-    static ref URL_AUTH_REGEX: Regex = Regex::new(
-        r#"(?x)
-            \b(?:
-                (?:[a-z0-9+-]+:)?//
-                ([a-zA-Z0-9%_.-]+(?::[a-zA-Z0-9%_.-]+)?)
-            )@
-        "#
-    ).unwrap();
-    static ref US_SSN_REGEX: Regex = Regex::new(
-        r#"(?x)
-            \b(
-                [0-9]{3}-
-                [0-9]{2}-
-                [0-9]{4}
-            )\b
-        "#
-    ).unwrap();
-    static ref PASSWORD_KEY_REGEX: Regex = Regex::new(
-        r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken)"
-    ).unwrap();
 }
 
 /// A processor that performs PII stripping.
@@ -183,53 +34,34 @@ impl<'a> PiiProcessor<'a> {
     pub fn new(compiled_config: &'a CompiledPiiConfig) -> PiiProcessor<'a> {
         // this constructor needs to be cheap... a new PiiProcessor is created for each event. Move
         // any init logic into CompiledPiiConfig::new.
-        //
-        // Note: We accept both `PiiConfig` and `CompiledPiiConfig` because the latter makes more
-        // sense for benchmarks while the former is obviously the cleaner API for relay-server.
         PiiProcessor { compiled_config }
     }
 
-    /// Iterate over all matching rules.
-    fn iter_rules<'b>(&self, state: &'b ProcessingState<'b>) -> RuleIterator<'a, 'b> {
-        RuleIterator {
-            state,
-            application_iter: self.compiled_config.applications.iter(),
-            pending_refs: None,
-        }
-    }
-}
-
-struct RuleIterator<'a, 'b> {
-    state: &'b ProcessingState<'b>,
-    application_iter: std::slice::Iter<'a, (SelectorSpec, BTreeSet<RuleRef>)>,
-    pending_refs: Option<std::collections::btree_set::Iter<'a, RuleRef>>,
-}
-
-impl<'a, 'b> Iterator for RuleIterator<'a, 'b> {
-    type Item = &'a RuleRef;
-
-    fn next(&mut self) -> Option<&'a RuleRef> {
-        if self.state.attrs().pii == Pii::False {
-            return None;
+    fn apply_all_rules(
+        &self,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+        mut value: Option<&mut String>,
+    ) -> ProcessingResult {
+        let pii = state.attrs().pii;
+        if pii == Pii::False {
+            return Ok(());
         }
 
-        'outer: loop {
-            if let Some(rv) = self.pending_refs.as_mut().and_then(Iterator::next) {
-                return Some(rv);
+        for (selector, rules) in self.compiled_config.applications.iter() {
+            if pii == Pii::Maybe && !selector.is_specific() {
+                continue;
             }
 
-            while let Some((selector, rules)) = self.application_iter.next() {
-                if self.state.attrs().pii == Pii::Maybe && !selector.is_specific() {
-                    continue;
-                }
-                if self.state.path().matches_selector(selector) {
-                    self.pending_refs = Some(rules.iter());
-                    continue 'outer;
+            if state.path().matches_selector(selector) {
+                for rule in rules {
+                    let reborrowed_value = value.as_deref_mut();
+                    apply_rule_to_value(meta, rule, state.path().key(), reborrowed_value)?;
                 }
             }
-
-            return None;
         }
+
+        Ok(())
     }
 }
 
@@ -250,13 +82,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         }
 
         // apply rules based on key/path
-        for rule in self.iter_rules(state) {
-            match apply_rule_to_value(meta, rule, state.path().key(), None) {
-                Ok(()) => continue,
-                other => return other,
-            }
-        }
-        Ok(())
+        self.apply_all_rules(meta, state, None)
     }
 
     fn process_string(
@@ -271,13 +97,7 @@ impl<'a> Processor for PiiProcessor<'a> {
 
         // same as before_process. duplicated here because we can only check for "true",
         // "false" etc in process_string.
-        for rule in self.iter_rules(state) {
-            match apply_rule_to_value(meta, rule, state.path().key(), Some(value)) {
-                Ok(()) => continue,
-                other => return other,
-            }
-        }
-        Ok(())
+        self.apply_all_rules(meta, state, Some(value))
     }
 
     fn process_native_image_path(
@@ -320,6 +140,39 @@ impl<'a> Processor for PiiProcessor<'a> {
     ) -> ProcessingResult {
         process_pairlist(self, value, state)
     }
+
+    fn process_user(
+        &mut self,
+        user: &mut User,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        let ip_was_valid = user.ip_address.value().map_or(true, IpAddr::is_valid);
+
+        // Recurse into the user and does PII processing on fields.
+        user.process_child_values(self, state)?;
+
+        let has_other_fields = user.id.value().is_some()
+            || user.username.value().is_some()
+            || user.email.value().is_some();
+
+        let ip_is_still_valid = user.ip_address.value().map_or(true, IpAddr::is_valid);
+
+        // If the IP address has become invalid as part of PII processing, we move it into the user
+        // ID. That ensures people can do IP hashing and still have a correct users-affected count.
+        //
+        // Right now both Snuba and EventUser discard unparseable IPs for indexing, and we assume
+        // we want to keep it that way.
+        //
+        // If there are any other fields set that take priority over the IP for uniquely
+        // identifying a user (has_other_fields), we do not want to do anything. The value will be
+        // wiped out in renormalization anyway.
+        if ip_was_valid && !has_other_fields && !ip_is_still_valid {
+            user.id = mem::take(&mut user.ip_address).map_value(|ip| ip.into_inner().into());
+        }
+
+        Ok(())
+    }
 }
 
 fn apply_rule_to_value(
@@ -335,69 +188,46 @@ fn apply_rule_to_value(
         _ => true,
     };
 
+    // In case the value is not a string (but a container, bool or number) and the rule matches on
+    // anything, we can only remove the value (not replace, hash, etc).
+    if rule.ty == RuleType::Anything && (value.is_none() || !should_redact_chunks) {
+        // The value is a container, @anything on a container can do nothing but delete.
+        meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()));
+        return Err(ProcessingAction::DeleteValueHard);
+    }
+
     macro_rules! apply_regex {
-        ($regex:expr, $replace_groups:expr) => {
+        ($regex:expr, $replace_behavior:expr) => {
             if let Some(ref mut value) = value {
                 process_chunked_value(value, meta, |chunks| {
-                    apply_regex_to_chunks(chunks, rule, $regex, $replace_groups)
+                    apply_regex_to_chunks(chunks, rule, $regex, $replace_behavior)
                 });
             }
         };
     }
 
-    match rule.ty {
-        RuleType::RedactPair(_) | RuleType::Password => {
-            let key_pattern = match rule.ty {
-                RuleType::RedactPair(ref redact_pair) => &redact_pair.key_pattern.0,
-                RuleType::Password => &PASSWORD_KEY_REGEX,
-                _ => unreachable!(),
-            };
-
-            if key_pattern.is_match(key.unwrap_or("")) {
-                if value.is_some() && should_redact_chunks {
-                    // If we're given a string value here, redact the value like we would with
-                    // @anything.
-                    apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0));
+    for (pattern_type, regex, replace_behavior) in get_regex_for_rule_type(&rule.ty) {
+        match pattern_type {
+            PatternType::KeyValue => {
+                if regex.is_match(key.unwrap_or("")) {
+                    if value.is_some() && should_redact_chunks {
+                        // If we're given a string value here, redact the value like we would with
+                        // @anything.
+                        apply_regex!(&ANYTHING_REGEX, replace_behavior);
+                    } else {
+                        meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()));
+                        return Err(ProcessingAction::DeleteValueHard);
+                    }
                 } else {
-                    meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()));
-                    return Err(ProcessingAction::DeleteValueHard);
+                    // If we did not redact using the key, we will redact the entire value if the key
+                    // appears in it.
+                    apply_regex!(regex, ReplaceBehavior::Value);
                 }
-            } else {
-                // If we did not redact using the key, we will redact the entire value if the key
-                // appears in it.
-                //
-                // $replace_groups = None: Replace entire value if match is inside
-                // $replace_groups = Some(GROUP_0): Replace entire match
-                apply_regex!(&key_pattern, None);
+            }
+            PatternType::Value => {
+                apply_regex!(regex, replace_behavior);
             }
         }
-        RuleType::Anything => {
-            if value.is_some() && should_redact_chunks {
-                apply_regex!(&ANYTHING_REGEX, Some(&*GROUP_0));
-            } else {
-                // The value is a container, @anything on a container can do nothing but delete.
-                meta.add_remark(Remark::new(RemarkType::Removed, rule.origin.clone()));
-                return Err(ProcessingAction::DeleteValueHard);
-            }
-        }
-
-        RuleType::Pattern(ref r) => apply_regex!(&r.pattern.0, r.replace_groups.as_ref()),
-        RuleType::Imei => apply_regex!(&IMEI_REGEX, Some(&*GROUP_0)),
-        RuleType::Mac => apply_regex!(&MAC_REGEX, Some(&*GROUP_0)),
-        RuleType::Uuid => apply_regex!(&UUID_REGEX, Some(&*GROUP_0)),
-        RuleType::Email => apply_regex!(&EMAIL_REGEX, Some(&*GROUP_0)),
-        RuleType::Ip => {
-            apply_regex!(&IPV4_REGEX, Some(&*GROUP_0));
-            apply_regex!(&IPV6_REGEX, Some(&*GROUP_1));
-        }
-        RuleType::Creditcard => apply_regex!(&CREDITCARD_REGEX, Some(&*GROUP_0)),
-        RuleType::Pemkey => apply_regex!(&PEM_KEY_REGEX, Some(&*GROUP_1)),
-        RuleType::UrlAuth => apply_regex!(&URL_AUTH_REGEX, Some(&*GROUP_1)),
-        RuleType::UsSsn => apply_regex!(&US_SSN_REGEX, Some(&*GROUP_0)),
-        RuleType::Userpath => apply_regex!(&PATH_REGEX, Some(&*GROUP_1)),
-
-        // These have been resolved by `collect_applications` and will never occur here.
-        RuleType::Alias(_) | RuleType::Multiple(_) => {}
     }
 
     Ok(())
@@ -407,7 +237,7 @@ fn apply_regex_to_chunks<'a>(
     chunks: Vec<Chunk<'a>>,
     rule: &RuleRef,
     regex: &Regex,
-    replace_groups: Option<&BTreeSet<u8>>,
+    replace_behavior: ReplaceBehavior,
 ) -> Vec<Chunk<'a>> {
     // NB: This function allocates the entire string and all chunks a second time. This means it
     // cannot reuse chunks and reallocates them. Ideally, we would be able to run the regex directly
@@ -462,8 +292,8 @@ fn apply_regex_to_chunks<'a>(
     let mut rv = Vec::with_capacity(replacement_chunks.len());
 
     for m in captures_iter {
-        match replace_groups {
-            Some(groups) => {
+        match replace_behavior {
+            ReplaceBehavior::Groups(ref groups) => {
                 for (idx, g) in m.iter().enumerate() {
                     if let Some(g) = g {
                         if groups.contains(&(idx as u8)) {
@@ -478,7 +308,7 @@ fn apply_regex_to_chunks<'a>(
                     }
                 }
             }
-            None => {
+            ReplaceBehavior::Value => {
                 process_text(&"", &mut rv, &mut replacement_chunks);
                 insert_replacement_chunks(&rule, &search_string, &mut rv);
                 pos = search_string.len();
@@ -1082,4 +912,76 @@ fn test_logentry_value_types() {
             .value()
             .is_none());
     }
+}
+
+#[test]
+fn test_ip_address_hashing() {
+    let config = PiiConfig::from_json(
+        r##"
+            {
+                "applications": {
+                    "$user.ip_address": ["@ip:hash"]
+                }
+            }
+        "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        user: Annotated::new(User {
+            ip_address: Annotated::new(IpAddr("127.0.0.1".to_string())),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&compiled);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+    let user = event.value().unwrap().user.value().unwrap();
+
+    assert!(user.ip_address.value().is_none());
+
+    assert_eq!(
+        user.id.value().unwrap().as_str(),
+        "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
+    );
+}
+
+#[test]
+fn test_ip_address_hashing_does_not_overwrite_id() {
+    let config = PiiConfig::from_json(
+        r##"
+            {
+                "applications": {
+                    "$user.ip_address": ["@ip:hash"]
+                }
+            }
+        "##,
+    )
+    .unwrap();
+
+    let mut event = Annotated::new(Event {
+        user: Annotated::new(User {
+            id: Annotated::new("123".to_string().into()),
+            ip_address: Annotated::new(IpAddr("127.0.0.1".to_string())),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    let compiled = config.compiled();
+    let mut processor = PiiProcessor::new(&compiled);
+    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+    let user = event.value().unwrap().user.value().unwrap();
+
+    // This will get wiped out in renormalization though
+    assert_eq!(
+        user.ip_address.value().unwrap().as_str(),
+        "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
+    );
+
+    assert_eq!(user.id.value().unwrap().as_str(), "123");
 }

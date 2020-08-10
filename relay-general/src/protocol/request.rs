@@ -10,6 +10,7 @@ type CookieEntry = Annotated<(Annotated<String>, Annotated<String>)>;
 
 /// A map holding cookies.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Cookies(pub PairList<(Annotated<String>, Annotated<String>)>);
 
 impl Cookies {
@@ -84,6 +85,7 @@ impl FromValue for Cookies {
 
 /// A "into-string" type that normalizes header names.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_header_name")]
 pub struct HeaderName(String);
 
@@ -156,6 +158,7 @@ impl FromValue for HeaderName {
 
 /// A "into-string" type that normalizes header values.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct HeaderValue(String);
 
 impl HeaderValue {
@@ -225,6 +228,7 @@ impl FromValue for HeaderValue {
 
 /// A map holding headers.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Headers(pub PairList<(Annotated<HeaderName>, Annotated<HeaderValue>)>);
 
 impl Headers {
@@ -279,6 +283,7 @@ impl FromValue for Headers {
 
 /// A map holding query string pairs.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Query(pub PairList<(Annotated<String>, Annotated<JsonLenientString>)>);
 
 impl Query {
@@ -342,10 +347,70 @@ impl FromValue for Query {
 }
 
 /// Http request information.
+///
+/// The Request interface contains information on a HTTP request related to the event. In client
+/// SDKs, this can be an outgoing request, or the request that rendered the current web page. On
+/// server SDKs, this could be the incoming web request that is being handled.
+///
+/// The data variable should only contain the request body (not the query string). It can either be
+/// a dictionary (for standard HTTP requests) or a raw request body.
+///
+/// ### Ordered Maps
+///
+/// In the Request interface, several attributes can either be declared as string, object, or list
+/// of tuples. Sentry attempts to parse structured information from the string representation in
+/// such cases.
+///
+/// Sometimes, keys can be declared multiple times, or the order of elements matters. In such
+/// cases, use the tuple representation over a plain object.
+///
+/// Example of request headers as object:
+///
+/// ```json
+/// {
+///   "content-type": "application/json",
+///   "accept": "application/json, application/xml"
+/// }
+/// ```
+///
+/// Example of the same headers as list of tuples:
+///
+/// ```json
+/// [
+///   ["content-type", "application/json"],
+///   ["accept", "application/json"],
+///   ["accept", "application/xml"]
+/// ]
+/// ```
+///
+/// Example of a fully populated request object:
+///
+/// ```json
+/// {
+///   "request": {
+///     "method": "POST",
+///     "url": "http://absolute.uri/foo",
+///     "query_string": "query=foobar&page=2",
+///     "data": {
+///       "foo": "bar"
+///     },
+///     "cookies": "PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;",
+///     "headers": {
+///       "content-type": "text/html"
+///     },
+///     "env": {
+///       "REMOTE_ADDR": "192.168.0.1"
+///     }
+///   }
+/// }
+/// ```
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_request", value_type = "Request")]
 pub struct Request {
-    /// URL of the request.
+    /// The URL of the request if available.
+    ///
+    ///The query string can be declared either as part of the `url`, or separately in `query_string`.
     #[metastructure(max_chars = "path")]
     pub url: Annotated<String>,
 
@@ -353,10 +418,18 @@ pub struct Request {
     pub method: Annotated<String>,
 
     /// Request data in any format that makes sense.
+    ///
+    /// SDKs should discard large and binary bodies by default. Can be given as string or
+    /// structural data of any format.
     #[metastructure(pii = "true", bag_size = "large")]
     pub data: Annotated<Value>,
 
-    /// URL encoded HTTP query string.
+    /// The query string component of the URL.
+    ///
+    /// Can be given as unparsed string, dictionary, or list of tuples.
+    ///
+    /// If the query string is not declared and part of the `url`, Sentry moves it to the
+    /// query string.
     #[metastructure(pii = "true", bag_size = "small")]
     #[metastructure(skip_serialization = "empty")]
     pub query_string: Annotated<Query>,
@@ -366,17 +439,27 @@ pub struct Request {
     #[metastructure(skip_serialization = "empty")]
     pub fragment: Annotated<String>,
 
-    /// URL encoded contents of the Cookie header.
+    /// The cookie values.
+    ///
+    /// Can be given unparsed as string, as dictionary, or as a list of tuples.
     #[metastructure(pii = "true", bag_size = "medium")]
     #[metastructure(skip_serialization = "empty")]
     pub cookies: Annotated<Cookies>,
 
-    /// HTTP request headers.
+    /// A dictionary of submitted headers.
+    ///
+    /// If a header appears multiple times it, needs to be merged according to the HTTP standard
+    /// for header merging. Header names are treated case-insensitively by Sentry.
     #[metastructure(pii = "true", bag_size = "large")]
     #[metastructure(skip_serialization = "empty")]
     pub headers: Annotated<Headers>,
 
     /// Server environment data, such as CGI/WSGI.
+    ///
+    /// A dictionary containing environment information passed from the server. This is where
+    /// information such as CGI/WSGI/Rack keys go that are not HTTP headers.
+    ///
+    /// Sentry will explicitly look for `REMOTE_ADDR` to extract an IP address.
     #[metastructure(pii = "true", bag_size = "large")]
     #[metastructure(skip_serialization = "empty")]
     pub env: Annotated<Object<Value>>,

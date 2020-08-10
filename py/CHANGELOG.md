@@ -1,8 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.5.12
 
 - Always create a spans array for transactions in normalization. ([#667](https://github.com/getsentry/relay/pull/667))
+- Retain the full span description in transaction events instead of trimming it. ([#674](https://github.com/getsentry/relay/pull/674))
+- Move hashed user ip addresses to `user.id` to avoid invalid IPs going into Snuba. ([#692](https://github.com/getsentry/relay/pull/692))
+- Add `is_version_supported` to check for Relay compatibility during authentication. ([#697](https://github.com/getsentry/relay/pull/697))
 
 ## 0.5.11
 

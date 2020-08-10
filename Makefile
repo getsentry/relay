@@ -1,6 +1,6 @@
 SHELL=/bin/bash
 export RELAY_PYTHON_VERSION := python3.7
-export RELAY_FEATURES := with_ssl
+export RELAY_FEATURES := ssl
 
 all: check test
 .PHONY: all
@@ -91,14 +91,28 @@ api-docs: setup-git
 	@cargo doc
 .PHONY: api-docs
 
-prose-docs: .venv/bin/python extract-doc
+prose-docs: .venv/bin/python extract-metric-docs extract-jsonschema-docs
 	.venv/bin/mkdocs build
 	touch site/.nojekyll
 .PHONY: prose-docs
 
-extract-doc: .venv/bin/python
+extract-metric-docs: .venv/bin/python
 	.venv/bin/pip install -U -r requirements-doc.txt
 	cd scripts && ../.venv/bin/python extract_metric_docs.py
+
+jsonschema: init-submodules
+	rm -rf docs/event-schema/event.schema.*
+	set -e && cargo run --features jsonschema -- event-json-schema \
+		> docs/event-schema/event.schema.json
+.PHONY: jsonschema
+
+extract-jsonschema-docs: install-jsonschema-docs
+	set -e && ./node_modules/.bin/quicktype-markdown \
+		Event docs/event-schema/event.schema.json \
+		> docs/event-schema/event.schema.md
+
+install-jsonschema-docs: jsonschema
+	npm install git+https://github.com/untitaker/quicktype-markdown
 
 docserver: prose-docs
 	.venv/bin/mkdocs serve
@@ -106,7 +120,9 @@ docserver: prose-docs
 
 travis-upload-prose-docs: prose-docs
 	cd site && zip -r gh-pages .
-	zeus upload -t "application/zip+docs" site/gh-pages.zip \
+	set -e && zeus upload -t "application/zip+docs" site/gh-pages.zip \
+		|| [[ ! "$(TRAVIS_BRANCH)" =~ ^release/ ]]
+	set -e && zeus upload -t "application/octet-stream" -n event.schema.json docs/event-schema/event.schema.json \
 		|| [[ ! "$(TRAVIS_BRANCH)" =~ ^release/ ]]
 .PHONY: travis-upload-docs
 
