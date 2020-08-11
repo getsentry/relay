@@ -1,15 +1,18 @@
 use futures::{sync::mpsc::Sender, Async, Future, Poll};
 
+/// Message send on the notification channel when the tracked future finishes or is disposed.
+pub struct TrackedFutureFinished;
+
 pub trait IntoTracked<F>
 where
     F: Future,
 {
-    fn to_tracked(self, notifier: Sender<()>) -> TrackedFuture<F>;
+    fn to_tracked(self, notifier: Sender<TrackedFutureFinished>) -> TrackedFuture<F>;
 }
 
 pub struct TrackedFuture<F> {
     notified: bool,
-    notifier: Sender<()>,
+    notifier: Sender<TrackedFutureFinished>,
     inner: F,
 }
 
@@ -17,7 +20,7 @@ impl<F> IntoTracked<F> for F
 where
     F: Future,
 {
-    fn to_tracked(self, notifier: Sender<()>) -> TrackedFuture<F> {
+    fn to_tracked(self, notifier: Sender<TrackedFutureFinished>) -> TrackedFuture<F> {
         TrackedFuture {
             notified: false,
             inner: self,
@@ -43,7 +46,7 @@ where
                 self.notified = true;
                 // TODO is this correct, I think I should use start_send() but don't know how,
                 self.notifier
-                    .try_send(())
+                    .try_send(TrackedFutureFinished)
                     .map_err(|_| {
                         log::error!("TrackedFuture could not notify completion");
                     })
@@ -59,7 +62,7 @@ impl<F> Drop for TrackedFuture<F> {
         if !self.notified {
             //future dropped without being brought to completion
             self.notifier
-                .try_send(())
+                .try_send(TrackedFutureFinished)
                 .map_err(|_| {
                     log::error!("TrackedFuture could not notify completion");
                 })

@@ -5,7 +5,7 @@
 //!   * messages that use Relay authentication
 //!
 //!     These are requests for data originating inside Relay ( either requests for some
-//!     configuration data or outcome results being passed to the Upstream server)
+//!     configuration data or outcome results being passed to the upstream server)
 //!
 //!   * messages that do no use Relay authentication
 //!
@@ -42,7 +42,7 @@ use relay_quotas::{
 };
 
 use crate::metrics::RelayHistograms;
-use crate::utils::{self, ApiErrorResponse, IntoTracked};
+use crate::utils::{self, ApiErrorResponse, IntoTracked, TrackedFutureFinished};
 use futures::sync::{mpsc, oneshot};
 
 #[derive(Fail, Debug)]
@@ -185,8 +185,8 @@ struct UpstreamRequest {
 
 pub struct UpstreamRelay {
     // receiver queue
-    pump_http_queue_notifications: mpsc::Receiver<()>,
-    http_request_finished_notifier: mpsc::Sender<()>,
+    pump_http_queue_notifications: Option<mpsc::Receiver<TrackedFutureFinished>>,
+    http_request_finished_notifier: mpsc::Sender<TrackedFutureFinished>,
     backoff: RetryBackoff,
     config: Arc<Config>,
     auth_state: AuthState,
@@ -204,7 +204,7 @@ impl UpstreamRelay {
         // have a problem, unbounded probably a bad idea)
         let (sender, receiver) = mpsc::channel(1000);
         UpstreamRelay {
-            pump_http_queue_notifications: receiver,
+            pump_http_queue_notifications: Some(receiver),
             http_request_finished_notifier: sender,
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             config,
@@ -423,6 +423,11 @@ impl Actor for UpstreamRelay {
 
         if self.config.relay_mode() == RelayMode::Managed {
             context.notify(Authenticate);
+        }
+
+        // start handling messages from the mpsc channel
+        if let Some(receiver) = self.pump_http_queue_notifications.take() {
+            Self::add_stream(receiver, context);
         }
     }
 
@@ -661,9 +666,9 @@ where
 /// the mpsc channel or this handler, it would have not dealt with dropped futures.
 /// Weather the added complexity of this design is justified by being able to handle dropped
 /// futures is not clear to me (RaduW) at this moment.
-impl StreamHandler<(), ()> for UpstreamRelay {
+impl StreamHandler<TrackedFutureFinished, ()> for UpstreamRelay {
     /// handle notifications received from the tracked future stream
-    fn handle(&mut self, item: (), ctx: &mut Self::Context) {
+    fn handle(&mut self, item: TrackedFutureFinished, ctx: &mut Self::Context) {
         // an HTTP request has finished update the inflight requests and pump the message queue
         self.num_inflight_requests -= 1;
         ctx.notify(PumpHttpMessageQueue)
@@ -728,6 +733,7 @@ impl UpstreamQuery for RegisterResponse {
         Cow::Borrowed("/api/0/relays/register/response/")
     }
 }
+
 impl WithRequestPriority for RegisterResponse {
     fn priority() -> RequestPriority {
         RequestPriority::High
