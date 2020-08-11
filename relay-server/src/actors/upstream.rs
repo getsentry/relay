@@ -1,4 +1,22 @@
-//! This actor can be used for sending signed requests to the upstream relay.
+//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the
+//! upstream relay via HTTP.
+//!
+//! The actor handles two main types of messages plus some internal messages
+//!   * messages that use Relay authentication
+//!
+//!     These are requests for data originating inside Relay ( either requests for some
+//!     configuration data or outcome results being passed to the Upstream server)
+//!
+//!   * messages that do no use Relay authentication
+//!
+//!     These are messages for requests that originate as user sent events and use whatever
+//!     authentication headers were provided by the original request.
+//!
+//!  * messages used internally by Relay
+//!
+//!    These are messages that Relay sends in order to coordinate its work and do not result
+//!    directly in a HTTP message being send to the upstream server.
+//!
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::str;
@@ -419,6 +437,15 @@ impl Message for Authenticate {
     type Result = Result<(), ()>;
 }
 
+/// The `Authenticate` message is sent to the UpstreamRelay at Relay startup and coordinates the
+/// authentication of the current Relay with the upstream server.
+///
+/// Any message the requires Relay authentication (i.e. SendQuery<T> messages) will be send only
+/// after Relay has successfully authenticated with the upstream server (i.e. an Authenticate
+/// message was successfully handled).
+///
+/// **Note:** Relay has retry functionality, outside this actor, that periodically sends Authenticate
+/// messages until successful Authentication with the upstream server was achieved.    
 impl Handler<Authenticate> for UpstreamRelay {
     type Result = ResponseActFuture<Self, (), ()>;
 
@@ -484,6 +511,10 @@ impl Message for IsAuthenticated {
     type Result = bool;
 }
 
+/// The `IsAuthenticated` message is an internal Relay message that is used to query the current
+/// state of authentication with the upstream sever.
+///
+/// Currently it is only used by the HealthCheck actor.
 impl Handler<IsAuthenticated> for UpstreamRelay {
     type Result = bool;
 
@@ -499,6 +530,15 @@ impl Message for PumpHttpMessageQueue {
     type Result = ();
 }
 
+/// The `PumpHttpMessageQueue` is an internal Relay message that is used to drive the
+/// HttpMessageQueue. Requests that need to be sent over http are placed on queues with
+/// various priorities. At various points in time (when events are added to the queue or
+/// when HTTP ClientConnector finishes dealing with an HTTP request) `PumpHttpMessageQueue`
+/// messages are sent in order to take messages waiting in the queues and send them over
+/// HTTP.
+///
+/// `PumpHttpMessageQueue` will end up sending messages over HTTP only when there are free
+/// connections available.
 impl Handler<PumpHttpMessageQueue> for UpstreamRelay {
     type Result = ();
 
@@ -575,6 +615,11 @@ impl<B> Message for SendRequest<B> {
     type Result = Result<(), UpstreamRequestError>;
 }
 
+/// SendRequest<B> messages represent external messages that need to be sent to the upstream server
+/// and do not use Relay authentication.
+///
+/// The handler adds the message to one of the message queues and tries to advance the processing
+/// by sending a `PumpMessageQueue`.
 impl<B> Handler<SendRequest<B>> for UpstreamRelay
 where
     B: RequestBuilder + Send,
@@ -601,7 +646,21 @@ where
     }
 }
 
-/// Stream handler for the mpsc tracked future stream
+/// This handler handles messages sent on the mpsc channel that mark the end of an http request
+/// future. The handler decrements the counter of in-flight HTTP requests (since one was just
+/// finished) and tries to pump the http message queue by sending a `PumpHttpMessageQueue`
+///
+/// Every future representing an HTTP message sent by the ClientConnector is wrapped so that when
+/// it finishes or it is dropped a message is sent into a mpsc channel. This handler deals with
+/// the receiver end of the mpsc channel.
+///
+/// **Note:** An alternative, simpler, implementation would have been to increment the in-flight
+/// requests counter just before sending an http message and to decrement it when the future
+/// representing the sent message completes (on the future .then() method).
+/// While this approach would have simplified the design, no need for wrapping, no need for
+/// the mpsc channel or this handler, it would have not dealt with dropped futures.
+/// Weather the added complexity of this design is justified by being able to handle dropped
+/// futures is not clear to me (RaduW) at this moment.
 impl StreamHandler<(), ()> for UpstreamRelay {
     /// handle notifications received from the tracked future stream
     fn handle(&mut self, item: (), ctx: &mut Self::Context) {
@@ -625,6 +684,12 @@ impl<T: UpstreamQuery> Message for SendQuery<T> {
     type Result = Result<T::Response, UpstreamRequestError>;
 }
 
+/// SendQuery<T> messages represent messages that need to be sent to the upstream server
+/// and use Relay authentication.
+///
+/// The handler ensures that Relay is authenticated with the upstream server, adds the message
+/// to one of the message queues and tries to advance the processing by
+/// sending a `PumpMessageQueue`.
 impl<T: UpstreamQuery> Handler<SendQuery<T>> for UpstreamRelay {
     type Result = ResponseFuture<T::Response, UpstreamRequestError>;
 
