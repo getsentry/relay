@@ -95,7 +95,6 @@ pub struct Mechanism {
     /// exception, while for native it is e.g. `"minidump"` or `"applecrashreport"`.
     #[metastructure(
         field = "type",
-        required = "true",
         nonempty = "true",
         max_chars = "enumlike"
     )]
