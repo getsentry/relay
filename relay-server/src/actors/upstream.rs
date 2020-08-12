@@ -198,6 +198,53 @@ pub struct UpstreamRelay {
     lp_messages: VecDeque<UpstreamRequest>,
 }
 
+/// Handles a response returned from the upstream.
+///
+/// If the response indicates success via 2XX status codes, `Ok(response)` is returned. Otherwise,
+/// the response is consumed and an error is returned. Depending on the status code and details
+/// provided in the payload, one of the following errors can be returned:
+///
+///  1. `RateLimited` for a `429` status code.
+///  2. `ResponseError` in all other cases.
+fn handle_response(
+    response: ClientResponse,
+) -> ResponseFuture<ClientResponse, UpstreamRequestError> {
+    let status = response.status();
+
+    if status.is_success() {
+        return Box::new(future::ok(response));
+    }
+
+    // At this point, we consume the ClientResponse. This means we need to consume the response
+    // payload stream, regardless of the status code. Parsing the JSON body may fail, which is a
+    // non-fatal failure as the upstream is not expected to always include a valid JSON response.
+    let future = response.json().then(move |json_result| {
+        if response.status() == StatusCode::TOO_MANY_REQUESTS {
+            let headers = response.headers();
+            let retry_after = headers
+                .get(header::RETRY_AFTER)
+                .and_then(|v| v.to_str().ok());
+
+            let rate_limits = headers
+                .get_all(utils::RATE_LIMITS_HEADER)
+                .iter()
+                .filter_map(|v| v.to_str().ok())
+                .join(", ");
+
+            let upstream_limits = UpstreamRateLimits::new()
+                .retry_after(retry_after)
+                .rate_limits(rate_limits);
+            Err(UpstreamRequestError::RateLimited(upstream_limits))
+        } else {
+            // Coerce the result into an empty `ApiErrorResponse` if parsing JSON did not succeed.
+            let api_response = json_result.unwrap_or_default();
+            Err(UpstreamRequestError::ResponseError(status, api_response))
+        }
+    });
+
+    Box::new(future)
+}
+
 impl UpstreamRelay {
     pub fn new(config: Arc<Config>) -> Self {
         //TODO discus size (probably shouldn't be very big, if notifications accumulate we
@@ -225,7 +272,7 @@ impl UpstreamRelay {
         }
     }
 
-    fn send_http_request(&mut self, request: UpstreamRequest) {
+    fn send_http_request(&mut self, request: UpstreamRequest) -> ResponseFuture<(), ()> {
         let UpstreamRequest {
             response_sender,
             method,
@@ -248,89 +295,47 @@ impl UpstreamRelay {
             builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
         }
 
-        //TODO this is work in progress
-        let future = build(&mut builder)
-            .map_err(|e| {
-                response_sender.send(Err(UpstreamRequestError::BuildFailed(e)));
-                ()
-            })
-            .map(|client_request| {
-                self.num_inflight_requests += 1;
-                client_request
-                    .send()
-                    // We currently use the main connection pool size limit to control how many events get
-                    // sent out at once, and "queue" up the rest (queueing means that there are a lot of
-                    // futures hanging around, waiting for an open connection). We need to adjust this
-                    // timeout to prevent the queued events from timing out while waiting for a free
-                    // connection in the pool.
-                    //
-                    // This may not be good enough in the long run. Right now, filling up the "request
-                    // queue" means that requests unrelated to `store` (queries, proxied/forwarded requests)
-                    // are blocked by store requests. Ideally, those requests would bypass this queue.
-                    //
-                    // Two options come to mind:
-                    //   1. Have own connection pool for `store` requests
-                    //   2. Buffer up/queue/synchronize events before creating the request
-                    .wait_timeout(self.config.event_buffer_expiry())
-                    // This is the timeout after wait + connect.
-                    .timeout(self.config.http_timeout())
-                    .conn_timeout(self.config.http_connection_timeout())
-                    .to_tracked(self.http_request_finished_notifier.clone())
-                    //TODO send error into the channel
-                    .map_err(UpstreamRequestError::SendFailed)
-                    .and_then(|response| self.handle_response(response))
-            });
-        // TODO RaduW send to the channel on error and on resolve
-        // TODO see what to do with the future (spawn it or return it to be spawned by caller)
-        // TOOD this should be called from the queue emptying loop
-    }
-
-    /// Handles a response returned from the upstream.
-    ///
-    /// If the response indicates success via 2XX status codes, `Ok(response)` is returned. Otherwise,
-    /// the response is consumed and an error is returned. Depending on the status code and details
-    /// provided in the payload, one of the following errors can be returned:
-    ///
-    ///  1. `RateLimited` for a `429` status code.
-    ///  2. `ResponseError` in all other cases.
-    fn handle_response(
-        &mut self,
-        response: ClientResponse,
-    ) -> ResponseFuture<ClientResponse, UpstreamRequestError> {
-        let status = response.status();
-
-        if status.is_success() {
-            return Box::new(future::ok(response));
-        }
-
-        // At this point, we consume the ClientResponse. This means we need to consume the response
-        // payload stream, regardless of the status code. Parsing the JSON body may fail, which is a
-        // non-fatal failure as the upstream is not expected to always include a valid JSON response.
-        let future = response.json().then(move |json_result| {
-            if response.status() == StatusCode::TOO_MANY_REQUESTS {
-                let headers = response.headers();
-                let retry_after = headers
-                    .get(header::RETRY_AFTER)
-                    .and_then(|v| v.to_str().ok());
-
-                let rate_limits = headers
-                    .get_all(utils::RATE_LIMITS_HEADER)
-                    .iter()
-                    .filter_map(|v| v.to_str().ok())
-                    .join(", ");
-
-                let upstream_limits = UpstreamRateLimits::new()
-                    .retry_after(retry_after)
-                    .rate_limits(rate_limits);
-                //TODO send error into the channel
-                Err(UpstreamRequestError::RateLimited(upstream_limits))
-            } else {
-                // Coerce the result into an empty `ApiErrorResponse` if parsing JSON did not succeed.
-                let api_response = json_result.unwrap_or_default();
-                Err(UpstreamRequestError::ResponseError(status, api_response))
+        //try to build a ClientRequest
+        let client_request = match build(&mut builder) {
+            Err(e) => {
+                response_sender
+                    .send(Err(UpstreamRequestError::BuildFailed(e)))
+                    .ok();
+                return Box::new(futures::future::err(()));
             }
-        });
+            Ok(client_request) => client_request,
+        };
 
+        // we are about to send a HTTP message keep track of requests in flight
+        self.num_inflight_requests += 1;
+
+        let future = client_request
+            .send()
+            // We currently use the main connection pool size limit to control how many events get
+            // sent out at once, and "queue" up the rest (queueing means that there are a lot of
+            // futures hanging around, waiting for an open connection). We need to adjust this
+            // timeout to prevent the queued events from timing out while waiting for a free
+            // connection in the pool.
+            //
+            // This may not be good enough in the long run. Right now, filling up the "request
+            // queue" means that requests unrelated to `store` (queries, proxied/forwarded requests)
+            // are blocked by store requests. Ideally, those requests would bypass this queue.
+            //
+            // Two options come to mind:
+            //   1. Have own connection pool for `store` requests
+            //   2. Buffer up/queue/synchronize events before creating the request
+            .wait_timeout(self.config.event_buffer_expiry())
+            // This is the timeout after wait + connect.
+            .timeout(self.config.http_timeout())
+            .conn_timeout(self.config.http_connection_timeout())
+            .to_tracked(self.http_request_finished_notifier.clone())
+            .map_err(UpstreamRequestError::SendFailed)
+            .and_then(handle_response)
+            .map(|_client_response| ())
+            .map_err(|err| {
+                response_sender.send(Err(err)).ok();
+                ()
+            });
         Box::new(future)
     }
 
@@ -547,12 +552,12 @@ impl Message for PumpHttpMessageQueue {
 impl Handler<PumpHttpMessageQueue> for UpstreamRelay {
     type Result = ();
 
-    fn handle(&mut self, _msg: PumpHttpMessageQueue, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, _msg: PumpHttpMessageQueue, ctx: &mut Self::Context) -> Self::Result {
         while self.num_inflight_requests < self.max_inflight_requests {
             if let Some(msg) = self.hp_messages.pop_back() {
-                self.send_http_request(msg);
+                self.send_http_request(msg).into_actor(self).spawn(ctx);
             } else if let Some(msg) = self.lp_messages.pop_back() {
-                self.send_http_request(msg);
+                self.send_http_request(msg).into_actor(self).spawn(ctx);
             }
         }
     }
@@ -642,8 +647,12 @@ where
             self.send_request(RequestPriority::Low, method, path, |b| {
                 builder.build_request(b)
             })
-            .from_err()
-            .and_then(|_| Ok(())),
+            .and_then(|client_response| {
+                client_response
+                    .payload()
+                    .for_each(|_| Ok(()))
+                    .map_err(UpstreamRequestError::PayloadFailed)
+            }),
         );
 
         ctx.notify(PumpHttpMessageQueue);
@@ -668,7 +677,7 @@ where
 /// futures is not clear to me (RaduW) at this moment.
 impl StreamHandler<TrackedFutureFinished, ()> for UpstreamRelay {
     /// handle notifications received from the tracked future stream
-    fn handle(&mut self, item: TrackedFutureFinished, ctx: &mut Self::Context) {
+    fn handle(&mut self, _item: TrackedFutureFinished, ctx: &mut Self::Context) {
         // an HTTP request has finished update the inflight requests and pump the message queue
         self.num_inflight_requests -= 1;
         ctx.notify(PumpHttpMessageQueue)
