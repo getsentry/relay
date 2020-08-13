@@ -1,7 +1,7 @@
 import json
 import uuid
 from sentry_relay._lowlevel import lib
-from sentry_relay._compat import text_type, implements_to_string
+from sentry_relay._compat import PY2, text_type, implements_to_string
 from sentry_relay.utils import (
     RustObject,
     encode_str,
@@ -68,6 +68,8 @@ class SecretKey(RustObject):
 
     def pack(self, data):
         packed = json.dumps(data, separators=(",", ":"))
+        if not PY2:
+            packed = packed.encode("utf8")
         return packed, self.sign(packed)
 
     def __str__(self):
