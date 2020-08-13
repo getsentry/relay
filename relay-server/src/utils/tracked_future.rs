@@ -44,7 +44,6 @@ where
             _ => {
                 // future is finished notify channel
                 self.notified = true;
-                // TODO is this correct, I think I should use start_send() but don't know how,
                 self.notifier
                     .try_send(TrackedFutureFinished)
                     .map_err(|_| {

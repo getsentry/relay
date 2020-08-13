@@ -331,10 +331,9 @@ impl UpstreamRelay {
             .to_tracked(self.http_request_finished_notifier.clone())
             .map_err(UpstreamRequestError::SendFailed)
             .and_then(handle_response)
-            .map(|_client_response| ())
-            .map_err(|err| {
-                response_sender.send(Err(err)).ok();
-                ()
+            .then(|x| {
+                response_sender.send(x);
+                futures::future::ok(())
             });
         Box::new(future)
     }
@@ -459,7 +458,7 @@ impl Message for Authenticate {
 impl Handler<Authenticate> for UpstreamRelay {
     type Result = ResponseActFuture<Self, (), ()>;
 
-    fn handle(&mut self, _msg: Authenticate, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, _msg: Authenticate, ctx: &mut Self::Context) -> Self::Result {
         let credentials = match self.config.credentials() {
             Some(x) => x,
             None => return Box::new(fut::err(())),
@@ -476,16 +475,18 @@ impl Handler<Authenticate> for UpstreamRelay {
         let future = self
             .send_query(request)
             .into_actor(self)
-            .and_then(|challenge, slf, _ctx| {
+            .and_then(|challenge, slf, ctx| {
                 log::debug!("got register challenge (token = {})", challenge.token());
                 slf.auth_state = AuthState::RegisterChallengeResponse;
                 let challenge_response = challenge.create_response();
 
                 log::debug!("sending register challenge response");
-                slf.send_query(challenge_response).into_actor(slf)
+                let fut = slf.send_query(challenge_response).into_actor(slf);
+                ctx.notify(PumpHttpMessageQueue);
+                fut
             })
             .map(|_, slf, _ctx| {
-                log::debug!("relay successfully registered with upstream");
+                log::info!("relay successfully registered with upstream");
                 slf.auth_state = AuthState::Registered;
             })
             .map_err(|err, slf, ctx| {
@@ -511,6 +512,7 @@ impl Handler<Authenticate> for UpstreamRelay {
                 }
             });
 
+        ctx.notify(PumpHttpMessageQueue);
         Box::new(future)
     }
 }
@@ -558,6 +560,8 @@ impl Handler<PumpHttpMessageQueue> for UpstreamRelay {
                 self.send_http_request(msg).into_actor(self).spawn(ctx);
             } else if let Some(msg) = self.lp_messages.pop_back() {
                 self.send_http_request(msg).into_actor(self).spawn(ctx);
+            } else {
+                break; // no more messages to send at this time stop looping
             }
         }
     }
