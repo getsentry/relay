@@ -48,9 +48,19 @@ def test_forced_shutdown(mini_sentry, relay):
     relay.shutdown(sig=signal.SIGINT)
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
-    ((route, error),) = mini_sentry.test_failures
-    assert route == "/api/666/store/"
-    assert "Dropped unfinished future" in str(error)
+    failures = mini_sentry.test_failures
+    assert len(failures) == 2
+    # we are expecting a tracked future error and dropped unfinished future error
+    dropped_unfinished_error_found = False
+    tracked_future_error_found = False
+    for (route, error) in failures:
+        assert route == "/api/666/store/"
+        if "Dropped unfinished future" in str(error):
+            dropped_unfinished_error_found = True
+        if "TrackedFuture" in str(error):
+            tracked_future_error_found = True
+    assert dropped_unfinished_error_found
+    assert tracked_future_error_found
     mini_sentry.test_failures.clear()
 
 

@@ -332,7 +332,7 @@ impl UpstreamRelay {
             .map_err(UpstreamRequestError::SendFailed)
             .and_then(handle_response)
             .then(|x| {
-                response_sender.send(x);
+                response_sender.send(x).ok();
                 futures::future::ok(())
             });
         Box::new(future)
