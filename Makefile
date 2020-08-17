@@ -123,12 +123,6 @@ travis-upload-prose-docs: prose-docs
 		|| [[ ! "$(TRAVIS_BRANCH)" =~ ^release/ ]]
 .PHONY: travis-upload-docs
 
-travis-run-danger:
-	yarn add danger
-	# for external PRs danger will fail because of token
-	@[ -z $(DANGER_GITHUB_API_TOKEN) ] || DANGER_GITHUB_API_TOKEN=$(DANGER_GITHUB_API_TOKEN) yarn danger ci
-.PHONY: travis-run-danger
-
 local-upload-prose-docs: prose-docs
 	# Use this for hotfixing docs, prefer a new release
 	.venv/bin/pip install -U ghp-import
