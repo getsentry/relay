@@ -1402,7 +1402,6 @@ impl Config {
     pub fn max_rate_limit(&self) -> Option<u64> {
         self.values.processing.max_rate_limit.map(u32::into)
     }
-
 }
 
 impl Default for Config {
