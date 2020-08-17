@@ -23,7 +23,7 @@ use relay_general::protocol::EventId;
 use relay_quotas::{ReasonCode, Scoping};
 
 use crate::actors::upstream::SendQuery;
-use crate::actors::upstream::{RequestPriority, UpstreamQuery, UpstreamRelay, WithRequestPriority};
+use crate::actors::upstream::{UpstreamQuery, UpstreamRelay};
 use crate::ServerError;
 
 // Choose the outcome module implementation (either processing or non-processing).
@@ -52,12 +52,6 @@ impl UpstreamQuery for SendOutcomes {
 
     fn path(&self) -> Cow<'static, str> {
         Cow::Borrowed("/api/0/relays/outcomes/")
-    }
-}
-
-impl WithRequestPriority for SendOutcomes {
-    fn priority() -> RequestPriority {
-        RequestPriority::Low
     }
 }
 

@@ -167,12 +167,6 @@ pub enum RequestPriority {
     Low,
 }
 
-/// An type implementing this trait can be placed in a queue according to its priority.
-/// This trait is implemented by message types that need to be sent via http
-pub trait WithRequestPriority {
-    fn priority() -> RequestPriority;
-}
-
 /// UpstreamRequest objects are queued inside the Upstream actor.
 /// The objects are transformed int HTTP requests, and send to upstream as HTTP connections
 /// become available.
@@ -688,12 +682,16 @@ impl StreamHandler<TrackedFutureFinished, ()> for UpstreamRelay {
     }
 }
 
-pub trait UpstreamQuery: Serialize + WithRequestPriority {
+pub trait UpstreamQuery: Serialize {
     type Response: DeserializeOwned + 'static + Send;
 
     fn method(&self) -> Method;
 
     fn path(&self) -> Cow<'static, str>;
+
+    fn priority() -> RequestPriority {
+        RequestPriority::Low
+    }
 }
 
 pub struct SendQuery<T: UpstreamQuery>(pub T);
@@ -728,9 +726,6 @@ impl UpstreamQuery for RegisterRequest {
     fn path(&self) -> Cow<'static, str> {
         Cow::Borrowed("/api/0/relays/register/challenge/")
     }
-}
-
-impl WithRequestPriority for RegisterRequest {
     fn priority() -> RequestPriority {
         RequestPriority::High
     }
@@ -745,9 +740,6 @@ impl UpstreamQuery for RegisterResponse {
     fn path(&self) -> Cow<'static, str> {
         Cow::Borrowed("/api/0/relays/register/response/")
     }
-}
-
-impl WithRequestPriority for RegisterResponse {
     fn priority() -> RequestPriority {
         RequestPriority::High
     }
