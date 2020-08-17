@@ -8,12 +8,13 @@ use actix::prelude::*;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use futures::prelude::*;
+use minidump::Minidump;
 use parking_lot::RwLock;
 use serde_json::Value as SerdeValue;
 
 use relay_common::{clone, metric, LogError};
 use relay_config::{Config, RelayMode};
-use relay_general::pii::PiiProcessor;
+use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, LenientString,
@@ -21,6 +22,7 @@ use relay_general::protocol::{
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
+use relay_minidump::{scrub_minidump, Error as MinidumpError};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 
@@ -122,6 +124,24 @@ enum ProcessingError {
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
+
+    #[fail(display = "invalid minidump")]
+    InvalidMinidump(#[cause] minidump::Error),
+
+    #[fail(display = "minidump error: {}", _0)]
+    Minidump(#[cause] MinidumpError),
+}
+
+impl From<MinidumpError> for ProcessingError {
+    fn from(source: MinidumpError) -> Self {
+        ProcessingError::Minidump(source)
+    }
+}
+
+impl From<minidump::Error> for ProcessingError {
+    fn from(source: minidump::Error) -> Self {
+        ProcessingError::InvalidMinidump(source)
+    }
 }
 
 impl ProcessingError {
@@ -152,6 +172,8 @@ impl ProcessingError {
             | Self::ScheduleFailed(_)
             | Self::ProjectFailed(_)
             | Self::Timeout
+            | Self::InvalidMinidump(_)
+            | Self::Minidump(_)
             | Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             #[cfg(feature = "processing")]
             Self::StoreFailed(_) | Self::QuotasFailed(_) => {
@@ -756,7 +778,7 @@ impl EventProcessor {
     /// Extracts the timestamp from the minidump and uses it as the event timestamp.
     #[cfg(feature = "processing")]
     fn write_minidump_timestamp(&self, event: &mut Event, minidump_item: &Item) {
-        let minidump = match minidump::Minidump::read(minidump_item.payload()) {
+        let minidump = match Minidump::read(minidump_item.payload()) {
             Ok(minidump) => minidump,
             Err(err) => {
                 log::debug!("Failed to parse minidump: {:?}", err);
@@ -961,6 +983,7 @@ impl EventProcessor {
     ///
     /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
     fn scrub_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let envelope = &mut state.envelope;
         let event = &mut state.event;
         let config = &state.project_state.config;
 
@@ -970,6 +993,14 @@ impl EventProcessor {
                 let mut processor = PiiProcessor::new(&compiled);
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
+
+                let minidump = envelope
+                    .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump));
+                if let Some(mut item) = minidump {
+                    let processor = PiiAttachmentsProcessor::new(&compiled);
+                    self.scrub_minidump(processor, &mut item)?;
+                    envelope.add_item(item);
+                }
             }
 
             if let Some(ref config) = *config.datascrubbing_settings.pii_config() {
@@ -980,6 +1011,26 @@ impl EventProcessor {
             }
         });
 
+        Ok(())
+    }
+
+    fn scrub_minidump(
+        &self,
+        processor: PiiAttachmentsProcessor,
+        attachment: &mut Item,
+    ) -> Result<(), ProcessingError> {
+        let minidump = Minidump::read(attachment.payload())?;
+        let scrubbed_data = scrub_minidump(
+            attachment.filename().unwrap_or("unknown"),
+            minidump,
+            attachment.payload(),
+            processor,
+        )?;
+        let content_type = attachment
+            .content_type()
+            .unwrap_or(&ContentType::Minidump)
+            .clone();
+        attachment.set_payload(content_type, scrubbed_data);
         Ok(())
     }
 

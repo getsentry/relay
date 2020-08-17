@@ -2900,6 +2900,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-minidump"
+version = "20.6.0"
+dependencies = [
+ "bytes 0.4.12",
+ "failure",
+ "minidump",
+ "relay-general",
+]
+
+[[package]]
 name = "relay-quotas"
 version = "20.8.0"
 dependencies = [
@@ -2956,6 +2966,7 @@ dependencies = [
  "relay-config",
  "relay-filter",
  "relay-general",
+ "relay-minidump",
  "relay-quotas",
  "relay-redis",
  "rmp-serde",
