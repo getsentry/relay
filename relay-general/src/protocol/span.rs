@@ -35,7 +35,7 @@ pub struct Span {
     /// The status of a span
     pub status: Annotated<SpanStatus>,
 
-    /// Arbitrary tags on a span, like on the top-level event. Will maybe be indexed in the future.
+    /// Arbitrary tags on a span, like on the top-level event.
     pub tags: Annotated<Object<LenientString>>,
 
     /// Arbitrary additional data on a span, like `extra` on the top-level event.
