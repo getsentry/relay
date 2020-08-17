@@ -1,3 +1,5 @@
+use std::mem;
+
 use symbolic::unreal::{
     Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4FileType, Unreal4LogEntry,
 };
@@ -13,6 +15,7 @@ use crate::constants::{
     ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT, UNREAL_USER_HEADER,
 };
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::utils;
 
 /// Maximum number of unreal logs to parse for breadcrumbs.
 const MAX_NUM_UNREAL_LOGS: usize = 40;
@@ -31,6 +34,7 @@ pub fn expand_unreal_envelope(
 ) -> Result<(), Unreal4Error> {
     let payload = unreal_item.payload();
     let crash = Unreal4Crash::parse(&payload)?;
+    let mut event = None;
 
     for file in crash.files() {
         let (content_type, attachment_type) = match file.ty() {
@@ -40,8 +44,34 @@ pub fn expand_unreal_envelope(
             }
             Unreal4FileType::Log => (ContentType::Text, AttachmentType::UnrealLogs),
             Unreal4FileType::Config => (ContentType::OctetStream, AttachmentType::Attachment),
-            Unreal4FileType::Context => (ContentType::Xml, AttachmentType::UnrealContext),
-            Unreal4FileType::Unknown => match file.name() {
+            Unreal4FileType::Context => {
+                let context = Unreal4Context::parse(file.data())?;
+                if let Some(runtime_props) = context.runtime_properties {
+                    let mut json_event: serde_json::Value =
+                        if let Some(sentry_json) = runtime_props.custom.get("sentry") {
+                            match serde_json::from_str(sentry_json) {
+                                Ok(event) => event,
+                                Err(_) => {
+                                    log::debug!("invalid json event payload in form data");
+                                    serde_json::Value::Object(Default::default())
+                                }
+                            }
+                        } else {
+                            serde_json::Value::Object(Default::default())
+                        };
+
+                    // Keys in the form sentry[nested][key]
+                    for (key, value) in runtime_props.custom.into_iter() {
+                        if let Some(keys) = utils::get_sentry_entry_indexes(&key) {
+                            utils::update_nested_value(&mut json_event, &keys, value);
+                        }
+                    }
+
+                    event = Some(json_event);
+                }
+                (ContentType::Xml, AttachmentType::UnrealContext)
+            }
+            _ => match file.name() {
                 self::ITEM_NAME_EVENT => (ContentType::MsgPack, AttachmentType::EventPayload),
                 self::ITEM_NAME_BREADCRUMBS1 => (ContentType::MsgPack, AttachmentType::Breadcrumbs),
                 self::ITEM_NAME_BREADCRUMBS2 => (ContentType::MsgPack, AttachmentType::Breadcrumbs),
@@ -53,6 +83,12 @@ pub fn expand_unreal_envelope(
         item.set_filename(file.name());
         item.set_payload(content_type, file.data());
         item.set_attachment_type(attachment_type);
+        envelope.add_item(item);
+    }
+
+    if let Some(event) = event {
+        let mut item = Item::new(ItemType::Event);
+        item.set_payload(ContentType::Json, serde_json::to_vec(&event).unwrap());
         envelope.add_item(item);
     }
 
@@ -196,6 +232,14 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
 
     // modules not used just remove it from runtime props
     runtime_props.modules.take();
+
+    // remove sentry custom properties
+    runtime_props.custom.remove("sentry");
+    for (key, value) in mem::replace(&mut runtime_props.custom, Default::default()).into_iter() {
+        if !key.starts_with("sentry[") {
+            runtime_props.custom.insert(key, value);
+        }
+    }
 
     if let Ok(Some(Value::Object(props))) = types::to_value(&runtime_props) {
         let unreal_context =
