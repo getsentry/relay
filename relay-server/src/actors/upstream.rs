@@ -29,7 +29,11 @@ use actix_web::error::{JsonPayloadError, PayloadError};
 use actix_web::http::{header, Method, StatusCode};
 use actix_web::{Error as ActixError, HttpMessage};
 use failure::Fail;
-use futures::{future, prelude::*};
+use futures::{
+    future,
+    prelude::*,
+    sync::{mpsc, oneshot},
+};
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
@@ -43,7 +47,6 @@ use relay_quotas::{
 
 use crate::metrics::RelayHistograms;
 use crate::utils::{self, ApiErrorResponse, IntoTracked, TrackedFutureFinished};
-use futures::sync::{mpsc, oneshot};
 
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
@@ -186,10 +189,10 @@ pub struct UpstreamRelay {
     auth_state: AuthState,
     max_inflight_requests: usize,
     num_inflight_requests: usize,
-    // high priority messages
-    hp_messages: VecDeque<UpstreamRequest>,
-    // low priority messages
-    lp_messages: VecDeque<UpstreamRequest>,
+    // high priority request queue
+    high_prio_requests: VecDeque<UpstreamRequest>,
+    // low priority request queue
+    low_prio_requests: VecDeque<UpstreamRequest>,
 }
 
 /// Handles a response returned from the upstream.
@@ -253,8 +256,8 @@ impl UpstreamRelay {
             // TODO get the real value from a config and use it with ClientConnector::limit
             max_inflight_requests: 100,
             num_inflight_requests: 0,
-            hp_messages: VecDeque::new(),
-            lp_messages: VecDeque::new(),
+            high_prio_requests: VecDeque::new(),
+            low_prio_requests: VecDeque::new(),
         }
     }
 
@@ -266,7 +269,7 @@ impl UpstreamRelay {
         }
     }
 
-    fn send_http_request(&mut self, request: UpstreamRequest) -> ResponseFuture<(), ()> {
+    fn send_request(&mut self, request: UpstreamRequest) -> ResponseFuture<(), ()> {
         let UpstreamRequest {
             response_sender,
             method,
@@ -322,17 +325,17 @@ impl UpstreamRelay {
             // This is the timeout after wait + connect.
             .timeout(self.config.http_timeout())
             .conn_timeout(self.config.http_connection_timeout())
-            .to_tracked(self.http_request_finished_notifier.clone())
+            .track(self.http_request_finished_notifier.clone())
             .map_err(UpstreamRequestError::SendFailed)
             .and_then(handle_response)
             .then(|x| {
                 response_sender.send(x).ok();
-                futures::future::ok(())
+                Ok(())
             });
         Box::new(future)
     }
 
-    fn send_request<P, F>(
+    fn enqueue_request<P, F>(
         &mut self,
         priority: RequestPriority,
         method: Method,
@@ -353,17 +356,17 @@ impl UpstreamRelay {
         };
         match priority {
             RequestPriority::Low => {
-                self.lp_messages.push_front(request);
+                self.low_prio_requests.push_front(request);
                 metric!(
                     histogram(RelayHistograms::UpstreamLowPriorityMessageQueueSize) =
-                        self.lp_messages.len() as u64
+                        self.low_prio_requests.len() as u64
                 );
             }
             RequestPriority::High => {
-                self.hp_messages.push_front(request);
+                self.high_prio_requests.push_front(request);
                 metric!(
                     histogram(RelayHistograms::UpstreamHighPriorityMessageQueueSize) =
-                        self.hp_messages.len() as u64
+                        self.high_prio_requests.len() as u64
                 );
             }
         };
@@ -395,7 +398,7 @@ impl UpstreamRelay {
         let max_response_size = self.config.max_api_payload_size();
 
         let future = self
-            .send_request(priority, method, path, |builder| {
+            .enqueue_request(priority, method, path, |builder| {
                 builder
                     .header("X-Sentry-Relay-Signature", signature)
                     .header(header::CONTENT_TYPE, "application/json")
@@ -550,10 +553,10 @@ impl Handler<PumpHttpMessageQueue> for UpstreamRelay {
 
     fn handle(&mut self, _msg: PumpHttpMessageQueue, ctx: &mut Self::Context) -> Self::Result {
         while self.num_inflight_requests < self.max_inflight_requests {
-            if let Some(msg) = self.hp_messages.pop_back() {
-                self.send_http_request(msg).into_actor(self).spawn(ctx);
-            } else if let Some(msg) = self.lp_messages.pop_back() {
-                self.send_http_request(msg).into_actor(self).spawn(ctx);
+            if let Some(msg) = self.high_prio_requests.pop_back() {
+                self.send_request(msg).into_actor(self).spawn(ctx);
+            } else if let Some(msg) = self.low_prio_requests.pop_back() {
+                self.send_request(msg).into_actor(self).spawn(ctx);
             } else {
                 break; // no more messages to send at this time stop looping
             }
@@ -642,7 +645,7 @@ where
         } = message;
 
         let ret_val = Box::new(
-            self.send_request(RequestPriority::Low, method, path, |b| {
+            self.enqueue_request(RequestPriority::Low, method, path, |b| {
                 builder.build_request(b)
             })
             .and_then(|client_response| {

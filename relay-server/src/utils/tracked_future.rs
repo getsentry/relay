@@ -7,7 +7,7 @@ pub trait IntoTracked<F>
 where
     F: Future,
 {
-    fn to_tracked(self, notifier: Sender<TrackedFutureFinished>) -> TrackedFuture<F>;
+    fn track(self, notifier: Sender<TrackedFutureFinished>) -> TrackedFuture<F>;
 }
 
 pub struct TrackedFuture<F> {
@@ -20,7 +20,7 @@ impl<F> IntoTracked<F> for F
 where
     F: Future,
 {
-    fn to_tracked(self, notifier: Sender<TrackedFutureFinished>) -> TrackedFuture<F> {
+    fn track(self, notifier: Sender<TrackedFutureFinished>) -> TrackedFuture<F> {
         TrackedFuture {
             notified: false,
             inner: self,
