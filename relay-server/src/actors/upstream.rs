@@ -19,6 +19,7 @@
 //!
 use std::borrow::Cow;
 use std::collections::VecDeque;
+use std::fmt;
 use std::str;
 use std::sync::Arc;
 
@@ -163,11 +164,27 @@ impl UpstreamRateLimits {
 /// Requests are queued and send to the HTTP connections according to their priorities
 /// High priority messages are sent first and then, when no high priority message is pending,
 /// low priority messages are sent. Within the same priority messages are sent FIFO.
+#[derive(Debug, Clone, Copy)]
 pub enum RequestPriority {
     /// High priority, low volume messages (e.g. ProjectConfig, ProjectStates, Registration messages)
     High,
     /// Low priority, high volume messages (e.g. Events and Outcomes)
     Low,
+}
+
+impl RequestPriority {
+    fn name(&self) -> &'static str {
+        match self {
+            RequestPriority::High => "high",
+            RequestPriority::Low => "low",
+        }
+    }
+}
+
+impl fmt::Display for RequestPriority {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
 }
 
 /// UpstreamRequest objects are queued inside the Upstream actor.
@@ -251,10 +268,9 @@ impl UpstreamRelay {
             pump_http_queue_notifications: Some(receiver),
             http_request_finished_notifier: sender,
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
+            max_inflight_requests: config.max_concurrent_requests(),
             config,
             auth_state: AuthState::Unknown,
-            // TODO get the real value from a config and use it with ClientConnector::limit
-            max_inflight_requests: 100,
             num_inflight_requests: 0,
             high_prio_requests: VecDeque::new(),
             low_prio_requests: VecDeque::new(),
@@ -322,9 +338,9 @@ impl UpstreamRelay {
             //   1. Have own connection pool for `store` requests
             //   2. Buffer up/queue/synchronize events before creating the request
             .wait_timeout(self.config.event_buffer_expiry())
+            .conn_timeout(self.config.http_connection_timeout())
             // This is the timeout after wait + connect.
             .timeout(self.config.http_timeout())
-            .conn_timeout(self.config.http_connection_timeout())
             .track(self.http_request_finished_notifier.clone())
             .map_err(UpstreamRequestError::SendFailed)
             .and_then(handle_response)
@@ -357,19 +373,16 @@ impl UpstreamRelay {
         match priority {
             RequestPriority::Low => {
                 self.low_prio_requests.push_front(request);
-                metric!(
-                    histogram(RelayHistograms::UpstreamLowPriorityMessageQueueSize) =
-                        self.low_prio_requests.len() as u64
-                );
             }
             RequestPriority::High => {
                 self.high_prio_requests.push_front(request);
-                metric!(
-                    histogram(RelayHistograms::UpstreamHighPriorityMessageQueueSize) =
-                        self.high_prio_requests.len() as u64
-                );
             }
         };
+        metric!(
+            histogram(RelayHistograms::UpstreamMessageQueueSize) =
+                self.low_prio_requests.len() as u64,
+            priority = priority.name()
+        );
 
         let future = rx
             // map errors caused by the oneshot channel being closed (unlikely)

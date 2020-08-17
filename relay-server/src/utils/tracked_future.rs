@@ -16,6 +16,17 @@ pub struct TrackedFuture<F> {
     inner: F,
 }
 
+impl<F> TrackedFuture<F> {
+    fn notify(&mut self) {
+        self.notifier
+            .try_send(TrackedFutureFinished)
+            .map_err(|_| {
+                log::error!("TrackedFuture could not notify completion");
+            })
+            .ok();
+    }
+}
+
 impl<F> IntoTracked<F> for F
 where
     F: Future,
@@ -44,12 +55,7 @@ where
             _ => {
                 // future is finished notify channel
                 self.notified = true;
-                self.notifier
-                    .try_send(TrackedFutureFinished)
-                    .map_err(|_| {
-                        log::error!("TrackedFuture could not notify completion");
-                    })
-                    .ok();
+                self.notify();
             }
         }
         ret_val
@@ -60,12 +66,7 @@ impl<F> Drop for TrackedFuture<F> {
     fn drop(&mut self) {
         if !self.notified {
             //future dropped without being brought to completion
-            self.notifier
-                .try_send(TrackedFutureFinished)
-                .map_err(|_| {
-                    log::error!("TrackedFuture could not notify completion");
-                })
-                .ok();
+            self.notify();
         }
     }
 }

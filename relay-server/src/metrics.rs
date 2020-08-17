@@ -56,10 +56,9 @@ pub enum RelayHistograms {
     ProjectStateCacheSize,
     /// The number of upstream requests queued up for a connection in the connection pool.
     ConnectorWaitQueue,
-    /// Number of high priority messages queued by the Upstream actor and waiting to be sent over http.
-    UpstreamHighPriorityMessageQueueSize,
-    /// Number of low priority messages queued by the Upstream actor and waiting to be sent over http.
-    UpstreamLowPriorityMessageQueueSize,
+    /// Number of messages queued by the Upstream actor and waiting to be sent over http.
+    /// This metric is tagged with a priority label (for high and low priority queues).
+    UpstreamMessageQueueSize,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -74,12 +73,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::ProjectStateReceived => "project_state.received",
             RelayHistograms::ProjectStateCacheSize => "project_cache.size",
             RelayHistograms::ConnectorWaitQueue => "connector.wait_queue",
-            RelayHistograms::UpstreamHighPriorityMessageQueueSize => {
-                "http_queue.high_priority.queue_size"
-            }
-            RelayHistograms::UpstreamLowPriorityMessageQueueSize => {
-                "http_queue.low_priority.queue_size"
-            }
+            RelayHistograms::UpstreamMessageQueueSize => "http_queue.size",
         }
     }
 }
