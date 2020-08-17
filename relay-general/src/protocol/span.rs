@@ -1,5 +1,5 @@
 use crate::protocol::{OperationType, SpanId, SpanStatus, Timestamp, TraceId};
-use crate::types::{Annotated, Object, Value, LenientString};
+use crate::types::{Annotated, JsonLenientString, Object, Value};
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
@@ -36,7 +36,7 @@ pub struct Span {
     pub status: Annotated<SpanStatus>,
 
     /// Arbitrary tags on a span, like on the top-level event.
-    pub tags: Annotated<Object<LenientString>>,
+    pub tags: Annotated<Object<JsonLenientString>>,
 
     /// Arbitrary additional data on a span, like `extra` on the top-level event.
     pub data: Annotated<Object<Value>>,
