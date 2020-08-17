@@ -712,9 +712,6 @@ pub struct Processing {
     /// Maximum rate limit to report to clients.
     #[serde(default = "default_max_rate_limit")]
     pub max_rate_limit: Option<u32>,
-    /// Emits flags for rate limited attachments. Disabled by default.
-    #[serde(default)]
-    pub _attachment_flag: bool,
 }
 
 impl Default for Processing {
@@ -732,7 +729,6 @@ impl Default for Processing {
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
-            _attachment_flag: false,
         }
     }
 }
@@ -1407,10 +1403,6 @@ impl Config {
         self.values.processing.max_rate_limit.map(u32::into)
     }
 
-    /// Emits flags for rate limited attachments. Disabled by default.
-    pub fn emit_attachment_rate_limit_flag(&self) -> bool {
-        self.values.processing._attachment_flag
-    }
 }
 
 impl Default for Config {

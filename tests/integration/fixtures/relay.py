@@ -74,7 +74,6 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
                     "outcomes": "",
                 },
                 "redis": "",
-                "_attachment_flag": True,
             },
         }
 
