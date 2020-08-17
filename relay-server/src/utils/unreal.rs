@@ -86,10 +86,14 @@ pub fn expand_unreal_envelope(
         envelope.add_item(item);
     }
 
+    // if we managed to create an event and it's not empty from the unreal crash
+    // properties we feed it into the envelope as json event.
     if let Some(event) = event {
-        let mut item = Item::new(ItemType::Event);
-        item.set_payload(ContentType::Json, serde_json::to_vec(&event).unwrap());
-        envelope.add_item(item);
+        if event.as_object().map_or(false, |val| !val.is_empty()) {
+            let mut item = Item::new(ItemType::Event);
+            item.set_payload(ContentType::Json, serde_json::to_vec(&event).unwrap());
+            envelope.add_item(item);
+        }
     }
 
     Ok(())
@@ -233,7 +237,8 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
     // modules not used just remove it from runtime props
     runtime_props.modules.take();
 
-    // remove sentry custom properties
+    // remove sentry custom properties.  These were already handled earlier when the
+    // crash report was expanded.  See `expand_unreal_envelope` for more information.
     runtime_props.custom.remove("sentry");
     for (key, value) in mem::replace(&mut runtime_props.custom, Default::default()).into_iter() {
         if !key.starts_with("sentry[") {
