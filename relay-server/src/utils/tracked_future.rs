@@ -1,25 +1,30 @@
-use futures::{sync::mpsc::Sender, Async, Future, Poll};
+use actix::{Message, Recipient};
+use futures::{Async, Future, Poll};
 
 /// Message send on the notification channel when the tracked future finishes or is disposed.
 pub struct TrackedFutureFinished;
+
+impl Message for TrackedFutureFinished {
+    type Result = ();
+}
 
 pub trait IntoTracked<F>
 where
     F: Future,
 {
-    fn track(self, notifier: Sender<TrackedFutureFinished>) -> TrackedFuture<F>;
+    fn track(self, notifier: Recipient<TrackedFutureFinished>) -> TrackedFuture<F>;
 }
 
 pub struct TrackedFuture<F> {
     notified: bool,
-    notifier: Sender<TrackedFutureFinished>,
+    notifier: Recipient<TrackedFutureFinished>,
     inner: F,
 }
 
 impl<F> TrackedFuture<F> {
     fn notify(&mut self) {
         self.notifier
-            .try_send(TrackedFutureFinished)
+            .do_send(TrackedFutureFinished)
             .map_err(|_| {
                 log::error!("TrackedFuture could not notify completion");
             })
@@ -31,7 +36,7 @@ impl<F> IntoTracked<F> for F
 where
     F: Future,
 {
-    fn track(self, notifier: Sender<TrackedFutureFinished>) -> TrackedFuture<F> {
+    fn track(self, notifier: Recipient<TrackedFutureFinished>) -> TrackedFuture<F> {
         TrackedFuture {
             notified: false,
             inner: self,

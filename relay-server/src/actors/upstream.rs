@@ -30,11 +30,7 @@ use actix_web::error::{JsonPayloadError, PayloadError};
 use actix_web::http::{header, Method, StatusCode};
 use actix_web::{Error as ActixError, HttpMessage};
 use failure::Fail;
-use futures::{
-    future,
-    prelude::*,
-    sync::{mpsc, oneshot},
-};
+use futures::{future, prelude::*, sync::oneshot};
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
@@ -198,9 +194,6 @@ struct UpstreamRequest {
 }
 
 pub struct UpstreamRelay {
-    // receiver queue
-    pump_http_queue_notifications: Option<mpsc::Receiver<TrackedFutureFinished>>,
-    http_request_finished_notifier: mpsc::Sender<TrackedFutureFinished>,
     backoff: RetryBackoff,
     config: Arc<Config>,
     auth_state: AuthState,
@@ -261,12 +254,7 @@ fn handle_response(
 
 impl UpstreamRelay {
     pub fn new(config: Arc<Config>) -> Self {
-        //TODO discus size (probably shouldn't be very big, if notifications accumulate we
-        // have a problem, unbounded probably a bad idea)
-        let (sender, receiver) = mpsc::channel(1000);
         UpstreamRelay {
-            pump_http_queue_notifications: Some(receiver),
-            http_request_finished_notifier: sender,
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             max_inflight_requests: config.max_concurrent_requests(),
             config,
@@ -285,7 +273,11 @@ impl UpstreamRelay {
         }
     }
 
-    fn send_request(&mut self, request: UpstreamRequest) -> ResponseFuture<(), ()> {
+    fn send_request(
+        &mut self,
+        request: UpstreamRequest,
+        ctx: &mut Context<Self>,
+    ) -> ResponseFuture<(), ()> {
         let UpstreamRequest {
             response_sender,
             method,
@@ -341,7 +333,7 @@ impl UpstreamRelay {
             .conn_timeout(self.config.http_connection_timeout())
             // This is the timeout after wait + connect.
             .timeout(self.config.http_timeout())
-            .track(self.http_request_finished_notifier.clone())
+            .track(ctx.address().recipient())
             .map_err(UpstreamRequestError::SendFailed)
             .and_then(handle_response)
             .then(|x| {
@@ -437,11 +429,6 @@ impl Actor for UpstreamRelay {
 
         if self.config.relay_mode() == RelayMode::Managed {
             context.notify(Authenticate);
-        }
-
-        // start handling messages from the mpsc channel
-        if let Some(receiver) = self.pump_http_queue_notifications.take() {
-            Self::add_stream(receiver, context);
         }
     }
 
@@ -567,9 +554,9 @@ impl Handler<PumpHttpMessageQueue> for UpstreamRelay {
     fn handle(&mut self, _msg: PumpHttpMessageQueue, ctx: &mut Self::Context) -> Self::Result {
         while self.num_inflight_requests < self.max_inflight_requests {
             if let Some(msg) = self.high_prio_requests.pop_back() {
-                self.send_request(msg).into_actor(self).spawn(ctx);
+                self.send_request(msg, ctx).into_actor(self).spawn(ctx);
             } else if let Some(msg) = self.low_prio_requests.pop_back() {
-                self.send_request(msg).into_actor(self).spawn(ctx);
+                self.send_request(msg, ctx).into_actor(self).spawn(ctx);
             } else {
                 break; // no more messages to send at this time stop looping
             }
@@ -674,13 +661,13 @@ where
     }
 }
 
-/// This handler handles messages sent on the mpsc channel that mark the end of an http request
-/// future. The handler decrements the counter of in-flight HTTP requests (since one was just
+/// This handler handles messages that mark the end of an http request future.
+/// The handler decrements the counter of in-flight HTTP requests (since one was just
 /// finished) and tries to pump the http message queue by sending a `PumpHttpMessageQueue`
 ///
 /// Every future representing an HTTP message sent by the ClientConnector is wrapped so that when
-/// it finishes or it is dropped a message is sent into a mpsc channel. This handler deals with
-/// the receiver end of the mpsc channel.
+/// it finishes or it is dropped a message is sent back to the actor to notify it that a http connection
+/// was freed.
 ///
 /// **Note:** An alternative, simpler, implementation would have been to increment the in-flight
 /// requests counter just before sending an http message and to decrement it when the future
@@ -689,7 +676,8 @@ where
 /// the mpsc channel or this handler, it would have not dealt with dropped futures.
 /// Weather the added complexity of this design is justified by being able to handle dropped
 /// futures is not clear to me (RaduW) at this moment.
-impl StreamHandler<TrackedFutureFinished, ()> for UpstreamRelay {
+impl Handler<TrackedFutureFinished> for UpstreamRelay {
+    type Result = ();
     /// handle notifications received from the tracked future stream
     fn handle(&mut self, _item: TrackedFutureFinished, ctx: &mut Self::Context) {
         // an HTTP request has finished update the inflight requests and pump the message queue
