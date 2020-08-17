@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fix Python 3 incompatibilities in Relay authentication helpers. ([#712](https://github.com/getsentry/relay/pull/712))
+
 ## 0.5.12
 
 - Always create a spans array for transactions in normalization. ([#667](https://github.com/getsentry/relay/pull/667))
