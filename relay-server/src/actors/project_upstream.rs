@@ -15,7 +15,7 @@ use relay_config::Config;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{FetchProjectState, ProjectError, ProjectStateResponse};
-use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ErrorBoundary};
 
@@ -41,6 +41,10 @@ impl UpstreamQuery for GetProjectStates {
 
     fn path(&self) -> Cow<'static, str> {
         Cow::Borrowed("/api/0/relays/projectconfigs/")
+    }
+
+    fn priority() -> RequestPriority {
+        RequestPriority::High
     }
 }
 

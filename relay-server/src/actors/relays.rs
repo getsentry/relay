@@ -16,7 +16,7 @@ use relay_auth::{PublicKey, RelayId};
 use relay_common::{LogError, RetryBackoff};
 use relay_config::Config;
 
-use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::utils::{self, ApiErrorResponse, Response};
 
 #[derive(Fail, Debug)]
@@ -331,6 +331,10 @@ impl UpstreamQuery for GetRelays {
 
     fn path(&self) -> Cow<'static, str> {
         Cow::Borrowed("/api/0/relays/publickeys/")
+    }
+
+    fn priority() -> RequestPriority {
+        RequestPriority::High
     }
 }
 

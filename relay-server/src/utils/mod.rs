@@ -7,6 +7,7 @@ mod rate_limits;
 mod request;
 mod shutdown;
 mod timer;
+mod tracked_future;
 
 #[cfg(feature = "processing")]
 mod kafka;
@@ -23,6 +24,7 @@ pub use self::rate_limits::*;
 pub use self::request::*;
 pub use self::shutdown::*;
 pub use self::timer::*;
+pub use self::tracked_future::*;
 
 #[cfg(feature = "processing")]
 pub use self::kafka::*;
