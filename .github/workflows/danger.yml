@@ -6,9 +6,8 @@ jobs:
     name: Changelogs
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v1
-      - name: Danger
-        uses: danger/danger-js@9.1.8
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+      - run: npx danger@9.1.8 ci
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
