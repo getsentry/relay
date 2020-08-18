@@ -188,7 +188,6 @@ def test_minidump_sentry_json(mini_sentry, relay):
     assert event_item["user"]["id"] == "123"
 
 
-
 def test_minidump_sentry_json_chunked(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
