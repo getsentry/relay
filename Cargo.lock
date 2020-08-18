@@ -3480,7 +3480,7 @@ checksum = "502d53007c02d7605a05df1c1a73ee436952781653da5d0bf57ad608f66932c1"
 [[package]]
 name = "symbolic"
 version = "7.4.0"
-source = "git+https://github.com/getsentry/symbolic#de6bf9ca5e58d3ca6a60ad60a1f674642611c3fd"
+source = "git+https://github.com/getsentry/symbolic?rev=cbd5ed546e48e80c882996871985ac68e6c2ba5e#cbd5ed546e48e80c882996871985ac68e6c2ba5e"
 dependencies = [
  "symbolic-common",
  "symbolic-unreal",
@@ -3489,7 +3489,7 @@ dependencies = [
 [[package]]
 name = "symbolic-common"
 version = "7.4.0"
-source = "git+https://github.com/getsentry/symbolic#de6bf9ca5e58d3ca6a60ad60a1f674642611c3fd"
+source = "git+https://github.com/getsentry/symbolic?rev=cbd5ed546e48e80c882996871985ac68e6c2ba5e#cbd5ed546e48e80c882996871985ac68e6c2ba5e"
 dependencies = [
  "debugid",
  "failure",
@@ -3502,7 +3502,7 @@ dependencies = [
 [[package]]
 name = "symbolic-unreal"
 version = "7.4.0"
-source = "git+https://github.com/getsentry/symbolic#de6bf9ca5e58d3ca6a60ad60a1f674642611c3fd"
+source = "git+https://github.com/getsentry/symbolic?rev=cbd5ed546e48e80c882996871985ac68e6c2ba5e#cbd5ed546e48e80c882996871985ac68e6c2ba5e"
 dependencies = [
  "anylog",
  "bytes 0.4.12",

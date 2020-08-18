@@ -1,5 +1,5 @@
 SHELL=/bin/bash
-export RELAY_PYTHON_VERSION := python3.7
+export RELAY_PYTHON_VERSION := python3
 export RELAY_FEATURES := ssl
 
 all: check test

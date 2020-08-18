@@ -59,4 +59,4 @@ openssl-probe = "0.1.2"
 clap = { version = "2.33.1", default-features = false }
 
 [patch.crates-io]
-symbolic = { git = "https://github.com/getsentry/symbolic" }
+symbolic = { git = "https://github.com/getsentry/symbolic", rev = "cbd5ed546e48e80c882996871985ac68e6c2ba5e" }

@@ -1,5 +1,3 @@
-use std::mem;
-
 use symbolic::unreal::{
     Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4FileType, Unreal4LogEntry,
 };
@@ -15,7 +13,6 @@ use crate::constants::{
     ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT, UNREAL_USER_HEADER,
 };
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::utils;
 
 /// Maximum number of unreal logs to parse for breadcrumbs.
 const MAX_NUM_UNREAL_LOGS: usize = 40;
@@ -46,26 +43,14 @@ pub fn expand_unreal_envelope(
             Unreal4FileType::Config => (ContentType::OctetStream, AttachmentType::Attachment),
             Unreal4FileType::Context => {
                 let context = Unreal4Context::parse(file.data())?;
-                if let Some(runtime_props) = context.runtime_properties {
-                    let mut json_event: serde_json::Value =
-                        if let Some(sentry_json) = runtime_props.custom.get("sentry") {
-                            match serde_json::from_str(sentry_json) {
-                                Ok(event) => event,
-                                Err(_) => {
-                                    log::debug!("invalid json event payload in form data");
-                                    serde_json::Value::Object(Default::default())
-                                }
-                            }
-                        } else {
+                if let Some(sentry_json) = context.game_data.get("__sentry") {
+                    let json_event: serde_json::Value = match serde_json::from_str(sentry_json) {
+                        Ok(event) => event,
+                        Err(_) => {
+                            log::debug!("invalid json event payload in form data");
                             serde_json::Value::Object(Default::default())
-                        };
-
-                    // Keys in the form sentry[nested][key]
-                    for (key, value) in runtime_props.custom.into_iter() {
-                        if let Some(keys) = utils::get_sentry_entry_indexes(&key) {
-                            utils::update_nested_value(&mut json_event, &keys, value);
                         }
-                    }
+                    };
 
                     event = Some(json_event);
                 }
@@ -237,12 +222,17 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
     // modules not used just remove it from runtime props
     runtime_props.modules.take();
 
-    // remove sentry custom properties.  These were already handled earlier when the
-    // crash report was expanded.  See `expand_unreal_envelope` for more information.
-    runtime_props.custom.remove("sentry");
-    for (key, value) in mem::replace(&mut runtime_props.custom, Default::default()).into_iter() {
-        if !key.starts_with("sentry[") {
-            runtime_props.custom.insert(key, value);
+    // promote all game data (except the special __sentry key) into a context.
+    if !context.game_data.is_empty() {
+        let game_context = contexts.get_or_insert_with("game", || Context::Other(Object::new()));
+        if let Context::Other(game_context) = game_context {
+            game_context.extend(
+                context
+                    .game_data
+                    .into_iter()
+                    .filter(|(key, _)| key != "__sentry")
+                    .map(|(key, value)| (key, Annotated::new(Value::String(value)))),
+            );
         }
     }
 
