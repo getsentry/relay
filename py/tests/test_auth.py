@@ -9,6 +9,11 @@ def test_basic_key_functions():
     assert pk.verify(b"some secret data", signature)
     assert not pk.verify(b"some other data", signature)
 
+    packed, signature = sk.pack({"foo": "bar"})
+    pk.unpack(packed, signature)
+    with pytest.raises(sentry_relay.UnpackErrorBadSignature):
+        pk.unpack(b"haha", signature)
+
 
 def test_challenge_response():
     resp = sentry_relay.create_register_challenge(

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Remove a temporary flag from attachment kafka messages indicating rate limited crash reports to Sentry. This is now enabled by default. ([#718](https://github.com/getsentry/relay/pull/718))
+
+## 20.8.0
+
 **Features**:
 
 - Add the `http.connection_timeout` configuration option to adjust the connection and SSL handshake timeout. The default connect timeout is now increased from 1s to 3s. ([#688](https://github.com/getsentry/relay/pull/688))

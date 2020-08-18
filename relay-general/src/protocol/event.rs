@@ -191,6 +191,7 @@ pub struct Event {
     pub id: Annotated<EventId>,
 
     /// Severity level of the event. Defaults to `error`.
+    ///
     /// Example:
     ///
     /// ```json

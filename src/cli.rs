@@ -398,7 +398,7 @@ pub fn process_event<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
 
 #[cfg(feature = "jsonschema")]
 pub fn event_json_schema<'a>(_matches: &ArgMatches<'a>) -> Result<(), Error> {
-    serde_json::to_writer(
+    serde_json::to_writer_pretty(
         &mut io::stdout().lock(),
         &relay_general::protocol::event_json_schema(),
     )?;

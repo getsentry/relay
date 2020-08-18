@@ -1,6 +1,6 @@
 [package]
 name = "relay-general"
-version = "20.7.2"
+version = "20.8.0"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
@@ -35,7 +35,7 @@ uaparser = { version = "0.3.3", optional = true }
 url = "2.1.1"
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
 relay-common = { path = "../relay-common" }
-schemars = { version = "0.8.0-alpha-4", git = "https://github.com/untitaker/schemars", branch = "preserve-formatting", features = ["uuid", "chrono"], optional = true }
+schemars = { version = "0.8.0-alpha-4", features = ["uuid", "chrono"], optional = true }
 
 [dev-dependencies]
 difference = "2.0.0"

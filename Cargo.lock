@@ -2688,7 +2688,7 @@ checksum = "26412eb97c6b088a6997e05f69403a802a92d520de2f8e63c2b65f9e0f47c4e8"
 
 [[package]]
 name = "relay"
-version = "20.7.2"
+version = "20.8.0"
 dependencies = [
  "chrono",
  "clap",
@@ -2713,7 +2713,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "20.7.2"
+version = "20.8.0"
 dependencies = [
  "base64 0.10.1",
  "chrono",
@@ -2728,7 +2728,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "20.7.2"
+version = "20.8.0"
 dependencies = [
  "backoff",
  "cadence",
@@ -2748,7 +2748,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "20.7.2"
+version = "20.8.0"
 dependencies = [
  "failure",
  "human-size",
@@ -2765,7 +2765,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "20.7.2"
+version = "20.8.0"
 dependencies = [
  "globset",
  "insta 0.15.0",
@@ -2781,7 +2781,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general"
-version = "20.7.2"
+version = "20.8.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -2818,7 +2818,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general-derive"
-version = "20.7.2"
+version = "20.8.0"
 dependencies = [
  "proc-macro2 1.0.18",
  "quote 1.0.7",
@@ -2828,7 +2828,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "20.7.2"
+version = "20.8.0"
 dependencies = [
  "failure",
  "insta 0.15.0",
@@ -2844,7 +2844,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "20.7.2"
+version = "20.8.0"
 dependencies = [
  "failure",
  "r2d2",
@@ -2854,7 +2854,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "20.7.2"
+version = "20.8.0"
 dependencies = [
  "actix",
  "actix-web",
@@ -3035,7 +3035,8 @@ dependencies = [
 [[package]]
 name = "schemars"
 version = "0.8.0-alpha-4"
-source = "git+https://github.com/untitaker/schemars?branch=preserve-formatting#54810054ab7d85763090c07c4e498d9603814892"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb19de085c2896c0f4ac42cb2af046ec769be3fdcaf8e93a599f5cbbdf543ffa"
 dependencies = [
  "chrono",
  "dyn-clone",
@@ -3048,7 +3049,8 @@ dependencies = [
 [[package]]
 name = "schemars_derive"
 version = "0.8.0-alpha-4"
-source = "git+https://github.com/untitaker/schemars?branch=preserve-formatting#54810054ab7d85763090c07c4e498d9603814892"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fd0c2d87acadcb53176cee5cb10eb3d4024de3d3619dd38d0041ce53c601748"
 dependencies = [
  "proc-macro2 1.0.18",
  "quote 1.0.7",

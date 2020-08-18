@@ -565,7 +565,7 @@ pub enum Context {
     Browser(Box<BrowserContext>),
     /// Information about device's GPU.
     Gpu(Box<GpuContext>),
-    /// Information related to Monitors feature.
+    /// Information related to Tracing.
     Trace(Box<TraceContext>),
     /// Information related to Monitors feature.
     Monitor(Box<MonitorContext>),

@@ -1,23 +1,48 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Attribute, Visibility};
+use syn::{parse_quote, Attribute, Lit, Meta, MetaNameValue, Visibility};
 
 use crate::parse_field_attributes;
 
-fn is_doc_attr(attr: &Attribute) -> bool {
-    attr.parse_meta()
-        .ok()
-        .and_then(|meta| Some(meta.path().get_ident()? == "doc"))
-        .unwrap_or(false)
+/// Take an attribute set from the original struct and:
+///
+/// 1. Filter out all attibutes but `schemars` and `doc`.
+/// 2. Replace #[doc = "foo"] with #[schemars(description = "foo")]. While schemars already uses
+///    docstrings for its jsonschema description by default, it applies line-wrapping logic that
+///    destroys markdown. Explicitly setting description bypasses that.
+///
+fn transform_attributes(attrs: &mut Vec<Attribute>) {
+    let mut description = String::new();
+
+    attrs.retain(|attr| {
+        if attr.path.is_ident("doc") {
+            if let Ok(Meta::NameValue(MetaNameValue {
+                lit: Lit::Str(s), ..
+            })) = attr.parse_meta()
+            {
+                if !description.is_empty() {
+                    description.push('\n');
+                }
+                description.push_str(&s.value());
+                return false;
+            }
+        }
+
+        attr.path.is_ident("schemars")
+    });
+
+    if !description.is_empty() {
+        attrs.push(parse_quote!(#[schemars(description = #description)]));
+    }
 }
 
 pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
     let _ = s.add_bounds(synstructure::AddBounds::Generics);
 
-    let mut arms = quote!();
+    let mut arms = Vec::new();
 
     for variant in s.variants() {
-        let mut fields = quote!();
+        let mut fields = Vec::new();
 
         let mut is_tuple_struct = false;
 
@@ -25,47 +50,38 @@ pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
             let field_attrs = parse_field_attributes(index, &bi.ast(), &mut is_tuple_struct);
             let name = field_attrs.field_name;
 
-            fields = quote! {
-                #fields
-                #[schemars_preserve_doc_formatting]
-                #[schemars(rename = #name)]
-            };
+            let mut ast = bi.ast().clone();
+            ast.vis = Visibility::Inherited;
+            transform_attributes(&mut ast.attrs);
+
+            ast.attrs.push(parse_quote!(#[schemars(rename = #name)]));
 
             if !field_attrs.required.unwrap_or(false) {
-                fields = quote!(#fields #[schemars(default = "__schemars_null")]);
+                ast.attrs
+                    .push(parse_quote!(#[schemars(default = "__schemars_null")]));
             }
 
             if field_attrs.additional_properties || field_attrs.omit_from_schema {
-                fields = quote!(#fields #[schemars(skip)]);
+                ast.attrs.push(parse_quote!(#[schemars(skip)]));
             }
 
-            let mut ast = bi.ast().clone();
-            ast.vis = Visibility::Inherited;
-            ast.attrs.retain(is_doc_attr);
-            fields = quote!(#fields #ast,);
+            fields.push(ast);
         }
 
         let ident = variant.ast().ident;
 
         let arm = if is_tuple_struct {
-            quote!( #ident( #fields ) )
+            quote!( #ident( #(#fields),* ) )
         } else {
-            quote!( #ident { #fields } )
+            quote!( #ident { #(#fields),* } )
         };
 
-        arms = quote! {
-            #arms
-            #arm,
-        };
+        arms.push(arm);
     }
 
     let ident = &s.ast().ident;
-    let mut attrs = quote!();
-    for attr in &s.ast().attrs {
-        if is_doc_attr(attr) {
-            attrs = quote!(#attrs #attr);
-        }
-    }
+    let mut attrs = s.ast().attrs.clone();
+    transform_attributes(&mut attrs);
 
     s.gen_impl(quote! {
         // Massive hack to tell schemars that fields are nullable. Causes it to emit {"default":
@@ -84,10 +100,9 @@ pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
                 #[derive(schemars::JsonSchema)]
                 #[cfg_attr(feature = "jsonschema", schemars(untagged))]
                 #[cfg_attr(feature = "jsonschema", schemars(deny_unknown_fields))]
-                #[schemars_preserve_doc_formatting]
-                #attrs
+                #(#attrs)*
                 enum Helper {
-                    #arms
+                    #(#arms),*
                 }
 
                 Helper::json_schema(gen)
