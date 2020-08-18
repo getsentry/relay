@@ -1,4 +1,4 @@
-use crate::protocol::{OperationType, SpanId, SpanStatus, Timestamp, TraceId};
+use crate::protocol::{JsonLenientString, OperationType, SpanId, SpanStatus, Timestamp, TraceId};
 use crate::types::{Annotated, Object, Value};
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
@@ -34,6 +34,12 @@ pub struct Span {
 
     /// The status of a span
     pub status: Annotated<SpanStatus>,
+
+    /// Arbitrary tags on a span, like on the top-level event.
+    pub tags: Annotated<Object<JsonLenientString>>,
+
+    /// Arbitrary additional data on a span, like `extra` on the top-level event.
+    pub data: Annotated<Object<Value>>,
 
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
