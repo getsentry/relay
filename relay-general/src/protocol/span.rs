@@ -1,5 +1,5 @@
-use crate::protocol::{OperationType, SpanId, SpanStatus, Timestamp, TraceId};
-use crate::types::{Annotated, JsonLenientString, Object, Value};
+use crate::protocol::{JsonLenientString, OperationType, SpanId, SpanStatus, Timestamp, TraceId};
+use crate::types::{Annotated, Object, Value};
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
