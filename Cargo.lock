@@ -2857,6 +2857,7 @@ name = "relay-general"
 version = "20.8.0"
 dependencies = [
  "bytecount",
+ "bytes 0.4.12",
  "chrono",
  "cookie 0.12.0",
  "criterion",
@@ -2870,6 +2871,7 @@ dependencies = [
  "lazy_static",
  "maxminddb",
  "memmap",
+ "minidump",
  "num-traits 0.2.12",
  "pest",
  "pest_derive",
@@ -2897,16 +2899,6 @@ dependencies = [
  "quote 1.0.7",
  "syn 1.0.33",
  "synstructure 0.12.4",
-]
-
-[[package]]
-name = "relay-minidump"
-version = "20.6.0"
-dependencies = [
- "bytes 0.4.12",
- "failure",
- "minidump",
- "relay-general",
 ]
 
 [[package]]
@@ -2966,7 +2958,6 @@ dependencies = [
  "relay-config",
  "relay-filter",
  "relay-general",
- "relay-minidump",
  "relay-quotas",
  "relay-redis",
  "rmp-serde",

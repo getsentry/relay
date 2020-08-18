@@ -12,6 +12,8 @@ mod redactions;
 mod regexes;
 mod utils;
 
+pub mod minidumps;
+
 pub use self::attachments::{AttachmentBytesType, PiiAttachmentsProcessor};
 pub use self::builtin::BUILTIN_RULES;
 pub use self::compiledconfig::CompiledPiiConfig;

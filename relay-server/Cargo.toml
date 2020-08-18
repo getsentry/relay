@@ -49,7 +49,6 @@ relay-common = { path = "../relay-common" }
 relay-config = { path = "../relay-config" }
 relay-filter = { path = "../relay-filter" }
 relay-general = { path = "../relay-general" }
-relay-minidump = { path = "../relay-minidump" }
 relay-quotas = { path = "../relay-quotas" }
 relay-redis = { path = "../relay-redis" }
 rmp-serde = "0.14.3"

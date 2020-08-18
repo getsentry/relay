@@ -14,6 +14,7 @@ use serde_json::Value as SerdeValue;
 
 use relay_common::{clone, metric, LogError};
 use relay_config::{Config, RelayMode};
+use relay_general::pii::minidumps::{scrub_minidump, Error as MinidumpError};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
@@ -22,7 +23,6 @@ use relay_general::protocol::{
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
-use relay_minidump::{scrub_minidump, Error as MinidumpError};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 
@@ -983,7 +983,6 @@ impl EventProcessor {
     ///
     /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
     fn scrub_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let envelope = &mut state.envelope;
         let event = &mut state.event;
         let config = &state.project_state.config;
 
@@ -993,16 +992,7 @@ impl EventProcessor {
                 let mut processor = PiiProcessor::new(&compiled);
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
-
-                let minidump = envelope
-                    .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump));
-                if let Some(mut item) = minidump {
-                    let processor = PiiAttachmentsProcessor::new(&compiled);
-                    self.scrub_minidump(processor, &mut item)?;
-                    envelope.add_item(item);
-                }
             }
-
             if let Some(ref config) = *config.datascrubbing_settings.pii_config() {
                 let compiled = config.compiled();
                 let mut processor = PiiProcessor::new(&compiled);
@@ -1014,21 +1004,26 @@ impl EventProcessor {
         Ok(())
     }
 
-    fn scrub_minidump(
-        &self,
-        processor: PiiAttachmentsProcessor,
-        attachment: &mut Item,
-    ) -> Result<(), ProcessingError> {
-        let scrubbed_data = scrub_minidump(
-            attachment.filename().unwrap_or("unknown"),
-            attachment.payload(),
-            processor,
-        )?;
-        let content_type = attachment
-            .content_type()
-            .unwrap_or(&ContentType::Minidump)
-            .clone();
-        attachment.set_payload(content_type, scrubbed_data);
+    fn scrub_attachments(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let envelope = &mut state.envelope;
+        if let Some(ref config) = state.project_state.config.pii_config {
+            let minidump = envelope
+                .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump));
+            if let Some(mut item) = minidump {
+                let compiled = config.compiled();
+                let processor = PiiAttachmentsProcessor::new(&compiled);
+                let scrubbed_data = scrub_minidump(
+                    item.filename().unwrap_or("unknown"),
+                    item.payload(),
+                    processor,
+                )?;
+                let content_type = item
+                    .content_type()
+                    .unwrap_or(&ContentType::Minidump)
+                    .clone();
+                item.set_payload(content_type, scrubbed_data);
+            }
+        }
         Ok(())
     }
 
@@ -1091,6 +1086,7 @@ impl EventProcessor {
             self.scrub_event(&mut state)?;
             self.serialize_event(&mut state)?;
         }
+        self.scrub_attachments(&mut state)?;
 
         Ok(ProcessEnvelopeResponse::from(state))
     }
