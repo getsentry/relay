@@ -162,7 +162,7 @@ expression: event_json_schema()
           ]
         },
         "level": {
-          "description": " Severity level of the event. Defaults to `error`.\n Example:\n\n ```json\n {\"level\": \"warning\"}\n ```",
+          "description": " Severity level of the event. Defaults to `error`.\n\n Example:\n\n ```json\n {\"level\": \"warning\"}\n ```",
           "default": null,
           "anyOf": [
             {
@@ -1367,7 +1367,7 @@ expression: event_json_schema()
               ]
             },
             "instruction_addr": {
-              "description": " (C/C++/Native) An optional instruction address for symbolication.\n This should be a string with a hexadecimal number that includes a 0x prefix.\n If this is set and a known image is defined in the\n [Debug Meta Interface]({%- link _documentation/development/sdk-dev/event-payloads/debugmeta.md -%}),\n then symbolication can take place.",
+              "description": " (C/C++/Native) An optional instruction address for symbolication.\n\n This should be a string with a hexadecimal number that includes a 0x prefix.\n If this is set and a known image is defined in the\n [Debug Meta Interface]({%- link _documentation/development/sdk-dev/event-payloads/debugmeta.md -%}),\n then symbolication can take place.",
               "default": null,
               "anyOf": [
                 {
@@ -1457,7 +1457,7 @@ expression: event_json_schema()
               ]
             },
             "symbol_addr": {
-              "description": " (C/C++/Native) Start address of the frame's function.\n We use the instruction address for symbolication, but this can be used to calculate\n an instruction offset automatically.",
+              "description": " (C/C++/Native) Start address of the frame's function.\n\n We use the instruction address for symbolication, but this can be used to calculate\n an instruction offset automatically.",
               "default": null,
               "anyOf": [
                 {

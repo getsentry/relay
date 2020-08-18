@@ -86,10 +86,15 @@ parameters:
 
 - The `mode` setting configures the major mode in which Relay operates. For more
   information on available relay modes, refer to _[Relay Modes]_.
+
+  **Right now, the only options supported by `sentry.io` are `proxy` and `static` mode.**
+
 - The `upstream` setting configures the server to which Relay will forward the
   events (by default the main `sentry.io` URL).
+
 - The `port` and `host` settings configure the TCP port at which Relay will
   listen to. This is the address to which SDKs send events.
+
 - The `tls` settings configure TLS support (HTTPS support), used for
   the cases where the communication between the SDK and Relay needs to be
   secured.
@@ -113,6 +118,8 @@ Options].
 
 ### Credentials
 
+*Not applicable in `proxy`/`static` mode.*
+
 Besides `config.yml`, the `init` command has also created a credentials file `credentials.json` in the same `.relay` directory. This file contains the a public and private key used by Relay to authenticate with the upstream server.
 
 **As such, it is important that this file should be adequatly protected from modification or viewing by unauthorized entities**.
@@ -131,8 +138,7 @@ You will be using the `public_key` to register your Relay with the upstream serv
 
 ### Registering Relay with Sentry
 
-**This option is not available on Sentry.io. Instead, configure Relay in `proxy`
-or `static` mode and skip this step.**
+*Not applicable in `proxy`/`static` mode.*
 
 To operate in `managed` mode, Relay pulls configuration for PII stripping,
 filtering, and rate limiting from your organization and project settings at
