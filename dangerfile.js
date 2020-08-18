@@ -2,9 +2,10 @@ const files = danger.git.modified_files;
 const hasChangelog = files.indexOf("CHANGELOG.md") !== -1;
 const hasPyChangelog = files.indexOf("py/CHANGELOG.md") !== -1;
 
-const ERROR_MESSAGE = `
-Please consider adding a changelog entry for the next release:
+const ERROR_MESSAGE =
+  "Please consider adding a changelog entry for the next release.";
 
+const DETAILS = `
 For changes exposed to the Python package, please add an entry to \`py/CHANGELOG.md\`. This includes, but is not limited to event normalization, PII scrubbing, and the protocol.
 
 For changes to the Relay server, please add an entry to \`CHANGELOG.md\`:
@@ -20,5 +21,6 @@ const skipChangelog =
   (danger.github.pr.body + danger.github.pr.title).includes("#skip-changelog");
 
 if (!hasChangelog && !hasPyChangelog && !skipChangelog) {
-  error(ERROR_MESSAGE);
+  fail(ERROR_MESSAGE);
+  markdown(DETAILS);
 }
