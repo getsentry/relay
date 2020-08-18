@@ -36,9 +36,11 @@ pub struct Span {
     pub status: Annotated<SpanStatus>,
 
     /// Arbitrary tags on a span, like on the top-level event.
+    #[metastructure(pii = "maybe")]
     pub tags: Annotated<Object<JsonLenientString>>,
 
     /// Arbitrary additional data on a span, like `extra` on the top-level event.
+    #[metastructure(pii = "maybe")]
     pub data: Annotated<Object<Value>>,
 
     // TODO remove retain when the api stabilizes
