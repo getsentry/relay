@@ -1,11 +1,10 @@
 //! Minidump handling for Relay
 
 use std::convert::TryFrom;
-use std::ops::Deref;
 
 use bytes::{Bytes, BytesMut};
 use failure::Fail;
-use minidump::format::{MINIDUMP_LOCATION_DESCRIPTOR, RVA};
+use minidump::format::{MINIDUMP_LOCATION_DESCRIPTOR, MINIDUMP_STREAM_TYPE, RVA};
 use minidump::{Error as MinidumpError, Minidump, MinidumpMemoryList, MinidumpThreadList};
 
 use relay_general::pii::{AttachmentBytesType, PiiAttachmentsProcessor};
@@ -22,79 +21,124 @@ pub enum Error {
     },
 }
 
-pub fn scrub_minidump<'a, T>(
+pub fn scrub_minidump(
     filename: impl AsRef<str>,
-    minidump: Minidump<'a, T>,
-    minidump_data: Bytes,
+    raw: Bytes,
     processor: PiiAttachmentsProcessor,
-) -> Result<Bytes, Error>
-where
-    T: Deref<Target = [u8]> + 'a,
-{
-    let offsets = MinidumpOffsets::try_from(minidump)?;
-    let mut raw = BytesMut::from(minidump_data);
+) -> Result<Bytes, Error> {
+    let md = MinidumpData::try_from(raw.clone())?;
+    let mut raw = BytesMut::from(raw);
 
-    for desc in offsets.mem_stack.iter() {
+    for mem in md.memory_descriptors()? {
+        match mem {
+            MemoryDescriptor::Stack(ref desc) => {
+                processor.scrub_attachment_bytes(
+                    filename.as_ref(),
+                    raw.desc_mut_slice(desc),
+                    AttachmentBytesType::MinidumpStack,
+                );
+            }
+            MemoryDescriptor::NonStack(ref desc) => {
+                processor.scrub_attachment_bytes(
+                    filename.as_ref(),
+                    raw.desc_mut_slice(desc),
+                    AttachmentBytesType::MinidumpHeap,
+                );
+            }
+        }
+    }
+    for desc in md.raw_descriptors()? {
         processor.scrub_attachment_bytes(
             filename.as_ref(),
-            raw.desc_mut_slice(desc),
-            AttachmentBytesType::MinidumpStack,
+            raw.desc_mut_slice(&desc),
+            AttachmentBytesType::PlainAttachment,
         );
     }
-    for desc in offsets.mem_nonstack.iter() {
-        processor.scrub_attachment_bytes(
-            filename.as_ref(),
-            raw.desc_mut_slice(desc),
-            AttachmentBytesType::MinidumpHeap,
-        );
-    }
+
     Ok(raw.freeze())
 }
 
-/// Locations of interesting byte-ranges in the raw minidump data.
+/// Internal struct to keep a minidump and it's raw data together.
 ///
-/// To mutate a minidump we need offsets into the data.  We can get those from the minidump
-/// crate but this involves using various structs which have immutable references to the
-/// minidump data.  As we can not have mutable and immutable references to the minidump data
-/// at the same time we collect all the offsets up-front in this struct.
-struct MinidumpOffsets {
-    mem_stack: Vec<MINIDUMP_LOCATION_DESCRIPTOR>,
-    mem_nonstack: Vec<MINIDUMP_LOCATION_DESCRIPTOR>,
+/// This cheats by pretending the lifetime of the minidump is static.  However since it
+/// stores the data keeping the minidump alive itself it can safely do this.  It would be
+/// nicer if this would actually tie the lifetime together using rental but Bytes does not
+/// implement StableDeref (https://github.com/tokio-rs/bytes/issues/426).
+struct MinidumpData {
+    raw: Bytes,
+    minidump: Minidump<'static, Bytes>,
 }
 
-impl<'a, T> TryFrom<Minidump<'a, T>> for MinidumpOffsets
-where
-    T: Deref<Target = [u8]> + 'a,
-{
+impl TryFrom<Bytes> for MinidumpData {
     type Error = Error;
 
-    fn try_from(minidump: Minidump<'a, T>) -> Result<Self, Self::Error> {
-        let thread_list: MinidumpThreadList = minidump.get_stream().map_err(|e| Error::Parse {
-            what: "ThreadList".to_string(),
-            cause: e,
-        })?;
+    fn try_from(raw: Bytes) -> Result<Self, Self::Error> {
+        let minidump = Minidump::read(raw.clone()).map_err(Error::InvalidMinidump)?;
+        let minidump = unsafe { std::mem::transmute(minidump) };
+        Ok(Self { raw, minidump })
+    }
+}
+
+enum MemoryDescriptor {
+    Stack(MINIDUMP_LOCATION_DESCRIPTOR),
+    NonStack(MINIDUMP_LOCATION_DESCRIPTOR),
+}
+
+impl MinidumpData {
+    fn memory_descriptors(&self) -> Result<Vec<MemoryDescriptor>, Error> {
+        let thread_list: MinidumpThreadList =
+            self.minidump.get_stream().map_err(|e| Error::Parse {
+                what: "ThreadList".to_string(),
+                cause: e,
+            })?;
         let stack_rvas: Vec<RVA> = thread_list
             .threads
             .iter()
             .map(|t| t.raw.stack.memory.rva)
             .collect();
-        let mem_list: MinidumpMemoryList = minidump.get_stream().map_err(|e| Error::Parse {
-            what: "MemoryList".to_string(),
-            cause: e,
-        })?;
-        let mut mem_stack = Vec::new();
-        let mut mem_nonstack = Vec::new();
+        let mem_list: MinidumpMemoryList =
+            self.minidump.get_stream().map_err(|e| Error::Parse {
+                what: "MemoryList".to_string(),
+                cause: e,
+            })?;
+        let mut ret = Vec::new();
         for mem in mem_list.iter() {
             if stack_rvas.contains(&mem.desc.memory.rva) {
-                mem_stack.push(mem.desc.memory);
+                ret.push(MemoryDescriptor::Stack(mem.desc.memory));
             } else {
-                mem_nonstack.push(mem.desc.memory);
+                ret.push(MemoryDescriptor::NonStack(mem.desc.memory));
             }
         }
-        Ok(Self {
-            mem_stack,
-            mem_nonstack,
-        })
+        Ok(ret)
+    }
+
+    fn raw_descriptors(&self) -> Result<Vec<MINIDUMP_LOCATION_DESCRIPTOR>, Error> {
+        let mut ret = Vec::new();
+        let raw_stream_types = [
+            MINIDUMP_STREAM_TYPE::LinuxEnviron,
+            MINIDUMP_STREAM_TYPE::LinuxCmdLine,
+        ];
+        for stream_type in &raw_stream_types {
+            match self.minidump.get_raw_stream(*stream_type) {
+                Ok(stream) => {
+                    let stream_p = stream.as_ptr() as usize;
+                    let data_p = self.raw.as_ptr() as usize;
+                    let offset = stream_p - data_p;
+                    ret.push(MINIDUMP_LOCATION_DESCRIPTOR {
+                        rva: offset as u32,
+                        data_size: stream.len() as u32,
+                    });
+                }
+                Err(minidump::Error::StreamNotFound) => (),
+                Err(e) => {
+                    return Err(Error::Parse {
+                        what: "RawStream".to_string(),
+                        cause: e,
+                    })
+                }
+            }
+        }
+        Ok(ret)
     }
 }
 

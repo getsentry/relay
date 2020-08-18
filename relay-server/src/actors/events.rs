@@ -1019,10 +1019,8 @@ impl EventProcessor {
         processor: PiiAttachmentsProcessor,
         attachment: &mut Item,
     ) -> Result<(), ProcessingError> {
-        let minidump = Minidump::read(attachment.payload())?;
         let scrubbed_data = scrub_minidump(
             attachment.filename().unwrap_or("unknown"),
-            minidump,
             attachment.payload(),
             processor,
         )?;
