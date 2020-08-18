@@ -123,16 +123,8 @@ impl StoreForwarder {
                 .map(|content_type| content_type.as_str().to_owned()),
             attachment_type: item.attachment_type().unwrap_or_default(),
             chunks: chunk_index,
-            size: if self.config.emit_attachment_rate_limit_flag() {
-                Some(size)
-            } else {
-                None
-            },
-            rate_limited: if self.config.emit_attachment_rate_limit_flag() {
-                Some(item.rate_limited())
-            } else {
-                None
-            },
+            size: Some(size),
+            rate_limited: Some(item.rate_limited()),
         })
     }
 
