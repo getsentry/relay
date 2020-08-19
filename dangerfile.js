@@ -19,9 +19,7 @@ If none of the above apply, you can opt out by adding _#skip-changelog_ to the P
 const skipChangelog =
   danger.github && (danger.github.pr.body + "").includes("#skip-changelog");
 
-if (skipChangelog) {
-  message("Opted out of changelogs due to #skip-changelog.");
-} else if (!hasChangelog && !hasPyChangelog) {
+if (!skipChangelog && !hasChangelog && !hasPyChangelog) {
   fail(ERROR_MESSAGE);
   markdown(DETAILS);
 }
