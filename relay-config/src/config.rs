@@ -457,6 +457,8 @@ struct Limits {
     max_envelope_size: ByteSize,
     /// The maximum number of session items per envelope.
     max_session_count: usize,
+    /// The maximum number of measurement items per envelope.
+    max_measurement_count: usize,
     /// The maximum payload size for general API requests.
     max_api_payload_size: ByteSize,
     /// The maximum payload size for file uploads and chunks.
@@ -492,6 +494,7 @@ impl Default for Limits {
             max_attachments_size: ByteSize::mebibytes(100),
             max_envelope_size: ByteSize::mebibytes(100),
             max_session_count: 100,
+            max_measurement_count: 100,
             max_api_payload_size: ByteSize::mebibytes(20),
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
@@ -1335,6 +1338,11 @@ impl Config {
     /// Returns the maximum number of sessions per envelope.
     pub fn max_session_count(&self) -> usize {
         self.values.limits.max_session_count
+    }
+
+    /// Returns the maximum number of measurements per envelope.
+    pub fn max_measurement_count(&self) -> usize {
+        self.values.limits.max_measurement_count
     }
 
     /// Returns the maximum payload size for general API requests.

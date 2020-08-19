@@ -627,6 +627,9 @@ impl EventProcessor {
             ItemType::Attachment => false,
             ItemType::UserReport => false,
 
+            // TODO: unsure about this
+            ItemType::Measures => false,
+
             // session data is never considered as part of deduplication
             ItemType::Session => false,
         }

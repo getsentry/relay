@@ -90,6 +90,8 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Session => None,
         ItemType::FormData => None,
         ItemType::UserReport => None,
+        // TODO: does this need a data category?
+        ItemType::Measures => None,
     }
 }
 
