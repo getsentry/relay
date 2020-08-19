@@ -1785,6 +1785,20 @@ expression: event_json_schema()
         }
       ]
     },
+    "Measurements": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      ]
+    },
     "MeasuresContext": {
       "description": " Measurements context",
       "anyOf": [
@@ -1794,17 +1808,14 @@ expression: event_json_schema()
             "measurements": {
               "description": " measurements",
               "default": null,
-              "type": [
-                "object",
-                "null"
-              ],
-              "additionalProperties": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "format": "double"
-              }
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Measurements"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           }
         }
