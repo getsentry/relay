@@ -777,6 +777,9 @@ expression: event_json_schema()
           "$ref": "#/definitions/TraceContext"
         },
         {
+          "$ref": "#/definitions/MeasuresContext"
+        },
+        {
           "$ref": "#/definitions/MonitorContext"
         },
         {
@@ -1777,6 +1780,31 @@ expression: event_json_schema()
               ],
               "format": "uint64",
               "minimum": 0.0
+            }
+          }
+        }
+      ]
+    },
+    "MeasuresContext": {
+      "description": " Measurements context",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "measurements": {
+              "description": " measurements",
+              "default": null,
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "format": "double"
+              }
             }
           }
         }
