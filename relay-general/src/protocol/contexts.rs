@@ -391,7 +391,49 @@ impl MonitorContext {
 pub struct MeasuresContext {
     /// measurements
     #[metastructure(retain = "true", skip_serialization = "never")]
-    pub measurements: Annotated<Object<f64>>,
+    pub measurements: Annotated<Measurements>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct Measurements(pub Object<f64>);
+
+impl FromValue for Measurements {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::Object(items)), meta) => {
+                let mut measurements = Object::<f64>::new();
+
+                for (name, raw_value) in items.into_iter() {
+                    let value = match raw_value {
+                        Annotated(Some(Value::I64(value)), meta) => {
+                            Annotated(Some(value as f64), meta)
+                        }
+                        Annotated(Some(Value::U64(value)), meta) => {
+                            Annotated(Some(value as f64), meta)
+                        }
+                        Annotated(Some(Value::F64(value)), meta) => Annotated(Some(value), meta),
+                        Annotated(None, meta) => Annotated(None, meta),
+                        Annotated(Some(value), mut meta) => {
+                            meta.add_error(Error::expected("number"));
+                            meta.set_original_value(Some(value));
+                            Annotated(None, meta)
+                        }
+                    };
+
+                    measurements.insert(name.to_lowercase(), value);
+                }
+
+                Annotated(Some(Measurements(measurements)), meta)
+            }
+            Annotated(None, meta) => Annotated(None, meta),
+            Annotated(Some(value), mut meta) => {
+                meta.add_error(Error::expected("measurements"));
+                meta.set_original_value(Some(value));
+                Annotated(None, meta)
+            }
+        }
+    }
 }
 
 impl MeasuresContext {
@@ -938,7 +980,7 @@ fn test_trace_context_roundtrip() {
 #[test]
 fn test_measurements_context_normalization() {
     let json = r#"{
-  "measurements": {"foo":420.69},
+  "measurements": {"foo":420.69, "BAR": 2020},
   "type": "measures"
 }"#;
 
@@ -946,7 +988,8 @@ fn test_measurements_context_normalization() {
         measurements: Annotated::new({
             let mut obj = Object::<f64>::new();
             obj.insert("foo".to_string(), Annotated::new(420.69));
-            obj
+            obj.insert("bar".to_string(), Annotated::new(2020.0));
+            Measurements(obj)
         }),
     })));
 

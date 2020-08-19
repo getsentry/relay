@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use crate::protocol::{Context, MeasuresContext, OsContext, RuntimeContext};
+use crate::protocol::{Context, Measurements, MeasuresContext, OsContext, RuntimeContext};
 use crate::types::{Empty, Object};
 
 lazy_static::lazy_static! {
@@ -106,14 +106,18 @@ fn normalize_measures_context(measures: &mut MeasuresContext) {
         return;
     }
 
-    let mut measurements = Object::<f64>::new();
+    let mut new_measurements = Object::<f64>::new();
+
+    let Measurements(measurements) = measures.measurements.value().unwrap();
 
     // TODO: do this better
-    for (measurement_name, value) in measures.measurements.value().unwrap().iter() {
-        measurements.insert(measurement_name.to_lowercase(), value.clone());
+    for (measurement_name, value) in measurements.iter() {
+        new_measurements.insert(measurement_name.to_lowercase(), value.clone());
     }
 
-    measures.measurements.set_value(measurements.into());
+    measures
+        .measurements
+        .set_value(Some(Measurements(new_measurements)));
 }
 
 pub fn normalize_context(context: &mut Context) {
@@ -363,13 +367,15 @@ fn test_measures_normalization() {
         measurements: Annotated::new({
             let mut obj = Object::<f64>::new();
             obj.insert("FOO".to_string(), Annotated::new(420.69));
-            obj
+            Measurements(obj)
         }),
     };
 
     normalize_measures_context(&mut measures);
 
-    for (measurement_name, _value) in measures.measurements.value().unwrap().iter() {
+    let Measurements(measurements) = measures.measurements.value().unwrap();
+
+    for (measurement_name, _value) in measurements.iter() {
         assert_eq_dbg!(
             measurement_name.to_string(),
             measurement_name.to_lowercase()
