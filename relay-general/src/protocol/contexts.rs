@@ -283,6 +283,7 @@ pub type OperationType = String;
 lazy_static::lazy_static! {
     static ref TRACE_ID: Regex = Regex::new("^[a-fA-F0-9]{32}$").unwrap();
     static ref SPAN_ID: Regex = Regex::new("^[a-fA-F0-9]{16}$").unwrap();
+    static ref MEASUREMENT_NAME: Regex = Regex::new("^[a-z0-9-._]+$").unwrap();
 }
 
 /// GPU information.
@@ -401,10 +402,10 @@ pub struct Measurements(pub Object<f64>);
 impl FromValue for Measurements {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
-            Annotated(Some(Value::Object(items)), meta) => {
+            Annotated(Some(Value::Object(items)), mut meta) => {
                 let mut measurements = Object::<f64>::new();
 
-                for (name, raw_value) in items.into_iter() {
+                for (raw_name, raw_value) in items.into_iter() {
                     let value = match raw_value {
                         Annotated(Some(Value::I64(value)), meta) => {
                             Annotated(Some(value as f64), meta)
@@ -421,7 +422,18 @@ impl FromValue for Measurements {
                         }
                     };
 
-                    measurements.insert(name.to_lowercase(), value);
+                    let measurement_name = raw_name.to_lowercase();
+
+                    if !MEASUREMENT_NAME.is_match(&measurement_name) {
+                        meta.add_error(Error::expected(
+                            "measurement name to contain only characters a-zA-Z0-9-_.",
+                        ));
+                        meta.set_original_value(Some(raw_name));
+
+                        // TODO: fix this
+                    }
+
+                    measurements.insert(measurement_name, value);
                 }
 
                 Annotated(Some(Measurements(measurements)), meta)
