@@ -9,6 +9,9 @@ mod shutdown;
 mod timer;
 mod tracked_future;
 
+#[cfg(test)]
+mod test;
+
 #[cfg(feature = "processing")]
 mod kafka;
 

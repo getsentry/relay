@@ -2862,6 +2862,7 @@ dependencies = [
  "bytes 0.4.12",
  "chrono",
  "clap",
+ "env_logger",
  "failure",
  "flate2",
  "futures 0.1.29",
