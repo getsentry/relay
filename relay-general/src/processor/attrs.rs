@@ -510,25 +510,30 @@ impl<'a> Path<'a> {
     }
 
     /// Checks if a path matches given selector.
-    pub fn matches_selector(&self, selector: &SelectorSpec) -> bool {
+    pub fn matches_selector(&self, pii: Pii, selector: &SelectorSpec) -> bool {
         match *selector {
             SelectorSpec::Path(ref path) => {
-                // fastest path: the selector is deeper than the current structure.
-                if path.len() > self.0.depth {
+                // fastest path: the selector is deeper than the current structure, or the field is
+                // not supposed to be scrubbed.
+                if path.len() > self.0.depth || pii == Pii::False {
                     return false;
                 }
 
                 // fast path: we do not have any deep matches
                 let mut state_iter = self.0.iter().filter(|state| state.entered_anything());
-                let mut selector_iter = path.iter().rev();
+                let mut selector_iter = path.iter().enumerate().rev();
                 let mut depth_match = false;
                 for state in &mut state_iter {
                     if !match selector_iter.next() {
-                        Some(SelectorPathItem::DeepWildcard) => {
+                        Some((_, SelectorPathItem::DeepWildcard)) => {
+                            if pii == Pii::Maybe {
+                                return false;
+                            }
+
                             depth_match = true;
                             break;
                         }
-                        Some(ref path_item) => path_item.matches_state(state),
+                        Some((i, ref path_item)) => path_item.matches_state(i, pii, state),
                         None => break,
                     } {
                         return false;
@@ -543,14 +548,13 @@ impl<'a> Path<'a> {
                 // match of the selector.
                 let remaining_states = state_iter.collect::<SmallVec<[&ProcessingState<'_>; 16]>>();
                 let mut selector_iter = selector_iter.rev().peekable();
-                let first_selector_path = match selector_iter.next() {
+                let (first_selector_path_pos, first_selector_path) = match selector_iter.next() {
                     Some(selector_path) => selector_path,
                     None => return !remaining_states.is_empty(),
                 };
-                let mut path_match_iterator = remaining_states
-                    .iter()
-                    .rev()
-                    .skip_while(|state| !first_selector_path.matches_state(state));
+                let mut path_match_iterator = remaining_states.iter().rev().skip_while(|state| {
+                    !first_selector_path.matches_state(first_selector_path_pos, pii, state)
+                });
                 if path_match_iterator.next().is_none() {
                     return false;
                 }
@@ -558,12 +562,22 @@ impl<'a> Path<'a> {
                 // then we check all remaining items and that nothing is left of the selector
                 path_match_iterator
                     .zip(&mut selector_iter)
-                    .all(|(state, selector_path)| selector_path.matches_state(state))
+                    .all(|(state, (pos, selector_path))| {
+                        selector_path.matches_state(pos, pii, state)
+                    })
                     && selector_iter.next().is_none()
             }
-            SelectorSpec::And(ref xs) => xs.iter().all(|x| self.matches_selector(x)),
-            SelectorSpec::Or(ref xs) => xs.iter().any(|x| self.matches_selector(x)),
-            SelectorSpec::Not(ref x) => !self.matches_selector(x),
+
+            // Conjunction: At least one subselector needs to be specific if the selector needs to be
+            // specific
+            // All subselectors must match, generally (ignoring pii=maybe)
+            SelectorSpec::And(ref xs) => xs.iter().all(|x| self.matches_selector(Pii::True, x)) && xs.iter().any(|x| self.matches_selector(pii, x)),
+
+            // Disjunction: At least one subselector must match
+            SelectorSpec::Or(ref xs) => xs.iter().any(|x| self.matches_selector(pii, x)),
+
+            // Negation disallows pii=maybe.
+            SelectorSpec::Not(ref x) => pii == Pii::True && !self.matches_selector(pii, x),
         }
     }
 }
@@ -589,106 +603,156 @@ impl<'a> fmt::Display for Path<'a> {
 
 #[allow(clippy::cognitive_complexity)]
 #[test]
-fn test_path_matching() {
+fn test_selector_matching() {
+    use itertools::Itertools;
+
+    macro_rules! assert_matches_raw {
+        ($state:expr, $pii:expr, $selector:expr, $expected:expr) => {{
+            assert!(
+                $state
+                    .path()
+                    .matches_selector($pii, &$selector.parse().unwrap())
+                    == $expected,
+                format!(
+                    "Matched {} against {} with pii={:?}, expected {}",
+                    $selector,
+                    $state.path(),
+                    $pii,
+                    $expected
+                )
+            );
+        }};
+    }
+
+    macro_rules! assert_matches {
+        ($state:expr, $($selector:expr,)*) => {{
+            let state = &$state;
+            $(
+                assert_matches_raw!(state, Pii::True, $selector, true);
+                assert_matches_raw!(state, Pii::Maybe, $selector, true);
+                assert_matches_raw!(state, Pii::False, $selector, false);
+            )*
+
+            let joined = vec![$($selector),*].into_iter().join(" && ");
+            assert_matches_raw!(state, Pii::True, &joined, true);
+            assert_matches_raw!(state, Pii::Maybe, &joined, true);
+            assert_matches_raw!(state, Pii::False, &joined, false);
+
+            let joined = vec![$($selector),*].into_iter().join(" || ");
+            assert_matches_raw!(state, Pii::True, &joined, true);
+            assert_matches_raw!(state, Pii::Maybe, &joined, true);
+            assert_matches_raw!(state, Pii::False, &joined, false);
+
+            let joined = vec!["**", $($selector),*].into_iter().join(" || ");
+            assert_matches_raw!(state, Pii::True, &joined, true);
+            assert_matches_raw!(state, Pii::Maybe, &joined, true);
+            assert_matches_raw!(state, Pii::False, &joined, false);
+        }}
+    }
+
+    macro_rules! assert_matches_non_specific {
+        ($state:expr, $($selector:expr,)*) => {{
+            let state = &$state;
+            $(
+                assert_matches_raw!(state, Pii::True, $selector, true);
+                assert_matches_raw!(state, Pii::Maybe, $selector, false);
+                assert_matches_raw!(state, Pii::False, $selector, false);
+            )*
+
+            let joined = vec![$($selector),*].into_iter().join(" && ");
+            assert_matches_raw!(state, Pii::True, &joined, true);
+            assert_matches_raw!(state, Pii::Maybe, &joined, false);
+            assert_matches_raw!(state, Pii::False, &joined, false);
+
+            let joined = vec![$($selector),*].into_iter().join(" || ");
+            assert_matches_raw!(state, Pii::True, &joined, true);
+            assert_matches_raw!(state, Pii::Maybe, &joined, false);
+            assert_matches_raw!(state, Pii::False, &joined, false);
+
+            let joined = vec!["**", $($selector),*].into_iter().join(" || ");
+            assert_matches_raw!(state, Pii::True, &joined, true);
+            assert_matches_raw!(state, Pii::Maybe, &joined, false);
+            assert_matches_raw!(state, Pii::False, &joined, false);
+        }}
+    }
+
+    macro_rules! assert_not_matches {
+        ($state:expr, $($selector:expr,)*) => {{
+            let state = &$state;
+            $(
+                assert_matches_raw!(state, Pii::True, $selector, false);
+                assert_matches_raw!(state, Pii::Maybe, $selector, false);
+                assert_matches_raw!(state, Pii::False, $selector, false);
+            )*
+        }}
+    }
+
     let event_state = ProcessingState::new_root(None, Some(ValueType::Event)); // .
     let user_state = event_state.enter_static("user", None, Some(ValueType::User)); // .user
     let extra_state = user_state.enter_static("extra", None, Some(ValueType::Object)); // .user.extra
     let foo_state = extra_state.enter_static("foo", None, Some(ValueType::Array)); // .user.extra.foo
     let zero_state = foo_state.enter_index(0, None, None); // .user.extra.foo.0
 
-    // this is an exact match to the state
-    assert!(extra_state
-        .path()
-        .matches_selector(&"user.extra".parse().unwrap()));
+    assert_matches!(
+        extra_state,
+        "user.extra",  // this is an exact match to the state
+        "$user.extra", // this is a match below a type
+        "(** || user.*) && !(foo.bar.baz || a.b.c)",
+    );
 
-    // this is a match below a type
-    assert!(extra_state
-        .path()
-        .matches_selector(&"$user.extra".parse().unwrap()));
+    assert_matches_non_specific!(
+        extra_state,
 
-    // this is a wildcard match into a type
-    assert!(foo_state
-        .path()
-        .matches_selector(&"$user.extra.*".parse().unwrap()));
+        // known limitation: double-negations *could* be specific (I'd expect this as a user), but
+        // right now we don't support it
+        "!(!user.extra)", 
+        "!(!$user.extra)",
+    );
 
-    // a wildcard match into an array
-    assert!(zero_state
-        .path()
-        .matches_selector(&"$user.extra.foo.*".parse().unwrap()));
+    assert_matches!(
+        foo_state,
+        "$user.extra.*", // this is a wildcard match into a type
+    );
 
-    // a direct match into an array
-    assert!(zero_state
-        .path()
-        .matches_selector(&"$user.extra.foo.0".parse().unwrap()));
+    assert_matches!(
+        zero_state,
+        "$user.extra.foo.*", // a wildcard match into an array
+        "$user.extra.foo.0", // a direct match into an array
+    );
 
-    // direct mismatch in an array
-    assert!(!zero_state
-        .path()
-        .matches_selector(&"$user.extra.foo.1".parse().unwrap()));
+    assert_matches_non_specific!(
+        zero_state,
+        // deep matches are wild
+        "$user.extra.foo.**",
+        "$user.extra.**",
+        "$user.**",
+        "$event.**",
+        "$user.**.0",
+        // types are anywhere
+        "$user.$object.**.0",
+        "(**.0 | absolutebogus)",
+        "(~$object)",
+        "($object.** & (~absolutebogus))",
+        "($object.** & (~absolutebogus))",
+    );
 
-    // deep matches are wild
-    assert!(!zero_state
-        .path()
-        .matches_selector(&"$user.extra.bar.**".parse().unwrap()));
-    assert!(zero_state
-        .path()
-        .matches_selector(&"$user.extra.foo.**".parse().unwrap()));
-    assert!(zero_state
-        .path()
-        .matches_selector(&"$user.extra.**".parse().unwrap()));
-    assert!(zero_state
-        .path()
-        .matches_selector(&"$user.**".parse().unwrap()));
-    assert!(zero_state
-        .path()
-        .matches_selector(&"$event.**".parse().unwrap()));
-    assert!(!zero_state
-        .path()
-        .matches_selector(&"$user.**.1".parse().unwrap()));
-    assert!(zero_state
-        .path()
-        .matches_selector(&"$user.**.0".parse().unwrap()));
+    assert_not_matches!(
+        zero_state,
+        "$user.extra.foo.1", // direct mismatch in an array
+        // deep matches are wild
+        "$user.extra.bar.**",
+        "$user.**.1",
+        "($object | absolutebogus)",
+        "(~$object.**)",
+        "($object | (**.0 & absolutebogus))",
+    );
 
-    // types are anywhere
-    assert!(zero_state
-        .path()
-        .matches_selector(&"$user.$object.**.0".parse().unwrap()));
-    assert!(foo_state
-        .path()
-        .matches_selector(&"**.$array".parse().unwrap()));
+    assert_matches_non_specific!(
+        foo_state,
+        "($array & $object.*)",
+        "(** & $object.*)",
+        "**.$array",
+    );
 
-    // AND/OR/NOT
-    // (conjunction/disjunction/negation)
-    assert!(foo_state
-        .path()
-        .matches_selector(&"($array & $object.*)".parse().unwrap()));
-    assert!(!foo_state
-        .path()
-        .matches_selector(&"($object & $object.*)".parse().unwrap()));
-    assert!(foo_state
-        .path()
-        .matches_selector(&"(** & $object.*)".parse().unwrap()));
-
-    assert!(zero_state
-        .path()
-        .matches_selector(&"(**.0 | absolutebogus)".parse().unwrap()));
-    assert!(!zero_state
-        .path()
-        .matches_selector(&"($object | absolutebogus)".parse().unwrap()));
-    assert!(!zero_state
-        .path()
-        .matches_selector(&"($object | (**.0 & absolutebogus))".parse().unwrap()));
-
-    assert!(zero_state
-        .path()
-        .matches_selector(&"(~$object)".parse().unwrap()));
-    assert!(zero_state
-        .path()
-        .matches_selector(&"($object.** & (~absolutebogus))".parse().unwrap()));
-    assert!(zero_state
-        .path()
-        .matches_selector(&"($object.** & (~absolutebogus))".parse().unwrap()));
-    assert!(!zero_state
-        .path()
-        .matches_selector(&"(~$object.**)".parse().unwrap()));
+    assert_not_matches!(foo_state, "($object & $object.*)",);
 }

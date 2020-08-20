@@ -6,7 +6,7 @@ use pest::error::Error;
 use pest::iterators::Pair;
 use pest::Parser;
 
-use crate::processor::{ProcessingState, ValueType};
+use crate::processor::{Pii, ProcessingState, ValueType};
 
 /// Error for invalid selectors
 #[derive(Debug, Fail)]
@@ -65,13 +65,43 @@ impl fmt::Display for SelectorPathItem {
 }
 
 impl SelectorPathItem {
-    pub(super) fn matches_state(&self, state: &ProcessingState<'_>) -> bool {
-        match *self {
-            SelectorPathItem::Wildcard => true,
-            SelectorPathItem::DeepWildcard => true,
-            SelectorPathItem::Type(ty) => state.value_type() == Some(ty),
-            SelectorPathItem::Index(idx) => state.path().index() == Some(idx),
-            SelectorPathItem::Key(ref key) => state
+    /// Helper function to figure out of the path item matches the given processing state.
+    ///
+    /// `pii` is not the same as `state.attrs().pii`, it is rather the value of the substate for
+    /// which we are considering scrubbing (innermost child state of `state`)
+    ///
+    /// `pos` is the index inside the selector path
+    pub(super) fn matches_state(&self, pos: usize, pii: Pii, state: &ProcessingState<'_>) -> bool {
+        // For pii=maybe, a selector has to be "specific", i.e. we should be more certain that the
+        // user really meant to address this field.
+
+        match (pii, self) {
+            // pii=false can never match
+            (Pii::False, _) => false,
+
+            // Flat wildcard also works with pii=maybe, we say `tags.*` or
+            // `exceptions.values.*.frames.*.vars.foo` is specific enough.
+            (_, SelectorPathItem::Wildcard) => true,
+
+            // Deep wildcard
+            (Pii::Maybe, SelectorPathItem::DeepWildcard) => false,
+            (Pii::True, SelectorPathItem::DeepWildcard) => true,
+
+            // "Generic" JSON value types cannot be part of a specific path
+            (Pii::Maybe, SelectorPathItem::Type(ValueType::String)) => false,
+            (Pii::Maybe, SelectorPathItem::Type(ValueType::Number)) => false,
+            (Pii::Maybe, SelectorPathItem::Type(ValueType::Boolean)) => false,
+            (Pii::Maybe, SelectorPathItem::Type(ValueType::DateTime)) => false,
+            (Pii::Maybe, SelectorPathItem::Type(ValueType::Array)) => false,
+            (Pii::Maybe, SelectorPathItem::Type(ValueType::Object)) => false,
+
+            // Other schema-specific value types can be used with pii=maybe if they are on the first position.
+            (Pii::Maybe, SelectorPathItem::Type(ty)) => pos == 0 && state.value_type() == Some(*ty),
+            (Pii::True, SelectorPathItem::Type(ty)) => state.value_type() == Some(*ty),
+
+            // A selector is certainly specific if it directly addresses a key or index
+            (_, SelectorPathItem::Index(idx)) => state.path().index() == Some(*idx),
+            (_, SelectorPathItem::Key(ref key)) => state
                 .path()
                 .key()
                 .map(|k| k.to_lowercase() == key.to_lowercase())
@@ -86,59 +116,6 @@ pub enum SelectorSpec {
     Or(Vec<SelectorSpec>),
     Not(Box<SelectorSpec>),
     Path(Vec<SelectorPathItem>),
-}
-
-impl SelectorSpec {
-    /// A selector is specific if it directly addresses a single event location by path. We use
-    /// this distinction in the PII processor to decide whether pii=maybe should be scrubbed.
-    pub fn is_specific(&self) -> bool {
-        match *self {
-            SelectorSpec::And(ref selectors) => selectors.iter().any(SelectorSpec::is_specific),
-            SelectorSpec::Or(ref selectors) => selectors.iter().all(SelectorSpec::is_specific),
-            SelectorSpec::Not(_) => false,
-            SelectorSpec::Path(ref path) => {
-                path.iter().enumerate().all(|(i, item)| {
-                    match *item {
-                        SelectorPathItem::Type(ty) => match ty {
-                            // "Generic" JSON value types cannot be part of a specific path
-                            ValueType::String
-                            | ValueType::Number
-                            | ValueType::Boolean
-                            | ValueType::DateTime
-                            | ValueType::Array
-                            | ValueType::Object => false,
-
-                            // Other schema-specific value types can be if they are on the first
-                            // position. This list is explicitly typed out such that the decision
-                            // to add new value types to this list has to be made consciously.
-                            //
-                            // It's easy to change a `false` to `true` later, but a breaking change
-                            // to go the other direction. If you're not sure, return `false` for
-                            // your new value type.
-                            ValueType::Event
-                            | ValueType::Exception
-                            | ValueType::Stacktrace
-                            | ValueType::Frame
-                            | ValueType::Request
-                            | ValueType::User
-                            | ValueType::LogEntry
-                            | ValueType::Message
-                            | ValueType::Thread
-                            | ValueType::Breadcrumb
-                            | ValueType::Span
-                            | ValueType::ClientSdkInfo => i == 0,
-                        },
-                        SelectorPathItem::Index(_) => true,
-                        SelectorPathItem::Key(_) => true,
-                        // necessary because of array indices
-                        SelectorPathItem::Wildcard => true,
-                        // a deep wildcard is too sweeping to be specific
-                        SelectorPathItem::DeepWildcard => false,
-                    }
-                })
-            }
-        }
-    }
 }
 
 impl fmt::Display for SelectorSpec {
@@ -354,36 +331,4 @@ fn test_roundtrip() {
     check_roundtrip("!a && !b");
     check_roundtrip("!(a && !b)");
     check_roundtrip("!(a && b)");
-}
-
-#[test]
-fn test_is_specific() {
-    assert!(SelectorSpec::from_str("$frame.vars.foo")
-        .unwrap()
-        .is_specific());
-    assert!(!SelectorSpec::from_str("foo.$frame.vars.foo")
-        .unwrap()
-        .is_specific());
-    assert!(!SelectorSpec::from_str("$object.foo").unwrap().is_specific());
-    assert!(SelectorSpec::from_str("extra.foo").unwrap().is_specific());
-
-    assert!(SelectorSpec::from_str("extra.foo && extra.foo")
-        .unwrap()
-        .is_specific());
-    assert!(SelectorSpec::from_str("extra.foo && $string")
-        .unwrap()
-        .is_specific());
-    assert!(!SelectorSpec::from_str("$string && $string")
-        .unwrap()
-        .is_specific());
-
-    assert!(SelectorSpec::from_str("extra.foo || extra.foo")
-        .unwrap()
-        .is_specific());
-    assert!(!SelectorSpec::from_str("extra.foo || $string")
-        .unwrap()
-        .is_specific());
-    assert!(!SelectorSpec::from_str("$string || $string")
-        .unwrap()
-        .is_specific());
 }
