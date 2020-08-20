@@ -168,7 +168,7 @@ Click _New Relay Key_ to add the key and save it:
 </p>
 
 Now your Relay is registered with Sentry and ready to send messages. See
-[Configuration Options] page to learn more about further Relay configuration
+_[Configuration Options]_ to learn more about further Relay configuration
 options.
 
 ### Running Relay
@@ -241,6 +241,5 @@ project.
 [github releases]: https://github.com/getsentry/relay/releases
 [configuration options]: ./configuration/options
 [relay modes]: ./configuration/modes
-[Configuration Options]: ../options
 [dockerhub]: https://hub.docker.com/r/getsentry/relay/
 [docker volumes]: https://docs.docker.com/storage/volumes/
