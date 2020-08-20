@@ -9,74 +9,14 @@ use crate::pii::utils::{hash_value, in_range};
 use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::processor::{ProcessingState, ValueType};
 
-lazy_static::lazy_static! {
-    // TODO: This could be const
-    static ref ATTACHMENT_STATE: ProcessingState<'static> = ProcessingState::root()
-        .enter_static("", None, Some(ValueType::Attachments));
-}
+/// Copy `source` into `target`, truncating/padding with `padding` if necessary.
+fn replace_bytes_padded(source: &[u8], target: &mut [u8], padding: u8) {
+    let cutoff = source.len().min(target.len());
+    let (left, right) = target.split_at_mut(cutoff);
+    left.copy_from_slice(&source[..cutoff]);
 
-#[derive(Clone, Copy, Debug)]
-pub enum AttachmentBytesType {
-    PlainAttachment,
-    MinidumpHeap,
-    MinidumpStack,
-}
-
-impl AttachmentBytesType {
-    fn get_state_by_filename(self, filename: &str) -> ProcessingState<'_> {
-        let value_type = match self {
-            AttachmentBytesType::MinidumpStack => ValueType::StackMemory,
-            AttachmentBytesType::MinidumpHeap => ValueType::Memory,
-            AttachmentBytesType::PlainAttachment => ValueType::Binary,
-        };
-
-        ATTACHMENT_STATE.enter_borrowed(filename, None, Some(value_type))
-    }
-}
-
-pub struct PiiAttachmentsProcessor<'a> {
-    compiled_config: &'a CompiledPiiConfig,
-}
-
-impl<'a> PiiAttachmentsProcessor<'a> {
-    pub fn new(compiled_config: &'a CompiledPiiConfig) -> PiiAttachmentsProcessor<'a> {
-        // this constructor needs to be cheap... a new PiiProcessor is created for each event. Move
-        // any init logic into CompiledPiiConfig::new.
-        PiiAttachmentsProcessor { compiled_config }
-    }
-
-    pub fn scrub_attachment_bytes(
-        &self,
-        filename: &str,
-        data: &mut [u8],
-        bytes_type: AttachmentBytesType,
-    ) -> bool {
-        let state = bytes_type.get_state_by_filename(filename);
-
-        let mut changed = false;
-
-        for (selector, rules) in &self.compiled_config.applications {
-            if state.path().matches_selector(&selector) {
-                for rule in rules {
-                    // Note:
-                    //
-                    // - We ignore pattern_type and just treat every regex like a value regex (i.e.
-                    //   redactPair becomes pattern rule). Very unlikely anybody would want that
-                    //   behavior (e.g.  "Remove passwords on **" would remove a file called
-                    //   "passwords.txt", but also "author.txt").  Just use selectors!
-                    //
-                    // - We impose severe restrictions on how redaction methods work, as we must
-                    //   not change the lengths of attachments.
-                    for (_pattern_type, regex, replace_behavior) in
-                        get_regex_for_rule_type(&rule.ty)
-                    {
-                        changed |= apply_regex_to_bytes(data, rule, regex, &replace_behavior);
-                    }
-                }
-            }
-        }
-
-        changed
+    for byte in right {
+        *byte = padding;
     }
 }
 
@@ -130,8 +70,6 @@ fn apply_regex_to_bytes(
         return false;
     }
 
-    println!("number of matches: {}", matches.len());
-
     const DEFAULT_PADDING: u8 = b'x';
 
     match rule.redaction {
@@ -184,16 +122,73 @@ fn apply_regex_to_bytes(
     true
 }
 
-/// Copy `source` into `target`, trunchating/padding with `padding` if necessary.
-fn replace_bytes_padded(source: &[u8], target: &mut [u8], padding: u8) {
-    for (a, b) in source.iter().zip(target.iter_mut()) {
-        *b = *a;
+/// A PII processor for attachment files.
+pub struct PiiAttachmentsProcessor<'a> {
+    compiled_config: &'a CompiledPiiConfig,
+    root_state: ProcessingState<'static>,
+}
+
+impl<'a> PiiAttachmentsProcessor<'a> {
+    /// Creates a new `PiiAttachmentsProcessor` from the given PII config.
+    pub fn new(compiled_config: &'a CompiledPiiConfig) -> Self {
+        // this constructor needs to be cheap... a new PiiProcessor is created for each event. Move
+        // any init logic into CompiledPiiConfig::new.
+
+        let root_state =
+            ProcessingState::root().enter_static("", None, Some(ValueType::Attachments));
+
+        PiiAttachmentsProcessor {
+            compiled_config,
+            root_state,
+        }
     }
 
-    if source.len() < target.len() {
-        for x in &mut target[source.len()..] {
-            *x = padding;
+    /// Returns the processing state for the file with the given name.
+    pub(crate) fn state<'s>(
+        &'s self,
+        filename: &'s str,
+        value_type: ValueType,
+    ) -> ProcessingState<'s> {
+        self.root_state
+            .enter_borrowed(filename, None, Some(value_type))
+    }
+
+    /// Applies PII rules to a plain buffer.
+    ///
+    /// Returns `true`, if the buffer was modified.
+    pub(crate) fn scrub_bytes(&self, data: &mut [u8], state: &ProcessingState<'_>) -> bool {
+        let mut changed = false;
+
+        for (selector, rules) in &self.compiled_config.applications {
+            if state.path().matches_selector(&selector) {
+                for rule in rules {
+                    // Note:
+                    //
+                    // - We ignore pattern_type and just treat every regex like a value regex (i.e.
+                    //   redactPair becomes pattern rule). Very unlikely anybody would want that
+                    //   behavior (e.g.  "Remove passwords on **" would remove a file called
+                    //   "passwords.txt", but also "author.txt").  Just use selectors!
+                    //
+                    // - We impose severe restrictions on how redaction methods work, as we must
+                    //   not change the lengths of attachments.
+                    for (_pattern_type, regex, replace_behavior) in
+                        get_regex_for_rule_type(&rule.ty)
+                    {
+                        changed |= apply_regex_to_bytes(data, rule, regex, &replace_behavior);
+                    }
+                }
+            }
         }
+
+        changed
+    }
+
+    /// Applies PII scrubbing rules to a plain attachment.
+    ///
+    /// Returns `true`, if the attachment was modified.
+    pub fn scrub_attachment(&self, filename: &str, data: &mut [u8]) -> bool {
+        let state = self.state(filename, ValueType::Binary);
+        self.scrub_bytes(data, &state)
     }
 }
 
@@ -210,7 +205,7 @@ mod tests {
             selector: &'a str,
             rule: &'a str,
             filename: &'a str,
-            bytes_type: AttachmentBytesType,
+            value_type: ValueType,
             input: &'a [u8],
             output: &'a [u8],
             changed: bool,
@@ -219,7 +214,7 @@ mod tests {
             selector: &'a str,
             regex: &'a str,
             filename: &'a str,
-            bytes_type: AttachmentBytesType,
+            value_type: ValueType,
             input: &'a [u8],
             output: &'a [u8],
             changed: bool,
@@ -228,12 +223,12 @@ mod tests {
 
     impl<'a> AttachmentBytesTestCase<'a> {
         fn run(self) {
-            let (config, filename, bytes_type, input, output, changed) = match self {
+            let (config, filename, value_type, input, output, changed) = match self {
                 AttachmentBytesTestCase::Builtin {
                     selector,
                     rule,
                     filename,
-                    bytes_type,
+                    value_type,
                     input,
                     output,
                     changed,
@@ -246,13 +241,13 @@ mod tests {
                         }
                     ))
                     .unwrap();
-                    (config, filename, bytes_type, input, output, changed)
+                    (config, filename, value_type, input, output, changed)
                 }
                 AttachmentBytesTestCase::Regex {
                     selector,
                     regex,
                     filename,
-                    bytes_type,
+                    value_type,
                     input,
                     output,
                     changed,
@@ -274,14 +269,16 @@ mod tests {
                         }
                     ))
                     .unwrap();
-                    (config, filename, bytes_type, input, output, changed)
+                    (config, filename, value_type, input, output, changed)
                 }
             };
 
             let compiled = config.compiled();
-            let processor = PiiAttachmentsProcessor::new(&compiled);
             let mut data = input.to_owned();
-            let has_changed = processor.scrub_attachment_bytes(filename, &mut data, bytes_type);
+            let processor = PiiAttachmentsProcessor::new(&compiled);
+            let state = processor.state(filename, value_type);
+            let has_changed = processor.scrub_bytes(&mut data, &state);
+
             assert_eq_bytes_str!(data, output);
             assert_eq!(changed, has_changed);
         }
@@ -293,7 +290,7 @@ mod tests {
             selector: "$binary",
             rule: "@ip",
             filename: "foo.txt",
-            bytes_type: AttachmentBytesType::PlainAttachment,
+            value_type: ValueType::Binary,
             input: b"before 127.0.0.1 after",
             output: b"before [ip]xxxxx after",
             changed: true,
@@ -307,7 +304,7 @@ mod tests {
             selector: "$binary",
             rule: "@ip:hash",
             filename: "foo.txt",
-            bytes_type: AttachmentBytesType::PlainAttachment,
+            value_type: ValueType::Binary,
             input: b"before 127.0.0.1 after",
             output: b"before AE12FE3B5 after",
             changed: true,
@@ -321,7 +318,7 @@ mod tests {
             selector: "$binary",
             rule: "@ip:mask",
             filename: "foo.txt",
-            bytes_type: AttachmentBytesType::PlainAttachment,
+            value_type: ValueType::Binary,
             input: b"before 127.0.0.1 after",
             output: b"before ********* after",
             changed: true,
@@ -335,7 +332,7 @@ mod tests {
             selector: "$binary",
             rule: "@ip:remove",
             filename: "foo.txt",
-            bytes_type: AttachmentBytesType::PlainAttachment,
+            value_type: ValueType::Binary,
             input: b"before 127.0.0.1 after",
             output: b"before xxxxxxxxx after",
             changed: true,
@@ -356,7 +353,7 @@ mod tests {
                 selector: wrong_selector,
                 rule: "@ip:mask",
                 filename: "foo.txt",
-                bytes_type: AttachmentBytesType::PlainAttachment,
+                value_type: ValueType::Binary,
                 input: b"before 127.0.0.1 after",
                 output: b"before 127.0.0.1 after",
                 changed: false,
@@ -371,7 +368,7 @@ mod tests {
             selector: "$binary",
             rule: "@anything:remove",
             filename: "foo.txt",
-            bytes_type: AttachmentBytesType::PlainAttachment,
+            value_type: ValueType::Binary,
             input: (0..255 as u8).collect::<Vec<_>>().as_slice(),
             output: &[b'x'; 255],
             changed: true,
@@ -403,7 +400,7 @@ mod tests {
                 selector: "$binary",
                 regex: &bytes.iter().map(|x| format!("\\x{:02x}", x)).join(""),
                 filename: "foo.txt",
-                bytes_type: AttachmentBytesType::PlainAttachment,
+                value_type: ValueType::Binary,
                 input: bytes,
                 output: &vec![b'x'; bytes.len()],
                 changed: true,

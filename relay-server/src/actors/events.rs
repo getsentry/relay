@@ -8,13 +8,11 @@ use actix::prelude::*;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use futures::prelude::*;
-use minidump::Minidump;
 use parking_lot::RwLock;
 use serde_json::Value as SerdeValue;
 
 use relay_common::{clone, metric, LogError};
 use relay_config::{Config, RelayMode};
-use relay_general::pii::minidumps::{scrub_minidump, Error as MinidumpError};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
@@ -44,6 +42,7 @@ use {
     crate::utils::EnvelopeLimiter,
     chrono::TimeZone,
     failure::ResultExt,
+    minidump::Minidump,
     relay_filter::FilterStatKey,
     relay_general::protocol::IpAddr,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
@@ -124,24 +123,6 @@ enum ProcessingError {
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
-
-    #[fail(display = "invalid minidump")]
-    InvalidMinidump(#[cause] minidump::Error),
-
-    #[fail(display = "minidump error: {}", _0)]
-    Minidump(#[cause] MinidumpError),
-}
-
-impl From<MinidumpError> for ProcessingError {
-    fn from(source: MinidumpError) -> Self {
-        ProcessingError::Minidump(source)
-    }
-}
-
-impl From<minidump::Error> for ProcessingError {
-    fn from(source: minidump::Error) -> Self {
-        ProcessingError::InvalidMinidump(source)
-    }
 }
 
 impl ProcessingError {
@@ -172,8 +153,6 @@ impl ProcessingError {
             | Self::ScheduleFailed(_)
             | Self::ProjectFailed(_)
             | Self::Timeout
-            | Self::InvalidMinidump(_)
-            | Self::Minidump(_)
             | Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             #[cfg(feature = "processing")]
             Self::StoreFailed(_) | Self::QuotasFailed(_) => {
@@ -1004,26 +983,41 @@ impl EventProcessor {
         Ok(())
     }
 
+    /// Apply data privacy rules to attachments in the envelope.
+    ///
+    /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
+    /// attachment types. When special attachments are detected, these are scrubbed with custom
+    /// logic; otherwise the entire attachment is treated as a single binary blob.
     fn scrub_attachments(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let envelope = &mut state.envelope;
         if let Some(ref config) = state.project_state.config.pii_config {
             let minidump = envelope
-                .take_item_by(|item| item.attachment_type() == Some(AttachmentType::Minidump));
-            if let Some(mut item) = minidump {
+                .get_item_by_mut(|item| item.attachment_type() == Some(AttachmentType::Minidump));
+
+            if let Some(item) = minidump {
+                let filename = item.filename().unwrap_or_default();
+                let mut payload = item.payload().to_vec();
+
                 let compiled = config.compiled();
                 let processor = PiiAttachmentsProcessor::new(&compiled);
-                let scrubbed_data = scrub_minidump(
-                    item.filename().unwrap_or("unknown"),
-                    item.payload(),
-                    processor,
-                )?;
+
+                // Minidump scrubbing can fail if the minidump cannot be parsed. In this case, we
+                // must be conservative and treat it as a plain attachment. Under extreme
+                // conditions, this could destroy stack memory.
+                if let Err(scrub_error) = processor.scrub_minidump(filename, &mut payload) {
+                    log::debug!("failed to scrub minidump: {}", LogError(&scrub_error));
+                    processor.scrub_attachment(filename, &mut payload);
+                }
+
                 let content_type = item
                     .content_type()
                     .unwrap_or(&ContentType::Minidump)
                     .clone();
-                item.set_payload(content_type, scrubbed_data);
+
+                item.set_payload(content_type, payload);
             }
         }
+
         Ok(())
     }
 
@@ -1086,6 +1080,7 @@ impl EventProcessor {
             self.scrub_event(&mut state)?;
             self.serialize_event(&mut state)?;
         }
+
         self.scrub_attachments(&mut state)?;
 
         Ok(ProcessEnvelopeResponse::from(state))

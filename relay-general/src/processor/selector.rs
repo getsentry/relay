@@ -100,7 +100,7 @@ impl SelectorSpec {
                 path.iter().enumerate().all(|(i, item)| {
                     match *item {
                         SelectorPathItem::Type(ty) => match ty {
-                            // "Generic" JSON value types cannot be part of a specific path
+                            // Basic value types cannot be part of a specific path
                             ValueType::String
                             | ValueType::Binary
                             | ValueType::Number
@@ -117,6 +117,7 @@ impl SelectorSpec {
                             // to go the other direction. If you're not sure, return `false` for
                             // your new value type.
                             ValueType::Event
+                            | ValueType::Attachments
                             | ValueType::Exception
                             | ValueType::Stacktrace
                             | ValueType::Frame
@@ -127,8 +128,8 @@ impl SelectorSpec {
                             | ValueType::Thread
                             | ValueType::Breadcrumb
                             | ValueType::Span
-                            | ValueType::Attachments
-                            | ValueType::Memory
+                            | ValueType::Minidump
+                            | ValueType::HeapMemory
                             | ValueType::StackMemory
                             | ValueType::ClientSdkInfo => i == 0,
                         },

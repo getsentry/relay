@@ -17,6 +17,7 @@ pub struct UnknownValueTypeError;
 /// The (simplified) type of a value.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum ValueType {
+    // Basic types
     String,
     Binary,
     Number,
@@ -24,7 +25,12 @@ pub enum ValueType {
     DateTime,
     Array,
     Object,
+
+    // Roots
     Event,
+    Attachments,
+
+    // Protocol types
     Exception,
     Stacktrace,
     Frame,
@@ -36,9 +42,11 @@ pub enum ValueType {
     Breadcrumb,
     Span,
     ClientSdkInfo,
-    Memory,
+
+    // Attachments and Contents
+    Minidump,
+    HeapMemory,
     StackMemory,
-    Attachments,
 }
 
 impl ValueType {
@@ -56,6 +64,7 @@ impl ValueType {
             ValueType::Array => "array",
             ValueType::Object => "object",
             ValueType::Event => "event",
+            ValueType::Attachments => "attachments",
             ValueType::Exception => "error",
             ValueType::Stacktrace => "stack",
             ValueType::Frame => "frame",
@@ -67,9 +76,9 @@ impl ValueType {
             ValueType::Breadcrumb => "breadcrumb",
             ValueType::Span => "span",
             ValueType::ClientSdkInfo => "sdk",
-            ValueType::Memory => "memory",
-            ValueType::StackMemory => "stackmemory",
-            ValueType::Attachments => "attachments",
+            ValueType::Minidump => "minidump",
+            ValueType::HeapMemory => "heap_memory",
+            ValueType::StackMemory => "stack_memory",
         }
     }
 }
@@ -93,6 +102,7 @@ impl FromStr for ValueType {
             "array" | "list" => ValueType::Array,
             "object" => ValueType::Object,
             "event" => ValueType::Event,
+            "attachments" => ValueType::Attachments,
             "exception" | "error" => ValueType::Exception,
             "stacktrace" | "stack" => ValueType::Stacktrace,
             "frame" => ValueType::Frame,
@@ -103,9 +113,9 @@ impl FromStr for ValueType {
             "thread" => ValueType::Thread,
             "breadcrumb" => ValueType::Breadcrumb,
             "sdk" => ValueType::ClientSdkInfo,
-            "memory" => ValueType::Memory,
-            "stackmemory" => ValueType::StackMemory,
-            "attachments" => ValueType::Attachments,
+            "minidump" => ValueType::Minidump,
+            "heap_memory" => ValueType::HeapMemory,
+            "stack_memory" => ValueType::StackMemory,
             _ => return Err(UnknownValueTypeError),
         })
     }
