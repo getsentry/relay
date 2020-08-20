@@ -659,108 +659,171 @@ impl<'a> fmt::Display for Path<'a> {
     }
 }
 
-#[allow(clippy::cognitive_complexity)]
-#[test]
-fn test_path_matching() {
-    let event_state = ProcessingState::new_root(None, Some(ValueType::Event)); // .
-    let user_state = event_state.enter_static("user", None, Some(ValueType::User)); // .user
-    let extra_state = user_state.enter_static("extra", None, Some(ValueType::Object)); // .user.extra
-    let foo_state = extra_state.enter_static("foo", None, Some(ValueType::Array)); // .user.extra.foo
-    let zero_state = foo_state.enter_index(0, None, None); // .user.extra.foo.0
+#[cfg(test)]
+mod tests {
+    use itertools::Itertools;
 
-    // this is an exact match to the state
-    assert!(extra_state
-        .path()
-        .matches_selector(&"user.extra".parse().unwrap()));
+    use super::*;
 
-    // this is a match below a type
-    assert!(extra_state
-        .path()
-        .matches_selector(&"$user.extra".parse().unwrap()));
+    macro_rules! assert_matches_raw {
+        ($state:expr, $selector:expr, $expected:expr) => {{
+            let actual = $state.path().match_selector(&$selector.parse().unwrap());
+            assert!(
+                actual == $expected,
+                format!(
+                    "Matched {} against {}, expected {:?}, actually {:?}",
+                    $selector,
+                    $state.path(),
+                    $expected,
+                    actual
+                )
+            );
+        }};
+    }
 
-    // this is a wildcard match into a type
-    assert!(foo_state
-        .path()
-        .matches_selector(&"$user.extra.*".parse().unwrap()));
+    macro_rules! assert_matches {
+        ($state:expr, $($selector:expr,)*) => {{
+            let state = &$state;
+            $(
+                assert_matches_raw!(state, $selector, PiiMatch::SpecificMatch);
+            )*
 
-    // a wildcard match into an array
-    assert!(zero_state
-        .path()
-        .matches_selector(&"$user.extra.foo.*".parse().unwrap()));
+            let joined = vec![$($selector),*].into_iter().join(" && ");
+            assert_matches_raw!(state, &joined, PiiMatch::SpecificMatch);
 
-    // a direct match into an array
-    assert!(zero_state
-        .path()
-        .matches_selector(&"$user.extra.foo.0".parse().unwrap()));
+            let joined = vec![$($selector),*].into_iter().join(" || ");
+            assert_matches_raw!(state, &joined, PiiMatch::SpecificMatch);
 
-    // direct mismatch in an array
-    assert!(!zero_state
-        .path()
-        .matches_selector(&"$user.extra.foo.1".parse().unwrap()));
+            let joined = vec!["**", $($selector),*].into_iter().join(" || ");
+            assert_matches_raw!(state, &joined, PiiMatch::SpecificMatch);
+        }}
+    }
 
-    // deep matches are wild
-    assert!(!zero_state
-        .path()
-        .matches_selector(&"$user.extra.bar.**".parse().unwrap()));
-    assert!(zero_state
-        .path()
-        .matches_selector(&"$user.extra.foo.**".parse().unwrap()));
-    assert!(zero_state
-        .path()
-        .matches_selector(&"$user.extra.**".parse().unwrap()));
-    assert!(zero_state
-        .path()
-        .matches_selector(&"$user.**".parse().unwrap()));
-    assert!(zero_state
-        .path()
-        .matches_selector(&"$event.**".parse().unwrap()));
-    assert!(!zero_state
-        .path()
-        .matches_selector(&"$user.**.1".parse().unwrap()));
-    assert!(zero_state
-        .path()
-        .matches_selector(&"$user.**.0".parse().unwrap()));
+    macro_rules! assert_matches_non_specific {
+        ($state:expr, $($selector:expr,)*) => {{
+            let state = &$state;
+            $(
+                assert_matches_raw!(state, $selector, PiiMatch::SimpleMatch);
+            )*
 
-    // types are anywhere
-    assert!(zero_state
-        .path()
-        .matches_selector(&"$user.$object.**.0".parse().unwrap()));
-    assert!(foo_state
-        .path()
-        .matches_selector(&"**.$array".parse().unwrap()));
+            let joined = vec![$($selector),*].into_iter().join(" && ");
+            assert_matches_raw!(state, &joined, PiiMatch::SimpleMatch);
 
-    // AND/OR/NOT
-    // (conjunction/disjunction/negation)
-    assert!(foo_state
-        .path()
-        .matches_selector(&"($array & $object.*)".parse().unwrap()));
-    assert!(!foo_state
-        .path()
-        .matches_selector(&"($object & $object.*)".parse().unwrap()));
-    assert!(foo_state
-        .path()
-        .matches_selector(&"(** & $object.*)".parse().unwrap()));
+            let joined = vec![$($selector),*].into_iter().join(" || ");
+            assert_matches_raw!(state, &joined, PiiMatch::SimpleMatch);
 
-    assert!(zero_state
-        .path()
-        .matches_selector(&"(**.0 | absolutebogus)".parse().unwrap()));
-    assert!(!zero_state
-        .path()
-        .matches_selector(&"($object | absolutebogus)".parse().unwrap()));
-    assert!(!zero_state
-        .path()
-        .matches_selector(&"($object | (**.0 & absolutebogus))".parse().unwrap()));
+            let joined = vec!["**", $($selector),*].into_iter().join(" || ");
+            assert_matches_raw!(state, &joined, PiiMatch::SimpleMatch);
+        }}
+    }
 
-    assert!(zero_state
-        .path()
-        .matches_selector(&"(~$object)".parse().unwrap()));
-    assert!(zero_state
-        .path()
-        .matches_selector(&"($object.** & (~absolutebogus))".parse().unwrap()));
-    assert!(zero_state
-        .path()
-        .matches_selector(&"($object.** & (~absolutebogus))".parse().unwrap()));
-    assert!(!zero_state
-        .path()
-        .matches_selector(&"(~$object.**)".parse().unwrap()));
+    macro_rules! assert_not_matches {
+        ($state:expr, $($selector:expr,)*) => {{
+            let state = &$state;
+            $(
+                assert_matches_raw!(state, $selector, PiiMatch::NoMatch);
+            )*
+        }}
+    }
+
+    #[test]
+    fn test_matching() {
+        let event_state = ProcessingState::new_root(None, Some(ValueType::Event)); // .
+        let user_state = event_state.enter_static("user", None, Some(ValueType::User)); // .user
+        let extra_state = user_state.enter_static("extra", None, Some(ValueType::Object)); // .user.extra
+        let foo_state = extra_state.enter_static("foo", None, Some(ValueType::Array)); // .user.extra.foo
+        let zero_state = foo_state.enter_index(0, None, None); // .user.extra.foo.0
+
+        assert_matches!(
+            extra_state,
+            "user.extra",  // this is an exact match to the state
+            "$user.extra", // this is a match below a type
+            "(** || user.*) && !(foo.bar.baz || a.b.c)",
+        );
+
+        assert_matches_non_specific!(
+            extra_state,
+            // known limitation: double-negations *could* be specific (I'd expect this as a user), but
+            // right now we don't support it
+            "!(!user.extra)",
+            "!(!$user.extra)",
+        );
+
+        assert_matches!(
+            foo_state,
+            "$user.extra.*", // this is a wildcard match into a type
+        );
+
+        assert_matches!(
+            zero_state,
+            "$user.extra.foo.*", // a wildcard match into an array
+            "$user.extra.foo.0", // a direct match into an array
+        );
+
+        assert_matches_non_specific!(
+            zero_state,
+            // deep matches are wild
+            "$user.extra.foo.**",
+            "$user.extra.**",
+            "$user.**",
+            "$event.**",
+            "$user.**.0",
+            // types are anywhere
+            "$user.$object.**.0",
+            "(**.0 | absolutebogus)",
+            "(~$object)",
+            "($object.** & (~absolutebogus))",
+            "($object.** & (~absolutebogus))",
+        );
+
+        assert_not_matches!(
+            zero_state,
+            "$user.extra.foo.1", // direct mismatch in an array
+            // deep matches are wild
+            "$user.extra.bar.**",
+            "$user.**.1",
+            "($object | absolutebogus)",
+            "($object & absolutebogus)",
+            "(~$object.**)",
+            "($object | (**.0 & absolutebogus))",
+        );
+
+        assert_matches_non_specific!(
+            foo_state,
+            "($array & $object.*)",
+            "(** & $object.*)",
+            "**.$array",
+        );
+
+        assert_not_matches!(foo_state, "($object & $object.*)",);
+    }
+
+    #[test]
+    fn test_attachments_matching() {
+        let event_state = ProcessingState::new_root(None, None);
+        let attachments_state = event_state.enter_static("", None, Some(ValueType::Attachments)); // .
+        let txt_state = attachments_state.enter_static("file.txt", None, Some(ValueType::Binary)); // .'file.txt'
+        let minidump_state =
+            attachments_state.enter_static("file.dmp", None, Some(ValueType::Minidump)); // .'file.txt'
+        let minidump_state_inner = minidump_state.enter_static("", None, Some(ValueType::Binary)); // .'file.txt'
+
+        assert_matches!(attachments_state, "$attachments",);
+        assert_matches!(txt_state, "$attachments.'file.txt'",);
+
+        assert_matches_non_specific!(txt_state, "$binary",);
+        // WAT.  All entire attachments are binary, so why not be able to select them (specific)
+        // like this?  Especially since we can select them with wildcard.
+        assert_matches_non_specific!(txt_state, "$attachments.$binary",);
+
+        // WAT.  This is not problematic but rather... weird?
+        assert_matches!(txt_state, "$attachments.*",);
+        assert_matches_non_specific!(txt_state, "$attachments.**",);
+
+        assert_matches!(minidump_state, "$minidump",);
+        // WAT.  This should not behave differently from plain $minidump
+        assert_matches_non_specific!(minidump_state, "$attachments.$minidump",);
+
+        // WAT.  We have the full path to a field here.
+        assert_matches_non_specific!(minidump_state_inner, "$attachments.$minidump.$binary",);
+    }
 }

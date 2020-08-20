@@ -373,38 +373,6 @@ mod tests {
     }
 
     #[test]
-    fn test_is_specific() {
-        assert!(SelectorSpec::from_str("$frame.vars.foo")
-            .unwrap()
-            .is_specific());
-        assert!(!SelectorSpec::from_str("foo.$frame.vars.foo")
-            .unwrap()
-            .is_specific());
-        assert!(!SelectorSpec::from_str("$object.foo").unwrap().is_specific());
-        assert!(SelectorSpec::from_str("extra.foo").unwrap().is_specific());
-
-        assert!(SelectorSpec::from_str("extra.foo && extra.foo")
-            .unwrap()
-            .is_specific());
-        assert!(SelectorSpec::from_str("extra.foo && $string")
-            .unwrap()
-            .is_specific());
-        assert!(!SelectorSpec::from_str("$string && $string")
-            .unwrap()
-            .is_specific());
-
-        assert!(SelectorSpec::from_str("extra.foo || extra.foo")
-            .unwrap()
-            .is_specific());
-        assert!(!SelectorSpec::from_str("extra.foo || $string")
-            .unwrap()
-            .is_specific());
-        assert!(!SelectorSpec::from_str("$string || $string")
-            .unwrap()
-            .is_specific());
-    }
-
-    #[test]
     fn test_invalid() {
         assert!(matches!(
             SelectorSpec::from_str("* && foo"),
@@ -414,70 +382,5 @@ mod tests {
             SelectorSpec::from_str("$frame.**.foo.**"),
             Err(InvalidSelectorError::InvalidDeepWildcard)
         ));
-    }
-
-    /// These tests are relevant for Pii::Maybe tagged items since they only match when a
-    /// selector is considered specific.
-    mod attachments {
-        use super::*;
-
-        #[test]
-        fn test_specific_attachments() {
-            let selector = SelectorSpec::from_str("$attachments").unwrap();
-            assert!(selector.is_specific());
-        }
-
-        #[test]
-        fn test_specific_attachments_filename() {
-            let selector = SelectorSpec::from_str("$attachments.'file.txt'").unwrap();
-            assert!(selector.is_specific());
-        }
-
-        #[test]
-        fn test_specific_binary() {
-            let selector = SelectorSpec::from_str("$binary").unwrap();
-            assert!(!selector.is_specific());
-        }
-
-        #[test]
-        fn test_specific_attachments_binary() {
-            // WAT.  All entire attachments are binary, so why not be able to select them
-            // like this?  Especially since we can select them with wildcard.
-            let selector = SelectorSpec::from_str("$attachments.$binary").unwrap();
-            assert!(!selector.is_specific());
-        }
-
-        #[test]
-        fn test_specific_attachments_wildcard() {
-            // WAT.  This is not problematic but rather... weird?
-            let selector = SelectorSpec::from_str("$attachments.*").unwrap();
-            assert!(selector.is_specific());
-        }
-
-        #[test]
-        fn test_specific_attachments_deep_wildcard() {
-            let selector = SelectorSpec::from_str("$attachments.**").unwrap();
-            assert!(!selector.is_specific());
-        }
-
-        #[test]
-        fn test_specific_minidump() {
-            let selector = SelectorSpec::from_str("$minidump").unwrap();
-            assert!(selector.is_specific());
-        }
-
-        #[test]
-        fn test_specific_attachments_minidump() {
-            // WAT.  This should not behave differently from plain $minidump
-            let selector = SelectorSpec::from_str("$attachments.$minidump").unwrap();
-            assert!(!selector.is_specific());
-        }
-
-        #[test]
-        fn test_specific_attachments_minidump_binary() {
-            // WAT.  We have the full path to a field here.
-            let selector = SelectorSpec::from_str("$attachments.$minidump.$binary").unwrap();
-            assert!(!selector.is_specific());
-        }
     }
 }
