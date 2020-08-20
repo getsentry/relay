@@ -142,7 +142,7 @@ mod test {
 
                 Timeout::new(rx, Duration::from_millis(10)).map_err(|_| {
                     log::error!("tracked future didn't not send a notification");
-                    assert!(false, "no notification received before timeout");
+                    panic!("no notification received before timeout");
                 })
             })
             .ok();
@@ -163,7 +163,7 @@ mod test {
             }
             Timeout::new(rx, Duration::from_millis(10)).map_err(|_| {
                 log::error!("tracked future didn't not send a notification");
-                assert!(false, "no notification received before timeout");
+                panic!("no notification received before timeout");
             })
         })
         .ok();
