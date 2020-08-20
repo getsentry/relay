@@ -305,7 +305,6 @@ impl EventProcessor {
 
             match measure_item {
                 Some(item) => {
-                    // TODO: add measure to measures_context
                     let (next_measure_context, _ingested_len) =
                         self.measures_from_json_payload(item)?;
 
