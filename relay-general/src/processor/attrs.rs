@@ -743,6 +743,7 @@ fn test_selector_matching() {
         "$user.extra.bar.**",
         "$user.**.1",
         "($object | absolutebogus)",
+        "($object & absolutebogus)",
         "(~$object.**)",
         "($object | (**.0 & absolutebogus))",
     );
