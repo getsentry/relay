@@ -395,6 +395,35 @@ pub struct MeasuresContext {
     pub measurements: Annotated<Measurements>,
 }
 
+impl MeasuresContext {
+    pub fn merge(&mut self, incoming_context: Annotated<MeasuresContext>) {
+        let incoming_context = match incoming_context.into_value() {
+            None => {
+                return;
+            }
+            Some(context) => context,
+        };
+
+        match self.measurements.value_mut() {
+            None => {
+                self.measurements = incoming_context.measurements;
+            }
+            Some(Measurements(measurements)) => {
+                let incoming_measurements = match incoming_context.measurements.into_value() {
+                    None => {
+                        return;
+                    }
+                    Some(Measurements(measurements)) => measurements,
+                };
+
+                for (name, value) in incoming_measurements.into_iter() {
+                    measurements.insert(name, value);
+                }
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Measurements(pub Object<f64>);

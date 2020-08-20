@@ -18,7 +18,7 @@ use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, LenientString,
-    Metrics, SecurityReportType, SessionUpdate, Timestamp, Values,
+    MeasuresContext, Metrics, SecurityReportType, SessionUpdate, Timestamp, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
@@ -168,6 +168,8 @@ impl ProcessingError {
 
 type ExtractedEvent = (Annotated<Event>, usize);
 
+type ExtractedMeasurements = (Annotated<MeasuresContext>, usize);
+
 /// A state container for envelope processing.
 #[derive(Debug)]
 struct ProcessEnvelopeState {
@@ -274,6 +276,55 @@ impl EventProcessor {
     #[cfg(not(feature = "processing"))]
     pub fn new(config: Arc<Config>) -> Self {
         Self { config }
+    }
+
+    fn measures_from_json_payload(
+        &self,
+        item: Item,
+    ) -> Result<ExtractedMeasurements, ProcessingError> {
+        let measurements_item = Annotated::<MeasuresContext>::from_json_bytes(&item.payload())
+            .map_err(ProcessingError::InvalidJson)?;
+
+        Ok((measurements_item, item.len()))
+    }
+
+    /// Validates any and all measures in the envelope.
+    fn process_measures(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        use relay_general::protocol::{Context, Contexts};
+
+        let event = match state.event.value_mut() {
+            Some(event) => event,
+            None => return Ok(()),
+        };
+
+        let envelope = &mut state.envelope;
+        let mut measures_context = MeasuresContext::default();
+
+        loop {
+            let measure_item = envelope.take_item_by(|item| item.ty() == ItemType::Measures);
+
+            match measure_item {
+                Some(item) => {
+                    // TODO: add measure to measures_context
+                    let (next_measure_context, _ingested_len) =
+                        self.measures_from_json_payload(item)?;
+
+                    // TODO: add this?
+                    // state.metrics.bytes_ingested_measurements = Annotated::new(ingested_len as u64);
+
+                    measures_context.merge(next_measure_context);
+                }
+                None => {
+                    break;
+                }
+            }
+        }
+
+        let contexts = event.contexts.value_mut().get_or_insert_with(Contexts::new);
+
+        contexts.add(Context::Measures(Box::new(measures_context)));
+
+        Ok(())
     }
 
     /// Validates all sessions in the envelope, if any.
@@ -1080,6 +1131,8 @@ impl EventProcessor {
                 self.process_unreal(&mut state)?;
                 self.create_placeholders(&mut state)?;
             });
+
+            self.process_measures(&mut state)?;
 
             self.finalize_event(&mut state)?;
 
