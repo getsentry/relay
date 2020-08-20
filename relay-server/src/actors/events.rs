@@ -33,7 +33,7 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
-use crate::utils::{self, FormDataIter, FutureExt};
+use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, FutureExt};
 
 #[cfg(feature = "processing")]
 use {
@@ -469,14 +469,20 @@ impl EventProcessor {
 
     fn merge_formdata(&self, target: &mut SerdeValue, item: Item) {
         let payload = item.payload();
+        let mut aggregator = ChunkedFormDataAggregator::new();
+
         for entry in FormDataIter::new(&payload) {
             if entry.key() == "sentry" {
                 // Custom clients can submit longer payloads and should JSON encode event data into
                 // the optional `sentry` field.
                 match serde_json::from_str(entry.value()) {
                     Ok(event) => utils::merge_values(target, event),
-                    Err(_) => log::debug!("invalid json event payload in form data"),
+                    Err(_) => log::debug!("invalid json event payload in sentry form field"),
                 }
+            } else if let Some(index) = utils::get_sentry_chunk_index(entry.key(), "sentry__") {
+                // Electron SDK splits up long payloads into chunks starting at sentry__1 with an
+                // incrementing counter. Assemble these chunks here and then decode them below.
+                aggregator.insert(index, entry.value());
             } else if let Some(keys) = utils::get_sentry_entry_indexes(entry.key()) {
                 // Try to parse the nested form syntax `sentry[key][key]` This is required for the
                 // Breakpad client library, which only supports string values of up to 64
@@ -487,6 +493,13 @@ impl EventProcessor {
                 // payload and set defaults for processing. This is sent by clients like Breakpad or
                 // Crashpad.
                 utils::update_nested_value(target, &["extra", entry.key()], entry.value());
+            }
+        }
+
+        if !aggregator.is_empty() {
+            match serde_json::from_str(&aggregator.join()) {
+                Ok(event) => utils::merge_values(target, event),
+                Err(_) => log::debug!("invalid json event payload in sentry__* form fields"),
             }
         }
     }
