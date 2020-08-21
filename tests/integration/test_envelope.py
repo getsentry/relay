@@ -84,6 +84,8 @@ def test_measure_items_envelope(mini_sentry, relay_chain):
     assert "trace" in event["contexts"]
     assert "measures" in event["contexts"]
     assert event["contexts"]["measures"]["measurements"]["foo"] == 420.69
+    # expect the key "BAR" to be lowercased as part of the normalization
+    assert event["contexts"]["measures"]["measurements"]["bar"] == 2020
 
 
 def test_measure_strip_envelope(mini_sentry, relay_chain):
