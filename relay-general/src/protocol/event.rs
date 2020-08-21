@@ -468,6 +468,10 @@ pub struct Event {
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub spans: Annotated<Array<Span>>,
 
+    /// Measurements
+    #[metastructure(skip_serialization = "empty_deep")]
+    pub measurements: Annotated<Object<Measurement>>,
+
     /// Internal ingestion and processing metrics.
     ///
     /// This value should not be ingested and will be overwritten by the store normalizer.
@@ -477,6 +481,12 @@ pub struct Event {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]
     pub other: Object<Value>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct Measurement {
+    pub value: Annotated<f64>,
 }
 
 #[test]
