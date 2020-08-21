@@ -571,7 +571,10 @@ impl<'a> Path<'a> {
             // Conjunction: At least one subselector needs to be specific if the selector needs to be
             // specific
             // All subselectors must match, generally (ignoring pii=maybe)
-            SelectorSpec::And(ref xs) => xs.iter().all(|x| self.matches_selector(Pii::True, x)) && xs.iter().any(|x| self.matches_selector(pii, x)),
+            SelectorSpec::And(ref xs) => {
+                xs.iter().all(|x| self.matches_selector(Pii::True, x))
+                    && xs.iter().any(|x| self.matches_selector(pii, x))
+            }
 
             // Disjunction: At least one subselector must match
             SelectorSpec::Or(ref xs) => xs.iter().any(|x| self.matches_selector(pii, x)),
@@ -702,10 +705,9 @@ fn test_selector_matching() {
 
     assert_matches_non_specific!(
         extra_state,
-
         // known limitation: double-negations *could* be specific (I'd expect this as a user), but
         // right now we don't support it
-        "!(!user.extra)", 
+        "!(!user.extra)",
         "!(!$user.extra)",
     );
 
