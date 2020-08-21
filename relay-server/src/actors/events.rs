@@ -301,13 +301,16 @@ impl EventProcessor {
 
         let envelope = &mut state.envelope;
 
-        let contexts = event.contexts.value_mut().get_or_insert_with(Contexts::new);
-
         let mut measures_context = MeasuresContext::default();
 
         if !is_transaction {
-            // Only transaction events may have a measures context object.
-            contexts.remove(MeasuresContext::default_key());
+            match event.contexts.value_mut() {
+                None => {}
+                Some(contexts) => {
+                    // Only transaction events may have a measures context object.
+                    contexts.remove(MeasuresContext::default_key());
+                }
+            }
             return Ok(());
         }
 
@@ -329,6 +332,8 @@ impl EventProcessor {
                 }
             }
         }
+
+        let contexts = event.contexts.value_mut().get_or_insert_with(Contexts::new);
 
         contexts.add(Context::Measures(Box::new(measures_context)));
 
