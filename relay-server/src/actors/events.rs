@@ -17,8 +17,8 @@ use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
-    Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, LenientString,
-    MeasuresContext, Metrics, SecurityReportType, SessionUpdate, Timestamp, Values,
+    Breadcrumb, ContextInner, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp,
+    LenientString, MeasuresContext, Metrics, SecurityReportType, SessionUpdate, Timestamp, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
@@ -336,9 +336,23 @@ impl EventProcessor {
 
         let contexts = event.contexts.value_mut().get_or_insert_with(Contexts::new);
 
-        log::trace!("adding measures context");
+        match contexts.get_mut(MeasuresContext::default_key()) {
+            None => {
+                log::trace!("adding measures context");
 
-        contexts.add(Context::Measures(Box::new(measures_context)));
+                contexts.add(Context::Measures(Box::new(measures_context)));
+            }
+            Some(measures_context_inner) => {
+                log::trace!("merging measures context");
+                let measures_context_inner = measures_context_inner.value_mut().as_mut().unwrap();
+                match measures_context_inner {
+                    ContextInner(Context::Measures(this_measures_context)) => {
+                        this_measures_context.merge(Annotated::new(measures_context));
+                    }
+                    _ => {}
+                }
+            }
+        }
 
         Ok(())
     }
