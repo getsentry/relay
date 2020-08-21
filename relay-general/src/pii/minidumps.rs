@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 
 use failure::Fail;
-use minidump::format::{MINIDUMP_LOCATION_DESCRIPTOR, MINIDUMP_STREAM_TYPE, RVA};
+use minidump::format::{MINIDUMP_LOCATION_DESCRIPTOR, MINIDUMP_STREAM_TYPE as StreamType, RVA};
 use minidump::{Error as MinidumpError, Minidump, MinidumpMemoryList, MinidumpThreadList};
 
 use crate::pii::PiiAttachmentsProcessor;
@@ -16,15 +16,15 @@ pub enum ScrubMinidumpError {
     #[fail(display = "failed to parse minidump")]
     InvalidMinidump(#[cause] MinidumpError),
 
-    #[fail(display = "invalid memory address when reading {}", _0)]
-    InvalidAddress(&'static str),
+    #[fail(display = "invalid memory address when reading {:?}", _0)]
+    InvalidAddress(StreamType),
 
-    #[fail(display = "failed to parse {}", _0)]
-    Parse(&'static str, #[cause] MinidumpError),
+    #[fail(display = "failed to parse {:?}", _0)]
+    Parse(StreamType, #[cause] MinidumpError),
 }
 
 #[derive(Clone, Debug)]
-struct StreamDescriptor(ValueType, Range);
+struct StreamDescriptor(StreamType, ValueType, Range);
 
 /// Internal struct to keep a minidump and it's raw data together.
 struct MinidumpData<'a> {
@@ -65,7 +65,7 @@ impl<'a> MinidumpData<'a> {
         let thread_list: MinidumpThreadList = self
             .minidump
             .get_stream()
-            .map_err(|e| ScrubMinidumpError::Parse("thread list", e))?;
+            .map_err(|e| ScrubMinidumpError::Parse(StreamType::ThreadListStream, e))?;
 
         let stack_rvas: Vec<RVA> = thread_list
             .threads
@@ -76,7 +76,7 @@ impl<'a> MinidumpData<'a> {
         let mem_list: MinidumpMemoryList = self
             .minidump
             .get_stream()
-            .map_err(|e| ScrubMinidumpError::Parse("memory list", e))?;
+            .map_err(|e| ScrubMinidumpError::Parse(StreamType::MemoryListStream, e))?;
 
         let mut descriptors = Vec::new();
         for mem in mem_list.iter() {
@@ -87,12 +87,12 @@ impl<'a> MinidumpData<'a> {
             };
 
             let range = self.location_range(mem.desc.memory);
-            descriptors.push(StreamDescriptor(value_type, range));
+            descriptors.push(StreamDescriptor(StreamType::MemoryListStream, value_type, range));
         }
 
         let aux_stream_types = [
-            MINIDUMP_STREAM_TYPE::LinuxEnviron,
-            MINIDUMP_STREAM_TYPE::LinuxCmdLine,
+            StreamType::LinuxEnviron,
+            StreamType::LinuxCmdLine,
         ];
 
         for &stream_type in &aux_stream_types {
@@ -100,11 +100,11 @@ impl<'a> MinidumpData<'a> {
                 Ok(stream) => {
                     let range = self
                         .stream_range(stream)
-                        .ok_or(ScrubMinidumpError::InvalidAddress("auxiliary stream"))?;
-                    descriptors.push(StreamDescriptor(ValueType::Binary, range));
+                        .ok_or(ScrubMinidumpError::InvalidAddress(stream_type))?;
+                    descriptors.push(StreamDescriptor(stream_type, ValueType::Binary, range));
                 }
                 Err(minidump::Error::StreamNotFound) => (),
-                Err(e) => return Err(ScrubMinidumpError::Parse("auxiliary stream", e)),
+                Err(e) => return Err(ScrubMinidumpError::Parse(stream_type, e)),
             }
         }
 
@@ -132,10 +132,10 @@ impl PiiAttachmentsProcessor<'_> {
         let streams = MinidumpData::parse(data)?.streams()?;
         let mut changed = false;
 
-        for StreamDescriptor(value_type, range) in streams {
+        for StreamDescriptor(stream_type, value_type, range) in streams {
             let slice = data
                 .get_mut(range)
-                .ok_or(ScrubMinidumpError::InvalidAddress("foo"))?;
+                .ok_or(ScrubMinidumpError::InvalidAddress(stream_type))?;
 
             // IMPORTANT: Minidump sections are always classified as Pii:Maybe. This avoids to
             // accidentally scrub stack memory with highly generic selectors. TODO: Update the PII
