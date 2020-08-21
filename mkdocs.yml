@@ -25,8 +25,6 @@ nav:
       - architecture/ingest-event-path.md
       - architecture/project-configuration.md
 
-  - "": event-schema/index.md
-
 markdown_extensions:
   - admonition: {}
   - tables: {}
@@ -41,12 +39,6 @@ markdown_extensions:
 
 plugins:
   - search
-  # Used in event schema docs
-  - macros
-
-  - exclude:
-      glob:
-        - event-schema/event.schema.md
 
 extra_css:
   # Config for diagrams

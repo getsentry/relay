@@ -91,7 +91,7 @@ api-docs: setup-git
 	@cargo doc
 .PHONY: api-docs
 
-prose-docs: .venv/bin/python extract-metric-docs extract-jsonschema-docs
+prose-docs: .venv/bin/python extract-metric-docs
 	.venv/bin/mkdocs build
 	touch site/.nojekyll
 .PHONY: prose-docs
@@ -105,14 +105,6 @@ jsonschema: init-submodules
 	set -e && cargo run --features jsonschema -- event-json-schema \
 		> docs/event-schema/event.schema.json
 .PHONY: jsonschema
-
-extract-jsonschema-docs: install-jsonschema-docs
-	set -e && ./node_modules/.bin/quicktype-markdown \
-		Event docs/event-schema/event.schema.json \
-		> docs/event-schema/event.schema.md
-
-install-jsonschema-docs: jsonschema
-	npm install git+https://github.com/untitaker/quicktype-markdown
 
 docserver: prose-docs
 	.venv/bin/mkdocs serve
