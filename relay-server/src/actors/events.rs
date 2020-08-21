@@ -344,12 +344,13 @@ impl EventProcessor {
             }
             Some(measures_context_inner) => {
                 log::trace!("merging measures context");
+
                 let measures_context_inner = measures_context_inner.value_mut().as_mut().unwrap();
-                match measures_context_inner {
-                    ContextInner(Context::Measures(this_measures_context)) => {
-                        this_measures_context.merge(Annotated::new(measures_context));
-                    }
-                    _ => {}
+
+                if let ContextInner(Context::Measures(this_measures_context)) =
+                    measures_context_inner
+                {
+                    this_measures_context.merge(Annotated::new(measures_context));
                 }
             }
         }
