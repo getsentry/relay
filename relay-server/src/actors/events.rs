@@ -292,13 +292,24 @@ impl EventProcessor {
     fn process_measures(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         use relay_general::protocol::{Context, Contexts};
 
+        let is_transaction = state.event_type() == Some(EventType::Transaction);
+
         let event = match state.event.value_mut() {
             Some(event) => event,
             None => return Ok(()),
         };
 
         let envelope = &mut state.envelope;
+
+        let contexts = event.contexts.value_mut().get_or_insert_with(Contexts::new);
+
         let mut measures_context = MeasuresContext::default();
+
+        if !is_transaction {
+            // Only transaction events may have a measures context object.
+            contexts.remove(MeasuresContext::default_key());
+            return Ok(());
+        }
 
         loop {
             let measure_item = envelope.take_item_by(|item| item.ty() == ItemType::Measures);
@@ -318,8 +329,6 @@ impl EventProcessor {
                 }
             }
         }
-
-        let contexts = event.contexts.value_mut().get_or_insert_with(Contexts::new);
 
         contexts.add(Context::Measures(Box::new(measures_context)));
 
