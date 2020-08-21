@@ -14,6 +14,9 @@ pub enum InvalidSelectorError {
     #[fail(display = "invalid selector: deep wildcard used more than once")]
     InvalidDeepWildcard,
 
+    #[fail(display = "invalid selector: wildcard must be part of a path")]
+    InvalidWildcard,
+
     #[fail(display = "invalid selector: {}", _0)]
     ParseError(Error<Rule>),
 
@@ -274,7 +277,7 @@ fn handle_selector(pair: Pair<Rule>) -> Result<SelectorSpec, InvalidSelectorErro
         }
         Rule::SelectorPath => {
             let mut used_deep_wildcard = false;
-            let items = pair
+            let items: Vec<SelectorPathItem> = pair
                 .into_inner()
                 .map(|item| {
                     let rv = handle_selector_path_item(item)?;
@@ -288,6 +291,10 @@ fn handle_selector(pair: Pair<Rule>) -> Result<SelectorSpec, InvalidSelectorErro
                     Ok(rv)
                 })
                 .collect::<Result<_, _>>()?;
+
+            if matches!(items.as_slice(), [SelectorPathItem::Wildcard]) {
+                return Err(InvalidSelectorError::InvalidWildcard);
+            }
 
             Ok(SelectorSpec::Path(items))
         }
@@ -391,4 +398,16 @@ fn test_is_specific() {
     assert!(!SelectorSpec::from_str("$string || $string")
         .unwrap()
         .is_specific());
+}
+
+#[test]
+fn test_invalid() {
+    assert!(matches!(
+        SelectorSpec::from_str("* && foo"),
+        Err(InvalidSelectorError::InvalidWildcard)
+    ));
+    assert!(matches!(
+        SelectorSpec::from_str("$frame.**.foo.**"),
+        Err(InvalidSelectorError::InvalidDeepWildcard)
+    ));
 }

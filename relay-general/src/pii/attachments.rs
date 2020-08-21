@@ -1,13 +1,15 @@
+use std::borrow::Cow;
+use std::collections::BTreeSet;
+
 use regex::bytes::RegexBuilder as BytesRegexBuilder;
 use regex::Regex;
 use smallvec::SmallVec;
-use std::collections::BTreeSet;
 
 use crate::pii::compiledconfig::RuleRef;
 use crate::pii::regexes::{get_regex_for_rule_type, ReplaceBehavior};
 use crate::pii::utils::{hash_value, in_range};
 use crate::pii::{CompiledPiiConfig, Redaction};
-use crate::processor::{ProcessingState, ValueType};
+use crate::processor::{FieldAttrs, Pii, ProcessingState, ValueType};
 
 /// Copy `source` into `target`, truncating/padding with `padding` if necessary.
 fn replace_bytes_padded(source: &[u8], target: &mut [u8], padding: u8) {
@@ -149,8 +151,11 @@ impl<'a> PiiAttachmentsProcessor<'a> {
         filename: &'s str,
         value_type: ValueType,
     ) -> ProcessingState<'s> {
-        self.root_state
-            .enter_borrowed(filename, None, Some(value_type))
+        self.root_state.enter_borrowed(
+            filename,
+            Some(Cow::Owned(FieldAttrs::new().pii(Pii::Maybe))),
+            Some(value_type),
+        )
     }
 
     /// Applies PII rules to a plain buffer.

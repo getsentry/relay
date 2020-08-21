@@ -254,33 +254,85 @@ pub struct FieldAttrs {
     pub retain: bool,
 }
 
-lazy_static::lazy_static! {
-    static ref DEFAULT_FIELD_ATTRS: FieldAttrs = FieldAttrs {
-        name: None,
-        required: false,
-        nonempty: false,
-        trim_whitespace: false,
-        match_regex: None,
-        max_chars: None,
-        bag_size: None,
-        pii: Pii::False,
-        retain: false,
-    };
+impl FieldAttrs {
+    /// Creates default `FieldAttrs`.
+    pub const fn new() -> Self {
+        DEFAULT_FIELD_ATTRS
+    }
 
-    static ref PII_TRUE_FIELD_ATTRS: FieldAttrs = FieldAttrs {
-        pii: Pii::True,
-        ..DEFAULT_FIELD_ATTRS.clone()
-    };
+    /// Sets whether a value in this field is required.
+    pub const fn required(mut self, required: bool) -> Self {
+        self.required = required;
+        self
+    }
 
-    static ref PII_MAYBE_FIELD_ATTRS: FieldAttrs = FieldAttrs {
-        pii: Pii::Maybe,
-        ..DEFAULT_FIELD_ATTRS.clone()
-    };
+    /// Sets whether this field can have an empty value.
+    ///
+    /// This is distinct from `required`. An empty string (`""`) passes the "required" check but not the
+    /// "nonempty" one.
+    pub const fn nonempty(mut self, nonempty: bool) -> Self {
+        self.nonempty = nonempty;
+        self
+    }
+
+    /// Sets whether whitespace should be trimmed before validation.
+    pub const fn trim_whitespace(mut self, trim_whitespace: bool) -> Self {
+        self.trim_whitespace = trim_whitespace;
+        self
+    }
+
+    /// Sets whether this field contains PII.
+    pub const fn pii(mut self, pii: Pii) -> Self {
+        self.pii = pii;
+        self
+    }
+
+    /// Sets the maximum number of characters allowed in the field.
+    pub const fn max_chars(mut self, max_chars: MaxChars) -> Self {
+        self.max_chars = Some(max_chars);
+        self
+    }
+
+    /// Sets the maximum size of all children in this field.
+    ///
+    /// This applies particularly to objects and arrays, but also to structures.
+    pub const fn bag_size(mut self, bag_size: BagSize) -> Self {
+        self.bag_size = Some(bag_size);
+        self
+    }
+
+    /// Sets whether additional properties should be retained during normalization.
+    pub const fn retain(mut self, retain: bool) -> Self {
+        self.retain = retain;
+        self
+    }
 }
 
+const DEFAULT_FIELD_ATTRS: FieldAttrs = FieldAttrs {
+    name: None,
+    required: false,
+    nonempty: false,
+    trim_whitespace: false,
+    match_regex: None,
+    max_chars: None,
+    bag_size: None,
+    pii: Pii::False,
+    retain: false,
+};
+
+const PII_TRUE_FIELD_ATTRS: FieldAttrs = FieldAttrs {
+    pii: Pii::True,
+    ..DEFAULT_FIELD_ATTRS
+};
+
+const PII_MAYBE_FIELD_ATTRS: FieldAttrs = FieldAttrs {
+    pii: Pii::Maybe,
+    ..DEFAULT_FIELD_ATTRS
+};
+
 impl Default for FieldAttrs {
-    fn default() -> FieldAttrs {
-        DEFAULT_FIELD_ATTRS.clone()
+    fn default() -> Self {
+        Self::new()
     }
 }
 

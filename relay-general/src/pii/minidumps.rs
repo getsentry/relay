@@ -1,11 +1,13 @@
 //! Minidump scrubbing.
 
+use std::borrow::Cow;
+
 use failure::Fail;
 use minidump::format::{MINIDUMP_LOCATION_DESCRIPTOR, MINIDUMP_STREAM_TYPE, RVA};
 use minidump::{Error as MinidumpError, Minidump, MinidumpMemoryList, MinidumpThreadList};
 
 use crate::pii::PiiAttachmentsProcessor;
-use crate::processor::ValueType;
+use crate::processor::{FieldAttrs, Pii, ValueType};
 
 type Range = std::ops::Range<usize>;
 
@@ -135,7 +137,12 @@ impl PiiAttachmentsProcessor<'_> {
                 .get_mut(range)
                 .ok_or(ScrubMinidumpError::InvalidAddress("foo"))?;
 
-            let state = file_state.enter_static("", None, Some(value_type));
+            // IMPORTANT: Minidump sections are always classified as Pii:Maybe. This avoids to
+            // accidentally scrub stack memory with highly generic selectors. TODO: Update the PII
+            // system with a better approach.
+            let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::Maybe));
+
+            let state = file_state.enter_static("", Some(attrs), Some(value_type));
             changed |= self.scrub_bytes(slice, &state);
         }
 
