@@ -78,7 +78,9 @@ def test_measurement_items_envelope(mini_sentry, relay_chain):
     envelope.add_item(
         Item(payload=PayloadRef(json=transaction_item), type="transaction")
     )
-    envelope.add_item(Item(payload=PayloadRef(json=measurement_item), type="measures"))
+    envelope.add_item(
+        Item(payload=PayloadRef(json=measurement_item), type="measurements")
+    )
 
     relay.send_envelope(42, envelope)
 
@@ -140,5 +142,5 @@ def test_measurement_strip_envelope(mini_sentry, relay_chain):
 
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
-    # expect measures interface object to be stripped out since it's attached to a non-transaction event
+    # expect measurements interface object to be stripped out since it's attached to a non-transaction event
     assert "measurements" not in event, event

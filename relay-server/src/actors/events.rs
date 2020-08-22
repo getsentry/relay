@@ -278,7 +278,7 @@ impl EventProcessor {
         Self { config }
     }
 
-    fn measures_from_json_payload(
+    fn measurements_from_json_payload(
         &self,
         item: Item,
     ) -> Result<ExtractedMeasurements, ProcessingError> {
@@ -288,12 +288,12 @@ impl EventProcessor {
         Ok((measurements, item.len()))
     }
 
-    /// Validates any and all measures in the envelope.
+    /// Validates any and all measurements in the envelope.
     fn process_measurements(
         &self,
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
-        log::trace!("processing measures");
+        log::trace!("processing measurements");
 
         let is_transaction = state.event_type() == Some(EventType::Transaction);
 
@@ -312,12 +312,12 @@ impl EventProcessor {
 
         let mut measurements = Measurements::default();
         loop {
-            let measure_item = envelope.take_item_by(|item| item.ty() == ItemType::Measures);
+            let measure_item = envelope.take_item_by(|item| item.ty() == ItemType::Measurements);
 
             match measure_item {
                 Some(item) => {
                     let (input_measurements, _ingested_len) =
-                        self.measures_from_json_payload(item)?;
+                        self.measurements_from_json_payload(item)?;
 
                     // TODO: add this?
                     // state.metrics.bytes_ingested_measurements = Annotated::new(ingested_len as u64);
@@ -336,12 +336,12 @@ impl EventProcessor {
             .get_or_insert_with(Measurements::default);
 
         if event_measurements.0.is_empty() {
-            log::trace!("adding measures interface");
+            log::trace!("adding measurements interface");
             *event_measurements = measurements;
             return Ok(());
         }
 
-        log::trace!("merging measures interface");
+        log::trace!("merging measurements interface");
 
         event_measurements.merge(Annotated::new(measurements));
 
@@ -700,7 +700,7 @@ impl EventProcessor {
             ItemType::UserReport => false,
 
             // TODO: unsure about this
-            ItemType::Measures => false,
+            ItemType::Measurements => false,
 
             // session data is never considered as part of deduplication
             ItemType::Session => false,

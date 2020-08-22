@@ -77,8 +77,8 @@ pub enum ItemType {
     Event,
     /// Transaction event payload encoded in JSON.
     Transaction,
-    /// Measures payload encoded in JSON.
-    Measures,
+    /// Measurements payload encoded in JSON.
+    Measurements,
     /// Security report event payload encoded in JSON.
     Security,
     /// Raw payload of an arbitrary attachment.
@@ -113,7 +113,7 @@ impl fmt::Display for ItemType {
         match *self {
             Self::Event => write!(f, "event"),
             Self::Transaction => write!(f, "transaction"),
-            Self::Measures => write!(f, "measures"),
+            Self::Measurements => write!(f, "measurements"),
             Self::Security => write!(f, "security report"),
             Self::Attachment => write!(f, "attachment"),
             Self::FormData => write!(f, "form data"),
@@ -503,7 +503,7 @@ impl Item {
             ItemType::FormData => false,
 
             // The remaining item types cannot carry event payloads.
-            ItemType::UserReport | ItemType::Session | ItemType::Measures => false,
+            ItemType::UserReport | ItemType::Session | ItemType::Measurements => false,
         }
     }
 
@@ -514,7 +514,7 @@ impl Item {
         match self.ty() {
             ItemType::Event => true,
             ItemType::Transaction => true,
-            ItemType::Measures => true,
+            ItemType::Measurements => true,
             ItemType::Security => true,
             ItemType::Attachment => true,
             ItemType::FormData => true,
