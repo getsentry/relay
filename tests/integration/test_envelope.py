@@ -23,8 +23,6 @@ def test_measure_items_envelope(mini_sentry, relay_chain):
     relay = relay_chain()
     mini_sentry.project_configs[42] = relay.basic_project_config()
 
-    measure_item = {"measurements": {"foo": 420.69, "BAR": 2020}}
-
     transaction_item = {
         "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
         "type": "transaction",
@@ -51,6 +49,8 @@ def test_measure_items_envelope(mini_sentry, relay_chain):
         ],
     }
 
+    measurement_item = {"foo": {"value": 420.69}, "BAR": {"value": 2020}}
+
     envelope = Envelope(
         headers={
             "event_id": transaction_item["event_id"],
@@ -60,7 +60,7 @@ def test_measure_items_envelope(mini_sentry, relay_chain):
     envelope.add_item(
         Item(payload=PayloadRef(json=transaction_item), type="transaction")
     )
-    envelope.add_item(Item(payload=PayloadRef(json=measure_item), type="measures"))
+    envelope.add_item(Item(payload=PayloadRef(json=measurement_item), type="measures"))
 
     relay.send_envelope(42, envelope)
 
@@ -82,10 +82,10 @@ def test_measure_items_envelope(mini_sentry, relay_chain):
 
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     assert "trace" in event["contexts"]
-    assert "measures" in event["contexts"]
-    assert event["contexts"]["measures"]["measurements"]["foo"] == 420.69
+    assert "measurements" in event, event
+    assert event["measurements"]["foo"]["value"] == 420.69
     # expect the key "BAR" to be lowercased as part of the normalization
-    assert event["contexts"]["measures"]["measurements"]["bar"] == 2020
+    assert event["measurements"]["bar"]["value"] == 2020
 
 
 def test_measure_strip_envelope(mini_sentry, relay_chain):
