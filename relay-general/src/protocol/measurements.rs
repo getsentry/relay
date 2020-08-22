@@ -1,8 +1,6 @@
 use regex::Regex;
 
-use crate::types::{
-    Annotated, Array, Empty, Error, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
-};
+use crate::types::{Annotated, Error, FromValue, Object, Value};
 
 lazy_static::lazy_static! {
     static ref MEASUREMENT_NAME: Regex = Regex::new("^[a-z0-9-._]+$").unwrap();
@@ -55,24 +53,29 @@ impl FromValue for Measurements {
 
                 for (raw_name, raw_value) in items.into_iter() {
                     let value: Annotated<f64> = match raw_value {
-                        Annotated(Some(Value::Object(bag)), meta) => match bag.get("value") {
-                            Some(Annotated(Some(Value::I64(value)), meta)) => {
-                                Annotated(Some(*value as f64), meta.clone())
+                        Annotated(Some(Value::Object(bag)), mut object_meta) => {
+                            match bag.get("value") {
+                                Some(Annotated(Some(Value::I64(value)), meta)) => {
+                                    Annotated(Some(*value as f64), meta.clone())
+                                }
+                                Some(Annotated(Some(Value::U64(value)), meta)) => {
+                                    Annotated(Some(*value as f64), meta.clone())
+                                }
+                                Some(Annotated(Some(Value::F64(value)), meta)) => {
+                                    Annotated(Some(*value), meta.clone())
+                                }
+                                Some(Annotated(value, meta)) => {
+                                    let mut meta = meta.clone();
+                                    meta.add_error(Error::expected("number"));
+                                    meta.set_original_value(value.clone());
+                                    Annotated(None, meta)
+                                }
+                                None => {
+                                    object_meta.add_error(Error::expected("value"));
+                                    Annotated(None, object_meta)
+                                }
                             }
-                            Some(Annotated(Some(Value::U64(value)), meta)) => {
-                                Annotated(Some(*value as f64), meta.clone())
-                            }
-                            Some(Annotated(Some(Value::F64(value)), meta)) => {
-                                Annotated(Some(*value), meta.clone())
-                            }
-                            Some(Annotated(value, meta)) => {
-                                let mut meta = meta.clone();
-                                meta.add_error(Error::expected("number"));
-                                meta.set_original_value(value.clone());
-                                Annotated(None, meta)
-                            }
-                            None => Annotated::from_error(Error::expected("number"), None),
-                        },
+                        }
                         Annotated(value, meta) => {
                             let mut meta = meta.clone();
                             meta.add_error(Error::expected("object"));

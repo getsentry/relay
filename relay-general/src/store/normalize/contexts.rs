@@ -1,7 +1,7 @@
 use regex::Regex;
 
 use crate::protocol::{Context, OsContext, RuntimeContext};
-use crate::types::{Empty, Object};
+use crate::types::Empty;
 
 lazy_static::lazy_static! {
     /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
