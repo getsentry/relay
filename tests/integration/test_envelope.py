@@ -1,8 +1,4 @@
 import json
-import pprint
-
-# pp = pprint.PrettyPrinter(indent=4)
-# pp.pprint(event)
 
 from datetime import datetime
 
