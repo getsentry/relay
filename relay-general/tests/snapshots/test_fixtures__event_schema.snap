@@ -193,6 +193,18 @@ expression: event_json_schema()
             "null"
           ]
         },
+        "measurements": {
+          "description": " Measurements",
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Measurements"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "modules": {
           "description": " Name and versions of all installed modules/packages/dependencies in the current\n environment/application.\n\n ```json\n { \"django\": \"3.0.0\", \"celery\": \"4.2.1\" }\n ```\n\n In Python this is a list of installed packages as reported by `pkg_resources` together with\n their reported version string.\n\n This is primarily used for suggesting to enable certain SDK integrations from within the UI\n and for making informed decisions on which frameworks to support in future development\n efforts.",
           "default": null,
@@ -775,9 +787,6 @@ expression: event_json_schema()
         },
         {
           "$ref": "#/definitions/TraceContext"
-        },
-        {
-          "$ref": "#/definitions/MeasuresContext"
         },
         {
           "$ref": "#/definitions/MonitorContext"
@@ -1785,38 +1794,36 @@ expression: event_json_schema()
         }
       ]
     },
+    "Measurement": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "value": {
+              "default": null,
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            }
+          }
+        }
+      ]
+    },
     "Measurements": {
       "anyOf": [
         {
           "type": "object",
           "additionalProperties": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double"
-          }
-        }
-      ]
-    },
-    "MeasuresContext": {
-      "description": " Measurements context",
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "measurements": {
-              "description": " measurements",
-              "default": null,
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Measurements"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
+            "anyOf": [
+              {
+                "$ref": "#/definitions/Measurement"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       ]
