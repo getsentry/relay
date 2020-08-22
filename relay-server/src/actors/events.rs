@@ -17,8 +17,8 @@ use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
-    Breadcrumb, ContextInner, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp,
-    LenientString, MeasuresContext, Metrics, SecurityReportType, SessionUpdate, Timestamp, Values,
+    Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, LenientString,
+    Measurements, Metrics, SecurityReportType, SessionUpdate, Timestamp, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
@@ -168,7 +168,7 @@ impl ProcessingError {
 
 type ExtractedEvent = (Annotated<Event>, usize);
 
-type ExtractedMeasurements = (Annotated<MeasuresContext>, usize);
+type ExtractedMeasurements = (Annotated<Measurements>, usize);
 
 /// A state container for envelope processing.
 #[derive(Debug)]
@@ -282,16 +282,14 @@ impl EventProcessor {
         &self,
         item: Item,
     ) -> Result<ExtractedMeasurements, ProcessingError> {
-        let measurements_item = Annotated::<MeasuresContext>::from_json_bytes(&item.payload())
+        let measurements = Annotated::<Measurements>::from_json_bytes(&item.payload())
             .map_err(ProcessingError::InvalidJson)?;
 
-        Ok((measurements_item, item.len()))
+        Ok((measurements, item.len()))
     }
 
     /// Validates any and all measures in the envelope.
     fn process_measures(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        use relay_general::protocol::{Context, Contexts};
-
         log::trace!("processing measures");
 
         let is_transaction = state.event_type() == Some(EventType::Transaction);
@@ -302,31 +300,26 @@ impl EventProcessor {
         };
 
         if !is_transaction {
-            match event.contexts.value_mut() {
-                None => {}
-                Some(contexts) => {
-                    // Only transaction events may have a measures context object.
-                    contexts.remove(MeasuresContext::default_key());
-                }
-            }
+            // Only transaction events may have a measurements interface
+            event.measurements.set_value(None);
             return Ok(());
         }
 
         let envelope = &mut state.envelope;
 
-        let mut measures_context = MeasuresContext::default();
+        let mut measurements = Measurements::default();
         loop {
             let measure_item = envelope.take_item_by(|item| item.ty() == ItemType::Measures);
 
             match measure_item {
                 Some(item) => {
-                    let (next_measure_context, _ingested_len) =
+                    let (input_measurements, _ingested_len) =
                         self.measures_from_json_payload(item)?;
 
                     // TODO: add this?
                     // state.metrics.bytes_ingested_measurements = Annotated::new(ingested_len as u64);
 
-                    measures_context.merge(next_measure_context);
+                    measurements.merge(input_measurements);
                 }
                 None => {
                     break;
@@ -334,26 +327,20 @@ impl EventProcessor {
             }
         }
 
-        let contexts = event.contexts.value_mut().get_or_insert_with(Contexts::new);
+        let event_measurements = event
+            .measurements
+            .value_mut()
+            .get_or_insert_with(Measurements::default);
 
-        match contexts.get_mut(MeasuresContext::default_key()) {
-            None => {
-                log::trace!("adding measures context");
-
-                contexts.add(Context::Measures(Box::new(measures_context)));
-            }
-            Some(measures_context_inner) => {
-                log::trace!("merging measures context");
-
-                let measures_context_inner = measures_context_inner.value_mut().as_mut().unwrap();
-
-                if let ContextInner(Context::Measures(this_measures_context)) =
-                    measures_context_inner
-                {
-                    this_measures_context.merge(Annotated::new(measures_context));
-                }
-            }
+        if event_measurements.0.is_empty() {
+            log::trace!("adding measures interface");
+            *event_measurements = measurements;
+            return Ok(());
         }
+
+        log::trace!("merging measures interface");
+
+        event_measurements.merge(Annotated::new(measurements));
 
         Ok(())
     }

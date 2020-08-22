@@ -477,13 +477,6 @@ impl FromValue for Measurements {
     }
 }
 
-impl MeasuresContext {
-    /// The key under which a measures context is generally stored (in `Contexts`)
-    pub fn default_key() -> &'static str {
-        "measures"
-    }
-}
-
 /// A 32-character hex string as described in the W3C trace context spec.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
@@ -666,8 +659,6 @@ pub enum Context {
     Gpu(Box<GpuContext>),
     /// Information related to Tracing.
     Trace(Box<TraceContext>),
-    /// Information related to Measurements.
-    Measures(Box<MeasuresContext>),
     /// Information related to Monitors feature.
     Monitor(Box<MonitorContext>),
     /// Additional arbitrary fields for forwards compatibility.
@@ -688,7 +679,6 @@ impl Context {
             Context::Browser(_) => Some(BrowserContext::default_key()),
             Context::Gpu(_) => Some(GpuContext::default_key()),
             Context::Trace(_) => Some(TraceContext::default_key()),
-            Context::Measures(_) => Some(MeasuresContext::default_key()),
             Context::Monitor(_) => Some(MonitorContext::default_key()),
             _ => None,
         }
@@ -1016,25 +1006,6 @@ fn test_trace_context_roundtrip() {
 
     assert_eq_dbg!(context, Annotated::from_json(json).unwrap());
     assert_eq_str!(json, context.to_json_pretty().unwrap());
-}
-
-#[test]
-fn test_measurements_context_normalization() {
-    let json = r#"{
-  "measurements": {"foo":420.69, "BAR": 2020},
-  "type": "measures"
-}"#;
-
-    let context = Annotated::new(Context::Measures(Box::new(MeasuresContext {
-        measurements: Annotated::new({
-            let mut obj = Object::<f64>::new();
-            obj.insert("foo".to_string(), Annotated::new(420.69));
-            obj.insert("bar".to_string(), Annotated::new(2020.0));
-            Measurements(obj)
-        }),
-    })));
-
-    assert_eq_dbg!(context, Annotated::from_json(json).unwrap());
 }
 
 #[test]

@@ -8,6 +8,7 @@ mod event;
 mod exception;
 mod fingerprint;
 mod logentry;
+mod measurements;
 mod mechanism;
 mod metrics;
 mod request;
@@ -29,8 +30,7 @@ pub use self::clientsdk::{ClientSdkInfo, ClientSdkPackage};
 pub use self::constants::{INVALID_ENVIRONMENTS, INVALID_RELEASES, VALID_PLATFORMS};
 pub use self::contexts::{
     AppContext, BrowserContext, Context, ContextInner, Contexts, DeviceContext, GpuContext,
-    Measurements, MeasuresContext, OperationType, OsContext, RuntimeContext, SpanId, SpanStatus,
-    TraceContext, TraceId,
+    OperationType, OsContext, RuntimeContext, SpanId, SpanStatus, TraceContext, TraceId,
 };
 pub use self::debugmeta::{
     AppleDebugImage, CodeId, DebugId, DebugImage, DebugMeta, NativeDebugImage, NativeImagePath,
@@ -43,6 +43,7 @@ pub use self::event::{
 pub use self::exception::Exception;
 pub use self::fingerprint::Fingerprint;
 pub use self::logentry::{LogEntry, Message};
+pub use self::measurements::Measurements;
 pub use self::mechanism::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
 pub use self::metrics::Metrics;
 pub use self::request::{Cookies, HeaderName, HeaderValue, Headers, Query, Request};

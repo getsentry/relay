@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use crate::protocol::{Context, Measurements, MeasuresContext, OsContext, RuntimeContext};
+use crate::protocol::{Context, OsContext, RuntimeContext};
 use crate::types::{Empty, Object};
 
 lazy_static::lazy_static! {
@@ -101,30 +101,10 @@ fn normalize_os_context(os: &mut OsContext) {
     }
 }
 
-fn normalize_measures_context(measures: &mut MeasuresContext) {
-    if measures.measurements.value().is_none() {
-        return;
-    }
-
-    let mut new_measurements = Object::<f64>::new();
-
-    let Measurements(measurements) = measures.measurements.value().unwrap();
-
-    // TODO: do this better
-    for (measurement_name, value) in measurements.iter() {
-        new_measurements.insert(measurement_name.to_lowercase(), value.clone());
-    }
-
-    measures
-        .measurements
-        .set_value(Some(Measurements(new_measurements)));
-}
-
 pub fn normalize_context(context: &mut Context) {
     match context {
         Context::Runtime(runtime) => normalize_runtime_context(runtime),
         Context::Os(os) => normalize_os_context(os),
-        Context::Measures(measures) => normalize_measures_context(measures),
         _ => (),
     }
 }
@@ -357,28 +337,4 @@ fn test_no_name() {
     assert_eq_dbg!(None, os.version.value());
     assert_eq_dbg!(None, os.kernel_version.value());
     assert_eq_dbg!(None, os.raw_description.value());
-}
-
-#[test]
-fn test_measures_normalization() {
-    use crate::types::{Annotated, Object};
-
-    let mut measures = MeasuresContext {
-        measurements: Annotated::new({
-            let mut obj = Object::<f64>::new();
-            obj.insert("FOO".to_string(), Annotated::new(420.69));
-            Measurements(obj)
-        }),
-    };
-
-    normalize_measures_context(&mut measures);
-
-    let Measurements(measurements) = measures.measurements.value().unwrap();
-
-    for (measurement_name, _value) in measurements.iter() {
-        assert_eq_dbg!(
-            measurement_name.to_string(),
-            measurement_name.to_lowercase()
-        );
-    }
 }

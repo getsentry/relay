@@ -11,8 +11,8 @@ use serde::{Serialize, Serializer};
 use crate::processor::ProcessValue;
 use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt, ExpectStaple,
-    Fingerprint, Hpkp, LenientString, Level, LogEntry, Metrics, Request, Span, Stacktrace, Tags,
-    TemplateInfo, Thread, Timestamp, User, Values,
+    Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics, Request, Span,
+    Stacktrace, Tags, TemplateInfo, Thread, Timestamp, User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
@@ -470,7 +470,7 @@ pub struct Event {
 
     /// Measurements
     #[metastructure(skip_serialization = "empty_deep")]
-    pub measurements: Annotated<Object<Measurement>>,
+    pub measurements: Annotated<Measurements>,
 
     /// Internal ingestion and processing metrics.
     ///
@@ -481,12 +481,6 @@ pub struct Event {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]
     pub other: Object<Value>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct Measurement {
-    pub value: Annotated<f64>,
 }
 
 #[test]
