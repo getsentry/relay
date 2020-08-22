@@ -1,4 +1,8 @@
 import json
+import pprint
+
+# pp = pprint.PrettyPrinter(indent=4)
+# pp.pprint(event)
 
 from datetime import datetime
 
@@ -96,7 +100,7 @@ def test_measure_strip_envelope(mini_sentry, relay_chain):
     envelope.add_event(
         {
             "message": "Hello, World!",
-            "contexts": {"measures": {"measurements": {"lcp": 420.90}}},
+            "measurements": {"foo": {"value": 420.69}, "BAR": {"value": 2020}},
         }
     )
     relay.send_envelope(42, envelope)
@@ -105,5 +109,5 @@ def test_measure_strip_envelope(mini_sentry, relay_chain):
 
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
-    # expect measures context object to be stripped out since it's attached to a non-transaction event
-    assert "measures" not in event["contexts"], event
+    # expect measures interface object to be stripped out since it's attached to a non-transaction event
+    assert "measurements" not in event, event
