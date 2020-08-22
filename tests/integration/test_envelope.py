@@ -23,11 +23,22 @@ def test_envelope(mini_sentry, relay_chain):
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
-def test_measure_items_envelope(mini_sentry, relay_chain):
-    relay = relay_chain()
-    mini_sentry.project_configs[42] = relay.basic_project_config()
+def get_transaction_item(item):
+    if item.headers.get("type") == "transaction" and item.payload is not None:
+        return json.loads(item.payload.get_bytes())
+    return None
 
-    transaction_item = {
+
+def get_transaction(envelope):
+    for item in envelope.items:
+        event = get_transaction_item(item)
+        if event is not None:
+            return event
+    return None
+
+
+def generate_transaction_item():
+    return {
         "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
         "type": "transaction",
         "transaction": "/organizations/:orgId/performance/:eventSlug/",
@@ -53,6 +64,13 @@ def test_measure_items_envelope(mini_sentry, relay_chain):
         ],
     }
 
+
+def test_measurement_items_envelope(mini_sentry, relay_chain):
+    relay = relay_chain()
+    mini_sentry.project_configs[42] = relay.basic_project_config()
+
+    transaction_item = generate_transaction_item()
+
     measurement_item = {"foo": {"value": 420.69}, "BAR": {"value": 2020}}
 
     envelope = Envelope(
@@ -70,18 +88,6 @@ def test_measure_items_envelope(mini_sentry, relay_chain):
 
     envelope = mini_sentry.captured_events.get(timeout=1)
 
-    def get_transaction_item(item):
-        if item.headers.get("type") == "transaction" and item.payload is not None:
-            return json.loads(item.payload.get_bytes())
-        return None
-
-    def get_transaction(envelope):
-        for item in envelope.items:
-            event = get_transaction_item(item)
-            if event is not None:
-                return event
-        return None
-
     event = get_transaction(envelope)
 
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
@@ -92,7 +98,7 @@ def test_measure_items_envelope(mini_sentry, relay_chain):
     assert event["measurements"]["bar"]["value"] == 2020
 
 
-def test_measure_strip_envelope(mini_sentry, relay_chain):
+def test_measurement_strip_envelope(mini_sentry, relay_chain):
     relay = relay_chain()
     mini_sentry.project_configs[42] = relay.basic_project_config()
 
