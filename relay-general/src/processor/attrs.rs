@@ -257,7 +257,17 @@ pub struct FieldAttrs {
 impl FieldAttrs {
     /// Creates default `FieldAttrs`.
     pub const fn new() -> Self {
-        DEFAULT_FIELD_ATTRS
+        FieldAttrs {
+            name: None,
+            required: false,
+            nonempty: false,
+            trim_whitespace: false,
+            match_regex: None,
+            max_chars: None,
+            bag_size: None,
+            pii: Pii::False,
+            retain: false,
+        }
     }
 
     /// Sets whether a value in this field is required.
@@ -308,27 +318,9 @@ impl FieldAttrs {
     }
 }
 
-const DEFAULT_FIELD_ATTRS: FieldAttrs = FieldAttrs {
-    name: None,
-    required: false,
-    nonempty: false,
-    trim_whitespace: false,
-    match_regex: None,
-    max_chars: None,
-    bag_size: None,
-    pii: Pii::False,
-    retain: false,
-};
-
-const PII_TRUE_FIELD_ATTRS: FieldAttrs = FieldAttrs {
-    pii: Pii::True,
-    ..DEFAULT_FIELD_ATTRS
-};
-
-const PII_MAYBE_FIELD_ATTRS: FieldAttrs = FieldAttrs {
-    pii: Pii::Maybe,
-    ..DEFAULT_FIELD_ATTRS
-};
+static DEFAULT_FIELD_ATTRS: FieldAttrs = FieldAttrs::new();
+static PII_TRUE_FIELD_ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::True);
+static PII_MAYBE_FIELD_ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::Maybe);
 
 impl Default for FieldAttrs {
     fn default() -> Self {
