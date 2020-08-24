@@ -524,6 +524,7 @@ impl Item {
 
 pub type Items = SmallVec<[Item; 3]>;
 pub type ItemIter<'a> = std::slice::Iter<'a, Item>;
+pub type ItemIterMut<'a> = std::slice::IterMut<'a, Item>;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EnvelopeHeaders<M = RequestMeta> {
@@ -720,6 +721,13 @@ impl Envelope {
         self.items.iter()
     }
 
+    /// Returns a mutable iterator over items in this envelope.
+    ///
+    /// Note that iteration order may change when using `take_item`.
+    pub fn items_mut(&mut self) -> ItemIterMut<'_> {
+        self.items.iter_mut()
+    }
+
     /// Returns the an option with a reference to the first item that matches
     /// the predicate, or None if the predicate is not matched by any item.
     pub fn get_item_by<F>(&self, mut pred: F) -> Option<&Item>
@@ -727,6 +735,15 @@ impl Envelope {
         F: FnMut(&Item) -> bool,
     {
         self.items().find(|item| pred(item))
+    }
+
+    /// Returns the an option with a mutable reference to the first item that matches
+    /// the predicate, or None if the predicate is not matched by any item.
+    pub fn get_item_by_mut<F>(&mut self, mut pred: F) -> Option<&mut Item>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        self.items_mut().find(|item| pred(item))
     }
 
     /// Removes and returns the first item that matches the given condition.
