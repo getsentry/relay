@@ -1,0 +1,2446 @@
+
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      
+      
+      
+        <meta name="author" content="Sentry">
+      
+      
+        <meta name="lang:clipboard.copy" content="Copy to clipboard">
+      
+        <meta name="lang:clipboard.copied" content="Copied to clipboard">
+      
+        <meta name="lang:search.language" content="en">
+      
+        <meta name="lang:search.pipeline.stopwords" content="True">
+      
+        <meta name="lang:search.pipeline.trimmer" content="True">
+      
+        <meta name="lang:search.result.none" content="No matching documents">
+      
+        <meta name="lang:search.result.one" content="1 matching document">
+      
+        <meta name="lang:search.result.other" content="# matching documents">
+      
+        <meta name="lang:search.tokenizer" content="[\s\-]+">
+      
+      <link rel="shortcut icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-4.6.2">
+    
+    
+      
+        <title>Event.schema - Sentry Relay</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/application.adb8469c.css">
+      
+      
+    
+    
+      <script src="../../assets/javascripts/modernizr.86422ebf.js"></script>
+    
+    
+      
+        <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&display=fallback">
+        <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
+      
+    
+    <link rel="stylesheet" href="../../assets/fonts/material-icons.css">
+    
+    
+      <link rel="stylesheet" href="https://unpkg.com/mermaid@7.1.2/dist/mermaid.css">
+    
+    
+      
+    
+    
+  </head>
+  
+    <body dir="ltr">
+  
+    <svg class="md-svg">
+      <defs>
+        
+        
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448" viewBox="0 0 416 448" id="__github"><path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19T128 352t-18.125-8.5-10.75-19T96 304t3.125-20.5 10.75-19T128 256t18.125 8.5 10.75 19T160 304zm160 0q0 10-3.125 20.5t-10.75 19T288 352t-18.125-8.5-10.75-19T256 304t3.125-20.5 10.75-19T288 256t18.125 8.5 10.75 19T320 304zm40 0q0-30-17.25-51T296 232q-10.25 0-48.75 5.25Q229.5 240 208 240t-39.25-2.75Q130.75 232 120 232q-29.5 0-46.75 21T56 304q0 22 8 38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0 37.25-1.75t35-7.375 30.5-15 20.25-25.75T360 304zm56-44q0 51.75-15.25 82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5T212 416q-19.5 0-35.5-.75t-36.875-3.125-38.125-7.5-34.25-12.875T37 371.5t-21.5-28.75Q0 312 0 260q0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25 30.875Q171.5 96 212 96q37 0 70 8 26.25-20.5 46.75-30.25T376 64q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34 99.5z"/></svg>
+        
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
+    
+      <a href="#event" tabindex="0" class="md-skip">
+        Skip to content
+      </a>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid">
+    <div class="md-flex">
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <a href="../.." title="Sentry Relay" aria-label="Sentry Relay" class="md-header-nav__button md-logo">
+          
+            <i class="md-icon"></i>
+          
+        </a>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <label class="md-icon md-icon--menu md-header-nav__button" for="__drawer"></label>
+      </div>
+      <div class="md-flex__cell md-flex__cell--stretch">
+        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+          
+            <span class="md-header-nav__topic">
+              Sentry Relay
+            </span>
+            <span class="md-header-nav__topic">
+              
+                Event.schema
+              
+            </span>
+          
+        </div>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        
+          <label class="md-icon md-icon--search md-header-nav__button" for="__search"></label>
+          
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" aria-label="search" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <label class="md-icon md-search__icon" for="__search"></label>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
+        &#xE5CD;
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="result">
+          <div class="md-search-result__meta">
+            Type to start searching
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+        
+      </div>
+      
+        <div class="md-flex__cell md-flex__cell--shrink">
+          <div class="md-header-nav__source">
+            
+
+
+  
+
+<a href="https://github.com/getsentry/relay/" title="Go to repository" class="md-source" data-md-source="github">
+  
+    <div class="md-source__icon">
+      <svg viewBox="0 0 24 24" width="24" height="24">
+        <use xlink:href="#__github" width="24" height="24"></use>
+      </svg>
+    </div>
+  
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+          </div>
+        </div>
+      
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container">
+      
+        
+      
+      
+      <main class="md-main" role="main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" data-md-level="0">
+  <label class="md-nav__title md-nav__title--site" for="__drawer">
+    <a href="../.." title="Sentry Relay" class="md-nav__button md-logo">
+      
+        <i class="md-icon"></i>
+      
+    </a>
+    Sentry Relay
+  </label>
+  
+    <div class="md-nav__source">
+      
+
+
+  
+
+<a href="https://github.com/getsentry/relay/" title="Go to repository" class="md-source" data-md-source="github">
+  
+    <div class="md-source__icon">
+      <svg viewBox="0 0 24 24" width="24" height="24">
+        <use xlink:href="#__github" width="24" height="24"></use>
+      </svg>
+    </div>
+  
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../.." title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
+    
+    <label class="md-nav__link" for="nav-2">
+      Advanced Configuration
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-2">
+        Advanced Configuration
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../configuration/modes/" title="Relay Modes" class="md-nav__link">
+      Relay Modes
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../configuration/options/" title="Configuration Options" class="md-nav__link">
+      Configuration Options
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../configuration/metrics/" title="Errors and Metrics" class="md-nav__link">
+      Errors and Metrics
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../configuration/projects/" title="Project Configuration" class="md-nav__link">
+      Project Configuration
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3">
+    
+    <label class="md-nav__link" for="nav-3">
+      PII and Data Scrubbing
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-3">
+        PII and Data Scrubbing
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../pii-config/" title="PII Configuration" class="md-nav__link">
+      PII Configuration
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../pii-config/types/" title="PII Rule Types" class="md-nav__link">
+      PII Rule Types
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../pii-config/methods/" title="PII Redaction Methods" class="md-nav__link">
+      PII Redaction Methods
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../pii-config/selectors/" title="PII Selectors" class="md-nav__link">
+      PII Selectors
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+    
+    <label class="md-nav__link" for="nav-4">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-4">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../architecture/" title="Architecture" class="md-nav__link">
+      Architecture
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../architecture/actors/" title="Actors" class="md-nav__link">
+      Actors
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../architecture/ingest-event-path/" title="Path of an Event through Relay" class="md-nav__link">
+      Path of an Event through Relay
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../architecture/project-configuration/" title="Project configuration" class="md-nav__link">
+      Project configuration
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#event" class="md-nav__link">
+    Event
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#breadcrumbs" class="md-nav__link">
+    Breadcrumbs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#breadcrumb" class="md-nav__link">
+    Breadcrumb
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#level" class="md-nav__link">
+    Level
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#devicecontext" class="md-nav__link">
+    DeviceContext
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#oscontext" class="md-nav__link">
+    OSContext
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#runtimecontext" class="md-nav__link">
+    RuntimeContext
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#appcontext" class="md-nav__link">
+    AppContext
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#browsercontext" class="md-nav__link">
+    BrowserContext
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gpucontext" class="md-nav__link">
+    GPUContext
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tracecontext" class="md-nav__link">
+    TraceContext
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spanstatus" class="md-nav__link">
+    SpanStatus
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debugmeta" class="md-nav__link">
+    DebugMeta
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#appledebugimage" class="md-nav__link">
+    AppleDebugImage
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nativedebugimage" class="md-nav__link">
+    NativeDebugImage
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proguarddebugimage" class="md-nav__link">
+    ProguardDebugImage
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#systemsdkinfo" class="md-nav__link">
+    SystemSDKInfo
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#eventprocessingerror" class="md-nav__link">
+    EventProcessingError
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exception" class="md-nav__link">
+    Exception
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#valueobject" class="md-nav__link">
+    ValueObject
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mechanism" class="md-nav__link">
+    Mechanism
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mechanismmeta" class="md-nav__link">
+    MechanismMeta
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cerror" class="md-nav__link">
+    CError
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#machexception" class="md-nav__link">
+    MachException
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#posixsignal" class="md-nav__link">
+    POSIXSignal
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stacktrace" class="md-nav__link">
+    Stacktrace
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#frame" class="md-nav__link">
+    Frame
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logentry" class="md-nav__link">
+    LogEntry
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#request" class="md-nav__link">
+    Request
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clientsdkinfo" class="md-nav__link">
+    ClientSDKInfo
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clientsdkpackage" class="md-nav__link">
+    ClientSDKPackage
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#span" class="md-nav__link">
+    Span
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#threads" class="md-nav__link">
+    Threads
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread" class="md-nav__link">
+    Thread
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#eventtype" class="md-nav__link">
+    EventType
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#user" class="md-nav__link">
+    User
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#geo" class="md-nav__link">
+    Geo
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/getsentry/relay/edit/master/docs/event-schema/event.schema.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                
+                
+                  <h1>Event.schema</h1>
+                
+                <p><a name='typedef-Event'></a></p>
+<h2 id="event"><code>Event</code></h2>
+<p>The sentry v7 event structure.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>breadcrumbs</code> (optional): <code>null | <a href='#typedef-Breadcrumbs'>Breadcrumbs</a></code></p>
+<p>List of breadcrumbs recorded before this event.</p>
+</li>
+<li>
+<p><code>contexts</code> (optional): <code>{ [key: string]: null | ({ [key: string]: any } | <a href='#typedef-DeviceContext'>DeviceContext</a> | <a href='#typedef-OSContext'>OSContext</a> | <a href='#typedef-RuntimeContext'>RuntimeContext</a> | <a href='#typedef-AppContext'>AppContext</a> | <a href='#typedef-BrowserContext'>BrowserContext</a> | <a href='#typedef-GPUContext'>GPUContext</a> | <a href='#typedef-TraceContext'>TraceContext</a>) } | null</code></p>
+<p>Contexts describing the environment (e.g. device, os or browser).</p>
+</li>
+<li>
+<p><code>culprit</code> (optional): <code>null | string</code></p>
+<p>Custom culprit of the event.</p>
+</li>
+<li>
+<p><code>debug_meta</code> (optional): <code>null | <a href='#typedef-DebugMeta'>DebugMeta</a></code></p>
+<p>Meta data for event processing and debugging.</p>
+</li>
+<li>
+<p><code>dist</code> (optional): <code>null | string</code></p>
+<p>Program's distribution identifier.</p>
+<p>The distribution of the application.</p>
+<p>Distributions are used to disambiguate build or deployment variants of the same release of
+ an application. For example, the dist can be the build number of an XCode build or the
+ version code of an Android build.</p>
+</li>
+<li>
+<p><code>environment</code> (optional): <code>null | string</code></p>
+<p>The environment name, such as <code>production</code> or <code>staging</code>.</p>
+</li>
+<li>
+<p><code>errors</code> (optional): <code>Array&lt;null | <a href='#typedef-EventProcessingError'>EventProcessingError</a>&gt; | null</code></p>
+<p>Errors encountered during processing. Intended to be phased out in favor of
+ annotation/metadata system.</p>
+</li>
+<li>
+<p><code>event_id</code> (optional): <code>null | string</code></p>
+<p>Unique identifier of this event.</p>
+<p>Hexadecimal string representing a uuid4 value. The length is exactly 32 characters. Dashes
+ are not allowed. Has to be lowercase.</p>
+<p>Even though this field is backfilled on the server with a new uuid4, it is strongly
+ recommended to generate that uuid4 clientside. There are some features like user feedback
+ which are easier to implement that way, and debugging in case events get lost in your
+ Sentry installation is also easier.</p>
+<p>Example:</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;event_id&quot;</span><span class="p">:</span> <span class="s2">&quot;fc6d8c0c43fc4630ad850ee518f1b9d0&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+</li>
+<li>
+<p><code>exception</code> (optional): <code>null | <a href='#typedef-Exception'>Exception</a></code></p>
+<p>One or multiple chained (nested) exceptions.</p>
+</li>
+<li>
+<p><code>extra</code> (optional): <code>{ [key: string]: any } | null</code></p>
+<p>Arbitrary extra information set by the user.</p>
+</li>
+<li>
+<p><code>fingerprint</code> (optional): <code>string[] | null</code></p>
+<p>Manual fingerprint override.</p>
+<p>A list of strings used to dictate how this event is supposed to be grouped with other
+ events into issues. For more information about overriding grouping see <a href="https://docs.sentry.io/data-management/event-grouping/">Customize Grouping
+ with Fingerprints</a>.</p>
+</li>
+<li>
+<p><code>key_id</code> (optional): <code>null | string</code></p>
+<p>Project key which sent this event.</p>
+</li>
+<li>
+<p><code>level</code> (optional): <code><a href='#typedef-Level'>Level</a> | null</code></p>
+<p>Severity level of the event. Defaults to <code>error</code>.</p>
+</li>
+<li>
+<p><code>logentry</code> (optional): <code>null | <a href='#typedef-LogEntry'>LogEntry</a></code></p>
+<p>Custom parameterized message for this event.</p>
+</li>
+<li>
+<p><code>logger</code> (optional): <code>null | string</code></p>
+<p>Logger that created the event.</p>
+</li>
+<li>
+<p><code>modules</code> (optional): <code>{ [key: string]: null | string } | null</code></p>
+<p>Name and versions of all installed modules/packages/dependencies in the current
+ environment/application.</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span> <span class="nt">&quot;django&quot;</span><span class="p">:</span> <span class="s2">&quot;3.0.0&quot;</span><span class="p">,</span> <span class="nt">&quot;celery&quot;</span><span class="p">:</span> <span class="s2">&quot;4.2.1&quot;</span> <span class="p">}</span>
+</code></pre></div>
+
+<p>In Python this is a list of installed packages as reported by <code>pkg_resources</code> together with
+ their reported version string.</p>
+<p>This is primarily used for suggesting to enable certain SDK integrations from within the UI
+ and for making informed decisions on which frameworks to support in future development
+ efforts.</p>
+</li>
+<li>
+<p><code>platform</code> (optional): <code>null | string</code></p>
+<p>Platform identifier of this event (defaults to "other").</p>
+<p>A string representing the platform the SDK is submitting from. This will be used by the
+ Sentry interface to customize various components in the interface, but also to enter or
+ skip stacktrace processing.</p>
+<p>Acceptable values are: <code>as3</code>, <code>c</code>, <code>cfml</code>, <code>cocoa</code>, <code>csharp</code>, <code>elixir</code>, <code>haskell</code>, <code>go</code>,
+ <code>groovy</code>, <code>java</code>, <code>javascript</code>, <code>native</code>, <code>node</code>, <code>objc</code>, <code>other</code>, <code>perl</code>, <code>php</code>, <code>python</code>,
+ <code>ruby</code></p>
+</li>
+<li>
+<p><code>project</code> (optional): <code>number | null</code></p>
+<p>Project which sent this event.</p>
+</li>
+<li>
+<p><code>received</code> (optional): <code>null | (number | string)</code></p>
+<p>Timestamp when the event has been received by Sentry.</p>
+</li>
+<li>
+<p><code>release</code> (optional): <code>null | string</code></p>
+<p>The release version of the application.</p>
+<p><strong>Release versions must be unique across all projects in your organization.</strong> This value
+ can be the git SHA for the given project, or a product identifier with a semantic version.</p>
+</li>
+<li>
+<p><code>request</code> (optional): <code>null | <a href='#typedef-Request'>Request</a></code></p>
+<p>Information about a web request that occurred during the event.</p>
+</li>
+<li>
+<p><code>sdk</code> (optional): <code>null | <a href='#typedef-ClientSDKInfo'>ClientSDKInfo</a></code></p>
+<p>Information about the Sentry SDK that generated this event.</p>
+</li>
+<li>
+<p><code>server_name</code> (optional): <code>null | string</code></p>
+<p>Server or device name the event was generated on.</p>
+<p>This is supposed to be a hostname.</p>
+</li>
+<li>
+<p><code>site</code> (optional): <code>null | string</code></p>
+<p>Deprecated in favor of tags.</p>
+</li>
+<li>
+<p><code>spans</code> (optional): <code>Array&lt;null | <a href='#typedef-Span'>Span</a>&gt; | null</code></p>
+<p>Spans for tracing.</p>
+</li>
+<li>
+<p><code>stacktrace</code> (optional): <code>null | <a href='#typedef-Stacktrace'>Stacktrace</a></code></p>
+<p>Event stacktrace.</p>
+<p>DEPRECATED: Prefer <code>threads</code> or <code>exception</code> depending on which is more appropriate.</p>
+</li>
+<li>
+<p><code>start_timestamp</code> (optional): <code>null | (number | string)</code></p>
+<p>Timestamp when the event has started (relevant for event type = "transaction")</p>
+</li>
+<li>
+<p><code>tags</code> (optional): <code>null | (Array&lt;Array&lt;(null | string)&gt; | null&gt; | { [key: string]: null | string })</code></p>
+<p>Custom tags for this event.</p>
+<p>A map or list of tags for this event. Each tag must be less than 200 characters.</p>
+</li>
+<li>
+<p><code>threads</code> (optional): <code>null | <a href='#typedef-Threads'>Threads</a></code></p>
+<p>Threads that were active when the event occurred.</p>
+</li>
+<li>
+<p><code>time_spent</code> (optional): <code>number | null</code></p>
+<p>Time since the start of the transaction until the error occurred.</p>
+</li>
+<li>
+<p><code>timestamp</code> (optional): <code>null | (number | string)</code></p>
+<p>Timestamp when the event was created.</p>
+<p>Indicates when the event was created in the Sentry SDK. The format is either a string as
+ defined in <a href="https://tools.ietf.org/html/rfc3339">RFC 3339</a> or a numeric (integer or float)
+ value representing the number of seconds that have elapsed since the <a href="https://en.wikipedia.org/wiki/Unix_time">Unix
+ epoch</a>.</p>
+<p>Sub-microsecond precision is not preserved with numeric values due to precision
+ limitations with floats (at least in our systems). With that caveat in mind, just send
+ whatever is easiest to produce.</p>
+<p>All timestamps in the event protocol are formatted this way.</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span> <span class="nt">&quot;timestamp&quot;</span><span class="p">:</span> <span class="s2">&quot;2011-05-02T17:41:36Z&quot;</span> <span class="p">}</span>
+<span class="p">{</span> <span class="nt">&quot;timestamp&quot;</span><span class="p">:</span> <span class="mf">1304358096.0</span> <span class="p">}</span>
+</code></pre></div>
+
+</li>
+<li>
+<p><code>transaction</code> (optional): <code>null | string</code></p>
+<p>Transaction name of the event.</p>
+<p>For example, in a web app, this might be the route name (<code>"/users/&lt;username&gt;/"</code> or
+ <code>UserView</code>), in a task queue it might be the function + module name.</p>
+</li>
+<li>
+<p><code>type</code> (optional): <code><a href='#typedef-EventType'>EventType</a> | null</code></p>
+<p>Type of event: error, csp, default</p>
+</li>
+<li>
+<p><code>user</code> (optional): <code>null | <a href='#typedef-User'>User</a></code></p>
+<p>Information about the user who triggered this event.</p>
+</li>
+<li>
+<p><code>version</code> (optional): <code>null | string</code></p>
+<p>Version</p>
+</li>
+</ul>
+<p><a name='typedef-Breadcrumbs'></a></p>
+<h2 id="breadcrumbs"><code>Breadcrumbs</code></h2>
+<p><strong>Properties:</strong></p>
+<ul>
+<li><code>values</code>: <code>Array&lt;null | <a href='#typedef-Breadcrumb'>Breadcrumb</a>&gt;</code></li>
+</ul>
+<p><a name='typedef-Breadcrumb'></a></p>
+<h2 id="breadcrumb"><code>Breadcrumb</code></h2>
+<p>The Breadcrumbs Interface specifies a series of application events, or "breadcrumbs", that
+ occurred before an event.</p>
+<p>An event may contain one or more breadcrumbs in an attribute named <code>breadcrumbs</code>. The entries
+ are ordered from oldest to newest. Consequently, the last entry in the list should be the last
+ entry before the event occurred.</p>
+<p>While breadcrumb attributes are not strictly validated in Sentry, a breadcrumb is most useful
+ when it includes at least a <code>timestamp</code> and <code>type</code>, <code>category</code> or <code>message</code>. The rendering of
+ breadcrumbs in Sentry depends on what is provided.</p>
+<p>The following example illustrates the breadcrumbs part of the event payload and omits other
+ attributes for simplicity.</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;breadcrumbs&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;values&quot;</span><span class="p">:</span> <span class="p">[</span>
+      <span class="p">{</span>
+        <span class="nt">&quot;timestamp&quot;</span><span class="p">:</span> <span class="s2">&quot;2016-04-20T20:55:53.845Z&quot;</span><span class="p">,</span>
+        <span class="nt">&quot;message&quot;</span><span class="p">:</span> <span class="s2">&quot;Something happened&quot;</span><span class="p">,</span>
+        <span class="nt">&quot;category&quot;</span><span class="p">:</span> <span class="s2">&quot;log&quot;</span><span class="p">,</span>
+        <span class="nt">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+          <span class="nt">&quot;foo&quot;</span><span class="p">:</span> <span class="s2">&quot;bar&quot;</span><span class="p">,</span>
+          <span class="nt">&quot;blub&quot;</span><span class="p">:</span> <span class="s2">&quot;blah&quot;</span>
+        <span class="p">}</span>
+      <span class="p">},</span>
+      <span class="p">{</span>
+        <span class="nt">&quot;timestamp&quot;</span><span class="p">:</span> <span class="s2">&quot;2016-04-20T20:55:53.847Z&quot;</span><span class="p">,</span>
+        <span class="nt">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;navigation&quot;</span><span class="p">,</span>
+        <span class="nt">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+          <span class="nt">&quot;from&quot;</span><span class="p">:</span> <span class="s2">&quot;/login&quot;</span><span class="p">,</span>
+          <span class="nt">&quot;to&quot;</span><span class="p">:</span> <span class="s2">&quot;/dashboard&quot;</span>
+        <span class="p">}</span>
+      <span class="p">}</span>
+    <span class="p">]</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>category</code> (optional): <code>null | string</code></p>
+<p>A dotted string indicating what the crumb is or from where it comes. <em>Optional.</em></p>
+<p>Typically it is a module name or a descriptive string. For instance, <em>ui.click</em> could be
+ used to indicate that a click happened in the UI or <em>flask</em> could be used to indicate that
+ the event originated in the Flask framework.</p>
+</li>
+<li>
+<p><code>data</code> (optional): <code>{ [key: string]: any } | null</code></p>
+<p>Arbitrary data associated with this breadcrumb.</p>
+<p>Contains a dictionary whose contents depend on the breadcrumb <code>type</code>. Additional parameters
+ that are unsupported by the type are rendered as a key/value table.</p>
+</li>
+<li>
+<p><code>level</code> (optional): <code><a href='#typedef-Level'>Level</a> | null</code></p>
+<p>Severity level of the breadcrumb. <em>Optional.</em></p>
+<p>Allowed values are, from highest to lowest: <code>fatal</code>, <code>error</code>, <code>warning</code>, <code>info</code>, and
+ <code>debug</code>. Levels are used in the UI to emphasize and deemphasize the crumb. Defaults to
+ <code>info</code>.</p>
+</li>
+<li>
+<p><code>message</code> (optional): <code>null | string</code></p>
+<p>Human readable message for the breadcrumb.</p>
+<p>If a message is provided, it is rendered as text with all whitespace preserved. Very long
+ text might be truncated in the UI.</p>
+</li>
+<li>
+<p><code>timestamp</code> (optional): <code>null | (number | string)</code></p>
+<p>The timestamp of the breadcrumb. Recommended.</p>
+<p>A timestamp representing when the breadcrumb occurred. The format is either a string as
+ defined in <a href="https://tools.ietf.org/html/rfc3339">RFC 3339</a> or a numeric (integer or float)
+ value representing the number of seconds that have elapsed since the <a href="https://en.wikipedia.org/wiki/Unix_time">Unix
+ epoch</a>.</p>
+<p>Breadcrumbs are most useful when they include a timestamp, as it creates a timeline leading
+ up to an event.</p>
+</li>
+<li>
+<p><code>type</code> (optional): <code>null | string</code></p>
+<p>The type of the breadcrumb. <em>Optional</em>, defaults to <code>default</code>.</p>
+<ul>
+<li>
+<p><code>default</code>: Describes a generic breadcrumb. This is typically a log message or
+   user-generated breadcrumb. The <code>data</code> field is entirely undefined and as such, completely
+   rendered as a key/value table.</p>
+</li>
+<li>
+<p><code>navigation</code>: Describes a navigation breadcrumb. A navigation event can be a URL change
+   in a web application, or a UI transition in a mobile or desktop application, etc.</p>
+</li>
+</ul>
+<p>Such a breadcrumb's <code>data</code> object has the required fields <code>from</code> and <code>to</code>, which
+   represent an application route/url each.</p>
+<ul>
+<li><code>http</code>: Describes an HTTP request breadcrumb. This represents an HTTP request transmitted
+   from your application. This could be an AJAX request from a web application, or a
+   server-to-server HTTP request to an API service provider, etc.</li>
+</ul>
+<p>Such a breadcrumb's <code>data</code> property has the fields <code>url</code>, <code>method</code>, <code>status_code</code>
+   (integer) and <code>reason</code> (string).</p>
+</li>
+</ul>
+<p><a name='typedef-Level'></a></p>
+<h2 id="level"><code>Level</code></h2>
+<p>Severity level of an event or breadcrumb.</p>
+<p><strong>Variants:</strong></p>
+<ul>
+<li><code>"debug"</code></li>
+<li><code>"error"</code></li>
+<li><code>"fatal"</code></li>
+<li><code>"info"</code></li>
+<li><code>"warning"</code></li>
+</ul>
+<p><a name='typedef-DeviceContext'></a></p>
+<h2 id="devicecontext"><code>DeviceContext</code></h2>
+<p>Device information.</p>
+<p>Device context describes the device that caused the event. This is most appropriate for mobile
+ applications.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>arch</code> (optional): <code>null | string</code></p>
+<p>Native cpu architecture of the device.</p>
+</li>
+<li>
+<p><code>battery_level</code> (optional): <code>number | null</code></p>
+<p>Current battery level in %.</p>
+<p>If the device has a battery, this can be a floating point value defining the battery level
+ (in the range 0-100).</p>
+</li>
+<li>
+<p><code>boot_time</code> (optional): <code>null | string</code></p>
+<p>Indicator when the device was booted.</p>
+</li>
+<li>
+<p><code>brand</code> (optional): <code>null | string</code></p>
+<p>Brand of the device.</p>
+</li>
+<li>
+<p><code>charging</code> (optional): <code>boolean | null</code></p>
+<p>Whether the device was charging or not.</p>
+</li>
+<li>
+<p><code>external_free_storage</code> (optional): <code>number | null</code></p>
+<p>Free size of the attached external storage in bytes (eg: android SDK card).</p>
+</li>
+<li>
+<p><code>external_storage_size</code> (optional): <code>number | null</code></p>
+<p>Total size of the attached external storage in bytes (eg: android SDK card).</p>
+</li>
+<li>
+<p><code>family</code> (optional): <code>null | string</code></p>
+<p>Family of the device model.</p>
+<p>This is usually the common part of model names across generations. For instance, <code>iPhone</code>
+ would be a reasonable family, so would be <code>Samsung Galaxy</code>.</p>
+</li>
+<li>
+<p><code>free_memory</code> (optional): <code>number | null</code></p>
+<p>How much memory is still available in bytes.</p>
+</li>
+<li>
+<p><code>free_storage</code> (optional): <code>number | null</code></p>
+<p>How much storage is free in bytes.</p>
+</li>
+<li>
+<p><code>low_memory</code> (optional): <code>boolean | null</code></p>
+<p>Whether the device was low on memory.</p>
+</li>
+<li>
+<p><code>manufacturer</code> (optional): <code>null | string</code></p>
+<p>Manufacturer of the device.</p>
+</li>
+<li>
+<p><code>memory_size</code> (optional): <code>number | null</code></p>
+<p>Total memory available in bytes.</p>
+</li>
+<li>
+<p><code>model</code> (optional): <code>null | string</code></p>
+<p>Device model.</p>
+<p>This, for example, can be <code>Samsung Galaxy S3</code>.</p>
+</li>
+<li>
+<p><code>model_id</code> (optional): <code>null | string</code></p>
+<p>Device model (internal identifier).</p>
+<p>An internal hardware revision to identify the device exactly.</p>
+</li>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Name of the device.</p>
+</li>
+<li>
+<p><code>online</code> (optional): <code>boolean | null</code></p>
+<p>Whether the device was online or not.</p>
+</li>
+<li>
+<p><code>orientation</code> (optional): <code>null | string</code></p>
+<p>Current screen orientation.</p>
+<p>This can be a string <code>portrait</code> or <code>landscape</code> to define the orientation of a device.</p>
+</li>
+<li>
+<p><code>screen_density</code> (optional): <code>number | null</code></p>
+<p>Device screen density.</p>
+</li>
+<li>
+<p><code>screen_dpi</code> (optional): <code>number | null</code></p>
+<p>Screen density as dots-per-inch.</p>
+</li>
+<li>
+<p><code>screen_resolution</code> (optional): <code>null | string</code></p>
+<p>Device screen resolution.</p>
+<p>(e.g.: 800x600, 3040x1444)</p>
+</li>
+<li>
+<p><code>simulator</code> (optional): <code>boolean | null</code></p>
+<p>Simulator/prod indicator.</p>
+</li>
+<li>
+<p><code>storage_size</code> (optional): <code>number | null</code></p>
+<p>Total storage size of the device in bytes.</p>
+</li>
+<li>
+<p><code>timezone</code> (optional): <code>null | string</code></p>
+<p>Timezone of the device.</p>
+</li>
+<li>
+<p><code>usable_memory</code> (optional): <code>number | null</code></p>
+<p>How much memory is usable for the app in bytes.</p>
+</li>
+</ul>
+<p><a name='typedef-OSContext'></a></p>
+<h2 id="oscontext"><code>OSContext</code></h2>
+<p>Operating system information.</p>
+<p>OS context describes the operating system on which the event was created. In web contexts, this
+ is the operating system of the browser (generally pulled from the User-Agent string).</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>build</code> (optional): <code>null | string</code></p>
+<p>Internal build number of the operating system.</p>
+</li>
+<li>
+<p><code>kernel_version</code> (optional): <code>null | string</code></p>
+<p>Current kernel version.</p>
+<p>This is typically the entire output of the <code>uname</code> syscall.</p>
+</li>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Name of the operating system.</p>
+</li>
+<li>
+<p><code>raw_description</code> (optional): <code>null | string</code></p>
+<p>Unprocessed operating system info.</p>
+<p>An unprocessed description string obtained by the operating system. For some well-known
+ runtimes, Sentry will attempt to parse <code>name</code> and <code>version</code> from this string, if they are
+ not explicitly given.</p>
+</li>
+<li>
+<p><code>rooted</code> (optional): <code>boolean | null</code></p>
+<p>Indicator if the OS is rooted (mobile mostly).</p>
+</li>
+<li>
+<p><code>version</code> (optional): <code>null | string</code></p>
+<p>Version of the operating system.</p>
+</li>
+</ul>
+<p><a name='typedef-RuntimeContext'></a></p>
+<h2 id="runtimecontext"><code>RuntimeContext</code></h2>
+<p>Runtime information.</p>
+<p>Runtime context describes a runtime in more detail. Typically, this context is present in
+ <code>contexts</code> multiple times if multiple runtimes are involved (for instance, if you have a
+ JavaScript application running on top of JVM).</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>build</code> (optional): <code>null | string</code></p>
+<p>Application build string, if it is separate from the version.</p>
+</li>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Runtime name.</p>
+</li>
+<li>
+<p><code>raw_description</code> (optional): <code>null | string</code></p>
+<p>Unprocessed runtime info.</p>
+<p>An unprocessed description string obtained by the runtime. For some well-known runtimes,
+ Sentry will attempt to parse <code>name</code> and <code>version</code> from this string, if they are not
+ explicitly given.</p>
+</li>
+<li>
+<p><code>version</code> (optional): <code>null | string</code></p>
+<p>Runtime version string.</p>
+</li>
+</ul>
+<p><a name='typedef-AppContext'></a></p>
+<h2 id="appcontext"><code>AppContext</code></h2>
+<p>Application information.</p>
+<p>App context describes the application. As opposed to the runtime, this is the actual
+ application that was running and carries metadata about the current session.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>app_build</code> (optional): <code>null | string</code></p>
+<p>Internal build ID as it appears on the platform.</p>
+</li>
+<li>
+<p><code>app_identifier</code> (optional): <code>null | string</code></p>
+<p>Version-independent application identifier, often a dotted bundle ID.</p>
+</li>
+<li>
+<p><code>app_name</code> (optional): <code>null | string</code></p>
+<p>Application name as it appears on the platform.</p>
+</li>
+<li>
+<p><code>app_start_time</code> (optional): <code>null | string</code></p>
+<p>Start time of the app.</p>
+<p>Formatted UTC timestamp when the user started the application.</p>
+</li>
+<li>
+<p><code>app_version</code> (optional): <code>null | string</code></p>
+<p>Application version as it appears on the platform.</p>
+</li>
+<li>
+<p><code>build_type</code> (optional): <code>null | string</code></p>
+<p>String identifying the kind of build. For example, <code>testflight</code>.</p>
+</li>
+<li>
+<p><code>device_app_hash</code> (optional): <code>null | string</code></p>
+<p>Application-specific device identifier.</p>
+</li>
+</ul>
+<p><a name='typedef-BrowserContext'></a></p>
+<h2 id="browsercontext"><code>BrowserContext</code></h2>
+<p>Web browser information.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Display name of the browser application.</p>
+</li>
+<li>
+<p><code>version</code> (optional): <code>null | string</code></p>
+<p>Version string of the browser.</p>
+</li>
+</ul>
+<p><a name='typedef-GPUContext'></a></p>
+<h2 id="gpucontext"><code>GPUContext</code></h2>
+<p>GPU information.</p>
+<p>Example:</p>
+<div class="codehilite"><pre><span></span><code><span class="s2">&quot;gpu&quot;</span><span class="err">:</span> <span class="p">{</span>
+  <span class="nt">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;AMD Radeon Pro 560&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;vendor_name&quot;</span><span class="p">:</span> <span class="s2">&quot;Apple&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;memory_size&quot;</span><span class="p">:</span> <span class="mi">4096</span><span class="p">,</span>
+  <span class="nt">&quot;api_type&quot;</span><span class="p">:</span> <span class="s2">&quot;Metal&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;multi_threaded_rendering&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+  <span class="nt">&quot;version&quot;</span><span class="p">:</span> <span class="s2">&quot;Metal&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;npot_support&quot;</span><span class="p">:</span> <span class="s2">&quot;Full&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>api_type</code> (optional): <code>null | string</code></p>
+<p>The device low-level API type.</p>
+<p>Examples: <code>"Apple Metal"</code> or <code>"Direct3D11"</code></p>
+</li>
+<li>
+<p><code>id</code> (optional): <code>any</code></p>
+<p>The PCI identifier of the graphics device.</p>
+</li>
+<li>
+<p><code>memory_size</code> (optional): <code>number | null</code></p>
+<p>The total GPU memory available in Megabytes.</p>
+</li>
+<li>
+<p><code>multi_threaded_rendering</code> (optional): <code>boolean | null</code></p>
+<p>Whether the GPU has multi-threaded rendering or not.</p>
+</li>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>The name of the graphics device.</p>
+</li>
+<li>
+<p><code>npot_support</code> (optional): <code>null | string</code></p>
+<p>The Non-Power-Of-Two support.</p>
+</li>
+<li>
+<p><code>vendor_id</code> (optional): <code>null | string</code></p>
+<p>The PCI vendor identifier of the graphics device.</p>
+</li>
+<li>
+<p><code>vendor_name</code> (optional): <code>null | string</code></p>
+<p>The vendor name as reported by the graphics device.</p>
+</li>
+<li>
+<p><code>version</code> (optional): <code>null | string</code></p>
+<p>The Version of the graphics device.</p>
+</li>
+</ul>
+<p><a name='typedef-TraceContext'></a></p>
+<h2 id="tracecontext"><code>TraceContext</code></h2>
+<p>Trace context</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>op</code> (optional): <code>null | string</code></p>
+<p>Span type (see <code>OperationType</code> docs).</p>
+</li>
+<li>
+<p><code>parent_span_id</code> (optional): <code>null | string</code></p>
+<p>The ID of the span enclosing this span.</p>
+</li>
+<li>
+<p><code>span_id</code>: <code>null | string</code></p>
+<p>The ID of the span.</p>
+</li>
+<li>
+<p><code>status</code> (optional): <code><a href='#typedef-SpanStatus'>SpanStatus</a> | null</code></p>
+<p>Whether the trace failed or succeeded. Currently only used to indicate status of individual
+ transactions.</p>
+</li>
+<li>
+<p><code>trace_id</code>: <code>null | string</code></p>
+<p>The trace ID.</p>
+</li>
+</ul>
+<p><a name='typedef-SpanStatus'></a></p>
+<h2 id="spanstatus"><code>SpanStatus</code></h2>
+<p>Trace status.</p>
+<p>Values from https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/api-tracing.md#status Mapping to HTTP from https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/data-http.md#status</p>
+<p><strong>Variants:</strong></p>
+<ul>
+<li><code>"aborted"</code></li>
+<li><code>"already_exists"</code></li>
+<li><code>"cancelled"</code></li>
+<li><code>"data_loss"</code></li>
+<li><code>"deadline_exceeded"</code></li>
+<li><code>"failed_precondition"</code></li>
+<li><code>"internal_error"</code></li>
+<li><code>"invalid_argument"</code></li>
+<li><code>"not_found"</code></li>
+<li><code>"ok"</code></li>
+<li><code>"out_of_range"</code></li>
+<li><code>"permission_denied"</code></li>
+<li><code>"resource_exhausted"</code></li>
+<li><code>"unauthenticated"</code></li>
+<li><code>"unavailable"</code></li>
+<li><code>"unimplemented"</code></li>
+<li><code>"unknown"</code></li>
+</ul>
+<p><a name='typedef-DebugMeta'></a></p>
+<h2 id="debugmeta"><code>DebugMeta</code></h2>
+<p>Debugging and processing meta information.</p>
+<p>The debug meta interface carries debug information for processing errors and crash reports.
+ Sentry amends the information in this interface.</p>
+<p>Example (look at field types to see more detail):</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;debug_meta&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;images&quot;</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="nt">&quot;sdk_info&quot;</span><span class="p">:</span> <span class="p">{</span>
+      <span class="nt">&quot;sdk_name&quot;</span><span class="p">:</span> <span class="s2">&quot;iOS&quot;</span><span class="p">,</span>
+      <span class="nt">&quot;version_major&quot;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+      <span class="nt">&quot;version_minor&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+      <span class="nt">&quot;version_patchlevel&quot;</span><span class="p">:</span> <span class="mi">0</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>images</code> (optional): <code>Array&lt;null | ({ [key: string]: any } | <a href='#typedef-AppleDebugImage'>AppleDebugImage</a> | <a href='#typedef-NativeDebugImage'>NativeDebugImage</a> | <a href='#typedef-ProguardDebugImage'>ProguardDebugImage</a>)&gt; | null</code></p>
+<p>List of debug information files (debug images).</p>
+</li>
+<li>
+<p><code>sdk_info</code> (optional): <code>null | <a href='#typedef-SystemSDKInfo'>SystemSDKInfo</a></code></p>
+<p>Information about the system SDK (e.g. iOS SDK).</p>
+</li>
+</ul>
+<p><a name='typedef-AppleDebugImage'></a></p>
+<h2 id="appledebugimage"><code>AppleDebugImage</code></h2>
+<p>Legacy apple debug images (MachO).</p>
+<p>This was also used for non-apple platforms with similar debug setups.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>arch</code> (optional): <code>null | string</code></p>
+<p>CPU architecture target.</p>
+</li>
+<li>
+<p><code>cpu_subtype</code> (optional): <code>number | null</code></p>
+<p>MachO CPU subtype identifier.</p>
+</li>
+<li>
+<p><code>cpu_type</code> (optional): <code>number | null</code></p>
+<p>MachO CPU type identifier.</p>
+</li>
+<li>
+<p><code>image_addr</code>: <code>null | string</code></p>
+<p>Starting memory address of the image (required).</p>
+</li>
+<li>
+<p><code>image_size</code>: <code>number | null</code></p>
+<p>Size of the image in bytes (required).</p>
+</li>
+<li>
+<p><code>image_vmaddr</code> (optional): <code>null | string</code></p>
+<p>Loading address in virtual memory.</p>
+</li>
+<li>
+<p><code>name</code>: <code>null | string</code></p>
+<p>Path and name of the debug image (required).</p>
+</li>
+<li>
+<p><code>uuid</code>: <code>null | string</code></p>
+<p>The unique UUID of the image.</p>
+</li>
+</ul>
+<p><a name='typedef-NativeDebugImage'></a></p>
+<h2 id="nativedebugimage"><code>NativeDebugImage</code></h2>
+<p>A generic (new-style) native platform debug information file.</p>
+<p>The <code>type</code> key must be one of:</p>
+<ul>
+<li><code>macho</code></li>
+<li><code>elf</code>: ELF images are used on Linux platforms. Their structure is identical to other native images.</li>
+<li><code>pe</code></li>
+</ul>
+<p>Examples:</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;elf&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;code_id&quot;</span><span class="p">:</span> <span class="s2">&quot;68220ae2c65d65c1b6aaa12fa6765a6ec2f5f434&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;code_file&quot;</span><span class="p">:</span> <span class="s2">&quot;/lib/x86_64-linux-gnu/libgcc_s.so.1&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;debug_id&quot;</span><span class="p">:</span> <span class="s2">&quot;e20a2268-5dc6-c165-b6aa-a12fa6765a6e&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;image_addr&quot;</span><span class="p">:</span> <span class="s2">&quot;0x7f5140527000&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;image_size&quot;</span><span class="p">:</span> <span class="mi">90112</span><span class="p">,</span>
+  <span class="nt">&quot;image_vmaddr&quot;</span><span class="p">:</span> <span class="s2">&quot;0x40000&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;arch&quot;</span><span class="p">:</span> <span class="s2">&quot;x86_64&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;pe&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;code_id&quot;</span><span class="p">:</span> <span class="s2">&quot;57898e12145000&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;code_file&quot;</span><span class="p">:</span> <span class="s2">&quot;C:\\Windows\\System32\\dbghelp.dll&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;debug_id&quot;</span><span class="p">:</span> <span class="s2">&quot;9c2a902b-6fdf-40ad-8308-588a41d572a0-1&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;debug_file&quot;</span><span class="p">:</span> <span class="s2">&quot;dbghelp.pdb&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;image_addr&quot;</span><span class="p">:</span> <span class="s2">&quot;0x70850000&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;image_size&quot;</span><span class="p">:</span> <span class="s2">&quot;1331200&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;image_vmaddr&quot;</span><span class="p">:</span> <span class="s2">&quot;0x40000&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;arch&quot;</span><span class="p">:</span> <span class="s2">&quot;x86&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;macho&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;debug_id&quot;</span><span class="p">:</span> <span class="s2">&quot;84a04d24-0e60-3810-a8c0-90a65e2df61a&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;debug_file&quot;</span><span class="p">:</span> <span class="s2">&quot;libDiagnosticMessagesClient.dylib&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;code_file&quot;</span><span class="p">:</span> <span class="s2">&quot;/usr/lib/libDiagnosticMessagesClient.dylib&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;image_addr&quot;</span><span class="p">:</span> <span class="s2">&quot;0x7fffe668e000&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;image_size&quot;</span><span class="p">:</span> <span class="mi">8192</span><span class="p">,</span>
+  <span class="nt">&quot;image_vmaddr&quot;</span><span class="p">:</span> <span class="s2">&quot;0x40000&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;arch&quot;</span><span class="p">:</span> <span class="s2">&quot;x86_64&quot;</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>arch</code> (optional): <code>null | string</code></p>
+<p>CPU architecture target.</p>
+<p>Architecture of the module. If missing, this will be backfilled by Sentry.</p>
+</li>
+<li>
+<p><code>code_file</code>: <code>null | string</code></p>
+<p>Path and name of the image file (required).</p>
+<p>The absolute path to the dynamic library or executable. This helps to locate the file if it is missing on Sentry.</p>
+<ul>
+<li><code>pe</code>: The code file should be provided to allow server-side stack walking of binary crash reports, such as Minidumps.</li>
+</ul>
+</li>
+<li>
+<p><code>code_id</code> (optional): <code>null | string</code></p>
+<p>Optional identifier of the code file.</p>
+<ul>
+<li><code>elf</code>: If the program was compiled with a relatively recent compiler, this should be the hex representation of the <code>NT_GNU_BUILD_ID</code> program header (type <code>PT_NOTE</code>), or the value of the <code>.note.gnu.build-id</code> note section (type <code>SHT_NOTE</code>). Otherwise, leave this value empty.</li>
+</ul>
+<p>Certain symbol servers use the code identifier to locate debug information for ELF images, in which case this field should be included if possible.</p>
+<ul>
+<li><code>pe</code>: Identifier of the executable or DLL. It contains the values of the <code>time_date_stamp</code> from the COFF header and <code>size_of_image</code> from the optional header formatted together into a hex string using <code>%08x%X</code> (note that the second value is not padded):</li>
+</ul>
+<div class="codehilite"><pre><span></span><code>time_date_stamp: 0x5ab38077
+size_of_image:           0x9000
+code_id:           5ab380779000
+</code></pre></div>
+
+<p>The code identifier should be provided to allow server-side stack walking of binary crash reports, such as Minidumps.</p>
+<ul>
+<li><code>macho</code>: Identifier of the dynamic library or executable. It is the value of the <code>LC_UUID</code> load command in the Mach header, formatted as UUID. Can be empty for Mach images, as it is equivalent to the debug identifier.</li>
+</ul>
+</li>
+<li>
+<p><code>debug_file</code> (optional): <code>null | string</code></p>
+<p>Path and name of the debug companion file.</p>
+<ul>
+<li>
+<p><code>elf</code>: Name or absolute path to the file containing stripped debug information for this image. This value might be <em>required</em> to retrieve debug files from certain symbol servers.</p>
+</li>
+<li>
+<p><code>pe</code>: Name of the PDB file containing debug information for this image. This value is often required to retrieve debug files from specific symbol servers.</p>
+</li>
+<li>
+<p><code>macho</code>: Name or absolute path to the dSYM file containing debug information for this image. This value might be required to retrieve debug files from certain symbol servers.</p>
+</li>
+</ul>
+</li>
+<li>
+<p><code>debug_id</code>: <code>null | string</code></p>
+<p>Unique debug identifier of the image.</p>
+<ul>
+<li><code>elf</code>: Debug identifier of the dynamic library or executable. If a code identifier is available, the debug identifier is the little-endian UUID representation of the first 16-bytes of that
+ identifier. Spaces are inserted for readability, note the byte order of the first fields:</li>
+</ul>
+<div class="codehilite"><pre><span></span><code>code id:  f1c3bcc0 2798 65fe 3058 404b2831d9e6 4135386c
+debug id: c0bcc3f1-9827-fe65-3058-404b2831d9e6
+</code></pre></div>
+
+<p>If no code id is available, the debug id should be computed by XORing the first 4096 bytes of the <code>.text</code> section in 16-byte chunks, and representing it as a little-endian UUID (again swapping the byte order).</p>
+<ul>
+<li><code>pe</code>: <code>signature</code> and <code>age</code> of the PDB file. Both values can be read from the CodeView PDB70 debug information header in the PE. The value should be represented as little-endian UUID, with the age appended at the end. Note that the byte order of the UUID fields must be swapped (spaces inserted for readability):</li>
+</ul>
+<div class="codehilite"><pre><span></span><code>signature: f1c3bcc0 2798 65fe 3058 404b2831d9e6
+age:                                            1
+debug_id:  c0bcc3f1-9827-fe65-3058-404b2831d9e6-1
+</code></pre></div>
+
+<ul>
+<li><code>macho</code>: Identifier of the dynamic library or executable. It is the value of the <code>LC_UUID</code> load command in the Mach header, formatted as UUID.</li>
+</ul>
+</li>
+<li>
+<p><code>image_addr</code>: <code>null | string</code></p>
+<p>Starting memory address of the image (required).</p>
+<p>Memory address, at which the image is mounted in the virtual address space of the process. Should be a string in hex representation prefixed with <code>"0x"</code>.</p>
+</li>
+<li>
+<p><code>image_size</code>: <code>number | null</code></p>
+<p>Size of the image in bytes (required).</p>
+<p>The size of the image in virtual memory. If missing, Sentry will assume that the image spans up to the next image, which might lead to invalid stack traces.</p>
+</li>
+<li>
+<p><code>image_vmaddr</code> (optional): <code>null | string</code></p>
+<p>Loading address in virtual memory.</p>
+<p>Preferred load address of the image in virtual memory, as declared in the headers of the
+ image. When loading an image, the operating system may still choose to place it at a
+ different address.</p>
+<p>Symbols and addresses in the native image are always relative to the start of the image and do not consider the preferred load address. It is merely a hint to the loader.</p>
+<ul>
+<li><code>elf</code>/<code>macho</code>: If this value is non-zero, all symbols and addresses declared in the native image start at this address, rather than 0. By contrast, Sentry deals with addresses relative to the start of the image. For example, with <code>image_vmaddr: 0x40000</code>, a symbol located at <code>0x401000</code> has a relative address of <code>0x1000</code>.</li>
+</ul>
+<p>Relative addresses used in Apple Crash Reports and <code>addr2line</code> are usually in the preferred address space, and not relative address space.</p>
+</li>
+</ul>
+<p><a name='typedef-ProguardDebugImage'></a></p>
+<h2 id="proguarddebugimage"><code>ProguardDebugImage</code></h2>
+<p>Proguard mapping file.</p>
+<p>Proguard images refer to <code>mapping.txt</code> files generated when Proguard obfuscates function names. The Java SDK integrations assign this file a unique identifier, which has to be included in the list of images.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>uuid</code>: <code>null | string</code></p>
+<p>UUID computed from the file contents, assigned by the Java SDK.</p>
+</li>
+</ul>
+<p><a name='typedef-SystemSDKInfo'></a></p>
+<h2 id="systemsdkinfo"><code>SystemSDKInfo</code></h2>
+<p>Holds information about the system SDK.</p>
+<p>This is relevant for iOS and other platforms that have a system
+ SDK.  Not to be confused with the client SDK.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>sdk_name</code> (optional): <code>null | string</code></p>
+<p>The internal name of the SDK.</p>
+</li>
+<li>
+<p><code>version_major</code> (optional): <code>number | null</code></p>
+<p>The major version of the SDK as integer or 0.</p>
+</li>
+<li>
+<p><code>version_minor</code> (optional): <code>number | null</code></p>
+<p>The minor version of the SDK as integer or 0.</p>
+</li>
+<li>
+<p><code>version_patchlevel</code> (optional): <code>number | null</code></p>
+<p>The patch version of the SDK as integer or 0.</p>
+</li>
+</ul>
+<p><a name='typedef-EventProcessingError'></a></p>
+<h2 id="eventprocessingerror"><code>EventProcessingError</code></h2>
+<p>An event processing error.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Affected key or deep path.</p>
+</li>
+<li>
+<p><code>type</code>: <code>null | string</code></p>
+<p>The error kind.</p>
+</li>
+<li>
+<p><code>value</code> (optional): <code>any</code></p>
+<p>The original value causing this error.</p>
+</li>
+</ul>
+<p><a name='typedef-Exception'></a></p>
+<h2 id="exception"><code>Exception</code></h2>
+<p><strong>Properties:</strong></p>
+<ul>
+<li><code>values</code>: <code>Array&lt;null | <a href='#typedef-ValueObject'>ValueObject</a>&gt;</code></li>
+</ul>
+<p><a name='typedef-ValueObject'></a></p>
+<h2 id="valueobject"><code>ValueObject</code></h2>
+<p>A single exception.</p>
+<p>Multiple values inside of an <a href="#Event">event</a> represent chained exceptions and should be sorted oldest to newest. For example, consider this Python code snippet:</p>
+<div class="codehilite"><pre><span></span><code><span class="k">try</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;random boring invariant was not met!&quot;</span><span class="p">)</span>
+<span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;something went wrong, help!&quot;</span><span class="p">)</span> <span class="kn">from</span> <span class="nn">e</span>
+</code></pre></div>
+
+<p><code>Exception</code> would be described first in the values list, followed by a description of <code>ValueError</code>:</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;exception&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;values&quot;</span><span class="p">:</span> <span class="p">[</span>
+      <span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;Exception&quot;</span><span class="p">:</span> <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;random boring invariant was not met!&quot;</span><span class="p">},</span>
+      <span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;ValueError&quot;</span><span class="p">,</span> <span class="nt">&quot;value&quot;</span><span class="p">:</span> <span class="s2">&quot;something went wrong, help!&quot;</span><span class="p">},</span>
+    <span class="p">]</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>mechanism</code> (optional): <code>null | <a href='#typedef-Mechanism'>Mechanism</a></code></p>
+<p>Mechanism by which this exception was generated and handled.</p>
+</li>
+<li>
+<p><code>module</code> (optional): <code>null | string</code></p>
+<p>The optional module, or package which the exception type lives in.</p>
+</li>
+<li>
+<p><code>stacktrace</code> (optional): <code>null | <a href='#typedef-Stacktrace'>Stacktrace</a></code></p>
+<p>Stack trace containing frames of this exception.</p>
+</li>
+<li>
+<p><code>thread_id</code> (optional): <code>null | (number | string)</code></p>
+<p>An optional value which refers to a <a href="#Thread">thread</a>.</p>
+</li>
+<li>
+<p><code>type</code> (optional): <code>null | string</code></p>
+<p>Exception type, e.g. <code>ValueError</code>.</p>
+<p>At least one of <code>type</code> or <code>value</code> is required, otherwise the exception is discarded.</p>
+</li>
+<li>
+<p><code>value</code> (optional): <code>null | string</code></p>
+<p>Human readable display value.</p>
+<p>At least one of <code>type</code> or <code>value</code> is required, otherwise the exception is discarded.</p>
+</li>
+</ul>
+<p><a name='typedef-Mechanism'></a></p>
+<h2 id="mechanism"><code>Mechanism</code></h2>
+<p>The mechanism by which an exception was generated and handled.</p>
+<p>The exception mechanism is an optional field residing in the <a href="#Exception">exception</a>. It carries
+ additional information about the way the exception was created on the target system. This
+ includes general exception values obtained from the operating system or runtime APIs, as well
+ as mechanism-specific values.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>data</code> (optional): <code>{ [key: string]: any } | null</code></p>
+<p>Additional attributes depending on the mechanism type.</p>
+</li>
+<li>
+<p><code>description</code> (optional): <code>null | string</code></p>
+<p>Optional human-readable description of the error mechanism.</p>
+<p>May include a possible hint on how to solve this error.</p>
+</li>
+<li>
+<p><code>handled</code> (optional): <code>boolean | null</code></p>
+<p>Flag indicating whether this exception was handled.</p>
+<p>This is a best-effort guess at whether the exception was handled by user code or not. For
+ example:</p>
+<ul>
+<li>
+<p>Exceptions leading to a 500 Internal Server Error or to a hard process crash are
+   <code>handled=false</code>, as the SDK typically has an integration that automatically captures the
+   error.</p>
+</li>
+<li>
+<p>Exceptions captured using <code>capture_exception</code> (called from user code) are <code>handled=true</code>
+   as the user explicitly captured the exception (and therefore kind of handled it)</p>
+</li>
+</ul>
+</li>
+<li>
+<p><code>help_link</code> (optional): <code>null | string</code></p>
+<p>Link to online resources describing this error.</p>
+</li>
+<li>
+<p><code>meta</code> (optional): <code>null | <a href='#typedef-MechanismMeta'>MechanismMeta</a></code></p>
+<p>Operating system or runtime meta information.</p>
+</li>
+<li>
+<p><code>synthetic</code> (optional): <code>boolean | null</code></p>
+<p>If this is set then the exception is not a real exception but some
+ form of synthetic error for instance from a signal handler, a hard
+ segfault or similar where type and value are not useful for grouping
+ or display purposes.</p>
+</li>
+<li>
+<p><code>type</code>: <code>null | string</code></p>
+<p>Mechanism type (required).</p>
+<p>Required unique identifier of this mechanism determining rendering and processing of the
+ mechanism data.</p>
+<p>In the Python SDK this is merely the name of the framework integration that produced the
+ exception, while for native it is e.g. <code>"minidump"</code> or <code>"applecrashreport"</code>.</p>
+</li>
+</ul>
+<p><a name='typedef-MechanismMeta'></a></p>
+<h2 id="mechanismmeta"><code>MechanismMeta</code></h2>
+<p>Operating system or runtime meta information to an exception mechanism.</p>
+<p>The mechanism metadata usually carries error codes reported by the runtime or operating system,
+ along with a platform-dependent interpretation of these codes. SDKs can safely omit code names
+ and descriptions for well-known error codes, as it will be filled out by Sentry. For
+ proprietary or vendor-specific error codes, adding these values will give additional
+ information to the user.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>errno</code> (optional): <code>null | <a href='#typedef-CError'>CError</a></code></p>
+<p>Optional ISO C standard error code.</p>
+</li>
+<li>
+<p><code>mach_exception</code> (optional): <code>null | <a href='#typedef-MachException'>MachException</a></code></p>
+<p>A Mach Exception on Apple systems comprising a code triple and optional descriptions.</p>
+</li>
+<li>
+<p><code>signal</code> (optional): <code>null | <a href='#typedef-POSIXSignal'>POSIXSignal</a></code></p>
+<p>Information on the POSIX signal.</p>
+</li>
+</ul>
+<p><a name='typedef-CError'></a></p>
+<h2 id="cerror"><code>CError</code></h2>
+<p>POSIX signal with optional extended data.</p>
+<p>Error codes set by Linux system calls and some library functions as specified in ISO C99,
+ POSIX.1-2001, and POSIX.1-2008. See
+ <a href="https://man7.org/linux/man-pages/man3/errno.3.html"><code>errno(3)</code></a> for more information.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Optional name of the errno constant.</p>
+</li>
+<li>
+<p><code>number</code> (optional): <code>number | null</code></p>
+<p>The error code as specified by ISO C99, POSIX.1-2001 or POSIX.1-2008.</p>
+</li>
+</ul>
+<p><a name='typedef-MachException'></a></p>
+<h2 id="machexception"><code>MachException</code></h2>
+<p>Mach exception information.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>code</code> (optional): <code>number | null</code></p>
+<p>The mach exception code.</p>
+</li>
+<li>
+<p><code>exception</code> (optional): <code>number | null</code></p>
+<p>The mach exception type.</p>
+</li>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Optional name of the mach exception.</p>
+</li>
+<li>
+<p><code>subcode</code> (optional): <code>number | null</code></p>
+<p>The mach exception subcode.</p>
+</li>
+</ul>
+<p><a name='typedef-POSIXSignal'></a></p>
+<h2 id="posixsignal"><code>POSIXSignal</code></h2>
+<p>POSIX signal with optional extended data.</p>
+<p>On Apple systems, signals also carry a code in addition to the signal number describing the
+ signal in more detail. On Linux, this code does not exist.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>code</code> (optional): <code>number | null</code></p>
+<p>An optional signal code present on Apple systems.</p>
+</li>
+<li>
+<p><code>code_name</code> (optional): <code>null | string</code></p>
+<p>Optional name of the errno constant.</p>
+</li>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Optional name of the errno constant.</p>
+</li>
+<li>
+<p><code>number</code> (optional): <code>number | null</code></p>
+<p>The POSIX signal number.</p>
+</li>
+</ul>
+<p><a name='typedef-Stacktrace'></a></p>
+<h2 id="stacktrace"><code>Stacktrace</code></h2>
+<p>A stack trace of a single thread.</p>
+<p>A stack trace contains a list of frames, each with various bits (most optional) describing the context of that frame. Frames should be sorted from oldest to newest.</p>
+<p>For the given example program written in Python:</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span> <span class="nf">foo</span><span class="p">():</span>
+    <span class="n">my_var</span> <span class="o">=</span> <span class="s1">&#39;foo&#39;</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">()</span>
+
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="n">foo</span><span class="p">()</span>
+</code></pre></div>
+
+<p>A minimalistic stack trace for the above program in the correct order:</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;frames&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span><span class="nt">&quot;function&quot;</span><span class="p">:</span> <span class="s2">&quot;main&quot;</span><span class="p">},</span>
+    <span class="p">{</span><span class="nt">&quot;function&quot;</span><span class="p">:</span> <span class="s2">&quot;foo&quot;</span><span class="p">}</span>
+  <span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>The top frame fully symbolicated with five lines of source context:</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;frames&quot;</span><span class="p">:</span> <span class="p">[{</span>
+    <span class="nt">&quot;in_app&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="nt">&quot;function&quot;</span><span class="p">:</span> <span class="s2">&quot;myfunction&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;abs_path&quot;</span><span class="p">:</span> <span class="s2">&quot;/real/file/name.py&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;filename&quot;</span><span class="p">:</span> <span class="s2">&quot;file/name.py&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;lineno&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+    <span class="nt">&quot;vars&quot;</span><span class="p">:</span> <span class="p">{</span>
+      <span class="nt">&quot;my_var&quot;</span><span class="p">:</span> <span class="s2">&quot;&#39;value&#39;&quot;</span>
+    <span class="p">},</span>
+    <span class="nt">&quot;pre_context&quot;</span><span class="p">:</span> <span class="p">[</span>
+      <span class="s2">&quot;def foo():&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;  my_var = &#39;foo&#39;&quot;</span><span class="p">,</span>
+    <span class="p">],</span>
+    <span class="nt">&quot;context_line&quot;</span><span class="p">:</span> <span class="s2">&quot;  raise ValueError()&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;post_context&quot;</span><span class="p">:</span> <span class="p">[</span>
+      <span class="s2">&quot;&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;def main():&quot;</span>
+    <span class="p">],</span>
+  <span class="p">}]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>A minimal native stack trace with register values. Note that the <code>package</code> event attribute must be "native" for these frames to be symbolicated.</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;frames&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span><span class="nt">&quot;instruction_addr&quot;</span><span class="p">:</span> <span class="s2">&quot;0x7fff5bf3456c&quot;</span><span class="p">},</span>
+    <span class="p">{</span><span class="nt">&quot;instruction_addr&quot;</span><span class="p">:</span> <span class="s2">&quot;0x7fff5bf346c0&quot;</span><span class="p">},</span>
+  <span class="p">],</span>
+  <span class="nt">&quot;registers&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;rip&quot;</span><span class="p">:</span> <span class="s2">&quot;0x00007ff6eef54be2&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;rsp&quot;</span><span class="p">:</span> <span class="s2">&quot;0x0000003b710cd9e0&quot;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>frames</code>: <code>Array&lt;null | <a href='#typedef-Frame'>Frame</a>&gt; | null</code></p>
+<p>Required. A non-empty list of stack frames. The list is ordered from caller to callee, or oldest to youngest. The last frame is the one creating the exception.</p>
+</li>
+<li>
+<p><code>lang</code> (optional): <code>null | string</code></p>
+<p>The language of the stacktrace.</p>
+</li>
+<li>
+<p><code>registers</code> (optional): <code>{ [key: string]: null | string } | null</code></p>
+<p>Register values of the thread (top frame).</p>
+<p>A map of register names and their values. The values should contain the actual register values of the thread, thus mapping to the last frame in the list.</p>
+</li>
+</ul>
+<p><a name='typedef-Frame'></a></p>
+<h2 id="frame"><code>Frame</code></h2>
+<p>Holds information about a single stacktrace frame.</p>
+<p>Each object should contain <strong>at least</strong> a <code>filename</code>, <code>function</code> or <code>instruction_addr</code> attribute. All values are optional, but recommended.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>abs_path</code> (optional): <code>null | string</code></p>
+<p>Absolute path to the source file.</p>
+</li>
+<li>
+<p><code>colno</code> (optional): <code>number | null</code></p>
+<p>Column number within the source file, starting at 1.</p>
+</li>
+<li>
+<p><code>context_line</code> (optional): <code>null | string</code></p>
+<p>Source code of the current line (<code>lineno</code>).</p>
+</li>
+<li>
+<p><code>filename</code> (optional): <code>null | string</code></p>
+<p>The source file name (basename only).</p>
+</li>
+<li>
+<p><code>function</code> (optional): <code>null | string</code></p>
+<p>Name of the frame's function. This might include the name of a class.</p>
+<p>This function name may be shortened or demangled. If not, Sentry will demangle and shorten
+ it for some platforms. The original function name will be stored in <code>raw_function</code>.</p>
+</li>
+<li>
+<p><code>image_addr</code> (optional): <code>null | string</code></p>
+<p>(C/C++/Native) Start address of the containing code module (image).</p>
+</li>
+<li>
+<p><code>in_app</code> (optional): <code>boolean | null</code></p>
+<p>Override whether this frame should be considered part of application code, or part of
+ libraries/frameworks/dependencies.</p>
+<p>Setting this attribute to <code>false</code> causes the frame to be hidden/collapsed by default and
+ mostly ignored during issue grouping.</p>
+</li>
+<li>
+<p><code>instruction_addr</code> (optional): <code>null | string</code></p>
+<p>(C/C++/Native) Absolute address of the frame's CPU instruction.</p>
+</li>
+<li>
+<p><code>lineno</code> (optional): <code>number | null</code></p>
+<p>Line number within the source file, starting at 1.</p>
+</li>
+<li>
+<p><code>module</code> (optional): <code>null | string</code></p>
+<p>Name of the module the frame is contained in.</p>
+<p>Note that this might also include a class name if that is something the
+ language natively considers to be part of the stack (for instance in Java).</p>
+</li>
+<li>
+<p><code>package</code> (optional): <code>null | string</code></p>
+<p>Name of the package that contains the frame.</p>
+<p>For instance this can be a dylib for native languages, the name of the jar
+ or .NET assembly.</p>
+</li>
+<li>
+<p><code>platform</code> (optional): <code>null | string</code></p>
+<p>Which platform this frame is from.</p>
+<p>This can override the platform for a single frame. Otherwise, the platform of the event is
+ assumed. This can be used for multi-platform stack traces, such as in React Native.</p>
+</li>
+<li>
+<p><code>post_context</code> (optional): <code>Array&lt;null | string&gt; | null</code></p>
+<p>Source code of the lines after <code>lineno</code>.</p>
+</li>
+<li>
+<p><code>pre_context</code> (optional): <code>Array&lt;null | string&gt; | null</code></p>
+<p>Source code leading up to <code>lineno</code>.</p>
+</li>
+<li>
+<p><code>raw_function</code> (optional): <code>null | string</code></p>
+<p>A raw (but potentially truncated) function value.</p>
+<p>The original function name, if the function name is shortened or demangled. Sentry shows
+ the raw function when clicking on the shortened one in the UI.</p>
+<p>If this has the same value as <code>function</code> it's best to be omitted.  This
+ exists because on many platforms the function itself contains additional
+ information like overload specifies or a lot of generics which can make
+ it exceed the maximum limit we provide for the field.  In those cases
+ then we cannot reliably trim down the function any more at a later point
+ because the more valuable information has been removed.</p>
+<p>The logic to be applied is that an intelligently trimmed function name
+ should be stored in <code>function</code> and the value before trimming is stored
+ in this field instead.  However also this field will be capped at 256
+ characters at the moment which often means that not the entire original
+ value can be stored.</p>
+</li>
+<li>
+<p><code>symbol</code> (optional): <code>null | string</code></p>
+<p>Potentially mangled name of the symbol as it appears in an executable.</p>
+<p>This is different from a function name by generally being the mangled
+ name that appears natively in the binary.  This is relevant for languages
+ like Swift, C++ or Rust.</p>
+</li>
+<li>
+<p><code>symbol_addr</code> (optional): <code>null | string</code></p>
+<p>(C/C++/Native) Start address of the frame's function.</p>
+</li>
+<li>
+<p><code>vars</code> (optional): <code>{ [key: string]: any } | null</code></p>
+<p>Mapping of local variables and expression names that were available in this frame.</p>
+</li>
+</ul>
+<p><a name='typedef-LogEntry'></a></p>
+<h2 id="logentry"><code>LogEntry</code></h2>
+<p>A log entry message.</p>
+<p>A log message is similar to the <code>message</code> attribute on the event itself but
+ can additionally hold optional parameters.</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;message&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;message&quot;</span><span class="p">:</span> <span class="s2">&quot;My raw message with interpreted strings like %s&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;params&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;this&quot;</span><span class="p">]</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;message&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;message&quot;</span><span class="p">:</span> <span class="s2">&quot;My raw message with interpreted strings like {foo}&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;params&quot;</span><span class="p">:</span> <span class="p">{</span><span class="nt">&quot;foo&quot;</span><span class="p">:</span> <span class="s2">&quot;this&quot;</span><span class="p">}</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>formatted</code> (optional): <code>null | string</code></p>
+<p>The formatted message. If <code>message</code> and <code>params</code> are given, Sentry
+ will attempt to backfill <code>formatted</code> if empty.</p>
+<p>It must not exceed 8192 characters. Longer messages will be truncated.</p>
+</li>
+<li>
+<p><code>message</code> (optional): <code>null | string</code></p>
+<p>The log message with parameter placeholders.</p>
+<p>This attribute is primarily used for grouping related events together into issues.
+ Therefore this really should just be a string template, i.e. <code>Sending %d requests</code> instead
+ of <code>Sending 9999 requests</code>. The latter is much better at home in <code>formatted</code>.</p>
+<p>It must not exceed 8192 characters. Longer messages will be truncated.</p>
+</li>
+<li>
+<p><code>params</code> (optional): <code>any</code></p>
+<p>Parameters to be interpolated into the log message. This can be an array of positional
+ parameters as well as a mapping of named arguments to their values.</p>
+</li>
+</ul>
+<p><a name='typedef-Request'></a></p>
+<h2 id="request"><code>Request</code></h2>
+<p>Http request information.</p>
+<p>The Request interface contains information on a HTTP request related to the event. In client
+ SDKs, this can be an outgoing request, or the request that rendered the current web page. On
+ server SDKs, this could be the incoming web request that is being handled.</p>
+<p>The data variable should only contain the request body (not the query string). It can either be
+ a dictionary (for standard HTTP requests) or a raw request body.</p>
+<p>### Ordered Maps</p>
+<p>In the Request interface, several attributes can either be declared as string, object, or list
+ of tuples. Sentry attempts to parse structured information from the string representation in
+ such cases.</p>
+<p>Sometimes, keys can be declared multiple times, or the order of elements matters. In such
+ cases, use the tuple representation over a plain object.</p>
+<p>Example of request headers as object:</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;content-type&quot;</span><span class="p">:</span> <span class="s2">&quot;application/json&quot;</span><span class="p">,</span>
+  <span class="nt">&quot;accept&quot;</span><span class="p">:</span> <span class="s2">&quot;application/json, application/xml&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>Example of the same headers as list of tuples:</p>
+<div class="codehilite"><pre><span></span><code><span class="p">[</span>
+  <span class="p">[</span><span class="s2">&quot;content-type&quot;</span><span class="p">,</span> <span class="s2">&quot;application/json&quot;</span><span class="p">],</span>
+  <span class="p">[</span><span class="s2">&quot;accept&quot;</span><span class="p">,</span> <span class="s2">&quot;application/json&quot;</span><span class="p">],</span>
+  <span class="p">[</span><span class="s2">&quot;accept&quot;</span><span class="p">,</span> <span class="s2">&quot;application/xml&quot;</span><span class="p">]</span>
+<span class="p">]</span>
+</code></pre></div>
+
+<p>Example of a fully populated request object:</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;request&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;POST&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;url&quot;</span><span class="p">:</span> <span class="s2">&quot;http://absolute.uri/foo&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;query_string&quot;</span><span class="p">:</span> <span class="s2">&quot;query=foobar&amp;page=2&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+      <span class="nt">&quot;foo&quot;</span><span class="p">:</span> <span class="s2">&quot;bar&quot;</span>
+    <span class="p">},</span>
+    <span class="nt">&quot;cookies&quot;</span><span class="p">:</span> <span class="s2">&quot;PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;headers&quot;</span><span class="p">:</span> <span class="p">{</span>
+      <span class="nt">&quot;content-type&quot;</span><span class="p">:</span> <span class="s2">&quot;text/html&quot;</span>
+    <span class="p">},</span>
+    <span class="nt">&quot;env&quot;</span><span class="p">:</span> <span class="p">{</span>
+      <span class="nt">&quot;REMOTE_ADDR&quot;</span><span class="p">:</span> <span class="s2">&quot;192.168.0.1&quot;</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>cookies</code> (optional): <code>null | (Array&lt;Array&lt;(null | string)&gt; | null&gt; | { [key: string]: null | string })</code></p>
+<p>The cookie values.</p>
+<p>Can be given unparsed as string, as dictionary, or as a list of tuples.</p>
+</li>
+<li>
+<p><code>data</code> (optional): <code>any</code></p>
+<p>Request data in any format that makes sense.</p>
+<p>SDKs should discard large and binary bodies by default. Can be given as string or
+ structural data of any format.</p>
+</li>
+<li>
+<p><code>env</code> (optional): <code>{ [key: string]: any } | null</code></p>
+<p>Server environment data, such as CGI/WSGI.</p>
+<p>A dictionary containing environment information passed from the server. This is where
+ information such as CGI/WSGI/Rack keys go that are not HTTP headers.</p>
+<p>Sentry will explicitly look for <code>REMOTE_ADDR</code> to extract an IP address.</p>
+</li>
+<li>
+<p><code>fragment</code> (optional): <code>null | string</code></p>
+<p>The fragment of the request URL.</p>
+</li>
+<li>
+<p><code>headers</code> (optional): <code>null | (Array&lt;Array&lt;(null | string)&gt; | null&gt; | { [key: string]: null | string })</code></p>
+<p>A dictionary of submitted headers.</p>
+<p>If a header appears multiple times it, needs to be merged according to the HTTP standard
+ for header merging. Header names are treated case-insensitively by Sentry.</p>
+</li>
+<li>
+<p><code>inferred_content_type</code> (optional): <code>null | string</code></p>
+<p>The inferred content type of the request payload.</p>
+</li>
+<li>
+<p><code>method</code> (optional): <code>null | string</code></p>
+<p>HTTP request method.</p>
+</li>
+<li>
+<p><code>query_string</code> (optional): <code>null | (Array&lt;Array&lt;(null | string)&gt; | null&gt; | { [key: string]: null | string })</code></p>
+<p>The query string component of the URL.</p>
+<p>Can be given as unparsed string, dictionary, or list of tuples.</p>
+<p>If the query string is not declared and part of the <code>url</code>, Sentry moves it to the
+ query string.</p>
+</li>
+<li>
+<p><code>url</code> (optional): <code>null | string</code></p>
+<p>The URL of the request if available.</p>
+<p>The query string can be declared either as part of the <code>url</code>, or separately in <code>query_string</code>.</p>
+</li>
+</ul>
+<p><a name='typedef-ClientSDKInfo'></a></p>
+<h2 id="clientsdkinfo"><code>ClientSDKInfo</code></h2>
+<p>The SDK Interface describes the Sentry SDK and its configuration used to capture and transmit an event.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>integrations</code> (optional): <code>Array&lt;null | string&gt; | null</code></p>
+<p>List of integrations that are enabled in the SDK. <em>Optional.</em></p>
+<p>The list should have all enabled integrations, including default integrations. Default
+ integrations are included because different SDK releases may contain different default
+ integrations.</p>
+</li>
+<li>
+<p><code>name</code>: <code>null | string</code></p>
+<p>Unique SDK name. <em>Required.</em></p>
+<p>The name of the SDK. The format is <code>entity.ecosystem[.flavor]</code> where entity identifies the
+ developer of the SDK, ecosystem refers to the programming language or platform where the
+ SDK is to be used and the optional flavor is used to identify standalone SDKs that are part
+ of a major ecosystem.</p>
+<p>Official Sentry SDKs use the entity <code>sentry</code>, as in <code>sentry.python</code> or
+ <code>sentry.javascript.react-native</code>. Please use a different entity for your own SDKs.</p>
+</li>
+<li>
+<p><code>packages</code> (optional): <code>Array&lt;null | <a href='#typedef-ClientSDKPackage'>ClientSDKPackage</a>&gt; | null</code></p>
+<p>List of installed and loaded SDK packages. <em>Optional.</em></p>
+<p>A list of packages that were installed as part of this SDK or the activated integrations.
+ Each package consists of a name in the format <code>source:identifier</code> and <code>version</code>. If the
+ source is a Git repository, the <code>source</code> should be <code>git</code>, the identifier should be a
+ checkout link and the version should be a Git reference (branch, tag or SHA).</p>
+</li>
+<li>
+<p><code>version</code>: <code>null | string</code></p>
+<p>The version of the SDK. <em>Required.</em></p>
+<p>It should have the <a href="https://semver.org/">Semantic Versioning</a> format <code>MAJOR.MINOR.PATCH</code>,
+ without any prefix (no <code>v</code> or anything else in front of the major version number).</p>
+<p>Examples: <code>0.1.0</code>, <code>1.0.0</code>, <code>4.3.12</code></p>
+</li>
+</ul>
+<p><a name='typedef-ClientSDKPackage'></a></p>
+<h2 id="clientsdkpackage"><code>ClientSDKPackage</code></h2>
+<p>An installed and loaded package as part of the Sentry SDK.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Name of the package.</p>
+</li>
+<li>
+<p><code>version</code> (optional): <code>null | string</code></p>
+<p>Version of the package.</p>
+</li>
+</ul>
+<p><a name='typedef-Span'></a></p>
+<h2 id="span"><code>Span</code></h2>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>description</code> (optional): <code>null | string</code></p>
+<p>Human readable description of a span (e.g. method URL).</p>
+</li>
+<li>
+<p><code>op</code> (optional): <code>null | string</code></p>
+<p>Span type (see <code>OperationType</code> docs).</p>
+</li>
+<li>
+<p><code>parent_span_id</code> (optional): <code>null | string</code></p>
+<p>The ID of the span enclosing this span.</p>
+</li>
+<li>
+<p><code>span_id</code>: <code>null | string</code></p>
+<p>The Span id.</p>
+</li>
+<li>
+<p><code>start_timestamp</code>: <code>null | (number | string)</code></p>
+<p>Timestamp when the span started.</p>
+</li>
+<li>
+<p><code>status</code> (optional): <code><a href='#typedef-SpanStatus'>SpanStatus</a> | null</code></p>
+<p>The status of a span</p>
+</li>
+<li>
+<p><code>timestamp</code>: <code>null | (number | string)</code></p>
+<p>Timestamp when the span was ended.</p>
+</li>
+<li>
+<p><code>trace_id</code>: <code>null | string</code></p>
+<p>The ID of the trace the span belongs to.</p>
+</li>
+</ul>
+<p><a name='typedef-Threads'></a></p>
+<h2 id="threads"><code>Threads</code></h2>
+<p><strong>Properties:</strong></p>
+<ul>
+<li><code>values</code>: <code>Array&lt;null | <a href='#typedef-Thread'>Thread</a>&gt;</code></li>
+</ul>
+<p><a name='typedef-Thread'></a></p>
+<h2 id="thread"><code>Thread</code></h2>
+<p>A process thread of an event.</p>
+<p>The Threads Interface specifies threads that were running at the time an event happened. These threads can also contain stack traces.</p>
+<p>An event may contain one or more threads in an attribute named <code>threads</code>.</p>
+<p>The following example illustrates the threads part of the event payload and omits other attributes for simplicity.</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;threads&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;values&quot;</span><span class="p">:</span> <span class="p">[</span>
+      <span class="p">{</span>
+        <span class="nt">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;0&quot;</span><span class="p">,</span>
+        <span class="nt">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;main&quot;</span><span class="p">,</span>
+        <span class="nt">&quot;crashed&quot;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+        <span class="nt">&quot;stacktrace&quot;</span><span class="p">:</span> <span class="p">{}</span>
+      <span class="p">}</span>
+    <span class="p">]</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>crashed</code> (optional): <code>boolean | null</code></p>
+<p>A flag indicating whether the thread crashed. Defaults to <code>false</code>.</p>
+</li>
+<li>
+<p><code>current</code> (optional): <code>boolean | null</code></p>
+<p>A flag indicating whether the thread was in the foreground.  Defaults to <code>false</code>.</p>
+</li>
+<li>
+<p><code>id</code> (optional): <code>null | (number | string)</code></p>
+<p>The ID of the thread. Typically a number or numeric string.</p>
+<p>Needs to be unique among the threads. An exception can set the <code>thread_id</code> attribute to cross-reference this thread.</p>
+</li>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Display name of this thread.</p>
+</li>
+<li>
+<p><code>stacktrace</code> (optional): <code>null | <a href='#typedef-Stacktrace'>Stacktrace</a></code></p>
+<p>Stack trace containing frames of this exception.</p>
+<p>The thread that crashed with an exception should not have a stack trace, but instead, the <code>thread_id</code> attribute should be set on the exception and Sentry will connect the two.</p>
+</li>
+</ul>
+<p><a name='typedef-EventType'></a></p>
+<h2 id="eventtype"><code>EventType</code></h2>
+<p>The type of an event.</p>
+<p><strong>Variants:</strong></p>
+<ul>
+<li><code>"csp"</code></li>
+<li><code>"default"</code></li>
+<li><code>"error"</code></li>
+<li><code>"expectct"</code></li>
+<li><code>"expectstaple"</code></li>
+<li><code>"hpkp"</code></li>
+<li><code>"transaction"</code></li>
+</ul>
+<p><a name='typedef-User'></a></p>
+<h2 id="user"><code>User</code></h2>
+<p>Information about the user who triggered an event.</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+  <span class="nt">&quot;user&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nt">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;unique_id&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;username&quot;</span><span class="p">:</span> <span class="s2">&quot;my_user&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;email&quot;</span><span class="p">:</span> <span class="s2">&quot;foo@example.com&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;ip_address&quot;</span><span class="p">:</span> <span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+    <span class="nt">&quot;subscription&quot;</span><span class="p">:</span> <span class="s2">&quot;basic&quot;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>data</code> (optional): <code>{ [key: string]: any } | null</code></p>
+<p>Additional arbitrary fields, as stored in the database (and sometimes as sent by clients).
+ All data from <code>self.other</code> should end up here after store normalization.</p>
+</li>
+<li>
+<p><code>email</code> (optional): <code>null | string</code></p>
+<p>Email address of the user.</p>
+</li>
+<li>
+<p><code>geo</code> (optional): <code>null | <a href='#typedef-Geo'>Geo</a></code></p>
+<p>Approximate geographical location of the end user or device.</p>
+</li>
+<li>
+<p><code>id</code> (optional): <code>null | string</code></p>
+<p>Unique identifier of the user.</p>
+</li>
+<li>
+<p><code>ip_address</code> (optional): <code>null | string</code></p>
+<p>Remote IP address of the user. Defaults to "{{auto}}".</p>
+</li>
+<li>
+<p><code>name</code> (optional): <code>null | string</code></p>
+<p>Human readable name of the user.</p>
+</li>
+<li>
+<p><code>username</code> (optional): <code>null | string</code></p>
+<p>Username of the user.</p>
+</li>
+</ul>
+<p><a name='typedef-Geo'></a></p>
+<h2 id="geo"><code>Geo</code></h2>
+<p>Geographical location of the end user or device.</p>
+<p><strong>Properties:</strong></p>
+<ul>
+<li>
+<p><code>city</code> (optional): <code>null | string</code></p>
+<p>Human readable city name.</p>
+</li>
+<li>
+<p><code>country_code</code> (optional): <code>null | string</code></p>
+<p>Two-letter country code (ISO 3166-1 alpha-2).</p>
+</li>
+<li>
+<p><code>region</code> (optional): <code>null | string</code></p>
+<p>Human readable region name or code.</p>
+</li>
+</ul>
+                
+                  
+                
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        powered by
+        <a href="https://www.mkdocs.org" target="_blank" rel="noopener">MkDocs</a>
+        and
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+          Material for MkDocs</a>
+      </div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../../assets/javascripts/application.c33a9706.js"></script>
+      
+      <script>app.initialize({version:"1.0.4",url:{base:"../.."}})</script>
+      
+        <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+      
+    
+  </body>
+</html>

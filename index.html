@@ -560,18 +560,6 @@
   </li>
 
     
-      
-      
-      
-
-
-  <li class="md-nav__item">
-    <a href="event-schema/" title="" class="md-nav__link">
-      
-    </a>
-  </li>
-
-    
   </ul>
 </nav>
                   </div>
@@ -711,7 +699,7 @@
 information and improve event response time. It acts as a middle layer between
 your application and Sentry.io.</p>
 <p><strong>Relay is still work in progress. The default Relay mode is not supported by
-Sentry, so Relay has to be switched into <code>proxy</code> or <code>static</code> mode. See <em><a href="./configuration/modes">Relay
+Sentry, so Relay has to be switched into <code>proxy</code> or <code>static</code> mode. See <em><a href="configuration/modes/">Relay
 Modes</a></em> for more information.</strong></p>
 <h2 id="use-cases-for-relay">Use Cases for Relay</h2>
 <p>Relay was designed with a few usage scenarios in mind.</p>
@@ -724,7 +712,7 @@ allows to scrub data in a central place before sending it to Sentry.</p>
 <li>
 <p>If you prefer to configure data scrubbing in a central place, you can let
   Sentry handle data scrubbing. Upon arrival, Sentry immediatly applies
-  <a href="https://docs.sentry.io/data-management/sensitive-data/#server-side-scrubbing">server-side scrubbing</a> and guaratees that personal information is never
+  <a href="https://docs.sentry.io/data-management/sensitive-data/#server-side-scrubbing">server-side scrubbing</a> and guarantees that personal information is never
   stored.</p>
 </li>
 <li>
@@ -751,7 +739,7 @@ you need to restrict all HTTP communication to a custom domain name, Relay can
 act as an opaque proxy that reliably forwards events to Sentry.</p>
 <h2 id="getting-started">Getting Started</h2>
 <p>In this section we will create a simple setup using the default settings. Check
-the <em><a href="../options">Configuration Options</a></em> page for a detail discussion
+the <em><a href="configuration/options/">Configuration Options</a></em> page for a detail discussion
 of various operating scenarious for Relay.</p>
 <p>The Relay server is called <code>relay</code>. Binaries can be downloaded from <a href="https://github.com/getsentry/relay/releases">GitHub
 Releases</a> and a Docker image is provided on <a href="https://hub.docker.com/r/getsentry/relay/">DockerHub</a>.</p>
@@ -773,14 +761,23 @@ Alternatively, you can choose to override the default settings, by selecting
 parameters:</p>
 <ul>
 <li>The <code>mode</code> setting configures the major mode in which Relay operates. For more
-  information on available relay modes, refer to <em><a href="./configuration/modes">Relay Modes</a></em>.</li>
-<li>The <code>upstream</code> setting configures the server to which Relay will forward the
-  events (by default the main <code>sentry.io</code> URL).</li>
-<li>The <code>port</code> and <code>host</code> settings configure the TCP port at which Relay will
-  listen to. This is the address to which SDKs send events.</li>
-<li>The <code>tls</code> settings configure TLS support (HTTPS support), used for
+  information on available relay modes, refer to <em><a href="configuration/modes/">Relay Modes</a></em>.</li>
+</ul>
+<p><strong>Right now, the only options supported by <code>sentry.io</code> are <code>proxy</code> and <code>static</code> mode.</strong></p>
+<ul>
+<li>
+<p>The <code>upstream</code> setting configures the server to which Relay will forward the
+  events (by default the main <code>sentry.io</code> URL).</p>
+</li>
+<li>
+<p>The <code>port</code> and <code>host</code> settings configure the TCP port at which Relay will
+  listen to. This is the address to which SDKs send events.</p>
+</li>
+<li>
+<p>The <code>tls</code> settings configure TLS support (HTTPS support), used for
   the cases where the communication between the SDK and Relay needs to be
-  secured.</li>
+  secured.</p>
+</li>
 </ul>
 <p>Settings are placed in <code>.relay/config.yml</code>. Note that all configuration values are optional and default to these settings:</p>
 <div class="codehilite"><pre><span></span><code><span class="nn">---</span>
@@ -794,9 +791,10 @@ parameters:</p>
   <span class="nt">tls_identity_password</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">~</span>
 </code></pre></div>
 
-<p>All configurations are explained in detail in the section <a href="../options">Configuration
+<p>All configurations are explained in detail in the section <a href="configuration/options/">Configuration
 Options</a>.</p>
 <h3 id="credentials">Credentials</h3>
+<p><em>Not applicable in <code>proxy</code>/<code>static</code> mode.</em></p>
 <p>Besides <code>config.yml</code>, the <code>init</code> command has also created a credentials file <code>credentials.json</code> in the same <code>.relay</code> directory. This file contains the a public and private key used by Relay to authenticate with the upstream server.</p>
 <p><strong>As such, it is important that this file should be adequatly protected from modification or viewing by unauthorized entities</strong>.</p>
 <p>Here's an example of the contents of a typical credentials file:</p>
@@ -809,8 +807,7 @@ Options</a>.</p>
 
 <p>You will be using the <code>public_key</code> to register your Relay with the upstream server when running it in <code>managed</code> mode.</p>
 <h3 id="registering-relay-with-sentry">Registering Relay with Sentry</h3>
-<p><strong>This option is not available on Sentry.io. Instead, configure Relay in <code>proxy</code>
-or <code>static</code> mode and skip this step.</strong></p>
+<p><em>Not applicable in <code>proxy</code>/<code>static</code> mode.</em></p>
 <p>To operate in <code>managed</code> mode, Relay pulls configuration for PII stripping,
 filtering, and rate limiting from your organization and project settings at
 Sentry. Since these settings may contain sensitive information, their access is
@@ -834,7 +831,7 @@ Credentials:
 </p>
 
 <p>Now your Relay is registered with Sentry and ready to send messages. See
-<a href="../options">Configuration Options</a> page to learn more about further Relay configuration
+<em><a href="configuration/options/">Configuration Options</a></em> to learn more about further Relay configuration
 options.</p>
 <h3 id="running-relay">Running Relay</h3>
 <p>Once you have registered your Relay with Sentry, you are ready to run your

@@ -414,6 +414,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#http_queuesize" class="md-nav__link">
+    http_queue.size
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#event_processingdeserialize" class="md-nav__link">
     event_processing.deserialize
   </a>
@@ -828,18 +835,6 @@
   </li>
 
     
-      
-      
-      
-
-
-  <li class="md-nav__item">
-    <a href="../../event-schema/" title="" class="md-nav__link">
-      
-    </a>
-  </li>
-
-    
   </ul>
 </nav>
                   </div>
@@ -968,6 +963,13 @@
           <li class="md-nav__item">
   <a href="#connectorwait_queue" class="md-nav__link">
     connector.wait_queue
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#http_queuesize" class="md-nav__link">
+    http_queue.size
   </a>
   
 </li>
@@ -1311,6 +1313,10 @@ Number of project states currently held in the in-memory project cache.</p>
 <h3 id="connectorwait_queue"><code>connector.wait_queue</code></h3>
 <p><em>Histogram.</em>
 The number of upstream requests queued up for a connection in the connection pool.</p>
+<h3 id="http_queuesize"><code>http_queue.size</code></h3>
+<p><em>Histogram.</em>
+Number of messages queued by the Upstream actor and waiting to be sent over http.
+This metric is tagged with a priority label (for high and low priority queues).</p>
 <h3 id="event_processingdeserialize"><code>event_processing.deserialize</code></h3>
 <p><em>Timer.</em>
 The time spent deserializing an event from a JSON byte array into the native data structure
