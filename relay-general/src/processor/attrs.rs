@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cmp;
 use std::fmt;
 use std::str::FromStr;
 
@@ -492,6 +493,21 @@ impl<'a> Default for ProcessingState<'a> {
     }
 }
 
+/// Declares how well a PII selector matches against processing state.
+#[derive(Eq, PartialEq, Ord, PartialOrd, Debug)]
+pub enum PiiMatch {
+    /// Does not match at all.
+    NoMatch,
+
+    /// Matches, but contains wildcards and other constructs that may indicate the user did not
+    /// mean to match. For fields with pii=maybe, this means not to match, for fields with pii=true
+    /// we do match.
+    SimpleMatch,
+
+    /// Match with selector that looks like it was intentionally written like that.
+    SpecificMatch,
+}
+
 /// Represents the path in a structure
 #[derive(Debug)]
 pub struct Path<'a>(&'a ProcessingState<'a>);
@@ -509,39 +525,53 @@ impl<'a> Path<'a> {
         PathItem::index(self.0.path_item()?)
     }
 
+    pub fn matches_selector(&self, selector: &SelectorSpec) -> bool {
+        match (self.0.attrs().pii, self.match_selector(selector)) {
+            (_, PiiMatch::NoMatch) => false,
+            (Pii::False, _) => false,
+            (Pii::Maybe, PiiMatch::SpecificMatch) => true,
+            (Pii::Maybe, PiiMatch::SimpleMatch) => false,
+            (Pii::True, PiiMatch::SimpleMatch) => true,
+            (Pii::True, PiiMatch::SpecificMatch) => true,
+        }
+    }
+
     /// Checks if a path matches given selector.
-    pub fn matches_selector(&self, pii: Pii, selector: &SelectorSpec) -> bool {
+    fn match_selector(&self, selector: &SelectorSpec) -> PiiMatch {
         match *selector {
             SelectorSpec::Path(ref path) => {
                 // fastest path: the selector is deeper than the current structure, or the field is
                 // not supposed to be scrubbed.
-                if path.len() > self.0.depth || pii == Pii::False {
-                    return false;
+                if path.len() > self.0.depth {
+                    return PiiMatch::NoMatch;
                 }
 
                 // fast path: we do not have any deep matches
                 let mut state_iter = self.0.iter().filter(|state| state.entered_anything());
                 let mut selector_iter = path.iter().enumerate().rev();
                 let mut depth_match = false;
+                let mut min_match = PiiMatch::SpecificMatch;
                 for state in &mut state_iter {
-                    if !match selector_iter.next() {
+                    match selector_iter.next() {
                         Some((_, SelectorPathItem::DeepWildcard)) => {
-                            if pii == Pii::Maybe {
-                                return false;
-                            }
-
+                            min_match = cmp::min(min_match, PiiMatch::SimpleMatch);
                             depth_match = true;
                             break;
                         }
-                        Some((i, ref path_item)) => path_item.matches_state(i, pii, state),
+                        Some((i, ref path_item)) => match path_item.match_state(i, state) {
+                            PiiMatch::NoMatch => {
+                                return PiiMatch::NoMatch;
+                            }
+                            x => min_match = cmp::min(x, min_match),
+                        },
                         None => break,
-                    } {
-                        return false;
                     }
                 }
 
+                debug_assert!(min_match != PiiMatch::NoMatch);
+
                 if !depth_match {
-                    return true;
+                    return min_match;
                 }
 
                 // slow path: we collect the remaining states and skip up to the first
@@ -550,37 +580,65 @@ impl<'a> Path<'a> {
                 let mut selector_iter = selector_iter.rev().peekable();
                 let (first_selector_path_pos, first_selector_path) = match selector_iter.next() {
                     Some(selector_path) => selector_path,
-                    None => return !remaining_states.is_empty(),
+                    None => {
+                        if !remaining_states.is_empty() {
+                            return min_match;
+                        } else {
+                            return PiiMatch::NoMatch;
+                        }
+                    }
                 };
                 let mut path_match_iterator = remaining_states.iter().rev().skip_while(|state| {
-                    !first_selector_path.matches_state(first_selector_path_pos, pii, state)
+                    first_selector_path.match_state(first_selector_path_pos, state)
+                        == PiiMatch::NoMatch
                 });
                 if path_match_iterator.next().is_none() {
-                    return false;
+                    return PiiMatch::NoMatch;
                 }
 
                 // then we check all remaining items and that nothing is left of the selector
-                path_match_iterator
-                    .zip(&mut selector_iter)
-                    .all(|(state, (pos, selector_path))| {
-                        selector_path.matches_state(pos, pii, state)
-                    })
-                    && selector_iter.next().is_none()
+                for (state, (pos, selector_path)) in path_match_iterator.zip(&mut selector_iter) {
+                    match selector_path.match_state(pos, state) {
+                        PiiMatch::NoMatch => return PiiMatch::NoMatch,
+                        m => min_match = cmp::min(m, min_match),
+                    }
+                }
+
+                if !selector_iter.next().is_none() {
+                    return PiiMatch::NoMatch;
+                }
+
+                min_match
             }
 
             // Conjunction: At least one subselector needs to be specific if the selector needs to be
             // specific
             // All subselectors must match, generally (ignoring pii=maybe)
             SelectorSpec::And(ref xs) => {
-                xs.iter().all(|x| self.matches_selector(Pii::True, x))
-                    && xs.iter().any(|x| self.matches_selector(pii, x))
+                let mut max_match = PiiMatch::NoMatch;
+
+                for x in xs {
+                    match self.match_selector(x) {
+                        PiiMatch::NoMatch => return PiiMatch::NoMatch,
+                        m => max_match = cmp::max(m, max_match),
+                    }
+                }
+
+                max_match
             }
 
             // Disjunction: At least one subselector must match
-            SelectorSpec::Or(ref xs) => xs.iter().any(|x| self.matches_selector(pii, x)),
+            SelectorSpec::Or(ref xs) => xs
+                .iter()
+                .map(|x| self.match_selector(x))
+                .max()
+                .unwrap_or(PiiMatch::NoMatch),
 
             // Negation disallows pii=maybe.
-            SelectorSpec::Not(ref x) => pii == Pii::True && !self.matches_selector(pii, x),
+            SelectorSpec::Not(ref x) => match self.match_selector(x) {
+                PiiMatch::NoMatch => PiiMatch::SimpleMatch,
+                _ => PiiMatch::NoMatch,
+            },
         }
     }
 }
@@ -610,18 +668,16 @@ fn test_selector_matching() {
     use itertools::Itertools;
 
     macro_rules! assert_matches_raw {
-        ($state:expr, $pii:expr, $selector:expr, $expected:expr) => {{
+        ($state:expr, $selector:expr, $expected:expr) => {{
+            let actual = $state.path().match_selector(&$selector.parse().unwrap());
             assert!(
-                $state
-                    .path()
-                    .matches_selector($pii, &$selector.parse().unwrap())
-                    == $expected,
+                actual == $expected,
                 format!(
-                    "Matched {} against {} with pii={:?}, expected {}",
+                    "Matched {} against {}, expected {:?}, actually {:?}",
                     $selector,
                     $state.path(),
-                    $pii,
-                    $expected
+                    $expected,
+                    actual
                 )
             );
         }};
@@ -631,25 +687,17 @@ fn test_selector_matching() {
         ($state:expr, $($selector:expr,)*) => {{
             let state = &$state;
             $(
-                assert_matches_raw!(state, Pii::True, $selector, true);
-                assert_matches_raw!(state, Pii::Maybe, $selector, true);
-                assert_matches_raw!(state, Pii::False, $selector, false);
+                assert_matches_raw!(state, $selector, PiiMatch::SpecificMatch);
             )*
 
             let joined = vec![$($selector),*].into_iter().join(" && ");
-            assert_matches_raw!(state, Pii::True, &joined, true);
-            assert_matches_raw!(state, Pii::Maybe, &joined, true);
-            assert_matches_raw!(state, Pii::False, &joined, false);
+            assert_matches_raw!(state, &joined, PiiMatch::SpecificMatch);
 
             let joined = vec![$($selector),*].into_iter().join(" || ");
-            assert_matches_raw!(state, Pii::True, &joined, true);
-            assert_matches_raw!(state, Pii::Maybe, &joined, true);
-            assert_matches_raw!(state, Pii::False, &joined, false);
+            assert_matches_raw!(state, &joined, PiiMatch::SpecificMatch);
 
             let joined = vec!["**", $($selector),*].into_iter().join(" || ");
-            assert_matches_raw!(state, Pii::True, &joined, true);
-            assert_matches_raw!(state, Pii::Maybe, &joined, true);
-            assert_matches_raw!(state, Pii::False, &joined, false);
+            assert_matches_raw!(state, &joined, PiiMatch::SpecificMatch);
         }}
     }
 
@@ -657,25 +705,17 @@ fn test_selector_matching() {
         ($state:expr, $($selector:expr,)*) => {{
             let state = &$state;
             $(
-                assert_matches_raw!(state, Pii::True, $selector, true);
-                assert_matches_raw!(state, Pii::Maybe, $selector, false);
-                assert_matches_raw!(state, Pii::False, $selector, false);
+                assert_matches_raw!(state, $selector, PiiMatch::SimpleMatch);
             )*
 
             let joined = vec![$($selector),*].into_iter().join(" && ");
-            assert_matches_raw!(state, Pii::True, &joined, true);
-            assert_matches_raw!(state, Pii::Maybe, &joined, false);
-            assert_matches_raw!(state, Pii::False, &joined, false);
+            assert_matches_raw!(state, &joined, PiiMatch::SimpleMatch);
 
             let joined = vec![$($selector),*].into_iter().join(" || ");
-            assert_matches_raw!(state, Pii::True, &joined, true);
-            assert_matches_raw!(state, Pii::Maybe, &joined, false);
-            assert_matches_raw!(state, Pii::False, &joined, false);
+            assert_matches_raw!(state, &joined, PiiMatch::SimpleMatch);
 
             let joined = vec!["**", $($selector),*].into_iter().join(" || ");
-            assert_matches_raw!(state, Pii::True, &joined, true);
-            assert_matches_raw!(state, Pii::Maybe, &joined, false);
-            assert_matches_raw!(state, Pii::False, &joined, false);
+            assert_matches_raw!(state, &joined, PiiMatch::SimpleMatch);
         }}
     }
 
@@ -683,9 +723,7 @@ fn test_selector_matching() {
         ($state:expr, $($selector:expr,)*) => {{
             let state = &$state;
             $(
-                assert_matches_raw!(state, Pii::True, $selector, false);
-                assert_matches_raw!(state, Pii::Maybe, $selector, false);
-                assert_matches_raw!(state, Pii::False, $selector, false);
+                assert_matches_raw!(state, $selector, PiiMatch::NoMatch);
             )*
         }}
     }

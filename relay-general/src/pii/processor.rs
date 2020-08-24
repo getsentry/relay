@@ -49,7 +49,7 @@ impl<'a> PiiProcessor<'a> {
         }
 
         for (selector, rules) in self.compiled_config.applications.iter() {
-            if state.path().matches_selector(pii, selector) {
+            if state.path().matches_selector(selector) {
                 for rule in rules {
                     let reborrowed_value = value.as_deref_mut();
                     apply_rule_to_value(meta, rule, state.path().key(), reborrowed_value)?;

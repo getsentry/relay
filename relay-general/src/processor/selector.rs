@@ -6,7 +6,7 @@ use pest::error::Error;
 use pest::iterators::Pair;
 use pest::Parser;
 
-use crate::processor::{Pii, ProcessingState, ValueType};
+use crate::processor::{PiiMatch, ProcessingState, ValueType};
 
 /// Error for invalid selectors
 #[derive(Debug, Fail)]
@@ -67,45 +67,54 @@ impl fmt::Display for SelectorPathItem {
 impl SelectorPathItem {
     /// Helper function to figure out of the path item matches the given processing state.
     ///
-    /// `pii` is not the same as `state.attrs().pii`, it is rather the value of the substate for
-    /// which we are considering scrubbing (innermost child state of `state`)
-    ///
     /// `pos` is the index inside the selector path
-    pub(super) fn matches_state(&self, pos: usize, pii: Pii, state: &ProcessingState<'_>) -> bool {
+    pub(super) fn match_state(&self, pos: usize, state: &ProcessingState<'_>) -> PiiMatch {
         // For pii=maybe, a selector has to be "specific", i.e. we should be more certain that the
         // user really meant to address this field.
 
-        match (pii, self) {
-            // pii=false can never match
-            (Pii::False, _) => false,
-
+        match self {
             // Flat wildcard also works with pii=maybe, we say `tags.*` or
             // `exceptions.values.*.frames.*.vars.foo` is specific enough.
-            (_, SelectorPathItem::Wildcard) => true,
+            SelectorPathItem::Wildcard => PiiMatch::SpecificMatch,
 
             // Deep wildcard
-            (Pii::Maybe, SelectorPathItem::DeepWildcard) => false,
-            (Pii::True, SelectorPathItem::DeepWildcard) => true,
+            SelectorPathItem::DeepWildcard => PiiMatch::SimpleMatch,
 
-            // "Generic" JSON value types cannot be part of a specific path
-            (Pii::Maybe, SelectorPathItem::Type(ValueType::String)) => false,
-            (Pii::Maybe, SelectorPathItem::Type(ValueType::Number)) => false,
-            (Pii::Maybe, SelectorPathItem::Type(ValueType::Boolean)) => false,
-            (Pii::Maybe, SelectorPathItem::Type(ValueType::DateTime)) => false,
-            (Pii::Maybe, SelectorPathItem::Type(ValueType::Array)) => false,
-            (Pii::Maybe, SelectorPathItem::Type(ValueType::Object)) => false,
+            SelectorPathItem::Type(ty) => match (ty, pos == 0, state.value_type() == Some(*ty)) {
+                // "Generic" JSON value types cannot be part of a specific path
+                (ValueType::String, _, true) => PiiMatch::SimpleMatch,
+                (ValueType::Number, _, true) => PiiMatch::SimpleMatch,
+                (ValueType::Boolean, _, true) => PiiMatch::SimpleMatch,
+                (ValueType::DateTime, _, true) => PiiMatch::SimpleMatch,
+                (ValueType::Array, _, true) => PiiMatch::SimpleMatch,
+                (ValueType::Object, _, true) => PiiMatch::SimpleMatch,
 
-            // Other schema-specific value types can be used with pii=maybe if they are on the first position.
-            (Pii::Maybe, SelectorPathItem::Type(ty)) => pos == 0 && state.value_type() == Some(*ty),
-            (Pii::True, SelectorPathItem::Type(ty)) => state.value_type() == Some(*ty),
+                // Other schema-specific value types can be used with pii=maybe if they are on the first position.
+                (_, _, false) => PiiMatch::NoMatch,
+                (_, true, true) => PiiMatch::SpecificMatch,
+                (_, false, true) => PiiMatch::SimpleMatch,
+            },
 
             // A selector is certainly specific if it directly addresses a key or index
-            (_, SelectorPathItem::Index(idx)) => state.path().index() == Some(*idx),
-            (_, SelectorPathItem::Key(ref key)) => state
-                .path()
-                .key()
-                .map(|k| k.to_lowercase() == key.to_lowercase())
-                .unwrap_or(false),
+            SelectorPathItem::Index(idx) => {
+                if state.path().index() == Some(*idx) {
+                    PiiMatch::SpecificMatch
+                } else {
+                    PiiMatch::NoMatch
+                }
+            }
+            SelectorPathItem::Key(ref key) => {
+                if state
+                    .path()
+                    .key()
+                    .map(|k| k.to_lowercase() == key.to_lowercase())
+                    .unwrap_or(false)
+                {
+                    PiiMatch::SpecificMatch
+                } else {
+                    PiiMatch::NoMatch
+                }
+            }
         }
     }
 }
