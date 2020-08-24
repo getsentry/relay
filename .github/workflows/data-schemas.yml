@@ -1,5 +1,13 @@
 name: data-schemas
 
+on:
+  push:
+    branches:
+      - master
+
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
 jobs:
   event_schema:
     name: Event Schema
