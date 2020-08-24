@@ -101,6 +101,10 @@ extract-metric-docs: .venv/bin/python
 	cd scripts && ../.venv/bin/python extract_metric_docs.py
 
 jsonschema: init-submodules
+	# Makes no sense to nest this in docs, but unfortunately that's the path
+	# Snuba uses in their setup right now. Eventually this should be gone in
+	# favor of the data schemas repo
+	mkdir -p docs/event-schema/
 	rm -rf docs/event-schema/event.schema.*
 	set -e && cargo run --features jsonschema -- event-json-schema \
 		> docs/event-schema/event.schema.json
