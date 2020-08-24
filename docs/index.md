@@ -28,7 +28,7 @@ To choose the right place for data scrubbing, consider:
 
 - If you prefer to configure data scrubbing in a central place, you can let
   Sentry handle data scrubbing. Upon arrival, Sentry immediatly applies
-  [server-side scrubbing] and guaratees that personal information is never
+  [server-side scrubbing] and guarantees that personal information is never
   stored.
 
 - If you cannot send PII outside your infrastructure but you still prefer to
@@ -239,7 +239,7 @@ project.
 [before_send hooks]: https://docs.sentry.io/error-reporting/configuration/?platform=rust#before-send
 [server-side scrubbing]: https://docs.sentry.io/data-management/sensitive-data/#server-side-scrubbing
 [github releases]: https://github.com/getsentry/relay/releases
-[configuration options]: ./configuration/options
-[relay modes]: ./configuration/modes
+[configuration options]: configuration/options.md
+[relay modes]: configuration/modes.md
 [dockerhub]: https://hub.docker.com/r/getsentry/relay/
 [docker volumes]: https://docs.docker.com/storage/volumes/
