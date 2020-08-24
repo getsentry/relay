@@ -87,13 +87,14 @@ impl<'a> MinidumpData<'a> {
             };
 
             let range = self.location_range(mem.desc.memory);
-            descriptors.push(StreamDescriptor(StreamType::MemoryListStream, value_type, range));
+            descriptors.push(StreamDescriptor(
+                StreamType::MemoryListStream,
+                value_type,
+                range,
+            ));
         }
 
-        let aux_stream_types = [
-            StreamType::LinuxEnviron,
-            StreamType::LinuxCmdLine,
-        ];
+        let aux_stream_types = [StreamType::LinuxEnviron, StreamType::LinuxCmdLine];
 
         for &stream_type in &aux_stream_types {
             match self.minidump.get_raw_stream(stream_type) {
