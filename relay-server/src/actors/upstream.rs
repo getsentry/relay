@@ -33,7 +33,6 @@ use actix_web::{Error as ActixError, HttpMessage};
 use failure::Fail;
 use futures::{future, prelude::*, sync::oneshot};
 use itertools::Itertools;
-use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
@@ -46,21 +45,6 @@ use relay_quotas::{
 
 use crate::metrics::RelayHistograms;
 use crate::utils::{self, ApiErrorResponse, IntoTracked, TrackedFutureFinished};
-
-/// How often should re authentication with upstream be done (in seconds)
-const AUTHENTICATION_INTERVAL: u64 = 60;
-/// What is the amount of time from a successful authentication after which we
-/// loose the IsAuthenticated state (if no successful re authentication happens)
-const AUTHENTICATION_VALIDITY_INTERVAL: u64 = AUTHENTICATION_INTERVAL + 20;
-
-lazy_static! {
-    /// Duration after which a re-authentication should be retried
-    static ref RE_AUTHENTICATION_DURATION: Duration = Duration::from_secs(AUTHENTICATION_INTERVAL);
-    /// Duration after the last successful authentication after which we loose the
-    /// authenticated state ( if we didn't manage to reauthenticate)
-    static ref AUTHENTICATION_VALIDITY_DURATION: Duration =
-        Duration::from_secs(AUTHENTICATION_VALIDITY_INTERVAL);
-}
 
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
@@ -219,6 +203,11 @@ pub struct UpstreamRelay {
     high_prio_requests: VecDeque<UpstreamRequest>,
     // low priority request queue
     low_prio_requests: VecDeque<UpstreamRequest>,
+    // interval after which an authenticated Relay tries to re-authenticate
+    reauthentication_interval: Duration,
+    // interval after which a previously authenticated Relay is considered to not be
+    // authenticated anymore.
+    max_reauthentication_interval: Duration,
 }
 
 /// Handles a response returned from the upstream.
@@ -273,12 +262,15 @@ impl UpstreamRelay {
         UpstreamRelay {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             max_inflight_requests: config.max_concurrent_requests(),
-            config,
             auth_state: AuthState::Unknown,
             num_inflight_requests: 0,
             high_prio_requests: VecDeque::new(),
             low_prio_requests: VecDeque::new(),
             last_authentication: None,
+            reauthentication_interval: config.upstream_reathentication_interval(),
+            max_reauthentication_interval: config.upstream_reathentication_interval()
+                + config.upstream_reauthentication_grace_period(),
+            config,
         }
     }
 
@@ -502,13 +494,13 @@ impl Handler<Authenticate> for UpstreamRelay {
                 slf.auth_state = AuthState::Registered;
                 slf.backoff.reset();
                 slf.last_authentication = Some(Instant::now());
-                ctx.notify_later(Authenticate, *RE_AUTHENTICATION_DURATION);
+                ctx.notify_later(Authenticate, slf.reauthentication_interval);
             })
             .map_err(|err, slf, ctx| {
                 log::error!("authentication encountered error: {}", LogError(&err));
 
                 if let Some(last_authentication) = slf.last_authentication {
-                    if last_authentication + *AUTHENTICATION_VALIDITY_DURATION < Instant::now() {
+                    if last_authentication + slf.max_reauthentication_interval < Instant::now() {
                         // we are past our grace period we can no longer claim we are authenticated
                         slf.auth_state = AuthState::Error;
                     }

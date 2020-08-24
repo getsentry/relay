@@ -354,6 +354,12 @@ pub struct Relay {
     pub tls_identity_path: Option<PathBuf>,
     /// Password for the PKCS12 archive.
     pub tls_identity_password: Option<String>,
+    /// The number of seconds after a successful authentication after which
+    /// a Relay tries to re-authenticate with the upstream server.
+    pub upstream_reauthentication_interval: u64,
+    /// The number of seconds allowed for a Relay to re-authenticate after which
+    /// it is considered that re-authentication has failed.
+    pub upstream_reauthentication_grace_period: u64,
 }
 
 impl Default for Relay {
@@ -366,6 +372,8 @@ impl Default for Relay {
             tls_port: None,
             tls_identity_path: None,
             tls_identity_password: None,
+            upstream_reauthentication_interval: 60,
+            upstream_reauthentication_grace_period: 20,
         }
     }
 }
@@ -1098,6 +1106,18 @@ impl Config {
     /// Returns the password for the identity bundle
     pub fn tls_identity_password(&self) -> Option<&str> {
         self.values.relay.tls_identity_password.as_deref()
+    }
+
+    /// Returns the interval at which Realy should try to re-authenticate with the upstream
+    pub fn upstream_reathentication_interval(&self) -> Duration {
+        Duration::from_secs(self.values.relay.upstream_reauthentication_interval)
+    }
+
+    /// The maximum amount of time that a Relay is allowed to take to re-authenticate with
+    /// the upstream after which it is declared as un-authenticated (if it is not able to
+    /// authenticate).
+    pub fn upstream_reauthentication_grace_period(&self) -> Duration {
+        Duration::from_secs(self.values.relay.upstream_reauthentication_grace_period)
     }
 
     /// Returns whether this Relay should emit outcomes.

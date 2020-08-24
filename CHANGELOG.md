@@ -32,6 +32,7 @@
 - Report all Kafka producer errors to Sentry. Previously, only immediate errors were reported but not those during asynchronous flushing of messages. ([#677](https://github.com/getsentry/relay/pull/677))
 - Add "HubSpot Crawler" to the list of web crawlers for inbound filters. ([#693](https://github.com/getsentry/relay/pull/693))
 - Improved typing for span data of transaction events, no breaking changes. ([#713](https://github.com/getsentry/relay/pull/713))
+- Add periodic re-authentication with the Upstream server, previously there was only one initial authentication. ([#731](https://github.com/getsentry/relay/pull/731))
 
 ## 20.7.2
 
