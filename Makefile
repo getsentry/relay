@@ -53,11 +53,11 @@ test: test-rust-all test-python test-integration
 .PHONY: test
 
 test-rust: setup-git
-	cargo test --all
+	cargo test --workspace
 .PHONY: test-rust
 
 test-rust-all: setup-git
-	cargo test --all --all-features
+	cargo test --workspace --all-features
 .PHONY: test-rust-all
 
 test-python: setup-git setup-venv
@@ -70,14 +70,6 @@ test-integration: build setup-venv
 	.venv/bin/pip install -U -r requirements-test.txt
 	.venv/bin/pytest tests -n auto -v
 .PHONY: test-integration
-
-test-process-event:
-	# Process a basic event and assert its output
-	bash -c 'diff \
-		<(cargo run ${CARGO_ARGS} -- process-event <tests/fixtures/basic-event-input.json) \
-		tests/fixtures/basic-event-output.json'
-	@echo 'OK'
-.PHONY: test-process-event
 
 # Documentation
 
@@ -149,7 +141,7 @@ lint: lint-rust lint-python
 
 lint-rust: setup-git
 	@rustup component add clippy --toolchain stable 2> /dev/null
-	cargo +stable clippy --all-features --all --tests --examples -- -D clippy::all
+	cargo +stable clippy --workspace --all-features --tests -- -D clippy::all
 .PHONY: lint-rust
 
 lint-python: setup-venv
