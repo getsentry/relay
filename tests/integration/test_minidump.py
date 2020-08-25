@@ -188,6 +188,41 @@ def test_minidump_sentry_json(mini_sentry, relay):
     assert event_item["user"]["id"] == "123"
 
 
+def test_minidump_sentry_json_chunked(mini_sentry, relay):
+    project_id = 42
+    relay = relay(mini_sentry)
+    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+
+    attachments = [
+        (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content"),
+    ]
+
+    event_json = '{"event_id":"2dd132e467174db48dbaddabd3cbed57","user":{"id":"123"}}'
+    params = [
+        ("sentry__1", event_json[:30]),
+        ("sentry__2", event_json[30:]),
+    ]
+
+    response = relay.send_minidump(
+        project_id=project_id, files=attachments, params=params
+    )
+    envelope = mini_sentry.captured_events.get(timeout=1)
+
+    assert envelope
+    assert_only_minidump(envelope)
+
+    # With chunked JSON payloads, inferring event ids is not supported.
+    # The event id is randomized by Relay and overwritten.
+    event_id = UUID(response.text.strip()).hex
+    assert event_id != "2dd132e467174db48dbaddabd3cbed57"
+    assert envelope.headers.get("event_id") == event_id
+
+    # Check that event payload is applied
+    event_item = envelope.get_event()
+    assert event_item["event_id"] == event_id
+    assert event_item["user"]["id"] == "123"
+
+
 def test_minidump_invalid_json(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)

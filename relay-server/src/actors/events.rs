@@ -13,7 +13,7 @@ use serde_json::Value as SerdeValue;
 
 use relay_common::{clone, metric, LogError};
 use relay_config::{Config, RelayMode};
-use relay_general::pii::PiiProcessor;
+use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, LenientString,
@@ -33,7 +33,7 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
-use crate::utils::{self, FormDataIter, FutureExt};
+use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, FutureExt};
 
 #[cfg(feature = "processing")]
 use {
@@ -42,6 +42,7 @@ use {
     crate::utils::EnvelopeLimiter,
     chrono::TimeZone,
     failure::ResultExt,
+    minidump::Minidump,
     relay_filter::FilterStatKey,
     relay_general::protocol::IpAddr,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
@@ -468,14 +469,20 @@ impl EventProcessor {
 
     fn merge_formdata(&self, target: &mut SerdeValue, item: Item) {
         let payload = item.payload();
+        let mut aggregator = ChunkedFormDataAggregator::new();
+
         for entry in FormDataIter::new(&payload) {
             if entry.key() == "sentry" {
                 // Custom clients can submit longer payloads and should JSON encode event data into
                 // the optional `sentry` field.
                 match serde_json::from_str(entry.value()) {
                     Ok(event) => utils::merge_values(target, event),
-                    Err(_) => log::debug!("invalid json event payload in form data"),
+                    Err(_) => log::debug!("invalid json event payload in sentry form field"),
                 }
+            } else if let Some(index) = utils::get_sentry_chunk_index(entry.key(), "sentry__") {
+                // Electron SDK splits up long payloads into chunks starting at sentry__1 with an
+                // incrementing counter. Assemble these chunks here and then decode them below.
+                aggregator.insert(index, entry.value());
             } else if let Some(keys) = utils::get_sentry_entry_indexes(entry.key()) {
                 // Try to parse the nested form syntax `sentry[key][key]` This is required for the
                 // Breakpad client library, which only supports string values of up to 64
@@ -486,6 +493,13 @@ impl EventProcessor {
                 // payload and set defaults for processing. This is sent by clients like Breakpad or
                 // Crashpad.
                 utils::update_nested_value(target, &["extra", entry.key()], entry.value());
+            }
+        }
+
+        if !aggregator.is_empty() {
+            match serde_json::from_str(&aggregator.join()) {
+                Ok(event) => utils::merge_values(target, event),
+                Err(_) => log::debug!("invalid json event payload in sentry__* form fields"),
             }
         }
     }
@@ -756,7 +770,7 @@ impl EventProcessor {
     /// Extracts the timestamp from the minidump and uses it as the event timestamp.
     #[cfg(feature = "processing")]
     fn write_minidump_timestamp(&self, event: &mut Event, minidump_item: &Item) {
-        let minidump = match minidump::Minidump::read(minidump_item.payload()) {
+        let minidump = match Minidump::read(minidump_item.payload()) {
             Ok(minidump) => minidump,
             Err(err) => {
                 log::debug!("Failed to parse minidump: {:?}", err);
@@ -971,7 +985,6 @@ impl EventProcessor {
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
-
             if let Some(ref config) = *config.datascrubbing_settings.pii_config() {
                 let compiled = config.compiled();
                 let mut processor = PiiProcessor::new(&compiled);
@@ -979,6 +992,44 @@ impl EventProcessor {
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
         });
+
+        Ok(())
+    }
+
+    /// Apply data privacy rules to attachments in the envelope.
+    ///
+    /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
+    /// attachment types. When special attachments are detected, these are scrubbed with custom
+    /// logic; otherwise the entire attachment is treated as a single binary blob.
+    fn scrub_attachments(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let envelope = &mut state.envelope;
+        if let Some(ref config) = state.project_state.config.pii_config {
+            let minidump = envelope
+                .get_item_by_mut(|item| item.attachment_type() == Some(AttachmentType::Minidump));
+
+            if let Some(item) = minidump {
+                let filename = item.filename().unwrap_or_default();
+                let mut payload = item.payload().to_vec();
+
+                let compiled = config.compiled();
+                let processor = PiiAttachmentsProcessor::new(&compiled);
+
+                // Minidump scrubbing can fail if the minidump cannot be parsed. In this case, we
+                // must be conservative and treat it as a plain attachment. Under extreme
+                // conditions, this could destroy stack memory.
+                if let Err(scrub_error) = processor.scrub_minidump(filename, &mut payload) {
+                    log::debug!("failed to scrub minidump: {}", LogError(&scrub_error));
+                    processor.scrub_attachment(filename, &mut payload);
+                }
+
+                let content_type = item
+                    .content_type()
+                    .unwrap_or(&ContentType::Minidump)
+                    .clone();
+
+                item.set_payload(content_type, payload);
+            }
+        }
 
         Ok(())
     }
@@ -1042,6 +1093,8 @@ impl EventProcessor {
             self.scrub_event(&mut state)?;
             self.serialize_event(&mut state)?;
         }
+
+        self.scrub_attachments(&mut state)?;
 
         Ok(ProcessEnvelopeResponse::from(state))
     }

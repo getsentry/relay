@@ -93,6 +93,49 @@ pub fn get_sentry_entry_indexes(param_name: &str) -> Option<Vec<&str>> {
     }
 }
 
+/// Extracts the chunk index of a key with the given prefix.
+///
+/// Electron SDK splits up long payloads into chunks starting at sentry__1 with an
+/// incrementing counter. Assemble these chunks here and then decode them below.
+pub fn get_sentry_chunk_index(key: &str, prefix: &str) -> Option<usize> {
+    key.strip_prefix(prefix).and_then(|rest| rest.parse().ok())
+}
+
+/// Aggregates slices of strings in random order.
+#[derive(Clone, Debug, Default)]
+pub struct ChunkedFormDataAggregator<'a> {
+    parts: Vec<&'a str>,
+}
+
+impl<'a> ChunkedFormDataAggregator<'a> {
+    /// Creates a new empty aggregator.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Adds a part with the given index.
+    ///
+    /// Fills up unpopulated indexes with empty strings, if there are holes between the last index
+    /// and this one. This effectively skips them when calling `join` in the end.
+    pub fn insert(&mut self, index: usize, value: &'a str) {
+        if index >= self.parts.len() {
+            self.parts.resize(index + 1, "");
+        }
+
+        self.parts[index] = value;
+    }
+
+    /// Returns `true` if no parts have been added.
+    pub fn is_empty(&self) -> bool {
+        self.parts.is_empty()
+    }
+
+    /// Returns the string consisting of all parts.
+    pub fn join(&self) -> String {
+        self.parts.join("")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,5 +234,73 @@ mod tests {
        ⋮  "k6": "v6"
        ⋮}
         "###);
+    }
+
+    #[test]
+    fn test_chunk_index() {
+        assert_eq!(get_sentry_chunk_index("sentry__0", "sentry__"), Some(0));
+        assert_eq!(get_sentry_chunk_index("sentry__1", "sentry__"), Some(1));
+
+        assert_eq!(get_sentry_chunk_index("foo__0", "sentry__"), None);
+        assert_eq!(get_sentry_chunk_index("sentry__", "sentry__"), None);
+        assert_eq!(get_sentry_chunk_index("sentry__-1", "sentry__"), None);
+        assert_eq!(get_sentry_chunk_index("sentry__xx", "sentry__"), None);
+    }
+
+    #[test]
+    fn test_aggregator_empty() {
+        let aggregator = ChunkedFormDataAggregator::new();
+        assert!(aggregator.is_empty());
+        assert_eq!(aggregator.join(), "");
+    }
+
+    #[test]
+    fn test_aggregator_base_0() {
+        let mut aggregator = ChunkedFormDataAggregator::new();
+        aggregator.insert(0, "hello,");
+        aggregator.insert(1, " world");
+
+        assert!(!aggregator.is_empty());
+        assert_eq!(aggregator.join(), "hello, world");
+    }
+
+    #[test]
+    fn test_aggregator_base_1() {
+        let mut aggregator = ChunkedFormDataAggregator::new();
+        aggregator.insert(1, "hello,");
+        aggregator.insert(2, " world");
+
+        assert!(!aggregator.is_empty());
+        assert_eq!(aggregator.join(), "hello, world");
+    }
+
+    #[test]
+    fn test_aggregator_holes() {
+        let mut aggregator = ChunkedFormDataAggregator::new();
+        aggregator.insert(0, "hello,");
+        aggregator.insert(3, " world");
+
+        assert!(!aggregator.is_empty());
+        assert_eq!(aggregator.join(), "hello, world");
+    }
+
+    #[test]
+    fn test_aggregator_reversed() {
+        let mut aggregator = ChunkedFormDataAggregator::new();
+        aggregator.insert(1, " world");
+        aggregator.insert(0, "hello,");
+
+        assert!(!aggregator.is_empty());
+        assert_eq!(aggregator.join(), "hello, world");
+    }
+
+    #[test]
+    fn test_aggregator_override() {
+        let mut aggregator = ChunkedFormDataAggregator::new();
+        aggregator.insert(0, "hello,");
+        aggregator.insert(0, "bye");
+
+        assert!(!aggregator.is_empty());
+        assert_eq!(aggregator.join(), "bye");
     }
 }

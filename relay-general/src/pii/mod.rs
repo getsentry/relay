@@ -1,16 +1,19 @@
 //! PII stripping processor.
 
+mod attachments;
 mod builtin;
 mod compiledconfig;
 mod config;
 mod convert;
 mod generate_selectors;
 mod legacy;
+mod minidumps;
 mod processor;
 mod redactions;
 mod regexes;
 mod utils;
 
+pub use self::attachments::PiiAttachmentsProcessor;
 pub use self::builtin::BUILTIN_RULES;
 pub use self::compiledconfig::CompiledPiiConfig;
 pub use self::config::{
@@ -19,6 +22,7 @@ pub use self::config::{
 };
 pub use self::generate_selectors::selector_suggestions_from_value;
 pub use self::legacy::DataScrubbingConfig;
+pub use self::minidumps::ScrubMinidumpError;
 pub use self::processor::PiiProcessor;
 pub use self::redactions::{
     HashAlgorithm, HashRedaction, MaskRedaction, Redaction, ReplaceRedaction,

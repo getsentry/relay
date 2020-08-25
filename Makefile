@@ -91,7 +91,7 @@ api-docs: setup-git
 	@cargo doc
 .PHONY: api-docs
 
-prose-docs: .venv/bin/python extract-metric-docs extract-jsonschema-docs
+prose-docs: .venv/bin/python extract-metric-docs
 	.venv/bin/mkdocs build
 	touch site/.nojekyll
 .PHONY: prose-docs
@@ -101,18 +101,14 @@ extract-metric-docs: .venv/bin/python
 	cd scripts && ../.venv/bin/python extract_metric_docs.py
 
 jsonschema: init-submodules
+	# Makes no sense to nest this in docs, but unfortunately that's the path
+	# Snuba uses in their setup right now. Eventually this should be gone in
+	# favor of the data schemas repo
+	mkdir -p docs/event-schema/
 	rm -rf docs/event-schema/event.schema.*
 	set -e && cargo run --features jsonschema -- event-json-schema \
 		> docs/event-schema/event.schema.json
 .PHONY: jsonschema
-
-extract-jsonschema-docs: install-jsonschema-docs
-	set -e && ./node_modules/.bin/quicktype-markdown \
-		Event docs/event-schema/event.schema.json \
-		> docs/event-schema/event.schema.md
-
-install-jsonschema-docs: jsonschema
-	npm install git+https://github.com/untitaker/quicktype-markdown
 
 docserver: prose-docs
 	.venv/bin/mkdocs serve
