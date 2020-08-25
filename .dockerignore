@@ -2,18 +2,11 @@
 
 !.git/
 !.gitmodules
-!relay-auth/
-!relay-common/
-!relay-config/
-!relay-filter/
-!relay-general/
-!relay-quotas/
-!relay-redis/
-!relay-server/
-!src/
-!tools/
 
-!build.rs
-!Cargo.*
+!relay*/
+!tools/
+!Cargo.toml
+!Cargo.lock
+
 !docker-entrypoint.sh
 !Makefile
