@@ -21,7 +21,7 @@ build: setup-git
 .PHONY: build
 
 release: setup-git
-	@cargo +stable build --release --locked --features ${RELAY_FEATURES}
+	@cd relay && cargo +stable build --release --locked --features ${RELAY_FEATURES}
 .PHONY: release
 
 docker: setup-git
@@ -29,7 +29,7 @@ docker: setup-git
 .PHONY: docker
 
 build-linux-release: setup-git
-	cargo build --release --locked --features ${RELAY_FEATURES} --target=${TARGET}
+	cd relay && cargo build --release --locked --features ${RELAY_FEATURES} --target=${TARGET}
 	objcopy --only-keep-debug target/${TARGET}/release/relay{,.debug}
 	objcopy --strip-debug --strip-unneeded target/${TARGET}/release/relay
 	objcopy --add-gnu-debuglink target/${TARGET}/release/relay{.debug,}
@@ -98,7 +98,7 @@ jsonschema: init-submodules
 	# favor of the data schemas repo
 	mkdir -p docs/event-schema/
 	rm -rf docs/event-schema/event.schema.*
-	set -e && cargo run --features jsonschema -- event-json-schema \
+	set -e && cd relay && cargo run --features jsonschema -- event-json-schema \
 		> docs/event-schema/event.schema.json
 .PHONY: jsonschema
 
