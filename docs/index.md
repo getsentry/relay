@@ -11,9 +11,11 @@ information and improve event response time. It acts as a middle layer between
 your application and Sentry.io.
 
 **Note: Relay is still work in progress. The default Relay mode is at the moment only supported 
-for on-premises installations, if you are using Relay to connect to Sentry you need to use
-`proxy` or `static` mode. If you want to beta test the `managed` mode while connecting to 
- Sentry please get in contact with us. See _[Relay Modes]_ for more information.**
+for on-premises installations and beta testers. If you are using Relay to connect to Sentry and 
+are not a beta tester you need to use `proxy` or `static` mode.
+ 
+If you want to beta test the `managed` mode while connecting to Sentry please get in 
+contact with us. See _[Relay Modes]_ for more information.**
 
 ## Use Cases for Relay
 
@@ -78,12 +80,15 @@ We will be creating a custom configuration since the default configuration creat
 ❯ ./relay config init
 Initializing relay in /<current_directory>/.relay
 Do you want to create a new config?:
-  Yes, create default config
-> Yes, create custom config
+> Yes, create default config
+  Yes, create custom config
   No, abort
 ```
 
-After selecting custom config you will be able to customize the following basic parameters:
+Selecting the default configuration will create a minimal configuration file.
+Alternatively, you can choose to override the default settings, by selecting
+_*"create custom config"_. This allows you to customize the following basic
+parameters:
 
 - The `mode` setting configures the major mode in which Relay operates. For more
   information on available relay modes, refer to _[Relay Modes]_.
@@ -100,32 +105,12 @@ After selecting custom config you will be able to customize the following basic 
   the cases where the communication between the SDK and Relay needs to be
   secured.
 
-
-In our example we will be going with "Statically configured" relay with the default
-options.
-
-After going though the questions you should see something like this:
-
-```sh
-❯ ./relay config init
-Initializing relay in /Users/some_user/relay_root/.relay
-Do you want to create a new config?: Yes, create custom config
-How should this relay operate?: Statically configured
-upstream: https://sentry.io/
-listen interface: 127.0.0.1
-listen port: 3000
-do you want listen to TLS no
-All done!
-
-```
-
-Settings are placed in `.relay/config.yml`. Note that all configuration values are optional.
-After using the options above the config file looks like below: 
+Settings are placed in `.relay/config.yml`. Note that all configuration values are optional and default to these settings:
 
 ```yaml
 ---
 relay:
-  mode: static
+  mode: managed
   upstream: "https://sentry.io/"
   host: 127.0.0.1
   port: 3000
@@ -137,68 +122,77 @@ relay:
 All configurations are explained in detail in the section [Configuration
 Options].
 
-### Configuring projects
+### Credentials
 
-Before running Relay we need to configure at least one project that belongs to our organization.
-Please see: _[projects]_ for a detail expalantion of project configuration.
+*Not applicable in `proxy`/`static` mode.*
 
-Create the following configuration using your own project id ( in the example a project with id `1234` was used).
+Besides `config.yml`, the `init` command has also created a credentials file `credentials.json` in the same `.relay` directory. This file contains the a public and private key used by Relay to authenticate with the upstream server.
 
-```
-.relay/
-└── projects/
-    └── 1234.json
-```
+**As such, it is important that this file should be adequatly protected from modification or viewing by unauthorized entities**.
 
-The project file should look like the following ( replace the DSN and the 'slug' with your project DSN and
-name, both found in project configuration).
+Here's an example of the contents of a typical credentials file:
 
 ```json
 {
-  "slug": "<project_name>",
-  "publicKeys": [
-    {
-      "publicKey": "<DSN_KEY>",
-      "isEnabled": true
-    }
-  ],
-  "config": {
-    "allowedDomains": ["*"]
-  }
+  "secret_key": "5gkTAfwOrJ0lMy9aOAOmHKO1k6gd8ApYkAInmg5VfWk",
+  "public_key": "fQzvlvqLM2pJwLDwM_sXD2Lk5swzx-Oml4WhsOquon4",
+  "id": "cde0d72e-0c4e-4550-a934-c1867d8a177c"
 }
 ```
 
+You will be using the `public_key` to register your Relay with the upstream server when running it in `managed` mode.
 
-## Running Relay
+### Registering Relay with Sentry
 
-Now it is time to start your relay.
-You should be seeing something like:
+*Not applicable in `proxy`/`static` mode.*
+
+To operate in `managed` mode, Relay pulls configuration for PII stripping,
+filtering, and rate limiting from your organization and project settings at
+Sentry. Since these settings may contain sensitive information, their access is
+restricted by Sentry and requires authorization.
+
+In order to register Relay with Sentry, get the contents of the public key,
+either by inspecting the `credentials.json` file or by running:
 
 ```sh
-❯ ./relay run
- INFO  relay::setup > launching relay from config folder /Users/some_user/relay_root/.relay
- INFO  relay::setup >   relay mode: static
- INFO  relay::setup >   relay id: -
- INFO  relay::setup >   public key: -
- INFO  relay::setup >   log level: INFO
- INFO  relay_server::actors::upstream > upstream relay started
- INFO  relay_server::actors::events   > starting 12 event processing workers
- INFO  relay_server::service          > spawning http server
- INFO  relay_server::service          >   listening on: http://127.0.0.1:3000/
- INFO  actix_net::server::server      > Starting 12 workers
- INFO  actix_net::server::server      > Starting server on 127.0.0.1:3000
- INFO  relay_server::actors::controller > relay server starting
- INFO  relay_server::actors::connector  > metered connector started
- INFO  relay_server::actors::events     > event manager started
- INFO  relay_server::actors::project_local > project local cache started
- INFO  relay_server::actors::project_upstream > project upstream cache started
- INFO  relay_server::actors::project_cache    > project cache started
- INFO  relay_server::actors::project_keys     > project cache started
- INFO  relay_server::actors::relays           > key cache started
+❯ ./relay credentials show
+Credentials:
+  relay id: 8cd24a0e-384d-4052-9010-68a21392b33c
+  public key: nDJl79SbEYH9-8NEJAI7ezrgYfolPW3Bnkg00k1zOfA
 ```
 
-If you moved your config folder somewhere else (e.g. for security reasons), you 
-can use the `--config` option to specify the location:
+After copying the public key, go to the organization settings in Sentry by clicking on _Settings_ in the main navigation on the left, then go to _Relays_.
+
+<p align="center">
+    <img src="img/add-relay-key.png" alt="Relays Settings" />
+</p>
+
+Click _New Relay Key_ to add the key and save it:
+
+<p align="center">
+    <img src="img/edit-relay-key.png" alt="Add Relay Key" >
+</p>
+
+Now your Relay is registered with Sentry and ready to send messages. See
+_[Configuration Options]_ to learn more about further Relay configuration
+options.
+
+### Running Relay
+
+Once you have registered your Relay with Sentry, you are ready to run your
+Relay:
+
+```sh
+❯ relay run
+ INFO  relay::setup > launching relay from config folder .relay
+ INFO  relay::setup >   relay mode: managed
+ INFO  relay::setup >   relay id: f2119bc9-9a9b-4531-826b-24e9794902f2
+ INFO  relay::setup >   public key: QPBITKKtKUuEZGGbPke8iufEXAcVrEv6nmWrkRtc3l8
+ ...
+ DEBUG relay::server::upstream > relay successfully registered with upstream
+```
+
+If you moved your config folder somewhere else (e.g. for security reasons), you can use the `--config` option to specify the location:
 
 ```sh
 ❯ relay run --config ./my/custom/relay_folder/
@@ -206,15 +200,13 @@ can use the `--config` option to specify the location:
 
 ### Running in Docker
 
-As an alternative to directly running the Relay binary, Sentry also provides 
-a Docker image that can be used to run Relay. It can be found on [DockerHub].
+As an alternative to directly running the Relay binary, Sentry also provides a Docker image that can be used to run Relay. It can be found on [DockerHub].
 
 Similar to directly running the `relay` binary, running the docker image needs a
-directory in which it can find the configuration files.
-
-Providing the configuration directory can be done with the standard mechanisms 
-offered by docker, either by mounting [docker volumes] or by building a new container 
-and copying the files in.
+directory in which it can find the configuration and credentials files
+(`config.yml` and `credentials.json`). Providing the configuration directory can
+be done with the standard mechanisms offered by docker, either by mounting
+[docker volumes] or by building a new container and copying the files in.
 
 For example, you can start the latest version of `relay` as follows:
 
@@ -222,7 +214,7 @@ For example, you can start the latest version of `relay` as follows:
 ❯ docker run -v $(pwd)/configs/:/work/.relay/ getsentry/relay run
 ```
 
-This example command assumes that Relay's configuration (`config.yml` ) is stored in `./configs/` 
+This example command assumes that Relay's configuration (`config.yml` and `credentials.json`) are stored in `./configs/` 
 directory on the host machine.
 
 
@@ -242,10 +234,13 @@ Relay provides two urls for health check and monitoring the live status:
 In our example relay is running at "http://localhost:3000" so the following urls are
 going to return a status check JSON file.
 
-`GET http://localhost:3000/api/relay/healthcheck/ready/`
-`GET http://localhost:3000/api/relay/healthcheck/live/`
+The `GET http://localhost:3000/api/relay/healthcheck/live/` is used to test if Relay
+is running and able to respond to http requests.
 
-will return:
+The `GET http://localhost:3000/api/relay/healthcheck/ready/` can be used to check if 
+Relay is running and has been able to authenticate with the upstream.
+
+In case of success both endpoints return:
 
 ```json
 {
@@ -286,5 +281,4 @@ project.
 [relay modes]: ./configuration/modes
 [dockerhub]: https://hub.docker.com/r/getsentry/relay/
 [docker volumes]: https://docs.docker.com/storage/volumes/
-[projects]: ./configuration/projects
 [logging]: ./configuration/options/#logging

@@ -12,7 +12,6 @@ nav:
       - configuration/options.md
       - configuration/metrics.md
       - configuration/projects.md
-      - configuration/getting-started-managed.md
 
   - PII and Data Scrubbing:
       - pii-config/index.md
