@@ -6,8 +6,8 @@
 //! ### Example
 //!
 //! ```
-//! use relay_general::types::{Meta, Remark, RemarkType};
 //! use relay_general::processor;
+//! use relay_general::types::{Meta, Remark, RemarkType};
 //!
 //! let remarks = vec![Remark::with_range(
 //!     RemarkType::Substituted,

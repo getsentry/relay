@@ -1,18 +1,14 @@
 use std::borrow::Cow;
-use std::cmp;
 use std::collections::BTreeSet;
 use std::mem;
 
-use hmac::{Hmac, Mac};
 use lazy_static::lazy_static;
 use regex::Regex;
-use sha1::Sha1;
-use sha2::{Sha256, Sha512};
 
 use crate::pii::compiledconfig::RuleRef;
 use crate::pii::regexes::{get_regex_for_rule_type, PatternType, ReplaceBehavior, ANYTHING_REGEX};
-use crate::pii::utils::process_pairlist;
-use crate::pii::{CompiledPiiConfig, HashAlgorithm, Redaction, RuleType};
+use crate::pii::utils::{hash_value, in_range, process_pairlist};
+use crate::pii::{CompiledPiiConfig, Redaction, RuleType};
 use crate::processor::{
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
@@ -221,7 +217,7 @@ fn apply_rule_to_value(
                 } else {
                     // If we did not redact using the key, we will redact the entire value if the key
                     // appears in it.
-                    apply_regex!(regex, ReplaceBehavior::Value);
+                    apply_regex!(regex, replace_behavior);
                 }
             }
             PatternType::Value => {
@@ -323,20 +319,6 @@ fn apply_regex_to_chunks<'a>(
     rv
 }
 
-fn in_range(range: (Option<i32>, Option<i32>), pos: usize, len: usize) -> bool {
-    fn get_range_index(idx: Option<i32>, len: usize, default: usize) -> usize {
-        match idx {
-            None => default,
-            Some(idx) if idx < 0 => len.saturating_sub(-idx as usize),
-            Some(idx) => cmp::min(idx as usize, len),
-        }
-    }
-
-    let start = get_range_index(range.0, len, 0);
-    let end = get_range_index(range.1, len, len);
-    pos >= start && pos < end
-}
-
 fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<'_>>) {
     match &rule.redaction {
         Redaction::Default | Redaction::Remove => {
@@ -367,7 +349,11 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
             output.push(Chunk::Redaction {
                 ty: RemarkType::Pseudonymized,
                 rule_id: Cow::Owned(rule.origin.to_string()),
-                text: Cow::Owned(hash_value(hash.algorithm, text, hash.key.as_deref())),
+                text: Cow::Owned(hash_value(
+                    hash.algorithm,
+                    text.as_bytes(),
+                    hash.key.as_deref(),
+                )),
             });
         }
         Redaction::Replace(replace) => {
@@ -377,22 +363,6 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
                 text: Cow::Owned(replace.text.clone()),
             });
         }
-    }
-}
-
-fn hash_value(algorithm: HashAlgorithm, text: &str, key: Option<&str>) -> String {
-    let key = key.unwrap_or("");
-    macro_rules! hmac {
-        ($ty:ident) => {{
-            let mut mac = Hmac::<$ty>::new_varkey(key.as_bytes()).unwrap();
-            mac.input(text.as_bytes());
-            format!("{:X}", mac.result().code())
-        }};
-    }
-    match algorithm {
-        HashAlgorithm::HmacSha1 => hmac!(Sha1),
-        HashAlgorithm::HmacSha256 => hmac!(Sha256),
-        HashAlgorithm::HmacSha512 => hmac!(Sha512),
     }
 }
 

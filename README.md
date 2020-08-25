@@ -65,7 +65,7 @@ configuration, you may need to have a local instance of Sentry running.
 
 ```bash
 # Initialize Relay for the first time
-cargo run --all-features -- init
+cargo run --all-features -- config init
 
 # Rebuild and run with all features
 cargo run --all-features -- run

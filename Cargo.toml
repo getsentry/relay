@@ -21,6 +21,13 @@ exclude = [
 ]
 
 [workspace]
+members = [
+    "relay-*",
+    "tools/*",
+]
+exclude = [
+    "relay-cabi",
+]
 
 [features]
 default = ["ssl"]
