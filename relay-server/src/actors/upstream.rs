@@ -22,7 +22,7 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::str;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use ::actix::fut;
 use ::actix::prelude::*;
@@ -74,6 +74,12 @@ pub enum UpstreamRequestError {
 
     #[fail(display = "channel closed")]
     ChannelClosed,
+}
+
+impl UpstreamRequestError {
+    fn is_network_error(&self) -> bool {
+        matches!(self, Self::SendFailed(_) | Self::PayloadFailed(_))
+    }
 }
 
 /// Represents the current auth state.
@@ -194,7 +200,7 @@ struct UpstreamRequest {
 
 pub struct UpstreamRelay {
     backoff: RetryBackoff,
-    last_authentication: Option<Instant>,
+    first_error: Option<Instant>,
     config: Arc<Config>,
     auth_state: AuthState,
     max_inflight_requests: usize,
@@ -203,11 +209,6 @@ pub struct UpstreamRelay {
     high_prio_requests: VecDeque<UpstreamRequest>,
     // low priority request queue
     low_prio_requests: VecDeque<UpstreamRequest>,
-    // interval after which an authenticated Relay tries to re-authenticate
-    reauthentication_interval: Duration,
-    // interval after which a previously authenticated Relay is considered to not be
-    // authenticated anymore.
-    max_reauthentication_interval: Duration,
 }
 
 /// Handles a response returned from the upstream.
@@ -266,10 +267,7 @@ impl UpstreamRelay {
             num_inflight_requests: 0,
             high_prio_requests: VecDeque::new(),
             low_prio_requests: VecDeque::new(),
-            last_authentication: None,
-            reauthentication_interval: config.upstream_reathentication_interval(),
-            max_reauthentication_interval: config.upstream_reathentication_interval()
-                + config.upstream_reauthentication_grace_period(),
+            first_error: None,
             config,
         }
     }
@@ -460,7 +458,7 @@ impl Message for Authenticate {
 /// message was successfully handled).
 ///
 /// **Note:** Relay has retry functionality, outside this actor, that periodically sends Authenticate
-/// messages until successful Authentication with the upstream server was achieved.    
+/// messages until successful Authentication with the upstream server was achieved.
 impl Handler<Authenticate> for UpstreamRelay {
     type Result = ResponseActFuture<Self, (), ()>;
 
@@ -492,20 +490,20 @@ impl Handler<Authenticate> for UpstreamRelay {
             .map(|_, slf, ctx| {
                 log::info!("relay successfully registered with upstream");
                 slf.auth_state = AuthState::Registered;
+
                 slf.backoff.reset();
-                slf.last_authentication = Some(Instant::now());
-                ctx.notify_later(Authenticate, slf.reauthentication_interval);
+                slf.first_error = None;
+
+                ctx.notify_later(Authenticate, slf.config.http_auth_interval());
             })
             .map_err(|err, slf, ctx| {
                 log::error!("authentication encountered error: {}", LogError(&err));
 
-                if let Some(last_authentication) = slf.last_authentication {
-                    if last_authentication + slf.max_reauthentication_interval < Instant::now() {
-                        // we are past our grace period we can no longer claim we are authenticated
-                        slf.auth_state = AuthState::Error;
-                    }
-                } else {
-                    // we never managed to authenticate and now we just got an error
+                let now = Instant::now();
+                let first_error = *slf.first_error.get_or_insert(now);
+                if !err.is_network_error()
+                    || first_error + slf.config.http_auth_grace_period() < now
+                {
                     slf.auth_state = AuthState::Error;
                 }
 
