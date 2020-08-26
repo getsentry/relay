@@ -49,7 +49,7 @@ pub fn expand_unreal_envelope(
 
     let mut has_event = envelope
         .get_item_by(|item| item.ty() == ItemType::Event)
-        .is_none();
+        .is_some();
 
     for file in crash.files() {
         let (content_type, attachment_type) = match file.ty() {
