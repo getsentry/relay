@@ -670,7 +670,7 @@ impl<'a> Path<'a> {
                     }
                 }
 
-                if !selector_iter.next().is_none() {
+                if selector_iter.next().is_some() {
                     return PiiMatch::NoMatch;
                 }
 
