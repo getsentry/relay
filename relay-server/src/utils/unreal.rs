@@ -17,6 +17,21 @@ use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 /// Maximum number of unreal logs to parse for breadcrumbs.
 const MAX_NUM_UNREAL_LOGS: usize = 40;
 
+const SENTRY_PAYLOAD_KEY: &str = "__sentry";
+
+fn get_event_item(data: &[u8]) -> Result<Option<Item>, Unreal4Error> {
+    let mut context = Unreal4Context::parse(data)?;
+    let json = match context.game_data.remove(SENTRY_PAYLOAD_KEY) {
+        Some(json) if !json.is_empty() => json,
+        _ => return Ok(None),
+    };
+
+    log::trace!("adding event payload from unreal context");
+    let mut item = Item::new(ItemType::Event);
+    item.set_payload(ContentType::Json, json);
+    Ok(Some(item))
+}
+
 /// Expands Unreal 4 items inside an envelope.
 ///
 /// If the envelope does NOT contain an `UnrealReport` item, it doesn't do anything. If the envelope
@@ -31,7 +46,10 @@ pub fn expand_unreal_envelope(
 ) -> Result<(), Unreal4Error> {
     let payload = unreal_item.payload();
     let crash = Unreal4Crash::parse(&payload)?;
-    let mut event = None;
+
+    let mut has_event = envelope
+        .get_item_by(|item| item.ty() == ItemType::Event)
+        .is_none();
 
     for file in crash.files() {
         let (content_type, attachment_type) = match file.ty() {
@@ -41,21 +59,7 @@ pub fn expand_unreal_envelope(
             }
             Unreal4FileType::Log => (ContentType::Text, AttachmentType::UnrealLogs),
             Unreal4FileType::Config => (ContentType::OctetStream, AttachmentType::Attachment),
-            Unreal4FileType::Context => {
-                let context = Unreal4Context::parse(file.data())?;
-                if let Some(sentry_json) = context.game_data.get("__sentry") {
-                    let json_event: serde_json::Value = match serde_json::from_str(sentry_json) {
-                        Ok(event) => event,
-                        Err(_) => {
-                            log::debug!("invalid json event payload in form data");
-                            serde_json::Value::Object(Default::default())
-                        }
-                    };
-
-                    event = Some(json_event);
-                }
-                (ContentType::Xml, AttachmentType::UnrealContext)
-            }
+            Unreal4FileType::Context => (ContentType::Xml, AttachmentType::UnrealContext),
             _ => match file.name() {
                 self::ITEM_NAME_EVENT => (ContentType::MsgPack, AttachmentType::EventPayload),
                 self::ITEM_NAME_BREADCRUMBS1 => (ContentType::MsgPack, AttachmentType::Breadcrumbs),
@@ -64,21 +68,18 @@ pub fn expand_unreal_envelope(
             },
         };
 
+        if !has_event && attachment_type == AttachmentType::UnrealContext {
+            if let Some(event_item) = get_event_item(file.data())? {
+                envelope.add_item(event_item);
+                has_event = true;
+            }
+        }
+
         let mut item = Item::new(ItemType::Attachment);
         item.set_filename(file.name());
         item.set_payload(content_type, file.data());
         item.set_attachment_type(attachment_type);
         envelope.add_item(item);
-    }
-
-    // if we managed to create an event and it's not empty from the unreal crash
-    // properties we feed it into the envelope as json event.
-    if let Some(event) = event {
-        if event.as_object().map_or(false, |val| !val.is_empty()) {
-            let mut item = Item::new(ItemType::Event);
-            item.set_payload(ContentType::Json, serde_json::to_vec(&event).unwrap());
-            envelope.add_item(item);
-        }
     }
 
     Ok(())
@@ -226,13 +227,13 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
     if !context.game_data.is_empty() {
         let game_context = contexts.get_or_insert_with("game", || Context::Other(Object::new()));
         if let Context::Other(game_context) = game_context {
-            game_context.extend(
-                context
-                    .game_data
-                    .into_iter()
-                    .filter(|(key, _)| key != "__sentry")
-                    .map(|(key, value)| (key, Annotated::new(Value::String(value)))),
-            );
+            let filtered_keys = context
+                .game_data
+                .into_iter()
+                .filter(|(key, _)| key != SENTRY_PAYLOAD_KEY)
+                .map(|(key, value)| (key, Annotated::new(Value::String(value))));
+
+            game_context.extend(filtered_keys);
         }
     }
 
