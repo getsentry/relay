@@ -2,10 +2,15 @@
 
 ## Unreleased
 
+**Features**:
+
+- Support chunked formdata keys for event payloads on the Minidump endpoint. Since crashpad has a limit for the length of custom attributes, the sentry event payload can be split up into `sentry__1`, `sentry__2`, etc. ([#721](https://github.com/getsentry/relay/pull/721))
+
 **Internal**:
 
 - Remove a temporary flag from attachment kafka messages indicating rate limited crash reports to Sentry. This is now enabled by default. ([#718](https://github.com/getsentry/relay/pull/718))
 - Performance improvement of http requests to upstream, high priority messages are sent first. ([#678](https://github.com/getsentry/relay/pull/678))
+- Experimental data scrubbing on minidumps([#682](https://github.com/getsentry/relay/pull/682))
 
 ## 20.8.0
 
@@ -27,6 +32,7 @@
 - Retain the full span description in transaction events instead of trimming it. ([#674](https://github.com/getsentry/relay/pull/674))
 - Report all Kafka producer errors to Sentry. Previously, only immediate errors were reported but not those during asynchronous flushing of messages. ([#677](https://github.com/getsentry/relay/pull/677))
 - Add "HubSpot Crawler" to the list of web crawlers for inbound filters. ([#693](https://github.com/getsentry/relay/pull/693))
+- Improved typing for span data of transaction events, no breaking changes. ([#713](https://github.com/getsentry/relay/pull/713))
 
 ## 20.7.2
 

@@ -1,5 +1,5 @@
 SHELL=/bin/bash
-export RELAY_PYTHON_VERSION := python3.7
+export RELAY_PYTHON_VERSION := python3
 export RELAY_FEATURES := ssl
 
 all: check test
@@ -21,7 +21,7 @@ build: setup-git
 .PHONY: build
 
 release: setup-git
-	@cargo +stable build --release --locked --features ${RELAY_FEATURES}
+	@cd relay && cargo +stable build --release --locked --features ${RELAY_FEATURES}
 .PHONY: release
 
 docker: setup-git
@@ -29,7 +29,7 @@ docker: setup-git
 .PHONY: docker
 
 build-linux-release: setup-git
-	cargo build --release --locked --features ${RELAY_FEATURES} --target=${TARGET}
+	cd relay && cargo build --release --locked --features ${RELAY_FEATURES} --target=${TARGET}
 	objcopy --only-keep-debug target/${TARGET}/release/relay{,.debug}
 	objcopy --strip-debug --strip-unneeded target/${TARGET}/release/relay
 	objcopy --add-gnu-debuglink target/${TARGET}/release/relay{.debug,}
@@ -53,11 +53,11 @@ test: test-rust-all test-python test-integration
 .PHONY: test
 
 test-rust: setup-git
-	cargo test --all
+	cargo test --workspace
 .PHONY: test-rust
 
 test-rust-all: setup-git
-	cargo test --all --all-features
+	cargo test --workspace --all-features
 .PHONY: test-rust-all
 
 test-python: setup-git setup-venv
@@ -71,14 +71,6 @@ test-integration: build setup-venv
 	.venv/bin/pytest tests -n auto -v
 .PHONY: test-integration
 
-test-process-event:
-	# Process a basic event and assert its output
-	bash -c 'diff \
-		<(cargo run ${CARGO_ARGS} -- process-event <tests/fixtures/basic-event-input.json) \
-		tests/fixtures/basic-event-output.json'
-	@echo 'OK'
-.PHONY: test-process-event
-
 # Documentation
 
 doc: docs
@@ -91,7 +83,7 @@ api-docs: setup-git
 	@cargo doc
 .PHONY: api-docs
 
-prose-docs: .venv/bin/python extract-metric-docs extract-jsonschema-docs
+prose-docs: .venv/bin/python extract-metric-docs
 	.venv/bin/mkdocs build
 	touch site/.nojekyll
 .PHONY: prose-docs
@@ -101,18 +93,14 @@ extract-metric-docs: .venv/bin/python
 	cd scripts && ../.venv/bin/python extract_metric_docs.py
 
 jsonschema: init-submodules
+	# Makes no sense to nest this in docs, but unfortunately that's the path
+	# Snuba uses in their setup right now. Eventually this should be gone in
+	# favor of the data schemas repo
+	mkdir -p docs/event-schema/
 	rm -rf docs/event-schema/event.schema.*
-	set -e && cargo run --features jsonschema -- event-json-schema \
+	set -e && cd relay && cargo run --features jsonschema -- event-json-schema \
 		> docs/event-schema/event.schema.json
 .PHONY: jsonschema
-
-extract-jsonschema-docs: install-jsonschema-docs
-	set -e && ./node_modules/.bin/quicktype-markdown \
-		Event docs/event-schema/event.schema.json \
-		> docs/event-schema/event.schema.md
-
-install-jsonschema-docs: jsonschema
-	npm install git+https://github.com/untitaker/quicktype-markdown
 
 docserver: prose-docs
 	.venv/bin/mkdocs serve
@@ -153,7 +141,7 @@ lint: lint-rust lint-python
 
 lint-rust: setup-git
 	@rustup component add clippy --toolchain stable 2> /dev/null
-	cargo +stable clippy --all-features --all --tests --examples -- -D clippy::all
+	cargo +stable clippy --workspace --all-features --tests -- -D clippy::all
 .PHONY: lint-rust
 
 lint-python: setup-venv

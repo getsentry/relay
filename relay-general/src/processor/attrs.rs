@@ -17,13 +17,20 @@ pub struct UnknownValueTypeError;
 /// The (simplified) type of a value.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum ValueType {
+    // Basic types
     String,
+    Binary,
     Number,
     Boolean,
     DateTime,
     Array,
     Object,
+
+    // Roots
     Event,
+    Attachments,
+
+    // Protocol types
     Exception,
     Stacktrace,
     Frame,
@@ -35,6 +42,11 @@ pub enum ValueType {
     Breadcrumb,
     Span,
     ClientSdkInfo,
+
+    // Attachments and Contents
+    Minidump,
+    HeapMemory,
+    StackMemory,
 }
 
 impl ValueType {
@@ -45,12 +57,14 @@ impl ValueType {
     pub fn name(self) -> &'static str {
         match self {
             ValueType::String => "string",
+            ValueType::Binary => "binary",
             ValueType::Number => "number",
             ValueType::Boolean => "boolean",
             ValueType::DateTime => "datetime",
             ValueType::Array => "array",
             ValueType::Object => "object",
             ValueType::Event => "event",
+            ValueType::Attachments => "attachments",
             ValueType::Exception => "error",
             ValueType::Stacktrace => "stack",
             ValueType::Frame => "frame",
@@ -62,6 +76,9 @@ impl ValueType {
             ValueType::Breadcrumb => "breadcrumb",
             ValueType::Span => "span",
             ValueType::ClientSdkInfo => "sdk",
+            ValueType::Minidump => "minidump",
+            ValueType::HeapMemory => "heap_memory",
+            ValueType::StackMemory => "stack_memory",
         }
     }
 }
@@ -78,12 +95,14 @@ impl FromStr for ValueType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             "string" => ValueType::String,
+            "binary" => ValueType::Binary,
             "number" => ValueType::Number,
             "bool" | "boolean" => ValueType::Boolean,
             "datetime" => ValueType::DateTime,
             "array" | "list" => ValueType::Array,
             "object" => ValueType::Object,
             "event" => ValueType::Event,
+            "attachments" => ValueType::Attachments,
             "exception" | "error" => ValueType::Exception,
             "stacktrace" | "stack" => ValueType::Stacktrace,
             "frame" => ValueType::Frame,
@@ -94,6 +113,9 @@ impl FromStr for ValueType {
             "thread" => ValueType::Thread,
             "breadcrumb" => ValueType::Breadcrumb,
             "sdk" => ValueType::ClientSdkInfo,
+            "minidump" => ValueType::Minidump,
+            "heap_memory" => ValueType::HeapMemory,
+            "stack_memory" => ValueType::StackMemory,
             _ => return Err(UnknownValueTypeError),
         })
     }
@@ -232,33 +254,77 @@ pub struct FieldAttrs {
     pub retain: bool,
 }
 
-lazy_static::lazy_static! {
-    static ref DEFAULT_FIELD_ATTRS: FieldAttrs = FieldAttrs {
-        name: None,
-        required: false,
-        nonempty: false,
-        trim_whitespace: false,
-        match_regex: None,
-        max_chars: None,
-        bag_size: None,
-        pii: Pii::False,
-        retain: false,
-    };
+impl FieldAttrs {
+    /// Creates default `FieldAttrs`.
+    pub const fn new() -> Self {
+        FieldAttrs {
+            name: None,
+            required: false,
+            nonempty: false,
+            trim_whitespace: false,
+            match_regex: None,
+            max_chars: None,
+            bag_size: None,
+            pii: Pii::False,
+            retain: false,
+        }
+    }
 
-    static ref PII_TRUE_FIELD_ATTRS: FieldAttrs = FieldAttrs {
-        pii: Pii::True,
-        ..DEFAULT_FIELD_ATTRS.clone()
-    };
+    /// Sets whether a value in this field is required.
+    pub const fn required(mut self, required: bool) -> Self {
+        self.required = required;
+        self
+    }
 
-    static ref PII_MAYBE_FIELD_ATTRS: FieldAttrs = FieldAttrs {
-        pii: Pii::Maybe,
-        ..DEFAULT_FIELD_ATTRS.clone()
-    };
+    /// Sets whether this field can have an empty value.
+    ///
+    /// This is distinct from `required`. An empty string (`""`) passes the "required" check but not the
+    /// "nonempty" one.
+    pub const fn nonempty(mut self, nonempty: bool) -> Self {
+        self.nonempty = nonempty;
+        self
+    }
+
+    /// Sets whether whitespace should be trimmed before validation.
+    pub const fn trim_whitespace(mut self, trim_whitespace: bool) -> Self {
+        self.trim_whitespace = trim_whitespace;
+        self
+    }
+
+    /// Sets whether this field contains PII.
+    pub const fn pii(mut self, pii: Pii) -> Self {
+        self.pii = pii;
+        self
+    }
+
+    /// Sets the maximum number of characters allowed in the field.
+    pub const fn max_chars(mut self, max_chars: MaxChars) -> Self {
+        self.max_chars = Some(max_chars);
+        self
+    }
+
+    /// Sets the maximum size of all children in this field.
+    ///
+    /// This applies particularly to objects and arrays, but also to structures.
+    pub const fn bag_size(mut self, bag_size: BagSize) -> Self {
+        self.bag_size = Some(bag_size);
+        self
+    }
+
+    /// Sets whether additional properties should be retained during normalization.
+    pub const fn retain(mut self, retain: bool) -> Self {
+        self.retain = retain;
+        self
+    }
 }
 
+static DEFAULT_FIELD_ATTRS: FieldAttrs = FieldAttrs::new();
+static PII_TRUE_FIELD_ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::True);
+static PII_MAYBE_FIELD_ATTRS: FieldAttrs = FieldAttrs::new().pii(Pii::Maybe);
+
 impl Default for FieldAttrs {
-    fn default() -> FieldAttrs {
-        DEFAULT_FIELD_ATTRS.clone()
+    fn default() -> Self {
+        Self::new()
     }
 }
 

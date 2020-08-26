@@ -16,7 +16,7 @@ NEW_VERSION="${2}"
 echo "Current version: ${OLD_VERSION}"
 echo "Bumping version: ${NEW_VERSION}"
 
-TOML_FILES="$(git ls-files '*Cargo.toml' | grep -v cabi)"
+TOML_FILES="$(git ls-files 'relay*/Cargo.toml' | grep -v cabi)"
 perl -pi -e "s/^version = .*\$/version = \"$NEW_VERSION\"/" $TOML_FILES
 
 cargo update -p relay

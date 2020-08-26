@@ -71,7 +71,101 @@ impl<F> Drop for TrackedFuture<F> {
     fn drop(&mut self) {
         if !self.notified {
             //future dropped without being brought to completion
+            log::info!("Tracked future dropped without being disposed");
             self.notify();
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::utils::test;
+    use actix::{Actor, Context, Handler};
+    use failure::_core::time::Duration;
+    use futures::sync::oneshot::{channel, Sender};
+    use tokio_timer::Timeout;
+
+    struct TestActor {
+        notifier: Option<Sender<()>>,
+    }
+
+    impl TestActor {
+        pub fn new(notifier: Sender<()>) -> Self {
+            TestActor {
+                notifier: Some(notifier),
+            }
+        }
+    }
+
+    impl Actor for TestActor {
+        type Context = Context<Self>;
+    }
+
+    impl Handler<TrackedFutureFinished> for TestActor {
+        type Result = ();
+
+        fn handle(&mut self, _message: TrackedFutureFinished, _ctx: &mut Self::Context) {
+            let notifier = self.notifier.take().unwrap();
+            notifier.send(()).ok();
+        }
+    }
+
+    struct NeverEndingFuture;
+
+    impl Future for NeverEndingFuture {
+        type Item = ();
+        type Error = ();
+
+        fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+            log::debug!("never ending future poll");
+            Ok(Async::NotReady)
+        }
+    }
+
+    #[test]
+    fn test_tracked_future_termination() {
+        test::setup();
+        let mut futures = [
+            Some(futures::future::ok::<bool, ()>(true)),
+            Some(futures::future::err::<bool, ()>(())),
+        ];
+        for future in &mut futures {
+            test::block_fn(|| {
+                let (tx, rx) = channel::<()>();
+                let addr = TestActor::new(tx).start();
+                let rec = addr.recipient::<TrackedFutureFinished>();
+
+                let fut = future.take().unwrap().track(rec).map(|_| ());
+
+                actix::spawn(fut);
+
+                Timeout::new(rx, Duration::from_millis(10)).map_err(|_| {
+                    log::error!("tracked future didn't not send a notification");
+                    panic!("no notification received before timeout");
+                })
+            })
+            .ok();
+        }
+    }
+
+    #[test]
+    fn test_tracked_future_dropped() {
+        test::setup();
+        test::block_fn(|| {
+            let (tx, rx) = channel::<()>();
+            let addr = TestActor::new(tx).start();
+            let rec = addr.recipient::<TrackedFutureFinished>();
+
+            // dispose of future before it finishes (don't even schedule it)
+            {
+                let _fut = NeverEndingFuture.track(rec).map(|_| ());
+            }
+            Timeout::new(rx, Duration::from_millis(10)).map_err(|_| {
+                log::error!("tracked future didn't not send a notification");
+                panic!("no notification received before timeout");
+            })
+        })
+        .ok();
     }
 }

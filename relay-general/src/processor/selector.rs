@@ -14,6 +14,9 @@ pub enum InvalidSelectorError {
     #[fail(display = "invalid selector: deep wildcard used more than once")]
     InvalidDeepWildcard,
 
+    #[fail(display = "invalid selector: wildcard must be part of a path")]
+    InvalidWildcard,
+
     #[fail(display = "invalid selector: {}", _0)]
     ParseError(Error<Rule>),
 
@@ -100,8 +103,9 @@ impl SelectorSpec {
                 path.iter().enumerate().all(|(i, item)| {
                     match *item {
                         SelectorPathItem::Type(ty) => match ty {
-                            // "Generic" JSON value types cannot be part of a specific path
+                            // Basic value types cannot be part of a specific path
                             ValueType::String
+                            | ValueType::Binary
                             | ValueType::Number
                             | ValueType::Boolean
                             | ValueType::DateTime
@@ -116,6 +120,7 @@ impl SelectorSpec {
                             // to go the other direction. If you're not sure, return `false` for
                             // your new value type.
                             ValueType::Event
+                            | ValueType::Attachments
                             | ValueType::Exception
                             | ValueType::Stacktrace
                             | ValueType::Frame
@@ -126,6 +131,9 @@ impl SelectorSpec {
                             | ValueType::Thread
                             | ValueType::Breadcrumb
                             | ValueType::Span
+                            | ValueType::Minidump
+                            | ValueType::HeapMemory
+                            | ValueType::StackMemory
                             | ValueType::ClientSdkInfo => i == 0,
                         },
                         SelectorPathItem::Index(_) => true,
@@ -269,7 +277,7 @@ fn handle_selector(pair: Pair<Rule>) -> Result<SelectorSpec, InvalidSelectorErro
         }
         Rule::SelectorPath => {
             let mut used_deep_wildcard = false;
-            let items = pair
+            let items: Vec<SelectorPathItem> = pair
                 .into_inner()
                 .map(|item| {
                     let rv = handle_selector_path_item(item)?;
@@ -283,6 +291,10 @@ fn handle_selector(pair: Pair<Rule>) -> Result<SelectorSpec, InvalidSelectorErro
                     Ok(rv)
                 })
                 .collect::<Result<_, _>>()?;
+
+            if matches!(items.as_slice(), [SelectorPathItem::Wildcard]) {
+                return Err(InvalidSelectorError::InvalidWildcard);
+            }
 
             Ok(SelectorSpec::Path(items))
         }
@@ -386,4 +398,16 @@ fn test_is_specific() {
     assert!(!SelectorSpec::from_str("$string || $string")
         .unwrap()
         .is_specific());
+}
+
+#[test]
+fn test_invalid() {
+    assert!(matches!(
+        SelectorSpec::from_str("* && foo"),
+        Err(InvalidSelectorError::InvalidWildcard)
+    ));
+    assert!(matches!(
+        SelectorSpec::from_str("$frame.**.foo.**"),
+        Err(InvalidSelectorError::InvalidDeepWildcard)
+    ));
 }

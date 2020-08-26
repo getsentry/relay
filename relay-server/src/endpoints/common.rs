@@ -253,6 +253,11 @@ pub fn event_id_from_formdata(data: &[u8]) -> Result<Option<EventId>, BadStoreRe
 ///  2. The `__sentry-event` event attachment.
 ///  3. The `sentry` JSON payload.
 ///  4. The `sentry[event_id]` formdata key.
+///
+/// # Limitations
+///
+/// Extracting the event id from chunked formdata fields on the Minidump endpoint (`sentry__1`,
+/// `sentry__2`, ...) is not supported. In this case, `None` is returned.
 pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreRequest> {
     if let Some(item) = items.iter().find(|item| item.ty() == ItemType::Event) {
         if let Some(event_id) = event_id_from_json(&item.payload())? {

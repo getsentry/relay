@@ -1,6 +1,6 @@
 WHITESPACE = _{ " " }
 
-ObjectType = @{ "$" ~ ('a' .. 'z')+ }
+ObjectType = @{ "$" ~ ('a' .. 'z' | "_")+ }
 Wildcard = @{ "*" }
 DeepWildcard = @{ "**" }
 
@@ -23,7 +23,7 @@ SelectorPath = { SelectorPathItem ~ ("." ~ SelectorPathItem)* }
 
 ParenthesisOrPath = { "(" ~ OrSelector ~ ")" | SelectorPath }
 NotSelector = { Not ~ ParenthesisOrPath }
-MaybeNotSelector = { NotSelector | ParenthesisOrPath } 
+MaybeNotSelector = { NotSelector | ParenthesisOrPath }
 AndSelector = { MaybeNotSelector ~ (And ~ MaybeNotSelector)* }
 OrSelector = { AndSelector ~ (Or ~ AndSelector)* }
 RootSelector = { SOI ~ OrSelector ~ EOI }

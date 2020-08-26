@@ -17,7 +17,7 @@ from . import SentryLike, Envelope
 
 
 _version_re = re.compile(r'^version\s*=\s*"(.*?)"\s*$(?m)')
-with open(os.path.join(os.path.dirname(__file__), "../../../Cargo.toml")) as f:
+with open(os.path.join(os.path.dirname(__file__), "../../../relay/Cargo.toml")) as f:
     CURRENT_VERSION = _version_re.search(f.read()).group(1)
 
 
