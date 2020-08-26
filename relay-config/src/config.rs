@@ -1109,7 +1109,7 @@ impl Config {
     }
 
     /// Returns the interval at which Realy should try to re-authenticate with the upstream
-    pub fn upstream_reathentication_interval(&self) -> Duration {
+    pub fn upstream_reauthentication_interval(&self) -> Duration {
         Duration::from_secs(self.values.relay.upstream_reauthentication_interval)
     }
 
