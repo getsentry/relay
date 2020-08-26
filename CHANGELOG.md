@@ -6,6 +6,10 @@
 
 - Support chunked formdata keys for event payloads on the Minidump endpoint. Since crashpad has a limit for the length of custom attributes, the sentry event payload can be split up into `sentry__1`, `sentry__2`, etc. ([#721](https://github.com/getsentry/relay/pull/721))
 
+**Bug Fixes**:
+
+- Fix a problem with Data Scrubbing source names (PII selectors) that caused `$frame.abs_path` to match, but not `$frame.abs_path || **` or `$frame.abs_path && **`. ([#726](https://github.com/getsentry/relay/pull/726))
+
 **Internal**:
 
 - Remove a temporary flag from attachment kafka messages indicating rate limited crash reports to Sentry. This is now enabled by default. ([#718](https://github.com/getsentry/relay/pull/718))
