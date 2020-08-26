@@ -280,6 +280,17 @@ impl UpstreamRelay {
         }
     }
 
+    fn handle_network_error(&mut self) {
+        let now = Instant::now();
+        let first_error = *self.first_error.get_or_insert(now);
+        if first_error + self.config.http_auth_grace_period() > now {
+            return;
+        }
+
+        self.auth_state = AuthState::Error;
+        // TODO: initiate authentication loop if not already running
+    }
+
     fn send_request(
         &mut self,
         request: UpstreamRequest,
@@ -499,11 +510,9 @@ impl Handler<Authenticate> for UpstreamRelay {
             .map_err(|err, slf, ctx| {
                 log::error!("authentication encountered error: {}", LogError(&err));
 
-                let now = Instant::now();
-                let first_error = *slf.first_error.get_or_insert(now);
-                if !err.is_network_error()
-                    || first_error + slf.config.http_auth_grace_period() < now
-                {
+                if err.is_network_error() {
+                    slf.handle_network_error();
+                } else {
                     slf.auth_state = AuthState::Error;
                 }
 
