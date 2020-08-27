@@ -9,7 +9,6 @@ statusProvider:
   config:
     contexts:
       - Travis CI - Branch
-      - continuous-integration/appveyor/branch
 preReleaseCommand: ../scripts/bump-library.sh
 releaseBranchPrefix: release-library
 
