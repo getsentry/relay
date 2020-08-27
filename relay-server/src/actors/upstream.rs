@@ -80,7 +80,7 @@ impl UpstreamRequestError {
     fn is_network_error(&self) -> bool {
         match self {
             Self::SendFailed(_) | Self::PayloadFailed(_) => true,
-            Self::ResponseError(code, _) => matches!(code.as_u16(), 502 | 503),
+            Self::ResponseError(code, _) => matches!(code.as_u16(), 502 | 503 | 504),
             _ => false,
         }
     }
