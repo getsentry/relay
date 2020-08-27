@@ -2150,57 +2150,6 @@ expression: event_json_schema()
         }
       ]
     },
-    "Query": {
-      "description": " A map holding query string pairs.",
-      "anyOf": [
-        {
-          "anyOf": [
-            {
-              "type": "object",
-              "additionalProperties": {
-                "anyOf": [
-                  {
-                    "$ref": "#/definitions/JsonLenientString"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              }
-            },
-            {
-              "type": "array",
-              "items": {
-                "type": [
-                  "array",
-                  "null"
-                ],
-                "items": [
-                  {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  {
-                    "anyOf": [
-                      {
-                        "$ref": "#/definitions/JsonLenientString"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  }
-                ],
-                "maxItems": 2,
-                "minItems": 2
-              }
-            }
-          ]
-        }
-      ]
-    },
     "RawStacktrace": {
       "description": " A stack trace of a single thread.\n\n A stack trace contains a list of frames, each with various bits (most optional) describing the context of that frame. Frames should be sorted from oldest to newest.\n\n For the given example program written in Python:\n\n ```python\n def foo():\n     my_var = 'foo'\n     raise ValueError()\n\n def main():\n     foo()\n ```\n\n A minimalistic stack trace for the above program in the correct order:\n\n ```json\n {\n   \"frames\": [\n     {\"function\": \"main\"},\n     {\"function\": \"foo\"}\n   ]\n }\n ```\n\n The top frame fully symbolicated with five lines of source context:\n\n ```json\n {\n   \"frames\": [{\n     \"in_app\": true,\n     \"function\": \"myfunction\",\n     \"abs_path\": \"/real/file/name.py\",\n     \"filename\": \"file/name.py\",\n     \"lineno\": 3,\n     \"vars\": {\n       \"my_var\": \"'value'\"\n     },\n     \"pre_context\": [\n       \"def foo():\",\n       \"  my_var = 'foo'\",\n     ],\n     \"context_line\": \"  raise ValueError()\",\n     \"post_context\": [\n       \"\",\n       \"def main():\"\n     ],\n   }]\n }\n ```\n\n A minimal native stack trace with register values. Note that the `package` event attribute must be \"native\" for these frames to be symbolicated.\n\n ```json\n {\n   \"frames\": [\n     {\"instruction_addr\": \"0x7fff5bf3456c\"},\n     {\"instruction_addr\": \"0x7fff5bf346c0\"},\n   ],\n   \"registers\": {\n     \"rip\": \"0x00007ff6eef54be2\",\n     \"rsp\": \"0x0000003b710cd9e0\"\n   }\n }\n ```",
       "anyOf": [
@@ -2332,7 +2281,49 @@ expression: event_json_schema()
               "default": null,
               "anyOf": [
                 {
-                  "$ref": "#/definitions/Query"
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "items": [
+                              {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            ],
+                            "maxItems": 2,
+                            "minItems": 2
+                          }
+                        }
+                      ]
+                    }
+                  ]
                 },
                 {
                   "type": "null"

@@ -99,7 +99,7 @@ jsonschema: init-submodules
 	mkdir -p docs/event-schema/
 	rm -rf docs/event-schema/event.schema.*
 	set -e && cd relay && cargo run --features jsonschema -- event-json-schema \
-		> docs/event-schema/event.schema.json
+		> ../docs/event-schema/event.schema.json
 .PHONY: jsonschema
 
 docserver: prose-docs
