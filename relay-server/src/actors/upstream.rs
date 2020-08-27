@@ -22,6 +22,7 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::str;
 use std::sync::Arc;
+use std::time::Instant;
 
 use ::actix::fut;
 use ::actix::prelude::*;
@@ -75,12 +76,20 @@ pub enum UpstreamRequestError {
     ChannelClosed,
 }
 
+impl UpstreamRequestError {
+    fn is_network_error(&self) -> bool {
+        match self {
+            Self::SendFailed(_) | Self::PayloadFailed(_) => true,
+            Self::ResponseError(code, _) => matches!(code.as_u16(), 502 | 503 | 504),
+            _ => false,
+        }
+    }
+}
+
 /// Represents the current auth state.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 enum AuthState {
     Unknown,
-    RegisterRequestChallenge,
-    RegisterChallengeResponse,
     Registered,
     Error,
 }
@@ -195,6 +204,7 @@ struct UpstreamRequest {
 
 pub struct UpstreamRelay {
     backoff: RetryBackoff,
+    first_error: Option<Instant>,
     config: Arc<Config>,
     auth_state: AuthState,
     max_inflight_requests: usize,
@@ -257,11 +267,12 @@ impl UpstreamRelay {
         UpstreamRelay {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             max_inflight_requests: config.max_concurrent_requests(),
-            config,
             auth_state: AuthState::Unknown,
             num_inflight_requests: 0,
             high_prio_requests: VecDeque::new(),
             low_prio_requests: VecDeque::new(),
+            first_error: None,
+            config,
         }
     }
 
@@ -271,6 +282,17 @@ impl UpstreamRelay {
         } else {
             Ok(())
         }
+    }
+
+    fn handle_network_error(&mut self) {
+        let now = Instant::now();
+        let first_error = *self.first_error.get_or_insert(now);
+        if first_error + self.config.http_auth_grace_period() > now {
+            return;
+        }
+
+        self.auth_state = AuthState::Error;
+        // TODO: initiate authentication loop if not already running
     }
 
     fn send_request(
@@ -451,7 +473,7 @@ impl Message for Authenticate {
 /// message was successfully handled).
 ///
 /// **Note:** Relay has retry functionality, outside this actor, that periodically sends Authenticate
-/// messages until successful Authentication with the upstream server was achieved.    
+/// messages until successful Authentication with the upstream server was achieved.
 impl Handler<Authenticate> for UpstreamRelay {
     type Result = ResponseActFuture<Self, (), ()>;
 
@@ -466,7 +488,6 @@ impl Handler<Authenticate> for UpstreamRelay {
             self.config.upstream_descriptor()
         );
 
-        self.auth_state = AuthState::RegisterRequestChallenge;
         let request = RegisterRequest::new(&credentials.id, &credentials.public_key);
 
         let future = self
@@ -474,7 +495,6 @@ impl Handler<Authenticate> for UpstreamRelay {
             .into_actor(self)
             .and_then(|challenge, slf, ctx| {
                 log::debug!("got register challenge (token = {})", challenge.token());
-                slf.auth_state = AuthState::RegisterChallengeResponse;
                 let challenge_response = challenge.create_response();
 
                 log::debug!("sending register challenge response");
@@ -482,13 +502,23 @@ impl Handler<Authenticate> for UpstreamRelay {
                 ctx.notify(PumpHttpMessageQueue);
                 fut
             })
-            .map(|_, slf, _ctx| {
+            .map(|_, slf, ctx| {
                 log::info!("relay successfully registered with upstream");
                 slf.auth_state = AuthState::Registered;
+
+                slf.backoff.reset();
+                slf.first_error = None;
+
+                ctx.notify_later(Authenticate, slf.config.http_auth_interval());
             })
             .map_err(|err, slf, ctx| {
                 log::error!("authentication encountered error: {}", LogError(&err));
-                slf.auth_state = AuthState::Error;
+
+                if err.is_network_error() {
+                    slf.handle_network_error();
+                } else {
+                    slf.auth_state = AuthState::Error;
+                }
 
                 // Do not retry client errors including authentication failures since client errors
                 // are usually permanent. This allows the upstream to reject unsupported Relays

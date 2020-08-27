@@ -524,6 +524,12 @@ struct Http {
     max_retry_interval: u32,
     /// The custom HTTP Host header to send to the upstream.
     host_header: Option<String>,
+    /// The number of seconds after a successful authentication after which
+    /// a Relay tries to re-authenticate with the upstream server.
+    auth_interval: u64,
+    /// The number of seconds allowed for a Relay to re-authenticate after which
+    /// it is considered that re-authentication has failed.
+    auth_grace_period: u64,
 }
 
 impl Default for Http {
@@ -533,6 +539,8 @@ impl Default for Http {
             connection_timeout: 3,
             max_retry_interval: 60,
             host_header: None,
+            auth_interval: 60,
+            auth_grace_period: 10,
         }
     }
 }
@@ -1098,6 +1106,18 @@ impl Config {
     /// Returns the password for the identity bundle
     pub fn tls_identity_password(&self) -> Option<&str> {
         self.values.relay.tls_identity_password.as_deref()
+    }
+
+    /// Returns the interval at which Realy should try to re-authenticate with the upstream
+    pub fn http_auth_interval(&self) -> Duration {
+        Duration::from_secs(self.values.http.auth_interval)
+    }
+
+    /// The maximum amount of time that a Relay is allowed to take to re-authenticate with
+    /// the upstream after which it is declared as un-authenticated (if it is not able to
+    /// authenticate).
+    pub fn http_auth_grace_period(&self) -> Duration {
+        Duration::from_secs(self.values.http.auth_grace_period)
     }
 
     /// Returns whether this Relay should emit outcomes.

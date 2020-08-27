@@ -15,9 +15,14 @@ use crate::processor::{
 use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, User};
 use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
+// The Regex initializer needs a scope to avoid an endless loop/recursion in RustAnalyzer:
+// https://github.com/rust-analyzer/rust-analyzer/issues/5896. Note that outside of lazy_static,
+// this would require the unstable `stmt_expr_attributes` feature.
 lazy_static! {
-    static ref NULL_SPLIT_RE: Regex = #[allow(clippy::trivial_regex)]
-    Regex::new("\x00").unwrap();
+    static ref NULL_SPLIT_RE: Regex = {
+        #[allow(clippy::trivial_regex)]
+        Regex::new("\x00").unwrap()
+    };
 }
 
 /// A processor that performs PII stripping.
