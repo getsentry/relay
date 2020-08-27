@@ -16,8 +16,10 @@ use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, User};
 use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
 lazy_static! {
-    static ref NULL_SPLIT_RE: Regex = #[allow(clippy::trivial_regex)]
-    Regex::new("\x00").unwrap();
+    static ref NULL_SPLIT_RE: Regex = {
+        #[allow(clippy::trivial_regex)]
+        Regex::new("\x00").unwrap()
+    };
 }
 
 /// A processor that performs PII stripping.
