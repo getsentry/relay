@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Add support for attaching Sentry event payloads in Unreal crash reports by adding `__sentry` game data entries. ([#715](https://github.com/getsentry/relay/pull/715))
 - Support chunked formdata keys for event payloads on the Minidump endpoint. Since crashpad has a limit for the length of custom attributes, the sentry event payload can be split up into `sentry__1`, `sentry__2`, etc. ([#721](https://github.com/getsentry/relay/pull/721))
 - Add periodic re-authentication with the upstream server, previously there was only one initial authentication. ([#731](https://github.com/getsentry/relay/pull/731))
 

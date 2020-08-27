@@ -3539,9 +3539,9 @@ checksum = "502d53007c02d7605a05df1c1a73ee436952781653da5d0bf57ad608f66932c1"
 
 [[package]]
 name = "symbolic"
-version = "7.4.0"
+version = "7.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c8c91194bc844d4517afc8dfc97a735c205e98500d2a814a6250271ef56de0f"
+checksum = "80c1372a324a0765d0193d79eed3a76689023c5639ab5753f81ebcc05a246b98"
 dependencies = [
  "symbolic-common",
  "symbolic-unreal",
@@ -3549,9 +3549,9 @@ dependencies = [
 
 [[package]]
 name = "symbolic-common"
-version = "7.4.0"
+version = "7.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebdc6030725c03c26dd3a56a19962767c4f2d9a45f1bc67247db6650ef17c71e"
+checksum = "c97c98b6026c932123a976d0cd35f59256424507e3dec9d032f30828765f1bf2"
 dependencies = [
  "debugid",
  "failure",
@@ -3563,9 +3563,9 @@ dependencies = [
 
 [[package]]
 name = "symbolic-unreal"
-version = "7.4.0"
+version = "7.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75175cf046090880dc397aed39a5466f92090cc16aa5363e5d1a4f50f00b81c1"
+checksum = "148bee7763b686c753ac44b92ba74eb6a10f9d2dd3135c07ee6e75dc0462fa39"
 dependencies = [
  "anylog",
  "bytes 0.4.12",
