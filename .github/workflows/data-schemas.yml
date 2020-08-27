@@ -19,7 +19,7 @@ jobs:
           toolchain: stable
       - run: make jsonschema
       - name: commit and push
-        if: {{ github.ref == 'ref/head/master' }}
+        if: github.ref == 'refs/heads/master'
         env:
           GITHUB_TOKEN: ${{ secrets.DATA_SCHEMAS_GITHUB_TOKEN }}
         run: |
