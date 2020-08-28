@@ -17,6 +17,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+      - run: make init-submodules
       - run: cargo run -p generate-schema > event.schema.json
       - name: commit and push
         if: github.ref == 'refs/heads/master'
