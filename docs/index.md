@@ -14,7 +14,7 @@ your application and Sentry.io.
 for on-premise installations and beta testers. If you are using Relay to connect to Sentry and 
 are not a beta tester you need to use `proxy` or `static` mode.
  
-If you want to beta test the `managed` mode while connecting to Sentry please get in 
+If you want to beta test the `managed` mode while connecting to Sentry, please get in 
 contact with us. See _[Relay Modes]_ for more information.**
 
 ## Use Cases for Relay
