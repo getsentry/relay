@@ -208,13 +208,16 @@ pub struct UpstreamRelay {
     first_error: Option<Instant>,
     config: Arc<Config>,
     auth_state: AuthState,
+    ///when blocked no messages are being sent by the message queue
+    message_queue_blocked: bool,
     max_inflight_requests: usize,
     num_inflight_requests: usize,
     // high priority request queue
     high_prio_requests: VecDeque<UpstreamRequest>,
     // low priority request queue
     low_prio_requests: VecDeque<UpstreamRequest>,
-    // amount of time to wait before trying to resend messages on the network
+    // amount of time to wait before trying to send messages
+    // again on the network ( after a network failure)
     // TODO move it from here to a lazy static or to configuration
     network_recover_interval: Duration,
 }
@@ -276,7 +279,8 @@ impl UpstreamRelay {
             high_prio_requests: VecDeque::new(),
             low_prio_requests: VecDeque::new(),
             first_error: None,
-            network_recover_interval: Duration::from_secs(5),
+            network_recover_interval: Duration::from_millis(250),
+            message_queue_blocked: false,
             config,
         }
     }
@@ -377,19 +381,19 @@ impl UpstreamRelay {
         if let Err(err) = send_result {
             if err.is_network_error() {
                 // a network error try to send at a latter time
+                self.message_queue_blocked = true;
                 match request.priority {
-                    //TODO RaduW, need to think a bit more about this one,
-                    //probably we don't retry immediate requests
-                    RequestPriority::Immediate => {}
+                    RequestPriority::Immediate => {
+                        // only queued messages are retried automatically
+                    }
                     RequestPriority::Low => {
                         self.low_prio_requests.push_back(request);
-                        ctx.notify_later(PumpHttpMessageQueue, self.network_recover_interval);
                     }
                     RequestPriority::High => {
                         self.high_prio_requests.push_back(request);
-                        ctx.notify_later(PumpHttpMessageQueue, self.network_recover_interval);
                     }
                 }
+                ctx.notify_later(ResumeHttpMessageQueue, self.network_recover_interval);
                 // finish processing
                 return futures::future::failed(());
             } else {
@@ -625,6 +629,13 @@ impl Message for PumpHttpMessageQueue {
     type Result = ();
 }
 
+/// Message to resume pumping the Message queue after a network error
+struct ResumeHttpMessageQueue;
+
+impl Message for ResumeHttpMessageQueue {
+    type Result = ();
+}
+
 /// The `PumpHttpMessageQueue` is an internal Relay message that is used to drive the
 /// HttpMessageQueue. Requests that need to be sent over http are placed on queues with
 /// various priorities. At various points in time (when events are added to the queue or
@@ -640,7 +651,7 @@ impl Handler<PumpHttpMessageQueue> for UpstreamRelay {
     fn handle(&mut self, _msg: PumpHttpMessageQueue, ctx: &mut Self::Context) -> Self::Result {
         // Skip sending requests while not ready. As soon as the Upstream becomes ready through
         // authentication, `PumpHttpMessageQueue` will be emitted again.
-        if !self.is_ready() {
+        if !self.is_ready() || self.message_queue_blocked {
             return;
         }
 
@@ -653,6 +664,16 @@ impl Handler<PumpHttpMessageQueue> for UpstreamRelay {
                 break; // no more messages to send at this time stop looping
             }
         }
+    }
+}
+
+impl Handler<ResumeHttpMessageQueue> for UpstreamRelay {
+    type Result = ();
+
+    /// unblocks the queue and starts sending messages again
+    fn handle(&mut self, _msg: ResumeHttpMessageQueue, ctx: &mut Self::Context) -> Self::Result {
+        self.message_queue_blocked = false;
+        ctx.notify(PumpHttpMessageQueue);
     }
 }
 
@@ -722,7 +743,7 @@ impl<B> Message for SendRequest<B> {
 /// and do not use Relay authentication.
 ///
 /// The handler adds the message to one of the message queues and tries to advance the processing
-/// by sending a `PumpMessageQueue`.
+/// by sending a `PumpHttpMessageQueue`.
 impl<B> Handler<SendRequest<B>> for UpstreamRelay
 where
     B: RequestBuilder + Send,
@@ -805,7 +826,7 @@ impl<T: UpstreamQuery> Message for SendQuery<T> {
 ///
 /// The handler ensures that Relay is authenticated with the upstream server, adds the message
 /// to one of the message queues and tries to advance the processing by
-/// sending a `PumpMessageQueue`.
+/// sending a `PumpHttpMessageQueue`.
 impl<T: UpstreamQuery> Handler<SendQuery<T>> for UpstreamRelay {
     type Result = ResponseFuture<T::Response, UpstreamRequestError>;
 
