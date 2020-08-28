@@ -10,9 +10,12 @@ Sentry Relay is a standalone service that allows you to scrub personal
 information and improve event response time. It acts as a middle layer between
 your application and Sentry.io.
 
-**Relay is still work in progress. The default Relay mode is not supported by
-Sentry, so Relay has to be switched into `proxy` or `static` mode. See _[Relay
-Modes]_ for more information.**
+**Note: Relay is still work in progress. The default Relay mode is at the moment only supported 
+for on-premise installations and beta testers. If you are using Relay to connect to Sentry and 
+are not a beta tester you need to use `proxy` or `static` mode.
+ 
+If you want to beta test the `managed` mode while connecting to Sentry, please get in 
+contact with us. See _[Relay Modes]_ for more information.**
 
 ## Use Cases for Relay
 
@@ -208,7 +211,34 @@ For example, you can start the latest version of `relay` as follows:
 ❯ docker run -v $(pwd)/configs/:/work/.relay/ getsentry/relay run
 ```
 
-This example command assumes that Relay's configuration (`config.yml` and `credentials.json`) are stored in `./configs/` directory on the host machine.
+This example command assumes that Relay's configuration files, `config.yml` and
+`credentials.json`, are stored in `./configs/` directory on the host machine.
+
+
+## Logging and Healthcheck
+
+Now you have a running relay, you might have noticed that relay displays some `INFO` messages,
+including:
+```sh
+INFO  relay::setup >   log level: INFO
+```
+
+This is the default logging level and you can change this to show more or less info. 
+For details about configuring logging please see _[logging]_ on the options page.
+
+Relay provides two URLs for checking liveness and readyness of the service:
+
+- `GET /api/relay/healthcheck/live/`: Tests if Relay is running and listening to HTTP requests.
+- `GET /api/relay/healthcheck/ready/`: Tests if Relay is authenticated with the upstream and
+  operating normally.
+
+In case of success, both endpoints return a _200 OK_ response:
+
+```json
+{
+"is_healthy": true
+}
+```
 
 ### Sending a Test Event
 
@@ -243,3 +273,4 @@ project.
 [relay modes]: configuration/modes.md
 [dockerhub]: https://hub.docker.com/r/getsentry/relay/
 [docker volumes]: https://docs.docker.com/storage/volumes/
+[logging]: ./configuration/options/#logging
