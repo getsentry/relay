@@ -11,7 +11,7 @@ information and improve event response time. It acts as a middle layer between
 your application and Sentry.io.
 
 **Note: Relay is still work in progress. The default Relay mode is at the moment only supported 
-for on-premises installations and beta testers. If you are using Relay to connect to Sentry and 
+for on-premise installations and beta testers. If you are using Relay to connect to Sentry and 
 are not a beta tester you need to use `proxy` or `static` mode.
  
 If you want to beta test the `managed` mode while connecting to Sentry please get in 
