@@ -218,7 +218,7 @@ This example command assumes that Relay's configuration files, `config.yml` and
 `credentials.json`, are stored in `./configs/` directory on the host machine.
 
 
-## Logging and healthcheck
+## Logging and Healthcheck
 
 Now you have a running relay, you might have noticed that relay displays some `INFO` messages,
 including:
