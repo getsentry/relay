@@ -214,8 +214,8 @@ For example, you can start the latest version of `relay` as follows:
 ❯ docker run -v $(pwd)/configs/:/work/.relay/ getsentry/relay run
 ```
 
-This example command assumes that Relay's configuration (`config.yml` and `credentials.json`) are stored in `./configs/` 
-directory on the host machine.
+This example command assumes that Relay's configuration files, `config.yml` and
+`credentials.json`, are stored in `./configs/` directory on the host machine.
 
 
 ## Logging and healthcheck
