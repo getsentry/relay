@@ -13,6 +13,7 @@
 - Remove a temporary flag from attachment kafka messages indicating rate limited crash reports to Sentry. This is now enabled by default. ([#718](https://github.com/getsentry/relay/pull/718))
 - Performance improvement of http requests to upstream, high priority messages are sent first. ([#678](https://github.com/getsentry/relay/pull/678))
 - Experimental data scrubbing on minidumps([#682](https://github.com/getsentry/relay/pull/682))
+- Move `generate-schema` from the Relay CLI into a standalone tool. ([#739](//github.com/getsentry/relay/pull/739))
 
 ## 20.8.0
 
