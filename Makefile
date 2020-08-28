@@ -89,16 +89,6 @@ doc-metrics: .venv/bin/python
 	.venv/bin/pip install -U -r requirements-doc.txt
 	cd scripts && ../.venv/bin/python extract_metric_docs.py
 
-doc-schema: init-submodules
-	# Makes no sense to nest this in docs, but unfortunately that's the path
-	# Snuba uses in their setup right now. Eventually this should be gone in
-	# favor of the data schemas repo
-	mkdir -p docs/event-schema/
-	rm -rf docs/event-schema/event.schema.*
-	set -e && cd relay && cargo run --features jsonschema -- event-json-schema \
-		> ../docs/event-schema/event.schema.json
-.PHONY: doc-schema
-
 doc-server: doc-prose
 	.venv/bin/mkdocs serve
 .PHONY: doc-server

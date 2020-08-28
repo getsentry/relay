@@ -1201,6 +1201,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "generate-schema"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "paw",
+ "relay-general",
+ "serde_json",
+ "structopt",
+]
+
+[[package]]
 name = "generator"
 version = "0.6.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
