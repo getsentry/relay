@@ -22,7 +22,7 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::str;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use ::actix::fut;
 use ::actix::prelude::*;
@@ -196,6 +196,7 @@ impl fmt::Display for RequestPriority {
 /// The objects are transformed int HTTP requests, and send to upstream as HTTP connections
 /// become available.
 struct UpstreamRequest {
+    priority: RequestPriority,
     response_sender: oneshot::Sender<Result<ClientResponse, UpstreamRequestError>>,
     method: Method,
     path: String,
@@ -213,6 +214,9 @@ pub struct UpstreamRelay {
     high_prio_requests: VecDeque<UpstreamRequest>,
     // low priority request queue
     low_prio_requests: VecDeque<UpstreamRequest>,
+    // amount of time to wait before trying to resend messages on the network
+    // TODO move it from here to a lazy static or to configuration
+    network_recover_interval: Duration,
 }
 
 /// Handles a response returned from the upstream.
@@ -272,6 +276,7 @@ impl UpstreamRelay {
             high_prio_requests: VecDeque::new(),
             low_prio_requests: VecDeque::new(),
             first_error: None,
+            network_recover_interval: Duration::from_secs(5),
             config,
         }
     }
@@ -298,13 +303,13 @@ impl UpstreamRelay {
         // TODO: initiate authentication loop if not already running
     }
 
-    fn send_request(&mut self, request: UpstreamRequest, ctx: &mut Context<Self>) {
-        let UpstreamRequest {
-            response_sender,
-            method,
-            path,
-            mut build,
-        } = request;
+    fn send_request(&mut self, mut request: UpstreamRequest, ctx: &mut Context<Self>) {
+        // let UpstreamRequest {
+        //     response_sender,
+        //     method,
+        //     path,
+        //     mut build,
+        // } = request;
 
         let host_header = self
             .config
@@ -313,8 +318,12 @@ impl UpstreamRelay {
 
         let mut builder = ClientRequest::build();
         builder
-            .method(method)
-            .uri(self.config.upstream_descriptor().get_url(path.as_ref()))
+            .method(request.method.clone())
+            .uri(
+                self.config
+                    .upstream_descriptor()
+                    .get_url(request.path.as_ref()),
+            )
             .set_header("Host", host_header);
 
         if let Some(ref credentials) = self.config.credentials() {
@@ -322,9 +331,10 @@ impl UpstreamRelay {
         }
 
         //try to build a ClientRequest
-        let client_request = match build(&mut builder) {
+        let client_request = match (request.build)(&mut builder) {
             Err(e) => {
-                response_sender
+                request
+                    .response_sender
                     .send(Err(UpstreamRequestError::BuildFailed(e)))
                     .ok();
                 return;
@@ -337,19 +347,6 @@ impl UpstreamRelay {
 
         client_request
             .send()
-            // We currently use the main connection pool size limit to control how many events get
-            // sent out at once, and "queue" up the rest (queueing means that there are a lot of
-            // futures hanging around, waiting for an open connection). We need to adjust this
-            // timeout to prevent the queued events from timing out while waiting for a free
-            // connection in the pool.
-            //
-            // This may not be good enough in the long run. Right now, filling up the "request
-            // queue" means that requests unrelated to `store` (queries, proxied/forwarded requests)
-            // are blocked by store requests. Ideally, those requests would bypass this queue.
-            //
-            // Two options come to mind:
-            //   1. Have own connection pool for `store` requests
-            //   2. Buffer up/queue/synchronize events before creating the request
             .wait_timeout(self.config.event_buffer_expiry())
             .conn_timeout(self.config.http_connection_timeout())
             // This is the timeout after wait + connect.
@@ -357,12 +354,54 @@ impl UpstreamRelay {
             .track(ctx.address().recipient())
             .map_err(UpstreamRequestError::SendFailed)
             .and_then(handle_response)
-            .then(|x| {
-                response_sender.send(x).ok();
-                Ok(())
-            })
             .into_actor(self)
+            .then(|send_result, slf, ctx| {
+                slf.handle_http_response_status(request, send_result, ctx)
+                    .into_actor(slf)
+            })
             .spawn(ctx);
+    }
+
+    /// Checks what happened to the request and takes appropriate action
+    ///
+    /// - if the request was sent, notify the response sender
+    /// - if the request was not send:
+    ///     - if it was a network error schedule a retry
+    ///     - if it was a non recoverable error, notify the response sender with the error
+    fn handle_http_response_status(
+        &mut self,
+        request: UpstreamRequest,
+        send_result: Result<ClientResponse, UpstreamRequestError>,
+        ctx: &mut Context<Self>,
+    ) -> impl Future<Item = (), Error = ()> {
+        if let Err(err) = send_result {
+            if err.is_network_error() {
+                // a network error try to send at a latter time
+                match request.priority {
+                    //TODO RaduW, need to think a bit more about this one,
+                    //probably we don't retry immediate requests
+                    RequestPriority::Immediate => {}
+                    RequestPriority::Low => {
+                        self.low_prio_requests.push_back(request);
+                        ctx.notify_later(PumpHttpMessageQueue, self.network_recover_interval);
+                    }
+                    RequestPriority::High => {
+                        self.high_prio_requests.push_back(request);
+                        ctx.notify_later(PumpHttpMessageQueue, self.network_recover_interval);
+                    }
+                }
+                // finish processing
+                return futures::future::failed(());
+            } else {
+                // we only retry network errors, forward this error and finish
+                request.response_sender.send(Err(err)).ok();
+            }
+        } else {
+            // success forward the result and finish
+            request.response_sender.send(send_result).ok();
+        }
+
+        futures::future::ok(())
     }
 
     fn enqueue_request<P, F>(
@@ -380,6 +419,7 @@ impl UpstreamRelay {
         let (tx, rx) = oneshot::channel::<Result<ClientResponse, UpstreamRequestError>>();
 
         let request = UpstreamRequest {
+            priority,
             method,
             path: path.as_ref().to_owned(),
             response_sender: tx,
