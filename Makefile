@@ -73,26 +73,23 @@ test-integration: build setup-venv
 
 # Documentation
 
-doc: docs
-.PHONY: doc
+doc: doc-api doc-prose
+.PHONY: doc-api doc-prose
 
-docs: api-docs prose-docs
-.PHONY: api-docs prose-docs
-
-api-docs: setup-git
+doc-api: setup-git
 	@cargo doc
-.PHONY: api-docs
+.PHONY: doc-api
 
-prose-docs: .venv/bin/python extract-metric-docs
+doc-prose: .venv/bin/python doc-metrics
 	.venv/bin/mkdocs build
 	touch site/.nojekyll
-.PHONY: prose-docs
+.PHONY: doc-prose
 
-extract-metric-docs: .venv/bin/python
+doc-metrics: .venv/bin/python
 	.venv/bin/pip install -U -r requirements-doc.txt
 	cd scripts && ../.venv/bin/python extract_metric_docs.py
 
-jsonschema: init-submodules
+doc-schema: init-submodules
 	# Makes no sense to nest this in docs, but unfortunately that's the path
 	# Snuba uses in their setup right now. Eventually this should be gone in
 	# favor of the data schemas repo
@@ -100,24 +97,25 @@ jsonschema: init-submodules
 	rm -rf docs/event-schema/event.schema.*
 	set -e && cd relay && cargo run --features jsonschema -- event-json-schema \
 		> ../docs/event-schema/event.schema.json
-.PHONY: jsonschema
+.PHONY: doc-schema
 
-docserver: prose-docs
+doc-server: doc-prose
 	.venv/bin/mkdocs serve
-.PHONY: docserver
+.PHONY: doc-server
 
-travis-upload-prose-docs: prose-docs
+doc-upload-travis: doc-prose
 	cd site && zip -r gh-pages .
 	set -e && zeus upload -t "application/zip+docs" site/gh-pages.zip \
 		|| [[ ! "$(TRAVIS_BRANCH)" =~ ^release/ ]]
 	set -e && zeus upload -t "application/octet-stream" -n event.schema.json docs/event-schema/event.schema.json \
 		|| [[ ! "$(TRAVIS_BRANCH)" =~ ^release/ ]]
-.PHONY: travis-upload-docs
+.PHONY: doc-upload-travis
 
-local-upload-prose-docs: prose-docs
+doc-upload-local: doc-prose
 	# Use this for hotfixing docs, prefer a new release
 	.venv/bin/pip install -U ghp-import
 	.venv/bin/ghp-import -pf site/
+.PHONY: doc-upload-local
 
 # Style checking
 

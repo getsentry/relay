@@ -123,7 +123,7 @@ jobs:
     - name: "release: docs"
       if: branch ~= /^release\/[\d.]+$/
       before_script: npm install -g @zeus-ci/cli
-      script: make -e travis-upload-prose-docs
+      script: make -e doc-upload-travis
 
     # -------------------------------------
     # PYTHON RELEASE BUILDS
