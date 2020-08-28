@@ -58,7 +58,7 @@ By default, SDKs need to be configured with a DSN that points to `sentry.io`. If
 you need to restrict all HTTP communication to a custom domain name, Relay can
 act as an opaque proxy that reliably forwards events to Sentry.
 
-# Getting Started
+## Getting Started
 
 In this section we will create a simple setup using the default settings. Check
 the _[Configuration Options]_ page for a detail discussion
