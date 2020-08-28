@@ -229,18 +229,13 @@ INFO  relay::setup >   log level: INFO
 This is the default logging level and you can change this to show more or less info. 
 For details about configuring logging please see _[logging]_ on the options page.
 
-Relay provides two urls for health check and monitoring the live status:
+Relay provides two URLs for checking liveness and readyness of the service:
 
-In our example relay is running at "http://localhost:3000" so the following urls are
-going to return a status check JSON file.
+- `GET /api/relay/healthcheck/live/`: Tests if Relay is running and listening to HTTP requests.
+- `GET /api/relay/healthcheck/ready/`: Tests if Relay is authenticated with the upstream and
+  operating normally.
 
-The `GET http://localhost:3000/api/relay/healthcheck/live/` is used to test if Relay
-is running and able to respond to http requests.
-
-The `GET http://localhost:3000/api/relay/healthcheck/ready/` can be used to check if 
-Relay is running and has been able to authenticate with the upstream.
-
-In case of success both endpoints return:
+In case of success, both endpoints return a _200 OK_ response:
 
 ```json
 {
