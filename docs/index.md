@@ -226,7 +226,7 @@ including:
 INFO  relay::setup >   log level: INFO
 ```
 
-This is the default logging level you can change this to show more or less info. 
+This is the default logging level and you can change this to show more or less info. 
 For details about configuring logging please see _[logging]_ on the options page.
 
 Relay provides two urls for health check and monitoring the live status:
