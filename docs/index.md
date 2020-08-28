@@ -73,9 +73,6 @@ In order to create the initial configuration, Relay provides the `relay config
 init` command. The command puts configuration files in the `.relay` folder
 under the current working directory:
 
-We will be creating a custom configuration since the default configuration creates a 
-`managed` mode configuration which is not supported by sentry at the current time.
-
 ```sh
 ❯ ./relay config init
 Initializing relay in /<current_directory>/.relay
