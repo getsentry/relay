@@ -22,7 +22,7 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::str;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use ::actix::fut;
 use ::actix::prelude::*;
@@ -89,6 +89,13 @@ enum AuthState {
     Unknown,
     Registered,
     Error,
+}
+
+/// Where should a request be enqueue (to the front or the back)
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+enum EnqueuePosition {
+    Front,
+    Back,
 }
 
 impl AuthState {
@@ -196,10 +203,18 @@ impl fmt::Display for RequestPriority {
 /// The objects are transformed int HTTP requests, and send to upstream as HTTP connections
 /// become available.
 struct UpstreamRequest {
+    /// handle priority for the request
     priority: RequestPriority,
+    /// should the request be retried in case of network error
+    retry: bool,
+    /// one-shot channel to be notified when the request is done (i.e. it is either
+    /// successful or it is failed but we are not going to retry it)
     response_sender: oneshot::Sender<Result<ClientResponse, UpstreamRequestError>>,
+    /// http method
     method: Method,
+    /// request url
     path: String,
+    /// request build function
     build: Box<dyn FnMut(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>>,
 }
 
@@ -208,18 +223,12 @@ pub struct UpstreamRelay {
     first_error: Option<Instant>,
     config: Arc<Config>,
     auth_state: AuthState,
-    ///when blocked no messages are being sent by the message queue
-    message_queue_blocked: bool,
     max_inflight_requests: usize,
     num_inflight_requests: usize,
     // high priority request queue
     high_prio_requests: VecDeque<UpstreamRequest>,
     // low priority request queue
     low_prio_requests: VecDeque<UpstreamRequest>,
-    // amount of time to wait before trying to send messages
-    // again on the network ( after a network failure)
-    // TODO move it from here to a lazy static or to configuration
-    network_recover_interval: Duration,
 }
 
 /// Handles a response returned from the upstream.
@@ -279,8 +288,6 @@ impl UpstreamRelay {
             high_prio_requests: VecDeque::new(),
             low_prio_requests: VecDeque::new(),
             first_error: None,
-            network_recover_interval: Duration::from_millis(250),
-            message_queue_blocked: false,
             config,
         }
     }
@@ -296,15 +303,16 @@ impl UpstreamRelay {
         }
     }
 
-    fn handle_network_error(&mut self) {
+    fn handle_network_error(&mut self, ctx: &mut Context<Self>) {
         let now = Instant::now();
         let first_error = *self.first_error.get_or_insert(now);
-        if first_error + self.config.http_auth_grace_period() > now {
-            return;
+        if !self.backoff.started() {
+            // there is no re-authentication scheduled, schedule one now
+            ctx.notify_later(Authenticate, self.backoff.next_backoff());
         }
-
-        self.auth_state = AuthState::Error;
-        // TODO: initiate authentication loop if not already running
+        if first_error + self.config.http_auth_grace_period() < now {
+            self.auth_state = AuthState::Error;
+        }
     }
 
     fn send_request(&mut self, mut request: UpstreamRequest, ctx: &mut Context<Self>) {
@@ -373,27 +381,18 @@ impl UpstreamRelay {
     ) -> impl Future<Item = (), Error = ()> {
         if let Err(err) = send_result {
             if err.is_network_error() {
-                // a network error try to send at a latter time
-                self.message_queue_blocked = true;
-                match request.priority {
-                    RequestPriority::Immediate => {
-                        // only queued messages are retried automatically
-                    }
-                    RequestPriority::Low => {
-                        self.low_prio_requests.push_back(request);
-                    }
-                    RequestPriority::High => {
-                        self.high_prio_requests.push_back(request);
-                    }
+                self.handle_network_error(ctx);
+                if request.retry {
+                    self.enqueue(request, ctx, EnqueuePosition::Back);
+                    return futures::future::failed(());
                 }
-                ctx.notify_later(ResumeHttpMessageQueue, self.network_recover_interval);
-                // finish processing
-                return futures::future::failed(());
-            } else {
-                // we only retry network errors, forward this error and finish
-                request.response_sender.send(Err(err)).ok();
             }
+            // we only retry network errors, forward this error and finish
+            request.response_sender.send(Err(err)).ok();
         } else {
+            // reset any previously failed status
+            // TODO should we reset on success or on anything that is not a network error ?
+            self.first_error = None;
             // success forward the result and finish
             request.response_sender.send(send_result).ok();
         }
@@ -401,9 +400,47 @@ impl UpstreamRelay {
         futures::future::ok(())
     }
 
+    fn enqueue(
+        &mut self,
+        request: UpstreamRequest,
+        ctx: &mut Context<Self>,
+        position: EnqueuePosition,
+    ) {
+        let push = match position {
+            EnqueuePosition::Front => VecDeque::push_front,
+            EnqueuePosition::Back => VecDeque::push_back,
+        };
+        let queue: Option<_>;
+
+        match request.priority {
+            RequestPriority::Immediate => {
+                // Immediate is special and bypasses the queue. Directly send the request and return
+                // the response channel rather than waiting for `PumpHttpMessageQueue`.
+                self.send_request(request, ctx);
+                return;
+            }
+            RequestPriority::Low => {
+                queue = Some(&mut self.low_prio_requests);
+            }
+            RequestPriority::High => {
+                queue = Some(&mut self.high_prio_requests);
+            }
+        };
+
+        if let Some(queue) = queue {
+            let name = request.priority.name();
+            push(queue, request);
+            metric!(
+                histogram(RelayHistograms::UpstreamMessageQueueSize) = queue.len() as u64,
+                priority = name
+            );
+        }
+    }
+
     fn enqueue_request<P, F>(
         &mut self,
         priority: RequestPriority,
+        retry: bool,
         method: Method,
         path: P,
         build: F,
@@ -415,38 +452,23 @@ impl UpstreamRelay {
     {
         let (tx, rx) = oneshot::channel::<Result<ClientResponse, UpstreamRequestError>>();
 
-        let request = UpstreamRequest {
-            priority,
-            method,
-            path: path.as_ref().to_owned(),
-            response_sender: tx,
-            build: Box::new(build),
-        };
-
         let future = rx
             // map errors caused by the oneshot channel being closed (unlikely)
             .map_err(|_| UpstreamRequestError::ChannelClosed)
             //unwrap the result (this is how we transport the http failure through the channel)
             .and_then(|result| result);
 
-        match priority {
-            RequestPriority::Immediate => {
-                // Immediate is special and bypasses the queue. Directly send the request and return
-                // the response channel rather than waiting for `PumpHttpMessageQueue`.
-                self.send_request(request, ctx);
-                return Box::new(future);
-            }
-            RequestPriority::Low => {
-                self.low_prio_requests.push_front(request);
-            }
-            RequestPriority::High => {
-                self.high_prio_requests.push_front(request);
-            }
-        };
-        metric!(
-            histogram(RelayHistograms::UpstreamMessageQueueSize) =
-                self.low_prio_requests.len() as u64,
-            priority = priority.name()
+        self.enqueue(
+            UpstreamRequest {
+                priority,
+                retry,
+                method,
+                path: path.as_ref().to_owned(),
+                response_sender: tx,
+                build: Box::new(build),
+            },
+            ctx,
+            EnqueuePosition::Front,
         );
 
         Box::new(future)
@@ -460,6 +482,7 @@ impl UpstreamRelay {
         let method = query.method();
         let path = query.path();
         let priority = Q::priority();
+        let retry = Q::retry();
 
         let credentials = tryf!(self
             .config
@@ -474,6 +497,7 @@ impl UpstreamRelay {
         let future = self
             .enqueue_request(
                 priority,
+                retry,
                 method,
                 path,
                 move |builder| {
@@ -542,6 +566,7 @@ impl Handler<Authenticate> for UpstreamRelay {
         );
 
         let request = RegisterRequest::new(&credentials.id, &credentials.public_key);
+        let interval = self.backoff.next_backoff();
 
         let future = self
             .enqueue_query(request, ctx)
@@ -565,11 +590,11 @@ impl Handler<Authenticate> for UpstreamRelay {
                 // Resume sending queued requests if we suspended due to dropped authentication
                 ctx.notify(PumpHttpMessageQueue);
             })
-            .map_err(|err, slf, ctx| {
+            .map_err(move |err, slf, ctx| {
                 log::error!("authentication encountered error: {}", LogError(&err));
 
                 if err.is_network_error() {
-                    slf.handle_network_error();
+                    slf.handle_network_error(ctx);
                 } else {
                     slf.auth_state = AuthState::Error;
                 }
@@ -583,7 +608,8 @@ impl Handler<Authenticate> for UpstreamRelay {
                 };
 
                 if should_retry {
-                    let interval = slf.backoff.next_backoff();
+                    // move interval up
+                    //let interval = slf.backoff.next_backoff();
                     log::debug!(
                         "scheduling authentication retry in {} seconds",
                         interval.as_secs()
@@ -622,13 +648,6 @@ impl Message for PumpHttpMessageQueue {
     type Result = ();
 }
 
-/// Message to resume pumping the Message queue after a network error
-struct ResumeHttpMessageQueue;
-
-impl Message for ResumeHttpMessageQueue {
-    type Result = ();
-}
-
 /// The `PumpHttpMessageQueue` is an internal Relay message that is used to drive the
 /// HttpMessageQueue. Requests that need to be sent over http are placed on queues with
 /// various priorities. At various points in time (when events are added to the queue or
@@ -644,7 +663,7 @@ impl Handler<PumpHttpMessageQueue> for UpstreamRelay {
     fn handle(&mut self, _msg: PumpHttpMessageQueue, ctx: &mut Self::Context) -> Self::Result {
         // Skip sending requests while not ready. As soon as the Upstream becomes ready through
         // authentication, `PumpHttpMessageQueue` will be emitted again.
-        if !self.is_ready() || self.message_queue_blocked {
+        if !self.is_ready() {
             return;
         }
 
@@ -657,16 +676,6 @@ impl Handler<PumpHttpMessageQueue> for UpstreamRelay {
                 break; // no more messages to send at this time stop looping
             }
         }
-    }
-}
-
-impl Handler<ResumeHttpMessageQueue> for UpstreamRelay {
-    type Result = ();
-
-    /// unblocks the queue and starts sending messages again
-    fn handle(&mut self, _msg: ResumeHttpMessageQueue, ctx: &mut Self::Context) -> Self::Result {
-        self.message_queue_blocked = false;
-        ctx.notify(PumpHttpMessageQueue);
     }
 }
 
@@ -699,6 +708,7 @@ pub struct SendRequest<B = ()> {
     method: Method,
     path: String,
     builder: B,
+    retry: bool,
 }
 
 impl SendRequest {
@@ -707,6 +717,7 @@ impl SendRequest {
             method,
             path: path.into(),
             builder: (),
+            retry: true,
         }
     }
 
@@ -723,6 +734,7 @@ impl<B> SendRequest<B> {
         SendRequest {
             method: self.method,
             path: self.path,
+            retry: self.retry,
             builder: callback,
         }
     }
@@ -748,11 +760,13 @@ where
             method,
             path,
             mut builder,
+            retry,
         } = message;
 
         let ret_val = Box::new(
             self.enqueue_request(
                 RequestPriority::Low,
+                retry,
                 method,
                 path,
                 move |b| builder.build_request(b),
@@ -805,6 +819,9 @@ pub trait UpstreamQuery: Serialize {
 
     fn priority() -> RequestPriority {
         RequestPriority::Low
+    }
+    fn retry() -> bool {
+        false
     }
 }
 
