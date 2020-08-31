@@ -2405,6 +2405,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "process-event"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "paw",
+ "relay-general",
+ "structopt",
+]
+
+[[package]]
 name = "publicsuffix"
 version = "1.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2781,7 +2791,6 @@ dependencies = [
  "pretty_env_logger",
  "relay-common",
  "relay-config",
- "relay-general",
  "relay-server",
  "sentry",
  "serde",
