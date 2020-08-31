@@ -308,13 +308,6 @@ impl UpstreamRelay {
     }
 
     fn send_request(&mut self, mut request: UpstreamRequest, ctx: &mut Context<Self>) {
-        // let UpstreamRequest {
-        //     response_sender,
-        //     method,
-        //     path,
-        //     mut build,
-        // } = request;
-
         let host_header = self
             .config
             .http_host_header()
