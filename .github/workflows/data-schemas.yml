@@ -29,15 +29,14 @@ jobs:
           git clone https://getsentry-bot:$GITHUB_TOKEN@github.com/getsentry/sentry-data-schemas
           cd sentry-data-schemas/
           mkdir -p ./relay/
-          mv ../event.schema.json ./relay/event.schema.json
-          if git diff-files --quiet; then
-            echo "No changes"
+          mv ../event.schema.json relay/event.schema.json
+          git add relay/event.schema.json
+
+          echo "attempting commit"
+          if ! git commit -m "getsentry/relay@$GITHUB_SHA" ; then
+            echo "Stopping, no changes"
             exit 0
           fi
-
-          echo "git commit"
-          git add .
-          git commit -m "getsentry/relay@$GITHUB_SHA"
 
           for i in 1 2 3 4 5; do
             echo "git push; Attempt $i"
@@ -47,5 +46,6 @@ jobs:
 
             git pull --rebase
           done
+
           echo "Failed to push"
           exit 1
