@@ -527,7 +527,7 @@ pub struct RegisterState {
     timestamp: UnixTimestamp,
     relay_id: RelayId,
     public_key: PublicKey,
-    nonce: String,
+    rand: String,
 }
 
 impl RegisterState {
@@ -609,7 +609,7 @@ impl RegisterRequest {
             timestamp: UnixTimestamp::now(),
             relay_id: self.relay_id,
             public_key: self.public_key,
-            nonce: nonce(),
+            rand: nonce(),
         };
 
         RegisterChallenge {
