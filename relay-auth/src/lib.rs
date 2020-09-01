@@ -666,9 +666,12 @@ impl RegisterResponse {
     ) -> Result<(Self, RegisterState), UnpackError> {
         let response: Self = serde_json::from_slice(data).map_err(UnpackError::BadPayload)?;
         let state = response.token.unpack(secret, max_age)?;
-        let public_key = state.public_key();
 
-        if !public_key.verify_timestamp(data, signature, max_age) {
+        if let Some(header) = state.public_key().verify_meta(data, signature) {
+            if max_age.map_or(false, |m| header.expired(m)) {
+                return Err(UnpackError::SignatureExpired);
+            }
+        } else {
             return Err(UnpackError::BadSignature);
         }
 
