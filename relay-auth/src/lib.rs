@@ -527,7 +527,7 @@ pub struct RegisterState {
     timestamp: UnixTimestamp,
     relay_id: RelayId,
     public_key: PublicKey,
-    rand: String,
+    nonce: String,
 }
 
 impl RegisterState {
@@ -548,7 +548,7 @@ impl RegisterState {
 }
 
 /// Generates a new random token for the register state.
-fn random_token() -> String {
+fn nonce() -> String {
     let mut rng = thread_rng();
     let mut bytes = vec![0u8; 64];
     rng.fill_bytes(&mut bytes);
@@ -609,7 +609,7 @@ impl RegisterRequest {
             timestamp: UnixTimestamp::now(),
             relay_id: self.relay_id,
             public_key: self.public_key,
-            rand: random_token(),
+            nonce: nonce(),
         };
 
         RegisterChallenge {
