@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.1
 
 - Removed deprecated `pii_selectors_from_event`.
 - Return `UnpackErrorSignatureExpired` from `validate_register_response` when the timestamp is too old.
