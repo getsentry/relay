@@ -2856,6 +2856,7 @@ dependencies = [
  "debugid",
  "difference",
  "dynfmt",
+ "encoding",
  "failure",
  "hmac",
  "insta 0.15.0",
