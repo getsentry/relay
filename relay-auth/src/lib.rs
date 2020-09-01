@@ -428,36 +428,36 @@ pub fn generate_key_pair() -> (SecretKey, PublicKey) {
     (SecretKey { inner: kp }, PublicKey { inner: pk })
 }
 
-/// An encoded and signed `ChallengeState`.
+/// An encoded and signed `RegisterState`.
 ///
 /// This signature can be used by the upstream server to ensure that the downstream client did not
 /// tamper with the token without keeping state between requests. For more information, see
-/// `ChallengeState`.
+/// `RegisterState`.
 ///
-/// The format and contents of `SignedChallengeState` are intentionally opaque. Downstream clients
+/// The format and contents of `SignedRegisterState` are intentionally opaque. Downstream clients
 /// do not need to interpret it, and the upstream can change its contents at any time. Parsing and
 /// validation is only performed on the upstream.
 ///
 /// In the current implementation, the serialized state has the format `{state}:{signature}`, where
 /// each component is:
-///  - `state`: A URL-safe base64 encoding of the JSON serialized `ChallengeState`.
+///  - `state`: A URL-safe base64 encoding of the JSON serialized `RegisterState`.
 ///  - `signature`: A URL-safe base64 encoding of the SHA512 HMAC of the encoded state.
 ///
-/// To create a signed challenge, use `RegisterChallenge::sign`. To validate the signature and read
+/// To create a signed state, use `RegisterChallenge::sign`. To validate the signature and read
 /// the state, use `SignedRegisterChallenge::unpack`. In both cases, a secret for signing has to be
 /// supplied.
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct SignedChallengeState(String);
+pub struct SignedRegisterState(String);
 
-impl SignedChallengeState {
-    /// Creates an Hmac instance for signing the `ChallengeState`.
+impl SignedRegisterState {
+    /// Creates an Hmac instance for signing the `RegisterState`.
     fn mac(secret: &[u8]) -> Hmac<Sha512> {
         Hmac::new_varkey(secret).expect("HMAC takes variable keys")
     }
 
-    /// Signs the given `ChallengeState` and serializes it into a single string.
-    fn sign(state: ChallengeState, secret: &[u8]) -> Self {
-        let json = serde_json::to_string(&state).expect("relay challenge state serializes to JSON");
+    /// Signs the given `RegisterState` and serializes it into a single string.
+    fn sign(state: RegisterState, secret: &[u8]) -> Self {
+        let json = serde_json::to_string(&state).expect("relay register state serializes to JSON");
         let token = base64::encode_config(&json, base64::URL_SAFE_NO_PAD);
 
         let mut mac = Self::mac(secret);
@@ -486,7 +486,7 @@ impl SignedChallengeState {
         &self,
         secret: &[u8],
         max_age: Option<Duration>,
-    ) -> Result<ChallengeState, UnpackError> {
+    ) -> Result<RegisterState, UnpackError> {
         let (token, signature) = self.split();
         let code = base64::decode_config(signature, base64::URL_SAFE_NO_PAD)
             .map_err(|_| UnpackError::BadEncoding)?;
@@ -498,7 +498,7 @@ impl SignedChallengeState {
         let json = base64::decode_config(token, base64::URL_SAFE_NO_PAD)
             .map_err(|_| UnpackError::BadEncoding)?;
         let state =
-            serde_json::from_slice::<ChallengeState>(&json).map_err(UnpackError::BadPayload)?;
+            serde_json::from_slice::<RegisterState>(&json).map_err(UnpackError::BadPayload)?;
 
         if let Some(max_age) = max_age {
             let secs = state.timestamp().as_secs() as i64;
@@ -517,14 +517,14 @@ impl SignedChallengeState {
 /// register response. In addition to identifying information, it contains a random bit to avoid
 /// replay attacks.
 #[derive(Clone, Deserialize, Serialize)]
-pub struct ChallengeState {
+pub struct RegisterState {
     timestamp: UnixTimestamp,
     relay_id: RelayId,
     public_key: PublicKey,
     rand: String,
 }
 
-impl ChallengeState {
+impl RegisterState {
     /// Returns the timestamp at which the challenge was created.
     pub fn timestamp(&self) -> UnixTimestamp {
         self.timestamp
@@ -541,7 +541,7 @@ impl ChallengeState {
     }
 }
 
-/// Generates a new random token for the challenge state.
+/// Generates a new random token for the register state.
 fn random_token() -> String {
     let mut rng = thread_rng();
     let mut bytes = vec![0u8; 64];
@@ -549,10 +549,10 @@ fn random_token() -> String {
     base64::encode_config(&bytes, base64::URL_SAFE_NO_PAD)
 }
 
-/// Represents a challenge request.
+/// Represents a request for registration with the upstream.
 ///
 /// This is created if the relay signs in for the first time.  The server needs
-/// to respond to this challenge with a unique token that is then used to sign
+/// to respond to this request with a unique token that is then used to sign
 /// the response.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterRequest {
@@ -599,7 +599,7 @@ impl RegisterRequest {
 
     /// Creates a register challenge for this request.
     pub fn into_challenge(self, secret: &[u8]) -> RegisterChallenge {
-        let state = ChallengeState {
+        let state = RegisterState {
             timestamp: UnixTimestamp::now(),
             relay_id: self.relay_id,
             public_key: self.public_key,
@@ -608,7 +608,7 @@ impl RegisterRequest {
 
         RegisterChallenge {
             relay_id: self.relay_id,
-            token: SignedChallengeState::sign(state, secret),
+            token: SignedRegisterState::sign(state, secret),
         }
     }
 }
@@ -617,7 +617,7 @@ impl RegisterRequest {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterChallenge {
     relay_id: RelayId,
-    token: SignedChallengeState,
+    token: SignedRegisterState,
 }
 
 impl RegisterChallenge {
@@ -640,11 +640,14 @@ impl RegisterChallenge {
     }
 }
 
-/// Represents a response to a register challenge
+/// Represents a response to a register challenge.
+///
+/// The response contains the same data as the register challenge. By signing this payload
+/// successfully, this Relay authenticates with the upstream.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterResponse {
     relay_id: RelayId,
-    token: SignedChallengeState,
+    token: SignedRegisterState,
 }
 
 impl RegisterResponse {
