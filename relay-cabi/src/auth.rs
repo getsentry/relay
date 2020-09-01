@@ -1,7 +1,8 @@
 use chrono::Duration;
+use serde::Serialize;
 
 use relay_auth::{
-    generate_key_pair, generate_relay_id, PublicKey, RegisterRequest, RegisterResponse,
+    generate_key_pair, generate_relay_id, PublicKey, RegisterRequest, RegisterResponse, RelayId,
     RelayVersion, SecretKey,
 };
 
@@ -153,6 +154,13 @@ ffi_fn! {
     }
 }
 
+#[derive(Serialize)]
+struct RelayRegisterResponse<'a> {
+    pub relay_id: RelayId,
+    pub token: &'a str,
+    pub public_key: &'a PublicKey,
+}
+
 ffi_fn! {
     /// Validates a register response.
     unsafe fn relay_validate_register_response(
@@ -166,14 +174,20 @@ ffi_fn! {
             m => Some(Duration::seconds(i64::from(m))),
         };
 
-        let response = RegisterResponse::unpack(
+        let (response, state) = RegisterResponse::unpack(
             (*data).as_bytes(),
             (*signature).as_str(),
             (*secret).as_str().as_bytes(),
             max_age,
         )?;
 
-        Ok(RelayStr::from_string(serde_json::to_string(&response)?))
+        let relay_response = RelayRegisterResponse {
+            relay_id: response.relay_id(),
+            token: response.token(),
+            public_key: state.public_key(),
+        };
+
+        Ok(RelayStr::from_string(serde_json::to_string(&relay_response)?))
     }
 }
 

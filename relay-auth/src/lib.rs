@@ -511,6 +511,12 @@ impl SignedRegisterState {
     }
 }
 
+impl fmt::Display for SignedRegisterState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_str().fmt(f)
+    }
+}
+
 /// A state structure containing relevant information from `RegisterRequest`.
 ///
 /// This struct is used to carry over information between the downstream register request and
@@ -588,8 +594,8 @@ impl RegisterRequest {
     }
 
     /// Returns the relay ID of the registering relay.
-    pub fn relay_id(&self) -> &RelayId {
-        &self.relay_id
+    pub fn relay_id(&self) -> RelayId {
+        self.relay_id
     }
 
     /// Returns the new public key of registering relay.
@@ -657,7 +663,7 @@ impl RegisterResponse {
         signature: &str,
         secret: &[u8],
         max_age: Option<Duration>,
-    ) -> Result<Self, UnpackError> {
+    ) -> Result<(Self, RegisterState), UnpackError> {
         let response: Self = serde_json::from_slice(data).map_err(UnpackError::BadPayload)?;
         let state = response.token.unpack(secret, max_age)?;
         let public_key = state.public_key();
@@ -666,12 +672,12 @@ impl RegisterResponse {
             return Err(UnpackError::BadSignature);
         }
 
-        Ok(response)
+        Ok((response, state))
     }
 
     /// Returns the relay ID of the registering relay.
-    pub fn relay_id(&self) -> &RelayId {
-        &self.relay_id
+    pub fn relay_id(&self) -> RelayId {
+        self.relay_id
     }
 
     /// Returns the token that needs signing.
@@ -766,7 +772,7 @@ fn test_registration() {
     // attempt to get the data through bootstrap unpacking.
     let request =
         RegisterRequest::bootstrap_unpack(&request_bytes, &request_sig, Some(max_age)).unwrap();
-    assert_eq!(request.relay_id(), &relay_id);
+    assert_eq!(request.relay_id(), relay_id);
     assert_eq!(request.public_key(), &pk);
 
     let upstream_secret = b"secret";
@@ -782,7 +788,7 @@ fn test_registration() {
 
     // sign and unsign it
     let (response_bytes, response_sig) = sk.pack(&response);
-    let response = RegisterResponse::unpack(
+    let (response, _) = RegisterResponse::unpack(
         &response_bytes,
         &response_sig,
         upstream_secret,
@@ -790,7 +796,7 @@ fn test_registration() {
     )
     .unwrap();
 
-    assert_eq!(response.relay_id(), &relay_id);
+    assert_eq!(response.relay_id(), relay_id);
     assert_eq!(response.token(), challenge_token);
 }
 

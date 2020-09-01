@@ -116,7 +116,11 @@ def validate_register_response(data, signature, secret, max_age=60):
     )
 
     response = json.loads(decode_str(response_json, free=True))
-    return {"relay_id": uuid.UUID(response["relay_id"]), "token": response["token"]}
+    return {
+        "relay_id": uuid.UUID(response["relay_id"]),
+        "token": response["token"],
+        "public_key": response["public_key"],
+    }
 
 
 def is_version_supported(version):
