@@ -32,6 +32,7 @@ pub enum RelayErrorCode {
     UnpackErrorBadSignature = 1003,
     UnpackErrorBadPayload = 1004,
     UnpackErrorSignatureExpired = 1005,
+    UnpackErrorBadEncoding = 1006,
 
     // relay_general::types::annotated::ProcessingAction
     ProcessingErrorInvalidTransaction = 2001,
@@ -67,6 +68,7 @@ impl RelayErrorCode {
                     UnpackError::BadSignature => RelayErrorCode::UnpackErrorBadSignature,
                     UnpackError::BadPayload(..) => RelayErrorCode::UnpackErrorBadPayload,
                     UnpackError::SignatureExpired => RelayErrorCode::UnpackErrorSignatureExpired,
+                    UnpackError::BadEncoding => RelayErrorCode::UnpackErrorBadEncoding,
                 };
             }
             if let Some(err) = cause.downcast_ref::<ProcessingAction>() {

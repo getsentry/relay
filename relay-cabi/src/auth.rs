@@ -1,11 +1,9 @@
 use chrono::Duration;
-use serde::Serialize;
 
 use relay_auth::{
     generate_key_pair, generate_relay_id, PublicKey, RegisterRequest, RegisterResponse,
     RelayVersion, SecretKey,
 };
-use relay_common::Uuid;
 
 use crate::core::{RelayBuf, RelayStr, RelayUuid};
 
@@ -131,64 +129,51 @@ ffi_fn! {
     }
 }
 
-#[derive(Serialize)]
-struct RelayChallengeResult {
-    pub relay_id: Uuid,
-    pub public_key: PublicKey,
-    pub token: String,
-}
-
 ffi_fn! {
     /// Creates a challenge from a register request and returns JSON.
-    unsafe fn relay_create_register_challenge(data: *const RelayBuf,
-                                              signature: *const RelayStr,
-                                              max_age: u32)
-        -> Result<RelayStr>
-    {
-        let max_age = Duration::seconds(i64::from(max_age));
+    unsafe fn relay_create_register_challenge(
+        data: *const RelayBuf,
+        signature: *const RelayStr,
+        secret: *const RelayStr,
+        max_age: u32,
+    ) -> Result<RelayStr> {
+        let max_age = match max_age {
+            0 => None,
+            m => Some(Duration::seconds(i64::from(m))),
+        };
+
         let req = RegisterRequest::bootstrap_unpack(
-            (*data).as_bytes(), (*signature).as_str(), Some(max_age))?;
-        let challenge = req.create_challenge();
-        Ok(RelayStr::from_string(serde_json::to_string(&RelayChallengeResult {
-            relay_id: *req.relay_id(),
-            public_key: req.public_key().clone(),
-            token: challenge.token().to_string(),
-        })?))
-    }
-}
+            (*data).as_bytes(),
+            (*signature).as_str(),
+            max_age,
+        )?;
 
-ffi_fn! {
-    /// Given just the data from a register response returns the
-    /// conained relay id without validating the signature.
-    unsafe fn relay_get_register_response_relay_id(data: *const RelayBuf)
-        -> Result<RelayUuid>
-    {
-        Ok(RelayUuid::new(*RegisterResponse::unpack_unsafe((*data).as_bytes())?.relay_id()))
+        let challenge = req.into_challenge((*secret).as_str().as_bytes());
+        Ok(RelayStr::from_string(serde_json::to_string(&challenge)?))
     }
-}
-
-#[derive(Serialize)]
-struct RelayRegisterResponse {
-    pub relay_id: Uuid,
-    pub token: String,
 }
 
 ffi_fn! {
     /// Validates a register response.
-    unsafe fn relay_validate_register_response(pk: *const RelayPublicKey,
-                                               data: *const RelayBuf,
-                                               signature: *const RelayStr,
-                                               max_age: u32)
-        -> Result<RelayStr>
-    {
-        let max_age = Duration::seconds(i64::from(max_age));
-        let pk = &*(pk as *const PublicKey);
-        let reg_resp: RegisterResponse = pk.unpack(
-            (*data).as_bytes(), (*signature).as_str(), Some(max_age))?;
-        Ok(RelayStr::from_string(serde_json::to_string(&RelayRegisterResponse {
-            relay_id: *reg_resp.relay_id(),
-            token: reg_resp.token().to_string(),
-        })?))
+    unsafe fn relay_validate_register_response(
+        data: *const RelayBuf,
+        signature: *const RelayStr,
+        secret: *const RelayStr,
+        max_age: u32,
+    ) -> Result<RelayStr> {
+        let max_age = match max_age {
+            0 => None,
+            m => Some(Duration::seconds(i64::from(m))),
+        };
+
+        let response = RegisterResponse::unpack(
+            (*data).as_bytes(),
+            (*signature).as_str(),
+            (*secret).as_str().as_bytes(),
+            max_age,
+        )?;
+
+        Ok(RelayStr::from_string(serde_json::to_string(&response)?))
     }
 }
 

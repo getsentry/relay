@@ -1094,6 +1094,7 @@ dependencies = [
  "chrono",
  "ed25519-dalek",
  "failure",
+ "hmac",
  "rand 0.6.5",
  "relay-common",
  "serde",
