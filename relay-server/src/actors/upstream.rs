@@ -495,7 +495,7 @@ impl Handler<Authenticate> for UpstreamRelay {
             .into_actor(self)
             .and_then(|challenge, slf, ctx| {
                 log::debug!("got register challenge (token = {})", challenge.token());
-                let challenge_response = challenge.create_response();
+                let challenge_response = challenge.into_response();
 
                 log::debug!("sending register challenge response");
                 let fut = slf.send_query(challenge_response).into_actor(slf);

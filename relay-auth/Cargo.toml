@@ -15,6 +15,7 @@ base64 = "0.10.1"
 chrono = "0.4.11"
 ed25519-dalek = "0.9.1"
 failure = "0.1.8"
+hmac = "0.7.1"
 rand = "0.6.5"
 relay-common = { path = "../relay-common" }
 serde = { version = "1.0.114", features = ["derive"] }

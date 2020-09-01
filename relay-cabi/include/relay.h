@@ -71,6 +71,7 @@ enum RelayErrorCode {
   RELAY_ERROR_CODE_UNPACK_ERROR_BAD_SIGNATURE = 1003,
   RELAY_ERROR_CODE_UNPACK_ERROR_BAD_PAYLOAD = 1004,
   RELAY_ERROR_CODE_UNPACK_ERROR_SIGNATURE_EXPIRED = 1005,
+  RELAY_ERROR_CODE_UNPACK_ERROR_BAD_ENCODING = 1006,
   RELAY_ERROR_CODE_PROCESSING_ERROR_INVALID_TRANSACTION = 2001,
   RELAY_ERROR_CODE_PROCESSING_ERROR_INVALID_GEO_IP = 2002,
   RELAY_ERROR_CODE_INVALID_RELEASE_ERROR_TOO_LONG = 3001,
@@ -279,6 +280,7 @@ RelayStr relay_convert_datascrubbing_config(const RelayStr *config);
  */
 RelayStr relay_create_register_challenge(const RelayBuf *data,
                                          const RelayStr *signature,
+                                         const RelayStr *secret,
                                          uint32_t max_age);
 
 /**
@@ -334,12 +336,6 @@ RelayUuid relay_generate_relay_id(void);
 void relay_geoip_lookup_free(RelayGeoIpLookup *lookup);
 
 RelayGeoIpLookup *relay_geoip_lookup_new(const char *path);
-
-/**
- * Given just the data from a register response returns the
- * conained relay id without validating the signature.
- */
-RelayUuid relay_get_register_response_relay_id(const RelayBuf *data);
 
 /**
  * Initializes the library
@@ -476,9 +472,9 @@ RelayStr relay_validate_pii_config(const RelayStr *value);
 /**
  * Validates a register response.
  */
-RelayStr relay_validate_register_response(const RelayPublicKey *pk,
-                                          const RelayBuf *data,
+RelayStr relay_validate_register_response(const RelayBuf *data,
                                           const RelayStr *signature,
+                                          const RelayStr *secret,
                                           uint32_t max_age);
 
 /**

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Updates the authentication mechanism by introducing a signed register state. Signatures of `create_register_challenge` and `validate_register_response` now take a mandatory `secret` parameter, and the public key is encoded into the state. ([#743](https://github.com/getsentry/relay/pull/743))
+
 ## 0.5.13
 
 *Note: This accidentally got released as 0.15.13 as well, which has since been yanked.*
