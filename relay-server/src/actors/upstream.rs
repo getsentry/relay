@@ -371,7 +371,11 @@ impl UpstreamRelay {
     ///
     /// - if the request was sent, notify the response sender
     /// - if the request was not send:
-    ///     - if it was a network error schedule a retry
+    ///     - if it was a network error
+    ///         - if request should be retried
+    ///             - schedule a retry
+    ///         - if there is no scheduled Authentication request
+    ///             - schedule authentication (with backoff)
     ///     - if it was a non recoverable error, notify the response sender with the error
     fn handle_http_response_status(
         &mut self,
@@ -384,8 +388,8 @@ impl UpstreamRelay {
                 self.handle_network_error(ctx);
                 if request.retry {
                     self.enqueue(request, ctx, EnqueuePosition::Back);
-                    return futures::future::failed(());
                 }
+                return futures::future::failed(());
             }
             // we only retry network errors, forward this error and finish
             request.response_sender.send(Err(err)).ok();
