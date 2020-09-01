@@ -53,7 +53,7 @@ pub struct Frame {
     ///
     /// Note that this might also include a class name if that is something the
     /// language natively considers to be part of the stack (for instance in Java).
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty", pii = "maybe")]
     // TODO: Cap? This can be a FS path or a dotted path
     pub module: Annotated<String>,
 
