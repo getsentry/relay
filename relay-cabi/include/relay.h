@@ -355,11 +355,6 @@ RelayStr relay_parse_release(const RelayStr *value);
 RelayStr relay_pii_selector_suggestions_from_event(const RelayStr *event);
 
 /**
- * DEPRECATED: Use relay_pii_selector_suggestions_from_event
- */
-RelayStr relay_pii_selectors_from_event(const RelayStr *event);
-
-/**
  * Scrub an event using new PII stripping config.
  */
 RelayStr relay_pii_strip_event(const RelayStr *config, const RelayStr *event);

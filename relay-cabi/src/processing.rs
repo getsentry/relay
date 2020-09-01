@@ -182,15 +182,6 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    /// DEPRECATED: Use relay_pii_selector_suggestions_from_event
-    unsafe fn relay_pii_selectors_from_event(event: *const RelayStr) -> Result<RelayStr> {
-        let mut event = Annotated::<Event>::from_json((*event).as_str())?;
-        let rv = selector_suggestions_from_value(&mut event).into_iter().map(|x| x.path).collect::<Vec<_>>();
-        Ok(RelayStr::from_string(serde_json::to_string(&rv)?))
-    }
-}
-
-ffi_fn! {
     /// Walk through the event and collect selectors that can be applied to it in a PII config. This
     /// function is used in the UI to provide auto-completion of selectors.
     unsafe fn relay_pii_selector_suggestions_from_event(event: *const RelayStr) -> Result<RelayStr> {
