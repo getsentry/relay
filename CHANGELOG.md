@@ -9,7 +9,7 @@
 - Add periodic re-authentication with the upstream server, previously there was only one initial authentication. ([#731](https://github.com/getsentry/relay/pull/731))
 - The module attribute on stack frames (`$frame.module`) and the (usually serverside-generated) attribute `culprit` can now be scrubbed with advanced data scrubbing. ([#744](https://github.com/getsentry/relay/pull/744))
 
-**Bug Fiexes**:
+**Bug Fixes**:
 
 - Send requests to the `/envelope/` endpoint instead of the older `/store/` endpoint. This particularly fixes spurious `413 Payload Too Large` errors returned when using Relay with Sentry SaaS. ([#746](https://github.com/getsentry/relay/pull/746))
 
