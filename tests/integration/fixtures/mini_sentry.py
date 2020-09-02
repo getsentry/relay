@@ -127,7 +127,7 @@ def mini_sentry(request):
         )
         return jsonify({"event_id": uuid.uuid4().hex})
 
-    @app.route("/api/42/store/", methods=["POST"])
+    @app.route("/api/42/envelope/", methods=["POST"])
     def store_event():
         if flask_request.headers.get("Content-Encoding", "") == "gzip":
             data = gzip.decompress(flask_request.data)
@@ -144,6 +144,7 @@ def mini_sentry(request):
         return jsonify({"event_id": uuid.uuid4().hex})
 
     @app.route("/api/<project>/store/", methods=["POST"])
+    @app.route("/api/<project>/envelope/", methods=["POST"])
     def store_event_catchall(project):
         raise AssertionError(f"Unknown project: {project}")
 

@@ -1433,7 +1433,7 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
 
                 log::trace!("sending event to sentry endpoint");
-                let request = SendRequest::post(format!("/api/{}/store/", project_id)).build(
+                let request = SendRequest::post(format!("/api/{}/envelope/", project_id)).build(
                     move |builder| {
                         // Override the `sent_at` timestamp. Since the event went through basic
                         // normalization, all timestamps have been corrected. We propagate the new
