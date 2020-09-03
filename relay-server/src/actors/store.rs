@@ -15,7 +15,7 @@ use serde::{ser::Error, Serialize};
 
 use relay_common::{metric, ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
-use relay_general::protocol::{self, EventId, SessionStatus, SessionUpdate};
+use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
 use relay_quotas::Scoping;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
@@ -151,6 +151,23 @@ impl StoreForwarder {
         self.produce(KafkaTopic::Attachments, message)
     }
 
+    fn produce_sessions_from_aggregates(
+        &self,
+        org_id: u64,
+        project_id: ProjectId,
+        event_retention: u16,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        let aggregates = match SessionAggregates::parse(&item.payload()) {
+            Ok(aggregates) => aggregates,
+            Err(_) => return Ok(()),
+        };
+        for session in aggregates.into_updates_iter() {
+            self.produce_session_update(org_id, project_id, event_retention, session)?;
+        }
+        Ok(())
+    }
+
     fn produce_session(
         &self,
         org_id: u64,
@@ -163,7 +180,16 @@ impl StoreForwarder {
             Ok(session) => session,
             Err(_) => return Ok(()),
         };
+        self.produce_session_update(org_id, project_id, event_retention, session)
+    }
 
+    fn produce_session_update(
+        &self,
+        org_id: u64,
+        project_id: ProjectId,
+        event_retention: u16,
+        session: SessionUpdate,
+    ) -> Result<(), StoreError> {
         let message = KafkaMessage::Session(SessionKafkaMessage {
             org_id,
             project_id,
@@ -464,6 +490,14 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                         counter(RelayCounters::ProcessingMessageProduced) += 1,
                         event_type = "session"
                     );
+                }
+                ItemType::SessionAggregates => {
+                    self.produce_sessions_from_aggregates(
+                        scoping.organization_id,
+                        scoping.project_id,
+                        retention,
+                        item,
+                    )?;
                 }
                 _ => {}
             }

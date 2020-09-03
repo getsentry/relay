@@ -116,6 +116,102 @@ impl SessionUpdate {
     }
 }
 
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_zero(val: &u32) -> bool {
+    *val == 0
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AggregateItem {
+    /// The timestamp of when the session itself started.
+    pub started: DateTime<Utc>,
+    /// The distinct identifier.
+    #[serde(rename = "did", default, skip_serializing_if = "Option::is_none")]
+    pub distinct_id: Option<String>,
+    /// The number of exited sessions that ocurred.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub exited: u32,
+    /// The number of errored sessions that ocurred, not including the abnormal and crashed ones.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub errored: u32,
+    /// The number of abnormal sessions that ocurred.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub abnormal: u32,
+    /// The number of crashed sessions that ocurred.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub crashed: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SessionAggregates {
+    /// A batch of sessions that were started.
+    #[serde(default)]
+    pub aggregates: Vec<AggregateItem>,
+    /// The shared session event attributes.
+    #[serde(rename = "attrs")]
+    pub attributes: SessionAttributes,
+}
+
+impl SessionAggregates {
+    /// Parses a session batch from JSON.
+    pub fn parse(payload: &[u8]) -> Result<Self, serde_json::Error> {
+        serde_json::from_slice(payload)
+    }
+
+    /// Serializes a session batch back into JSON.
+    pub fn serialize(&self) -> Result<Vec<u8>, serde_json::Error> {
+        serde_json::to_vec(self)
+    }
+
+    /// The total number of sessions in this aggregate.
+    pub fn num_sessions(&self) -> u32 {
+        self.aggregates
+            .iter()
+            .map(|i| i.exited + i.errored + i.abnormal + i.crashed)
+            .sum()
+    }
+
+    /// Creates individual session updates from the aggregates.
+    pub fn into_updates_iter(self) -> impl Iterator<Item = SessionUpdate> {
+        let attributes = self.attributes;
+        let mut items = self.aggregates;
+        let mut item_opt = items.pop();
+        std::iter::from_fn(move || loop {
+            let item = item_opt.as_mut()?;
+
+            let (status, errors) = if item.exited > 0 {
+                item.exited -= 1;
+                (SessionStatus::Exited, 0)
+            } else if item.errored > 0 {
+                item.errored -= 1;
+                // when exploding, we create "legacy" session updates that have no `errored` state
+                (SessionStatus::Exited, 1)
+            } else if item.abnormal > 0 {
+                item.abnormal -= 1;
+                (SessionStatus::Abnormal, 1)
+            } else if item.crashed > 0 {
+                item.crashed -= 1;
+                (SessionStatus::Crashed, 1)
+            } else {
+                item_opt = items.pop();
+                continue;
+            };
+            return Some(SessionUpdate {
+                session_id: Uuid::nil(),
+                distinct_id: item.distinct_id.clone(),
+                sequence: 0,
+                init: true,
+                timestamp: Utc::now(),
+                started: item.started.clone(),
+                duration: None,
+                status,
+                errors,
+                attributes: attributes.clone(),
+            });
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,5 +321,99 @@ mod tests {
 
         assert_eq_dbg!(update, SessionUpdate::parse(json.as_bytes()).unwrap());
         assert_eq_str!(json, serde_json::to_string_pretty(&update).unwrap());
+    }
+
+    #[test]
+    fn test_session_aggregates() {
+        let json = r#"{
+  "aggregates": [{
+    "started": "2020-02-07T14:16:00Z",
+    "exited": 2,
+    "abnormal": 1
+  },{
+    "started": "2020-02-07T14:17:00Z",
+    "did": "some-user",
+    "errored": 1
+  }],
+  "attrs": {
+    "release": "sentry-test@1.0.0",
+    "environment": "production",
+    "ip_address": "::1",
+    "user_agent": "Firefox/72.0"
+  }
+}"#;
+        let aggregates = SessionAggregates::parse(json.as_bytes()).unwrap();
+        let mut iter = aggregates.into_updates_iter();
+
+        let mut settings = insta::Settings::new();
+        settings.add_redaction(".timestamp", "[TS]");
+        settings.bind(|| {
+            insta::assert_yaml_snapshot!(iter.next().unwrap(), @r###"
+            ---
+            sid: 00000000-0000-0000-0000-000000000000
+            did: some-user
+            seq: 0
+            init: true
+            timestamp: "[TS]"
+            started: "2020-02-07T14:17:00Z"
+            status: exited
+            errors: 1
+            attrs:
+              release: sentry-test@1.0.0
+              environment: production
+              ip_address: "::1"
+              user_agent: Firefox/72.0
+            "###);
+            insta::assert_yaml_snapshot!(iter.next().unwrap(), @r###"
+            ---
+            sid: 00000000-0000-0000-0000-000000000000
+            did: ~
+            seq: 0
+            init: true
+            timestamp: "[TS]"
+            started: "2020-02-07T14:16:00Z"
+            status: exited
+            errors: 0
+            attrs:
+              release: sentry-test@1.0.0
+              environment: production
+              ip_address: "::1"
+              user_agent: Firefox/72.0
+            "###);
+            insta::assert_yaml_snapshot!(iter.next().unwrap(), @r###"
+            ---
+            sid: 00000000-0000-0000-0000-000000000000
+            did: ~
+            seq: 0
+            init: true
+            timestamp: "[TS]"
+            started: "2020-02-07T14:16:00Z"
+            status: exited
+            errors: 0
+            attrs:
+              release: sentry-test@1.0.0
+              environment: production
+              ip_address: "::1"
+              user_agent: Firefox/72.0
+            "###);
+            insta::assert_yaml_snapshot!(iter.next().unwrap(), @r###"
+            ---
+            sid: 00000000-0000-0000-0000-000000000000
+            did: ~
+            seq: 0
+            init: true
+            timestamp: "[TS]"
+            started: "2020-02-07T14:16:00Z"
+            status: abnormal
+            errors: 1
+            attrs:
+              release: sentry-test@1.0.0
+              environment: production
+              ip_address: "::1"
+              user_agent: Firefox/72.0
+            "###);
+        });
+
+        assert_eq!(iter.next(), None);
     }
 }
