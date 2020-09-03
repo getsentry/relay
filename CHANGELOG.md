@@ -14,6 +14,7 @@
 - Performance improvement of http requests to upstream, high priority messages are sent first. ([#678](https://github.com/getsentry/relay/pull/678))
 - Experimental data scrubbing on minidumps([#682](https://github.com/getsentry/relay/pull/682))
 - Move `generate-schema` from the Relay CLI into a standalone tool. ([#739](//github.com/getsentry/relay/pull/739))
+- Retry sending events with network errors. ([#747](//github.com/getsentry/relay/pull/747))
 
 ## 20.8.0
 
