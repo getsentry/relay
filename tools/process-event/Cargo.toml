@@ -1,0 +1,17 @@
+[package]
+name = "process-event"
+version = "0.1.0"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Process a Sentry event payload"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+edition = "2018"
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.32"
+paw = "1.0.0"
+relay-general = { path = "../../relay-general" }
+structopt = { version = "0.3.16", features = ["paw"] }

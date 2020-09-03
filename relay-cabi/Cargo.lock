@@ -1094,6 +1094,7 @@ dependencies = [
  "chrono",
  "ed25519-dalek",
  "failure",
+ "hmac",
  "rand 0.6.5",
  "relay-common",
  "serde",
@@ -1103,7 +1104,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.5.13"
+version = "0.6.1"
 dependencies = [
  "chrono",
  "failure",
