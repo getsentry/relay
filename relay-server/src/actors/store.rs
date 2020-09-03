@@ -15,7 +15,9 @@ use serde::{ser::Error, Serialize};
 
 use relay_common::{metric, ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
-use relay_general::protocol::{self, EventId, SessionStatus, SessionUpdate};
+use relay_general::protocol::{
+    self, EventId, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
+};
 use relay_quotas::Scoping;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
@@ -27,6 +29,9 @@ lazy_static::lazy_static! {
     static ref NAMESPACE_DID: Uuid =
         Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/#did");
 }
+
+/// The maximum number of individual session updates generated for each aggregate item.
+const MAX_EXPLODED_SESSIONS: usize = 100;
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
@@ -151,7 +156,7 @@ impl StoreForwarder {
         self.produce(KafkaTopic::Attachments, message)
     }
 
-    fn produce_session(
+    fn produce_sessions(
         &self,
         org_id: u64,
         project_id: ProjectId,
@@ -159,12 +164,132 @@ impl StoreForwarder {
         client: Option<&str>,
         item: &Item,
     ) -> Result<(), StoreError> {
-        let session = match SessionUpdate::parse(&item.payload()) {
-            Ok(session) => session,
-            Err(_) => return Ok(()),
+        match item.ty() {
+            ItemType::Session => {
+                let mut session = match SessionUpdate::parse(&item.payload()) {
+                    Ok(session) => session,
+                    Err(_) => return Ok(()),
+                };
+                if session.status == SessionStatus::Errored {
+                    // Individual updates should never have the status `errored`
+                    session.status = SessionStatus::Exited;
+                }
+                self.produce_session_update(org_id, project_id, event_retention, client, session)?;
+            }
+            ItemType::Sessions => {
+                let aggregates = match SessionAggregates::parse(&item.payload()) {
+                    Ok(aggregates) => aggregates,
+                    Err(_) => return Ok(()),
+                };
+
+                if self.config.explode_session_aggregates() {
+                    if aggregates.num_sessions() as usize > MAX_EXPLODED_SESSIONS {
+                        log::warn!("exploded session items from aggregate exceed threshold");
+                    }
+
+                    for session in aggregates.into_updates_iter().take(MAX_EXPLODED_SESSIONS) {
+                        self.produce_session_update(
+                            org_id,
+                            project_id,
+                            event_retention,
+                            client,
+                            session,
+                        )?;
+                    }
+                } else {
+                    self.produce_sessions_from_aggregate(
+                        org_id,
+                        project_id,
+                        event_retention,
+                        client,
+                        aggregates,
+                    )?
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn produce_sessions_from_aggregate(
+        &self,
+        org_id: u64,
+        project_id: ProjectId,
+        event_retention: u16,
+        client: Option<&str>,
+        aggregates: SessionAggregates,
+    ) -> Result<(), StoreError> {
+        let SessionAggregates {
+            aggregates,
+            attributes,
+        } = aggregates;
+        let message = SessionKafkaMessage {
+            org_id,
+            project_id,
+            session_id: Uuid::nil(),
+            distinct_id: Uuid::nil(),
+            quantity: 1,
+            seq: 0,
+            received: protocol::datetime_to_timestamp(chrono::Utc::now()),
+            started: 0f64,
+            duration: None,
+            errors: 0,
+            release: attributes.release,
+            environment: attributes.environment,
+            sdk: client.map(str::to_owned),
+            retention_days: event_retention,
+            status: SessionStatus::Exited,
         };
 
-        let message = KafkaMessage::Session(SessionKafkaMessage {
+        if aggregates.len() > MAX_EXPLODED_SESSIONS {
+            log::warn!("aggregated session items exceed threshold");
+        }
+
+        for item in aggregates.into_iter().take(MAX_EXPLODED_SESSIONS) {
+            let mut message = message.clone();
+            message.started = protocol::datetime_to_timestamp(item.started);
+            message.distinct_id = item
+                .distinct_id
+                .as_deref()
+                .map(make_distinct_id)
+                .unwrap_or_default();
+
+            if item.exited > 0 {
+                message.errors = 0;
+                message.quantity = item.exited;
+                self.send_session_message(message.clone())?;
+            }
+            if item.errored > 0 {
+                message.errors = 1;
+                message.status = SessionStatus::Errored;
+                message.quantity = item.errored;
+                self.send_session_message(message.clone())?;
+            }
+            if item.abnormal > 0 {
+                message.errors = 1;
+                message.status = SessionStatus::Abnormal;
+                message.quantity = item.abnormal;
+                self.send_session_message(message.clone())?;
+            }
+            if item.crashed > 0 {
+                message.errors = 1;
+                message.status = SessionStatus::Crashed;
+                message.quantity = item.crashed;
+                self.send_session_message(message)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn produce_session_update(
+        &self,
+        org_id: u64,
+        project_id: ProjectId,
+        event_retention: u16,
+        client: Option<&str>,
+        session: SessionUpdate,
+    ) -> Result<(), StoreError> {
+        self.send_session_message(SessionKafkaMessage {
             org_id,
             project_id,
             session_id: session.session_id,
@@ -173,6 +298,7 @@ impl StoreForwarder {
                 .as_deref()
                 .map(make_distinct_id)
                 .unwrap_or_default(),
+            quantity: 1,
             seq: if session.init { 0 } else { session.sequence },
             received: protocol::datetime_to_timestamp(session.timestamp),
             started: protocol::datetime_to_timestamp(session.started),
@@ -186,10 +312,17 @@ impl StoreForwarder {
             environment: session.attributes.environment,
             sdk: client.map(str::to_owned),
             retention_days: event_retention,
-        });
+        })
+    }
 
+    fn send_session_message(&self, message: SessionKafkaMessage) -> Result<(), StoreError> {
         log::trace!("Sending session item to kafka");
-        self.produce(KafkaTopic::Sessions, message)
+        self.produce(KafkaTopic::Sessions, KafkaMessage::Session(message))?;
+        metric!(
+            counter(RelayCounters::ProcessingMessageProduced) += 1,
+            event_type = "session"
+        );
+        Ok(())
     }
 }
 
@@ -325,12 +458,13 @@ struct UserReportKafkaMessage {
     event_id: EventId,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 struct SessionKafkaMessage {
     org_id: u64,
     project_id: ProjectId,
     session_id: Uuid,
     distinct_id: Uuid,
+    quantity: u32,
     seq: u64,
     received: f64,
     started: f64,
@@ -452,18 +586,14 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                         event_type = "user_report"
                     );
                 }
-                ItemType::Session => {
-                    self.produce_session(
+                ItemType::Session | ItemType::Sessions => {
+                    self.produce_sessions(
                         scoping.organization_id,
                         scoping.project_id,
                         retention,
                         client,
                         item,
                     )?;
-                    metric!(
-                        counter(RelayCounters::ProcessingMessageProduced) += 1,
-                        event_type = "session"
-                    );
                 }
                 _ => {}
             }
