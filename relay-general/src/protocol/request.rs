@@ -3,6 +3,11 @@ use std::iter::{FromIterator, IntoIterator};
 use cookie::Cookie;
 use url::form_urlencoded;
 
+#[cfg(feature = "jsonschema")]
+use schemars::gen::SchemaGenerator;
+#[cfg(feature = "jsonschema")]
+use schemars::schema::Schema;
+
 use crate::protocol::{JsonLenientString, LenientString, PairList};
 use crate::types::{Annotated, Error, FromValue, Object, Value};
 
@@ -283,7 +288,6 @@ impl FromValue for Headers {
 
 /// A map holding query string pairs.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Query(pub PairList<(Annotated<String>, Annotated<JsonLenientString>)>);
 
 impl Query {
@@ -343,6 +347,29 @@ impl FromValue for Query {
                 Annotated(None, meta)
             }
         }
+    }
+}
+
+#[cfg(feature = "jsonschema")]
+impl schemars::JsonSchema for Query {
+    fn schema_name() -> String {
+        "Query".to_string()
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        #[derive(schemars::JsonSchema)]
+        #[schemars(untagged)]
+        #[allow(unused)]
+        enum Helper {
+            QueryString(String),
+            CanonicalQueryObject(PairList<(Annotated<String>, Annotated<String>)>),
+        }
+
+        Helper::json_schema(gen)
+    }
+
+    fn is_referenceable() -> bool {
+        false
     }
 }
 

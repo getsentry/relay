@@ -17,9 +17,10 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - run: make jsonschema
+      - run: make init-submodules
+      - run: cargo run -p generate-schema > event.schema.json
       - name: commit and push
-        if: {{ github.ref == 'ref/head/master' }}
+        if: github.ref == 'refs/heads/master'
         env:
           GITHUB_TOKEN: ${{ secrets.DATA_SCHEMAS_GITHUB_TOKEN }}
         run: |
@@ -28,7 +29,7 @@ jobs:
           git clone https://getsentry-bot:$GITHUB_TOKEN@github.com/getsentry/sentry-data-schemas
           cd sentry-data-schemas/
           mkdir -p ./relay/
-          cp ../docs/event-schema/event.schema.json ./relay/event.schema.json
+          mv ../event.schema.json ./relay/event.schema.json
           if git diff-files --quiet; then
             echo "No changes"
             exit 0

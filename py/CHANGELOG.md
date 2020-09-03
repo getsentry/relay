@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.5.13
+
+*Note: This accidentally got released as 0.15.13 as well, which has since been yanked.*
 
 - Fix Python 3 incompatibilities in Relay authentication helpers. ([#712](https://github.com/getsentry/relay/pull/712))
 

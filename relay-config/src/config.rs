@@ -524,11 +524,20 @@ struct Http {
     max_retry_interval: u32,
     /// The custom HTTP Host header to send to the upstream.
     host_header: Option<String>,
-    /// The number of seconds after a successful authentication after which
-    /// a Relay tries to re-authenticate with the upstream server.
-    auth_interval: u64,
-    /// The number of seconds allowed for a Relay to re-authenticate after which
-    /// it is considered that re-authentication has failed.
+    /// The interval in seconds at which Relay attempts to reauthenticate with the upstream server.
+    ///
+    /// Re-authentication happens even when Relay is idle. If authentication fails, Relay reverts
+    /// back into startup mode and tries to establish a connection. During this time, incoming
+    /// events will be buffered.
+    ///
+    /// Defaults to `600` (10 minutes).
+    auth_interval: Option<u64>,
+    /// The time until Relay considers authentication dropped after experiencing errors.
+    ///
+    /// If connection with the upstream resumes or authentication succeeds during the grace period,
+    /// Relay retains normal operation. If, instead, connection errors or failed re-authentication
+    /// attempts persist beyond the grace period, Relay suspends event submission and reverts into
+    /// authentication mode.
     auth_grace_period: u64,
 }
 
@@ -537,9 +546,9 @@ impl Default for Http {
         Http {
             timeout: 5,
             connection_timeout: 3,
-            max_retry_interval: 60,
+            max_retry_interval: 60, // 1 minute
             host_header: None,
-            auth_interval: 60,
+            auth_interval: Some(600), // 10 minutes
             auth_grace_period: 10,
         }
     }
@@ -1108,9 +1117,18 @@ impl Config {
         self.values.relay.tls_identity_password.as_deref()
     }
 
-    /// Returns the interval at which Realy should try to re-authenticate with the upstream
-    pub fn http_auth_interval(&self) -> Duration {
-        Duration::from_secs(self.values.http.auth_interval)
+    /// Returns the interval at which Realy should try to re-authenticate with the upstream.
+    ///
+    /// Always disabled in processing mode.
+    pub fn http_auth_interval(&self) -> Option<Duration> {
+        if self.processing_enabled() {
+            return None;
+        }
+
+        match self.values.http.auth_interval {
+            None | Some(0) => None,
+            Some(secs) => Some(Duration::from_secs(secs)),
+        }
     }
 
     /// The maximum amount of time that a Relay is allowed to take to re-authenticate with

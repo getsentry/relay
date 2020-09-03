@@ -14,7 +14,6 @@ publish = false
 default = ["ssl"]
 ssl = ["relay-server/ssl"]
 processing = ["relay-server/processing"]
-jsonschema = ["relay-general/jsonschema"]
 
 # Direct dependencies of the main application in `src/`
 [dependencies]

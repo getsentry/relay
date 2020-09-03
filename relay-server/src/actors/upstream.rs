@@ -589,7 +589,9 @@ impl Handler<Authenticate> for UpstreamRelay {
                 slf.backoff.reset();
                 slf.first_error = None;
 
-                ctx.notify_later(Authenticate, slf.config.http_auth_interval());
+                if let Some(interval) = slf.config.http_auth_interval() {
+                    ctx.notify_later(Authenticate, interval);
+                }
 
                 // Resume sending queued requests if we suspended due to dropped authentication
                 ctx.notify(PumpHttpMessageQueue);
