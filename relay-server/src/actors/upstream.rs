@@ -388,6 +388,8 @@ impl UpstreamRelay {
                 self.handle_network_error(ctx);
                 if request.retry {
                     self.enqueue(request, ctx, EnqueuePosition::Back);
+                    // a request was enqueued make sure we drive the message loop
+                    ctx.notify(PumpHttpMessageQueue);
                 }
                 return futures::future::failed(());
             }
