@@ -3,7 +3,6 @@ import json
 import os
 import re
 import uuid
-import types
 
 from queue import Queue
 
@@ -12,8 +11,9 @@ import pytest
 from flask import abort, Flask, request as flask_request, jsonify
 from werkzeug.serving import WSGIRequestHandler
 from pytest_localserver.http import WSGIServer
+from sentry_sdk.envelope import Envelope
 
-from . import SentryLike, Envelope
+from . import SentryLike
 
 
 _version_re = re.compile(r'^version\s*=\s*"(.*?)"\s*$(?m)')
@@ -23,13 +23,13 @@ with open(os.path.join(os.path.dirname(__file__), "../../../relay/Cargo.toml")) 
 
 class Sentry(SentryLike):
     def __init__(self, server_address, app):
-        self.server_address = server_address
+        super(Sentry, self).__init__(server_address)
+
         self.app = app
         self.project_configs = {}
         self.captured_events = Queue()
         self.captured_outcomes = Queue()
         self.test_failures = []
-        self.upstream = None
         self.hits = {}
         self.known_relays = {}
 

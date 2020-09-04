@@ -1,8 +1,6 @@
 import json
-import os
 import queue
 import redis
-import signal
 import socket
 import time
 import threading

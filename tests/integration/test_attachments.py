@@ -5,9 +5,7 @@ import uuid
 from requests.exceptions import HTTPError
 
 
-def test_attachments_400(
-    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer
-):
+def test_attachments_400(mini_sentry, relay_with_processing, attachments_consumer):
     proj_id = 42
     relay = relay_with_processing()
     mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
@@ -36,7 +34,7 @@ def test_attachments_with_processing(
         ("att_1", "foo.txt", b"heavens no"),
         ("att_2", "bar.txt", b"hell yeah"),
     ]
-    response = relay.send_attachments(project_id, event_id, attachments)
+    relay.send_attachments(project_id, event_id, attachments)
 
     attachment_contents = {}
     attachment_ids = []
@@ -107,7 +105,7 @@ def test_attachments_with_processing(
 
 
 def test_empty_attachments_with_processing(
-    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer
+    mini_sentry, relay_with_processing, attachments_consumer
 ):
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
@@ -117,7 +115,7 @@ def test_empty_attachments_with_processing(
     attachments_consumer = attachments_consumer()
 
     attachments = [("att_1", "foo.txt", b"")]
-    response = relay.send_attachments(project_id, event_id, attachments)
+    relay.send_attachments(project_id, event_id, attachments)
 
     attachment = attachments_consumer.get_individual_attachment()
 

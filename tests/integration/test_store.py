@@ -105,7 +105,7 @@ def test_filters_are_applied(
 
     relay.send_event(42, event)
 
-    event, v = events_consumer.try_get_event()
+    event, _ = events_consumer.try_get_event()
 
     if should_filter:
         assert event is None
@@ -143,7 +143,7 @@ def test_web_crawlers_filter_are_applied(
 
     relay.send_event(42, event)
 
-    event, v = events_consumer.try_get_event()
+    event, _ = events_consumer.try_get_event()
 
     if should_filter:
         assert event is None
@@ -509,7 +509,7 @@ def test_processing_quotas(
         transform = make_transaction
     elif event_type == "error":
         transform = make_error
-    elif event_type == "default":
+    else:
         transform = lambda e: e
 
     for i in range(5):

@@ -1,15 +1,6 @@
-import json
 import queue
-import signal
-import socket
-import time
-import threading
-
 import pytest
-
-from flask import jsonify
-
-from requests.exceptions import HTTPError
+import signal
 
 
 def test_graceful_shutdown(mini_sentry, relay):
@@ -126,7 +117,7 @@ def test_store_allowed_origins_passes(mini_sentry, relay, allowed_origins):
 
     relay = relay(mini_sentry)
 
-    response = relay.post(
+    relay.post(
         "/api/42/store/?sentry_key=%s" % (relay.dsn_public_key,),
         headers={"Origin": "http://valid.com"},
         json={"message": "hi"},
