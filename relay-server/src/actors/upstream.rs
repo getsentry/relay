@@ -45,6 +45,7 @@ use relay_quotas::{
 
 use crate::metrics::RelayHistograms;
 use crate::utils::{self, ApiErrorResponse, IntoTracked, TrackedFutureFinished};
+use futures::future::FutureResult;
 
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
@@ -361,7 +362,7 @@ impl UpstreamRelay {
             .and_then(handle_response)
             .into_actor(self)
             .then(|send_result, slf, ctx| {
-                slf.handle_http_response_status(request, send_result, ctx)
+                slf.handle_http_response(request, send_result, ctx)
                     .into_actor(slf)
             })
             .spawn(ctx);
@@ -377,12 +378,12 @@ impl UpstreamRelay {
     ///         - if there is no scheduled Authentication request
     ///             - schedule authentication (with backoff)
     ///     - if it was a non recoverable error, notify the response sender with the error
-    fn handle_http_response_status(
+    fn handle_http_response(
         &mut self,
         request: UpstreamRequest,
         send_result: Result<ClientResponse, UpstreamRequestError>,
         ctx: &mut Context<Self>,
-    ) -> impl Future<Item = (), Error = ()> {
+    ) -> FutureResult<(), ()> {
         if let Err(err) = send_result {
             if err.is_network_error() {
                 self.handle_network_error(ctx);
@@ -396,13 +397,11 @@ impl UpstreamRelay {
             // we only retry network errors, forward this error and finish
             request.response_sender.send(Err(err)).ok();
         } else {
-            // reset any previously failed status
-            // TODO should we reset on success or on anything that is not a network error ?
-            self.first_error = None;
-            // success forward the result and finish
+            // success forward the result
             request.response_sender.send(send_result).ok();
         }
-
+        //we managed a request without a network error, reset the first time we got an network error
+        self.first_error = None;
         futures::future::ok(())
     }
 
@@ -412,35 +411,26 @@ impl UpstreamRelay {
         ctx: &mut Context<Self>,
         position: EnqueuePosition,
     ) {
-        let push = match position {
-            EnqueuePosition::Front => VecDeque::push_front,
-            EnqueuePosition::Back => VecDeque::push_back,
-        };
-        let queue: Option<_>;
-
-        match request.priority {
+        let queue = match request.priority {
             RequestPriority::Immediate => {
                 // Immediate is special and bypasses the queue. Directly send the request and return
                 // the response channel rather than waiting for `PumpHttpMessageQueue`.
                 self.send_request(request, ctx);
                 return;
             }
-            RequestPriority::Low => {
-                queue = Some(&mut self.low_prio_requests);
-            }
-            RequestPriority::High => {
-                queue = Some(&mut self.high_prio_requests);
-            }
+            RequestPriority::Low => &mut self.low_prio_requests,
+            RequestPriority::High => &mut self.high_prio_requests,
         };
 
-        if let Some(queue) = queue {
-            let name = request.priority.name();
-            push(queue, request);
-            metric!(
-                histogram(RelayHistograms::UpstreamMessageQueueSize) = queue.len() as u64,
-                priority = name
-            );
-        }
+        let name = request.priority.name();
+        match position {
+            EnqueuePosition::Front => queue.push_front(request),
+            EnqueuePosition::Back => queue.push_back(request),
+        };
+        metric!(
+            histogram(RelayHistograms::UpstreamMessageQueueSize) = queue.len() as u64,
+            priority = name
+        );
     }
 
     fn enqueue_request<P, F>(
@@ -464,18 +454,16 @@ impl UpstreamRelay {
             //unwrap the result (this is how we transport the http failure through the channel)
             .and_then(|result| result);
 
-        self.enqueue(
-            UpstreamRequest {
-                priority,
-                retry,
-                method,
-                path: path.as_ref().to_owned(),
-                response_sender: tx,
-                build: Box::new(build),
-            },
-            ctx,
-            EnqueuePosition::Front,
-        );
+        let request = UpstreamRequest {
+            priority,
+            retry,
+            method,
+            path: path.as_ref().to_owned(),
+            response_sender: tx,
+            build: Box::new(build),
+        };
+
+        self.enqueue(request, ctx, EnqueuePosition::Front);
 
         Box::new(future)
     }
@@ -828,8 +816,9 @@ pub trait UpstreamQuery: Serialize {
     fn priority() -> RequestPriority {
         RequestPriority::Low
     }
+
     fn retry() -> bool {
-        false
+        true
     }
 }
 
@@ -867,6 +856,10 @@ impl UpstreamQuery for RegisterRequest {
     fn priority() -> RequestPriority {
         RequestPriority::Immediate
     }
+
+    fn retry() -> bool {
+        false
+    }
 }
 
 impl UpstreamQuery for RegisterResponse {
@@ -880,5 +873,9 @@ impl UpstreamQuery for RegisterResponse {
     }
     fn priority() -> RequestPriority {
         RequestPriority::Immediate
+    }
+
+    fn retry() -> bool {
+        false
     }
 }

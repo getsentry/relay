@@ -9,6 +9,7 @@
 - Periodically re-authenticate with the upstream server. Previously, there was only one initial authentication. ([#731](https://github.com/getsentry/relay/pull/731))
 - The module attribute on stack frames (`$frame.module`) and the (usually server side generated) attribute `culprit` can now be scrubbed with advanced data scrubbing. ([#744](https://github.com/getsentry/relay/pull/744))
 - Compress outgoing store requests for events and envelopes including attachements using `gzip` content encoding. ([#745](https://github.com/getsentry/relay/pull/745))
+- Retry sending events with network errors. ([#747](//github.com/getsentry/relay/pull/747))
 
 **Bug Fixes**:
 
@@ -21,7 +22,6 @@
 - Experimental data scrubbing on minidumps([#682](https://github.com/getsentry/relay/pull/682))
 - Move `generate-schema` from the Relay CLI into a standalone tool. ([#739](//github.com/getsentry/relay/pull/739))
 - Move `process-event` from the Relay CLI into a standalone tool. ([#740](//github.com/getsentry/relay/pull/740))
-- Retry sending events with network errors. ([#747](//github.com/getsentry/relay/pull/747))
 
 ## 20.8.0
 

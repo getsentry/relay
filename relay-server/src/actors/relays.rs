@@ -336,6 +336,10 @@ impl UpstreamQuery for GetRelays {
     fn priority() -> RequestPriority {
         RequestPriority::High
     }
+
+    fn retry() -> bool {
+        false
+    }
 }
 
 impl Handler<GetRelays> for RelayCache {
