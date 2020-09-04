@@ -22,7 +22,7 @@ ${prLink}
 If none of the above apply, you can opt out by adding _#skip-changelog_ to the PR description.
 `;
 
-async function hasChangelog(path) {
+async function checkChangelog(path) {
   const contents = await danger.github.utils.fileContents(path);
   return contents.includes(prLink);
 }
@@ -36,8 +36,8 @@ schedule(async () => {
   }
 
   const hasChangelog =
-    (await hasChangelog("CHANGELOG.md")) ||
-    (await hasChangelog("py/CHANGELOG.md"));
+    (await checkChangelog("CHANGELOG.md")) ||
+    (await checkChangelog("py/CHANGELOG.md"));
 
   if (!hasChangelog) {
     fail(ERROR_MESSAGE);
