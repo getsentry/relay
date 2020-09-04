@@ -1,6 +1,6 @@
-const files = danger.git.modified_files;
-const hasChangelog = files.indexOf("CHANGELOG.md") !== -1;
-const hasPyChangelog = files.indexOf("py/CHANGELOG.md") !== -1;
+const prNumber = danger.github.pr.number;
+const prUrl = danger.github.pr.html_url;
+const prLink = `[#${prNumber}](${prUrl})`;
 
 const ERROR_MESSAGE =
   "Please consider adding a changelog entry for the next release.";
@@ -13,13 +13,34 @@ For changes to the _Relay server_, please add an entry to \`CHANGELOG.md\` under
  2. **Bug Fixes**: For user-visible bug fixes.
  3. **Internal**: For features and bug fixes in internal operation, especially processing mode.
 
+To the changelog entry, please add a link to this PR:
+
+\`\`\`md
+${prLink}
+\`\`\`
+
 If none of the above apply, you can opt out by adding _#skip-changelog_ to the PR description.
 `;
 
-const skipChangelog =
-  danger.github && (danger.github.pr.body + "").includes("#skip-changelog");
-
-if (!skipChangelog && !hasChangelog && !hasPyChangelog) {
-  fail(ERROR_MESSAGE);
-  markdown(DETAILS);
+async function hasChangelog(path) {
+  const contents = await danger.github.utils.fileContents(path);
+  return contents.includes(prLink);
 }
+
+schedule(async () => {
+  const skipChangelog =
+    danger.github && (danger.github.pr.body + "").includes("#skip-changelog");
+
+  if (skipChangelog) {
+    return;
+  }
+
+  const hasChangelog =
+    (await hasChangelog("CHANGELOG.md")) ||
+    (await hasChangelog("py/CHANGELOG.md"));
+
+  if (!hasChangelog) {
+    fail(ERROR_MESSAGE);
+    markdown(DETAILS);
+  }
+});
