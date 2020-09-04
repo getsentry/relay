@@ -24,10 +24,9 @@ class Relay(SentryLike):
         config_dir,
         options,
     ):
-        self.server_address = server_address
+        super(Relay, self).__init__(server_address, upstream, public_key)
+
         self.process = process
-        self.upstream = upstream
-        self.public_key = public_key
         self.relay_id = relay_id
         self.config_dir = config_dir
         self.options = options
@@ -43,7 +42,7 @@ class Relay(SentryLike):
 
 
 @pytest.fixture
-def relay(tmpdir, mini_sentry, request, random_port, background_process, config_dir):
+def relay(mini_sentry, random_port, background_process, config_dir):
     def inner(
         upstream, options=None, prepare=None, external=None, wait_healthcheck=True
     ):

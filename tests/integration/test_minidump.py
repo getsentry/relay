@@ -4,7 +4,6 @@ import msgpack
 
 import pytest
 from requests import HTTPError
-import re
 from uuid import UUID
 
 MINIDUMP_ATTACHMENT_NAME = "upload_file_minidump"
@@ -403,7 +402,7 @@ def test_minidump_with_processing_invalid(
 
     relay = relay_with_processing()
 
-    project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    mini_sentry.project_configs[42] = mini_sentry.full_project_config()
 
     attachments_consumer = attachments_consumer()
 

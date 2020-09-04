@@ -63,18 +63,8 @@ def processing_config(get_topic_name):
     return inner
 
 
-def _sync_wait_on_result(futures_dict):
-    """
-    Synchronously waits on all futures returned by the admin_client api.
-    :param futures_dict: the api returns a dict of futures that can be awaited
-    """
-    # just wait on all futures returned by the async operations of the admin_client
-    for f in futures_dict.values():
-        f.result(5)  # wait up to 5 seconds for the admin operation to finish
-
-
 @pytest.fixture
-def relay_with_processing(relay, mini_sentry, processing_config, get_topic_name):
+def relay_with_processing(relay, mini_sentry, processing_config):
     """
     Creates a fixture that configures a relay with processing enabled and that forwards
     requests to the test ingestion topics
@@ -136,6 +126,9 @@ def kafka_consumer(request, get_topic_name, processing_config):
 
 
 class ConsumerBase(object):
+    def __init__(self, consumer):
+        self.consumer = consumer
+
     # First poll takes forever, the next ones are fast
     def poll(self):
         rv = self.consumer.poll(timeout=5)
@@ -148,9 +141,6 @@ def outcomes_consumer(kafka_consumer):
 
 
 class OutcomesConsumer(ConsumerBase):
-    def __init__(self, consumer):
-        self.consumer = consumer
-
     def get_outcome(self):
         outcome = self.poll()
         assert outcome is not None
@@ -196,9 +186,6 @@ def sessions_consumer(kafka_consumer):
 
 
 class SessionsConsumer(ConsumerBase):
-    def __init__(self, consumer):
-        self.consumer = consumer
-
     def get_session(self):
         message = self.poll()
         assert message is not None
@@ -208,9 +195,6 @@ class SessionsConsumer(ConsumerBase):
 
 
 class EventsConsumer(ConsumerBase):
-    def __init__(self, consumer):
-        self.consumer = consumer
-
     def get_event(self):
         message = self.poll()
         assert message is not None

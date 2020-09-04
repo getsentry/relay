@@ -1,10 +1,8 @@
 import datetime
-import json
 import time
-import os
 
 import requests
-from sentry_sdk.envelope import Envelope, Item
+from sentry_sdk.envelope import Envelope
 
 session = requests.session()
 
@@ -13,6 +11,11 @@ class SentryLike(object):
     _healthcheck_passed = False
 
     dsn_public_key = "31a5a894b4524f74a9a8d0e27e21ba91"
+
+    def __init__(self, server_address, upstream=None, public_key=None):
+        self.server_address = server_address
+        self.upstream = upstream
+        self.public_key = public_key
 
     @property
     def url(self):
@@ -55,10 +58,8 @@ class SentryLike(object):
         return "<{}({})>".format(self.__class__.__name__, repr(self.upstream))
 
     def iter_public_keys(self):
-        try:
+        if self.public_key is not None:
             yield self.public_key
-        except AttributeError:
-            pass
 
         if self.upstream is not None:
             if isinstance(self.upstream, tuple):

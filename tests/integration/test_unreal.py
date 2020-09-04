@@ -38,7 +38,7 @@ def test_unreal_crash(mini_sentry, relay, dump_file_name):
 
 
 def test_unreal_minidump_with_processing(
-    mini_sentry, relay_with_processing, attachments_consumer, events_consumer
+    mini_sentry, relay_with_processing, attachments_consumer
 ):
     project_id = 42
     options = {"processing": {"attachment_chunk_size": "1.23 GB"}}
@@ -124,7 +124,7 @@ def test_unreal_minidump_with_processing(
 
 
 def test_unreal_apple_crash_with_processing(
-    mini_sentry, relay_with_processing, attachments_consumer, events_consumer
+    mini_sentry, relay_with_processing, attachments_consumer
 ):
     project_id = 42
     options = {"processing": {"attachment_chunk_size": "1.23 GB"}}
@@ -229,7 +229,7 @@ def test_unreal_apple_crash_with_processing(
 
 
 def test_unreal_minidump_with_config_and_processing(
-    mini_sentry, relay_with_processing, attachments_consumer, events_consumer
+    mini_sentry, relay_with_processing, attachments_consumer
 ):
     project_id = 42
     options = {"processing": {"attachment_chunk_size": "1.23 GB"}}
