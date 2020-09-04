@@ -4,10 +4,12 @@ import queue
 import datetime
 import uuid
 import six
-
+import socket
+import threading
 import pytest
 
 from requests.exceptions import HTTPError
+from flask import abort
 
 
 def test_store(mini_sentry, relay_chain):
@@ -545,3 +547,99 @@ def test_processing_quotas(
         event, _ = events_consumer.get_event()
 
         assert event["logentry"]["formatted"] == f"otherkey{i}"
+
+
+def test_events_buffered_before_auth(relay, mini_sentry):
+    evt = threading.Event()
+
+    def server_error(*args, **kwargs):
+        # simulate a bug in sentry
+        evt.set()
+        abort(500, "sentry is down")
+
+    old_handler = mini_sentry.app.view_functions["get_challenge"]
+    # make the register endpoint fail with a network error
+    mini_sentry.app.view_functions["get_challenge"] = server_error
+
+    # keep max backoff as short as the configuration allows (1 sec)
+    relay_options = {"http": {"max_retry_interval": 1}}
+    relay = relay(mini_sentry, relay_options, wait_healthcheck=False)
+    assert evt.wait(1)  # wait for relay to start authenticating
+
+    project_config = relay.basic_project_config()
+    mini_sentry.project_configs[42] = project_config
+
+    relay.send_event(42)
+    # resume normal function
+    mini_sentry.app.view_functions["get_challenge"] = old_handler
+
+    # now test that we still get the message sent at some point in time (the event is retried)
+    event = mini_sentry.captured_events.get(timeout=3).get_event()
+    assert event["logentry"] == {"formatted": "Hello, World!"}
+
+    # Relay reports authentication errors, which is fine.
+    mini_sentry.test_failures.clear()
+
+
+def test_events_are_retried(relay, mini_sentry):
+    # keep max backoff as short as the configuration allows (1 sec)
+    relay_options = {"http": {"max_retry_interval": 1}}
+    relay = relay(mini_sentry, relay_options)
+
+    project_config = relay.basic_project_config()
+    mini_sentry.project_configs[42] = project_config
+
+    evt = threading.Event()
+
+    def network_error_endpoint(*args, **kwargs):
+        # simulate a network error
+        evt.set()
+        raise socket.timeout()
+
+    old_handler = mini_sentry.app.view_functions["store_event"]
+    # make the store endpoint fail with a network error
+    mini_sentry.app.view_functions["store_event"] = network_error_endpoint
+
+    relay.send_event(42)
+    # test that the network fail handler is called at least once
+    assert evt.wait(1)
+    # resume normal function
+    mini_sentry.app.view_functions["store_event"] = old_handler
+
+    # now test that we still get the message sent at some point in time (the event is retried)
+    event = mini_sentry.captured_events.get(timeout=3).get_event()
+    assert event["logentry"] == {"formatted": "Hello, World!"}
+
+
+def test_failed_network_requests_trigger_re_authentication(relay, mini_sentry):
+    def network_error_endpoint(*args, **kwargs):
+        # simulate a network error
+        raise socket.timeout()
+
+    # make the store endpoint fail with a network error
+    mini_sentry.app.view_functions["store_event"] = network_error_endpoint
+    original_check_challenge = mini_sentry.app.view_functions["check_challenge"]
+    counter = [0]
+    evt = threading.Event()
+
+    def counted_check_challenge():
+        counter[0] += 1
+        if counter[0] >= 2:
+            evt.set()  # second auth attempt
+
+        return original_check_challenge()
+
+    mini_sentry.app.view_functions["check_challenge"] = counted_check_challenge
+
+    # keep max backoff as short as the configuration allows (1 sec)
+    # make sure the re-authentication is caused by the network failure (set it to be very large)
+    relay_options = {"http": {"max_retry_interval": 1, "auth_interval": 1000}}
+    relay = relay(mini_sentry, relay_options)
+    project_config = relay.basic_project_config()
+    mini_sentry.project_configs[42] = project_config
+
+    # send an event, the event should fail and trigger re-authentication (after a second)
+    relay.send_event(42)
+
+    # auth called at least twice
+    assert evt.wait(3)

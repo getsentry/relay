@@ -53,6 +53,10 @@ impl UpstreamQuery for SendOutcomes {
     fn path(&self) -> Cow<'static, str> {
         Cow::Borrowed("/api/0/relays/outcomes/")
     }
+
+    fn retry() -> bool {
+        true
+    }
 }
 
 /// Defines the structure of the HTTP outcomes responses for successful requests
