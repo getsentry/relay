@@ -816,10 +816,7 @@ pub trait UpstreamQuery: Serialize {
     fn priority() -> RequestPriority {
         RequestPriority::Low
     }
-
-    fn retry() -> bool {
-        true
-    }
+    fn retry() -> bool;
 }
 
 pub struct SendQuery<T: UpstreamQuery>(pub T);
