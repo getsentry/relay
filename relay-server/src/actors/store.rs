@@ -150,6 +150,7 @@ impl StoreForwarder {
         org_id: u64,
         project_id: ProjectId,
         event_retention: u16,
+        client: Option<&str>,
         item: &Item,
     ) -> Result<(), StoreError> {
         let session = match SessionUpdate::parse(&item.payload()) {
@@ -177,6 +178,7 @@ impl StoreForwarder {
                 .max((session.status == SessionStatus::Crashed) as _) as _,
             release: session.attributes.release,
             environment: session.attributes.environment,
+            sdk: client.map(str::to_owned),
             retention_days: event_retention,
         });
 
@@ -331,6 +333,7 @@ struct SessionKafkaMessage {
     errors: u16,
     release: String,
     environment: Option<String>,
+    sdk: Option<String>,
     retention_days: u16,
 }
 
@@ -400,6 +403,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
         } = message;
 
         let retention = envelope.retention();
+        let client = envelope.meta().client();
         let event_id = envelope.event_id();
         let event_item = envelope.get_item_by(|item| {
             matches!(
@@ -443,6 +447,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                         scoping.organization_id,
                         scoping.project_id,
                         retention,
+                        client,
                         item,
                     )?;
                 }

@@ -45,6 +45,7 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
         "release": "sentry-test@1.0.0",
         "environment": "production",
         "retention_days": 90,
+        "sdk": "raven-node/2.6.3",
     }
 
 
@@ -87,6 +88,7 @@ def test_session_with_processing_two_events(
         "release": "sentry-test@1.0.0",
         "environment": "production",
         "retention_days": 90,
+        "sdk": "raven-node/2.6.3",
     }
 
     relay.send_session(
@@ -117,6 +119,7 @@ def test_session_with_processing_two_events(
         "release": "sentry-test@1.0.0",
         "environment": "production",
         "retention_days": 90,
+        "sdk": "raven-node/2.6.3",
     }
 
 
@@ -209,6 +212,7 @@ def test_session_force_errors_on_crash(
         "release": "sentry-test@1.0.0",
         "environment": "production",
         "retention_days": 90,
+        "sdk": "raven-node/2.6.3",
     }
 
 
