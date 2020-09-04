@@ -13,14 +13,19 @@ For changes to the _Relay server_, please add an entry to \`CHANGELOG.md\` under
  2. **Bug Fixes**: For user-visible bug fixes.
  3. **Internal**: For features and bug fixes in internal operation, especially processing mode.
 
-To the changelog entry, please add a link to this PR:
+To the changelog entry, please add a link to this PR (consider a more descriptive message):
 
 \`\`\`md
-${prLink}
+- ${getCleanTitle()}. (${prLink})
 \`\`\`
 
 If none of the above apply, you can opt out by adding _#skip-changelog_ to the PR description.
 `;
+
+function getCleanTitle() {
+  const title = danger.github.pr.title;
+  return title.split(": ").slice(-1)[0].trim().replace(/\.+$/, "");
+}
 
 async function checkChangelog(path) {
   const contents = await danger.github.utils.fileContents(path);
