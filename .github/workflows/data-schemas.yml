@@ -6,7 +6,6 @@ on:
       - master
 
   pull_request:
-    types: [opened, synchronize, reopened, edited]
 
 jobs:
   event_schema:
