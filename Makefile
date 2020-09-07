@@ -80,14 +80,11 @@ doc-api: setup-git
 	@cargo doc
 .PHONY: doc-api
 
-doc-prose: .venv/bin/python doc-metrics
+doc-prose: .venv/bin/python
+	.venv/bin/pip install -U -r requirements-doc.txt
 	.venv/bin/mkdocs build
 	touch site/.nojekyll
 .PHONY: doc-prose
-
-doc-metrics: .venv/bin/python
-	.venv/bin/pip install -U -r requirements-doc.txt
-	cd scripts && ../.venv/bin/python extract_metric_docs.py
 
 doc-server: doc-prose
 	.venv/bin/mkdocs serve
