@@ -63,6 +63,7 @@ struct MetricPath(syn::Ident, syn::Ident);
 
 #[derive(Debug, Serialize)]
 struct Metric {
+    #[serde(rename = "type")]
     ty: MetricType,
     name: String,
     description: String,
