@@ -243,7 +243,7 @@ fn parse_metrics(source: &str) -> Result<Vec<Metric>> {
 #[structopt(verbatim_doc_comment, setting = AppSettings::ColoredHelp)]
 struct Cli {
     /// The format to output the schema in.
-    #[structopt(short, long, default_value = "yaml")]
+    #[structopt(short, long, default_value = "json")]
     format: SchemaFormat,
 
     /// Optional output path. By default, the schema is printed on stdout.
