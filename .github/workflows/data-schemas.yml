@@ -16,8 +16,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - run: echo ::set-env name=GIT_AUTHOR_NAME::"$(git log -1 --pretty=format:%an $GITHUB_SHA)"
-      - run: echo ::set-env name=GIT_AUTHOR_EMAIL::"$(git log -1 --pretty=format:%ae $GITHUB_SHA)"
+      - run: echo ::set-env name=GIT_AUTHOR::"$(git log -1 '--pretty=format:%an <%ae>' $GITHUB_SHA)"
       - run: make init-submodules
       - run: cargo run -p generate-schema > event.schema.json
       - name: commit and push
@@ -25,8 +24,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.DATA_SCHEMAS_GITHUB_TOKEN }}
         run: |
-          git config --global user.name "$GIT_AUTHOR_NAME"
-          git config --global user.email "$GIT_AUTHOR_EMAIL"
           git clone https://getsentry-bot:$GITHUB_TOKEN@github.com/getsentry/sentry-data-schemas
           cd sentry-data-schemas/
           mkdir -p ./relay/
@@ -34,7 +31,7 @@ jobs:
           git add relay/event.schema.json
 
           echo "attempting commit"
-          if ! git commit -m "getsentry/relay@$GITHUB_SHA" ; then
+          if ! git commit -m "getsentry/relay@$GITHUB_SHA" --author "$GIT_AUTHOR" ; then
             echo "Stopping, no changes"
             exit 0
           fi
@@ -58,23 +55,20 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - run: echo ::set-env name=GIT_AUTHOR_NAME::"$(git log -1 --pretty=format:%an $GITHUB_SHA)"
-      - run: echo ::set-env name=GIT_AUTHOR_EMAIL::"$(git log -1 --pretty=format:%ae $GITHUB_SHA)"
+      - run: echo ::set-env name=GIT_AUTHOR::"$(git log -1 '--pretty=format:%an <%ae>' $GITHUB_SHA)"
       - run: cargo run -p document-metrics > relay_metrics.json
       - name: commit and push
         if: github.ref == 'refs/heads/master'
         env:
           GITHUB_TOKEN: ${{ secrets.DATA_SCHEMAS_GITHUB_TOKEN }}
         run: |
-          git config --global user.name "$GIT_AUTHOR_NAME"
-          git config --global user.email "$GIT_AUTHOR_EMAIL"
           git clone https://getsentry-bot:$GITHUB_TOKEN@github.com/getsentry/sentry-docs
           cd sentry-docs/
           mv ../relay_metrics.json src/data/relay_metrics.json
           git add src/data/relay_metrics.json
 
           echo "attempting commit"
-          if ! git commit -m "getsentry/relay@$GITHUB_SHA" ; then
+          if ! git commit -m "getsentry/relay@$GITHUB_SHA" --author "$GIT_AUTHOR" ; then
             echo "Stopping, no changes"
             exit 0
           fi
