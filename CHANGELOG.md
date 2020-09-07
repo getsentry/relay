@@ -22,6 +22,7 @@
 - Experimental data scrubbing on minidumps([#682](https://github.com/getsentry/relay/pull/682))
 - Move `generate-schema` from the Relay CLI into a standalone tool. ([#739](//github.com/getsentry/relay/pull/739))
 - Move `process-event` from the Relay CLI into a standalone tool. ([#740](//github.com/getsentry/relay/pull/740))
+- Add a standalone tool to document metrics in JSON or YAML. ([#752](https://github.com/getsentry/relay/pull/752))
 
 ## 20.8.0
 
