@@ -238,15 +238,15 @@ fn parse_metrics(source: &str) -> Result<Vec<Metric>> {
     Ok(metrics)
 }
 
-/// Prints the event protocol schema.
+/// Prints documentation for metrics.
 #[derive(Debug, StructOpt)]
 #[structopt(verbatim_doc_comment, setting = AppSettings::ColoredHelp)]
 struct Cli {
-    /// The format to output the schema in.
+    /// The format to output the documentation in.
     #[structopt(short, long, default_value = "json")]
     format: SchemaFormat,
 
-    /// Optional output path. By default, the schema is printed on stdout.
+    /// Optional output path. By default, documentation is printed on stdout.
     #[structopt(short, long, value_name = "PATH")]
     output: Option<PathBuf>,
 }
