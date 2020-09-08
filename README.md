@@ -23,8 +23,9 @@ from the Sentry SDKs as well as the Sentry server into a proxy process.
 
 ## Documentation
 
-The project documentation can be found at:
-[https://getsentry.github.io/relay/](https://getsentry.github.io/relay/).
+- Product documentation can be found at: [https://docs.sentry.io/product/relay/](https://docs.sentry.io/product/relay).
+- Code and development documentation can be found at:
+  [https://getsentry.github.io/relay/](https://getsentry.github.io/relay/).
 
 ## License
 
@@ -56,7 +57,7 @@ development:
 
 For a lot of tests you will need Redis and Kafka running in their respective
 default configuration. `sentry devservices` from
-[sentry](github.com/getsentry/sentry) does this for you.
+[sentry](https://github.com/getsentry/sentry) does this for you.
 
 ### Building and Running
 
@@ -209,6 +210,5 @@ There are two separate projects to publish:
   releases with Sentry.
 
 - **Relay Python library** along with the C-ABI are released from the `py/`
-  subfolder. Change into that directory and run `craft prepare` and `craft
-  publish`. We use [Semantic Versioning](https://semver.org/) and release during
+  subfolder. Change into that directory and run `craft prepare` and `craft publish`. We use [Semantic Versioning](https://semver.org/) and release during
   the development cycle.
