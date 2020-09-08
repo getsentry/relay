@@ -18,7 +18,7 @@ jobs:
         with:
           toolchain: stable
           profile: minimal
-          components: rust-doc
+          components: rust-docs
           override: true
 
       - run: make doc
@@ -48,7 +48,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: -p generate-schema -o event.schema.json
+          args: -p generate-schema -- -o event.schema.json
 
       - name: Deploy
         if: github.ref == 'refs/heads/master'
@@ -97,7 +97,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: -p document-metrics -o relay_metrics.json
+          args: -p document-metrics -- -o relay_metrics.json
 
       - name: Deploy
         if: github.ref == 'refs/heads/master'
