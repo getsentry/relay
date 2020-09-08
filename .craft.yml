@@ -31,7 +31,6 @@ targets:
     target: getsentry/relay
 
 requireNames:
-  - /^gh-pages.zip$/
   - /^relay-Darwin-x86_64$/
   - /^relay-Darwin-x86_64-dsym.zip$/
   - /^relay-Linux-x86_64$/
