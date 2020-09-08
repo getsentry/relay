@@ -26,9 +26,9 @@ pub enum RelayHistograms {
     ///
     /// The event queue represents the envelopes that are being processed at a particular time in
     /// Relay. Once a request is received, the envelope receives some preliminary (quick) processing
-    /// to determine if it can be processed or it is rejected. Once this determination has been
-    /// done, the http request that created the envelope terminates and, if the request is to be
-    /// further processed, the envelope enters a queue.
+    /// to determine if it can be processed or if it must be rejected. Once this determination has
+    /// been made, the HTTP request that created the envelope terminates and, if the request is to
+    /// be further processed, the envelope enters a queue.
     ///
     /// Once the envelope finishes processing and is sent downstream, the envelope is considered
     /// handled and it leaves the queue.
@@ -56,7 +56,7 @@ pub enum RelayHistograms {
     ProjectStateCacheSize,
     /// The number of upstream requests queued up for a connection in the connection pool.
     ConnectorWaitQueue,
-    /// Number of messages queued by the Upstream actor and waiting to be sent over http.
+    /// Number of messages queued by the Upstream actor and waiting to be sent over HTTP.
     /// This metric is tagged with a priority label (for high and low priority queues).
     UpstreamMessageQueueSize,
 }
@@ -131,15 +131,15 @@ pub enum RelayTimers {
     /// them into max_num_requests requests. This metric represents the time spent from issuing
     /// the first request until all requests are finished.
     ProjectStateRequestDuration,
-    /// The total time spent getting the project id from upstream.
+    /// The total time spent getting the project ID from upstream.
     /// **Note** that ProjectIdRequests happen only for the legacy
-    /// endpoint that does not specify the project id in the url, for the new endpoints the
-    /// project id is extracted from the url path. Only projects with the id not already fetched
+    /// endpoint that does not specify the project ID in the URL, for the new endpoints the
+    /// project ID is extracted from the URL path. Only projects with the ID not already fetched
     /// are counted.
-    /// The project id is only fetched once and it is not refreshed.
+    /// The project ID is only fetched once and it is not refreshed.
     ProjectIdRequestDuration,
     /// The total duration of a request as seen from Relay from the moment the request is
-    /// received until a http result is returned. Note that this does **not** represent the
+    /// received until a HTTP result is returned. Note that this does **not** represent the
     /// total duration for processing an event. Requests for events that are not immediately
     /// rejected ( because the project has hit a rate limit) are scheduled for processing at
     /// a latter time and an HTTP OK (200) is returned.
@@ -172,11 +172,11 @@ impl TimerMetric for RelayTimers {
 /// Counter metrics used by Relay
 pub enum RelayCounters {
     /// Number of envelopes accepted in the current time slot. This represents requests that have
-    /// successfully passed rate limits, filters and have been successfully handled.
+    /// successfully passed rate limits and filters, and have been successfully handled.
     EnvelopeAccepted,
     /// Number of envelopes rejected in the current time slot. This includes envelopes being
     /// rejected because they are malformed or any other errors during processing (including
-    /// filtered events, invalid payloads and rate limits).
+    /// filtered events, invalid payloads, and rate limits).
     EnvelopeRejected,
     /// Represents a group of counters incremented for every outcome emitted by Relay, implemented
     /// with tags. The following tags are present for each event outcome:
@@ -185,13 +185,12 @@ pub enum RelayCounters {
     /// - `reason` which is the reason string for all outcomes that are not `Accepted`.
     #[cfg(feature = "processing")]
     Outcomes,
-    /// Counts the number of times a project state lookup is done. This includes requests
-    /// for projects that are cached and requests for projects that are not yet cached.
-    /// All requests that return a  `EventAction::Accept` i.e. are not rate limited (on
-    /// the fast path) or are discarded because we know the project is disabled or invalid
-    /// will be counted.
+    /// Counts the number of times a project state lookup is done. This includes requests for
+    /// projects that are cached and requests for projects that are not yet cached. All requests
+    /// that return a  `EventAction::Accept`, that is, are not rate limited (on the fast path) or
+    /// are discarded because we know the project is disabled or invalid will be counted.
     ProjectStateGet,
-    /// Counts the number of project state http requests. Note that a project state HTTP request
+    /// Counts the number of project state HTTP requests. Note that a project state HTTP request
     /// typically contains a number of projects (the project state requests are batched).
     ProjectStateRequest,
     /// Counts the number of times a request for a project is already present, this effectively
@@ -205,8 +204,8 @@ pub enum RelayCounters {
     ProjectCacheMiss,
     /// Counts the number of requests for the  ProjectId (the timing is tracked
     /// by `project_id.request.duration`). Note that ProjectIdRequests happen only for the legacy
-    /// endpoint that does not specify the project id in the url, for the new endpoints the
-    /// project id is extracted from the url path. Only projects with the id not already fetched
+    /// endpoint that does not specify the project ID in the URL, for the new endpoints the
+    /// project ID is extracted from the URL path. Only projects with the ID not already fetched
     /// are counted. Once the ProjectId is successfully cached it will be retained indefinitely.
     ProjectIdRequest,
     /// Counts the number of times Relay started.
@@ -214,21 +213,24 @@ pub enum RelayCounters {
     ServerStarting,
     /// Counts the number of messages placed on the Kafka queue.
     ///
-    /// When Relay operates with processing enabled and an item is successfully processed, each item
-    /// will generate a message on the Kafka. The counter has an `event_type` tag which is set to
-    /// either `event` or `attachment` representing the type of message produced on the Kafka queue.
+    /// When Relay operates with processing enabled and an Envelope item is successfully processed,
+    /// each item will result in a message on one of the ingestion topics on Kafka. The counter has
+    /// an `event_type` tag which is represents the type of message produced on the Kafka queue:
+    ///
+    ///  - `event`: An error or transaction event.
+    ///  - `attachment`: An attachment file associated with an error event.
     #[cfg(feature = "processing")]
     ProcessingMessageProduced,
     /// Counts the number of producer errors occurred after an event was already enqueued for
-    /// sending to Kafka. These errors might include e.g. MessageTooLarge errors when the broker
-    /// does not accept the requests over a certain size, which is usually due to invalic or
+    /// sending to Kafka. These errors might include, for example, MessageTooLarge errors when the
+    /// broker does not accept the requests over a certain size, which is usually due to invalid or
     /// inconsistent broker/producer configurations.
     #[cfg(feature = "processing")]
     ProcessingProduceError,
     /// Counts the number of events that hit any of the Store like endpoints (Store, Security,
-    /// MiniDump, Unreal). The events are counted before they are rate limited , filtered or
-    /// processed in any way. The counter has a `version` tag that tracks the message event
-    /// protocol version.
+    /// Minidump, Unreal). The events are counted before they are rate limited, filtered, or
+    /// processed in any way. The counter has a `version` tag that tracks the message event protocol
+    /// version.
     EventProtocol,
     /// Counts the number of requests reaching Relay.
     Requests,
@@ -245,14 +247,14 @@ pub enum RelayCounters {
     /// The number of requests that reused an already open upstream connection.
     ///
     /// Relay employs connection keep-alive whenever possible. Connections are kept open for 15
-    /// seconds of inactivity, or 75 seconds of activity.
+    /// seconds of inactivity or 75 seconds of activity.
     ConnectorReused,
     /// The number of upstream connections opened.
     ConnectorOpened,
     /// The number of upstream connections closed due to connection timeouts.
     ///
     /// Relay employs connection keep-alive whenever possible. Connections are kept open for 15
-    /// seconds of inactivity, or 75 seconds of activity.
+    /// seconds of inactivity or 75 seconds of activity.
     ConnectorClosed,
     /// The number of upstream connections that experienced errors.
     ConnectorErrors,
