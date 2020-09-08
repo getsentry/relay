@@ -1,0 +1,49 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `relay` crate."><meta name="keywords" content="rust, rustlang, rust-lang, relay"><title>relay - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../relay/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a><p class='location'>Crate relay</p><div class="sidebar-elems"><a id='all-types' href='all.html'><p>See all relay's items</p></a><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'relay', ty: 'mod', relpath: '../'};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/relay/main.rs.html#1-101' title='goto source code'>[src]</a></span><span class='in-band'>Crate <a class="mod" href=''>relay</a></span></h1><div class='docblock'><p align="center">
+  <img src="https://github.com/getsentry/relay/blob/master/artwork/relay-logo.png?raw=true" alt="Relay" width="480">
+</p>
+<p>Relay is a standalone service for scrubbing personal information and improving event submission
+response time. It acts as a middle layer between your application and Sentry.io. For information
+on setting up Relay in front of Sentry, see:</p>
+<p><a href="https://docs.sentry.io/product/relay/">Relay documentation</a></p>
+<h1 id="event-ingestion" class="section-header"><a href="#event-ingestion">Event Ingestion</a></h1>
+<p>Relay is also the primary event ingestion system at Sentry. When compiled with the <code>processing</code>
+feature and configured for ingestion, Relay ships functionality for:</p>
+<ul>
+<li>Acknowledging and handling web requests on store endpoints</li>
+<li>Applying rate limits and inbound data filters</li>
+<li>Data scrubbing of event payloads and attachments</li>
+<li>Validation and normalization of malformed or outdated data</li>
+<li>Forwarding of all information into the event processing pipeline</li>
+</ul>
+<h1 id="feature-flags" class="section-header"><a href="#feature-flags">Feature Flags</a></h1>
+<ul>
+<li><code>ssl</code> <em>(default)</em>: Enables SSL support using <code>native-tls</code>.</li>
+<li><code>processing</code>: Includes event ingestion and processing functionality. This should only be
+specified when compiling Relay as Sentry service. Standalone Relays do not need this feature.</li>
+</ul>
+<h1 id="workspace-crates" class="section-header"><a href="#workspace-crates">Workspace Crates</a></h1>
+<p>Relay is split into the following workspace crates:</p>
+<ul>
+<li><code>relay</code>: Main entry point and command line interface</li>
+<li><a href="../relay_auth/index.html"><code>relay-auth</code></a>: Authentication and crypto</li>
+<li><a href="../relay_cabi/index.html"><code>relay-cabi</code></a>: C-bindings for exposing functionality to Python</li>
+<li><a href="../relay_common/index.html"><code>relay-common</code></a>: Common utilities and crate re-exports</li>
+<li><a href="../relay_config/index.html"><code>relay-config</code></a>: Configuration for the CLI and server</li>
+<li><a href="../relay_filter/index.html"><code>relay-filter</code></a>: Inbound data filters</li>
+<li><a href="../relay_general/index.html"><code>relay-general</code></a>: Event protocol, normalization and data scrubbing</li>
+<li><a href="../relay_quotas/index.html"><code>relay-quotas</code></a>: Sentry quotas and rate limiting</li>
+<li><a href="../relay_redis/index.html"><code>relay-redis</code></a>: Pooled Redis and Redis cluster abstraction</li>
+<li><a href="../relay_server/index.html"><code>relay-server</code></a>: Endpoints and services</li>
+</ul>
+<h1 id="tools" class="section-header"><a href="#tools">Tools</a></h1>
+<p>Complementary to the Relay binary, the workspace contains a set of tools to interface with some
+of Relay's functionality or to export information:</p>
+<ul>
+<li><a href="../document_metrics/index.html"><code>document-metrics</code></a>: Generate documentation for metrics.</li>
+<li><a href="../generate_schema/index.html"><code>generate-schema</code></a>: Generate an event payload schema file.</li>
+<li><a href="../process_event/index.html"><code>process-event</code></a>: Process a Sentry event payload.</li>
+<li><a href="../scrub_minidump/index.html"><code>scrub-minidump</code></a>: Scrub PII from a Minidump file.</li>
+</ul>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table><tr class='module-item'><td><a class="mod" href="cli/index.html" title='relay::cli mod'>cli</a></td><td class='docblock-short'></td></tr><tr class='module-item'><td><a class="mod" href="cliapp/index.html" title='relay::cliapp mod'>cliapp</a></td><td class='docblock-short'></td></tr><tr class='module-item'><td><a class="mod" href="setup/index.html" title='relay::setup mod'>setup</a></td><td class='docblock-short'></td></tr><tr class='module-item'><td><a class="mod" href="utils/index.html" title='relay::utils mod'>utils</a></td><td class='docblock-short'></td></tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table><tr class='module-item'><td><a class="fn" href="fn.main.html" title='relay::main fn'>main</a></td><td class='docblock-short'></td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../";window.currentCrate = "relay";</script><script src="../main.js"></script><script defer src="../search-index.js"></script></body></html>

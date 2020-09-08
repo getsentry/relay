@@ -1,0 +1,121 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `relay-server/src/actors/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../relay_server/index.html'><div class='logo-container'><img src='../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1"> 1</span>
+<span id="2"> 2</span>
+<span id="3"> 3</span>
+<span id="4"> 4</span>
+<span id="5"> 5</span>
+<span id="6"> 6</span>
+<span id="7"> 7</span>
+<span id="8"> 8</span>
+<span id="9"> 9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="doccomment">//! Defines all actors of the relay.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Actors require an actix system to run. The system can be started using the [`Controller`]</span>
+<span class="doccomment">//! actor, which will also listen for shutdown signals and trigger a graceful shutdown. Note that</span>
+<span class="doccomment">//! actors must implement a handler for the [`Shutdown`] message and register with the controller</span>
+<span class="doccomment">//! to receive this signal. See the struct level documentation for more information.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The web server is wrapped by the [`Server`] actor. It starts the actix http web server and</span>
+<span class="doccomment">//! relays the graceful shutdown signal. Internally, it creates several other actors comprising the</span>
+<span class="doccomment">//! service state:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!  - [`ProjectCache`] and [`KeyCache`]: Two caches that serve queries for project configurations</span>
+<span class="doccomment">//!    and relay public keys, respectively. Their requests are debounced and batched based on a</span>
+<span class="doccomment">//!    configured interval (100ms by default). Also, missing projects and keys are cached for some</span>
+<span class="doccomment">//!    time.</span>
+<span class="doccomment">//!  - [`EventManager`] and [`EventProcessor`]: Handle a queue of events, verify their projects,</span>
+<span class="doccomment">//!    execute PII stripping and finally send the event to the upstream. The processor is spawned</span>
+<span class="doccomment">//!    in multiple synchronous worker threads (via `SyncArbiter`).</span>
+<span class="doccomment">//!  - [`UpstreamRelay`]: Abstraction for communication with the upstream (either another Relay or</span>
+<span class="doccomment">//!    Sentry). It manages an internal client connector to throttle requests and ensures this relay</span>
+<span class="doccomment">//!    is authenticated before sending queries (e.g. project config or public keys).</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! ### Example</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! ```ignore</span>
+<span class="doccomment">//! use relay_server::controller::Controller;</span>
+<span class="doccomment">//! use relay_server::server::Server;</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Controller::run(|| Server::start())</span>
+<span class="doccomment">//!     .expect(&quot;failed to start relay&quot;);</span>
+<span class="doccomment">//! ```</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! [`Controller`]: controller/struct.Controller.html</span>
+<span class="doccomment">//! [`Shutdown`]: controller/struct.Shutdown.html</span>
+<span class="doccomment">//! [`Server`]: controller/struct.Server.html</span>
+<span class="doccomment">//! [`ProjectCache`]: controller/struct.ProjectCache.html</span>
+<span class="doccomment">//! [`KeyCache`]: controller/struct.KeyCache.html</span>
+<span class="doccomment">//! [`EventManager`]: controller/struct.EventManager.html</span>
+<span class="doccomment">//! [`EventProcessor`]: controller/struct.EventProcessor.html</span>
+<span class="doccomment">//! [`UpstreamRelay`]: controller/struct.UpstreamRelay.html</span>
+
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">connector</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">controller</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">events</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">healthcheck</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">outcome</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">project</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">project_cache</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">project_keys</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">project_local</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">project_upstream</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">relays</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">server</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">upstream</span>;
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">project_redis</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">store</span>;
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../../";window.currentCrate = "relay_server";</script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>
