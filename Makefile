@@ -73,35 +73,24 @@ test-integration: build setup-venv
 
 # Documentation
 
-doc: doc-api doc-prose
-.PHONY: doc-api doc-prose
-
-doc-api: setup-git
-	@cargo doc
+doc: doc-api
 .PHONY: doc-api
 
-doc-prose: .venv/bin/python
-	.venv/bin/pip install -U -r requirements-doc.txt
-	.venv/bin/mkdocs build
-	touch site/.nojekyll
-.PHONY: doc-prose
+doc-api: setup-git
+	cargo doc --workspace --all-features --no-deps
+	@echo '<meta http-equiv="refresh" content="0; url=relay/" />Redirecting to <a href="relay/">relay</a>' > target/doc/index.html
+.PHONY: doc-api
 
-doc-server: doc-prose
-	.venv/bin/mkdocs serve
-.PHONY: doc-server
-
-doc-upload-travis: doc-prose
-	cd site && zip -r gh-pages .
-	set -e && zeus upload -t "application/zip+docs" site/gh-pages.zip \
-		|| [[ ! "$(TRAVIS_BRANCH)" =~ ^release/ ]]
-	set -e && zeus upload -t "application/octet-stream" -n event.schema.json docs/event-schema/event.schema.json \
+doc-upload-travis: doc
+	cd target/doc && zip -r gh-pages .
+	set -e && zeus upload -t "application/zip+docs" target/doc/gh-pages.zip \
 		|| [[ ! "$(TRAVIS_BRANCH)" =~ ^release/ ]]
 .PHONY: doc-upload-travis
 
-doc-upload-local: doc-prose
+doc-upload-local: doc setup-venv
 	# Use this for hotfixing docs, prefer a new release
 	.venv/bin/pip install -U ghp-import
-	.venv/bin/ghp-import -pf site/
+	.venv/bin/ghp-import -pf target/doc/
 .PHONY: doc-upload-local
 
 # Style checking

@@ -1,7 +1,7 @@
 [package]
 name = "relay-common"
 authors = ["Sentry <oss@sentry.io>"]
-description = "Common utilities for Relay"
+description = "Common utilities and crate re-exports for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
 version = "20.8.0"
