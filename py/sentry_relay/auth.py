@@ -120,6 +120,7 @@ def validate_register_response(data, signature, secret, max_age=60):
         "relay_id": uuid.UUID(response["relay_id"]),
         "token": response["token"],
         "public_key": response["public_key"],
+        "version": response["version"],
     }
 
 
