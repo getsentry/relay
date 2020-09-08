@@ -21,6 +21,14 @@ jobs:
           components: rust-docs
           override: true
 
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: doc-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('Cargo.lock') }}
+
       - run: make doc
 
       - name: Deploy
@@ -41,6 +49,14 @@ jobs:
           toolchain: stable
           profile: minimal
           override: true
+
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: schema-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('Cargo.lock') }}
 
       - run: make init-submodules
 
@@ -92,6 +108,14 @@ jobs:
           toolchain: stable
           profile: minimal
           override: true
+
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: metrics-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('Cargo.lock') }}
 
       - name: Document Metrics
         uses: actions-rs/cargo@v1
