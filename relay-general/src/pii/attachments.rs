@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::collections::BTreeSet;
 
 use regex::bytes::RegexBuilder as BytesRegexBuilder;
 use regex::Regex;
@@ -7,7 +6,7 @@ use smallvec::SmallVec;
 
 use crate::pii::compiledconfig::RuleRef;
 use crate::pii::regexes::{get_regex_for_rule_type, ReplaceBehavior};
-use crate::pii::utils::{hash_value, in_range};
+use crate::pii::utils::hash_value;
 use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::processor::{FieldAttrs, Pii, ProcessingState, ValueType};
 
@@ -86,8 +85,7 @@ fn apply_regex_to_bytes(
         Redaction::Mask => {
             for (start, end) in matches {
                 let match_slice = &mut data[start..end];
-                let match_slice_len = match_slice.len();
-                for (idx, c) in match_slice.iter_mut().enumerate() {
+                for c in match_slice.iter_mut() {
                     *c = MASK_PADDING;
                 }
             }

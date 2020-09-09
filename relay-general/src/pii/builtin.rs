@@ -607,7 +607,7 @@ mod tests {
         assert_text_rule!(
             rule = "@mac";
             input = "ether 4a:00:04:10:9b:50";
-            output = "ether 4a:00:04:**:**:**";
+            output = "ether *****************";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@mac", (6, 23)),
             ];
@@ -615,7 +615,7 @@ mod tests {
         assert_text_rule!(
             rule = "@mac:mask";
             input = "ether 4a:00:04:10:9b:50";
-            output = "ether 4a:00:04:**:**:**";
+            output = "ether *****************";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@mac:mask", (6, 23)),
             ];
@@ -667,7 +667,7 @@ mod tests {
         assert_text_rule!(
             rule = "@uuid";
             input = "user id ceee0822-ed8f-4622-b2a3-789e73e75cd1";
-            output = "user id ********-****-****-****-************";
+            output = "user id ************************************";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@uuid", (8, 44)),
             ];
@@ -675,7 +675,7 @@ mod tests {
         assert_text_rule!(
             rule = "@uuid:mask";
             input = "user id ceee0822-ed8f-4622-b2a3-789e73e75cd1";
-            output = "user id ********-****-****-****-************";
+            output = "user id ************************************";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@uuid:mask", (8, 44)),
             ];
@@ -751,7 +751,7 @@ mod tests {
         assert_text_rule!(
             rule = "@email:mask";
             input = "John Appleseed <john@appleseed.com>";
-            output = "John Appleseed <****@*********.***>";
+            output = "John Appleseed <******************>";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@email:mask", (16, 34)),
             ];
@@ -803,7 +803,7 @@ mod tests {
         assert_text_rule!(
             rule = "@creditcard:mask";
             input = "John Appleseed 4571234567890111!";
-            output = "John Appleseed ************0111!";
+            output = "John Appleseed ****************!";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@creditcard:mask", (15, 31)),
             ];
@@ -927,7 +927,7 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
         assert_text_rule!(
             rule = "@usssn";
             input = "Hi I'm Hilda and my SSN is 078-05-1120";
-            output = "Hi I'm Hilda and my SSN is ***-**-****";
+            output = "Hi I'm Hilda and my SSN is ***********";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@usssn", (27, 38)),
             ];
@@ -935,7 +935,7 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
         assert_text_rule!(
             rule = "@usssn:mask";
             input = "Hi I'm Hilda and my SSN is 078-05-1120";
-            output = "Hi I'm Hilda and my SSN is ***-**-****";
+            output = "Hi I'm Hilda and my SSN is ***********";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@usssn:mask", (27, 38)),
             ];
