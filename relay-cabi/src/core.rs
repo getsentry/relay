@@ -15,8 +15,9 @@ use relay_general::types::ProcessingAction;
 
 use crate::utils::{set_panic_hook, Panic, LAST_ERROR};
 
-/// Represents all possible error codes
+/// Represents all possible error codes.
 #[repr(u32)]
+#[allow(missing_docs)]
 pub enum RelayErrorCode {
     NoError = 0,
     Panic = 1,
@@ -113,7 +114,8 @@ pub struct RelayStr {
 }
 
 impl RelayStr {
-    pub fn new(s: &str) -> RelayStr {
+    /// Creates a new `RelayStr` by borrowing the given `&str`.
+    pub(crate) fn new(s: &str) -> RelayStr {
         RelayStr {
             data: s.as_ptr() as *mut c_char,
             len: s.len(),
@@ -121,7 +123,10 @@ impl RelayStr {
         }
     }
 
-    pub fn from_string(mut s: String) -> RelayStr {
+    /// Creates a new `RelayStr` by assuming ownership over the given `String`.
+    ///
+    /// When dropping this `RelayStr` instance, the buffer is freed.
+    pub(crate) fn from_string(mut s: String) -> RelayStr {
         s.shrink_to_fit();
         let rv = RelayStr {
             data: s.as_ptr() as *mut c_char,
@@ -132,7 +137,8 @@ impl RelayStr {
         rv
     }
 
-    pub unsafe fn free(&mut self) {
+    /// Frees the string buffer if it is owned.
+    pub(crate) unsafe fn free(&mut self) {
         if self.owned {
             String::from_raw_parts(self.data as *mut _, self.len, self.len);
             self.data = ptr::null_mut();
@@ -141,7 +147,8 @@ impl RelayStr {
         }
     }
 
-    pub unsafe fn as_str(&self) -> &str {
+    /// Returns a borrowed string.
+    pub(crate) unsafe fn as_str(&self) -> &str {
         str::from_utf8_unchecked(slice::from_raw_parts(self.data as *const _, self.len))
     }
 }
@@ -180,13 +187,9 @@ pub struct RelayUuid {
 }
 
 impl RelayUuid {
-    pub fn new(uuid: Uuid) -> RelayUuid {
+    pub(crate) fn new(uuid: Uuid) -> RelayUuid {
         let data = *uuid.as_bytes();
         Self { data }
-    }
-
-    pub unsafe fn as_uuid(&self) -> &Uuid {
-        &*(self as *const RelayUuid as *const Uuid)
     }
 }
 
@@ -214,26 +217,7 @@ pub struct RelayBuf {
 }
 
 impl RelayBuf {
-    pub fn new(b: &[u8]) -> RelayBuf {
-        RelayBuf {
-            data: b.as_ptr() as *mut u8,
-            len: b.len(),
-            owned: false,
-        }
-    }
-
-    pub fn from_vec(mut b: Vec<u8>) -> RelayBuf {
-        b.shrink_to_fit();
-        let rv = RelayBuf {
-            data: b.as_ptr() as *mut u8,
-            len: b.len(),
-            owned: true,
-        };
-        mem::forget(b);
-        rv
-    }
-
-    pub unsafe fn free(&mut self) {
+    pub(crate) unsafe fn free(&mut self) {
         if self.owned {
             Vec::from_raw_parts(self.data as *mut u8, self.len, self.len);
             self.data = ptr::null_mut();
@@ -242,7 +226,7 @@ impl RelayBuf {
         }
     }
 
-    pub unsafe fn as_bytes(&self) -> &[u8] {
+    pub(crate) unsafe fn as_bytes(&self) -> &[u8] {
         slice::from_raw_parts(self.data as *const u8, self.len)
     }
 }

@@ -31,7 +31,7 @@
 //!
 //!  - `relay`: Main entry point and command line interface
 //!  - [`relay-auth`]: Authentication and crypto
-//!  - `relay-cabi`: C-bindings for exposing functionality to Python
+//!  - [`relay-cabi`]: C-bindings for exposing functionality to Python
 //!  - [`relay-common`]: Common utilities and crate re-exports
 //!  - [`relay-config`]: Configuration for the CLI and server
 //!  - [`relay-filter`]: Inbound data filters
@@ -52,6 +52,7 @@
 //!
 //! [relay documentation]: https://docs.sentry.io/product/relay/
 //! [`relay-auth`]: ../relay_auth/index.html
+//! [`relay-cabi`]: ../relay_cabi/index.html
 //! [`relay-common`]: ../relay_common/index.html
 //! [`relay-config`]: ../relay_config/index.html
 //! [`relay-filter`]: ../relay_filter/index.html

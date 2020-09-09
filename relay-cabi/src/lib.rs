@@ -91,6 +91,7 @@
 //!   breaking changes in the `relay` crate itself, **do major** bump.
 
 #![allow(clippy::missing_safety_doc)]
+#![warn(missing_docs)]
 
 #[macro_use]
 mod utils;
