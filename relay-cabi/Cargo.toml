@@ -10,11 +10,7 @@ license-file = "../LICENSE"
 publish = false
 
 [lib]
-name = "relay"
 crate-type = ["cdylib"]
-
-# Cannot document, as this would override docs for "relay" due to the renamed library.
-doc = false
 
 [dependencies]
 chrono = "0.4.11"
