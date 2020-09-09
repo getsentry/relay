@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- In PII configs, all options on hash and mask redactions (replacement characters, ignored characters, hash algorithm/key) are removed. If they still exist in the configuration, they are ignored. ([#760](https://github.com/getsentry/relay/pull/760))
+
 ## 0.6.1
 
 - Removed deprecated `pii_selectors_from_event`.

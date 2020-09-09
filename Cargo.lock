@@ -2910,7 +2910,6 @@ dependencies = [
  "serde_json",
  "serde_urlencoded 0.5.5",
  "sha-1",
- "sha2",
  "smallvec 1.4.0",
  "uaparser",
  "url 2.1.1",
