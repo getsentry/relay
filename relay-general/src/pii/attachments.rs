@@ -177,9 +177,10 @@ fn apply_regex_to_utf16_slices(
             let end = start + utf16_byte_len;
             let utf16_match_slice = &mut data[start..end];
 
-            const DEFAULT_PADDING_UTF16: [u8; 2] = ['x' as u8, '\x00' as u8];
+            const DEFAULT_PADDING_UTF16: [u8; 2] = [b'x', b'\x00'];
             // ASCII characters can be simply casted to u16
-            const DEFAULT_PADDING_U8: u8 = b'x' as u8;
+            const DEFAULT_PADDING_U8: u8 = b'x';
+            const MASK_PADDING: u8 = b'*';
 
             match rule.redaction {
                 Redaction::Default | Redaction::Remove => {
@@ -188,35 +189,15 @@ fn apply_regex_to_utf16_slices(
                         *c.get_mut(1).unwrap() = DEFAULT_PADDING_UTF16[1];
                     }
                 }
-                Redaction::Mask(ref mask) => {
-                    // TODO: as long as the masking char fits in one u16 we can mask any
-                    // unicode codepoint.  Currently this restricts both to ASCII.
-                    let chars_not_masked: BTreeSet<u16> = mask
-                        .chars_to_ignore
-                        .chars()
-                        .filter_map(|x| if x.is_ascii() { Some(x as u16) } else { None })
-                        .collect();
-                    let mask_char = if mask.mask_char.is_ascii() {
-                        mask.mask_char as u8
-                    } else {
-                        DEFAULT_PADDING_U8
-                    };
-
+                Redaction::Mask => {
                     for bb in utf16_match_slice.chunks_exact_mut(2) {
-                        let bbb: &[u8] = bb;
-                        let c = u16::from_le_bytes(bbb.try_into().unwrap());
-                        let b0 = if chars_not_masked.contains(&c) {
-                            bb[0]
-                        } else {
-                            mask_char
-                        };
-                        *bb.get_mut(0).unwrap() = b0;
+                        *bb.get_mut(0).unwrap() = MASK_PADDING;
                         *bb.get_mut(1).unwrap() = b'\x00';
                     }
                 }
-                Redaction::Hash(ref hash) => {
+                Redaction::Hash => {
                     // Note, we are hashing bytes containing utf16, not utf8.
-                    let hashed = hash_value(hash.algorithm, utf16_match_slice, hash.key.as_deref());
+                    let hashed = hash_value(utf16_match_slice);
                     replace_utf16_bytes_padded(
                         hashed.as_str(),
                         &mut utf16_match_slice[..],
