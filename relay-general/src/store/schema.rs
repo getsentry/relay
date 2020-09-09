@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::types::{
     Array, Empty, Error, ErrorKind, Meta, Object, ProcessingAction, ProcessingResult,

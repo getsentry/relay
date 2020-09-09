@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::str;
@@ -280,11 +281,11 @@ impl<'de> Deserialize<'de> for Value {
             where
                 E: serde::de::Error,
             {
-                self.visit_string(String::from(value))
+                self.visit_string(std::string::String::from(value))
             }
 
             #[inline]
-            fn visit_string<E>(self, value: String) -> Result<Value, E> {
+            fn visit_string<E>(self, value: std::string::String) -> Result<Value, E> {
                 Ok(Value::String(value))
             }
 

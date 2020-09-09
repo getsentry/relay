@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use crate::types::{Annotated, Error, FromValue, Object, Value};
 
 /// POSIX signal with optional extended data.

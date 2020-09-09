@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
 use uuid::Uuid;

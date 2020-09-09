@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use std::cmp;
 
 use hmac::{Hmac, Mac};

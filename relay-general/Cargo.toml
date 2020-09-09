@@ -37,6 +37,7 @@ smallvec = { version = "1.4.0", features = ["serde"] }
 uaparser = { version = "0.3.3", optional = true }
 url = "2.1.1"
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
+smartstring = { version = "0.2.4", features = ["serde"] }
 
 [dev-dependencies]
 difference = "2.0.0"

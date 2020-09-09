@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 #[cfg(feature = "uaparser")]
 use crate::protocol::{Event, Headers, PairList, Request};
 #[cfg(feature = "uaparser")]

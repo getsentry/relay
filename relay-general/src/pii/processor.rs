@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::mem;

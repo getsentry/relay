@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use lazy_static::lazy_static;
 use regex::Regex;
 use url::Url;

@@ -2,7 +2,7 @@
 //!
 //! This module is responsible for taking the user agent string parsing it and filling in
 //! the browser, os and device information in the event.
-//!
+use smartstring::alias::String;
 
 use std::fmt::Write;
 

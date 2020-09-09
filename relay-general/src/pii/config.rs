@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::ops::Deref;

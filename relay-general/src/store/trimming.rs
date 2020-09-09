@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use std::borrow::Cow;
 
 use crate::processor::{estimate_size_flat, process_chunked_value, BagSize, Chunk, MaxChars};

@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use uuid::Uuid;
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};

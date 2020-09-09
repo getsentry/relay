@@ -1,6 +1,8 @@
 // This module only defines traits, every parameter is used by definition
 #![allow(unused_variables)]
 
+use smartstring::alias::String;
+
 use std::fmt::Debug;
 
 use crate::processor::{process_value, ProcessingState, ValueType};

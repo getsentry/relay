@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use crate::protocol::Event;
 
 /// Get the event schema as JSON schema. The return type is serde-serializable.

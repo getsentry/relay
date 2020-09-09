@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use std::fs;
 
 use relay_general::pii::{PiiConfig, PiiProcessor};

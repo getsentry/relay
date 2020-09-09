@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use crate::protocol::{JsonLenientString, OperationType, SpanId, SpanStatus, Timestamp, TraceId};
 use crate::types::{Annotated, Object, Value};
 

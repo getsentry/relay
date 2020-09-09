@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use std::fmt;
 use std::net::IpAddr;
 use std::str::FromStr;

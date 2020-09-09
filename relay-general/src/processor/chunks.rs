@@ -21,6 +21,7 @@
 //! assert_eq!(joined, "Hello, [redacted]!");
 //! assert_eq!(join_remarks, remarks);
 //! ```
+use smartstring::alias::String;
 
 use std::borrow::Cow;
 use std::fmt;

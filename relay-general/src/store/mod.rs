@@ -1,4 +1,5 @@
 //! Utility code for sentry's internal store.
+use smartstring::alias::String;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};

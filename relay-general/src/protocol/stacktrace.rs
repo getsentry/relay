@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use std::ops::{Deref, DerefMut};
 
 use crate::protocol::{Addr, NativeImagePath, RegVal};

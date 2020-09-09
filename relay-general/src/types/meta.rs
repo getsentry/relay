@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use std::fmt;
 use std::str::FromStr;
 
@@ -240,7 +241,7 @@ impl<'de> Deserialize<'de> for ErrorKind {
                 Ok(ErrorKind::from(string))
             }
 
-            fn visit_string<E>(self, string: String) -> Result<Self::Value, E>
+            fn visit_string<E>(self, string: std::string::String) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
@@ -365,7 +366,7 @@ impl<'de> Deserialize<'de> for Error {
                 Ok(Error::new(ErrorKind::from(string)))
             }
 
-            fn visit_string<E>(self, string: String) -> Result<Self::Value, E>
+            fn visit_string<E>(self, string: std::string::String) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {

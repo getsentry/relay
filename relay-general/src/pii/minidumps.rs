@@ -1,5 +1,6 @@
 //! Minidump scrubbing.
 
+
 use std::borrow::Cow;
 
 use failure::Fail;

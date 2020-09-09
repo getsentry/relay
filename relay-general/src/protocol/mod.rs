@@ -1,4 +1,5 @@
 //! Implements the sentry event protocol.
+
 mod breadcrumb;
 mod clientsdk;
 mod constants;

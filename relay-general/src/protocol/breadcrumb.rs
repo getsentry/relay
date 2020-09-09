@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 #[cfg(test)]
 use chrono::{TimeZone, Utc};
 

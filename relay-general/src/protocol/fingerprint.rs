@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use crate::processor::ProcessValue;
 use crate::protocol::LenientString;
 use crate::types::{

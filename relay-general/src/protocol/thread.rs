@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::processor::ProcessValue;

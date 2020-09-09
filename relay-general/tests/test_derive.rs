@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use relay_general::processor::{process_value, ProcessValue, ProcessingState, Processor};
 use relay_general::protocol::HeaderName;
 use relay_general::types::{Annotated, Meta, ProcessingResult, Value};

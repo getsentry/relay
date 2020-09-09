@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use std::iter::{FromIterator, IntoIterator};
 
 use cookie::Cookie;

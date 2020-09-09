@@ -1,4 +1,5 @@
 //! Common types of the protocol.
+use smartstring::alias::String;
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;

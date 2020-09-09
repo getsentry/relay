@@ -1,5 +1,7 @@
 #![cfg_attr(test, allow(unused_must_use))]
 
+use smartstring::alias::String;
+
 use std::borrow::Cow;
 
 use dynfmt::{Argument, Format, FormatArgs, PythonFormat, SimpleCurlyFormat};

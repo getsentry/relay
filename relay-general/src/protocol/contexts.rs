@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use regex::Regex;
 use serde::{Serialize, Serializer};
 

@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use crate::types::{Annotated, Array, Object, Value};
 
 /// Template debug information.

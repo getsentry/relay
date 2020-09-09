@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use crate::protocol::{IpAddr, LenientString};
 use crate::types::{Annotated, Object, Value};
 

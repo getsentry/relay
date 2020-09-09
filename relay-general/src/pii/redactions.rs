@@ -1,4 +1,5 @@
 //! Redactions for rules.
+use smartstring::alias::String;
 use serde::{Deserialize, Serialize};
 
 /// Defines the hash algorithm to use for hashing

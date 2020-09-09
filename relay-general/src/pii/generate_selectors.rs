@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use std::collections::BTreeSet;
 
 use serde::Serialize;

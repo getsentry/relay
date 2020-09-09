@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 use crate::protocol::{JsonLenientString, Mechanism, RawStacktrace, Stacktrace, ThreadId};
 use crate::types::{Annotated, Object, Value};
 

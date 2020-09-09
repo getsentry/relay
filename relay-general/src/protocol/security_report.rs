@@ -1,6 +1,7 @@
 //! Contains definitions for the security report interfaces.
 //!
 //! The security interfaces are CSP, HPKP, ExpectCT and ExpectStaple.
+use smartstring::alias::String;
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
