@@ -8,6 +8,42 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions-rs/toolchain@v1
+        id: toolchain
+        with:
+          toolchain: stable
+          profile: minimal
+          components: clippy, rustfmt
+          override: true
+
+      - run: make init-submodules
+
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: lint-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('Cargo.lock') }}
+
+      - name: Run Rustfmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+      - name: Run Clippy
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --workspace --all-features --tests -- -D clippy::all
+
   cargo_docs:
     name: Cargo Docs
     runs-on: ubuntu-latest
@@ -52,6 +88,8 @@ jobs:
           profile: minimal
           override: true
 
+      - run: make init-submodules
+
       - uses: actions/cache@v2
         with:
           path: |
@@ -59,8 +97,6 @@ jobs:
             ~/.cargo/git
             target
           key: schema-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('Cargo.lock') }}
-
-      - run: make init-submodules
 
       - name: Generate Schema
         uses: actions-rs/cargo@v1
