@@ -1024,27 +1024,6 @@
 <span id="1024">1024</span>
 <span id="1025">1025</span>
 <span id="1026">1026</span>
-<span id="1027">1027</span>
-<span id="1028">1028</span>
-<span id="1029">1029</span>
-<span id="1030">1030</span>
-<span id="1031">1031</span>
-<span id="1032">1032</span>
-<span id="1033">1033</span>
-<span id="1034">1034</span>
-<span id="1035">1035</span>
-<span id="1036">1036</span>
-<span id="1037">1037</span>
-<span id="1038">1038</span>
-<span id="1039">1039</span>
-<span id="1040">1040</span>
-<span id="1041">1041</span>
-<span id="1042">1042</span>
-<span id="1043">1043</span>
-<span id="1044">1044</span>
-<span id="1045">1045</span>
-<span id="1046">1046</span>
-<span id="1047">1047</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy</span>::<span class="ident">needless_update</span>)]</span>
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -1052,8 +1031,7 @@
 <span class="kw">use</span> <span class="ident">lazy_static</span>::<span class="ident">lazy_static</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">pii</span>::{
-    <span class="ident">AliasRule</span>, <span class="ident">HashRedaction</span>, <span class="ident">MaskRedaction</span>, <span class="ident">MultipleRule</span>, <span class="ident">PatternRule</span>, <span class="ident">Redaction</span>,
-    <span class="ident">ReplaceRedaction</span>, <span class="ident">RuleSpec</span>, <span class="ident">RuleType</span>,
+    <span class="ident">AliasRule</span>, <span class="ident">MultipleRule</span>, <span class="ident">PatternRule</span>, <span class="ident">Redaction</span>, <span class="ident">ReplaceRedaction</span>, <span class="ident">RuleSpec</span>, <span class="ident">RuleType</span>,
 };
 
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">declare_builtin_rules</span> {
@@ -1133,11 +1111,11 @@
     };
     <span class="string">&quot;@anything:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Anything</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>(<span class="ident">HashRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
     };
     <span class="string">&quot;@anything:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Anything</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>(<span class="ident">MaskRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
     };
 
     <span class="comment">// ip rules</span>
@@ -1150,11 +1128,11 @@
     };
     <span class="string">&quot;@ip:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Ip</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>(<span class="ident">HashRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
     };
     <span class="string">&quot;@ip:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Ip</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>(<span class="ident">MaskRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
     };
     <span class="string">&quot;@ip:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Ip</span>,
@@ -1171,11 +1149,11 @@
     };
     <span class="string">&quot;@imei:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Imei</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>(<span class="ident">HashRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
     };
     <span class="string">&quot;@imei:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Imei</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>(<span class="ident">HashRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
     };
     <span class="string">&quot;@imei:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Imei</span>,
@@ -1192,15 +1170,11 @@
     };
     <span class="string">&quot;@mac:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Mac</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>(<span class="ident">HashRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
     };
     <span class="string">&quot;@mac:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Mac</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>(<span class="ident">MaskRedaction</span> {
-            <span class="ident">mask_char</span>: <span class="string">&#39;*&#39;</span>,
-            <span class="ident">chars_to_ignore</span>: <span class="string">&quot;-:&quot;</span>.<span class="ident">into</span>(),
-            <span class="ident">range</span>: (<span class="prelude-val">Some</span>(<span class="number">9</span>), <span class="prelude-val">None</span>),
-        }),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
     };
     <span class="string">&quot;@mac:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Mac</span>,
@@ -1217,15 +1191,11 @@
     };
     <span class="string">&quot;@uuid:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Uuid</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>(<span class="ident">HashRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
     };
     <span class="string">&quot;@uuid:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Uuid</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>(<span class="ident">MaskRedaction</span> {
-            <span class="ident">mask_char</span>: <span class="string">&#39;*&#39;</span>,
-            <span class="ident">chars_to_ignore</span>: <span class="string">&quot;-&quot;</span>.<span class="ident">into</span>(),
-            <span class="ident">range</span>: (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
-        }),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
     };
     <span class="string">&quot;@uuid:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Uuid</span>,
@@ -1242,15 +1212,11 @@
     };
     <span class="string">&quot;@email:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Email</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>(<span class="ident">HashRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
     };
     <span class="string">&quot;@email:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Email</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>(<span class="ident">MaskRedaction</span> {
-            <span class="ident">mask_char</span>: <span class="string">&#39;*&#39;</span>,
-            <span class="ident">chars_to_ignore</span>: <span class="string">&quot;.@&quot;</span>.<span class="ident">into</span>(),
-            <span class="ident">range</span>: (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
-        }),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
     };
     <span class="string">&quot;@email:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Email</span>,
@@ -1261,7 +1227,7 @@
     <span class="string">&quot;@creditcard&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias</span><span class="macro">!</span>(<span class="string">&quot;@creditcard:replace&quot;</span>);
     <span class="string">&quot;@creditcard:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Creditcard</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>(<span class="ident">HashRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
     };
     <span class="string">&quot;@creditcard:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Creditcard</span>,
@@ -1271,11 +1237,7 @@
     };
     <span class="string">&quot;@creditcard:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Creditcard</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>(<span class="ident">MaskRedaction</span> {
-            <span class="ident">mask_char</span>: <span class="string">&#39;*&#39;</span>,
-            <span class="ident">chars_to_ignore</span>: <span class="string">&quot; -&quot;</span>.<span class="ident">into</span>(),
-            <span class="ident">range</span>: (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="op">-</span><span class="number">4</span>)),
-        }),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
     };
     <span class="string">&quot;@creditcard:filter&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Creditcard</span>,
@@ -1304,11 +1266,11 @@
     };
     <span class="string">&quot;@pemkey:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Pemkey</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>(<span class="ident">HashRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
     };
     <span class="string">&quot;@pemkey:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Pemkey</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>(<span class="ident">MaskRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
     };
     <span class="string">&quot;@pemkey:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Pemkey</span>,
@@ -1325,11 +1287,11 @@
     };
     <span class="string">&quot;@urlauth:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">UrlAuth</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>(<span class="ident">HashRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
     };
     <span class="string">&quot;@urlauth:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">UrlAuth</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>(<span class="ident">MaskRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
     };
     <span class="string">&quot;@urlauth:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">UrlAuth</span>,
@@ -1362,15 +1324,11 @@
     };
     <span class="string">&quot;@usssn:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">UsSsn</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>(<span class="ident">MaskRedaction</span> {
-            <span class="ident">mask_char</span>: <span class="string">&#39;*&#39;</span>,
-            <span class="ident">chars_to_ignore</span>: <span class="string">&quot;-&quot;</span>.<span class="ident">into</span>(),
-            <span class="ident">range</span>: (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>),
-        }),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
     };
     <span class="string">&quot;@usssn:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">UsSsn</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>(<span class="ident">HashRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
     };
     <span class="string">&quot;@usssn:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">UsSsn</span>,
@@ -1387,11 +1345,11 @@
     };
     <span class="string">&quot;@userpath:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Userpath</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>(<span class="ident">MaskRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
     };
     <span class="string">&quot;@userpath:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Userpath</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>(<span class="ident">HashRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
     };
     <span class="string">&quot;@userpath:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Userpath</span>,
@@ -1408,7 +1366,7 @@
     };
     <span class="string">&quot;@password:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Password</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>(<span class="ident">HashRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
     };
     <span class="string">&quot;@password:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Password</span>,
@@ -1418,7 +1376,7 @@
     };
     <span class="string">&quot;@password:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Password</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>(<span class="ident">MaskRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
     };
     <span class="string">&quot;@password:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Password</span>,
@@ -1433,7 +1391,7 @@
 
     <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">pii</span>::<span class="ident">config</span>::{<span class="ident">PiiConfig</span>, <span class="ident">RuleSpec</span>, <span class="ident">RuleType</span>};
     <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">pii</span>::<span class="ident">processor</span>::<span class="ident">PiiProcessor</span>;
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">pii</span>::{<span class="ident">HashRedaction</span>, <span class="ident">MaskRedaction</span>, <span class="ident">Redaction</span>, <span class="ident">ReplaceRedaction</span>};
+    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">pii</span>::{<span class="ident">Redaction</span>, <span class="ident">ReplaceRedaction</span>};
     <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessingState</span>, <span class="ident">ValueType</span>};
     <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::{<span class="ident">Annotated</span>, <span class="ident">Remark</span>, <span class="ident">RemarkType</span>};
 
@@ -1500,8 +1458,8 @@
                             <span class="ident">redaction</span>: <span class="kw">match</span> <span class="ident">b</span> {
                                 <span class="string">&quot;remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction</span>::<span class="ident">Remove</span>,
                                 <span class="string">&quot;replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span>::<span class="ident">default</span>()),
-                                <span class="string">&quot;mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction</span>::<span class="ident">Mask</span>(<span class="ident">MaskRedaction</span>::<span class="ident">default</span>()),
-                                <span class="string">&quot;hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction</span>::<span class="ident">Hash</span>(<span class="ident">HashRedaction</span>::<span class="ident">default</span>()),
+                                <span class="string">&quot;mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
+                                <span class="string">&quot;hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
                                 <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Unknown redaction method&quot;</span>),
                             },
                         },
@@ -1676,7 +1634,7 @@
         <span class="macro">assert_text_rule</span><span class="macro">!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@mac&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;ether 4a:00:04:10:9b:50&quot;</span>;
-            <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;ether 4a:00:04:**:**:**&quot;</span>;
+            <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;ether *****************&quot;</span>;
             <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
                 <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;@mac&quot;</span>, (<span class="number">6</span>, <span class="number">23</span>)),
             ];
@@ -1684,7 +1642,7 @@
         <span class="macro">assert_text_rule</span><span class="macro">!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@mac:mask&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;ether 4a:00:04:10:9b:50&quot;</span>;
-            <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;ether 4a:00:04:**:**:**&quot;</span>;
+            <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;ether *****************&quot;</span>;
             <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
                 <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;@mac:mask&quot;</span>, (<span class="number">6</span>, <span class="number">23</span>)),
             ];
@@ -1736,7 +1694,7 @@
         <span class="macro">assert_text_rule</span><span class="macro">!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@uuid&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;user id ceee0822-ed8f-4622-b2a3-789e73e75cd1&quot;</span>;
-            <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;user id ********-****-****-****-************&quot;</span>;
+            <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;user id ************************************&quot;</span>;
             <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
                 <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;@uuid&quot;</span>, (<span class="number">8</span>, <span class="number">44</span>)),
             ];
@@ -1744,7 +1702,7 @@
         <span class="macro">assert_text_rule</span><span class="macro">!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@uuid:mask&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;user id ceee0822-ed8f-4622-b2a3-789e73e75cd1&quot;</span>;
-            <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;user id ********-****-****-****-************&quot;</span>;
+            <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;user id ************************************&quot;</span>;
             <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
                 <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;@uuid:mask&quot;</span>, (<span class="number">8</span>, <span class="number">44</span>)),
             ];
@@ -1820,7 +1778,7 @@
         <span class="macro">assert_text_rule</span><span class="macro">!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@email:mask&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;John Appleseed &lt;john@appleseed.com&gt;&quot;</span>;
-            <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed &lt;****@*********.***&gt;&quot;</span>;
+            <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed &lt;******************&gt;&quot;</span>;
             <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
                 <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;@email:mask&quot;</span>, (<span class="number">16</span>, <span class="number">34</span>)),
             ];
@@ -1872,7 +1830,7 @@
         <span class="macro">assert_text_rule</span><span class="macro">!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@creditcard:mask&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;John Appleseed 4571234567890111!&quot;</span>;
-            <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed ************0111!&quot;</span>;
+            <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed ****************!&quot;</span>;
             <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
                 <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;@creditcard:mask&quot;</span>, (<span class="number">15</span>, <span class="number">31</span>)),
             ];
@@ -1996,7 +1954,7 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
         <span class="macro">assert_text_rule</span><span class="macro">!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@usssn&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;Hi I&#39;m Hilda and my SSN is 078-05-1120&quot;</span>;
-            <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;Hi I&#39;m Hilda and my SSN is ***-**-****&quot;</span>;
+            <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;Hi I&#39;m Hilda and my SSN is ***********&quot;</span>;
             <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
                 <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;@usssn&quot;</span>, (<span class="number">27</span>, <span class="number">38</span>)),
             ];
@@ -2004,7 +1962,7 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
         <span class="macro">assert_text_rule</span><span class="macro">!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@usssn:mask&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;Hi I&#39;m Hilda and my SSN is 078-05-1120&quot;</span>;
-            <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;Hi I&#39;m Hilda and my SSN is ***-**-****&quot;</span>;
+            <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;Hi I&#39;m Hilda and my SSN is ***********&quot;</span>;
             <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
                 <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;@usssn:mask&quot;</span>, (<span class="number">27</span>, <span class="number">38</span>)),
             ];
