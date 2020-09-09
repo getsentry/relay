@@ -142,13 +142,13 @@ fn schema_uses_host(schema: &str) -> bool {
 }
 
 /// Mimicks Python's urlunsplit with all its quirks.
-fn unsplit_uri(schema: &str, host: &str) -> String {
+fn unsplit_uri(schema: &str, host: &str) -> std::string::String {
     if !host.is_empty() || schema_uses_host(schema) {
         format!("{}://{}", schema, host)
     } else if !schema.is_empty() {
         format!("{}:{}", schema, host)
     } else {
-        String::new()
+        std::string::String::new()
     }
 }
 
@@ -218,7 +218,7 @@ struct CspRaw {
 
 impl CspRaw {
     fn default_blocked_uri() -> String {
-        "self".to_string()
+        "self".into()
     }
 
     fn effective_directive(&self) -> Result<CspDirective, InvalidSecurityError> {
@@ -241,57 +241,57 @@ impl CspRaw {
     fn get_message(&self, effective_directive: CspDirective) -> String {
         if is_local(&self.blocked_uri) {
             match effective_directive {
-                CspDirective::ChildSrc => "Blocked inline 'child'".to_string(),
-                CspDirective::ConnectSrc => "Blocked inline 'connect'".to_string(),
-                CspDirective::FontSrc => "Blocked inline 'font'".to_string(),
-                CspDirective::ImgSrc => "Blocked inline 'image'".to_string(),
-                CspDirective::ManifestSrc => "Blocked inline 'manifest'".to_string(),
-                CspDirective::MediaSrc => "Blocked inline 'media'".to_string(),
-                CspDirective::ObjectSrc => "Blocked inline 'object'".to_string(),
-                CspDirective::ScriptSrcAttr => "Blocked unsafe 'script' element".to_string(),
-                CspDirective::ScriptSrcElem => "Blocked inline script attribute".to_string(),
-                CspDirective::StyleSrc => "Blocked inline 'style'".to_string(),
-                CspDirective::StyleSrcElem => "Blocked 'style' or 'link' element".to_string(),
-                CspDirective::StyleSrcAttr => "Blocked style attribute".to_string(),
+                CspDirective::ChildSrc => "Blocked inline 'child'".into(),
+                CspDirective::ConnectSrc => "Blocked inline 'connect'".into(),
+                CspDirective::FontSrc => "Blocked inline 'font'".into(),
+                CspDirective::ImgSrc => "Blocked inline 'image'".into(),
+                CspDirective::ManifestSrc => "Blocked inline 'manifest'".into(),
+                CspDirective::MediaSrc => "Blocked inline 'media'".into(),
+                CspDirective::ObjectSrc => "Blocked inline 'object'".into(),
+                CspDirective::ScriptSrcAttr => "Blocked unsafe 'script' element".into(),
+                CspDirective::ScriptSrcElem => "Blocked inline script attribute".into(),
+                CspDirective::StyleSrc => "Blocked inline 'style'".into(),
+                CspDirective::StyleSrcElem => "Blocked 'style' or 'link' element".into(),
+                CspDirective::StyleSrcAttr => "Blocked style attribute".into(),
                 CspDirective::ScriptSrc => {
                     if self.violated_directive.contains("'unsafe-inline'") {
-                        "Blocked unsafe inline 'script'".to_string()
+                        "Blocked unsafe inline 'script'".into()
                     } else if self.violated_directive.contains("'unsafe-eval'") {
-                        "Blocked unsafe eval() 'script'".to_string()
+                        "Blocked unsafe eval() 'script'".into()
                     } else {
-                        "Blocked unsafe (eval() or inline) 'script'".to_string()
+                        "Blocked unsafe (eval() or inline) 'script'".into()
                     }
                 }
-                directive => format!("Blocked inline '{}'", directive),
+                directive => format!("Blocked inline '{}'", directive).into(),
             }
         } else {
             let uri = normalize_uri(&self.blocked_uri);
 
             match effective_directive {
-                CspDirective::ChildSrc => format!("Blocked 'child' from '{}'", uri),
-                CspDirective::ConnectSrc => format!("Blocked 'connect' from '{}'", uri),
-                CspDirective::FontSrc => format!("Blocked 'font' from '{}'", uri),
-                CspDirective::FormAction => format!("Blocked 'form' action to '{}'", uri),
-                CspDirective::ImgSrc => format!("Blocked 'image' from '{}'", uri),
-                CspDirective::ManifestSrc => format!("Blocked 'manifest' from '{}'", uri),
-                CspDirective::MediaSrc => format!("Blocked 'media' from '{}'", uri),
-                CspDirective::ObjectSrc => format!("Blocked 'object' from '{}'", uri),
-                CspDirective::ScriptSrc => format!("Blocked 'script' from '{}'", uri),
+                CspDirective::ChildSrc => format!("Blocked 'child' from '{}'", uri).into(),
+                CspDirective::ConnectSrc => format!("Blocked 'connect' from '{}'", uri).into(),
+                CspDirective::FontSrc => format!("Blocked 'font' from '{}'", uri).into(),
+                CspDirective::FormAction => format!("Blocked 'form' action to '{}'", uri).into(),
+                CspDirective::ImgSrc => format!("Blocked 'image' from '{}'", uri).into(),
+                CspDirective::ManifestSrc => format!("Blocked 'manifest' from '{}'", uri).into(),
+                CspDirective::MediaSrc => format!("Blocked 'media' from '{}'", uri).into(),
+                CspDirective::ObjectSrc => format!("Blocked 'object' from '{}'", uri).into(),
+                CspDirective::ScriptSrc => format!("Blocked 'script' from '{}'", uri).into(),
                 CspDirective::ScriptSrcAttr => {
-                    format!("Blocked inline script attribute from '{}'", uri)
+                    format!("Blocked inline script attribute from '{}'", uri).into()
                 }
-                CspDirective::ScriptSrcElem => format!("Blocked 'script' from '{}'", uri),
-                CspDirective::StyleSrc => format!("Blocked 'style' from '{}'", uri),
-                CspDirective::StyleSrcElem => format!("Blocked 'style' from '{}'", uri),
-                CspDirective::StyleSrcAttr => format!("Blocked style attribute from '{}'", uri),
-                directive => format!("Blocked '{}' from '{}'", directive, uri),
+                CspDirective::ScriptSrcElem => format!("Blocked 'script' from '{}'", uri).into(),
+                CspDirective::StyleSrc => format!("Blocked 'style' from '{}'", uri).into(),
+                CspDirective::StyleSrcElem => format!("Blocked 'style' from '{}'", uri).into(),
+                CspDirective::StyleSrcAttr => format!("Blocked style attribute from '{}'", uri).into(),
+                directive => format!("Blocked '{}' from '{}'", directive, uri).into(),
             }
         }
     }
 
     fn into_protocol(self, effective_directive: CspDirective) -> Csp {
         Csp {
-            effective_directive: Annotated::from(effective_directive.to_string()),
+            effective_directive: Annotated::new(effective_directive.to_string().into()),
             blocked_uri: Annotated::from(self.blocked_uri),
             document_uri: Annotated::from(self.document_uri),
             original_policy: Annotated::from(self.original_policy),
@@ -391,17 +391,17 @@ impl CspRaw {
             write!(culprit, " {}", self.normalize_value(bit, &normalized_uri)).ok();
         }
 
-        culprit
+        culprit.into()
     }
 
     fn get_tags(&self, effective_directive: CspDirective) -> Tags {
         Tags(PairList::from(vec![
             Annotated::new(TagEntry(
-                Annotated::new("effective-directive".to_string()),
-                Annotated::new(effective_directive.to_string()),
+                Annotated::new("effective-directive".into()),
+                Annotated::new(effective_directive.to_string().into()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("blocked-uri".to_string()),
+                Annotated::new("blocked-uri".into()),
                 Annotated::new(self.sanitized_blocked_uri()),
             )),
         ]))
@@ -577,8 +577,8 @@ impl SingleCertificateTimestampRaw {
     fn into_protocol(self) -> SingleCertificateTimestamp {
         SingleCertificateTimestamp {
             version: Annotated::from(self.version),
-            status: Annotated::from(self.status.map(|s| s.to_string())),
-            source: Annotated::from(self.source.map(|s| s.to_string())),
+            status: Annotated::from(self.status.map(|s| String::from(s.to_string()))),
+            source: Annotated::from(self.source.map(|s| String::from(s.to_string()))),
             serialized_sct: Annotated::from(self.serialized_sct),
         }
     }

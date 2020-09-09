@@ -41,7 +41,7 @@ impl<T> schemars::JsonSchema for Values<T>
 where
     T: schemars::JsonSchema,
 {
-    fn schema_name() -> String {
+    fn schema_name() -> std::string::String {
         format!("Values_for_{}", T::schema_name())
     }
 
@@ -304,7 +304,7 @@ where
     T: schemars::JsonSchema + AsPair,
     <T as AsPair>::Value: schemars::JsonSchema,
 {
-    fn schema_name() -> String {
+    fn schema_name() -> std::string::String {
         format!("PairList_of_{}", T::schema_name())
     }
 
@@ -436,7 +436,7 @@ macro_rules! hex_metrastructure {
         impl ProcessValue for $type {}
         #[cfg(feature = "jsonschema")]
         impl schemars::JsonSchema for $type {
-            fn schema_name() -> String {
+            fn schema_name() -> std::string::String {
                 stringify!($type).to_owned()
             }
 
@@ -476,7 +476,7 @@ pub struct IpAddr(pub String);
 
 #[cfg(feature = "jsonschema")]
 impl schemars::JsonSchema for IpAddr {
-    fn schema_name() -> String {
+    fn schema_name() -> std::string::String {
         String::schema_name()
     }
 
@@ -722,7 +722,7 @@ pub struct LenientString(pub String);
 
 #[cfg(feature = "jsonschema")]
 impl schemars::JsonSchema for LenientString {
-    fn schema_name() -> String {
+    fn schema_name() -> std::string::String {
         "LenientString".to_owned()
     }
 
@@ -770,6 +770,12 @@ impl std::ops::DerefMut for LenientString {
 impl From<String> for LenientString {
     fn from(value: String) -> Self {
         LenientString(value)
+    }
+}
+
+impl From<std::string::String> for LenientString {
+    fn from(value: std::string::String) -> Self {
+        LenientString(value.into())
     }
 }
 
@@ -854,6 +860,12 @@ impl FromValue for JsonLenientString {
 impl From<String> for JsonLenientString {
     fn from(value: String) -> Self {
         JsonLenientString(value)
+    }
+}
+
+impl From<std::string::String> for JsonLenientString {
+    fn from(value: std::string::String) -> Self {
+        JsonLenientString(value.into())
     }
 }
 
@@ -1050,7 +1062,7 @@ impl Empty for Timestamp {
 
 #[cfg(feature = "jsonschema")]
 impl schemars::JsonSchema for Timestamp {
-    fn schema_name() -> String {
+    fn schema_name() -> std::string::String {
         "Timestamp".to_owned()
     }
 

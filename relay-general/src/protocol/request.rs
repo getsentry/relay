@@ -35,8 +35,8 @@ impl Cookies {
     fn parse_cookie(string: &str) -> Result<CookieEntry, Error> {
         match Cookie::parse_encoded(string) {
             Ok(cookie) => Ok(Annotated::from((
-                cookie.name().to_string().into(),
-                cookie.value().to_string().into(),
+                Annotated::new(String::from(cookie.name())),
+                Annotated::new(String::from(cookie.value())),
             ))),
             Err(error) => Err(Error::invalid(error)),
         }
@@ -99,7 +99,7 @@ impl HeaderName {
     /// Creates a normalized header name.
     pub fn new<S: AsRef<str>>(name: S) -> Self {
         let name = name.as_ref();
-        let mut normalized = String::with_capacity(name.len());
+        let mut normalized = String::new();
 
         name.chars().fold(true, |uppercase, c| {
             if uppercase {
@@ -169,7 +169,7 @@ pub struct HeaderValue(String);
 
 impl HeaderValue {
     pub fn new<S: AsRef<str>>(value: S) -> Self {
-        HeaderValue(value.as_ref().to_owned())
+        HeaderValue(value.as_ref().into())
     }
 }
 
@@ -297,7 +297,9 @@ impl Query {
             string = &string[1..];
         }
 
-        form_urlencoded::parse(string.as_bytes()).collect()
+        form_urlencoded::parse(string.as_bytes())
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
     }
 }
 
@@ -353,7 +355,7 @@ impl FromValue for Query {
 
 #[cfg(feature = "jsonschema")]
 impl schemars::JsonSchema for Query {
-    fn schema_name() -> String {
+    fn schema_name() -> std::string::String {
         "Query".to_string()
     }
 

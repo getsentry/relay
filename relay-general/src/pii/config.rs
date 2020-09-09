@@ -207,12 +207,12 @@ impl PiiConfig {
 
     /// Serializes an annotated value into a JSON string.
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string(&self)
+        serde_json::to_string(&self).map(Into::into)
     }
 
     /// Serializes an annotated value into a pretty JSON string.
     pub fn to_json_pretty(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string_pretty(&self)
+        serde_json::to_string_pretty(&self).map(Into::into)
     }
 
     /// Get a representation of the `PiiConfig` that is more (CPU-)efficient for processing. Result

@@ -92,7 +92,7 @@ pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
 
         #[automatically_derived]
         gen impl schemars::JsonSchema for @Self {
-            fn schema_name() -> String {
+            fn schema_name() -> std::string::String {
                 stringify!(#ident).to_owned()
             }
 

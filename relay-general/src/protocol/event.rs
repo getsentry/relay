@@ -97,7 +97,7 @@ impl ToValue for EventType {
     where
         Self: Sized,
     {
-        Value::String(format!("{}", self))
+        Value::String(format!("{}", self).into())
     }
 
     fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
@@ -116,7 +116,7 @@ pub struct ExtraValue(#[metastructure(bag_size = "larger")] pub Value);
 
 #[cfg(feature = "jsonschema")]
 impl schemars::JsonSchema for ExtraValue {
-    fn schema_name() -> String {
+    fn schema_name() -> std::string::String {
         Value::schema_name()
     }
 

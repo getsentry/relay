@@ -204,7 +204,7 @@ impl FromValue for Mechanism {
                 } else {
                     let annotated = Annotated(Some(Value::Object(object)), meta);
                     LegacyMechanism::from_value(annotated).map_value(|legacy| Mechanism {
-                        ty: Annotated::new("generic".to_string()),
+                        ty: Annotated::new("generic".into()),
                         synthetic: Annotated::empty(),
                         description: Annotated::empty(),
                         help_link: Annotated::empty(),

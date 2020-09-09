@@ -305,7 +305,7 @@ fn handle_selector(pair: Pair<Rule>) -> Result<SelectorSpec, InvalidSelectorErro
             pair.into_inner().next().unwrap(),
         )?))),
         rule => Err(InvalidSelectorError::UnexpectedToken(
-            format!("{:?}", rule),
+            format!("{:?}", rule).into(),
             "a selector",
         )),
     }
@@ -328,7 +328,7 @@ fn handle_selector_path_item(pair: Pair<Rule>) -> Result<SelectorPathItem, Inval
         )),
         Rule::Key => Ok(SelectorPathItem::Key(handle_key(pair)?)),
         rule => Err(InvalidSelectorError::UnexpectedToken(
-            format!("{:?}", rule),
+            format!("{:?}", rule).into(),
             "a selector path item",
         )),
     }
@@ -337,7 +337,7 @@ fn handle_selector_path_item(pair: Pair<Rule>) -> Result<SelectorPathItem, Inval
 fn handle_key(pair: Pair<Rule>) -> Result<String, InvalidSelectorError> {
     let pair = pair.into_inner().next().unwrap();
     match pair.as_rule() {
-        Rule::UnquotedKey => Ok(pair.as_str().to_owned()),
+        Rule::UnquotedKey => Ok(pair.as_str().into()),
         Rule::QuotedKey => Ok({
             let mut key = String::new();
             for token in pair.into_inner() {
@@ -346,7 +346,7 @@ fn handle_key(pair: Pair<Rule>) -> Result<String, InvalidSelectorError> {
             key
         }),
         rule => Err(InvalidSelectorError::UnexpectedToken(
-            format!("{:?}", rule),
+            format!("{:?}", rule).into(),
             "a key",
         )),
     }

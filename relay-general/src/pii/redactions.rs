@@ -46,6 +46,12 @@ impl From<String> for ReplaceRedaction {
     }
 }
 
+impl From<std::string::String> for ReplaceRedaction {
+    fn from(text: std::string::String) -> ReplaceRedaction {
+        ReplaceRedaction { text: text.into() }
+    }
+}
+
 impl Default for ReplaceRedaction {
     fn default() -> Self {
         ReplaceRedaction {

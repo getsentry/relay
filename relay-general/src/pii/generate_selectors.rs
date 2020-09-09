@@ -96,7 +96,7 @@ impl Processor for GenerateSelectorsProcessor {
             }
 
             if let Some(key) = substate.path().key() {
-                path.push(SelectorPathItem::Key(key.to_owned()));
+                path.push(SelectorPathItem::Key(key.into()));
             } else if substate.path().index().is_some() {
                 path.push(SelectorPathItem::Wildcard);
             } else {

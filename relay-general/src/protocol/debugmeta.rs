@@ -136,7 +136,7 @@ macro_rules! impl_traits {
     ($type:ident, $inner:path, $expectation:literal) => {
         #[cfg(feature = "jsonschema")]
         impl schemars::JsonSchema for $type {
-            fn schema_name() -> String {
+            fn schema_name() -> std::string::String {
                 stringify!($type).to_owned()
             }
 
@@ -175,7 +175,7 @@ macro_rules! impl_traits {
 
         impl ToValue for $type {
             fn to_value(self) -> Value {
-                Value::String(self.to_string())
+                Value::String(self.to_string().into())
             }
 
             fn serialize_payload<S>(

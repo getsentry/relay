@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 
 use std::collections::BTreeMap;
 
@@ -24,16 +25,16 @@ lazy_static::lazy_static! {
 }
 
 pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
-    let mut custom_rules = BTreeMap::new();
+    let mut custom_rules = BTreeMap::<String, _>::new();
     let mut applied_rules = Vec::new();
     let mut applications = BTreeMap::new();
 
     if datascrubbing_config.scrub_data && datascrubbing_config.scrub_defaults {
-        applied_rules.push("@common:filter".to_owned());
+        applied_rules.push("@common:filter".to_owned().into());
     }
 
     if datascrubbing_config.scrub_ip_addresses {
-        applications.insert(KNOWN_IP_FIELDS.clone(), vec!["@anything:remove".to_owned()]);
+        applications.insert(KNOWN_IP_FIELDS.clone(), vec!["@anything:remove".to_owned().into()]);
     }
 
     if datascrubbing_config.scrub_data {
@@ -64,7 +65,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
 
         if let Some(key_pattern) = sensitive_fields_re {
             custom_rules.insert(
-                "strip-fields".to_owned(),
+                "strip-fields".to_owned().into(),
                 RuleSpec {
                     ty: RuleType::RedactPair(RedactPairRule {
                         key_pattern: Pattern(
@@ -78,7 +79,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
                 },
             );
 
-            applied_rules.push("strip-fields".to_owned());
+            applied_rules.push("strip-fields".to_owned().into());
         }
     }
 
@@ -103,7 +104,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
         }
 
         conjunctions.push(SelectorSpec::Not(Box::new(SelectorSpec::Path(vec![
-            SelectorPathItem::Key(field.to_owned()),
+            SelectorPathItem::Key(field.to_owned().into()),
         ]))));
     }
 

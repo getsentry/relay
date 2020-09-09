@@ -37,7 +37,7 @@ pub enum Value {
 
 #[cfg(feature = "jsonschema")]
 impl schemars::JsonSchema for Value {
-    fn schema_name() -> String {
+    fn schema_name() -> std::string::String {
         "Value".to_owned()
     }
 

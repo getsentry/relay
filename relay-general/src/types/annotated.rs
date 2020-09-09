@@ -425,7 +425,7 @@ impl<T> schemars::JsonSchema for Annotated<T>
 where
     T: schemars::JsonSchema,
 {
-    fn schema_name() -> String {
+    fn schema_name() -> std::string::String {
         format!("Annotated_{}", T::schema_name())
     }
 

@@ -70,7 +70,7 @@ pub fn hash_value(algorithm: HashAlgorithm, data: &[u8], key: Option<&str>) -> S
         ($ty:ident) => {{
             let mut mac = Hmac::<$ty>::new_varkey(key.as_bytes()).unwrap();
             mac.input(data);
-            format!("{:X}", mac.result().code())
+            format!("{:X}", mac.result().code()).into()
         }};
     }
     match algorithm {

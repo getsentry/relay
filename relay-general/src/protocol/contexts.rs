@@ -400,7 +400,7 @@ impl FromValue for TraceId {
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
                 } else {
-                    Annotated(Some(TraceId(value.to_ascii_lowercase())), meta)
+                    Annotated(Some(TraceId(value.to_ascii_lowercase().into())), meta)
                 }
             }
             Annotated(None, meta) => Annotated(None, meta),
@@ -427,7 +427,7 @@ impl FromValue for SpanId {
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
                 } else {
-                    Annotated(Some(SpanId(value.to_ascii_lowercase())), meta)
+                    Annotated(Some(SpanId(value.to_ascii_lowercase().into())), meta)
                 }
             }
             Annotated(None, meta) => Annotated(None, meta),
@@ -530,7 +530,7 @@ impl FromValue for SpanStatus {
 
 impl ToValue for SpanStatus {
     fn to_value(self) -> Value {
-        Value::String(self.to_string())
+        Value::String(self.to_string().into())
     }
 
     fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
@@ -643,7 +643,7 @@ impl Contexts {
     /// Adds a context to self under the default key for the Context
     pub fn add(&mut self, context: Context) {
         if let Some(key) = context.default_key() {
-            self.insert(key.to_owned(), Annotated::new(ContextInner(context)));
+            self.insert(key.into(), Annotated::new(ContextInner(context)));
         }
     }
 
@@ -682,8 +682,8 @@ impl FromValue for Contexts {
                 if let Annotated(Some(Value::Object(ref mut items)), _) = value {
                     if !items.contains_key("type") {
                         items.insert(
-                            "type".to_string(),
-                            Annotated::new(Value::String(key.to_string())),
+                            "type".into(),
+                            Annotated::new(Value::String(key.clone())),
                         );
                     }
                 }

@@ -143,7 +143,7 @@ where
 
         match chunk {
             Chunk::Redaction { rule_id, ty, .. } => {
-                remarks.push(Remark::with_range(ty, rule_id.clone(), (pos, new_pos)))
+                remarks.push(Remark::with_range(ty, &rule_id[..], (pos, new_pos)))
             }
             Chunk::Text { .. } => {
                 // Plain text segments do not need remarks

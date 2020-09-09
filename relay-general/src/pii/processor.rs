@@ -123,7 +123,7 @@ impl<'a> Processor for PiiProcessor<'a> {
             match self.process_string(value, meta, state) {
                 Ok(()) => value.push_str(&basename),
                 Err(ProcessingAction::DeleteValueHard) | Err(ProcessingAction::DeleteValueSoft) => {
-                    *value = basename[1..].to_owned();
+                    *value = basename[1..].into();
                 }
                 Err(ProcessingAction::InvalidTransaction(x)) => {
                     return Err(ProcessingAction::InvalidTransaction(x))
@@ -359,14 +359,14 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
                     hash.algorithm,
                     text.as_bytes(),
                     hash.key.as_deref(),
-                )),
+                ).into()),
             });
         }
         Redaction::Replace(replace) => {
             output.push(Chunk::Redaction {
                 ty: RemarkType::Substituted,
                 rule_id: Cow::Owned(rule.origin.to_string()),
-                text: Cow::Owned(replace.text.clone()),
+                text: Cow::Owned(replace.text.clone().into()),
             });
         }
     }
