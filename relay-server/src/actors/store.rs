@@ -441,6 +441,10 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                         start_time,
                         item,
                     )?;
+                    metric!(
+                        counter(RelayCounters::ProcessingMessageProduced) += 1,
+                        event_type = "user_report"
+                    );
                 }
                 ItemType::Session => {
                     self.produce_session(
@@ -450,6 +454,10 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                         client,
                         item,
                     )?;
+                    metric!(
+                        counter(RelayCounters::ProcessingMessageProduced) += 1,
+                        event_type = "session"
+                    );
                 }
                 _ => {}
             }
