@@ -1,6 +1,5 @@
 //! Common types of the protocol.
 use smartstring::alias::String;
-use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
 use std::iter::{FromIterator, IntoIterator};
@@ -512,12 +511,12 @@ impl IpAddr {
 
     /// Checks if the ip address is set to the auto marker.
     pub fn is_auto(&self) -> bool {
-        self.0 == "{{auto}}"
+        self.0.as_str() == "{{auto}}"
     }
 
     /// Checks whether the contained ip address is still valid (relevant for PII processing).
     pub fn is_valid(&self) -> bool {
-        Self::parse(&self.0).is_ok()
+        Self::parse(self.0.as_str()).is_ok()
     }
 
     /// Returns the string value of this ip address.
@@ -545,7 +544,7 @@ impl Default for IpAddr {
 
 impl From<std::net::IpAddr> for IpAddr {
     fn from(ip_addr: std::net::IpAddr) -> Self {
-        Self(ip_addr.to_string())
+        Self(ip_addr.to_string().into())
     }
 }
 
@@ -560,7 +559,7 @@ impl<'de> Deserialize<'de> for IpAddr {
     where
         D: Deserializer<'de>,
     {
-        let string = Cow::<'_, str>::deserialize(deserializer)?;
+        let string = String::deserialize(deserializer)?;
         IpAddr::parse(string).map_err(|_| serde::de::Error::custom("expected an ip address"))
     }
 }
@@ -695,7 +694,7 @@ impl FromValue for Level {
 
 impl ToValue for Level {
     fn to_value(self) -> Value {
-        Value::String(self.to_string())
+        Value::String(self.to_string().into())
     }
 
     fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
@@ -784,13 +783,13 @@ impl FromValue for LenientString {
         match value {
             Annotated(Some(Value::String(string)), meta) => Annotated(Some(string), meta),
             // XXX: True/False instead of true/false because of old python code
-            Annotated(Some(Value::Bool(true)), meta) => Annotated(Some("True".to_string()), meta),
-            Annotated(Some(Value::Bool(false)), meta) => Annotated(Some("False".to_string()), meta),
-            Annotated(Some(Value::U64(num)), meta) => Annotated(Some(num.to_string()), meta),
-            Annotated(Some(Value::I64(num)), meta) => Annotated(Some(num.to_string()), meta),
+            Annotated(Some(Value::Bool(true)), meta) => Annotated(Some("True".into()), meta),
+            Annotated(Some(Value::Bool(false)), meta) => Annotated(Some("False".into()), meta),
+            Annotated(Some(Value::U64(num)), meta) => Annotated(Some(num.to_string().into()), meta),
+            Annotated(Some(Value::I64(num)), meta) => Annotated(Some(num.to_string().into()), meta),
             Annotated(Some(Value::F64(num)), mut meta) => {
                 if num.abs() < (1i64 << 53) as f64 {
-                    Annotated(Some(num.trunc().to_string()), meta)
+                    Annotated(Some(num.trunc().to_string().into()), meta)
                 } else {
                     meta.add_error(Error::expected("a number with JSON precision"));
                     meta.set_original_value(Some(num));

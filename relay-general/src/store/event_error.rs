@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{Event, EventProcessingError};
@@ -29,12 +30,12 @@ impl Processor for EmitEventErrors {
 
         for error in meta.iter_errors() {
             self.errors.push(EventProcessingError {
-                ty: Annotated::from(error.kind().to_string()),
-                name: Annotated::from(state.path().to_string()),
+                ty: Annotated::from(String::from(error.kind().as_str())),
+                name: Annotated::from(String::from(state.path().to_string())),
                 value: Annotated::from(original_value.take()),
                 other: error
                     .data()
-                    .map(|(k, v)| (k.to_string(), Annotated::from(v.clone())))
+                    .map(|(k, v)| (k.into(), Annotated::from(v.clone())))
                     .collect(),
             });
         }

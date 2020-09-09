@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 
 use std::time::Duration;
 
@@ -112,8 +113,8 @@ impl Processor for ClockDriftProcessor {
 
             let timestamp_meta = event.timestamp.meta_mut();
             timestamp_meta.add_error(Error::with(self.kind.clone(), |e| {
-                e.insert("sdk_time", correction.sent_at.to_rfc3339());
-                e.insert("server_time", self.received_at.to_rfc3339());
+                e.insert("sdk_time", String::from(correction.sent_at.to_rfc3339()));
+                e.insert("server_time", String::from(self.received_at.to_rfc3339()));
             }));
         }
 

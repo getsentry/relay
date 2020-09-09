@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 
 use std::fmt;
 use std::path::Path;
@@ -48,17 +49,17 @@ impl GeoIpLookup {
             country_code: Annotated::from(
                 city.country
                     .as_ref()
-                    .and_then(|country| Some(country.iso_code.as_ref()?.to_string())),
+                    .and_then(|country| Some(String::from(country.iso_code.as_ref()?.to_string()))),
             ),
             city: Annotated::from(
                 city.city
                     .as_ref()
-                    .and_then(|city| Some(city.names.as_ref()?.get("en")?.to_owned())),
+                    .and_then(|city| Some(String::from(city.names.as_ref()?.get("en")?))),
             ),
             region: Annotated::from(
                 city.country
                     .as_ref()
-                    .and_then(|country| Some(country.names.as_ref()?.get("en")?.to_owned())),
+                    .and_then(|country| Some(String::from(country.names.as_ref()?.get("en")?))),
             ),
             ..Default::default()
         }))

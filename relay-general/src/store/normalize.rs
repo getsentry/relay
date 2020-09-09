@@ -98,8 +98,8 @@ impl<'a> NormalizeProcessor<'a> {
                 .collect_tuple()
                 .or_else(|| client.splitn(2, ' ').collect_tuple())
                 .map(|(name, version)| ClientSdkInfo {
-                    name: Annotated::new(name.to_owned()),
-                    version: Annotated::new(version.to_owned()),
+                    name: Annotated::new(name.into()),
+                    version: Annotated::new(version.into()),
                     ..Default::default()
                 })
         })
