@@ -25,13 +25,6 @@ jobs:
   fast_finish: true
   include:
     # -------------------------------------
-    # STATIC ANALYSIS
-    # -------------------------------------
-
-    - name: "check: lints"
-      script: make -e style lint
-
-    # -------------------------------------
     # RUST TESTS
     # -------------------------------------
 
