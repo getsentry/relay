@@ -34,7 +34,7 @@ fn normalize_url(request: &mut Request) {
             // Separate the query string and fragment bits into dedicated fields. If
             // both the URL and the fields have been set, the fields take precedence.
             if request.query_string.value().is_none() {
-                let query: Query = url.query_pairs().collect();
+                let query: Query = url.query_pairs().map(|(k, v)| (String::from(&k[..]), String::from(&v[..]))).collect();
                 if !query.is_empty() {
                     request.query_string.set_value(Some(query));
                 }
@@ -43,13 +43,13 @@ fn normalize_url(request: &mut Request) {
             if request.fragment.value().is_none() {
                 request
                     .fragment
-                    .set_value(url.fragment().map(str::to_string));
+                    .set_value(url.fragment().map(String::from));
             }
 
             url.set_query(None);
             url.set_fragment(None);
             if url.as_str() != url_string {
-                *url_string = url.into_string();
+                *url_string = String::from(url.into_string());
             }
         }
         Err(_) => {
@@ -58,7 +58,7 @@ fn normalize_url(request: &mut Request) {
             if let Some(fragment_index) = url_string.find('#') {
                 let fragment = &url_string[fragment_index + 1..];
                 if !fragment.is_empty() && request.fragment.value().is_none() {
-                    request.fragment.set_value(Some(fragment.to_string()));
+                    request.fragment.set_value(Some(String::from(fragment)));
                 }
                 url_string.truncate(fragment_index);
             }
@@ -148,13 +148,13 @@ fn normalize_data(request: &mut Request) {
         // Retain meta data on the body (e.g. trimming annotations) but remove anything on the
         // inferred content type.
         request.data.set_value(Some(parsed_data));
-        request.inferred_content_type = Annotated::from(content_type.to_string());
+        request.inferred_content_type = Annotated::from(String::from(content_type));
     } else {
         request.inferred_content_type = request
             .headers
             .value()
             .and_then(|headers| headers.get_header("Content-Type"))
-            .map(|value| value.split(';').next().unwrap_or(&value).to_string())
+            .map(|value| String::from(value.split(';').next().unwrap_or(&value)))
             .into();
     }
 }

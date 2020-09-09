@@ -25,7 +25,7 @@ impl Processor for TransactionsProcessor {
         if event.transaction.value().map_or(true, |s| s.is_empty()) {
             event
                 .transaction
-                .set_value(Some("<unlabeled transaction>".to_owned()))
+                .set_value(Some("<unlabeled transaction>".into()))
         }
 
         match (event.start_timestamp.value(), event.timestamp.value_mut()) {
@@ -78,7 +78,7 @@ impl Processor for TransactionsProcessor {
                     ));
                 }
 
-                trace_context.op.get_or_insert_with(|| "default".to_owned());
+                trace_context.op.get_or_insert_with(|| "default".into());
             }
             _ => {
                 return Err(ProcessingAction::InvalidTransaction(
@@ -142,7 +142,7 @@ impl Processor for TransactionsProcessor {
             ));
         }
 
-        span.op.get_or_insert_with(|| "default".to_owned());
+        span.op.get_or_insert_with(|| "default".into());
 
         span.process_child_values(self, state)?;
 

@@ -32,7 +32,7 @@ pub fn normalize_user_agent(event: &mut Event) {
     if is_known(ua.family.as_str()) && !contexts.contains_key(BrowserContext::default_key()) {
         let version = get_version(&ua.major, &ua.minor, &ua.patch);
         contexts.add(Context::Browser(Box::new(BrowserContext {
-            name: Annotated::from(ua.family),
+            name: Annotated::from(String::from(ua.family)),
             version: Annotated::from(version),
             ..BrowserContext::default()
         })));
@@ -40,9 +40,9 @@ pub fn normalize_user_agent(event: &mut Event) {
 
     if is_known(device.family.as_str()) && !contexts.contains_key(DeviceContext::default_key()) {
         contexts.add(Context::Device(Box::new(DeviceContext {
-            family: Annotated::from(device.family),
-            model: Annotated::from(device.model),
-            brand: Annotated::from(device.brand),
+            family: Annotated::from(String::from(device.family)),
+            model: Annotated::from(device.model.map(String::from)),
+            brand: Annotated::from(device.brand.map(String::from)),
             ..DeviceContext::default()
         })));
     }
@@ -61,10 +61,10 @@ pub fn normalize_user_agent(event: &mut Event) {
     if is_known(os.family.as_str()) && !contexts.contains_key(os_context_key) {
         let version = get_version(&os.major, &os.minor, &os.patch);
         contexts.insert(
-            os_context_key.to_owned(),
+            os_context_key.into(),
             Annotated::new(
                 Context::Os(Box::new(OsContext {
-                    name: Annotated::from(os.family),
+                    name: Annotated::from(String::from(os.family)),
                     version: Annotated::from(version),
                     ..OsContext::default()
                 }))
@@ -79,9 +79,9 @@ fn is_known(family: &str) -> bool {
 }
 
 fn get_version(
-    major: &Option<String>,
-    minor: &Option<String>,
-    patch: &Option<String>,
+    major: &Option<std::string::String>,
+    minor: &Option<std::string::String>,
+    patch: &Option<std::string::String>,
 ) -> Option<String> {
     let mut version = major.clone()?;
 
@@ -92,7 +92,7 @@ fn get_version(
         }
     }
 
-    Some(version)
+    Some(version.into())
 }
 
 #[cfg(test)]
