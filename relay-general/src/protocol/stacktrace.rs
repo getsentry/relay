@@ -200,7 +200,7 @@ impl FromValue for FrameVars {
                     value
                         .into_iter()
                         .enumerate()
-                        .map(|(i, v)| (i.to_string(), v))
+                        .map(|(i, v)| (i.to_string().into(), v))
                         .collect(),
                 )
             } else {

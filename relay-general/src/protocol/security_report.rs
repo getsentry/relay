@@ -647,16 +647,16 @@ mod serde_date_time_3339 {
 
 impl ExpectCtRaw {
     fn get_message(&self) -> String {
-        format!("Expect-CT failed for '{}'", self.hostname)
+        format!("Expect-CT failed for '{}'", self.hostname).into()
     }
 
     fn into_protocol(self) -> ExpectCt {
         ExpectCt {
-            date_time: Annotated::from(self.date_time.map(|d| d.to_rfc3339())),
+            date_time: Annotated::from(self.date_time.map(|d| String::from(d.to_rfc3339()))),
             hostname: Annotated::from(self.hostname),
             port: Annotated::from(self.port),
             effective_expiration_date: Annotated::from(
-                self.effective_expiration_date.map(|d| d.to_rfc3339()),
+                self.effective_expiration_date.map(|d| String::from(d.to_rfc3339())),
             ),
             served_certificate_chain: Annotated::new(
                 self.served_certificate_chain
@@ -683,14 +683,14 @@ impl ExpectCtRaw {
 
     fn get_tags(&self) -> Tags {
         let mut tags = vec![Annotated::new(TagEntry(
-            Annotated::new("hostname".to_string()),
+            Annotated::new("hostname".into()),
             Annotated::new(self.hostname.clone()),
         ))];
 
         if let Some(port) = self.port {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new("port".to_string()),
-                Annotated::new(port.to_string()),
+                Annotated::new("port".into()),
+                Annotated::new(port.to_string().into()),
             )));
         }
 
@@ -786,16 +786,16 @@ impl HpkpRaw {
         format!(
             "Public key pinning validation failed for '{}'",
             self.hostname
-        )
+        ).into()
     }
 
     fn into_protocol(self) -> Hpkp {
         Hpkp {
-            date_time: Annotated::from(self.date_time.map(|d| d.to_rfc3339())),
+            date_time: Annotated::from(self.date_time.map(|d| String::from(d.to_rfc3339()))),
             hostname: Annotated::new(self.hostname),
             port: Annotated::from(self.port),
             effective_expiration_date: Annotated::from(
-                self.effective_expiration_date.map(|d| d.to_rfc3339()),
+                self.effective_expiration_date.map(|d| String::from(d.to_rfc3339())),
             ),
             include_subdomains: Annotated::from(self.include_subdomains),
             noted_hostname: Annotated::from(self.noted_hostname),
@@ -818,21 +818,21 @@ impl HpkpRaw {
 
     fn get_tags(&self) -> Tags {
         let mut tags = vec![Annotated::new(TagEntry(
-            Annotated::new("hostname".to_string()),
+            Annotated::new("hostname".into()),
             Annotated::new(self.hostname.clone()),
         ))];
 
         if let Some(port) = self.port {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new("port".to_string()),
-                Annotated::new(port.to_string()),
+                Annotated::new("port".into()),
+                Annotated::new(port.to_string().into()),
             )));
         }
 
         if let Some(include_subdomains) = self.include_subdomains {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new("include-subdomains".to_string()),
-                Annotated::new(include_subdomains.to_string()),
+                Annotated::new("include-subdomains".into()),
+                Annotated::new(include_subdomains.to_string().into()),
             )));
         }
 
@@ -1008,19 +1008,19 @@ struct ExpectStapleRaw {
 
 impl ExpectStapleRaw {
     fn get_message(&self) -> String {
-        format!("Expect-Staple failed for '{}'", self.hostname)
+        format!("Expect-Staple failed for '{}'", self.hostname).into()
     }
 
     fn into_protocol(self) -> ExpectStaple {
         ExpectStaple {
-            date_time: Annotated::from(self.date_time.map(|d| d.to_rfc3339())),
+            date_time: Annotated::from(self.date_time.map(|d| String::from(d.to_rfc3339()))),
             hostname: Annotated::from(self.hostname),
             port: Annotated::from(self.port),
             effective_expiration_date: Annotated::from(
-                self.effective_expiration_date.map(|d| d.to_rfc3339()),
+                self.effective_expiration_date.map(|d| String::from(d.to_rfc3339())),
             ),
-            response_status: Annotated::from(self.response_status.map(|rs| rs.to_string())),
-            cert_status: Annotated::from(self.cert_status.map(|cs| cs.to_string())),
+            response_status: Annotated::from(self.response_status.map(|rs| String::from(rs.to_string()))),
+            cert_status: Annotated::from(self.cert_status.map(|cs| String::from(cs.to_string()))),
             served_certificate_chain: Annotated::from(
                 self.served_certificate_chain
                     .map(|cert_chain| cert_chain.into_iter().map(Annotated::from).collect()),
@@ -1039,28 +1039,28 @@ impl ExpectStapleRaw {
 
     fn get_tags(&self) -> Tags {
         let mut tags = vec![Annotated::new(TagEntry(
-            Annotated::new("hostname".to_string()),
+            Annotated::new("hostname".into()),
             Annotated::new(self.hostname.clone()),
         ))];
 
         if let Some(port) = self.port {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new("port".to_string()),
-                Annotated::new(port.to_string()),
+                Annotated::new("port".into()),
+                Annotated::new(port.to_string().into()),
             )));
         }
 
         if let Some(response_status) = self.response_status {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new("response_status".to_string()),
-                Annotated::new(response_status.to_string()),
+                Annotated::new("response_status".into()),
+                Annotated::new(response_status.to_string().into()),
             )));
         }
 
         if let Some(cert_status) = self.cert_status {
             tags.push(Annotated::new(TagEntry(
-                Annotated::new("cert_status".to_string()),
-                Annotated::new(cert_status.to_string()),
+                Annotated::new("cert_status".into()),
+                Annotated::new(cert_status.to_string().into()),
             )));
         }
 
