@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add Relay version version to challenge response. ([#758](https://github.com/getsentry/relay/pull/758))
+
 ## 0.6.1
 
 - Removed deprecated `pii_selectors_from_event`.

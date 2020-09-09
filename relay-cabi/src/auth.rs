@@ -159,7 +159,7 @@ struct RelayRegisterResponse<'a> {
     pub relay_id: RelayId,
     pub token: &'a str,
     pub public_key: &'a PublicKey,
-    pub version: &'a str,
+    pub version: RelayVersion,
 }
 
 ffi_fn! {
@@ -182,13 +182,11 @@ ffi_fn! {
             max_age,
         )?;
 
-        let version = response.version();
-
         let relay_response = RelayRegisterResponse {
             relay_id: response.relay_id(),
             token: response.token(),
             public_key: state.public_key(),
-            version: version.as_str(),
+            version: response.version(),
         };
 
         Ok(RelayStr::from_string(serde_json::to_string(&relay_response)?))

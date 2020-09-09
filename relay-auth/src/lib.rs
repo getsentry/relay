@@ -691,8 +691,8 @@ impl RegisterResponse {
         self.token.as_str()
     }
 
-    pub fn version(&self) -> String {
-        self.version.to_string()
+    pub fn version(&self) -> RelayVersion {
+        self.version
     }
 }
 
