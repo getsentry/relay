@@ -8,16 +8,18 @@ use relay_auth::{
 
 use crate::core::{RelayBuf, RelayStr, RelayUuid};
 
-/// Represents a public key in relay.
+/// Represents a public key in Relay.
 pub struct RelayPublicKey;
 
-/// Represents a secret key in relay.
+/// Represents a secret key in Relay.
 pub struct RelaySecretKey;
 
 /// Represents a key pair from key generation.
 #[repr(C)]
 pub struct RelayKeyPair {
+    /// The public key used for verifying Relay signatures.
     pub public_key: *mut RelayPublicKey,
+    /// The secret key used for signing Relay requests.
     pub secret_key: *mut RelaySecretKey,
 }
 

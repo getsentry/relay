@@ -154,7 +154,7 @@ make lint
 
 Potentially, new functionality also needs to be added to the Python package.
 This first requires to expose new functions in the C ABI. For this, refer to the
-[Relay C-ABI readme](relay-cabi/README.md).
+[Relay C-ABI readme](https://getsentry.github.io/relay/relay_cabi/).
 
 We highly recommend to develop and test the python package in a **virtual
 environment**. Once the ABI has been updated and tested, ensure the virtualenv
