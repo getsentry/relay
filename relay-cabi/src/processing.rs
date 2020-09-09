@@ -6,7 +6,6 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
 
-use json_forensics;
 use relay_common::{glob_match_bytes, GlobOptions};
 use relay_general::pii::{
     selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiProcessor,

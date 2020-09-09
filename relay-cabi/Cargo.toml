@@ -13,11 +13,8 @@ publish = false
 name = "relay"
 crate-type = ["cdylib"]
 
-[workspace]
-
-[profile.release]
-debug = true
-lto = true
+# Cannot document, as this would override docs for "relay" due to the renamed library.
+doc = false
 
 [dependencies]
 chrono = "0.4.11"
