@@ -202,6 +202,30 @@ struct UpstreamRequest {
     build: Box<dyn Send + FnOnce(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>>,
 }
 
+impl UpstreamRequest {
+    //NOTE: (RaduW) hacky implementation to get request types in metrics, if we
+    //want this feature in master we should clean this.
+    pub fn request_type(&self) -> &'static str {
+        if self.path.contains("/outcomes/") {
+            "outcomes"
+        } else if self.path.contains("/envelope/") {
+            "envelope"
+        } else if self.path.contains("/projectids/") {
+            "project_ids"
+        } else if self.path.contains("/projectconfigs/") {
+            "project_configs"
+        } else if self.path.contains("/publickeys/") {
+            "public_keys"
+        } else if self.path.contains("/challenge/") {
+            "challenge"
+        } else if self.path.contains("/response/") {
+            "response"
+        } else {
+            "unknown"
+        }
+    }
+}
+
 pub struct UpstreamRelay {
     backoff: RetryBackoff,
     first_error: Option<Instant>,
@@ -384,6 +408,7 @@ impl UpstreamRelay {
             response_sender: tx,
             build: Box::new(build),
         };
+        let request_type = request.request_type();
         match priority {
             RequestPriority::Low => {
                 self.low_prio_requests.push_front(request);
@@ -395,7 +420,8 @@ impl UpstreamRelay {
         metric!(
             histogram(RelayHistograms::UpstreamMessageQueueSize) =
                 self.low_prio_requests.len() as u64,
-            priority = priority.name()
+            priority = priority.name(),
+            request_type = request_type,
         );
 
         let future = rx
