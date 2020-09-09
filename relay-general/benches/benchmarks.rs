@@ -18,8 +18,8 @@ fn load_all_fixtures() -> Vec<BenchmarkInput<String>> {
         let path = entry.path();
 
         rv.push(BenchmarkInput {
-            name: path.file_stem().unwrap().to_str().unwrap().to_string(),
-            data: fs::read_to_string(path).unwrap(),
+            name: path.file_stem().unwrap().to_str().unwrap().into(),
+            data: fs::read_to_string(path).unwrap().into(),
         });
     }
 
@@ -77,10 +77,10 @@ fn bench_to_json(c: &mut Criterion) {
 fn bench_store_processor(c: &mut Criterion) {
     let config = StoreConfig {
         project_id: Some(4711),
-        client_ip: Some(IpAddr("127.0.0.1".to_string())),
-        client: Some("sentry.tester".to_string()),
-        key_id: Some("feedface".to_string()),
-        protocol_version: Some("8".to_string()),
+        client_ip: Some(IpAddr("127.0.0.1".into())),
+        client: Some("sentry.tester".into()),
+        key_id: Some("feedface".into()),
+        protocol_version: Some("8".into()),
         max_secs_in_future: Some(3600),
         max_secs_in_past: Some(2_592_000),
         enable_trimming: Some(true),
@@ -114,11 +114,11 @@ fn bench_store_processor(c: &mut Criterion) {
 
 fn datascrubbing_config() -> DataScrubbingConfig {
     let mut config = DataScrubbingConfig::new_disabled();
-    config.exclude_fields = vec!["safe1".to_owned(), "safe2".to_owned(), "safe3".to_owned()];
+    config.exclude_fields = vec!["safe1".into(), "safe2".into(), "safe3".into()];
     config.sensitive_fields = vec![
-        "sensitive1".to_owned(),
-        "sensitive2".to_owned(),
-        "sensitive3".to_owned(),
+        "sensitive1".into(),
+        "sensitive2".into(),
+        "sensitive3".into(),
     ];
     config.scrub_defaults = true;
     config.scrub_data = true;

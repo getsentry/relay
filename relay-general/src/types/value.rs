@@ -100,14 +100,14 @@ impl Value {
                     unreachable!()
                 }
             }
-            serde_json::Value::String(val) => Value::String(val),
+            serde_json::Value::String(val) => Value::String(String::from(val)),
             serde_json::Value::Array(items) => {
                 Value::Array(items.into_iter().map(Annotated::<Value>::from).collect())
             }
             serde_json::Value::Object(items) => Value::Object(
                 items
                     .into_iter()
-                    .map(|(k, v)| (k, Annotated::<Value>::from(v)))
+                    .map(|(k, v)| (String::from(k), Annotated::<Value>::from(v)))
                     .collect(),
             ),
         })
@@ -165,14 +165,14 @@ impl From<Value> for serde_json::Value {
             Value::F64(value) => serde_json::Number::from_f64(value)
                 .map(serde_json::Value::Number)
                 .unwrap_or(serde_json::Value::Null),
-            Value::String(val) => serde_json::Value::String(val),
+            Value::String(val) => serde_json::Value::String(val.into()),
             Value::Array(items) => {
                 serde_json::Value::Array(items.into_iter().map(serde_json::Value::from).collect())
             }
             Value::Object(items) => serde_json::Value::Object(
                 items
                     .into_iter()
-                    .map(|(k, v)| (k, serde_json::Value::from(v)))
+                    .map(|(k, v)| (k.into(), serde_json::Value::from(v)))
                     .collect(),
             ),
         }
@@ -214,7 +214,7 @@ impl From<f64> for Value {
 
 impl<'a> From<&'a str> for Value {
     fn from(value: &'a str) -> Self {
-        Value::String(value.to_string())
+        Value::String(String::from(value))
     }
 }
 
@@ -286,7 +286,7 @@ impl<'de> Deserialize<'de> for Value {
 
             #[inline]
             fn visit_string<E>(self, value: std::string::String) -> Result<Value, E> {
-                Ok(Value::String(value))
+                Ok(Value::String(String::from(value)))
             }
 
             #[inline]

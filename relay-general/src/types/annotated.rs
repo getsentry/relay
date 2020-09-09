@@ -312,14 +312,14 @@ where
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         let mut ser = serde_json::Serializer::new(Vec::with_capacity(128));
         self.serialize_with_meta(&mut ser)?;
-        Ok(unsafe { String::from_utf8_unchecked(ser.into_inner()) })
+        Ok(unsafe { std::string::String::from_utf8_unchecked(ser.into_inner()) }.into())
     }
 
     /// Serializes an annotated value into a pretty JSON string.
     pub fn to_json_pretty(&self) -> Result<String, serde_json::Error> {
         let mut ser = serde_json::Serializer::pretty(Vec::with_capacity(128));
         self.serialize_with_meta(&mut ser)?;
-        Ok(unsafe { String::from_utf8_unchecked(ser.into_inner()) })
+        Ok(unsafe { std::string::String::from_utf8_unchecked(ser.into_inner()) }.into())
     }
 
     /// Serializes an annotated value into a JSON string.
@@ -333,7 +333,7 @@ where
             None => ser.serialize_unit()?,
         }
 
-        Ok(unsafe { String::from_utf8_unchecked(ser.into_inner()) })
+        Ok(unsafe { std::string::String::from_utf8_unchecked(ser.into_inner()) }.into())
     }
 
     /// Serializes an annotated value into a pretty JSON string.
@@ -347,7 +347,7 @@ where
             None => ser.serialize_unit()?,
         }
 
-        Ok(unsafe { String::from_utf8_unchecked(ser.into_inner()) })
+        Ok(unsafe { std::string::String::from_utf8_unchecked(ser.into_inner()) }.into())
     }
 
     /// Modifies this value based on the action returned by `f`.
@@ -380,7 +380,7 @@ impl Annotated<Value> {
         match self.value_mut() {
             Some(Value::Array(items)) => {
                 for (idx, item) in items.iter_mut().enumerate() {
-                    if let Some(meta_tree) = meta_tree.children.remove(&idx.to_string()) {
+                    if let Some(meta_tree) = meta_tree.children.remove(&String::from(idx.to_string())) {
                         item.attach_meta_tree(meta_tree);
                     }
                 }

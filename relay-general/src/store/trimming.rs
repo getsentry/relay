@@ -229,7 +229,7 @@ impl Processor for TrimmingProcessor {
                 if self.remaining_bag_depth(state) == Some(1) {
                     if let Ok(x) = serde_json::to_string(&value) {
                         // Error case should not be possible
-                        *value = Value::String(x);
+                        *value = Value::String(x.into());
                     }
                 }
             }
@@ -294,7 +294,7 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) -> Proc
 
                 // if this is a text chunk, we can put the remaining characters in.
                 Chunk::Text { text } => {
-                    let mut remaining = String::new();
+                    let mut remaining = std::string::String::new();
                     for c in text.chars() {
                         if length + 3 < soft_limit {
                             remaining.push(c);

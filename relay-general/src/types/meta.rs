@@ -245,7 +245,7 @@ impl<'de> Deserialize<'de> for ErrorKind {
             where
                 E: de::Error,
             {
-                Ok(ErrorKind::from(string))
+                Ok(ErrorKind::from(String::from(string)))
             }
         }
 
@@ -296,7 +296,7 @@ impl Error {
         S: std::fmt::Display,
     {
         Error::with(ErrorKind::InvalidData, |error| {
-            error.insert("reason", reason.to_string());
+            error.insert("reason", String::from(reason.to_string()));
         })
     }
 
@@ -304,7 +304,7 @@ impl Error {
     pub fn expected(expectation: &str) -> Self {
         // Does not use `Error::invalid` to avoid the string copy.
         Error::with(ErrorKind::InvalidData, |error| {
-            error.insert("reason", format!("expected {}", expectation));
+            error.insert("reason", String::from(format!("expected {}", expectation)));
         })
     }
 
@@ -370,7 +370,7 @@ impl<'de> Deserialize<'de> for Error {
             where
                 E: de::Error,
             {
-                Ok(Error::new(ErrorKind::from(string)))
+                Ok(Error::new(ErrorKind::from(String::from(string))))
             }
 
             fn visit_seq<A: de::SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {

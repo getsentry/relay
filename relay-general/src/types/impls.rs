@@ -239,7 +239,7 @@ where
         for (idx, item) in self.iter().enumerate() {
             let tree = ToValue::extract_meta_tree(item);
             if !tree.is_empty() {
-                children.insert(idx.to_string(), tree);
+                children.insert(idx.to_string().into(), tree);
             }
         }
         children
@@ -321,7 +321,7 @@ where
         for (key, value) in self.iter() {
             let tree = ToValue::extract_meta_tree(value);
             if !tree.is_empty() {
-                children.insert(key.to_string(), tree);
+                children.insert(key.to_string().into(), tree);
             }
         }
         children
@@ -384,7 +384,7 @@ impl ToValue for Value {
                 for (key, value) in items.iter() {
                     let tree = ToValue::extract_meta_tree(value);
                     if !tree.is_empty() {
-                        children.insert(key.to_string(), tree);
+                        children.insert(key.to_string().into(), tree);
                     }
                 }
             }
@@ -392,7 +392,7 @@ impl ToValue for Value {
                 for (idx, item) in items.iter().enumerate() {
                     let tree = ToValue::extract_meta_tree(item);
                     if !tree.is_empty() {
-                        children.insert(idx.to_string(), tree);
+                        children.insert(idx.to_string().into(), tree);
                     }
                 }
             }
@@ -549,7 +549,7 @@ macro_rules! tuple_meta_structure {
                 $({
                     let tree = ToValue::extract_meta_tree($name);
                     if !tree.is_empty() {
-                        children.insert(idx.to_string(), tree);
+                        children.insert(idx.to_string().into(), tree);
                     }
                     idx += 1;
                 })*;
