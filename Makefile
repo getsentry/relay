@@ -10,7 +10,6 @@ check: style lint
 
 clean:
 	cargo clean
-	cargo clean --manifest-path relay-cabi/Cargo.toml
 	rm -rf .venv
 .PHONY: clean
 
