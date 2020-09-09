@@ -63,6 +63,7 @@ impl FromStr for EventId {
     }
 }
 
+
 impl_str_serde!(EventId);
 
 #[doc(inline)]

@@ -23,7 +23,7 @@ macro_rules! derive_string_meta_structure {
 
         impl crate::types::ToValue for $type {
             fn to_value(self) -> Value {
-                Value::String(self.to_string())
+                Value::String(self.to_string().into())
             }
 
             fn serialize_payload<S>(
