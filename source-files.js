@@ -4,6 +4,7 @@ sourcesIndex["generate_schema"] = {"name":"","files":["main.rs"]};
 sourcesIndex["process_event"] = {"name":"","files":["main.rs"]};
 sourcesIndex["relay"] = {"name":"","files":["cli.rs","cliapp.rs","main.rs","setup.rs","utils.rs"]};
 sourcesIndex["relay_auth"] = {"name":"","files":["lib.rs"]};
+sourcesIndex["relay_cabi"] = {"name":"","files":["auth.rs","constants.rs","core.rs","lib.rs","processing.rs","utils.rs"]};
 sourcesIndex["relay_common"] = {"name":"","files":["cell.rs","constants.rs","glob.rs","lib.rs","log.rs","macros.rs","metrics.rs","retry.rs","time.rs","utils.rs"]};
 sourcesIndex["relay_config"] = {"name":"","files":["byte_size.rs","config.rs","lib.rs","upstream.rs"]};
 sourcesIndex["relay_filter"] = {"name":"","files":["browser_extensions.rs","client_ips.rs","common.rs","config.rs","csp.rs","error_messages.rs","legacy_browsers.rs","lib.rs","localhost.rs","releases.rs","web_crawlers.rs"]};
