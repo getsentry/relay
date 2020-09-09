@@ -333,16 +333,11 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
                 ty: RemarkType::Removed,
             });
         }
-        Redaction::Mask(mask) => {
-            let chars_to_ignore: BTreeSet<char> = mask.chars_to_ignore.chars().collect();
+        Redaction::Mask => {
             let mut buf = Vec::with_capacity(text.len());
 
             for (idx, c) in text.chars().enumerate() {
-                if in_range(mask.range, idx, text.len()) && !chars_to_ignore.contains(&c) {
-                    buf.push(mask.mask_char);
-                } else {
-                    buf.push(c);
-                }
+                buf.push('*');
             }
             output.push(Chunk::Redaction {
                 ty: RemarkType::Masked,
@@ -350,14 +345,12 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
                 text: buf.into_iter().collect(),
             })
         }
-        Redaction::Hash(hash) => {
+        Redaction::Hash => {
             output.push(Chunk::Redaction {
                 ty: RemarkType::Pseudonymized,
                 rule_id: Cow::Owned(rule.origin.to_string()),
                 text: Cow::Owned(hash_value(
-                    hash.algorithm,
                     text.as_bytes(),
-                    hash.key.as_deref(),
                 )),
             });
         }
