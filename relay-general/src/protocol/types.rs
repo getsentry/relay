@@ -418,7 +418,7 @@ macro_rules! hex_metrastructure {
 
         impl ToValue for $type {
             fn to_value(self) -> Value {
-                Value::String(self.to_string())
+                Value::String(self.to_string().into())
             }
             fn serialize_payload<S>(
                 &self,
