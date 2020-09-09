@@ -222,6 +222,32 @@ struct UpstreamRequest {
     build: Box<dyn FnMut(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>>,
 }
 
+impl UpstreamRequest {
+    //NOTE: (RaduW) hacky implementation to get request types in metrics, if we
+    //want this feature in master we should clean this.
+    pub fn request_type(&self) -> &'static str {
+        if self.path.contains("/outcomes/") {
+            "outcomes"
+        } else if self.path.contains("/envelope/") {
+            "envelope"
+        } else if self.path.contains("/projectids/") {
+            "project_ids"
+        } else if self.path.contains("/projectconfigs/") {
+            "project_configs"
+        } else if self.path.contains("/publickeys/") {
+            "project_ids"
+        } else if self.path.contains("/projectids/") {
+            "project_ids"
+        } else if self.path.contains("/challenge/") {
+            "challenge"
+        } else if self.path.contains("/response/") {
+            "response"
+        } else {
+            "unknown"
+        }
+    }
+}
+
 pub struct UpstreamRelay {
     backoff: RetryBackoff,
     first_error: Option<Instant>,
@@ -405,6 +431,7 @@ impl UpstreamRelay {
         position: EnqueuePosition,
     ) {
         let name = request.priority.name();
+        let request_type = request.request_type();
         let queue = match request.priority {
             // Immediate is special and bypasses the queue. Directly send the request and return
             // the response channel rather than waiting for `PumpHttpMessageQueue`.
@@ -420,7 +447,8 @@ impl UpstreamRelay {
 
         metric!(
             histogram(RelayHistograms::UpstreamMessageQueueSize) = queue.len() as u64,
-            priority = name
+            priority = name,
+            request_type = request_type,
         );
 
         ctx.notify(PumpHttpMessageQueue);
