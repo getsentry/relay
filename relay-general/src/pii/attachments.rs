@@ -1,6 +1,9 @@
 use std::borrow::Cow;
 use std::collections::BTreeSet;
+use std::convert::TryInto;
 
+use encoding::all::UTF_16LE;
+use encoding::Encoding;
 use regex::bytes::RegexBuilder as BytesRegexBuilder;
 use regex::Regex;
 use smallvec::SmallVec;
@@ -10,6 +13,8 @@ use crate::pii::regexes::{get_regex_for_rule_type, ReplaceBehavior};
 use crate::pii::utils::{hash_value, in_range};
 use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::processor::{FieldAttrs, Pii, ProcessingState, ValueType};
+
+type Range = std::ops::Range<usize>;
 
 /// Copy `source` into `target`, truncating/padding with `padding` if necessary.
 fn replace_bytes_padded(source: &[u8], target: &mut [u8], padding: u8) {
@@ -124,6 +129,197 @@ fn apply_regex_to_bytes(
     true
 }
 
+fn apply_regex_to_utf16_slices(
+    data: &mut [u8],
+    rule: &RuleRef,
+    regex: &Regex,
+    replace_behavior: &ReplaceBehavior,
+) -> bool {
+    let segments = extract_strings(data);
+    for segment in segments.iter() {
+        let mut matches = Vec::new();
+        match replace_behavior {
+            ReplaceBehavior::Value => {
+                for re_match in regex.find_iter(&segment.decoded) {
+                    matches.push(re_match);
+                }
+            }
+            ReplaceBehavior::Groups(ref replace_groups) => {
+                for captures in regex.captures_iter(&segment.decoded) {
+                    for group_idx in replace_groups.iter() {
+                        if let Some(re_match) = captures.get(*group_idx as usize) {
+                            matches.push(re_match)
+                        }
+                    }
+                }
+            }
+        }
+        for re_match in matches.iter() {
+            let mut char_offset = 0;
+            let mut char_len = 0;
+
+            let mut byte_offset = 0;
+            for (cur_char_offset, c) in segment.decoded.chars().enumerate() {
+                if byte_offset == re_match.start() {
+                    char_offset = cur_char_offset;
+                }
+                if byte_offset == re_match.end() {
+                    char_len = cur_char_offset - char_offset;
+                    break;
+                }
+                byte_offset += c.len_utf8();
+            }
+
+            let mut utf16_byte_offset = 0;
+            let mut utf16_byte_len = 0;
+
+            let mut byte_offset = 0;
+            let u16input = &mut data[segment.input_pos.clone()]
+                .chunks_exact(2)
+                .map(|bb| u16::from_le_bytes(bb.try_into().unwrap()));
+            for (cur_char_offset, c) in std::char::decode_utf16(u16input).enumerate() {
+                if cur_char_offset == char_offset {
+                    utf16_byte_offset = byte_offset;
+                }
+                if cur_char_offset == char_offset + char_len {
+                    utf16_byte_len = byte_offset - utf16_byte_offset;
+                }
+                byte_offset += c.unwrap().len_utf16();
+            }
+
+            let start = segment.input_pos.start + utf16_byte_offset;
+            let end = start + utf16_byte_len;
+            let utf16_match_slice = &mut data[start..end];
+
+            const DEFAULT_PADDING_UTF16: [u8; 2] = ['x' as u8, '\x00' as u8];
+            // ASCII characters can be simply casted to u16
+            const DEFAULT_PADDING_U8: u8 = b'x' as u8;
+
+            match rule.redaction {
+                Redaction::Default | Redaction::Remove => {
+                    for c in utf16_match_slice.chunks_exact_mut(2) {
+                        *c.get_mut(0).unwrap() = DEFAULT_PADDING_UTF16[0];
+                        *c.get_mut(1).unwrap() = DEFAULT_PADDING_UTF16[1];
+                    }
+                }
+                Redaction::Mask(ref mask) => {
+                    // TODO: as long as the masking char fits in one u16 we can mask any
+                    // unicode codepoint.  Currently this restricts both to ASCII.
+                    let chars_not_masked: BTreeSet<u16> = mask
+                        .chars_to_ignore
+                        .chars()
+                        .filter_map(|x| if x.is_ascii() { Some(x as u16) } else { None })
+                        .collect();
+                    let mask_char = if mask.mask_char.is_ascii() {
+                        mask.mask_char as u8
+                    } else {
+                        DEFAULT_PADDING_U8
+                    };
+
+                    for bb in utf16_match_slice.chunks_exact_mut(2) {
+                        let bbb: &[u8] = bb;
+                        let c = u16::from_le_bytes(bbb.try_into().unwrap());
+                        let b0 = if chars_not_masked.contains(&c) {
+                            bb[0]
+                        } else {
+                            mask_char
+                        };
+                        *bb.get_mut(0).unwrap() = b0;
+                        *bb.get_mut(1).unwrap() = b'\x00';
+                    }
+                }
+                Redaction::Hash(ref hash) => {
+                    // Note, we are hashing bytes containing utf16, not utf8.
+                    let hashed = hash_value(hash.algorithm, utf16_match_slice, hash.key.as_deref());
+                    replace_utf16_bytes_padded(
+                        hashed.as_str(),
+                        &mut utf16_match_slice[..],
+                        DEFAULT_PADDING_U8 as u16,
+                    );
+                }
+                Redaction::Replace(ref replace) => {
+                    replace_utf16_bytes_padded(
+                        replace.text.as_str(),
+                        utf16_match_slice,
+                        DEFAULT_PADDING_U8 as u16,
+                    );
+                }
+            }
+        }
+    }
+    true // eh?
+}
+
+fn replace_utf16_bytes_padded(source: &str, target: &mut [u8], padding: u16) {
+    let target_len = target.len();
+    let mut target_offset = 0;
+    for code in source.encode_utf16() {
+        // Consider iterating over chars instead and use utf16_len() which avoids hardcoding
+        // codec knowledge.
+        let byte_len = if 0xD800 & code == 0xD800 {
+            // let byte_len = if 0xD800 <= code && code <= 0xDBFF {
+            4 // high or leading surrogate
+        } else {
+            2
+        };
+        if (target_len - target_offset) < byte_len {
+            break;
+        }
+        for byte in code.to_le_bytes().iter() {
+            target[target_offset] = *byte;
+            target_offset += 1;
+        }
+    }
+
+    while (target_len - target_offset) > 0 {
+        for byte in padding.to_le_bytes().iter() {
+            target[target_offset] = *byte;
+            target_offset += 1;
+        }
+    }
+}
+
+struct StringSegment {
+    decoded: String,
+    input_pos: Range,
+}
+
+// TODO: Make this an iterator to avoid more allocations?
+fn extract_strings(data: &[u8]) -> Vec<StringSegment> {
+    let mut ret = Vec::new();
+    let mut offset = 0;
+    let mut decoder = UTF_16LE.raw_decoder();
+
+    while offset < data.len() {
+        let mut decoded = String::new();
+        let (unprocessed_offset, err) = decoder.raw_feed(&data[offset..], &mut decoded);
+
+        if decoded.len() > 2 {
+            let input_pos = Range {
+                start: offset,
+                end: offset + unprocessed_offset,
+            };
+            ret.push(StringSegment { decoded, input_pos });
+        }
+
+        if let Some(err) = err {
+            if err.upto > 0 {
+                offset += err.upto as usize;
+            } else {
+                // This should never happen, but if it does, re-set the decoder and skip
+                // forward to the next 2 bytes.
+                offset += std::mem::size_of::<u16>();
+                decoder = decoder.from_self();
+            }
+        } else {
+            // We are at the end of input.  There could be some unprocessed bytes left, but
+            // we have no more data to feed to the decoder so just stop.
+            break;
+        }
+    }
+    ret
+}
+
 /// A PII processor for attachment files.
 pub struct PiiAttachmentsProcessor<'a> {
     compiled_config: &'a CompiledPiiConfig,
@@ -180,6 +376,8 @@ impl<'a> PiiAttachmentsProcessor<'a> {
                         get_regex_for_rule_type(&rule.ty)
                     {
                         changed |= apply_regex_to_bytes(data, rule, regex, &replace_behavior);
+                        changed |=
+                            apply_regex_to_utf16_slices(data, rule, regex, &replace_behavior);
                     }
                 }
             }
@@ -413,4 +611,71 @@ mod tests {
             .run()
         }
     }
+
+    #[test]
+    fn test_extract_strings_entire() {
+        let data = b"h\x00e\x00l\x00l\x00o\x00";
+        let ret = extract_strings(&data[..]);
+        assert_eq!(ret.len(), 1);
+        assert_eq!(ret[0].decoded, "hello".to_string());
+        assert_eq!(ret[0].input_pos, Range { start: 0, end: 10 });
+        assert_eq!(&data[ret[0].input_pos.clone()], &data[..]);
+    }
+
+    #[test]
+    fn test_extract_strings_middle_2_byte_aligned() {
+        let data = b"\xd8\xd8\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8";
+        let ret = extract_strings(&data[..]);
+        assert_eq!(ret.len(), 1);
+        assert_eq!(ret[0].decoded, "hello".to_string());
+        assert_eq!(ret[0].input_pos, Range { start: 4, end: 14 });
+        assert_eq!(
+            &data[ret[0].input_pos.clone()],
+            b"h\x00e\x00l\x00l\x00o\x00"
+        );
+    }
+
+    #[test]
+    fn test_extract_strings_middle_unaligned() {
+        let data = b"\xd8\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8";
+        let ret = extract_strings(&data[..]);
+        assert_eq!(ret.len(), 1);
+        assert_ne!(ret[0].decoded, "hello".to_string());
+        assert_eq!(ret[0].input_pos, Range { start: 2, end: 12 });
+    }
+
+    #[test]
+    fn test_extract_strings_end_aligned() {
+        let data = b"\xd8\xd8h\x00e\x00l\x00l\x00o\x00";
+        let ret = extract_strings(&data[..]);
+        assert_eq!(ret.len(), 1);
+        assert_eq!(ret[0].decoded, "hello".to_string());
+    }
+
+    #[test]
+    fn test_extract_strings_garbage() {
+        let data = b"\xd8\xd8";
+        let ret = extract_strings(&data[..]);
+        assert_eq!(ret.len(), 0);
+    }
+
+    #[test]
+    fn test_extract_strings_short() {
+        let data = b"\xd8\xd8y\x00o\x00\xd8\xd8h\x00e\x00l\x00l\x00o\x00";
+        let ret = extract_strings(&data[..]);
+        assert_eq!(ret.len(), 1);
+        assert_eq!(ret[0].decoded, "hello".to_string());
+    }
+
+    // #[test]
+    // fn test_extract_strings_minidump() {
+    //     let data =
+    //         std::fs::read("/Users/flub/code/symbolicator/tests/fixtures/windows.dmp").unwrap();
+    //     let ret = extract_strings(&data[..]);
+    //     println!("count: {}", ret.len());
+    //     for segment in ret {
+    //         println!("{}", &segment.decoded);
+    //     }
+    //     panic!("done");
+    // }
 }

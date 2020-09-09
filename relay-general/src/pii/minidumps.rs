@@ -2,8 +2,6 @@
 
 use std::borrow::Cow;
 
-use encoding::all::UTF_16LE;
-use encoding::Encoding;
 use failure::Fail;
 use minidump::format::{MINIDUMP_LOCATION_DESCRIPTOR, MINIDUMP_STREAM_TYPE as StreamType, RVA};
 use minidump::{Error as MinidumpError, Minidump, MinidumpMemoryList, MinidumpThreadList};
@@ -150,118 +148,5 @@ impl PiiAttachmentsProcessor<'_> {
         }
 
         Ok(changed)
-    }
-}
-
-struct StringSegment {
-    decoded: String,
-    input_pos: Range,
-}
-
-// TODO: Make this an iterator to avoid more allocations?
-fn extract_strings(data: &[u8]) -> Vec<StringSegment> {
-    let mut ret = Vec::new();
-    let mut offset = 0;
-    let mut decoder = UTF_16LE.raw_decoder();
-
-    while offset < data.len() {
-        let mut decoded = String::new();
-        let (unprocessed_offset, err) = decoder.raw_feed(&data[offset..], &mut decoded);
-
-        if decoded.len() > 2 {
-            let input_pos = Range {
-                start: offset,
-                end: offset + unprocessed_offset,
-            };
-            ret.push(StringSegment { decoded, input_pos });
-        }
-
-        if let Some(err) = err {
-            if err.upto > 0 {
-                offset += err.upto as usize;
-            } else {
-                // This should never happen, but if it does, re-set the decoder and skip
-                // forward to the next 2 bytes.
-                offset += std::mem::size_of::<u16>();
-                decoder = decoder.from_self();
-            }
-        } else {
-            // We are at the end of input.  There could be some unprocessed bytes left, but
-            // we have no more data to feed to the decoder so just stop.
-            break;
-        }
-    }
-    ret
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_extract_strings_entire() {
-        let data = b"h\x00e\x00l\x00l\x00o\x00";
-        let ret = extract_strings(&data[..]);
-        assert_eq!(ret.len(), 1);
-        assert_eq!(ret[0].decoded, "hello".to_string());
-        assert_eq!(ret[0].input_pos, Range { start: 0, end: 10 });
-        assert_eq!(&data[ret[0].input_pos.clone()], &data[..]);
-    }
-
-    #[test]
-    fn test_extract_strings_middle_2_byte_aligned() {
-        let data = b"\xd8\xd8\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8";
-        let ret = extract_strings(&data[..]);
-        assert_eq!(ret.len(), 1);
-        assert_eq!(ret[0].decoded, "hello".to_string());
-        assert_eq!(ret[0].input_pos, Range { start: 4, end: 14 });
-        assert_eq!(
-            &data[ret[0].input_pos.clone()],
-            b"h\x00e\x00l\x00l\x00o\x00"
-        );
-    }
-
-    #[test]
-    fn test_extract_strings_middle_unaligned() {
-        let data = b"\xd8\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8";
-        let ret = extract_strings(&data[..]);
-        assert_eq!(ret.len(), 1);
-        assert_ne!(ret[0].decoded, "hello".to_string());
-        assert_eq!(ret[0].input_pos, Range { start: 2, end: 12 });
-    }
-
-    #[test]
-    fn test_extract_strings_end_aligned() {
-        let data = b"\xd8\xd8h\x00e\x00l\x00l\x00o\x00";
-        let ret = extract_strings(&data[..]);
-        assert_eq!(ret.len(), 1);
-        assert_eq!(ret[0].decoded, "hello".to_string());
-    }
-
-    #[test]
-    fn test_extract_strings_garbage() {
-        let data = b"\xd8\xd8";
-        let ret = extract_strings(&data[..]);
-        assert_eq!(ret.len(), 0);
-    }
-
-    #[test]
-    fn test_extract_strings_short() {
-        let data = b"\xd8\xd8y\x00o\x00\xd8\xd8h\x00e\x00l\x00l\x00o\x00";
-        let ret = extract_strings(&data[..]);
-        assert_eq!(ret.len(), 1);
-        assert_eq!(ret[0].decoded, "hello".to_string());
-    }
-
-    #[test]
-    fn test_extract_strings_minidump() {
-        let data =
-            std::fs::read("/Users/flub/code/symbolicator/tests/fixtures/windows.dmp").unwrap();
-        let ret = extract_strings(&data[..]);
-        println!("count: {}", ret.len());
-        for segment in ret {
-            println!("{}", &segment.decoded);
-        }
-        panic!("done");
     }
 }
