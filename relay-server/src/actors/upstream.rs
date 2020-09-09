@@ -236,8 +236,6 @@ impl UpstreamRequest {
             "project_configs"
         } else if self.path.contains("/publickeys/") {
             "project_ids"
-        } else if self.path.contains("/projectids/") {
-            "project_ids"
         } else if self.path.contains("/challenge/") {
             "challenge"
         } else if self.path.contains("/response/") {
