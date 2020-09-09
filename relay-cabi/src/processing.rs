@@ -6,7 +6,6 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
 
-use json_forensics;
 use relay_common::{glob_match_bytes, GlobOptions};
 use relay_general::pii::{
     selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiProcessor,
@@ -178,15 +177,6 @@ ffi_fn! {
         process_value(&mut event, &mut processor, ProcessingState::root())?;
 
         Ok(RelayStr::from_string(event.to_json()?))
-    }
-}
-
-ffi_fn! {
-    /// DEPRECATED: Use relay_pii_selector_suggestions_from_event
-    unsafe fn relay_pii_selectors_from_event(event: *const RelayStr) -> Result<RelayStr> {
-        let mut event = Annotated::<Event>::from_json((*event).as_str())?;
-        let rv = selector_suggestions_from_value(&mut event).into_iter().map(|x| x.path).collect::<Vec<_>>();
-        Ok(RelayStr::from_string(serde_json::to_string(&rv)?))
     }
 }
 

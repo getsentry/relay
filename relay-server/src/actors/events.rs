@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
+use actix_web::http::ContentEncoding;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use futures::prelude::*;
@@ -1432,7 +1433,7 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
 
                 log::trace!("sending event to sentry endpoint");
-                let request = SendRequest::post(format!("/api/{}/store/", project_id)).build(
+                let request = SendRequest::post(format!("/api/{}/envelope/", project_id)).build(
                     move |builder| {
                         // Override the `sent_at` timestamp. Since the event went through basic
                         // normalization, all timestamps have been corrected. We propagate the new
@@ -1455,6 +1456,7 @@ impl Handler<HandleEnvelope> for EventManager {
                             .header("X-Sentry-Auth", meta.auth_header())
                             .header("X-Forwarded-For", meta.forwarded_for())
                             .header("Content-Type", envelope::CONTENT_TYPE)
+                            .content_encoding(ContentEncoding::Gzip)
                             .body(envelope.to_vec().map_err(failure::Error::from)?)
                     },
                 );

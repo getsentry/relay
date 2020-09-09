@@ -1,6 +1,5 @@
 [workspace]
 members = ["relay", "relay-*", "tools/*"]
-exclude = ["relay-cabi"]
 default-members = ["relay"]
 
 [profile.release]

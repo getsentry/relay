@@ -1,6 +1,5 @@
 use std::env;
-use std::fs;
-use std::io::{self, Read};
+use std::io;
 use std::path::{Path, PathBuf};
 
 use clap::{ArgMatches, Shell};
@@ -9,18 +8,11 @@ use failure::{err_msg, Error};
 
 use relay_common::{LogError, Uuid};
 use relay_config::{Config, Credentials, MinimalConfig, OverridableConfig, RelayMode};
-use relay_general::pii::{PiiConfig, PiiProcessor};
-use relay_general::processor::{process_value, ProcessingState};
-use relay_general::protocol::Event;
-use relay_general::store::{StoreConfig, StoreProcessor};
-use relay_general::types::Annotated;
 
 use crate::cliapp::make_app;
 use crate::setup;
 use crate::utils;
 use crate::utils::get_theme;
-
-type EventV8 = Annotated<Event>;
 
 /// Logs an error to the configured logger or `stderr` if not yet configured.
 pub fn ensure_log_error<E: failure::AsFail>(error: &E) {
@@ -44,14 +36,6 @@ pub fn execute() -> Result<(), Error> {
         }
     } else if let Some(matches) = matches.subcommand_matches("generate-completions") {
         return generate_completions(&matches);
-    } else if let Some(matches) = matches.subcommand_matches("process-event") {
-        return process_event(&matches);
-    } else if let Some(_matches) = matches.subcommand_matches("event-json-schema") {
-        #[cfg(feature = "jsonschema")]
-        return event_json_schema(&_matches);
-
-        #[cfg(not(feature = "jsonschema"))]
-        failure::bail!("Relay needs to be compiled with the 'jsonschema' feature for this command to be available.");
     }
 
     // Commands that need a loaded config:
@@ -359,49 +343,6 @@ pub fn generate_completions<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
         Some(shell) => shell,
     };
     make_app().gen_completions_to("relay", shell, &mut io::stdout());
-    Ok(())
-}
-
-pub fn process_event<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
-    let pii_config = if let Some(pii_config) = matches.value_of("pii_config") {
-        let json_config = fs::read_to_string(&pii_config)?;
-        Some(PiiConfig::from_json(&json_config)?)
-    } else {
-        None
-    };
-
-    let mut event_json = Vec::new();
-    let stdin = io::stdin();
-    stdin.lock().read_to_end(&mut event_json)?;
-    let mut event = EventV8::from_json_bytes(&event_json[..])?;
-    if let Some(ref pii_config) = pii_config {
-        let compiled = pii_config.compiled();
-        let mut processor = PiiProcessor::new(&compiled);
-        process_value(&mut event, &mut processor, ProcessingState::root())?;
-    };
-
-    if matches.is_present("store") {
-        let mut processor = StoreProcessor::new(StoreConfig::default(), None);
-        process_value(&mut event, &mut processor, ProcessingState::root())?;
-    }
-
-    if matches.is_present("debug") {
-        println!("{:#?}", event);
-    } else if matches.is_present("pretty") {
-        println!("{}", event.to_json_pretty()?);
-    } else {
-        println!("{}", event.to_json()?);
-    }
-
-    Ok(())
-}
-
-#[cfg(feature = "jsonschema")]
-pub fn event_json_schema<'a>(_matches: &ArgMatches<'a>) -> Result<(), Error> {
-    serde_json::to_writer_pretty(
-        &mut io::stdout().lock(),
-        &relay_general::protocol::event_json_schema(),
-    )?;
     Ok(())
 }
 

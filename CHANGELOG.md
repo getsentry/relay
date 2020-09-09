@@ -5,14 +5,26 @@
 **Features**:
 
 - Add support for attaching Sentry event payloads in Unreal crash reports by adding `__sentry` game data entries. ([#715](https://github.com/getsentry/relay/pull/715))
-- Support chunked formdata keys for event payloads on the Minidump endpoint. Since crashpad has a limit for the length of custom attributes, the sentry event payload can be split up into `sentry__1`, `sentry__2`, etc. ([#721](https://github.com/getsentry/relay/pull/721))
-- Add periodic re-authentication with the upstream server, previously there was only one initial authentication. ([#731](https://github.com/getsentry/relay/pull/731))
+- Support chunked form data keys for event payloads on the Minidump endpoint. Since crashpad has a limit for the length of custom attributes, the sentry event payload can be split up into `sentry__1`, `sentry__2`, etc. ([#721](https://github.com/getsentry/relay/pull/721))
+- Periodically re-authenticate with the upstream server. Previously, there was only one initial authentication. ([#731](https://github.com/getsentry/relay/pull/731))
+- The module attribute on stack frames (`$frame.module`) and the (usually server side generated) attribute `culprit` can now be scrubbed with advanced data scrubbing. ([#744](https://github.com/getsentry/relay/pull/744))
+- Compress outgoing store requests for events and envelopes including attachements using `gzip` content encoding. ([#745](https://github.com/getsentry/relay/pull/745))
+- Retry sending events on network errors instead of dropping them. Also, Relay now buffers all requests until it has authenticated with the upstream. ([#747](//github.com/getsentry/relay/pull/747))
+
+**Bug Fixes**:
+
+- Send requests to the `/envelope/` endpoint instead of the older `/store/` endpoint. This particularly fixes spurious `413 Payload Too Large` errors returned when using Relay with Sentry SaaS. ([#746](https://github.com/getsentry/relay/pull/746))
 
 **Internal**:
 
 - Remove a temporary flag from attachment kafka messages indicating rate limited crash reports to Sentry. This is now enabled by default. ([#718](https://github.com/getsentry/relay/pull/718))
 - Performance improvement of http requests to upstream, high priority messages are sent first. ([#678](https://github.com/getsentry/relay/pull/678))
 - Experimental data scrubbing on minidumps([#682](https://github.com/getsentry/relay/pull/682))
+- Move `generate-schema` from the Relay CLI into a standalone tool. ([#739](//github.com/getsentry/relay/pull/739))
+- Move `process-event` from the Relay CLI into a standalone tool. ([#740](//github.com/getsentry/relay/pull/740))
+- Add the client SDK to session kafka payloads. ([#751](https://github.com/getsentry/relay/pull/751))
+- Add a standalone tool to document metrics in JSON or YAML. ([#752](https://github.com/getsentry/relay/pull/752))
+- Emit `processing.event.produced` for user report and session Kafka messages. ([#757](https://github.com/getsentry/relay/pull/757))
 
 ## 20.8.0
 
@@ -27,7 +39,6 @@
 - Fix hashing of user IP addresses in data scrubbing. Previously, this could create invalid IP addresses which were later rejected by Sentry. Now, the hashed IP address is moved to the `id` field. ([#692](https://github.com/getsentry/relay/pull/692))
 - Do not retry authentication with the upstream when a client error is reported (status code 4XX). ([#696](https://github.com/getsentry/relay/pull/696))
 
-
 **Internal**:
 
 - Extract the event `timestamp` from Minidump files during event normalization. ([#662](https://github.com/getsentry/relay/pull/662))
@@ -35,6 +46,7 @@
 - Report all Kafka producer errors to Sentry. Previously, only immediate errors were reported but not those during asynchronous flushing of messages. ([#677](https://github.com/getsentry/relay/pull/677))
 - Add "HubSpot Crawler" to the list of web crawlers for inbound filters. ([#693](https://github.com/getsentry/relay/pull/693))
 - Improved typing for span data of transaction events, no breaking changes. ([#713](https://github.com/getsentry/relay/pull/713))
+- **Breaking change:** In PII configs, all options on hash and mask redactions (replacement characters, ignored characters, hash algorithm/key) are removed. If they still exist in the configuration, they are ignored. ([#760](https://github.com/getsentry/relay/pull/760))
 
 ## 20.7.2
 

@@ -1,6 +1,5 @@
 from copy import deepcopy
 from datetime import datetime
-import json
 import uuid
 from queue import Empty
 
@@ -10,9 +9,7 @@ import time
 HOUR_MILLISEC = 1000 * 3600
 
 
-def test_outcomes_processing(
-    relay_with_processing, kafka_consumer, mini_sentry, outcomes_consumer
-):
+def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consumer):
     """
     Tests outcomes are sent to the kafka outcome topic
 
@@ -70,7 +67,7 @@ def _send_event(relay):
     return event_id
 
 
-def test_outcomes_non_processing(relay, relay_with_processing, mini_sentry):
+def test_outcomes_non_processing(relay, mini_sentry):
     """
     Test basic outcome functionality.
 
@@ -127,7 +124,7 @@ def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
     mini_sentry.project_configs[42] = None
 
     try:
-        outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
+        mini_sentry.captured_outcomes.get(timeout=0.2)
         assert False  # we should not be here ( previous call should have failed)
     except Empty:
         pass  # we do expect not to get anything since we have outcomes disabled
@@ -153,14 +150,14 @@ def test_outcomes_non_processing_max_batch_time(relay, mini_sentry):
 
     event_ids = set()
     # send one less events than the batch size (and check we don't send anything)
-    for i in range(events_to_send):
+    for _ in range(events_to_send):
         event_id = _send_event(relay)
         event_ids.add(event_id)
         time.sleep(0.12)  # sleep more than the batch time
 
     # we should get one batch per event sent
     batches = []
-    for batch_id in range(events_to_send):
+    for _ in range(events_to_send):
         batch = mini_sentry.captured_outcomes.get(timeout=1)
         batches.append(batch)
 
@@ -193,7 +190,7 @@ def test_outcomes_non_processing_batching(relay, mini_sentry):
 
     event_ids = set()
     # send one less events than the batch size (and check we don't send anything)
-    for i in range(batch_size - 1):
+    for _ in range(batch_size - 1):
         event_id = _send_event(relay)
         event_ids.add(event_id)
 
@@ -257,7 +254,7 @@ def test_outcome_source(relay, mini_sentry):
     # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
     mini_sentry.project_configs[42] = None
 
-    event_id = _send_event(relay)
+    _send_event(relay)
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
@@ -308,7 +305,7 @@ def test_outcome_forwarding(
     }
 
     # build a chain of identical relays
-    for i in range(num_intermediate_relays):
+    for _ in range(num_intermediate_relays):
         upstream = relay(upstream, intermediate_config)
 
     # mark the downstream relay so we can identify outcomes originating from it

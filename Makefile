@@ -10,7 +10,6 @@ check: style lint
 
 clean:
 	cargo clean
-	cargo clean --manifest-path relay-cabi/Cargo.toml
 	rm -rf .venv
 .PHONY: clean
 
@@ -73,49 +72,13 @@ test-integration: build setup-venv
 
 # Documentation
 
-doc: doc-api doc-prose
-.PHONY: doc-api doc-prose
-
-doc-api: setup-git
-	@cargo doc
+doc: doc-api
 .PHONY: doc-api
 
-doc-prose: .venv/bin/python doc-metrics
-	.venv/bin/mkdocs build
-	touch site/.nojekyll
-.PHONY: doc-prose
-
-doc-metrics: .venv/bin/python
-	.venv/bin/pip install -U -r requirements-doc.txt
-	cd scripts && ../.venv/bin/python extract_metric_docs.py
-
-doc-schema: init-submodules
-	# Makes no sense to nest this in docs, but unfortunately that's the path
-	# Snuba uses in their setup right now. Eventually this should be gone in
-	# favor of the data schemas repo
-	mkdir -p docs/event-schema/
-	rm -rf docs/event-schema/event.schema.*
-	set -e && cd relay && cargo run --features jsonschema -- event-json-schema \
-		> ../docs/event-schema/event.schema.json
-.PHONY: doc-schema
-
-doc-server: doc-prose
-	.venv/bin/mkdocs serve
-.PHONY: doc-server
-
-doc-upload-travis: doc-prose
-	cd site && zip -r gh-pages .
-	set -e && zeus upload -t "application/zip+docs" site/gh-pages.zip \
-		|| [[ ! "$(TRAVIS_BRANCH)" =~ ^release/ ]]
-	set -e && zeus upload -t "application/octet-stream" -n event.schema.json docs/event-schema/event.schema.json \
-		|| [[ ! "$(TRAVIS_BRANCH)" =~ ^release/ ]]
-.PHONY: doc-upload-travis
-
-doc-upload-local: doc-prose
-	# Use this for hotfixing docs, prefer a new release
-	.venv/bin/pip install -U ghp-import
-	.venv/bin/ghp-import -pf site/
-.PHONY: doc-upload-local
+doc-api: setup-git
+	cargo doc --workspace --all-features --no-deps
+	@echo '<meta http-equiv="refresh" content="0; url=relay/" />Redirecting to <a href="relay/">relay</a>' > target/doc/index.html
+.PHONY: doc-api
 
 # Style checking
 
@@ -124,7 +87,7 @@ style: style-rust style-python
 
 style-rust:
 	@rustup component add rustfmt --toolchain stable 2> /dev/null
-	cargo +stable fmt -- --check
+	cargo +stable fmt --all -- --check
 .PHONY: style-rust
 
 style-python: setup-venv
@@ -154,7 +117,7 @@ format: format-rust format-python
 
 format-rust:
 	@rustup component add rustfmt --toolchain stable 2> /dev/null
-	cargo +stable fmt
+	cargo +stable fmt --all
 .PHONY: format-rust
 
 format-python: setup-venv

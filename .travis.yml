@@ -25,13 +25,6 @@ jobs:
   fast_finish: true
   include:
     # -------------------------------------
-    # STATIC ANALYSIS
-    # -------------------------------------
-
-    - name: "check: lints"
-      script: make -e style lint
-
-    # -------------------------------------
     # RUST TESTS
     # -------------------------------------
 
@@ -119,11 +112,6 @@ jobs:
         - zeus upload -t "application/octet-stream" -n relay-Darwin-x86_64 target/release/relay || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
         - zip -r relay-dsym.zip target/release/relay.dSYM
         - zeus upload -t "application/octet-stream" -n relay-Darwin-x86_64-dsym.zip relay-dsym.zip || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
-
-    - name: "release: docs"
-      if: branch ~= /^release\/[\d.]+$/
-      before_script: npm install -g @zeus-ci/cli
-      script: make -e doc-upload-travis
 
     # -------------------------------------
     # PYTHON RELEASE BUILDS

@@ -46,6 +46,10 @@ impl UpstreamQuery for GetProjectStates {
     fn priority() -> RequestPriority {
         RequestPriority::High
     }
+
+    fn retry() -> bool {
+        false
+    }
 }
 
 #[derive(Debug)]
