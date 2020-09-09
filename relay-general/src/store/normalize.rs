@@ -113,7 +113,7 @@ impl<'a> NormalizeProcessor<'a> {
 
         if let Some(dist) = event.dist.value_mut() {
             if dist.trim() != dist {
-                *dist = dist.trim().to_string();
+                *dist = dist.trim().to_string().into();
             }
         }
     }
@@ -222,12 +222,12 @@ impl<'a> NormalizeProcessor<'a> {
 
         let server_name = std::mem::take(&mut event.server_name);
         if server_name.value().is_some() {
-            tags.insert("server_name".to_string(), server_name);
+            tags.insert("server_name".into(), server_name);
         }
 
         let site = std::mem::take(&mut event.site);
         if site.value().is_some() {
-            tags.insert("site".to_string(), site);
+            tags.insert("site".into(), site);
         }
 
         Ok(())
@@ -279,7 +279,7 @@ impl<'a> NormalizeProcessor<'a> {
             return;
         }
 
-        event.logger.get_or_insert_with(|| "csp".to_string());
+        event.logger.get_or_insert_with(|| "csp".into());
 
         if let Some(ref client_ip) = self.config.client_ip {
             let user = event.user.value_mut().get_or_insert_with(User::default);
@@ -325,7 +325,7 @@ impl<'a> NormalizeProcessor<'a> {
                         .and_then(|annotated| annotated.value_mut().as_mut())
                     {
                         if http_ip == "{{auto}}" {
-                            *http_ip = client_ip.to_string();
+                            *http_ip = client_ip.as_str().into();
                         }
                     }
                 }
@@ -470,7 +470,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         // Default required attributes, even if they have errors
         event.errors.get_or_insert_with(Vec::new);
         event.id.get_or_insert_with(EventId::new);
-        event.platform.get_or_insert_with(|| "other".to_string());
+        event.platform.get_or_insert_with(|| "other".into());
         event.logger.get_or_insert_with(String::new);
         event.extra.get_or_insert_with(Object::new);
         event.level.get_or_insert_with(|| match event_type {
@@ -500,7 +500,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         breadcrumb.process_child_values(self, state)?;
 
         if breadcrumb.ty.value().is_empty() {
-            breadcrumb.ty.set_value(Some("default".to_string()));
+            breadcrumb.ty.set_value(Some("default".into()));
         }
 
         if breadcrumb.level.value().is_none() {
@@ -590,7 +590,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             if let Some(value_str) = exception.value.value_mut() {
                 let new_values = TYPE_VALUE_RE
                     .captures(value_str)
-                    .map(|cap| (cap[1].to_string(), cap[2].trim().to_string().into()));
+                    .map(|cap| (cap[1].into(), String::from(cap[2].trim()).into()));
 
                 if let Some((new_type, new_value)) = new_values {
                     exception.ty.set_value(Some(new_type));

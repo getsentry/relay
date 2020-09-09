@@ -39,11 +39,13 @@ fn format_message<'f>(format: &'f str, params: &Value) -> Option<String> {
             .format(format, params)
             .ok()
             .map(Cow::into_owned)
+            .map(String::from)
     } else if format.contains('{') {
         SimpleCurlyFormat
             .format(format, params)
             .ok()
             .map(Cow::into_owned)
+            .map(String::from)
     } else {
         None
     }

@@ -1,3 +1,4 @@
+use smartstring::alias::String;
 
 use regex::Regex;
 
@@ -23,10 +24,10 @@ fn normalize_runtime_context(runtime: &mut RuntimeContext) {
     if runtime.name.value().is_empty() && runtime.version.value().is_empty() {
         if let Some(raw_description) = runtime.raw_description.as_str() {
             if let Some(captures) = RUNTIME_DOTNET_REGEX.captures(raw_description) {
-                runtime.name = captures.name("name").map(|m| m.as_str().to_string()).into();
+                runtime.name = captures.name("name").map(|m| String::from(m.as_str())).into();
                 runtime.version = captures
                     .name("version")
-                    .map(|m| m.as_str().to_string())
+                    .map(|m| String::from(m.as_str()))
                     .into();
             }
         }
@@ -39,31 +40,31 @@ fn normalize_runtime_context(runtime: &mut RuntimeContext) {
         if let Some(build) = runtime.build.as_str() {
             if name.starts_with(".NET Framework") {
                 let version = match build {
-                    "378389" => Some("4.5".to_string()),
-                    "378675" => Some("4.5.1".to_string()),
-                    "378758" => Some("4.5.1".to_string()),
-                    "379893" => Some("4.5.2".to_string()),
-                    "393295" => Some("4.6".to_string()),
-                    "393297" => Some("4.6".to_string()),
-                    "394254" => Some("4.6.1".to_string()),
-                    "394271" => Some("4.6.1".to_string()),
-                    "394802" => Some("4.6.2".to_string()),
-                    "394806" => Some("4.6.2".to_string()),
-                    "460798" => Some("4.7".to_string()),
-                    "460805" => Some("4.7".to_string()),
-                    "461308" => Some("4.7.1".to_string()),
-                    "461310" => Some("4.7.1".to_string()),
-                    "461808" => Some("4.7.2".to_string()),
-                    "461814" => Some("4.7.2".to_string()),
-                    "528040" => Some("4.8".to_string()),
-                    "528049" => Some("4.8".to_string()),
-                    "528209" => Some("4.8".to_string()),
-                    "528372" => Some("4.8".to_string()),
+                    "378389" => Some("4.5"),
+                    "378675" => Some("4.5.1"),
+                    "378758" => Some("4.5.1"),
+                    "379893" => Some("4.5.2"),
+                    "393295" => Some("4.6"),
+                    "393297" => Some("4.6"),
+                    "394254" => Some("4.6.1"),
+                    "394271" => Some("4.6.1"),
+                    "394802" => Some("4.6.2"),
+                    "394806" => Some("4.6.2"),
+                    "460798" => Some("4.7"),
+                    "460805" => Some("4.7"),
+                    "461308" => Some("4.7.1"),
+                    "461310" => Some("4.7.1"),
+                    "461808" => Some("4.7.2"),
+                    "461814" => Some("4.7.2"),
+                    "528040" => Some("4.8"),
+                    "528049" => Some("4.8"),
+                    "528209" => Some("4.8"),
+                    "528372" => Some("4.8"),
                     _ => None,
                 };
 
                 if let Some(version) = version {
-                    runtime.version = version.into();
+                    runtime.version = String::from(version).into();
                 }
             }
         }
@@ -77,26 +78,26 @@ fn normalize_os_context(os: &mut OsContext) {
 
     if let Some(raw_description) = os.raw_description.as_str() {
         if let Some(captures) = OS_WINDOWS_REGEX.captures(raw_description) {
-            os.name = "Windows".to_string().into();
+            os.name = String::from("Windows").into();
             os.version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| String::from(m.as_str()))
                 .into();
         } else if let Some(captures) = OS_MACOS_REGEX.captures(raw_description) {
-            os.name = "macOS".to_string().into();
+            os.name = String::from("macOS").into();
             os.version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| String::from(m.as_str()))
                 .into();
             os.build = captures
                 .name("build")
-                .map(|m| m.as_str().to_string().into())
+                .map(|m| String::from(m.as_str()).into())
                 .into();
         } else if let Some(captures) = OS_UNAME_REGEX.captures(raw_description) {
-            os.name = captures.name("name").map(|m| m.as_str().to_string()).into();
+            os.name = captures.name("name").map(|m| String::from(m.as_str())).into();
             os.kernel_version = captures
                 .name("version")
-                .map(|m| m.as_str().to_string())
+                .map(|m| String::from(m.as_str()))
                 .into();
         }
     }
@@ -116,7 +117,7 @@ use crate::protocol::LenientString;
 #[test]
 fn test_dotnet_framework_472() {
     let mut runtime = RuntimeContext {
-        raw_description: ".NET Framework 4.7.3056.0".to_string().into(),
+        raw_description: String::from(".NET Framework 4.7.3056.0").into(),
         build: LenientString("461814".to_string()).into(),
         ..RuntimeContext::default()
     };
