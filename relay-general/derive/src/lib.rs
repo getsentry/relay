@@ -154,7 +154,7 @@ fn derive_enum_metastructure(
                 #type_name::#variant_name(__value) => {
                     let mut __rv = crate::types::ToValue::to_value(__value);
                     if let crate::types::Value::Object(ref mut __object) = __rv {
-                        __object.insert(#tag_key_str.to_string(), Annotated::new(crate::types::Value::String(#tag.to_string())));
+                        __object.insert(#tag_key_str.to_string().into(), Annotated::new(crate::types::Value::String(#tag.to_string().into())));
                     }
                     __rv
                 }
@@ -172,7 +172,7 @@ fn derive_enum_metastructure(
             (quote! {
                 _ => {
                     if let Some(__type) = __type {
-                        __object.insert(#tag_key_str.to_string(), __type);
+                        __object.insert(#tag_key_str.to_string().into(), __type);
                     }
                     crate::types::Annotated(Some(#type_name::#variant_name(__object)), __meta)
                 }
@@ -324,7 +324,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 for (__key, __value) in #bi.iter() {
                     let __inner_tree = crate::types::ToValue::extract_meta_tree(__value);
                     if !__inner_tree.is_empty() {
-                        __child_meta.insert(__key.to_string(), __inner_tree);
+                        __child_meta.insert(__key.to_string().into(), __inner_tree);
                     }
                 }
             })
@@ -366,7 +366,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 }).to_tokens(&mut serialize_body);
             } else {
                 (quote! {
-                    __map.insert(#field_name.to_string(), Annotated::map_value(#bi, crate::types::ToValue::to_value));
+                    __map.insert(#field_name.to_string().into(), Annotated::map_value(#bi, crate::types::ToValue::to_value));
                 }).to_tokens(&mut to_value_body);
                 (quote! {
                     if !#bi.skip_serialization(#skip_serialization_attr) {
@@ -379,7 +379,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
             (quote! {
                 let __inner_tree = crate::types::ToValue::extract_meta_tree(#bi);
                 if !__inner_tree.is_empty() {
-                    __child_meta.insert(#field_name.to_string(), __inner_tree);
+                    __child_meta.insert(#field_name.to_string().into(), __inner_tree);
                 }
             })
             .to_tokens(&mut extract_child_meta_body);
