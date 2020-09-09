@@ -224,6 +224,12 @@ impl From<String> for Value {
     }
 }
 
+impl From<std::string::String> for Value {
+    fn from(value: std::string::String) -> Self {
+        Value::String(value.into())
+    }
+}
+
 impl From<Array<Value>> for Value {
     fn from(value: Array<Value>) -> Self {
         Value::Array(value)

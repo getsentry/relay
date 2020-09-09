@@ -90,22 +90,22 @@ fn merge_unreal_user_info(event: &mut Event, user_info: &str) {
 
     if let Some(user_id) = parts.next() {
         let user = event.user.value_mut().get_or_insert_with(User::default);
-        user.id = Annotated::new(LenientString(user_id.to_owned()));
+        user.id = Annotated::new(LenientString(user_id.into()));
     }
 
     if let Some(epic_account_id) = parts.next() {
         let tags = event.tags.value_mut().get_or_insert_with(Tags::default);
         tags.push(Annotated::new(TagEntry(
-            Annotated::new("epic_account_id".to_string()),
-            Annotated::new(epic_account_id.to_string()),
+            Annotated::new("epic_account_id".into()),
+            Annotated::new(epic_account_id.into()),
         )));
     }
 
     if let Some(machine_id) = parts.next() {
         let tags = event.tags.value_mut().get_or_insert_with(Tags::default);
         tags.push(Annotated::new(TagEntry::from_pair((
-            Annotated::new("machine_id".to_string()),
-            Annotated::new(machine_id.to_string()),
+            Annotated::new("machine_id".into()),
+            Annotated::new(machine_id.into()),
         ))));
     }
 }
@@ -125,8 +125,8 @@ fn merge_unreal_logs(event: &mut Event, data: &[u8]) -> Result<(), Unreal4Error>
     for log in logs {
         breadcrumbs.push(Annotated::new(Breadcrumb {
             timestamp: Annotated::from(log.timestamp.map(Timestamp)),
-            category: Annotated::from(log.component),
-            message: Annotated::new(log.message),
+            category: log.component.map(From::from).map(Annotated::new).unwrap_or_else(Annotated::empty),
+            message: Annotated::new(log.message.into()),
             ..Breadcrumb::default()
         }));
     }
@@ -145,10 +145,10 @@ fn get_unreal_user_report(event_id: EventId, context: &mut Unreal4Context) -> Op
         .unwrap_or_else(|| "unknown".to_owned());
 
     let user_report = UserReport {
-        email: "".to_owned(),
-        comments: user_description,
+        email: "".into(),
+        comments: user_description.into(),
         event_id,
-        name: user_name,
+        name: user_name.into(),
     };
 
     let json = serde_json::to_string(&user_report).ok()?;
@@ -177,7 +177,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
             .user
             .get_or_insert_with(User::default)
             .username
-            .set_value(Some(username));
+            .set_value(Some(username.into()));
     }
 
     let contexts = event.contexts.get_or_insert_with(Contexts::default);
@@ -198,7 +198,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
         });
 
         if let Context::Os(os_context) = os_context {
-            os_context.name = Annotated::new(os_major);
+            os_context.name = Annotated::new(os_major.into());
         }
     }
 
@@ -216,7 +216,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
         });
 
         if let Context::Gpu(gpu_context) = gpu_context {
-            gpu_context.name = Annotated::new(gpu_brand);
+            gpu_context.name = Annotated::new(gpu_brand.into());
         }
     }
 
@@ -231,7 +231,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
                 .game_data
                 .into_iter()
                 .filter(|(key, _)| key != SENTRY_PAYLOAD_KEY)
-                .map(|(key, value)| (key, Annotated::new(Value::String(value))));
+                .map(|(key, value)| (key.into(), Annotated::new(Value::String(value.into()))));
 
             game_context.extend(filtered_keys);
         }

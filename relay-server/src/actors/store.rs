@@ -176,8 +176,8 @@ impl StoreForwarder {
                 .errors
                 .min(u16::max_value().into())
                 .max((session.status == SessionStatus::Crashed) as _) as _,
-            release: session.attributes.release,
-            environment: session.attributes.environment,
+            release: session.attributes.release.into(),
+            environment: session.attributes.environment.map(Into::into),
             sdk: client.map(str::to_owned),
             retention_days: event_retention,
         });

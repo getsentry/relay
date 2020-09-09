@@ -446,14 +446,14 @@ impl EventProcessor {
         .map_err(ProcessingError::InvalidSecurityReport)?;
 
         if let Some(release) = item.get_header("sentry_release").and_then(Value::as_str) {
-            event.release = Annotated::from(LenientString(release.to_owned()));
+            event.release = Annotated::from(LenientString(release.into()));
         }
 
         if let Some(env) = item
             .get_header("sentry_environment")
             .and_then(Value::as_str)
         {
-            event.environment = Annotated::from(env.to_owned());
+            event.environment = Annotated::new(env.into());
         }
 
         // Explicitly set the event type. This is required so that a `Security` item can be created
@@ -724,7 +724,7 @@ impl EventProcessor {
 
         // Events must be native platform.
         let platform = event.platform.value_mut();
-        *platform = Some("native".to_string());
+        *platform = Some("native".into());
 
         // Assume that this minidump is the result of a crash and assign the fatal
         // level. Note that the use of `setdefault` here doesn't generally allow the
@@ -756,12 +756,12 @@ impl EventProcessor {
         };
 
         exceptions.push(Annotated::new(Exception {
-            ty: Annotated::new(type_name.to_string()),
-            value: Annotated::new(JsonLenientString(value.to_string())),
+            ty: Annotated::new(type_name.into()),
+            value: Annotated::new(JsonLenientString(value.into())),
             mechanism: Annotated::new(Mechanism {
-                ty: Annotated::from(mechanism_type.to_string()),
-                handled: Annotated::from(false),
-                synthetic: Annotated::from(true),
+                ty: Annotated::new(mechanism_type.into()),
+                handled: Annotated::new(false),
+                synthetic: Annotated::new(true),
                 ..Mechanism::default()
             }),
             ..Exception::default()
@@ -875,7 +875,7 @@ impl EventProcessor {
 
         let key_id = project_state
             .get_public_key_config(&envelope.meta().public_key())
-            .and_then(|k| Some(k.numeric_id?.to_string()));
+            .and_then(|k| Some(k.numeric_id?.to_string().into()));
 
         if key_id.is_none() {
             log::error!("can't find key in project config, but we verified auth before already");
@@ -884,11 +884,11 @@ impl EventProcessor {
         let store_config = StoreConfig {
             project_id: Some(envelope.meta().project_id().value()),
             client_ip: envelope.meta().client_addr().map(IpAddr::from),
-            client: envelope.meta().client().map(str::to_owned),
+            client: envelope.meta().client().map(From::from),
             key_id,
-            protocol_version: Some(envelope.meta().version().to_string()),
+            protocol_version: Some(envelope.meta().version().to_string().into()),
             grouping_config: project_state.config.grouping_config.clone(),
-            user_agent: envelope.meta().user_agent().map(str::to_owned),
+            user_agent: envelope.meta().user_agent().map(From::from),
             max_secs_in_future: Some(self.config.max_secs_in_future()),
             max_secs_in_past: Some(self.config.max_secs_in_past()),
             enable_trimming: Some(true),
@@ -1045,7 +1045,7 @@ impl EventProcessor {
 
         let event_type = state.event_type().unwrap_or_default();
         let mut event_item = Item::new(ItemType::from_event_type(event_type));
-        event_item.set_payload(ContentType::Json, data);
+        event_item.set_payload(ContentType::Json, Into::<String>::into(data));
         state.envelope.add_item(event_item);
 
         Ok(())

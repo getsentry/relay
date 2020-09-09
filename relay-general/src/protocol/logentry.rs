@@ -75,6 +75,12 @@ impl From<String> for Message {
     }
 }
 
+impl From<std::string::String> for Message {
+    fn from(msg: std::string::String) -> Message {
+        Message(msg.into())
+    }
+}
+
 impl AsRef<str> for Message {
     fn as_ref(&self) -> &str {
         self.0.as_ref()
