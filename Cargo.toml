@@ -4,4 +4,3 @@ default-members = ["relay"]
 
 [profile.release]
 debug = true
-lto = true
