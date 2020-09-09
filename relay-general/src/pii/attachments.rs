@@ -184,7 +184,7 @@ fn apply_regex_to_utf16_slices(
                 if cur_char_offset == char_offset + char_len {
                     utf16_byte_len = byte_offset - utf16_byte_offset;
                 }
-                byte_offset += c.unwrap().len_utf16();
+                byte_offset += c.unwrap().len_utf16() * 2;
             }
 
             let start = segment.input_pos.start + utf16_byte_offset;
@@ -271,7 +271,7 @@ fn replace_utf16_bytes_padded(source: &str, target: &mut [u8], padding: u16) {
         }
     }
 
-    while (target_len - target_offset) > 0 {
+    while target_offset < target_len - 1 {
         for byte in padding.to_le_bytes().iter() {
             target[target_offset] = *byte;
             target_offset += 1;
@@ -397,6 +397,7 @@ impl<'a> PiiAttachmentsProcessor<'a> {
 
 #[cfg(test)]
 mod tests {
+    use encoding::EncoderTrap;
     use itertools::Itertools;
 
     use crate::pii::PiiConfig;
@@ -487,6 +488,10 @@ mod tests {
         }
     }
 
+    fn utf16le(s: &str) -> Vec<u8> {
+        UTF_16LE.encode(s, EncoderTrap::Strict).unwrap()
+    }
+
     #[test]
     fn test_ip_replace_padding() {
         AttachmentBytesTestCase::Builtin {
@@ -496,6 +501,20 @@ mod tests {
             value_type: ValueType::Binary,
             input: b"before 127.0.0.1 after",
             output: b"before [ip]xxxxx after",
+            changed: true,
+        }
+        .run();
+    }
+
+    #[test]
+    fn test_ip_replace_padding_utf16() {
+        AttachmentBytesTestCase::Builtin {
+            selector: "$binary",
+            rule: "@ip",
+            filename: "foo.txt",
+            value_type: ValueType::Binary,
+            input: utf16le("before 127.0.0.1 after").as_slice(),
+            output: utf16le("before [ip]xxxxx after").as_slice(),
             changed: true,
         }
         .run();
@@ -516,6 +535,20 @@ mod tests {
     }
 
     #[test]
+    fn test_ip_hash_trunchating_utf16() {
+        AttachmentBytesTestCase::Builtin {
+            selector: "$binary",
+            rule: "@ip:hash",
+            filename: "foo.txt",
+            value_type: ValueType::Binary,
+            input: utf16le("before 127.0.0.1 after").as_slice(),
+            output: utf16le("before 3FA8F5A46 after").as_slice(),
+            changed: true,
+        }
+        .run();
+    }
+
+    #[test]
     fn test_ip_masking() {
         AttachmentBytesTestCase::Builtin {
             selector: "$binary",
@@ -530,6 +563,20 @@ mod tests {
     }
 
     #[test]
+    fn test_ip_masking_utf16() {
+        AttachmentBytesTestCase::Builtin {
+            selector: "$binary",
+            rule: "@ip:mask",
+            filename: "foo.txt",
+            value_type: ValueType::Binary,
+            input: utf16le("before 127.0.0.1 after").as_slice(),
+            output: utf16le("before ********* after").as_slice(),
+            changed: true,
+        }
+        .run();
+    }
+
+    #[test]
     fn test_ip_removing() {
         AttachmentBytesTestCase::Builtin {
             selector: "$binary",
@@ -538,6 +585,20 @@ mod tests {
             value_type: ValueType::Binary,
             input: b"before 127.0.0.1 after",
             output: b"before xxxxxxxxx after",
+            changed: true,
+        }
+        .run();
+    }
+
+    #[test]
+    fn test_ip_removing_utf16() {
+        AttachmentBytesTestCase::Builtin {
+            selector: "$binary",
+            rule: "@ip:remove",
+            filename: "foo.txt",
+            value_type: ValueType::Binary,
+            input: utf16le("before 127.0.0.1 after").as_slice(),
+            output: utf16le("before xxxxxxxxx after").as_slice(),
             changed: true,
         }
         .run();
@@ -666,16 +727,4 @@ mod tests {
         assert_eq!(ret.len(), 1);
         assert_eq!(ret[0].decoded, "hello".to_string());
     }
-
-    // #[test]
-    // fn test_extract_strings_minidump() {
-    //     let data =
-    //         std::fs::read("/Users/flub/code/symbolicator/tests/fixtures/windows.dmp").unwrap();
-    //     let ret = extract_strings(&data[..]);
-    //     println!("count: {}", ret.len());
-    //     for segment in ret {
-    //         println!("{}", &segment.decoded);
-    //     }
-    //     panic!("done");
-    // }
 }
