@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use regex::Regex;
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
@@ -10,29 +8,31 @@ use crate::types::{
 pub struct SchemaProcessor;
 
 macro_rules! declare_used_field_regexes {
-    ($($regex:expr),* $(,)*) => {
-        lazy_static::lazy_static! {
-            static ref USED_FIELD_REGEXES: BTreeMap<&'static str, Regex> = {
-                let mut rv = BTreeMap::new();
+    ($($ident:ident: $regex:expr),* $(,)*) => {
+        fn get_regex(name: &'static str) -> &'static Regex {
+            lazy_static::lazy_static! {
                 $(
-                    if rv.insert($regex, Regex::new($regex).unwrap()).is_some() {
-                        panic!("Regex {} declared twice.", $regex);
-                    }
+                    static ref $ident: Regex = Regex::new($regex).unwrap();
                 )*
-                rv
             };
+
+            match name {
+                $($regex => &$ident, )*
+                _ => panic!("Please declare Regex {} using declare_used_field_regexes.", name),
+            }
         }
     }
 }
 
-// Pre-built list of regexes for max performance.
+// Pre-built list of regexes for max performance. The identifier in front is arbitrary, but needs
+// to be unique.
 declare_used_field_regexes![
-    r"^[^\r\n\f\t/]*\z",
-    r"^[^\r\n\x0C/]+$",
-    r"^[^\r\n]*\z",
-    r"^[a-zA-Z0-9_\.:-]+\z",
-    r"^\s*[a-zA-Z0-9_.-]*\s*$",
-    r"^[^\n]+\z",
+    A: r"^[^\r\n\f\t/]*\z",
+    B: r"^[^\r\n\x0C/]+$",
+    C: r"^[^\r\n]*\z",
+    D: r"^[a-zA-Z0-9_\.:-]+\z",
+    E: r"^\s*[a-zA-Z0-9_.-]*\s*$",
+    F: r"^[^\n]+\z",
 ];
 
 impl Processor for SchemaProcessor {
@@ -126,17 +126,9 @@ fn verify_value_pattern(
     state: &ProcessingState<'_>,
 ) -> ProcessingResult {
     if let Some(ref regex_string) = state.attrs().match_regex {
-        match USED_FIELD_REGEXES.get(regex_string) {
-            Some(regex) => {
-                if !regex.is_match(value) {
-                    meta.add_error(Error::invalid("invalid characters in string"));
-                    return Err(ProcessingAction::DeleteValueSoft);
-                }
-            }
-            None => panic!(
-                "Regex {} is not registered in USED_FIELD_REGEXES. Please add it there.",
-                regex_string
-            ),
+        if !get_regex(regex_string).is_match(value) {
+            meta.add_error(Error::invalid("invalid characters in string"));
+            return Err(ProcessingAction::DeleteValueSoft);
         }
     }
 
