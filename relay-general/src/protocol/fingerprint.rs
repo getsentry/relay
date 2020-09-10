@@ -126,7 +126,7 @@ fn test_fingerprint_string() {
 #[test]
 fn test_fingerprint_bool() {
     assert_eq_dbg!(
-        Annotated::new(vec!["True".to_string(), "False".to_string()].into()),
+        Annotated::new(vec!["True".into(), "False".to_string()].into()),
         Annotated::<Fingerprint>::from_json("[true, false]").unwrap()
     );
 }
@@ -196,7 +196,7 @@ fn test_fingerprint_float_bounds() {
 fn test_fingerprint_invalid_fallback() {
     // XXX: review, this was changed after refactor
     assert_eq_dbg!(
-        Annotated::new(Fingerprint(vec!["a".to_string(), "d".to_string()])),
+        Annotated::new(Fingerprint(vec!["a".into(), "d".to_string()])),
         Annotated::<Fingerprint>::from_json("[\"a\", null, \"d\"]").unwrap()
     );
 }

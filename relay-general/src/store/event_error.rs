@@ -99,8 +99,8 @@ fn test_top_level_errors() {
     assert_eq_dbg!(
         *event.value().unwrap().errors.value().unwrap(),
         vec![Annotated::from(EventProcessingError {
-            ty: Annotated::from("invalid_data".to_string()),
-            name: Annotated::from("event_id".to_string()),
+            ty: Annotated::new("invalid_data".into()),
+            name: Annotated::new("event_id".into()),
             value: Annotated::empty(),
             other: Object::default(),
         })]
@@ -113,7 +113,7 @@ fn test_errors_in_other() {
         other: {
             let mut other = Object::new();
             other.insert(
-                "foo".to_string(),
+                "foo".into(),
                 Annotated::from_error(ErrorKind::InvalidData, None),
             );
             other
@@ -131,8 +131,8 @@ fn test_errors_in_other() {
     assert_eq_dbg!(
         *event.value().unwrap().errors.value().unwrap(),
         vec![Annotated::from(EventProcessingError {
-            ty: Annotated::from("invalid_data".to_string()),
-            name: Annotated::from("foo".to_string()),
+            ty: Annotated::new("invalid_data".into()),
+            name: Annotated::new("foo".into()),
             value: Annotated::empty(),
             other: Object::default(),
         })]
@@ -161,8 +161,8 @@ fn test_nested_errors() {
     assert_eq_dbg!(
         *event.value().unwrap().errors.value().unwrap(),
         vec![Annotated::from(EventProcessingError {
-            ty: Annotated::from("invalid_data".to_string()),
-            name: Annotated::from("breadcrumbs.values.0.type".to_string()),
+            ty: Annotated::new("invalid_data".into()),
+            name: Annotated::new("breadcrumbs.values.0.type".into()),
             value: Annotated::empty(),
             other: Object::default(),
         })]
@@ -190,14 +190,14 @@ fn test_multiple_errors() {
         *event.value().unwrap().errors.value().unwrap(),
         vec![
             Annotated::from(EventProcessingError {
-                ty: Annotated::from("invalid_data".to_string()),
-                name: Annotated::from("event_id".to_string()),
+                ty: Annotated::new("invalid_data".into()),
+                name: Annotated::new("event_id".into()),
                 value: Annotated::empty(),
                 other: Object::default(),
             }),
             Annotated::from(EventProcessingError {
-                ty: Annotated::from("missing_attribute".to_string()),
-                name: Annotated::from("event_id".to_string()),
+                ty: Annotated::new("missing_attribute".into()),
+                name: Annotated::new("event_id".into()),
                 value: Annotated::empty(),
                 other: Object::default(),
             })
@@ -227,14 +227,14 @@ fn test_original_value() {
         *event.value().unwrap().errors.value().unwrap(),
         vec![
             Annotated::from(EventProcessingError {
-                ty: Annotated::from("invalid_data".to_string()),
-                name: Annotated::from("event_id".to_string()),
+                ty: Annotated::new("invalid_data".into()),
+                name: Annotated::new("event_id".into()),
                 value: Annotated::from(Value::I64(42)),
                 other: Object::default(),
             }),
             Annotated::from(EventProcessingError {
-                ty: Annotated::from("missing_attribute".to_string()),
-                name: Annotated::from("event_id".to_string()),
+                ty: Annotated::new("missing_attribute".into()),
+                name: Annotated::new("event_id".into()),
                 value: Annotated::empty(),
                 other: Object::default(),
             })

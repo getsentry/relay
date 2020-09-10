@@ -176,7 +176,7 @@ mod tests {
             status: SessionStatus::Ok,
             errors: 0,
             attributes: SessionAttributes {
-                release: "sentry-test@1.0.0".to_owned(),
+                release: "sentry-test@1.0.0".into(),
                 environment: None,
                 ip_address: None,
                 user_agent: None,
@@ -237,7 +237,7 @@ mod tests {
             errors: 0,
             init: true,
             attributes: SessionAttributes {
-                release: "sentry-test@1.0.0".to_owned(),
+                release: "sentry-test@1.0.0".into(),
                 environment: Some("production".to_owned()),
                 ip_address: Some("::1".parse().unwrap()),
                 user_agent: Some("Firefox/72.0".to_owned()),

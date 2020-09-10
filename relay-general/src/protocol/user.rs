@@ -86,14 +86,14 @@ fn test_geo_roundtrip() {
   "other": "value"
 }"#;
     let geo = Annotated::new(Geo {
-        country_code: Annotated::new("US".to_string()),
-        city: Annotated::new("San Francisco".to_string()),
-        region: Annotated::new("CA".to_string()),
+        country_code: Annotated::new("US".into()),
+        city: Annotated::new("San Francisco".into()),
+        region: Annotated::new("CA".into()),
         other: {
             let mut map = Map::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -132,24 +132,24 @@ fn test_user_roundtrip() {
 }"#;
     let user = Annotated::new(User {
         id: Annotated::new("e4e24881-8238-4539-a32b-d3c3ecd40568".to_string().into()),
-        email: Annotated::new("mail@example.org".to_string()),
+        email: Annotated::new("mail@example.org".into()),
         ip_address: Annotated::new(IpAddr::auto()),
-        name: Annotated::new("John Doe".to_string()),
-        username: Annotated::new("john_doe".to_string()),
+        name: Annotated::new("John Doe".into()),
+        username: Annotated::new("john_doe".into()),
         geo: Annotated::empty(),
         data: {
             let mut map = Object::new();
             map.insert(
-                "data".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "data".into(),
+                Annotated::new(Value::String("value".into())),
             );
             Annotated::new(map)
         },
         other: {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },

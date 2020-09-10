@@ -181,7 +181,7 @@ mod tests {
         use crate::protocol::User;
 
         let mut user = Annotated::new(User {
-            email: Annotated::new("bananabread".to_owned()),
+            email: Annotated::new("bananabread".into()),
             ..Default::default()
         });
 
@@ -197,14 +197,14 @@ mod tests {
         use crate::types::ErrorKind;
 
         let mut info = Annotated::new(ClientSdkInfo {
-            name: Annotated::new("sentry.rust".to_string()),
+            name: Annotated::new("sentry.rust".into()),
             ..Default::default()
         });
 
         process_value(&mut info, &mut SchemaProcessor, ProcessingState::root()).unwrap();
 
         let expected = Annotated::new(ClientSdkInfo {
-            name: Annotated::new("sentry.rust".to_string()),
+            name: Annotated::new("sentry.rust".into()),
             version: Annotated::from_error(ErrorKind::MissingAttribute, None),
             ..Default::default()
         });
@@ -217,18 +217,18 @@ mod tests {
         use crate::protocol::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
 
         let mut mechanism = Annotated::new(Mechanism {
-            ty: Annotated::new("mytype".to_string()),
+            ty: Annotated::new("mytype".into()),
             meta: Annotated::new(MechanismMeta {
                 errno: Annotated::new(CError {
-                    name: Annotated::new("ENOENT".to_string()),
+                    name: Annotated::new("ENOENT".into()),
                     ..Default::default()
                 }),
                 mach_exception: Annotated::new(MachException {
-                    name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+                    name: Annotated::new("EXC_BAD_ACCESS".into()),
                     ..Default::default()
                 }),
                 signal: Annotated::new(PosixSignal {
-                    name: Annotated::new("SIGSEGV".to_string()),
+                    name: Annotated::new("SIGSEGV".into()),
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -244,22 +244,22 @@ mod tests {
         .unwrap();
 
         let expected = Annotated::new(Mechanism {
-            ty: Annotated::new("mytype".to_string()),
+            ty: Annotated::new("mytype".into()),
             meta: Annotated::new(MechanismMeta {
                 errno: Annotated::new(CError {
                     number: Annotated::empty(),
-                    name: Annotated::new("ENOENT".to_string()),
+                    name: Annotated::new("ENOENT".into()),
                 }),
                 mach_exception: Annotated::new(MachException {
                     ty: Annotated::empty(),
                     code: Annotated::empty(),
                     subcode: Annotated::empty(),
-                    name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+                    name: Annotated::new("EXC_BAD_ACCESS".into()),
                 }),
                 signal: Annotated::new(PosixSignal {
                     number: Annotated::empty(),
                     code: Annotated::empty(),
-                    name: Annotated::new("SIGSEGV".to_string()),
+                    name: Annotated::new("SIGSEGV".into()),
                     code_name: Annotated::empty(),
                 }),
                 ..Default::default()

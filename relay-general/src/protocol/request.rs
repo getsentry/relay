@@ -665,26 +665,26 @@ fn test_request_roundtrip() {
 }"#;
 
     let request = Annotated::new(Request {
-        url: Annotated::new("https://google.com/search".to_string()),
-        method: Annotated::new("GET".to_string()),
+        url: Annotated::new("https://google.com/search".into()),
+        method: Annotated::new("GET".into()),
         data: {
             let mut map = Object::new();
-            map.insert("some".to_string(), Annotated::new(Value::I64(1)));
+            map.insert("some".into(), Annotated::new(Value::I64(1)));
             Annotated::new(Value::Object(map))
         },
         query_string: Annotated::new(Query(
             vec![Annotated::new((
-                Annotated::new("q".to_string()),
+                Annotated::new("q".into()),
                 Annotated::new("foo".to_string().into()),
             ))]
             .into(),
         )),
-        fragment: Annotated::new("home".to_string()),
+        fragment: Annotated::new("home".into()),
         cookies: Annotated::new(Cookies({
             let mut map = Vec::new();
             map.push(Annotated::new((
-                Annotated::new("GOOGLE".to_string()),
-                Annotated::new("1".to_string()),
+                Annotated::new("GOOGLE".into()),
+                Annotated::new("1".into()),
             )));
             PairList(map)
         })),
@@ -699,17 +699,17 @@ fn test_request_roundtrip() {
         env: Annotated::new({
             let mut map = Object::new();
             map.insert(
-                "REMOTE_ADDR".to_string(),
-                Annotated::new(Value::String("213.47.147.207".to_string())),
+                "REMOTE_ADDR".into(),
+                Annotated::new(Value::String("213.47.147.207".into())),
             );
             map
         }),
-        inferred_content_type: Annotated::new("application/json".to_string()),
+        inferred_content_type: Annotated::new("application/json".into()),
         other: {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -723,7 +723,7 @@ fn test_request_roundtrip() {
 fn test_query_string() {
     let query = Annotated::new(Query(
         vec![Annotated::new((
-            Annotated::new("foo".to_string()),
+            Annotated::new("foo".into()),
             Annotated::new("bar".to_string().into()),
         ))]
         .into(),
@@ -734,11 +734,11 @@ fn test_query_string() {
     let query = Annotated::new(Query(
         vec![
             Annotated::new((
-                Annotated::new("foo".to_string()),
+                Annotated::new("foo".into()),
                 Annotated::new("bar".to_string().into()),
             )),
             Annotated::new((
-                Annotated::new("baz".to_string()),
+                Annotated::new("baz".into()),
                 Annotated::new("42".to_string().into()),
             )),
         ]
@@ -754,7 +754,7 @@ fn test_query_string_legacy_nested() {
     // nested objects here but for legacy values we instead serialize it out as JSON.
     let query = Annotated::new(Query(
         vec![Annotated::new((
-            Annotated::new("foo".to_string()),
+            Annotated::new("foo".into()),
             Annotated::new("bar".to_string().into()),
         ))]
         .into(),
@@ -764,11 +764,11 @@ fn test_query_string_legacy_nested() {
     let query = Annotated::new(Query(
         vec![
             Annotated::new((
-                Annotated::new("baz".to_string()),
+                Annotated::new("baz".into()),
                 Annotated::new(r#"{"a":42}"#.to_string().into()),
             )),
             Annotated::new((
-                Annotated::new("foo".to_string()),
+                Annotated::new("foo".into()),
                 Annotated::new("bar".to_string().into()),
             )),
         ]
@@ -803,16 +803,16 @@ fn test_cookies_parsing() {
 
     let mut map = Vec::new();
     map.push(Annotated::new((
-        Annotated::new("PHPSESSID".to_string()),
-        Annotated::new("298zf09hf012fh2".to_string()),
+        Annotated::new("PHPSESSID".into()),
+        Annotated::new("298zf09hf012fh2".into()),
     )));
     map.push(Annotated::new((
-        Annotated::new("csrftoken".to_string()),
-        Annotated::new("u32t4o3tb3gg43".to_string()),
+        Annotated::new("csrftoken".into()),
+        Annotated::new("u32t4o3tb3gg43".into()),
     )));
     map.push(Annotated::new((
-        Annotated::new("_gat".to_string()),
-        Annotated::new("1".to_string()),
+        Annotated::new("_gat".into()),
+        Annotated::new("1".into()),
     )));
 
     let cookies = Annotated::new(Cookies(PairList(map)));
@@ -826,15 +826,15 @@ fn test_cookies_array() {
 
     let mut map = Vec::new();
     map.push(Annotated::new((
-        Annotated::new("foo".to_string()),
-        Annotated::new("bar".to_string()),
+        Annotated::new("foo".into()),
+        Annotated::new("bar".into()),
     )));
     map.push(Annotated::new((
-        Annotated::new("invalid".to_string()),
+        Annotated::new("invalid".into()),
         Annotated::from_error(Error::expected("a string"), Some(Value::I64(42))),
     )));
     map.push(Annotated::new((
-        Annotated::new("none".to_string()),
+        Annotated::new("none".into()),
         Annotated::empty(),
     )));
 
@@ -853,11 +853,11 @@ fn test_cookies_object() {
 
     let mut map = Vec::new();
     map.push(Annotated::new((
-        Annotated::new("foo".to_string()),
-        Annotated::new("bar".to_string()),
+        Annotated::new("foo".into()),
+        Annotated::new("bar".into()),
     )));
     map.push(Annotated::new((
-        Annotated::new("invalid".to_string()),
+        Annotated::new("invalid".into()),
         Annotated::from_error(Error::expected("a string"), Some(Value::I64(42))),
     )));
 
@@ -879,11 +879,11 @@ fn test_querystring_without_value() {
     let query = Annotated::new(Query(
         vec![
             Annotated::new((
-                Annotated::new("foo".to_string()),
+                Annotated::new("foo".into()),
                 Annotated::new("bar".to_string().into()),
             )),
             Annotated::new((
-                Annotated::new("baz".to_string()),
+                Annotated::new("baz".into()),
                 Annotated::new("".to_string().into()),
             )),
         ]

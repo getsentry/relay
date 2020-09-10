@@ -781,9 +781,9 @@ fn test_geo_from_ip_address() {
     process_value(&mut user, &mut processor, ProcessingState::root()).unwrap();
 
     let expected = Annotated::new(Geo {
-        country_code: Annotated::new("GB".to_string()),
-        city: Annotated::new("Boxford".to_string()),
-        region: Annotated::new("United Kingdom".to_string()),
+        country_code: Annotated::new("GB".into()),
+        city: Annotated::new("Boxford".into()),
+        region: Annotated::new("United Kingdom".into()),
         ..Geo::default()
     });
     assert_eq_dbg!(user.value().unwrap().geo, expected)
@@ -796,14 +796,14 @@ fn test_user_ip_from_remote_addr() {
             env: Annotated::new({
                 let mut map = Object::new();
                 map.insert(
-                    "REMOTE_ADDR".to_string(),
-                    Annotated::new(Value::String("2.125.160.216".to_string())),
+                    "REMOTE_ADDR".into(),
+                    Annotated::new(Value::String("2.125.160.216".into())),
                 );
                 map
             }),
             ..Request::default()
         }),
-        platform: Annotated::new("javascript".to_owned()),
+        platform: Annotated::new("javascript".into()),
         ..Event::default()
     });
 
@@ -830,14 +830,14 @@ fn test_user_ip_from_invalid_remote_addr() {
             env: Annotated::new({
                 let mut map = Object::new();
                 map.insert(
-                    "REMOTE_ADDR".to_string(),
-                    Annotated::new(Value::String("whoops".to_string())),
+                    "REMOTE_ADDR".into(),
+                    Annotated::new(Value::String("whoops".into())),
                 );
                 map
             }),
             ..Request::default()
         }),
-        platform: Annotated::new("javascript".to_owned()),
+        platform: Annotated::new("javascript".into()),
         ..Event::default()
     });
 
@@ -851,7 +851,7 @@ fn test_user_ip_from_invalid_remote_addr() {
 #[test]
 fn test_user_ip_from_client_ip_without_auto() {
     let mut event = Annotated::new(Event {
-        platform: Annotated::new("javascript".to_owned()),
+        platform: Annotated::new("javascript".into()),
         ..Default::default()
     });
 
@@ -944,8 +944,8 @@ fn test_transaction_level_untouched() {
 fn test_environment_tag_is_moved() {
     let mut event = Annotated::new(Event {
         tags: Annotated::new(Tags(PairList(vec![Annotated::new(TagEntry(
-            Annotated::new("environment".to_string()),
-            Annotated::new("despacito".to_string()),
+            Annotated::new("environment".into()),
+            Annotated::new("despacito".into()),
         ))]))),
         ..Event::default()
     });
@@ -963,8 +963,8 @@ fn test_environment_tag_is_moved() {
 fn test_empty_environment_is_removed_and_overwritten_with_tag() {
     let mut event = Annotated::new(Event {
         tags: Annotated::new(Tags(PairList(vec![Annotated::new(TagEntry(
-            Annotated::new("environment".to_string()),
-            Annotated::new("despacito".to_string()),
+            Annotated::new("environment".into()),
+            Annotated::new("despacito".into()),
         ))]))),
         environment: Annotated::new("".to_string()),
         ..Event::default()
@@ -996,7 +996,7 @@ fn test_empty_environment_is_removed() {
 #[test]
 fn test_none_environment_errors() {
     let mut event = Annotated::new(Event {
-        environment: Annotated::new("none".to_string()),
+        environment: Annotated::new("none".into()),
         ..Event::default()
     });
 
@@ -1004,7 +1004,7 @@ fn test_none_environment_errors() {
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let environment = &event.value().unwrap().environment;
-    let expected_original = &Value::String("none".to_string());
+    let expected_original = &Value::String("none".into());
 
     assert_eq_dbg!(
         environment.meta().iter_errors().collect::<Vec<&Error>>(),
@@ -1030,7 +1030,7 @@ fn test_invalid_release_removed() {
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let release = &event.value().unwrap().release;
-    let expected_original = &Value::String("Latest".to_string());
+    let expected_original = &Value::String("Latest".into());
 
     assert_eq_dbg!(
         release.meta().iter_errors().collect::<Vec<&Error>>(),
@@ -1043,16 +1043,16 @@ fn test_invalid_release_removed() {
 #[test]
 fn test_top_level_keys_moved_into_tags() {
     let mut event = Annotated::new(Event {
-        server_name: Annotated::new("foo".to_string()),
-        site: Annotated::new("foo".to_string()),
+        server_name: Annotated::new("foo".into()),
+        site: Annotated::new("foo".into()),
         tags: Annotated::new(Tags(PairList(vec![
             Annotated::new(TagEntry(
-                Annotated::new("site".to_string()),
-                Annotated::new("old".to_string()),
+                Annotated::new("site".into()),
+                Annotated::new("old".into()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("server_name".to_string()),
-                Annotated::new("old".to_string()),
+                Annotated::new("server_name".into()),
+                Annotated::new("old".into()),
             )),
         ]))),
         ..Event::default()
@@ -1070,12 +1070,12 @@ fn test_top_level_keys_moved_into_tags() {
         event.tags.value(),
         Some(&Tags(PairList(vec![
             Annotated::new(TagEntry(
-                Annotated::new("site".to_string()),
-                Annotated::new("foo".to_string()),
+                Annotated::new("site".into()),
+                Annotated::new("foo".into()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("server_name".to_string()),
-                Annotated::new("foo".to_string()),
+                Annotated::new("server_name".into()),
+                Annotated::new("foo".into()),
             )),
         ])))
     );
@@ -1086,28 +1086,28 @@ fn test_internal_tags_removed() {
     let mut event = Annotated::new(Event {
         tags: Annotated::new(Tags(PairList(vec![
             Annotated::new(TagEntry(
-                Annotated::new("release".to_string()),
-                Annotated::new("foo".to_string()),
+                Annotated::new("release".into()),
+                Annotated::new("foo".into()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("dist".to_string()),
-                Annotated::new("foo".to_string()),
+                Annotated::new("dist".into()),
+                Annotated::new("foo".into()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("user".to_string()),
-                Annotated::new("foo".to_string()),
+                Annotated::new("user".into()),
+                Annotated::new("foo".into()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("filename".to_string()),
-                Annotated::new("foo".to_string()),
+                Annotated::new("filename".into()),
+                Annotated::new("foo".into()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("function".to_string()),
-                Annotated::new("foo".to_string()),
+                Annotated::new("function".into()),
+                Annotated::new("foo".into()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("something".to_string()),
-                Annotated::new("else".to_string()),
+                Annotated::new("something".into()),
+                Annotated::new("else".into()),
             )),
         ]))),
         ..Event::default()
@@ -1125,15 +1125,15 @@ fn test_empty_tags_removed() {
         tags: Annotated::new(Tags(PairList(vec![
             Annotated::new(TagEntry(
                 Annotated::new("".to_string()),
-                Annotated::new("foo".to_string()),
+                Annotated::new("foo".into()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("foo".to_string()),
+                Annotated::new("foo".into()),
                 Annotated::new("".to_string()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("something".to_string()),
-                Annotated::new("else".to_string()),
+                Annotated::new("something".into()),
+                Annotated::new("else".into()),
             )),
         ]))),
         ..Event::default()
@@ -1156,24 +1156,24 @@ fn test_tags_deduplicated() {
     let mut event = Annotated::new(Event {
         tags: Annotated::new(Tags(PairList(vec![
             Annotated::new(TagEntry(
-                Annotated::new("foo".to_string()),
-                Annotated::new("1".to_string()),
+                Annotated::new("foo".into()),
+                Annotated::new("1".into()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("bar".to_string()),
-                Annotated::new("1".to_string()),
+                Annotated::new("bar".into()),
+                Annotated::new("1".into()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("foo".to_string()),
-                Annotated::new("2".to_string()),
+                Annotated::new("foo".into()),
+                Annotated::new("2".into()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("bar".to_string()),
-                Annotated::new("2".to_string()),
+                Annotated::new("bar".into()),
+                Annotated::new("2".into()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("foo".to_string()),
-                Annotated::new("3".to_string()),
+                Annotated::new("foo".into()),
+                Annotated::new("3".into()),
             )),
         ]))),
         ..Event::default()
@@ -1187,12 +1187,12 @@ fn test_tags_deduplicated() {
         event.value().unwrap().tags.value().unwrap(),
         &Tags(PairList(vec![
             Annotated::new(TagEntry(
-                Annotated::new("foo".to_string()),
-                Annotated::new("1".to_string()),
+                Annotated::new("foo".into()),
+                Annotated::new("1".into()),
             )),
             Annotated::new(TagEntry(
-                Annotated::new("bar".to_string()),
-                Annotated::new("1".to_string()),
+                Annotated::new("bar".into()),
+                Annotated::new("1".into()),
             )),
         ]))
     );
@@ -1204,8 +1204,8 @@ fn test_user_data_moved() {
         other: {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_owned())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -1220,8 +1220,8 @@ fn test_user_data_moved() {
     assert_eq_dbg!(user.data, {
         let mut map = Object::new();
         map.insert(
-            "other".to_string(),
-            Annotated::new(Value::String("value".to_owned())),
+            "other".into(),
+            Annotated::new(Value::String("value".into())),
         );
         Annotated::new(map)
     });
@@ -1275,7 +1275,7 @@ fn test_context_line_retain() {
     let mut frame = Annotated::new(Frame {
         pre_context: Annotated::new(vec![Annotated::default(), Annotated::new("".to_string())]),
         post_context: Annotated::new(vec![Annotated::new("".to_string()), Annotated::default()]),
-        context_line: Annotated::new("some line".to_string()),
+        context_line: Annotated::new("some line".into()),
         ..Frame::default()
     });
 
@@ -1319,11 +1319,11 @@ fn test_too_long_tags() {
     let mut event = Annotated::new(Event {
         tags: Annotated::new(Tags(PairList(
             vec![Annotated::new(TagEntry(
-                Annotated::new("foobar".to_string()),
-                Annotated::new("...........................................................................................................................................................................................................".to_string()),
+                Annotated::new("foobar".into()),
+                Annotated::new("...........................................................................................................................................................................................................".into()),
             )), Annotated::new(TagEntry(
-                Annotated::new("foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo".to_string()),
-                Annotated::new("bar".to_string()),
+                Annotated::new("foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo".into()),
+                Annotated::new("bar".into()),
             ))]),
         )),
         ..Event::default()
@@ -1350,16 +1350,16 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
 
     let mut event = Annotated::new(Event {
         exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
-            ty: Annotated::new("FooDivisionError".to_string()),
+            ty: Annotated::new("FooDivisionError".into()),
             value: Annotated::new("hi".to_string().into()),
             ..Exception::default()
         })])),
         stacktrace: Annotated::new(
             RawStacktrace {
                 frames: Annotated::new(vec![Annotated::new(Frame {
-                    module: Annotated::new("MyModule".to_string()),
+                    module: Annotated::new("MyModule".into()),
                     filename: Annotated::new("MyFilename".into()),
-                    function: Annotated::new("Void FooBar()".to_string()),
+                    function: Annotated::new("Void FooBar()".into()),
                     ..Frame::default()
                 })]),
                 ..RawStacktrace::default()
@@ -1375,10 +1375,10 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
     let expected = Annotated::new(
         RawStacktrace {
             frames: Annotated::new(vec![Annotated::new(Frame {
-                module: Annotated::new("MyModule".to_string()),
+                module: Annotated::new("MyModule".into()),
                 filename: Annotated::new("MyFilename".into()),
                 abs_path: Annotated::new("MyFilename".into()),
-                function: Annotated::new("Void FooBar()".to_string()),
+                function: Annotated::new("Void FooBar()".into()),
                 ..Frame::default()
             })]),
             ..RawStacktrace::default()
@@ -1420,8 +1420,8 @@ fn test_parses_sdk_info_from_header() {
     assert_eq_dbg!(
         event.value().unwrap().client_sdk,
         Annotated::new(ClientSdkInfo {
-            name: Annotated::new("_fooBar".to_string()),
-            version: Annotated::new("0.0.0".to_string()),
+            name: Annotated::new("_fooBar".into()),
+            version: Annotated::new("0.0.0".into()),
             ..ClientSdkInfo::default()
         })
     );
@@ -1464,7 +1464,7 @@ fn test_grouping_config() {
     let mut processor = NormalizeProcessor::new(
         Arc::new(StoreConfig {
             grouping_config: Some(json!({
-                "id": "legacy:1234-12-12".to_string(),
+                "id": "legacy:1234-12-12".into(),
             })),
             ..Default::default()
         }),

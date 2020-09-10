@@ -275,43 +275,43 @@ fn test_mechanism_roundtrip() {
   "other": "value"
 }"#;
     let mechanism = Annotated::new(Mechanism {
-        ty: Annotated::new("mytype".to_string()),
+        ty: Annotated::new("mytype".into()),
         synthetic: Annotated::empty(),
-        description: Annotated::new("mydescription".to_string()),
+        description: Annotated::new("mydescription".into()),
         help_link: Annotated::new(
-            "https://developer.apple.com/library/content/qa/qa1367/_index.html".to_string(),
+            "https://developer.apple.com/library/content/qa/qa1367/_index.html".into(),
         ),
         handled: Annotated::new(false),
         data: {
             let mut map = Map::new();
             map.insert(
-                "relevant_address".to_string(),
-                Annotated::new(Value::String("0x1".to_string())),
+                "relevant_address".into(),
+                Annotated::new(Value::String("0x1".into())),
             );
             Annotated::new(map)
         },
         meta: Annotated::new(MechanismMeta {
             errno: Annotated::new(CError {
                 number: Annotated::new(2),
-                name: Annotated::new("ENOENT".to_string()),
+                name: Annotated::new("ENOENT".into()),
             }),
             mach_exception: Annotated::new(MachException {
                 ty: Annotated::new(1),
                 code: Annotated::new(1),
                 subcode: Annotated::new(8),
-                name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+                name: Annotated::new("EXC_BAD_ACCESS".into()),
             }),
             signal: Annotated::new(PosixSignal {
                 number: Annotated::new(11),
                 code: Annotated::new(0),
-                name: Annotated::new("SIGSEGV".to_string()),
-                code_name: Annotated::new("SEGV_NOOP".to_string()),
+                name: Annotated::new("SIGSEGV".into()),
+                code_name: Annotated::new("SEGV_NOOP".into()),
             }),
             other: {
                 let mut map = Object::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".into(),
+                    Annotated::new(Value::String("value".into())),
                 );
                 map
             },
@@ -319,8 +319,8 @@ fn test_mechanism_roundtrip() {
         other: {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -334,7 +334,7 @@ fn test_mechanism_roundtrip() {
 fn test_mechanism_default_values() {
     let json = r#"{"type":"mytype"}"#;
     let mechanism = Annotated::new(Mechanism {
-        ty: Annotated::new("mytype".to_string()),
+        ty: Annotated::new("mytype".into()),
         ..Default::default()
     });
 
@@ -389,7 +389,7 @@ fn test_mechanism_legacy_conversion() {
   }
 }"#;
     let mechanism = Annotated::new(Mechanism {
-        ty: Annotated::new("generic".to_string()),
+        ty: Annotated::new("generic".into()),
         synthetic: Annotated::empty(),
         description: Annotated::empty(),
         help_link: Annotated::empty(),
@@ -397,8 +397,8 @@ fn test_mechanism_legacy_conversion() {
         data: {
             let mut map = Map::new();
             map.insert(
-                "relevant_address".to_string(),
-                Annotated::new(Value::String("0x1".to_string())),
+                "relevant_address".into(),
+                Annotated::new(Value::String("0x1".into())),
             );
             Annotated::new(map)
         },
@@ -408,13 +408,13 @@ fn test_mechanism_legacy_conversion() {
                 ty: Annotated::new(1),
                 code: Annotated::new(1),
                 subcode: Annotated::new(8),
-                name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+                name: Annotated::new("EXC_BAD_ACCESS".into()),
             }),
             signal: Annotated::new(PosixSignal {
                 number: Annotated::new(11),
                 code: Annotated::new(0),
-                name: Annotated::new("SIGSEGV".to_string()),
-                code_name: Annotated::new("SEGV_NOOP".to_string()),
+                name: Annotated::new("SIGSEGV".into()),
+                code_name: Annotated::new("SEGV_NOOP".into()),
             }),
             other: Object::default(),
         }),

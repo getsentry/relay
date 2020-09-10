@@ -60,10 +60,10 @@ fn test_remove_legacy_attributes() {
     let mut event = Annotated::new(Event {
         other: {
             let mut other = Object::new();
-            other.insert("applecrashreport".to_string(), Value::U64(42).into());
-            other.insert("device".to_string(), Value::U64(42).into());
-            other.insert("repos".to_string(), Value::U64(42).into());
-            other.insert("query".to_string(), Value::U64(42).into());
+            other.insert("applecrashreport".into(), Value::U64(42).into());
+            other.insert("device".into(), Value::U64(42).into());
+            other.insert("repos".into(), Value::U64(42).into());
+            other.insert("query".into(), Value::U64(42).into());
             other
         },
         ..Default::default()
@@ -84,8 +84,8 @@ fn test_remove_unknown_attributes() {
     let mut event = Annotated::new(Event {
         other: {
             let mut other = Object::new();
-            other.insert("foo".to_string(), Value::U64(42).into());
-            other.insert("bar".to_string(), Value::U64(42).into());
+            other.insert("foo".into(), Value::U64(42).into());
+            other.insert("bar".into(), Value::U64(42).into());
             other
         },
         ..Default::default()
@@ -117,8 +117,8 @@ fn test_remove_nested_other() {
         user: Annotated::from(User {
             other: {
                 let mut other = Object::new();
-                other.insert("foo".to_string(), Value::U64(42).into());
-                other.insert("bar".to_string(), Value::U64(42).into());
+                other.insert("foo".into(), Value::U64(42).into());
+                other.insert("bar".into(), Value::U64(42).into());
                 other
             },
             ..Default::default()
@@ -149,11 +149,11 @@ fn test_retain_context_other() {
 
     let mut os = OsContext::default();
     os.other
-        .insert("foo".to_string(), Annotated::from(Value::U64(42)));
+        .insert("foo".into(), Annotated::from(Value::U64(42)));
 
     let mut contexts = Object::new();
     contexts.insert(
-        "renamed".to_string(),
+        "renamed".into(),
         Annotated::from(ContextInner(Context::Os(Box::new(os)))),
     );
 

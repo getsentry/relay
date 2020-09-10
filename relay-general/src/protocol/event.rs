@@ -538,45 +538,45 @@ fn test_event_roundtrip() {
         ),
         level: Annotated::new(Level::Debug),
         fingerprint: Annotated::new(vec!["myprint".to_string()].into()),
-        culprit: Annotated::new("myculprit".to_string()),
-        transaction: Annotated::new("mytransaction".to_string()),
+        culprit: Annotated::new("myculprit".into()),
+        transaction: Annotated::new("mytransaction".into()),
         logentry: Annotated::new(LogEntry {
             formatted: Annotated::new("mymessage".to_string().into()),
             ..Default::default()
         }),
-        logger: Annotated::new("mylogger".to_string()),
+        logger: Annotated::new("mylogger".into()),
         modules: {
             let mut map = Map::new();
-            map.insert("mymodule".to_string(), Annotated::new("1.0.0".to_string()));
+            map.insert("mymodule".into(), Annotated::new("1.0.0".into()));
             Annotated::new(map)
         },
-        platform: Annotated::new("myplatform".to_string()),
+        platform: Annotated::new("myplatform".into()),
         timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
-        server_name: Annotated::new("myhost".to_string()),
+        server_name: Annotated::new("myhost".into()),
         release: Annotated::new("myrelease".to_string().into()),
-        dist: Annotated::new("mydist".to_string()),
-        environment: Annotated::new("myenv".to_string()),
+        dist: Annotated::new("mydist".into()),
+        environment: Annotated::new("myenv".into()),
         tags: {
             let mut items = Array::new();
             items.push(Annotated::new(TagEntry(
-                Annotated::new("tag".to_string()),
-                Annotated::new("value".to_string()),
+                Annotated::new("tag".into()),
+                Annotated::new("value".into()),
             )));
             Annotated::new(Tags(items.into()))
         },
         extra: {
             let mut map = Map::new();
             map.insert(
-                "extra".to_string(),
-                Annotated::new(ExtraValue(Value::String("value".to_string()))),
+                "extra".into(),
+                Annotated::new(ExtraValue(Value::String("value".into()))),
             );
             Annotated::new(map)
         },
         other: {
             let mut map = Map::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },

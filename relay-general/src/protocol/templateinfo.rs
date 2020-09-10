@@ -51,18 +51,18 @@ fn test_template_roundtrip() {
   "other": "value"
 }"#;
     let template_info = Annotated::new(TemplateInfo {
-        filename: Annotated::new("myfile.rs".to_string()),
-        abs_path: Annotated::new("/path/to".to_string()),
+        filename: Annotated::new("myfile.rs".into()),
+        abs_path: Annotated::new("/path/to".into()),
         lineno: Annotated::new(2),
         colno: Annotated::new(42),
-        pre_context: Annotated::new(vec![Annotated::new("fn main() {".to_string())]),
-        context_line: Annotated::new("unimplemented!()".to_string()),
-        post_context: Annotated::new(vec![Annotated::new("}".to_string())]),
+        pre_context: Annotated::new(vec![Annotated::new("fn main() {".into())]),
+        context_line: Annotated::new("unimplemented!()".into()),
+        post_context: Annotated::new(vec![Annotated::new("}".into())]),
         other: {
             let mut map = Map::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },

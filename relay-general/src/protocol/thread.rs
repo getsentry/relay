@@ -162,7 +162,7 @@ fn test_thread_roundtrip() {
 }"#;
     let thread = Annotated::new(Thread {
         id: Annotated::new(ThreadId::Int(42)),
-        name: Annotated::new("myname".to_string()),
+        name: Annotated::new("myname".into()),
         stacktrace: Annotated::empty(),
         raw_stacktrace: Annotated::empty(),
         crashed: Annotated::new(true),
@@ -170,8 +170,8 @@ fn test_thread_roundtrip() {
         other: {
             let mut map = Map::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },

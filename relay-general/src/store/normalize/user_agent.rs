@@ -285,19 +285,19 @@ mod tests {
         let mut event = testutils::get_event_with_user_agent(GOOD_UA);
         let mut contexts = Contexts::new();
         contexts.add(Context::Browser(Box::new(BrowserContext {
-            name: Annotated::from("BR_FAMILY".to_string()),
-            version: Annotated::from("BR_VERSION".to_string()),
+            name: Annotated::new("BR_FAMILY".into()),
+            version: Annotated::new("BR_VERSION".into()),
             ..BrowserContext::default()
         })));
         contexts.add(Context::Device(Box::new(DeviceContext {
-            family: Annotated::from("DEV_FAMILY".to_string()),
-            model: Annotated::from("DEV_MODEL".to_string()),
-            brand: Annotated::from("DEV_BRAND".to_string()),
+            family: Annotated::new("DEV_FAMILY".into()),
+            model: Annotated::new("DEV_MODEL".into()),
+            brand: Annotated::new("DEV_BRAND".into()),
             ..DeviceContext::default()
         })));
         contexts.add(Context::Os(Box::new(OsContext {
-            name: Annotated::from("OS_FAMILY".to_string()),
-            version: Annotated::from("OS_VERSION".to_string()),
+            name: Annotated::new("OS_FAMILY".into()),
+            version: Annotated::new("OS_VERSION".into()),
             ..OsContext::default()
         })));
 

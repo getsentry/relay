@@ -198,7 +198,7 @@ use crate::types::Object;
 #[test]
 fn test_url_truncation() {
     let mut request = Request {
-        url: Annotated::new("http://example.com/path?foo#bar".to_string()),
+        url: Annotated::new("http://example.com/path?foo#bar".into()),
         ..Request::default()
     };
 
@@ -210,7 +210,7 @@ fn test_url_truncation() {
 fn test_url_truncation_reversed() {
     let mut request = Request {
         // The query string is empty and the fragment is "foo?bar" here
-        url: Annotated::new("http://example.com/path#foo?bar".to_string()),
+        url: Annotated::new("http://example.com/path#foo?bar".into()),
         ..Request::default()
     };
 
@@ -221,7 +221,7 @@ fn test_url_truncation_reversed() {
 #[test]
 fn test_url_with_ellipsis() {
     let mut request = Request {
-        url: Annotated::new("http://example.com/path…".to_string()),
+        url: Annotated::new("http://example.com/path…".into()),
         ..Request::default()
     };
 
@@ -234,7 +234,7 @@ fn test_url_with_qs_and_fragment() {
     use crate::protocol::Query;
 
     let mut request = Request {
-        url: Annotated::new("http://example.com/path?some=thing#else".to_string()),
+        url: Annotated::new("http://example.com/path?some=thing#else".into()),
         ..Request::default()
     };
 
@@ -243,12 +243,12 @@ fn test_url_with_qs_and_fragment() {
     assert_eq_dbg!(
         request,
         Request {
-            url: Annotated::new("http://example.com/path".to_string()),
+            url: Annotated::new("http://example.com/path".into()),
             query_string: Annotated::new(Query(PairList(vec![Annotated::new((
-                Annotated::new("some".to_string()),
+                Annotated::new("some".into()),
                 Annotated::new("thing".to_string().into()),
             )),]))),
-            fragment: Annotated::new("else".to_string()),
+            fragment: Annotated::new("else".into()),
             ..Request::default()
         }
     );
@@ -257,7 +257,7 @@ fn test_url_with_qs_and_fragment() {
 #[test]
 fn test_url_only_path() {
     let mut request = Request {
-        url: Annotated::from("metamask/popup.html#".to_string()),
+        url: Annotated::new("metamask/popup.html#".into()),
         ..Request::default()
     };
 
@@ -265,7 +265,7 @@ fn test_url_only_path() {
     assert_eq_dbg!(
         request,
         Request {
-            url: Annotated::new("metamask/popup.html".to_string()),
+            url: Annotated::new("metamask/popup.html".into()),
             ..Request::default()
         }
     );
@@ -274,7 +274,7 @@ fn test_url_only_path() {
 #[test]
 fn test_url_punycoded() {
     let mut request = Request {
-        url: Annotated::new("http://göögle.com/".to_string()),
+        url: Annotated::new("http://göögle.com/".into()),
         ..Request::default()
     };
 
@@ -283,7 +283,7 @@ fn test_url_punycoded() {
     assert_eq_dbg!(
         request,
         Request {
-            url: Annotated::new("http://xn--ggle-5qaa.com/".to_string()),
+            url: Annotated::new("http://xn--ggle-5qaa.com/".into()),
             ..Request::default()
         }
     );
@@ -294,12 +294,12 @@ fn test_url_precedence() {
     use crate::protocol::Query;
 
     let mut request = Request {
-        url: Annotated::new("http://example.com/path?completely=different#stuff".to_string()),
+        url: Annotated::new("http://example.com/path?completely=different#stuff".into()),
         query_string: Annotated::new(Query(PairList(vec![Annotated::new((
-            Annotated::new("some".to_string()),
+            Annotated::new("some".into()),
             Annotated::new("thing".to_string().into()),
         ))]))),
-        fragment: Annotated::new("else".to_string()),
+        fragment: Annotated::new("else".into()),
         ..Request::default()
     };
 
@@ -308,12 +308,12 @@ fn test_url_precedence() {
     assert_eq_dbg!(
         request,
         Request {
-            url: Annotated::new("http://example.com/path".to_string()),
+            url: Annotated::new("http://example.com/path".into()),
             query_string: Annotated::new(Query(PairList(vec![Annotated::new((
-                Annotated::new("some".to_string()),
+                Annotated::new("some".into()),
                 Annotated::new("thing".to_string().into()),
             )),]))),
-            fragment: Annotated::new("else".to_string()),
+            fragment: Annotated::new("else".into()),
             ..Request::default()
         }
     );
@@ -324,7 +324,7 @@ fn test_query_string_empty_value() {
     use crate::protocol::Query;
 
     let mut request = Request {
-        url: Annotated::new("http://example.com/path?some".to_string()),
+        url: Annotated::new("http://example.com/path?some".into()),
         ..Request::default()
     };
 
@@ -333,9 +333,9 @@ fn test_query_string_empty_value() {
     assert_eq_dbg!(
         request,
         Request {
-            url: Annotated::new("http://example.com/path".to_string()),
+            url: Annotated::new("http://example.com/path".into()),
             query_string: Annotated::new(Query(PairList(vec![Annotated::new((
-                Annotated::new("some".to_string()),
+                Annotated::new("some".into()),
                 Annotated::new("".to_string().into()),
             )),]))),
             ..Request::default()
@@ -348,7 +348,7 @@ fn test_cookies_in_header() {
     use crate::protocol::{Cookies, Headers};
 
     let mut request = Request {
-        url: Annotated::new("http://example.com".to_string()),
+        url: Annotated::new("http://example.com".into()),
         headers: Annotated::new(Headers(PairList(vec![Annotated::new((
             Annotated::new("Cookie".to_string().into()),
             Annotated::new("a=b;c=d".to_string().into()),
@@ -362,12 +362,12 @@ fn test_cookies_in_header() {
         request.cookies,
         Annotated::new(Cookies(PairList(vec![
             Annotated::new((
-                Annotated::new("a".to_string()),
-                Annotated::new("b".to_string()),
+                Annotated::new("a".into()),
+                Annotated::new("b".into()),
             )),
             Annotated::new((
-                Annotated::new("c".to_string()),
-                Annotated::new("d".to_string()),
+                Annotated::new("c".into()),
+                Annotated::new("d".into()),
             )),
         ])))
     );
@@ -380,7 +380,7 @@ fn test_cookies_in_header_dont_override_cookies() {
     use crate::protocol::{Cookies, Headers};
 
     let mut request = Request {
-        url: Annotated::new("http://example.com".to_string()),
+        url: Annotated::new("http://example.com".into()),
         headers: Annotated::new(Headers(
             vec![Annotated::new((
                 Annotated::new("Cookie".to_string().into()),
@@ -389,8 +389,8 @@ fn test_cookies_in_header_dont_override_cookies() {
             .into(),
         )),
         cookies: Annotated::new(Cookies(PairList(vec![Annotated::new((
-            Annotated::new("foo".to_string()),
-            Annotated::new("bar".to_string()),
+            Annotated::new("foo".into()),
+            Annotated::new("bar".into()),
         ))]))),
         ..Request::default()
     };
@@ -400,8 +400,8 @@ fn test_cookies_in_header_dont_override_cookies() {
     assert_eq_dbg!(
         request.cookies,
         Annotated::new(Cookies(PairList(vec![Annotated::new((
-            Annotated::new("foo".to_string()),
-            Annotated::new("bar".to_string()),
+            Annotated::new("foo".into()),
+            Annotated::new("bar".into()),
         ))])))
     );
 
@@ -412,7 +412,7 @@ fn test_cookies_in_header_dont_override_cookies() {
 #[test]
 fn test_method_invalid() {
     let mut request = Request {
-        method: Annotated::new("!!!!".to_string()),
+        method: Annotated::new("!!!!".into()),
         ..Request::default()
     };
 
@@ -424,7 +424,7 @@ fn test_method_invalid() {
 #[test]
 fn test_method_valid() {
     let mut request = Request {
-        method: Annotated::new("POST".to_string()),
+        method: Annotated::new("POST".into()),
         ..Request::default()
     };
 
@@ -442,7 +442,7 @@ fn test_infer_json() {
 
     let mut expected_value = Object::new();
     expected_value.insert(
-        "foo".to_string(),
+        "foo".into(),
         Annotated::from(Value::String("bar".into())),
     );
 
@@ -493,7 +493,7 @@ fn test_infer_url_encoded() {
 
     let mut expected_value = Object::new();
     expected_value.insert(
-        "foo".to_string(),
+        "foo".into(),
         Annotated::from(Value::String("bar".into())),
     );
 
@@ -508,7 +508,7 @@ fn test_infer_url_encoded() {
 #[test]
 fn test_infer_url_false_positive() {
     let mut request = Request {
-        data: Annotated::from(Value::String("dGU=".to_string())),
+        data: Annotated::from(Value::String("dGU=".into())),
         ..Request::default()
     };
 
@@ -520,7 +520,7 @@ fn test_infer_url_false_positive() {
 #[test]
 fn test_infer_url_encoded_base64() {
     let mut request = Request {
-        data: Annotated::from(Value::String("dA==".to_string())),
+        data: Annotated::from(Value::String("dA==".into())),
         ..Request::default()
     };
 
@@ -544,7 +544,7 @@ fn test_infer_xml() {
 #[test]
 fn test_infer_binary() {
     let mut request = Request {
-        data: Annotated::from(Value::String("\u{001f}1\u{0000}\u{0000}".to_string())),
+        data: Annotated::from(Value::String("\u{001f}1\u{0000}\u{0000}".into())),
         ..Request::default()
     };
 

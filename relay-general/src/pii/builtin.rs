@@ -385,7 +385,7 @@ mod tests {
             let config = PiiConfig {
                 applications: {
                     let mut map = BTreeMap::new();
-                    map.insert(ValueType::String.into(), vec![$rule.to_string()]);
+                    map.insert(ValueType::String.into(), vec![$rule.into()]);
                     map
                 },
                 ..PiiConfig::default()
@@ -419,7 +419,7 @@ mod tests {
                 rules: {
                     let mut map = BTreeMap::new();
                     map.insert(
-                        "0".to_owned(),
+                        "0".into(),
                         RuleSpec {
                             ty: match a {
                                 "ip" => RuleType::Ip,

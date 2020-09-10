@@ -82,15 +82,15 @@ fn test_exception_roundtrip() {
   "other": "value"
 }"#;
     let exception = Annotated::new(Exception {
-        ty: Annotated::new("mytype".to_string()),
+        ty: Annotated::new("mytype".into()),
         value: Annotated::new("myvalue".to_string().into()),
-        module: Annotated::new("mymodule".to_string()),
+        module: Annotated::new("mymodule".into()),
         thread_id: Annotated::new(ThreadId::Int(42)),
         other: {
             let mut map = Map::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -105,7 +105,7 @@ fn test_exception_roundtrip() {
 fn test_exception_default_values() {
     let json = r#"{"type":"mytype"}"#;
     let exception = Annotated::new(Exception {
-        ty: Annotated::new("mytype".to_string()),
+        ty: Annotated::new("mytype".into()),
         ..Default::default()
     });
 
@@ -148,7 +148,7 @@ fn test_explicit_none() {
 }"#;
 
     let exception = Annotated::new(Exception {
-        ty: Annotated::new("ZeroDivisionError".to_string()),
+        ty: Annotated::new("ZeroDivisionError".into()),
         ..Default::default()
     });
 

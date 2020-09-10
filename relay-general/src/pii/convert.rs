@@ -221,7 +221,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     #[test]
     fn test_convert_empty_sensitive_field() {
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["".to_owned(), " ".to_owned()],
+            sensitive_fields: vec!["".to_owned(), " ".into()],
             ..simple_enabled_config()
         });
 
@@ -246,7 +246,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     #[test]
     fn test_convert_sensitive_fields() {
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["fieldy_field".to_owned(), "moar_other_field".to_owned()],
+            sensitive_fields: vec!["fieldy_field".into(), "moar_other_field".into()],
             ..simple_enabled_config()
         });
 
@@ -281,7 +281,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     #[test]
     fn test_convert_exclude_field() {
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            exclude_fields: vec!["foobar".to_owned()],
+            exclude_fields: vec!["foobar".into()],
             ..simple_enabled_config()
         });
 
@@ -596,9 +596,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut extra = SENSITIVE_VARS.clone();
         {
             let map = extra.as_object_mut().unwrap();
-            map.insert("fieldy_field".to_owned(), serde_json::json!("value"));
+            map.insert("fieldy_field".into(), serde_json::json!("value"));
             map.insert(
-                "moar_other_field".to_owned(),
+                "moar_other_field".into(),
                 serde_json::json!("another value"),
             );
         }
@@ -606,7 +606,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut data = Event::from_value(serde_json::json!({ "extra": extra }).into());
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["fieldy_field".to_owned(), "moar_other_field".to_owned()],
+            sensitive_fields: vec!["fieldy_field".into(), "moar_other_field".into()],
             ..simple_enabled_config()
         });
 
@@ -1012,7 +1012,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["mystuff".to_owned()],
+            sensitive_fields: vec!["mystuff".into()],
             ..simple_enabled_config()
         });
 
@@ -1033,7 +1033,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["myStuff".to_owned()],
+            sensitive_fields: vec!["myStuff".into()],
             ..simple_enabled_config()
         });
 
@@ -1054,7 +1054,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            exclude_fields: vec!["foobar".to_owned()],
+            exclude_fields: vec!["foobar".into()],
             ..simple_enabled_config()
         });
 
@@ -1082,8 +1082,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["".to_owned(), " ".to_owned()],
-            exclude_fields: vec!["".to_owned(), " ".to_owned()],
+            sensitive_fields: vec!["".to_owned(), " ".into()],
+            exclude_fields: vec!["".to_owned(), " ".into()],
             ..simple_enabled_config()
         });
 
@@ -1223,7 +1223,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["session_key".to_owned()],
+            sensitive_fields: vec!["session_key".into()],
             ..simple_enabled_config()
         });
 
@@ -1273,7 +1273,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["formatted".to_owned()],
+            sensitive_fields: vec!["formatted".into()],
             ..simple_enabled_config()
         });
 
@@ -1302,7 +1302,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["debug_file".to_owned(), "code_file".to_owned()],
+            sensitive_fields: vec!["debug_file".into(), "code_file".into()],
             ..simple_enabled_config()
         });
 
@@ -1330,7 +1330,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["filename".to_owned(), "abs_path".to_owned()],
+            sensitive_fields: vec!["filename".into(), "abs_path".into()],
             ..simple_enabled_config()
         });
 
@@ -1354,8 +1354,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["special ,./<>?!@#$%^&*())'gärbage'".to_owned()],
-            exclude_fields: vec!["do not ,./<>?!@#$%^&*())'ßtrip'".to_owned()],
+            sensitive_fields: vec!["special ,./<>?!@#$%^&*())'gärbage'".into()],
+            exclude_fields: vec!["do not ,./<>?!@#$%^&*())'ßtrip'".into()],
             ..simple_enabled_config()
         });
 
@@ -1371,12 +1371,12 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let pii_config = to_pii_config(&DataScrubbingConfig {
             sensitive_fields: vec![],
             exclude_fields: vec![
-                "url".to_owned(),
-                "message".to_owned(),
-                "http.request.url".to_owned(),
-                "*url*".to_owned(),
-                "*message*".to_owned(),
-                "*http.request.url*".to_owned(),
+                "url".into(),
+                "message".into(),
+                "http.request.url".into(),
+                "*url*".into(),
+                "*message*".into(),
+                "*http.request.url*".into(),
             ],
             ..simple_enabled_config()
         });

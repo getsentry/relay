@@ -630,7 +630,7 @@ fn test_skip_array_never() {
     let helper = Annotated::new(Helper {
         items: Annotated::default(),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":null}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":null}"#);
 }
 
 #[test]
@@ -645,13 +645,13 @@ fn test_skip_array_null() {
     let helper = Annotated::new(Helper {
         items: Annotated::default(),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{}"#);
 
     // "null" does not apply to empty
     let helper = Annotated::new(Helper {
         items: Annotated::new(vec![]),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[]}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":[]}"#);
 }
 
 #[test]
@@ -666,19 +666,19 @@ fn test_skip_array_null_deep() {
     let helper = Annotated::new(Helper {
         items: Annotated::default(),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{}"#);
 
     // "null_deep" applies to nested null
     let helper = Annotated::new(Helper {
         items: Annotated::new(vec![Annotated::default()]),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[]}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":[]}"#);
 
     // "null_deep" does not apply to nested empty
     let helper = Annotated::new(Helper {
         items: Annotated::new(vec![Annotated::new(String::new())]),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[""]}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":[""]}"#);
 }
 
 #[test]
@@ -693,25 +693,25 @@ fn test_skip_array_empty() {
     let helper = Annotated::new(Helper {
         items: Annotated::default(),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{}"#);
 
     // "empty" applies to empty
     let helper = Annotated::new(Helper {
         items: Annotated::new(vec![]),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{}"#);
 
     // "empty" -> "never" nested
     let helper = Annotated::new(Helper {
         items: Annotated::new(vec![Annotated::default()]),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[null]}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":[null]}"#);
 
     // "empty" does not apply to nested empty
     let helper = Annotated::new(Helper {
         items: Annotated::new(vec![Annotated::new(String::new())]),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[""]}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":[""]}"#);
 }
 
 #[test]
@@ -726,19 +726,19 @@ fn test_skip_array_empty_deep() {
     let helper = Annotated::new(Helper {
         items: Annotated::default(),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{}"#);
 
     // "empty_deep" applies to empty nested
     let helper = Annotated::new(Helper {
         items: Annotated::new(vec![Annotated::new(String::new())]),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{}"#);
 
     // "empty_deep" does not apply to non-empty value
     let helper = Annotated::new(Helper {
-        items: Annotated::new(vec![Annotated::new("some".to_string())]),
+        items: Annotated::new(vec![Annotated::new("some".into())]),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":["some"]}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":["some"]}"#);
 }
 
 #[test]
@@ -753,7 +753,7 @@ fn test_skip_object_never() {
     let helper = Annotated::new(Helper {
         items: Annotated::default(),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":null}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":null}"#);
 }
 
 #[test]
@@ -768,13 +768,13 @@ fn test_skip_object_null() {
     let helper = Annotated::new(Helper {
         items: Annotated::default(),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{}"#);
 
     // "null" does not apply to empty
     let helper = Annotated::new(Helper {
         items: Annotated::new(Object::new()),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":{}}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":{}}"#);
 }
 
 #[test]
@@ -789,27 +789,27 @@ fn test_skip_object_null_deep() {
     let helper = Annotated::new(Helper {
         items: Annotated::default(),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{}"#);
 
     // "null_deep" applies to nested null
     let helper = Annotated::new(Helper {
         items: Annotated::new({
             let mut obj = Object::<String>::new();
-            obj.insert("foo".to_string(), Annotated::default());
+            obj.insert("foo".into(), Annotated::default());
             obj
         }),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":{}}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":{}}"#);
 
     // "null_deep" does not apply to nested empty
     let helper = Annotated::new(Helper {
         items: Annotated::new({
             let mut obj = Object::<String>::new();
-            obj.insert("foo".to_string(), Annotated::new(String::new()));
+            obj.insert("foo".into(), Annotated::new(String::new()));
             obj
         }),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":{"foo":""}}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":{"foo":""}}"#);
 }
 
 #[test]
@@ -824,33 +824,33 @@ fn test_skip_object_empty() {
     let helper = Annotated::new(Helper {
         items: Annotated::default(),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{}"#);
 
     // "empty" applies to empty
     let helper = Annotated::new(Helper {
         items: Annotated::new(Object::new()),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{}"#);
 
     // "empty" -> "never" nested
     let helper = Annotated::new(Helper {
         items: Annotated::new({
             let mut obj = Object::<String>::new();
-            obj.insert("foo".to_string(), Annotated::default());
+            obj.insert("foo".into(), Annotated::default());
             obj
         }),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":{"foo":null}}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":{"foo":null}}"#);
 
     // "empty" does not apply to nested empty
     let helper = Annotated::new(Helper {
         items: Annotated::new({
             let mut obj = Object::<String>::new();
-            obj.insert("foo".to_string(), Annotated::new(String::new()));
+            obj.insert("foo".into(), Annotated::new(String::new()));
             obj
         }),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":{"foo":""}}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":{"foo":""}}"#);
 }
 
 #[test]
@@ -865,27 +865,27 @@ fn test_skip_object_empty_deep() {
     let helper = Annotated::new(Helper {
         items: Annotated::default(),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{}"#);
 
     // "empty_deep" applies to empty nested
     let helper = Annotated::new(Helper {
         items: Annotated::new({
             let mut obj = Object::<String>::new();
-            obj.insert("foo".to_string(), Annotated::new(String::new()));
+            obj.insert("foo".into(), Annotated::new(String::new()));
             obj
         }),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{}"#);
 
     // "empty_deep" does not apply to non-empty value
     let helper = Annotated::new(Helper {
         items: Annotated::new({
             let mut obj = Object::<String>::new();
-            obj.insert("foo".to_string(), Annotated::new("some".to_string()));
+            obj.insert("foo".into(), Annotated::new("some".into()));
             obj
         }),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":{"foo":"some"}}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":{"foo":"some"}}"#);
 }
 
 #[test]
@@ -900,7 +900,7 @@ fn test_skip_tuple_never() {
     let helper = Annotated::new(Helper {
         items: Annotated::default(),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":null}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":null}"#);
 }
 
 #[test]
@@ -915,13 +915,13 @@ fn test_skip_tuple_null() {
     let helper = Annotated::new(Helper {
         items: Annotated::default(),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{}"#);
 
     // "null" does not apply to nested
     let helper = Annotated::new(Helper {
         items: Annotated::new((Annotated::default(),)),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[null]}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":[null]}"#);
 }
 
 #[test]
@@ -936,19 +936,19 @@ fn test_skip_tuple_null_deep() {
     let helper = Annotated::new(Helper {
         items: Annotated::default(),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{}"#);
 
     // "null_deep" cannot remove tuple items
     let helper = Annotated::new(Helper {
         items: Annotated::new((Annotated::default(),)),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[null]}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":[null]}"#);
 
     // "null_deep" does not apply to nested empty
     let helper = Annotated::new(Helper {
         items: Annotated::new((Annotated::new(String::new()),)),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[""]}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":[""]}"#);
 }
 
 #[test]
@@ -963,19 +963,19 @@ fn test_skip_tuple_empty() {
     let helper = Annotated::new(Helper {
         items: Annotated::default(),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{}"#);
 
     // "empty" -> "null_deep" nested, but cannot remove tuple item
     let helper = Annotated::new(Helper {
         items: Annotated::new((Annotated::default(),)),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[null]}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":[null]}"#);
 
     // "empty" does not apply to nested empty
     let helper = Annotated::new(Helper {
         items: Annotated::new((Annotated::new(String::new()),)),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":[""]}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":[""]}"#);
 }
 
 #[test]
@@ -990,19 +990,19 @@ fn test_skip_tuple_empty_deep() {
     let helper = Annotated::new(Helper {
         items: Annotated::default(),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{}"#);
 
     // "empty_deep" applies to empty nested
     let helper = Annotated::new(Helper {
         items: Annotated::new((Annotated::new(String::new()),)),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{}"#);
 
     // "empty_deep" does not apply to non-empty value
     let helper = Annotated::new(Helper {
-        items: Annotated::new((Annotated::new("some".to_string()),)),
+        items: Annotated::new((Annotated::new("some".into()),)),
     });
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"items":["some"]}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"items":["some"]}"#);
 }
 
 #[test]
@@ -1019,7 +1019,7 @@ fn test_wrapper_structs_and_skip_serialization() {
     let helper = Annotated::new(BasicHelper {
         items: Annotated::new(BasicWrapper(vec![])),
     });
-    assert_eq_str!(helper.to_json().unwrap(), "{}");
+    assert_eq_str!(helper.to_json().unwrap().as_str(), "{}");
 }
 
 #[test]
@@ -1039,5 +1039,5 @@ fn test_skip_serialization_on_regular_structs() {
         foo: Annotated::new(Wrapper::default()),
     });
 
-    assert_eq_str!(helper.to_json().unwrap(), r#"{"foo":{}}"#);
+    assert_eq_str!(helper.to_json().unwrap().as_str(), r#"{"foo":{}}"#);
 }

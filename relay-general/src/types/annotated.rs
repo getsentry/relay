@@ -481,7 +481,7 @@ fn test_annotated_deserialize_with_meta() {
             .iter_errors()
             .collect::<Vec<&Error>>(),
         vec![
-            &Error::new(ErrorKind::Unknown("unknown_error".to_string())),
+            &Error::new(ErrorKind::Unknown("unknown_error".into())),
             &Error::expected("an unsigned integer")
         ],
     );
@@ -502,7 +502,7 @@ fn test_annotated_deserialize_with_meta() {
 
     let json = annotated_value.to_json_pretty().unwrap();
     assert_eq_str!(
-        json,
+        json.as_str(),
         r#"{
   "id": null,
   "type": "testing",

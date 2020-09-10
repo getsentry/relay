@@ -48,7 +48,7 @@ impl Processor for RecordingProcessor {
 fn test_enums_processor_calls() {
     let mut processor = RecordingProcessor(vec![]);
 
-    let mut value = Annotated::new(Value::String("hi".to_string()));
+    let mut value = Annotated::new(Value::String("hi".into()));
     process_value(
         &mut value,
         &mut processor,

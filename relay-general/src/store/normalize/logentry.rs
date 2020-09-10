@@ -92,7 +92,7 @@ fn test_format_python() {
     let mut logentry = LogEntry {
         message: Annotated::new("hello, %s!".to_string().into()),
         params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
-            "world".to_string(),
+            "world".into(),
         ))])),
         ..LogEntry::default()
     };
@@ -108,8 +108,8 @@ fn test_format_python_named() {
         params: Annotated::new(Value::Object({
             let mut object = Object::new();
             object.insert(
-                "name".to_string(),
-                Annotated::new(Value::String("world".to_string())),
+                "name".into(),
+                Annotated::new(Value::String("world".into())),
             );
             object
         })),
@@ -125,7 +125,7 @@ fn test_format_java() {
     let mut logentry = LogEntry {
         message: Annotated::new("hello, {}!".to_string().into()),
         params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
-            "world".to_string(),
+            "world".into(),
         ))])),
         ..LogEntry::default()
     };
@@ -139,7 +139,7 @@ fn test_format_dotnet() {
     let mut logentry = LogEntry {
         message: Annotated::new("hello, {0}!".to_string().into()),
         params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
-            "world".to_string(),
+            "world".into(),
         ))])),
         ..LogEntry::default()
     };

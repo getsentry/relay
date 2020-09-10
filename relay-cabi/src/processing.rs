@@ -111,7 +111,7 @@ ffi_fn! {
         let processor = normalizer as *mut StoreProcessor;
         let mut event = Annotated::<Event>::from_json((*event).as_str())?;
         process_value(&mut event, &mut *processor, ProcessingState::root())?;
-        Ok(RelayStr::from_string(event.to_json()?))
+        Ok(RelayStr::from_string(event.to_json()?.to_string()))
     }
 }
 
@@ -144,7 +144,7 @@ ffi_fn! {
         let mut event = Annotated::<Event>::from_json((*event).as_str())?;
         process_value(&mut event, &mut processor, ProcessingState::root())?;
 
-        Ok(RelayStr::from_string(event.to_json()?))
+        Ok(RelayStr::from_string(event.to_json()?.to_string()))
     }
 }
 
@@ -167,7 +167,7 @@ ffi_fn! {
     ) -> Result<RelayStr> {
         let config: DataScrubbingConfig = serde_json::from_str((*config).as_str())?;
         match *config.pii_config() {
-            Some(ref config) => Ok(RelayStr::from_string(config.to_json()?)),
+            Some(ref config) => Ok(RelayStr::from_string(config.to_json()?.to_string())),
             None => Ok(RelayStr::new("{}"))
         }
     }
@@ -186,7 +186,7 @@ ffi_fn! {
         let mut event = Annotated::<Event>::from_json((*event).as_str())?;
         process_value(&mut event, &mut processor, ProcessingState::root())?;
 
-        Ok(RelayStr::from_string(event.to_json()?))
+        Ok(RelayStr::from_string(event.to_json()?.to_string()))
     }
 }
 

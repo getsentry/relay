@@ -400,7 +400,7 @@ fn test_basic_stripping() {
             env: {
                 let mut rv = Object::new();
                 rv.insert(
-                    "SECRET_KEY".to_string(),
+                    "SECRET_KEY".into(),
                     Annotated::new(Value::String("134141231231231231231312".into())),
                 );
                 Annotated::new(rv)
@@ -421,8 +421,8 @@ fn test_basic_stripping() {
         }),
         tags: Annotated::new(Tags(
             vec![Annotated::new(TagEntry(
-                Annotated::new("forwarded_for".to_string()),
-                Annotated::new("127.0.0.1".to_string()),
+                Annotated::new("forwarded_for".into()),
+                Annotated::new("127.0.0.1".into()),
             ))]
             .into(),
         )),
@@ -452,8 +452,8 @@ fn test_redact_containers() {
         extra: {
             let mut map = Object::new();
             map.insert(
-                "foo".to_string(),
-                Annotated::new(ExtraValue(Value::String("bar".to_string()))),
+                "foo".into(),
+                Annotated::new(ExtraValue(Value::String("bar".into()))),
             );
             Annotated::new(map)
         },
@@ -493,8 +493,8 @@ fn test_redact_custom_pattern() {
         extra: {
             let mut map = Object::new();
             map.insert(
-                "myvalue".to_string(),
-                Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+                "myvalue".into(),
+                Annotated::new(ExtraValue(Value::String("foobar".into()))),
             );
             Annotated::new(map)
         },
@@ -524,8 +524,8 @@ fn test_no_field_upsert() {
         extra: {
             let mut map = Object::new();
             map.insert(
-                "myvalue".to_string(),
-                Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+                "myvalue".into(),
+                Annotated::new(ExtraValue(Value::String("foobar".into()))),
             );
             Annotated::new(map)
         },
@@ -555,8 +555,8 @@ fn test_anything_hash_on_string() {
         extra: {
             let mut map = Object::new();
             map.insert(
-                "myvalue".to_string(),
-                Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+                "myvalue".into(),
+                Annotated::new(ExtraValue(Value::String("foobar".into()))),
             );
             Annotated::new(map)
         },
@@ -586,8 +586,8 @@ fn test_anything_hash_on_container() {
         extra: {
             let mut map = Object::new();
             map.insert(
-                "myvalue".to_string(),
-                Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+                "myvalue".into(),
+                Annotated::new(ExtraValue(Value::String("foobar".into()))),
             );
             Annotated::new(map)
         },
@@ -624,15 +624,15 @@ fn test_remove_debugmeta_path() {
                         "971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap(),
                     ),
                     debug_file: Annotated::new("wntdll.pdb".into()),
-                    arch: Annotated::new("arm64".to_string()),
+                    arch: Annotated::new("arm64".into()),
                     image_addr: Annotated::new(Addr(0)),
                     image_size: Annotated::new(4096),
                     image_vmaddr: Annotated::new(Addr(32768)),
                     other: {
                         let mut map = Object::new();
                         map.insert(
-                            "other".to_string(),
-                            Annotated::new(Value::String("value".to_string())),
+                            "other".into(),
+                            Annotated::new(Value::String("value".into())),
                         );
                         map
                     },
@@ -673,15 +673,15 @@ fn test_replace_debugmeta_path() {
                         "971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap(),
                     ),
                     debug_file: Annotated::new("wntdll.pdb".into()),
-                    arch: Annotated::new("arm64".to_string()),
+                    arch: Annotated::new("arm64".into()),
                     image_addr: Annotated::new(Addr(0)),
                     image_size: Annotated::new(4096),
                     image_vmaddr: Annotated::new(Addr(32768)),
                     other: {
                         let mut map = Object::new();
                         map.insert(
-                            "other".to_string(),
-                            Annotated::new(Value::String("value".to_string())),
+                            "other".into(),
+                            Annotated::new(Value::String("value".into())),
                         );
                         map
                     },
@@ -722,15 +722,15 @@ fn test_hash_debugmeta_path() {
                         "971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap(),
                     ),
                     debug_file: Annotated::new("wntdll.pdb".into()),
-                    arch: Annotated::new("arm64".to_string()),
+                    arch: Annotated::new("arm64".into()),
                     image_addr: Annotated::new(Addr(0)),
                     image_size: Annotated::new(4096),
                     image_vmaddr: Annotated::new(Addr(32768)),
                     other: {
                         let mut map = Object::new();
                         map.insert(
-                            "other".to_string(),
-                            Annotated::new(Value::String("value".to_string())),
+                            "other".into(),
+                            Annotated::new(Value::String("value".into())),
                         );
                         map
                     },
@@ -773,15 +773,15 @@ fn test_debugmeta_path_not_addressible_with_wildcard_selector() {
                         "971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap(),
                     ),
                     debug_file: Annotated::new("wntdll.pdb".into()),
-                    arch: Annotated::new("arm64".to_string()),
+                    arch: Annotated::new("arm64".into()),
                     image_addr: Annotated::new(Addr(0)),
                     image_size: Annotated::new(4096),
                     image_vmaddr: Annotated::new(Addr(32768)),
                     other: {
                         let mut map = Object::new();
                         map.insert(
-                            "other".to_string(),
-                            Annotated::new(Value::String("value".to_string())),
+                            "other".into(),
+                            Annotated::new(Value::String("value".into())),
                         );
                         map
                     },
@@ -815,12 +815,12 @@ fn test_quoted_keys() {
         extra: {
             let mut map = Object::new();
             map.insert(
-                "do not ,./<>?!@#$%^&*())'ßtrip'".to_string(),
-                Annotated::new(ExtraValue(Value::String("foo".to_string()))),
+                "do not ,./<>?!@#$%^&*())'ßtrip'".into(),
+                Annotated::new(ExtraValue(Value::String("foo".into()))),
             );
             map.insert(
-                "special ,./<>?!@#$%^&*())'gärbage'".to_string(),
-                Annotated::new(ExtraValue(Value::String("bar".to_string()))),
+                "special ,./<>?!@#$%^&*())'gärbage'".into(),
+                Annotated::new(ExtraValue(Value::String("bar".into()))),
             );
             Annotated::new(map)
         },

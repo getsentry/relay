@@ -1092,7 +1092,7 @@ fn test_values_serialization() {
         ]),
         other: Object::default(),
     });
-    assert_eq!(value.to_json().unwrap(), "{\"values\":[0,1,2]}");
+    assert_eq!(value.to_json().unwrap().as_str(), "{\"values\":[0,1,2]}");
 }
 
 #[test]
@@ -1110,8 +1110,8 @@ fn test_values_deserialization() {
     assert_eq!(
         value,
         Annotated::new(Values::new(vec![Annotated::new(Exception {
-            ty: Annotated::new("Test".to_string()),
-            value: Annotated::new("aha!".to_string()),
+            ty: Annotated::new("Test".into()),
+            value: Annotated::new("aha!".into()),
         })]))
     );
 
@@ -1120,8 +1120,8 @@ fn test_values_deserialization() {
     assert_eq!(
         value,
         Annotated::new(Values::new(vec![Annotated::new(Exception {
-            ty: Annotated::new("Test".to_string()),
-            value: Annotated::new("aha!".to_string()),
+            ty: Annotated::new("Test".into()),
+            value: Annotated::new("aha!".into()),
         })]))
     );
 
@@ -1130,8 +1130,8 @@ fn test_values_deserialization() {
     assert_eq!(
         value,
         Annotated::new(Values::new(vec![Annotated::new(Exception {
-            ty: Annotated::new("Test".to_string()),
-            value: Annotated::new("aha!".to_string()),
+            ty: Annotated::new("Test".into()),
+            value: Annotated::new("aha!".into()),
         })]))
     );
 }
@@ -1152,20 +1152,20 @@ fn test_hex_from_string() {
 
 #[test]
 fn test_hex_serialization() {
-    let value = Value::String("0x2a".to_string());
+    let value = Value::String("0x2a".into());
     let addr: Annotated<Addr> = FromValue::from_value(Annotated::new(value));
-    assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
+    assert_eq!(addr.payload.to_json().unwrap().as_str(), "\"0x2a\"");
     let value = Value::U64(42);
     let addr: Annotated<Addr> = FromValue::from_value(Annotated::new(value));
-    assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
+    assert_eq!(addr.payload.to_json().unwrap().as_str(), "\"0x2a\"");
 }
 
 #[test]
 fn test_hex_deserialization() {
     let addr = Annotated::<Addr>::from_json("\"0x2a\"").unwrap();
-    assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
+    assert_eq!(addr.payload.to_json().unwrap().as_str(), "\"0x2a\"");
     let addr = Annotated::<Addr>::from_json("42").unwrap();
-    assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
+    assert_eq!(addr.payload.to_json().unwrap().as_str(), "\"0x2a\"");
 }
 
 #[test]

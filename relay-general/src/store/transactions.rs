@@ -166,19 +166,19 @@ mod tests {
         let end = Utc.ymd(2000, 1, 1).and_hms(0, 0, 10);
         Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            transaction: Annotated::new("/".to_owned()),
+            transaction: Annotated::new("/".into()),
             start_timestamp: Annotated::new(start.into()),
             timestamp: Annotated::new(end.into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
-                    "trace".to_owned(),
+                    "trace".into(),
                     Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
+                        op: Annotated::new("http.server".into()),
                         ..Default::default()
                     })))),
                 );
@@ -189,7 +189,7 @@ mod tests {
                 timestamp: Annotated::new(end.into()),
                 trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
                 span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                op: Annotated::new("db.statement".to_owned()),
+                op: Annotated::new("db.statement".into()),
                 ..Default::default()
             })]),
             ..Default::default()
@@ -298,7 +298,7 @@ mod tests {
             start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
-                contexts.insert("trace".to_owned(), Annotated::empty());
+                contexts.insert("trace".into(), Annotated::empty());
                 contexts
             })),
             ..Default::default()
@@ -325,7 +325,7 @@ mod tests {
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
-                    "trace".to_owned(),
+                    "trace".into(),
                     Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
                         ..Default::default()
                     })))),
@@ -356,7 +356,7 @@ mod tests {
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
-                    "trace".to_owned(),
+                    "trace".into(),
                     Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
@@ -388,13 +388,13 @@ mod tests {
 
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            transaction: Annotated::new("/".to_owned()),
+            transaction: Annotated::new("/".into()),
             timestamp: Annotated::new(end.into()),
             start_timestamp: Annotated::new(start.into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
-                    "trace".to_owned(),
+                    "trace".into(),
                     Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
@@ -443,13 +443,13 @@ mod tests {
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
-                    "trace".to_owned(),
+                    "trace".into(),
                     Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
+                        op: Annotated::new("http.server".into()),
                         ..Default::default()
                     })))),
                 );
@@ -476,13 +476,13 @@ mod tests {
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
-                    "trace".to_owned(),
+                    "trace".into(),
                     Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
+                        op: Annotated::new("http.server".into()),
                         ..Default::default()
                     })))),
                 );
@@ -547,13 +547,13 @@ mod tests {
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
-                    "trace".to_owned(),
+                    "trace".into(),
                     Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
+                        op: Annotated::new("http.server".into()),
                         ..Default::default()
                     })))),
                 );
@@ -584,13 +584,13 @@ mod tests {
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
-                    "trace".to_owned(),
+                    "trace".into(),
                     Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
+                        op: Annotated::new("http.server".into()),
                         ..Default::default()
                     })))),
                 );
@@ -623,13 +623,13 @@ mod tests {
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
-                    "trace".to_owned(),
+                    "trace".into(),
                     Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
+                        op: Annotated::new("http.server".into()),
                         ..Default::default()
                     })))),
                 );
@@ -663,13 +663,13 @@ mod tests {
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
-                    "trace".to_owned(),
+                    "trace".into(),
                     Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
+                        op: Annotated::new("http.server".into()),
                         ..Default::default()
                     })))),
                 );
@@ -704,13 +704,13 @@ mod tests {
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
-                    "trace".to_owned(),
+                    "trace".into(),
                     Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
+                        op: Annotated::new("http.server".into()),
                         ..Default::default()
                     })))),
                 );
@@ -744,19 +744,19 @@ mod tests {
 
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
-            transaction: Annotated::new("/".to_owned()),
+            transaction: Annotated::new("/".into()),
             timestamp: Annotated::new(end.into()),
             start_timestamp: Annotated::new(start.into()),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
-                    "trace".to_owned(),
+                    "trace".into(),
                     Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
+                        op: Annotated::new("http.server".into()),
                         ..Default::default()
                     })))),
                 );

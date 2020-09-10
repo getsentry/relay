@@ -368,30 +368,30 @@ fn test_frame_roundtrip() {
   "other": "value"
 }"#;
     let frame = Annotated::new(Frame {
-        function: Annotated::new("main@8".to_string()),
-        raw_function: Annotated::new("main".to_string()),
-        symbol: Annotated::new("_main@8".to_string()),
-        module: Annotated::new("app".to_string()),
-        package: Annotated::new("/my/app".to_string()),
+        function: Annotated::new("main@8".into()),
+        raw_function: Annotated::new("main".into()),
+        symbol: Annotated::new("_main@8".into()),
+        module: Annotated::new("app".into()),
+        package: Annotated::new("/my/app".into()),
         filename: Annotated::new("myfile.rs".into()),
         abs_path: Annotated::new("/path/to".into()),
         lineno: Annotated::new(2),
         colno: Annotated::new(42),
-        platform: Annotated::new("rust".to_string()),
-        pre_context: Annotated::new(vec![Annotated::new("fn main() {".to_string())]),
-        context_line: Annotated::new("unimplemented!()".to_string()),
-        post_context: Annotated::new(vec![Annotated::new("}".to_string())]),
+        platform: Annotated::new("rust".into()),
+        pre_context: Annotated::new(vec![Annotated::new("fn main() {".into())]),
+        context_line: Annotated::new("unimplemented!()".into()),
+        post_context: Annotated::new(vec![Annotated::new("}".into())]),
         in_app: Annotated::new(true),
         vars: {
             let mut vars = Object::new();
             vars.insert(
-                "variable".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "variable".into(),
+                Annotated::new(Value::String("value".into())),
             );
             Annotated::new(vars.into())
         },
         data: Annotated::new(FrameData {
-            sourcemap: Annotated::new("http://example.com/invalid.map".to_string()),
+            sourcemap: Annotated::new("http://example.com/invalid.map".into()),
             ..Default::default()
         }),
         image_addr: Annotated::new(Addr(0x400)),
@@ -402,8 +402,8 @@ fn test_frame_roundtrip() {
         other: {
             let mut vars = Object::new();
             vars.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             vars
         },
@@ -441,23 +441,23 @@ fn test_stacktrace_roundtrip() {
 }"#;
     let stack = Annotated::new(RawStacktrace {
         frames: Annotated::new(vec![Annotated::new(Frame {
-            function: Annotated::new("foobar".to_string()),
+            function: Annotated::new("foobar".into()),
             ..Default::default()
         })]),
         registers: {
             let mut registers = Object::new();
-            registers.insert("cspr".to_string(), Annotated::new(RegVal(0x2000_0000)));
-            registers.insert("lr".to_string(), Annotated::new(RegVal(0x1_8a31_aadc)));
-            registers.insert("pc".to_string(), Annotated::new(RegVal(0x1_8a31_0ea4)));
-            registers.insert("sp".to_string(), Annotated::new(RegVal(0x1_6fd7_5060)));
+            registers.insert("cspr".into(), Annotated::new(RegVal(0x2000_0000)));
+            registers.insert("lr".into(), Annotated::new(RegVal(0x1_8a31_aadc)));
+            registers.insert("pc".into(), Annotated::new(RegVal(0x1_8a31_0ea4)));
+            registers.insert("sp".into(), Annotated::new(RegVal(0x1_6fd7_5060)));
             Annotated::new(registers)
         },
         lang: Annotated::new("rust".into()),
         other: {
             let mut other = Object::new();
             other.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             other
         },
@@ -495,7 +495,7 @@ fn test_frame_vars_null_preserved() {
     let frame = Annotated::new(Frame {
         vars: Annotated::new({
             let mut vars = Object::new();
-            vars.insert("despacito".to_string(), Annotated::empty());
+            vars.insert("despacito".into(), Annotated::empty());
             vars.into()
         }),
         ..Default::default()
@@ -516,8 +516,8 @@ fn test_frame_vars_empty_annotated_is_serialized() {
     let frame = Annotated::new(Frame {
         vars: Annotated::new({
             let mut vars = Object::new();
-            vars.insert("despacito".to_string(), Annotated::empty());
-            vars.insert("despacito2".to_string(), Annotated::empty());
+            vars.insert("despacito".into(), Annotated::empty());
+            vars.insert("despacito2".into(), Annotated::empty());
             vars.into()
         }),
         ..Default::default()
@@ -571,10 +571,10 @@ fn test_php_frame_vars() {
     let frame = Annotated::new(Frame {
         vars: Annotated::new({
             let mut vars = Object::new();
-            vars.insert("0".to_string(), Annotated::new("foo".to_string().into()));
-            vars.insert("1".to_string(), Annotated::new("bar".to_string().into()));
-            vars.insert("2".to_string(), Annotated::new("baz".to_string().into()));
-            vars.insert("3".to_string(), Annotated::empty());
+            vars.insert("0".into(), Annotated::new("foo".to_string().into()));
+            vars.insert("1".into(), Annotated::new("bar".to_string().into()));
+            vars.insert("2".into(), Annotated::new("baz".to_string().into()));
+            vars.insert("3".into(), Annotated::empty());
             vars.into()
         }),
         ..Default::default()

@@ -145,23 +145,23 @@ fn test_breadcrumb_roundtrip() {
 
     let breadcrumb = Annotated::new(Breadcrumb {
         timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
-        ty: Annotated::new("mytype".to_string()),
-        category: Annotated::new("mycategory".to_string()),
+        ty: Annotated::new("mytype".into()),
+        category: Annotated::new("mycategory".into()),
         level: Annotated::new(Level::Fatal),
-        message: Annotated::new("my message".to_string()),
+        message: Annotated::new("my message".into()),
         data: {
             let mut map = Map::new();
             map.insert(
-                "a".to_string(),
-                Annotated::new(Value::String("b".to_string())),
+                "a".into(),
+                Annotated::new(Value::String("b".into())),
             );
             Annotated::new(map)
         },
         other: {
             let mut map = Map::new();
             map.insert(
-                "c".to_string(),
-                Annotated::new(Value::String("d".to_string())),
+                "c".into(),
+                Annotated::new(Value::String("d".into())),
             );
             map
         },

@@ -489,8 +489,8 @@ fn test_debug_image_proguard_roundtrip() {
         other: {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -516,8 +516,8 @@ fn test_debug_image_apple_roundtrip() {
 }"#;
 
     let image = Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
-        name: Annotated::new("CoreFoundation".to_string()),
-        arch: Annotated::new("arm64".to_string()),
+        name: Annotated::new("CoreFoundation".into()),
+        arch: Annotated::new("arm64".into()),
         cpu_type: Annotated::new(1233),
         cpu_subtype: Annotated::new(3),
         image_addr: Annotated::new(Addr(0)),
@@ -527,8 +527,8 @@ fn test_debug_image_apple_roundtrip() {
         other: {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -549,7 +549,7 @@ fn test_debug_image_apple_default_values() {
 }"#;
 
     let image = Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
-        name: Annotated::new("CoreFoundation".to_string()),
+        name: Annotated::new("CoreFoundation".into()),
         image_addr: Annotated::new(Addr(0)),
         image_size: Annotated::new(4096),
         uuid: Annotated::new("494f3aea-88fa-4296-9644-fa8ef5d139b6".parse().unwrap()),
@@ -580,15 +580,15 @@ fn test_debug_image_symbolic_roundtrip() {
         code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
         debug_id: Annotated::new("971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap()),
         debug_file: Annotated::new("wntdll.pdb".into()),
-        arch: Annotated::new("arm64".to_string()),
+        arch: Annotated::new("arm64".into()),
         image_addr: Annotated::new(Addr(0)),
         image_size: Annotated::new(4096),
         image_vmaddr: Annotated::new(Addr(32768)),
         other: {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -616,15 +616,15 @@ fn test_debug_image_symbolic_legacy() {
         code_file: Annotated::new("CoreFoundation".into()),
         debug_id: Annotated::new("494f3aea-88fa-4296-9644-fa8ef5d139b6-1234".parse().unwrap()),
         debug_file: Annotated::empty(),
-        arch: Annotated::new("arm64".to_string()),
+        arch: Annotated::new("arm64".into()),
         image_addr: Annotated::new(Addr(0)),
         image_size: Annotated::new(4096),
         image_vmaddr: Annotated::new(Addr(32768)),
         other: {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -678,15 +678,15 @@ fn test_debug_image_elf_roundtrip() {
         code_file: Annotated::new("crash".into()),
         debug_id: Annotated::new("c0bcc3f1-9827-fe65-3058-404b2831d9e6".parse().unwrap()),
         debug_file: Annotated::empty(),
-        arch: Annotated::new("arm64".to_string()),
+        arch: Annotated::new("arm64".into()),
         image_addr: Annotated::new(Addr(0)),
         image_size: Annotated::new(4096),
         image_vmaddr: Annotated::new(Addr(32768)),
         other: {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -715,15 +715,15 @@ fn test_debug_image_macho_roundtrip() {
         code_file: Annotated::new("crash".into()),
         debug_id: Annotated::new("67e9247c-814e-392b-a027-dbde6748fcbf".parse().unwrap()),
         debug_file: Annotated::empty(),
-        arch: Annotated::new("arm64".to_string()),
+        arch: Annotated::new("arm64".into()),
         image_addr: Annotated::new(Addr(0)),
         image_size: Annotated::new(4096),
         image_vmaddr: Annotated::new(Addr(32768)),
         other: {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -752,15 +752,15 @@ fn test_debug_image_pe_roundtrip() {
         code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
         debug_id: Annotated::new("971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap()),
         debug_file: Annotated::new("wntdll.pdb".into()),
-        arch: Annotated::new("arm64".to_string()),
+        arch: Annotated::new("arm64".into()),
         image_addr: Annotated::new(Addr(0)),
         image_size: Annotated::new(4096),
         image_vmaddr: Annotated::new(Addr(32768)),
         other: {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -776,12 +776,12 @@ fn test_debug_image_other_roundtrip() {
     let image = Annotated::new(DebugImage::Other({
         let mut map = Map::new();
         map.insert(
-            "type".to_string(),
-            Annotated::new(Value::String("mytype".to_string())),
+            "type".into(),
+            Annotated::new(Value::String("mytype".into())),
         );
         map.insert(
-            "other".to_string(),
-            Annotated::new(Value::String("value".to_string())),
+            "other".into(),
+            Annotated::new(Value::String("value".into())),
         );
         map
     }));
@@ -796,8 +796,8 @@ fn test_debug_image_untagged_roundtrip() {
     let image = Annotated::new(DebugImage::Other({
         let mut map = Map::new();
         map.insert(
-            "other".to_string(),
-            Annotated::new(Value::String("value".to_string())),
+            "other".into(),
+            Annotated::new(Value::String("value".into())),
         );
         map
     }));
@@ -822,15 +822,15 @@ fn test_debug_meta_roundtrip() {
 }"#;
     let meta = Annotated::new(DebugMeta {
         system_sdk: Annotated::new(SystemSdkInfo {
-            sdk_name: Annotated::new("iOS".to_string()),
+            sdk_name: Annotated::new("iOS".into()),
             version_major: Annotated::new(10),
             version_minor: Annotated::new(3),
             version_patchlevel: Annotated::new(0),
             other: {
                 let mut map = Map::new();
                 map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_string())),
+                    "other".into(),
+                    Annotated::new(Value::String("value".into())),
                 );
                 map
             },
@@ -838,8 +838,8 @@ fn test_debug_meta_roundtrip() {
         other: {
             let mut map = Map::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },

@@ -157,13 +157,13 @@ mod tests {
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
-                    "trace".to_owned(),
+                    "trace".into(),
                     Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
                         trace_id: Annotated::new(TraceId(
                             "4c79f60c11214eb38604f4ae0781bfb2".into(),
                         )),
                         span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
+                        op: Annotated::new("http.server".into()),
                         ..Default::default()
                     })))),
                 );

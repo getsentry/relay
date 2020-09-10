@@ -74,24 +74,24 @@ fn test_tags_from_object() {
 
     let mut arr = Array::new();
     arr.push(Annotated::new(TagEntry(
-        Annotated::new("bam".to_string()),
+        Annotated::new("bam".into()),
         Annotated::empty(),
     )));
     arr.push(Annotated::new(TagEntry(
-        Annotated::new("blah".to_string()),
-        Annotated::new("blub".to_string()),
+        Annotated::new("blah".into()),
+        Annotated::new("blub".into()),
     )));
     arr.push(Annotated::new(TagEntry(
-        Annotated::new("bool".to_string()),
-        Annotated::new("True".to_string()),
+        Annotated::new("bool".into()),
+        Annotated::new("True".into()),
     )));
     arr.push(Annotated::new(TagEntry(
-        Annotated::new("foo-bar".to_string()),
-        Annotated::new("baz".to_string()),
+        Annotated::new("foo-bar".into()),
+        Annotated::new("baz".into()),
     )));
     arr.push(Annotated::new(TagEntry(
-        Annotated::new("non-string".to_string()),
-        Annotated::new("42".to_string()),
+        Annotated::new("non-string".into()),
+        Annotated::new("42".into()),
     )));
 
     let tags = Annotated::new(Tags(arr.into()));
@@ -154,23 +154,23 @@ fn test_tags_from_array() {
 
     let mut arr = Array::new();
     arr.push(Annotated::new(TagEntry(
-        Annotated::new("bool".to_string()),
-        Annotated::new("True".to_string()),
+        Annotated::new("bool".into()),
+        Annotated::new("True".into()),
     )));
     arr.push(Annotated::new(TagEntry(
-        Annotated::new("foo-bar".to_string()),
-        Annotated::new("baz".to_string()),
+        Annotated::new("foo-bar".into()),
+        Annotated::new("baz".into()),
     )));
     arr.push(Annotated::new(TagEntry(
-        Annotated::new("23".to_string()),
-        Annotated::new("42".to_string()),
+        Annotated::new("23".into()),
+        Annotated::new("42".into()),
     )));
     arr.push(Annotated::new(TagEntry(
-        Annotated::new("blah".to_string()),
-        Annotated::new("blub".to_string()),
+        Annotated::new("blah".into()),
+        Annotated::new("blub".into()),
     )));
     arr.push(Annotated::new(TagEntry(
-        Annotated::new("bam".to_string()),
+        Annotated::new("bam".into()),
         Annotated::empty(),
     )));
 

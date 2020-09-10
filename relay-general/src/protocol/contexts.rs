@@ -725,17 +725,17 @@ fn test_device_context_roundtrip() {
   "type": "device"
 }"#;
     let context = Annotated::new(Context::Device(Box::new(DeviceContext {
-        name: Annotated::new("iphone".to_string()),
-        family: Annotated::new("iphone".to_string()),
-        model: Annotated::new("iphone7,3".to_string()),
-        model_id: Annotated::new("AH223".to_string()),
-        arch: Annotated::new("arm64".to_string()),
+        name: Annotated::new("iphone".into()),
+        family: Annotated::new("iphone".into()),
+        model: Annotated::new("iphone7,3".into()),
+        model_id: Annotated::new("AH223".into()),
+        arch: Annotated::new("arm64".into()),
         battery_level: Annotated::new(58.5),
-        orientation: Annotated::new("landscape".to_string()),
+        orientation: Annotated::new("landscape".into()),
         simulator: Annotated::new(true),
-        manufacturer: Annotated::new("Apple".to_string()),
-        brand: Annotated::new("iphone".to_string()),
-        screen_resolution: Annotated::new("800x600".to_string()),
+        manufacturer: Annotated::new("Apple".into()),
+        brand: Annotated::new("iphone".into()),
+        screen_resolution: Annotated::new("800x600".into()),
         screen_density: Annotated::new(1.1),
         screen_dpi: Annotated::new(1),
         online: Annotated::new(true),
@@ -748,13 +748,13 @@ fn test_device_context_roundtrip() {
         free_storage: Annotated::new(31_994_734_592),
         external_storage_size: Annotated::new(2_097_152),
         external_free_storage: Annotated::new(2_097_152),
-        boot_time: Annotated::new("2018-02-08T12:52:12Z".to_string()),
-        timezone: Annotated::new("Europe/Vienna".to_string()),
+        boot_time: Annotated::new("2018-02-08T12:52:12Z".into()),
+        timezone: Annotated::new("Europe/Vienna".into()),
         other: {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -777,17 +777,17 @@ fn test_os_context_roundtrip() {
   "type": "os"
 }"#;
     let context = Annotated::new(Context::Os(Box::new(OsContext {
-        name: Annotated::new("iOS".to_string()),
-        version: Annotated::new("11.4.2".to_string()),
-        build: Annotated::new(LenientString("FEEDFACE".to_string())),
-        kernel_version: Annotated::new("17.4.0".to_string()),
+        name: Annotated::new("iOS".into()),
+        version: Annotated::new("11.4.2".into()),
+        build: Annotated::new(LenientString("FEEDFACE".into())),
+        kernel_version: Annotated::new("17.4.0".into()),
         rooted: Annotated::new(true),
-        raw_description: Annotated::new("iOS 11.4.2 FEEDFACE (17.4.0)".to_string()),
+        raw_description: Annotated::new("iOS 11.4.2 FEEDFACE (17.4.0)".into()),
         other: {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -808,15 +808,15 @@ fn test_runtime_context_roundtrip() {
   "type": "runtime"
 }"#;
     let context = Annotated::new(Context::Runtime(Box::new(RuntimeContext {
-        name: Annotated::new("rustc".to_string()),
-        version: Annotated::new("1.27.0".to_string()),
-        build: Annotated::new(LenientString("stable".to_string())),
-        raw_description: Annotated::new("rustc 1.27.0 stable".to_string()),
+        name: Annotated::new("rustc".into()),
+        version: Annotated::new("1.27.0".into()),
+        build: Annotated::new(LenientString("stable".into())),
+        raw_description: Annotated::new("rustc 1.27.0 stable".into()),
         other: {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -840,18 +840,18 @@ fn test_app_context_roundtrip() {
   "type": "app"
 }"#;
     let context = Annotated::new(Context::App(Box::new(AppContext {
-        app_start_time: Annotated::new("2018-02-08T22:21:57Z".to_string()),
-        device_app_hash: Annotated::new("4c793e3776474877ae30618378e9662a".to_string()),
-        build_type: Annotated::new("testflight".to_string()),
-        app_identifier: Annotated::new("foo.bar.baz".to_string()),
-        app_name: Annotated::new("Baz App".to_string()),
-        app_version: Annotated::new("1.0".to_string()),
-        app_build: Annotated::new("100001".to_string().into()),
+        app_start_time: Annotated::new("2018-02-08T22:21:57Z".into()),
+        device_app_hash: Annotated::new("4c793e3776474877ae30618378e9662a".into()),
+        build_type: Annotated::new("testflight".into()),
+        app_identifier: Annotated::new("foo.bar.baz".into()),
+        app_name: Annotated::new("Baz App".into()),
+        app_version: Annotated::new("1.0".into()),
+        app_build: Annotated::new("100001".into().into()),
         other: {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -870,13 +870,13 @@ fn test_browser_context_roundtrip() {
   "type": "browser"
 }"#;
     let context = Annotated::new(Context::Browser(Box::new(BrowserContext {
-        name: Annotated::new("Google Chrome".to_string()),
-        version: Annotated::new("67.0.3396.99".to_string()),
+        name: Annotated::new("Google Chrome".into()),
+        version: Annotated::new("67.0.3396.99".into()),
         other: {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -906,8 +906,8 @@ fn test_trace_context_roundtrip() {
         other: {
             let mut map = Object::new();
             map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
+                "other".into(),
+                Annotated::new(Value::String("value".into())),
             );
             map
         },
@@ -941,12 +941,12 @@ fn test_other_context_roundtrip() {
     let context = Annotated::new(Context::Other({
         let mut map = Map::new();
         map.insert(
-            "other".to_string(),
-            Annotated::new(Value::String("value".to_string())),
+            "other".into(),
+            Annotated::new(Value::String("value".into())),
         );
         map.insert(
-            "type".to_string(),
-            Annotated::new(Value::String("mytype".to_string())),
+            "type".into(),
+            Annotated::new(Value::String("mytype".into())),
         );
         map
     }));
@@ -960,11 +960,11 @@ fn test_untagged_context_deserialize() {
     let json = r#"{"os": {"name": "Linux"}}"#;
 
     let os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
-        name: Annotated::new("Linux".to_string()),
+        name: Annotated::new("Linux".into()),
         ..Default::default()
     }))));
     let mut map = Object::new();
-    map.insert("os".to_string(), os_context);
+    map.insert("os".into(), os_context);
     let contexts = Annotated::new(Contexts(map));
 
     assert_eq_dbg!(contexts, Annotated::from_json(json).unwrap());
@@ -975,19 +975,19 @@ fn test_multiple_contexts_roundtrip() {
     let json = r#"{"os":{"name":"Linux","type":"os"},"runtime":{"name":"rustc","type":"runtime"}}"#;
 
     let os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
-        name: Annotated::new("Linux".to_string()),
+        name: Annotated::new("Linux".into()),
         ..Default::default()
     }))));
 
     let runtime_context =
         Annotated::new(ContextInner(Context::Runtime(Box::new(RuntimeContext {
-            name: Annotated::new("rustc".to_string()),
+            name: Annotated::new("rustc".into()),
             ..Default::default()
         }))));
 
     let mut map = Object::new();
-    map.insert("os".to_string(), os_context);
-    map.insert("runtime".to_string(), runtime_context);
+    map.insert("os".into(), os_context);
+    map.insert("runtime".into(), runtime_context);
     let contexts = Annotated::new(Contexts(map));
 
     assert_eq_dbg!(contexts, Annotated::from_json(json).unwrap());
@@ -1004,10 +1004,10 @@ fn test_context_processing() {
         contexts: Annotated::new(Contexts({
             let mut contexts = Object::new();
             contexts.insert(
-                "runtime".to_owned(),
+                "runtime".into(),
                 Annotated::new(ContextInner(Context::Runtime(Box::new(RuntimeContext {
-                    name: Annotated::new("php".to_owned()),
-                    version: Annotated::new("7.1.20-1+ubuntu16.04.1+deb.sury.org+1".to_owned()),
+                    name: Annotated::new("php".into()),
+                    version: Annotated::new("7.1.20-1+ubuntu16.04.1+deb.sury.org+1".into()),
                     ..Default::default()
                 })))),
             );

@@ -70,8 +70,8 @@ mod tests {
         let span = Annotated::new(Span {
             timestamp: Annotated::new(Utc.ymd(1970, 1, 1).and_hms_nano(0, 0, 0, 0).into()),
             start_timestamp: Annotated::new(Utc.ymd(1968, 1, 1).and_hms_nano(0, 0, 0, 0).into()),
-            description: Annotated::new("desc".to_owned()),
-            op: Annotated::new("operation".to_owned()),
+            description: Annotated::new("desc".into()),
+            op: Annotated::new("operation".into()),
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             status: Annotated::new(SpanStatus::Ok),
