@@ -2837,6 +2837,7 @@ dependencies = [
  "lazy_static",
  "relay-auth",
  "relay-common",
+ "relay-ffi",
  "relay-general",
  "sentry-release-parser",
  "serde",

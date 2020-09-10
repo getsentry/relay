@@ -93,15 +93,14 @@
 #![allow(clippy::missing_safety_doc)]
 #![warn(missing_docs)]
 
-#[macro_use]
-mod utils;
-
 mod auth;
 mod constants;
 mod core;
+mod ffi;
 mod processing;
 
 pub use crate::auth::*;
 pub use crate::constants::*;
 pub use crate::core::*;
+pub use crate::ffi::*;
 pub use crate::processing::*;
