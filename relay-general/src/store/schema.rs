@@ -1,9 +1,39 @@
+use std::collections::BTreeMap;
+
+use regex::Regex;
+
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::types::{
     Array, Empty, Error, ErrorKind, Meta, Object, ProcessingAction, ProcessingResult,
 };
 
 pub struct SchemaProcessor;
+
+macro_rules! declare_used_field_regexes {
+    ($($regex:expr),* $(,)*) => {
+        lazy_static::lazy_static! {
+            static ref USED_FIELD_REGEXES: BTreeMap<&'static str, Regex> = {
+                let mut rv = BTreeMap::new();
+                $(
+                    if rv.insert($regex, Regex::new($regex).unwrap()).is_some() {
+                        panic!("Regex {} declared twice.", $regex);
+                    }
+                )*
+                rv
+            };
+        }
+    }
+}
+
+// Pre-built list of regexes for max performance.
+declare_used_field_regexes![
+    r"^[^\r\n\f\t/]*\z",
+    r"^[^\r\n\x0C/]+$",
+    r"^[^\r\n]*\z",
+    r"^[a-zA-Z0-9_\.:-]+\z",
+    r"^\s*[a-zA-Z0-9_.-]*\s*$",
+    r"^[^\n]+\z",
+];
 
 impl Processor for SchemaProcessor {
     fn process_string(
@@ -95,10 +125,18 @@ fn verify_value_pattern(
     meta: &mut Meta,
     state: &ProcessingState<'_>,
 ) -> ProcessingResult {
-    if let Some(ref regex) = state.attrs().match_regex {
-        if !regex.is_match(value) {
-            meta.add_error(Error::invalid("invalid characters in string"));
-            return Err(ProcessingAction::DeleteValueSoft);
+    if let Some(ref regex_string) = state.attrs().match_regex {
+        match USED_FIELD_REGEXES.get(regex_string) {
+            Some(regex) => {
+                if !regex.is_match(value) {
+                    meta.add_error(Error::invalid("invalid characters in string"));
+                    return Err(ProcessingAction::DeleteValueSoft);
+                }
+            }
+            None => panic!(
+                "Regex {} is not registered in USED_FIELD_REGEXES. Please add it there.",
+                regex_string
+            ),
         }
     }
 
