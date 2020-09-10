@@ -29,7 +29,7 @@ for:
 
     build: off # Skip default build discovery and just run tests
     test_script:
-      - C:\MinGW\bin\mingw32-make test-rust
+      - true
 
   - matrix:
       only:
@@ -41,10 +41,7 @@ for:
 
     build_script:
       - C:\MinGW\bin\mingw32-make release
-    after_build:
-      - zeus upload -t "application/octet-stream" -n relay-Windows-%arch%.exe .\target\release\relay.exe
-      - 7z a .\relay-pdb.zip .\target\release\relay.pdb
-      - zeus upload -t "application/octet-stream" -n relay-Windows-%arch%-pdb.zip .\relay-pdb.zip
+      - true
 
 install:
   # Push job information to Zeus
