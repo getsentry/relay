@@ -10,14 +10,7 @@ license-file = "../LICENSE"
 publish = false
 
 [lib]
-name = "relay"
 crate-type = ["cdylib"]
-
-[workspace]
-
-[profile.release]
-debug = true
-lto = true
 
 [dependencies]
 chrono = "0.4.11"

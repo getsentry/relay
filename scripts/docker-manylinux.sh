@@ -13,4 +13,4 @@ docker run \
 # Fix permissions for shared directories
 USER_ID=$(id -u)
 GROUP_ID=$(id -g)
-sudo chown -R ${USER_ID}:${GROUP_ID} relay-cabi/target/ ${HOME}/.cargo
+sudo chown -R ${USER_ID}:${GROUP_ID} target/ ${HOME}/.cargo

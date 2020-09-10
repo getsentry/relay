@@ -1,6 +1,5 @@
 use smartstring::alias::String;
 use std::borrow::Cow;
-use std::collections::BTreeSet;
 use std::mem;
 
 use lazy_static::lazy_static;
@@ -8,7 +7,7 @@ use regex::Regex;
 
 use crate::pii::compiledconfig::RuleRef;
 use crate::pii::regexes::{get_regex_for_rule_type, PatternType, ReplaceBehavior, ANYTHING_REGEX};
-use crate::pii::utils::{hash_value, in_range, process_pairlist};
+use crate::pii::utils::{hash_value, process_pairlist};
 use crate::pii::{CompiledPiiConfig, Redaction, RuleType};
 use crate::processor::{
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
@@ -334,32 +333,20 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
                 ty: RemarkType::Removed,
             });
         }
-        Redaction::Mask(mask) => {
-            let chars_to_ignore: BTreeSet<char> = mask.chars_to_ignore.chars().collect();
-            let mut buf = Vec::with_capacity(text.len());
+        Redaction::Mask => {
+            let buf = vec!['*'; text.chars().count()];
 
-            for (idx, c) in text.chars().enumerate() {
-                if in_range(mask.range, idx, text.len()) && !chars_to_ignore.contains(&c) {
-                    buf.push(mask.mask_char);
-                } else {
-                    buf.push(c);
-                }
-            }
             output.push(Chunk::Redaction {
                 ty: RemarkType::Masked,
                 rule_id: Cow::Owned(rule.origin.to_string()),
                 text: buf.into_iter().collect(),
             })
         }
-        Redaction::Hash(hash) => {
+        Redaction::Hash => {
             output.push(Chunk::Redaction {
                 ty: RemarkType::Pseudonymized,
                 rule_id: Cow::Owned(rule.origin.to_string()),
-                text: Cow::Owned(hash_value(
-                    hash.algorithm,
-                    text.as_bytes(),
-                    hash.key.as_deref(),
-                ).into()),
+                text: Cow::Owned(hash_value(text.as_bytes()).into()),
             });
         }
         Redaction::Replace(replace) => {

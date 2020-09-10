@@ -6,8 +6,7 @@ use std::collections::BTreeMap;
 use lazy_static::lazy_static;
 
 use crate::pii::{
-    AliasRule, HashRedaction, MaskRedaction, MultipleRule, PatternRule, Redaction,
-    ReplaceRedaction, RuleSpec, RuleType,
+    AliasRule, MultipleRule, PatternRule, Redaction, ReplaceRedaction, RuleSpec, RuleType,
 };
 
 macro_rules! declare_builtin_rules {
@@ -87,11 +86,11 @@ declare_builtin_rules! {
     };
     "@anything:hash" => RuleSpec {
         ty: RuleType::Anything,
-        redaction: Redaction::Hash(HashRedaction::default()),
+        redaction: Redaction::Hash,
     };
     "@anything:mask" => RuleSpec {
         ty: RuleType::Anything,
-        redaction: Redaction::Mask(MaskRedaction::default()),
+        redaction: Redaction::Mask,
     };
 
     // ip rules
@@ -104,11 +103,11 @@ declare_builtin_rules! {
     };
     "@ip:hash" => RuleSpec {
         ty: RuleType::Ip,
-        redaction: Redaction::Hash(HashRedaction::default()),
+        redaction: Redaction::Hash,
     };
     "@ip:mask" => RuleSpec {
         ty: RuleType::Ip,
-        redaction: Redaction::Mask(MaskRedaction::default()),
+        redaction: Redaction::Mask,
     };
     "@ip:remove" => RuleSpec {
         ty: RuleType::Ip,
@@ -125,11 +124,11 @@ declare_builtin_rules! {
     };
     "@imei:hash" => RuleSpec {
         ty: RuleType::Imei,
-        redaction: Redaction::Hash(HashRedaction::default()),
+        redaction: Redaction::Hash,
     };
     "@imei:mask" => RuleSpec {
         ty: RuleType::Imei,
-        redaction: Redaction::Hash(HashRedaction::default()),
+        redaction: Redaction::Hash,
     };
     "@imei:remove" => RuleSpec {
         ty: RuleType::Imei,
@@ -146,15 +145,11 @@ declare_builtin_rules! {
     };
     "@mac:hash" => RuleSpec {
         ty: RuleType::Mac,
-        redaction: Redaction::Hash(HashRedaction::default()),
+        redaction: Redaction::Hash,
     };
     "@mac:mask" => RuleSpec {
         ty: RuleType::Mac,
-        redaction: Redaction::Mask(MaskRedaction {
-            mask_char: '*',
-            chars_to_ignore: "-:".into(),
-            range: (Some(9), None),
-        }),
+        redaction: Redaction::Mask,
     };
     "@mac:remove" => RuleSpec {
         ty: RuleType::Mac,
@@ -171,15 +166,11 @@ declare_builtin_rules! {
     };
     "@uuid:hash" => RuleSpec {
         ty: RuleType::Uuid,
-        redaction: Redaction::Hash(HashRedaction::default()),
+        redaction: Redaction::Hash,
     };
     "@uuid:mask" => RuleSpec {
         ty: RuleType::Uuid,
-        redaction: Redaction::Mask(MaskRedaction {
-            mask_char: '*',
-            chars_to_ignore: "-".into(),
-            range: (None, None),
-        }),
+        redaction: Redaction::Mask,
     };
     "@uuid:remove" => RuleSpec {
         ty: RuleType::Uuid,
@@ -196,15 +187,11 @@ declare_builtin_rules! {
     };
     "@email:hash" => RuleSpec {
         ty: RuleType::Email,
-        redaction: Redaction::Hash(HashRedaction::default()),
+        redaction: Redaction::Hash,
     };
     "@email:mask" => RuleSpec {
         ty: RuleType::Email,
-        redaction: Redaction::Mask(MaskRedaction {
-            mask_char: '*',
-            chars_to_ignore: ".@".into(),
-            range: (None, None),
-        }),
+        redaction: Redaction::Mask,
     };
     "@email:remove" => RuleSpec {
         ty: RuleType::Email,
@@ -215,7 +202,7 @@ declare_builtin_rules! {
     "@creditcard" => rule_alias!("@creditcard:replace");
     "@creditcard:hash" => RuleSpec {
         ty: RuleType::Creditcard,
-        redaction: Redaction::Hash(HashRedaction::default()),
+        redaction: Redaction::Hash,
     };
     "@creditcard:replace" => RuleSpec {
         ty: RuleType::Creditcard,
@@ -225,11 +212,7 @@ declare_builtin_rules! {
     };
     "@creditcard:mask" => RuleSpec {
         ty: RuleType::Creditcard,
-        redaction: Redaction::Mask(MaskRedaction {
-            mask_char: '*',
-            chars_to_ignore: " -".into(),
-            range: (None, Some(-4)),
-        }),
+        redaction: Redaction::Mask,
     };
     "@creditcard:filter" => RuleSpec {
         ty: RuleType::Creditcard,
@@ -258,11 +241,11 @@ declare_builtin_rules! {
     };
     "@pemkey:hash" => RuleSpec {
         ty: RuleType::Pemkey,
-        redaction: Redaction::Hash(HashRedaction::default()),
+        redaction: Redaction::Hash,
     };
     "@pemkey:mask" => RuleSpec {
         ty: RuleType::Pemkey,
-        redaction: Redaction::Mask(MaskRedaction::default()),
+        redaction: Redaction::Mask,
     };
     "@pemkey:remove" => RuleSpec {
         ty: RuleType::Pemkey,
@@ -279,11 +262,11 @@ declare_builtin_rules! {
     };
     "@urlauth:hash" => RuleSpec {
         ty: RuleType::UrlAuth,
-        redaction: Redaction::Hash(HashRedaction::default()),
+        redaction: Redaction::Hash,
     };
     "@urlauth:mask" => RuleSpec {
         ty: RuleType::UrlAuth,
-        redaction: Redaction::Mask(MaskRedaction::default()),
+        redaction: Redaction::Mask,
     };
     "@urlauth:remove" => RuleSpec {
         ty: RuleType::UrlAuth,
@@ -316,15 +299,11 @@ declare_builtin_rules! {
     };
     "@usssn:mask" => RuleSpec {
         ty: RuleType::UsSsn,
-        redaction: Redaction::Mask(MaskRedaction {
-            mask_char: '*',
-            chars_to_ignore: "-".into(),
-            range: (None, None),
-        }),
+        redaction: Redaction::Mask,
     };
     "@usssn:hash" => RuleSpec {
         ty: RuleType::UsSsn,
-        redaction: Redaction::Hash(HashRedaction::default()),
+        redaction: Redaction::Hash,
     };
     "@usssn:remove" => RuleSpec {
         ty: RuleType::UsSsn,
@@ -341,11 +320,11 @@ declare_builtin_rules! {
     };
     "@userpath:mask" => RuleSpec {
         ty: RuleType::Userpath,
-        redaction: Redaction::Mask(MaskRedaction::default()),
+        redaction: Redaction::Mask,
     };
     "@userpath:hash" => RuleSpec {
         ty: RuleType::Userpath,
-        redaction: Redaction::Hash(HashRedaction::default()),
+        redaction: Redaction::Hash,
     };
     "@userpath:remove" => RuleSpec {
         ty: RuleType::Userpath,
@@ -362,7 +341,7 @@ declare_builtin_rules! {
     };
     "@password:hash" => RuleSpec {
         ty: RuleType::Password,
-        redaction: Redaction::Hash(HashRedaction::default()),
+        redaction: Redaction::Hash,
     };
     "@password:replace" => RuleSpec {
         ty: RuleType::Password,
@@ -372,7 +351,7 @@ declare_builtin_rules! {
     };
     "@password:mask" => RuleSpec {
         ty: RuleType::Password,
-        redaction: Redaction::Mask(MaskRedaction::default()),
+        redaction: Redaction::Mask,
     };
     "@password:remove" => RuleSpec {
         ty: RuleType::Password,
@@ -387,7 +366,7 @@ mod tests {
 
     use crate::pii::config::{PiiConfig, RuleSpec, RuleType};
     use crate::pii::processor::PiiProcessor;
-    use crate::pii::{HashRedaction, MaskRedaction, Redaction, ReplaceRedaction};
+    use crate::pii::{Redaction, ReplaceRedaction};
     use crate::processor::{process_value, ProcessingState, ValueType};
     use crate::types::{Annotated, Remark, RemarkType};
 
@@ -454,8 +433,8 @@ mod tests {
                             redaction: match b {
                                 "remove" => Redaction::Remove,
                                 "replace" => Redaction::Replace(ReplaceRedaction::default()),
-                                "mask" => Redaction::Mask(MaskRedaction::default()),
-                                "hash" => Redaction::Hash(HashRedaction::default()),
+                                "mask" => Redaction::Mask,
+                                "hash" => Redaction::Hash,
                                 _ => panic!("Unknown redaction method"),
                             },
                         },
@@ -630,7 +609,7 @@ mod tests {
         assert_text_rule!(
             rule = "@mac";
             input = "ether 4a:00:04:10:9b:50";
-            output = "ether 4a:00:04:**:**:**";
+            output = "ether *****************";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@mac", (6, 23)),
             ];
@@ -638,7 +617,7 @@ mod tests {
         assert_text_rule!(
             rule = "@mac:mask";
             input = "ether 4a:00:04:10:9b:50";
-            output = "ether 4a:00:04:**:**:**";
+            output = "ether *****************";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@mac:mask", (6, 23)),
             ];
@@ -690,7 +669,7 @@ mod tests {
         assert_text_rule!(
             rule = "@uuid";
             input = "user id ceee0822-ed8f-4622-b2a3-789e73e75cd1";
-            output = "user id ********-****-****-****-************";
+            output = "user id ************************************";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@uuid", (8, 44)),
             ];
@@ -698,7 +677,7 @@ mod tests {
         assert_text_rule!(
             rule = "@uuid:mask";
             input = "user id ceee0822-ed8f-4622-b2a3-789e73e75cd1";
-            output = "user id ********-****-****-****-************";
+            output = "user id ************************************";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@uuid:mask", (8, 44)),
             ];
@@ -774,7 +753,7 @@ mod tests {
         assert_text_rule!(
             rule = "@email:mask";
             input = "John Appleseed <john@appleseed.com>";
-            output = "John Appleseed <****@*********.***>";
+            output = "John Appleseed <******************>";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@email:mask", (16, 34)),
             ];
@@ -826,7 +805,7 @@ mod tests {
         assert_text_rule!(
             rule = "@creditcard:mask";
             input = "John Appleseed 4571234567890111!";
-            output = "John Appleseed ************0111!";
+            output = "John Appleseed ****************!";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@creditcard:mask", (15, 31)),
             ];
@@ -950,7 +929,7 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
         assert_text_rule!(
             rule = "@usssn";
             input = "Hi I'm Hilda and my SSN is 078-05-1120";
-            output = "Hi I'm Hilda and my SSN is ***-**-****";
+            output = "Hi I'm Hilda and my SSN is ***********";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@usssn", (27, 38)),
             ];
@@ -958,7 +937,7 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
         assert_text_rule!(
             rule = "@usssn:mask";
             input = "Hi I'm Hilda and my SSN is 078-05-1120";
-            output = "Hi I'm Hilda and my SSN is ***-**-****";
+            output = "Hi I'm Hilda and my SSN is ***********";
             remarks = vec![
                 Remark::with_range(RemarkType::Masked, "@usssn:mask", (27, 38)),
             ];
