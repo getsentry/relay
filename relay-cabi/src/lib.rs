@@ -43,11 +43,10 @@
 //!
 //! ## Requirements
 //!
-//! In addition to the build requirements, development requires a recent _Rust
-//! nightly_ toolchain and the `cbindgen` tool. To set this up, run:
+//! In addition to the build requirements, development requires a recent version
+//! of the the `cbindgen` tool. To set this up, run:
 //!
 //! ```bash
-//! rustup toolchain add nightly
 //! cargo install cbindgen
 //! ```
 //!
