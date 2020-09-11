@@ -26,6 +26,7 @@
 - Add a standalone tool to document metrics in JSON or YAML. ([#752](https://github.com/getsentry/relay/pull/752))
 - Emit `processing.event.produced` for user report and session Kafka messages. ([#757](https://github.com/getsentry/relay/pull/757))
 - Improve performance of event processing by avoiding regex clone. ([#767](https://github.com/getsentry/relay/pull/767))
+- Assign a default name for unnamed attachments, which prevented attachments from being stored in Sentry. ([#769](https://github.com/getsentry/relay/pull/769))
 
 ## 20.8.0
 
