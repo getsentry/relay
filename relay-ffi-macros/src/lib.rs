@@ -1,4 +1,6 @@
-//! TODO
+//! Macros for [`relay-ffi`].
+//!
+//! [`relay-ffi`]: ../relay_ffi/index.html
 
 #![warn(missing_docs)]
 
@@ -36,7 +38,23 @@ impl Fold for CatchUnwind {
     }
 }
 
-/// TODO: Doc
+/// Captures errors and panics in a thread-local on `unsafe` functions.
+///
+/// See [`relay-ffi` documentation] for more information.
+///
+/// # Examples
+///
+/// ```ignore
+/// use relay_ffi::catch_unwind;
+///
+/// #[no_mangle]
+/// #[catch_unwind]
+/// pub unsafe extern "C" fn run_ffi() -> i32 {
+///     "invalid".parse()?
+/// }
+/// ```
+///
+/// [`relay-ffi` documentation]: ../relay_ffi/index.html
 #[proc_macro_attribute]
 pub fn catch_unwind(_attr: TokenStream, item: TokenStream) -> TokenStream {
     CatchUnwind.fold(item)

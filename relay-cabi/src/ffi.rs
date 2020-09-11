@@ -135,5 +135,5 @@ pub extern "C" fn relay_err_get_backtrace() -> RelayStr {
 /// Clears the last error.
 #[no_mangle]
 pub extern "C" fn relay_err_clear() {
-    relay_ffi::clear_error()
+    relay_ffi::take_last_error();
 }

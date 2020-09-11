@@ -10,7 +10,7 @@ unsafe fn returns_int() -> i32 {
 
 #[relay_ffi::catch_unwind]
 unsafe fn returns_error() -> i32 {
-    "nope".parse()?
+    "invalid".parse()?
 }
 
 #[relay_ffi::catch_unwind]
