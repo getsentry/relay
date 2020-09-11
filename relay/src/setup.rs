@@ -177,7 +177,6 @@ pub fn init_logging(config: &Config) {
             .sentry_dsn()
             .map(|dsn| dsn.to_string().parse().unwrap()),
         in_app_include: vec![
-            "relay_common::",
             "relay_auth::",
             "relay_common::",
             "relay_config::",
