@@ -14,6 +14,7 @@
 **Bug Fixes**:
 
 - Send requests to the `/envelope/` endpoint instead of the older `/store/` endpoint. This particularly fixes spurious `413 Payload Too Large` errors returned when using Relay with Sentry SaaS. ([#746](https://github.com/getsentry/relay/pull/746))
+- Reduce the cache TTL for negative DNS lookup results. This allows Relay to connect to an upstream server that becomes available after Relay has started. ([#770](https://github.com/getsentry/relay/pull/770))
 
 **Internal**:
 
