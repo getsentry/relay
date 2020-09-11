@@ -39,7 +39,7 @@ pub enum RelayErrorCode {
 
 impl RelayErrorCode {
     /// This maps all errors that can possibly happen.
-    pub fn from_error(error: &dyn failure::Fail) -> RelayErrorCode {
+    pub fn from_error(error: &failure::Error) -> RelayErrorCode {
         for cause in error.iter_chain() {
             if let Some(..) = cause.downcast_ref::<Panic>() {
                 return RelayErrorCode::Panic;
@@ -123,8 +123,7 @@ pub extern "C" fn relay_err_get_last_message() -> RelayStr {
 /// Returns the panic information as string.
 #[no_mangle]
 pub extern "C" fn relay_err_get_backtrace() -> RelayStr {
-    let backtrace = relay_ffi::with_last_error(|error| error.backtrace().map(|bt| bt.to_string()))
-        .flatten()
+    let backtrace = relay_ffi::with_last_error(|error| error.backtrace().to_string())
         .filter(|bt| !bt.is_empty());
 
     match backtrace {

@@ -44,9 +44,14 @@ pub mod __internal {
 /// TODO: Doc
 pub fn with_last_error<R, F>(f: F) -> Option<R>
 where
-    F: FnOnce(&dyn failure::Fail) -> R,
+    F: FnOnce(&failure::Error) -> R,
 {
-    LAST_ERROR.with(|e| e.borrow().as_ref().map(failure::Error::as_fail).map(f))
+    LAST_ERROR.with(|e| e.borrow().as_ref().map(f))
+}
+
+/// TODO: Doc
+pub fn take_last_error() -> Option<failure::Error> {
+    LAST_ERROR.with(|e| e.borrow_mut().take())
 }
 
 /// TODO: Doc
