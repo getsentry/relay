@@ -61,41 +61,6 @@ def generate_transaction_item():
     }
 
 
-def test_measurement_items_envelope(mini_sentry, relay_chain):
-    relay = relay_chain()
-    mini_sentry.project_configs[42] = relay.basic_project_config()
-
-    transaction_item = generate_transaction_item()
-
-    measurement_item = {"foo": {"value": 420.69}, "BAR": {"value": 2020}}
-
-    envelope = Envelope(
-        headers={
-            "event_id": transaction_item["event_id"],
-            "sent_at": format_timestamp(datetime.utcnow()),
-        }
-    )
-    envelope.add_item(
-        Item(payload=PayloadRef(json=transaction_item), type="transaction")
-    )
-    envelope.add_item(
-        Item(payload=PayloadRef(json=measurement_item), type="measurements")
-    )
-
-    relay.send_envelope(42, envelope)
-
-    envelope = mini_sentry.captured_events.get(timeout=1)
-
-    event = get_transaction(envelope)
-
-    assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
-    assert "trace" in event["contexts"]
-    assert "measurements" in event, event
-    assert event["measurements"]["foo"]["value"] == 420.69
-    # expect the key "BAR" to be lowercased as part of the normalization
-    assert event["measurements"]["bar"]["value"] == 2020
-
-
 def test_persist_measurement_interface(mini_sentry, relay_chain):
     relay = relay_chain()
     mini_sentry.project_configs[42] = relay.basic_project_config()
@@ -125,7 +90,7 @@ def test_persist_measurement_interface(mini_sentry, relay_chain):
     assert event["measurements"]["bar"]["value"] == 2020
 
 
-def test_measurement_strip_envelope(mini_sentry, relay_chain):
+def test_strip_measurement_interface(mini_sentry, relay_chain):
     relay = relay_chain()
     mini_sentry.project_configs[42] = relay.basic_project_config()
 
