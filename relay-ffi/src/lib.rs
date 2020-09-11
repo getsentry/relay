@@ -11,13 +11,15 @@
 //! is then available using [`with_last_error`]:
 //!
 //! ```
+//! use relay_ffi::catch_unwind;
+//!
 //! #[catch_unwind]
 //! unsafe fn parse_number() -> i32 {
 //!     // use the questionmark operator for errors:
-//!     let number = "42".parse()?;
+//!     let number: i32 = "42".parse()?;
 //!
 //!     // return the value directly, not `Ok`:
-//!     42 * 2
+//!     number * 2
 //! }
 //! ```
 //!
