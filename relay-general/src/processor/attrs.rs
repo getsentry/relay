@@ -3,7 +3,6 @@ use std::fmt;
 use std::str::FromStr;
 
 use failure::Fail;
-use regex::Regex;
 use smallvec::SmallVec;
 
 use crate::processor::{ProcessValue, SelectorPathItem, SelectorSpec};
@@ -232,7 +231,7 @@ pub enum Pii {
 }
 
 /// Meta information about a field.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct FieldAttrs {
     /// Optionally the name of the field.
     pub name: Option<&'static str>,
@@ -243,7 +242,7 @@ pub struct FieldAttrs {
     /// Whether to trim whitespace from this string.
     pub trim_whitespace: bool,
     /// A regex to validate the (string) value against.
-    pub match_regex: Option<Regex>,
+    pub match_regex: Option<&'static str>,
     /// The maximum char length of this field.
     pub max_chars: Option<MaxChars>,
     /// The maximum bag size of this field.

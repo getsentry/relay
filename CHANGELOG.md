@@ -25,6 +25,7 @@
 - Add the client SDK to session kafka payloads. ([#751](https://github.com/getsentry/relay/pull/751))
 - Add a standalone tool to document metrics in JSON or YAML. ([#752](https://github.com/getsentry/relay/pull/752))
 - Emit `processing.event.produced` for user report and session Kafka messages. ([#757](https://github.com/getsentry/relay/pull/757))
+- Improve performance of event processing by avoiding regex clone. ([#767](https://github.com/getsentry/relay/pull/767))
 
 ## 20.8.0
 
