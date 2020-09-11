@@ -2837,6 +2837,7 @@ dependencies = [
  "lazy_static",
  "relay-auth",
  "relay-common",
+ "relay-ffi",
  "relay-general",
  "sentry-release-parser",
  "serde",
@@ -2878,6 +2879,22 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "url 2.1.1",
+]
+
+[[package]]
+name = "relay-ffi"
+version = "20.8.0"
+dependencies = [
+ "failure",
+ "relay-ffi-macros",
+]
+
+[[package]]
+name = "relay-ffi-macros"
+version = "20.8.0"
+dependencies = [
+ "quote 1.0.7",
+ "syn 1.0.39",
 ]
 
 [[package]]

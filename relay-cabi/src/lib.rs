@@ -43,11 +43,10 @@
 //!
 //! ## Requirements
 //!
-//! In addition to the build requirements, development requires a recent _Rust
-//! nightly_ toolchain and the `cbindgen` tool. To set this up, run:
+//! In addition to the build requirements, development requires a recent version
+//! of the the `cbindgen` tool. To set this up, run:
 //!
 //! ```bash
-//! rustup toolchain add nightly
 //! cargo install cbindgen
 //! ```
 //!
@@ -93,15 +92,14 @@
 #![allow(clippy::missing_safety_doc)]
 #![warn(missing_docs)]
 
-#[macro_use]
-mod utils;
-
 mod auth;
 mod constants;
 mod core;
+mod ffi;
 mod processing;
 
 pub use crate::auth::*;
 pub use crate::constants::*;
 pub use crate::core::*;
+pub use crate::ffi::*;
 pub use crate::processing::*;
