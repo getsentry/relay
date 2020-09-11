@@ -1483,9 +1483,9 @@ dependencies = [
 
 [[package]]
 name = "im"
-version = "14.3.0"
+version = "15.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "696059c87b83c5a258817ecd67c3af915e3ed141891fc35a1e79908801cf0ce7"
+checksum = "111c1983f3c5bb72732df25cddacee9b546d08325fb584b5ebd38148be7b0246"
 dependencies = [
  "bitmaps",
  "rand_core 0.5.1",
@@ -3303,39 +3303,116 @@ checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 
 [[package]]
 name = "sentry"
-version = "0.18.1"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b01b723fc1b0a0f9394ca1a8451daec6e20206d47f96c3dceea7fd11ec9eec0"
+checksum = "988392b52bbddd922f13f687fd1584de9c8287d5b6cd9971fcec388b3f487a41"
 dependencies = [
- "backtrace",
- "env_logger",
- "failure",
- "findshlibs",
- "hostname",
  "httpdate",
- "im",
- "lazy_static",
- "libc",
- "log",
- "rand 0.7.3",
- "regex",
  "reqwest",
- "rustc_version",
- "sentry-types",
- "uname",
- "url 2.1.1",
+ "sentry-backtrace",
+ "sentry-contexts",
+ "sentry-core",
+ "sentry-debug-images",
+ "sentry-failure",
+ "sentry-log",
+ "sentry-panic",
 ]
 
 [[package]]
 name = "sentry-actix"
-version = "0.18.1"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51911a8a3d287ab6ca708aa091537be468680437c9f371f014ee42bc514daec2"
+checksum = "d36f3375fce1cdf0d62c07ab77b1e42983d8d5973e363cfb5911818b58529d2f"
 dependencies = [
  "actix-web",
  "failure",
  "fragile",
  "sentry",
+ "sentry-failure",
+]
+
+[[package]]
+name = "sentry-backtrace"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1d7da134c78b9719fbc73cebf747acf70fbc3a188eb76bd244fbd380d7ab3a8"
+dependencies = [
+ "backtrace",
+ "lazy_static",
+ "regex",
+ "sentry-core",
+]
+
+[[package]]
+name = "sentry-contexts"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61f3e76fc9c05a90770510dc33daca8baf18aceda51a89cf07cb3d017a33e541"
+dependencies = [
+ "hostname",
+ "lazy_static",
+ "libc",
+ "regex",
+ "rustc_version",
+ "sentry-core",
+ "uname",
+]
+
+[[package]]
+name = "sentry-core"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2a839291a13e464a77a93cf3f54033b22774335f674203368ae3c76da7d3cbf"
+dependencies = [
+ "im",
+ "lazy_static",
+ "rand 0.7.3",
+ "sentry-types",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "sentry-debug-images"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9609a308410990f7b64c7721997930e2fa94d5ae735624bc38d6c5db4539daaf"
+dependencies = [
+ "findshlibs",
+ "lazy_static",
+ "sentry-core",
+]
+
+[[package]]
+name = "sentry-failure"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2535d9fb479618f181d292b7c3b89776f3db94508d4ff7ae275367f6466b196a"
+dependencies = [
+ "failure",
+ "sentry-backtrace",
+ "sentry-core",
+]
+
+[[package]]
+name = "sentry-log"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c72f294e03f84b31f02c5ea9607960740db144e691d6cf542941074ee8f3e78"
+dependencies = [
+ "log",
+ "sentry-backtrace",
+ "sentry-core",
+]
+
+[[package]]
+name = "sentry-panic"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78f59e4c9fde8d9fcccda14ed224297c3348fd26be3981d4b68781f18267441e"
+dependencies = [
+ "sentry-backtrace",
+ "sentry-core",
 ]
 
 [[package]]
@@ -3351,15 +3428,15 @@ dependencies = [
 
 [[package]]
 name = "sentry-types"
-version = "0.14.1"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12ec406c11c060c8a7d5d67fc6f4beb2888338dcb12b9af409451995f124749d"
+checksum = "cd8dc70f9b36527e6a4c945d72ec30b0ea5d885d05b6633e027a74dc82abd404"
 dependencies = [
  "chrono",
  "debugid",
- "failure",
  "serde",
  "serde_json",
+ "thiserror",
  "url 2.1.1",
  "uuid 0.8.1",
 ]
@@ -3490,9 +3567,9 @@ checksum = "fa8f3741c7372e75519bd9346068370c9cdaabcc1f9599cbcf2a2719352286b7"
 
 [[package]]
 name = "sized-chunks"
-version = "0.5.3"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d59044ea371ad781ff976f7b06480b9f0180e834eda94114f2afb4afc12b7718"
+checksum = "1ec31ceca5644fa6d444cc77548b88b67f46db6f7c71683b0f9336e671830d2f"
 dependencies = [
  "bitmaps",
  "typenum",
@@ -3783,6 +3860,26 @@ checksum = "d326610f408c7a4eb6f51c37c330e496b08506c9457c9d34287ecc38809fb060"
 dependencies = [
  "term_size",
  "unicode-width",
+]
+
+[[package]]
+name = "thiserror"
+version = "1.0.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7dfdd070ccd8ccb78f4ad66bf1982dc37f620ef696c6b5028fe2ed83dd3d0d08"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd80fc12f73063ac132ac92aceea36734f04a1d93c1240c6944e23a3b8841793"
+dependencies = [
+ "proc-macro2 1.0.18",
+ "quote 1.0.7",
+ "syn 1.0.39",
 ]
 
 [[package]]
