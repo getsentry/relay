@@ -3028,6 +3028,7 @@ dependencies = [
  "smallvec 1.4.0",
  "symbolic",
  "tokio-timer",
+ "trust-dns-resolver",
  "url 2.1.1",
  "uuid 0.8.1",
 ]

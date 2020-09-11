@@ -5,9 +5,12 @@
 //! [`MeteredConnector`]: struct.MeteredConnector.html
 
 use std::sync::Arc;
+use std::time::Duration;
 
-use actix::prelude::*;
+use actix::actors::resolver::Resolver;
+use actix::prelude::{Actor, Addr, Context, Handler, System};
 use actix_web::client::{ClientConnector, ClientConnectorStats};
+use trust_dns_resolver::config::ResolverOpts;
 
 use relay_common::metric;
 use relay_config::Config;
@@ -42,6 +45,24 @@ pub struct MeteredConnector;
 impl MeteredConnector {
     pub fn start(config: Arc<Config>) -> Addr<Self> {
         let metered_connector = Self.start();
+
+        // Relay communicates with a single upstream that is supposed to be known ahead of time. If
+        // that upstream cannot be resolved, this is usually due to one of few reasons:
+        //
+        //  1. A typo in the configuration. This is usually caught during development time and then
+        //     fixed by the author.
+        //  2. A service like load balancer or docker container starting up with delay. In such a
+        //     case, Relay is expected to connect as soon as the service becomes available.
+        //  3. Misconfiguration in the network, most likely DNS server.
+        //
+        // By default, Relay detects these issues during startup time and employs exponential
+        // backoff to reconnect. Since outgoing traffic is of low volume at this point, the TTL for
+        // negative DNS caches can be set to a few seconds.
+        let mut opts = ResolverOpts::default();
+        opts.negative_max_ttl = Some(Duration::from_secs(3));
+        let resolver = Resolver::new(Default::default(), opts).start();
+
+        System::current().registry().set(resolver);
 
         let connector = ClientConnector::default()
             .limit(config.max_concurrent_requests())
