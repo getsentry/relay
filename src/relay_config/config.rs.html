@@ -1451,6 +1451,41 @@
 <span id="1451">1451</span>
 <span id="1452">1452</span>
 <span id="1453">1453</span>
+<span id="1454">1454</span>
+<span id="1455">1455</span>
+<span id="1456">1456</span>
+<span id="1457">1457</span>
+<span id="1458">1458</span>
+<span id="1459">1459</span>
+<span id="1460">1460</span>
+<span id="1461">1461</span>
+<span id="1462">1462</span>
+<span id="1463">1463</span>
+<span id="1464">1464</span>
+<span id="1465">1465</span>
+<span id="1466">1466</span>
+<span id="1467">1467</span>
+<span id="1468">1468</span>
+<span id="1469">1469</span>
+<span id="1470">1470</span>
+<span id="1471">1471</span>
+<span id="1472">1472</span>
+<span id="1473">1473</span>
+<span id="1474">1474</span>
+<span id="1475">1475</span>
+<span id="1476">1476</span>
+<span id="1477">1477</span>
+<span id="1478">1478</span>
+<span id="1479">1479</span>
+<span id="1480">1480</span>
+<span id="1481">1481</span>
+<span id="1482">1482</span>
+<span id="1483">1483</span>
+<span id="1484">1484</span>
+<span id="1485">1485</span>
+<span id="1486">1486</span>
+<span id="1487">1487</span>
+<span id="1488">1488</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">env</span>;
@@ -1959,6 +1994,20 @@
     }
 }
 
+<span class="doccomment">/// Http content encoding for upstream store requests.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
+<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;lowercase&quot;</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">HttpEncoding</span> {
+    <span class="doccomment">/// Identity function, no compression.</span>
+    <span class="ident">Identity</span>,
+    <span class="doccomment">/// Compression using a zlib header with deflate encoding.</span>
+    <span class="ident">Deflate</span>,
+    <span class="doccomment">/// Compression using gzip.</span>
+    <span class="ident">Gzip</span>,
+    <span class="doccomment">/// Compression using the brotli algorithm.</span>
+    <span class="ident">Br</span>,
+}
+
 <span class="doccomment">/// Controls authentication with upstream.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
@@ -1993,6 +2042,21 @@
     <span class="doccomment">/// attempts persist beyond the grace period, Relay suspends event submission and reverts into</span>
     <span class="doccomment">/// authentication mode.</span>
     <span class="ident">auth_grace_period</span>: <span class="ident">u64</span>,
+    <span class="doccomment">/// Content encoding to apply to upstream store requests.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression</span>
+    <span class="doccomment">/// can be disabled to reduce CPU consumption, but at the expense of increased network traffic.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This setting applies to all store requests of SDK data, including events, transactions,</span>
+    <span class="doccomment">/// envelopes and sessions. At the moment, this does not apply to Relay&#39;s internal queries.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Available options are:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">///  - `identity`: Disables compression.</span>
+    <span class="doccomment">///  - `deflate`: Compression using a zlib header with deflate encoding.</span>
+    <span class="doccomment">///  - `gzip` (default): Compression using gzip.</span>
+    <span class="doccomment">///  - `br`: Compression using the brotli algorithm.</span>
+    <span class="ident">encoding</span>: <span class="ident">HttpEncoding</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Http</span> {
@@ -2004,6 +2068,7 @@
             <span class="ident">host_header</span>: <span class="prelude-val">None</span>,
             <span class="ident">auth_interval</span>: <span class="prelude-val">Some</span>(<span class="number">600</span>), <span class="comment">// 10 minutes</span>
             <span class="ident">auth_grace_period</span>: <span class="number">10</span>,
+            <span class="ident">encoding</span>: <span class="ident">HttpEncoding</span>::<span class="ident">Gzip</span>,
         }
     }
 }
@@ -2590,6 +2655,11 @@
     <span class="doccomment">/// authenticate).</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_auth_grace_period</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
         <span class="ident">Duration</span>::<span class="ident">from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">http</span>.<span class="ident">auth_grace_period</span>)
+    }
+
+    <span class="doccomment">/// Content encoding of upstream requests.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">HttpEncoding</span> {
+        <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">http</span>.<span class="ident">encoding</span>
     }
 
     <span class="doccomment">/// Returns whether this Relay should emit outcomes.</span>
