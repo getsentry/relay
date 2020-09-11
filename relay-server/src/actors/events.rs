@@ -168,8 +168,6 @@ impl ProcessingError {
 
 type ExtractedEvent = (Annotated<Event>, usize);
 
-type ExtractedMeasurements = (Annotated<Measurements>, usize);
-
 /// A state container for envelope processing.
 #[derive(Debug)]
 struct ProcessEnvelopeState {
@@ -278,16 +276,6 @@ impl EventProcessor {
         Self { config }
     }
 
-    fn measurements_from_json_payload(
-        &self,
-        item: Item,
-    ) -> Result<ExtractedMeasurements, ProcessingError> {
-        let measurements = Annotated::<Measurements>::from_json_bytes(&item.payload())
-            .map_err(ProcessingError::InvalidJson)?;
-
-        Ok((measurements, item.len()))
-    }
-
     /// Validates any and all measurements in the envelope.
     fn process_measurements(
         &self,
@@ -308,27 +296,7 @@ impl EventProcessor {
             return Ok(());
         }
 
-        let envelope = &mut state.envelope;
-
         let mut measurements = Measurements::default();
-        loop {
-            let measure_item = envelope.take_item_by(|item| item.ty() == ItemType::Measurements);
-
-            match measure_item {
-                Some(item) => {
-                    let (input_measurements, _ingested_len) =
-                        self.measurements_from_json_payload(item)?;
-
-                    // TODO: add this?
-                    // state.metrics.bytes_ingested_measurements = Annotated::new(ingested_len as u64);
-
-                    measurements.merge(input_measurements);
-                }
-                None => {
-                    break;
-                }
-            }
-        }
 
         let event_measurements = event
             .measurements
@@ -698,9 +666,6 @@ impl EventProcessor {
             // These may be forwarded to upstream / store:
             ItemType::Attachment => false,
             ItemType::UserReport => false,
-
-            // TODO: unsure about this
-            ItemType::Measurements => false,
 
             // session data is never considered as part of deduplication
             ItemType::Session => false,
