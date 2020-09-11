@@ -103,8 +103,6 @@
 <span id="103">103</span>
 <span id="104">104</span>
 <span id="105">105</span>
-<span id="106">106</span>
-<span id="107">107</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This package contains the C-ABI of Relay. It builds a C header file and</span>
 <span class="doccomment">//! associated library that can be linked to any C or C++ program. Note that the</span>
@@ -151,11 +149,10 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ## Requirements</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! In addition to the build requirements, development requires a recent _Rust</span>
-<span class="doccomment">//! nightly_ toolchain and the `cbindgen` tool. To set this up, run:</span>
+<span class="doccomment">//! In addition to the build requirements, development requires a recent version</span>
+<span class="doccomment">//! of the the `cbindgen` tool. To set this up, run:</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```bash</span>
-<span class="doccomment">//! rustup toolchain add nightly</span>
 <span class="doccomment">//! cargo install cbindgen</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
@@ -201,17 +198,16 @@
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy</span>::<span class="ident">missing_safety_doc</span>)]</span>
 <span class="attribute">#![<span class="ident">warn</span>(<span class="ident">missing_docs</span>)]</span>
 
-<span class="attribute">#[<span class="ident">macro_use</span>]</span>
-<span class="kw">mod</span> <span class="ident">utils</span>;
-
 <span class="kw">mod</span> <span class="ident">auth</span>;
 <span class="kw">mod</span> <span class="ident">constants</span>;
 <span class="kw">mod</span> <span class="ident">core</span>;
+<span class="kw">mod</span> <span class="ident">ffi</span>;
 <span class="kw">mod</span> <span class="ident">processing</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">auth</span>::<span class="kw-2">*</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">constants</span>::<span class="kw-2">*</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">core</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">ffi</span>::<span class="kw-2">*</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">processing</span>::<span class="kw-2">*</span>;
 </pre></div>
 </section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../";window.currentCrate = "relay_cabi";</script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>
