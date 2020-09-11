@@ -28,6 +28,9 @@ lazy_static::lazy_static! {
         Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/#did");
 }
 
+/// Fallback name used for attachment items without a `filename` header.
+const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
+
 #[derive(Fail, Debug)]
 pub enum StoreError {
     #[fail(display = "failed to send kafka message")]
@@ -117,7 +120,10 @@ impl StoreForwarder {
 
         Ok(ChunkedAttachment {
             id,
-            name: item.filename().map(str::to_owned),
+            name: match item.filename() {
+                Some(name) => name.to_owned(),
+                None => UNNAMED_ATTACHMENT.to_owned(),
+            },
             content_type: item
                 .content_type()
                 .map(|content_type| content_type.as_str().to_owned()),
@@ -214,8 +220,8 @@ struct ChunkedAttachment {
     /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
     id: String,
 
-    /// File name of the attachment file. Should not be `None`.
-    name: Option<String>,
+    /// File name of the attachment file.
+    name: String,
 
     /// Content type of the attachment payload.
     content_type: Option<String>,
