@@ -757,14 +757,12 @@
 <span id="757">757</span>
 <span id="758">758</span>
 <span id="759">759</span>
-<span id="760">760</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">FromStr</span>;
 
 <span class="kw">use</span> <span class="ident">failure</span>::<span class="ident">Fail</span>;
-<span class="kw">use</span> <span class="ident">regex</span>::<span class="ident">Regex</span>;
 <span class="kw">use</span> <span class="ident">smallvec</span>::<span class="ident">SmallVec</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">processor</span>::{<span class="ident">ProcessValue</span>, <span class="ident">SelectorPathItem</span>, <span class="ident">SelectorSpec</span>};
@@ -993,7 +991,7 @@
 }
 
 <span class="doccomment">/// Meta information about a field.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FieldAttrs</span> {
     <span class="doccomment">/// Optionally the name of the field.</span>
     <span class="kw">pub</span> <span class="ident">name</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span>,
@@ -1004,7 +1002,7 @@
     <span class="doccomment">/// Whether to trim whitespace from this string.</span>
     <span class="kw">pub</span> <span class="ident">trim_whitespace</span>: <span class="ident">bool</span>,
     <span class="doccomment">/// A regex to validate the (string) value against.</span>
-    <span class="kw">pub</span> <span class="ident">match_regex</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">match_regex</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span>,
     <span class="doccomment">/// The maximum char length of this field.</span>
     <span class="kw">pub</span> <span class="ident">max_chars</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">MaxChars</span><span class="op">&gt;</span>,
     <span class="doccomment">/// The maximum bag size of this field.</span>

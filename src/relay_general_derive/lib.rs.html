@@ -1033,9 +1033,6 @@
 <span id="1033">1033</span>
 <span id="1034">1034</span>
 <span id="1035">1035</span>
-<span id="1036">1036</span>
-<span id="1037">1037</span>
-<span id="1038">1038</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="attribute">#![<span class="ident">recursion_limit</span> <span class="op">=</span> <span class="string">&quot;256&quot;</span>]</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy</span>::<span class="ident">cognitive_complexity</span>)]</span>
@@ -1767,12 +1764,9 @@
         };
 
         <span class="kw">let</span> <span class="ident">match_regex</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">match_regex</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">match_regex</span> {
-            <span class="macro">quote</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(
-                <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy</span>::<span class="ident">trivial_regex</span>)]</span>
-                ::<span class="ident">regex</span>::<span class="ident">Regex</span>::<span class="ident">new</span>(#<span class="ident">match_regex</span>).<span class="ident">unwrap</span>()
-            ))
+            <span class="macro">quote</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(#<span class="ident">match_regex</span>))
         } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">parent_attrs</span>) <span class="op">=</span> <span class="ident">inherit_from_field_attrs</span> {
-            <span class="macro">quote</span><span class="macro">!</span>(#<span class="ident">parent_attrs</span>.<span class="ident">match_regex</span>.<span class="ident">clone</span>())
+            <span class="macro">quote</span><span class="macro">!</span>(#<span class="ident">parent_attrs</span>.<span class="ident">match_regex</span>)
         } <span class="kw">else</span> {
             <span class="macro">quote</span><span class="macro">!</span>(<span class="prelude-val">None</span>)
         };
