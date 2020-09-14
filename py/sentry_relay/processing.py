@@ -17,7 +17,6 @@ __all__ = [
     "meta_with_chunks",
     "StoreNormalizer",
     "GeoIpLookup",
-    "scrub_event",
     "is_glob_match",
     "parse_release",
     "validate_pii_config",
@@ -127,19 +126,6 @@ def _encode_raw_event(raw_event):
     event = encode_str(raw_event, mutable=True)
     rustcall(lib.relay_translate_legacy_python_json, event)
     return event
-
-
-def scrub_event(config, data):
-    if not config:
-        return data
-
-    config = json.dumps(config)
-
-    raw_event = _serialize_event(data)
-    event = _encode_raw_event(raw_event)
-
-    rv = rustcall(lib.relay_scrub_event, encode_str(config), event)
-    return json.loads(decode_str(rv, free=True))
 
 
 def is_glob_match(
