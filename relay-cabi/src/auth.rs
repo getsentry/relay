@@ -160,6 +160,7 @@ struct RelayRegisterResponse<'a> {
     pub relay_id: RelayId,
     pub token: &'a str,
     pub public_key: &'a PublicKey,
+    pub version: RelayVersion,
 }
 
 /// Validates a register response.
@@ -187,6 +188,7 @@ pub unsafe extern "C" fn relay_validate_register_response(
         relay_id: response.relay_id(),
         token: response.token(),
         public_key: state.public_key(),
+        version: response.version(),
     };
 
     let json = serde_json::to_string(&relay_response)?;
