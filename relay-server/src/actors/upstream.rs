@@ -308,12 +308,17 @@ impl UpstreamRelay {
     fn handle_network_error(&mut self, ctx: &mut Context<Self>) {
         let now = Instant::now();
         let first_error = *self.first_error.get_or_insert(now);
-        if first_error + self.config.http_auth_grace_period() < now {
-            self.auth_state = AuthState::Error;
+
+        // Only take action if we exceeded the grace period.
+        if first_error + self.config.http_auth_grace_period() > now {
+            return;
         }
 
+        // Set authentication to errored to stop sending requests.
+        self.auth_state = AuthState::Error;
+
+        // There is no re-authentication scheduled, schedule one now.
         if !self.backoff.started() {
-            // there is no re-authentication scheduled, schedule one now
             ctx.notify_later(Authenticate, self.backoff.next_backoff());
         }
     }
@@ -384,7 +389,8 @@ impl UpstreamRelay {
         ctx: &mut Context<Self>,
     ) {
         if matches!(send_result, Err(ref err) if err.is_network_error()) {
-            self.handle_network_error(ctx);
+            // TODO: Enable after fixing network error handling
+            // self.handle_network_error(ctx);
 
             if request.retry {
                 return self.enqueue(request, ctx, EnqueuePosition::Back);
@@ -580,10 +586,13 @@ impl Handler<Authenticate> for UpstreamRelay {
             .map_err(move |err, slf, ctx| {
                 log::error!("authentication encountered error: {}", LogError(&err));
 
-                if err.is_network_error() {
-                    slf.handle_network_error(ctx);
-                } else {
+                // Network errors are handled separately by the generic response handler.
+                if !err.is_network_error() {
                     slf.auth_state = AuthState::Error;
+                }
+                // TODO: Remove this when fixing network error handling
+                else {
+                    slf.handle_network_error(ctx);
                 }
 
                 // Do not retry client errors including authentication failures since client errors
