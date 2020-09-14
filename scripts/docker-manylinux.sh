@@ -7,7 +7,7 @@ docker run \
         -w /work/py \
         -v `pwd`:/work \
         -v $HOME/.cargo/registry:/root/.cargo/registry \
-        -it quay.io/pypa/manylinux1_${BUILD_ARCH} \
+        -it quay.io/pypa/manylinux2014_${BUILD_ARCH} \
         sh manylinux.sh
 
 # Fix permissions for shared directories
