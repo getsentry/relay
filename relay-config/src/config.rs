@@ -505,20 +505,6 @@ impl Default for Limits {
     }
 }
 
-/// Http content encoding for upstream store requests.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum HttpEncoding {
-    /// Identity function, no compression.
-    Identity,
-    /// Compression using a zlib header with deflate encoding.
-    Deflate,
-    /// Compression using gzip.
-    Gzip,
-    /// Compression using the brotli algorithm.
-    Br,
-}
-
 /// Controls authentication with upstream.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -553,21 +539,6 @@ struct Http {
     /// attempts persist beyond the grace period, Relay suspends event submission and reverts into
     /// authentication mode.
     auth_grace_period: u64,
-    /// Content encoding to apply to upstream store requests.
-    ///
-    /// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression
-    /// can be disabled to reduce CPU consumption, but at the expense of increased network traffic.
-    ///
-    /// This setting applies to all store requests of SDK data, including events, transactions,
-    /// envelopes and sessions. At the moment, this does not apply to Relay's internal queries.
-    ///
-    /// Available options are:
-    ///
-    ///  - `identity`: Disables compression.
-    ///  - `deflate`: Compression using a zlib header with deflate encoding.
-    ///  - `gzip` (default): Compression using gzip.
-    ///  - `br`: Compression using the brotli algorithm.
-    encoding: HttpEncoding,
 }
 
 impl Default for Http {
@@ -579,7 +550,6 @@ impl Default for Http {
             host_header: None,
             auth_interval: Some(600), // 10 minutes
             auth_grace_period: 10,
-            encoding: HttpEncoding::Gzip,
         }
     }
 }
@@ -1166,11 +1136,6 @@ impl Config {
     /// authenticate).
     pub fn http_auth_grace_period(&self) -> Duration {
         Duration::from_secs(self.values.http.auth_grace_period)
-    }
-
-    /// Content encoding of upstream requests.
-    pub fn http_encoding(&self) -> HttpEncoding {
-        self.values.http.encoding
     }
 
     /// Returns whether this Relay should emit outcomes.

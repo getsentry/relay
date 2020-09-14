@@ -13,7 +13,7 @@ use parking_lot::RwLock;
 use serde_json::Value as SerdeValue;
 
 use relay_common::{clone, metric, LogError};
-use relay_config::{Config, HttpEncoding, RelayMode};
+use relay_config::{Config, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
@@ -1331,7 +1331,6 @@ impl Handler<HandleEnvelope> for EventManager {
         let outcome_producer = self.outcome_producer.clone();
         let captured_events = self.captured_events.clone();
         let capture = self.config.relay_mode() == RelayMode::Capture;
-        let http_encoding = self.config.http_encoding();
 
         #[cfg(feature = "processing")]
         let store_forwarder = self.store_forwarder.clone();
@@ -1453,18 +1452,11 @@ impl Handler<HandleEnvelope> for EventManager {
                             builder.header("User-Agent", user_agent);
                         }
 
-                        let content_encoding = match http_encoding {
-                            HttpEncoding::Identity => ContentEncoding::Identity,
-                            HttpEncoding::Deflate => ContentEncoding::Deflate,
-                            HttpEncoding::Gzip => ContentEncoding::Gzip,
-                            HttpEncoding::Br => ContentEncoding::Br,
-                        };
-
                         builder
-                            .content_encoding(content_encoding)
                             .header("X-Sentry-Auth", meta.auth_header())
                             .header("X-Forwarded-For", meta.forwarded_for())
                             .header("Content-Type", envelope::CONTENT_TYPE)
+                            .content_encoding(ContentEncoding::Gzip)
                             .body(envelope.to_vec().map_err(failure::Error::from)?)
                     },
                 );
