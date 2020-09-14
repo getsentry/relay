@@ -167,7 +167,7 @@ pub fn init_logging(config: &Config) {
 
     let log_integration = sentry::integrations::log::LogIntegration {
         global_filter: Some(log.filter()),
-        attach_stacktraces: true,
+        attach_stacktraces: config.enable_backtraces(),
         dest_log: Some(log),
         ..Default::default()
     };
