@@ -44,7 +44,7 @@ class CustomSDist(sdist):
 
 
 def build_native(spec):
-    cmd = ["cargo", "build"]
+    cmd = ["cargo", "build", "-p", "relay-cabi"]
     if not DEBUG_BUILD:
         cmd.append("--release")
         target = "release"
@@ -64,9 +64,9 @@ def build_native(spec):
 
         zf = zipfile.ZipFile("rustsrc.zip")
         zf.extractall(scratchpad)
-        rust_path = scratchpad + "/rustsrc/relay-cabi"
+        rust_path = scratchpad + "/rustsrc"
     else:
-        rust_path = "../relay-cabi"
+        rust_path = ".."
         scratchpad = None
 
     # Step 1: build the rust library
@@ -77,8 +77,10 @@ def build_native(spec):
         rtld_flags.append("NODELETE")
     spec.add_cffi_module(
         module_path="sentry_relay._lowlevel",
-        dylib=lambda: build.find_dylib("relay", in_path="target/%s" % target),
-        header_filename=lambda: build.find_header("relay.h", in_path="include"),
+        dylib=lambda: build.find_dylib("relay_cabi", in_path="target/%s" % target),
+        header_filename=lambda: build.find_header(
+            "relay.h", in_path="relay-cabi/include"
+        ),
         rtld_flags=rtld_flags,
     )
 

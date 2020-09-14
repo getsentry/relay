@@ -7,7 +7,6 @@ tab_width = 2
 language = "C"
 
 [parse]
-expand = ["relay-cabi"]
 include = ["relay-common"]
 parse_deps = true
 

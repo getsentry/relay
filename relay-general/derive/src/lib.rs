@@ -728,12 +728,9 @@ impl FieldAttrs {
         };
 
         let match_regex = if let Some(ref match_regex) = self.match_regex {
-            quote!(Some(
-                #[allow(clippy::trivial_regex)]
-                ::regex::Regex::new(#match_regex).unwrap()
-            ))
+            quote!(Some(#match_regex))
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
-            quote!(#parent_attrs.match_regex.clone())
+            quote!(#parent_attrs.match_regex)
         } else {
             quote!(None)
         };

@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::collections::BTreeSet;
 
 use regex::bytes::RegexBuilder as BytesRegexBuilder;
 use regex::Regex;
@@ -7,7 +6,7 @@ use smallvec::SmallVec;
 
 use crate::pii::compiledconfig::RuleRef;
 use crate::pii::regexes::{get_regex_for_rule_type, ReplaceBehavior};
-use crate::pii::utils::{hash_value, in_range};
+use crate::pii::utils::hash_value;
 use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::processor::{FieldAttrs, Pii, ProcessingState, ValueType};
 
@@ -73,6 +72,7 @@ fn apply_regex_to_bytes(
     }
 
     const DEFAULT_PADDING: u8 = b'x';
+    const MASK_PADDING: u8 = b'*';
 
     match rule.redaction {
         Redaction::Default | Redaction::Remove => {
@@ -82,31 +82,17 @@ fn apply_regex_to_bytes(
                 }
             }
         }
-        Redaction::Mask(ref mask) => {
-            let chars_to_ignore: BTreeSet<u8> = mask
-                .chars_to_ignore
-                .chars()
-                .filter_map(|x| if x.is_ascii() { Some(x as u8) } else { None })
-                .collect();
-            let mask_char = if mask.mask_char.is_ascii() {
-                mask.mask_char as u8
-            } else {
-                DEFAULT_PADDING
-            };
-
+        Redaction::Mask => {
             for (start, end) in matches {
                 let match_slice = &mut data[start..end];
-                let match_slice_len = match_slice.len();
-                for (idx, c) in match_slice.iter_mut().enumerate() {
-                    if in_range(mask.range, idx, match_slice_len) && !chars_to_ignore.contains(c) {
-                        *c = mask_char;
-                    }
+                for c in match_slice.iter_mut() {
+                    *c = MASK_PADDING;
                 }
             }
         }
-        Redaction::Hash(ref hash) => {
+        Redaction::Hash => {
             for (start, end) in matches {
-                let hashed = hash_value(hash.algorithm, &data[start..end], hash.key.as_deref());
+                let hashed = hash_value(&data[start..end]);
                 replace_bytes_padded(hashed.as_bytes(), &mut data[start..end], DEFAULT_PADDING);
             }
         }
