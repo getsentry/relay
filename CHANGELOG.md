@@ -9,7 +9,7 @@
 - Periodically re-authenticate with the upstream server. Previously, there was only one initial authentication. ([#731](https://github.com/getsentry/relay/pull/731))
 - The module attribute on stack frames (`$frame.module`) and the (usually server side generated) attribute `culprit` can now be scrubbed with advanced data scrubbing. ([#744](https://github.com/getsentry/relay/pull/744))
 - Compress outgoing store requests for events and envelopes including attachements using `gzip` content encoding. ([#745](https://github.com/getsentry/relay/pull/745))
-- Retry sending events on network errors instead of dropping them. Also, Relay now buffers all requests until it has authenticated with the upstream. ([#747](//github.com/getsentry/relay/pull/747))
+- Relay now buffers all requests until it has authenticated with the upstream. ([#747](//github.com/getsentry/relay/pull/747))
 - Add a configuration option to change content encoding of upstream store requests. The default is `gzip`, and other options are `identity`, `deflate`, or `br`. ([#771](https://github.com/getsentry/relay/pull/771))
 
 **Bug Fixes**:
@@ -28,6 +28,7 @@
 - Emit `processing.event.produced` for user report and session Kafka messages. ([#757](https://github.com/getsentry/relay/pull/757))
 - Improve performance of event processing by avoiding regex clone. ([#767](https://github.com/getsentry/relay/pull/767))
 - Assign a default name for unnamed attachments, which prevented attachments from being stored in Sentry. ([#769](https://github.com/getsentry/relay/pull/769))
+- Add Relay version version to challenge response. ([#758](https://github.com/getsentry/relay/pull/758))
 
 ## 20.8.0
 
