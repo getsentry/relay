@@ -5,6 +5,7 @@
 - In PII configs, all options on hash and mask redactions (replacement characters, ignored characters, hash algorithm/key) are removed. If they still exist in the configuration, they are ignored. ([#760](https://github.com/getsentry/relay/pull/760))
 - Rename to the library target to `relay_cabi` and add documentation. ([#763](https://github.com/getsentry/relay/pull/763))
 - Update FFI bindings with a new implementation for error handling. ([#766](https://github.com/getsentry/relay/pull/766))
+- **Breaking:** Delete `scrub_event` function from public API. ([#773](https://github.com/getsentry/relay/pull/773))
 - Add Relay version version to challenge response. ([#758](https://github.com/getsentry/relay/pull/758))
 
 ## 0.6.1

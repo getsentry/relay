@@ -116,28 +116,6 @@ pub unsafe extern "C" fn relay_translate_legacy_python_json(event: *mut RelayStr
     true
 }
 
-/// Scrub an event using old data scrubbing settings.
-#[no_mangle]
-#[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn relay_scrub_event(
-    config: *const RelayStr,
-    event: *const RelayStr,
-) -> RelayStr {
-    let config: DataScrubbingConfig = serde_json::from_str((*config).as_str())?;
-    let pii_config = config.pii_config();
-    let pii_config = match *pii_config {
-        Some(ref pii_config) => pii_config,
-        None => return Ok(RelayStr::new((*event).as_str())),
-    };
-
-    let compiled = pii_config.compiled();
-    let mut processor = PiiProcessor::new(&compiled);
-    let mut event = Annotated::<Event>::from_json((*event).as_str())?;
-    process_value(&mut event, &mut processor, ProcessingState::root())?;
-
-    RelayStr::from_string(event.to_json()?)
-}
-
 /// Validate a PII config against the schema. Used in project options UI.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
