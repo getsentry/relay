@@ -204,6 +204,8 @@
 <span id="204">204</span>
 <span id="205">205</span>
 <span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">chrono</span>::<span class="ident">Duration</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">Serialize</span>;
@@ -367,6 +369,7 @@
     <span class="kw">pub</span> <span class="ident">relay_id</span>: <span class="ident">RelayId</span>,
     <span class="kw">pub</span> <span class="ident">token</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>,
     <span class="kw">pub</span> <span class="ident">public_key</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">PublicKey</span>,
+    <span class="kw">pub</span> <span class="ident">version</span>: <span class="ident">RelayVersion</span>,
 }
 
 <span class="doccomment">/// Validates a register response.</span>
@@ -394,6 +397,7 @@
         <span class="ident">relay_id</span>: <span class="ident">response</span>.<span class="ident">relay_id</span>(),
         <span class="ident">token</span>: <span class="ident">response</span>.<span class="ident">token</span>(),
         <span class="ident">public_key</span>: <span class="ident">state</span>.<span class="ident">public_key</span>(),
+        <span class="ident">version</span>: <span class="ident">response</span>.<span class="ident">version</span>(),
     };
 
     <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">to_string</span>(<span class="kw-2">&amp;</span><span class="ident">relay_response</span>)<span class="question-mark">?</span>;

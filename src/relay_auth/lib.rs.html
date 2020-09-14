@@ -841,6 +841,75 @@
 <span id="841">841</span>
 <span id="842">842</span>
 <span id="843">843</span>
+<span id="844">844</span>
+<span id="845">845</span>
+<span id="846">846</span>
+<span id="847">847</span>
+<span id="848">848</span>
+<span id="849">849</span>
+<span id="850">850</span>
+<span id="851">851</span>
+<span id="852">852</span>
+<span id="853">853</span>
+<span id="854">854</span>
+<span id="855">855</span>
+<span id="856">856</span>
+<span id="857">857</span>
+<span id="858">858</span>
+<span id="859">859</span>
+<span id="860">860</span>
+<span id="861">861</span>
+<span id="862">862</span>
+<span id="863">863</span>
+<span id="864">864</span>
+<span id="865">865</span>
+<span id="866">866</span>
+<span id="867">867</span>
+<span id="868">868</span>
+<span id="869">869</span>
+<span id="870">870</span>
+<span id="871">871</span>
+<span id="872">872</span>
+<span id="873">873</span>
+<span id="874">874</span>
+<span id="875">875</span>
+<span id="876">876</span>
+<span id="877">877</span>
+<span id="878">878</span>
+<span id="879">879</span>
+<span id="880">880</span>
+<span id="881">881</span>
+<span id="882">882</span>
+<span id="883">883</span>
+<span id="884">884</span>
+<span id="885">885</span>
+<span id="886">886</span>
+<span id="887">887</span>
+<span id="888">888</span>
+<span id="889">889</span>
+<span id="890">890</span>
+<span id="891">891</span>
+<span id="892">892</span>
+<span id="893">893</span>
+<span id="894">894</span>
+<span id="895">895</span>
+<span id="896">896</span>
+<span id="897">897</span>
+<span id="898">898</span>
+<span id="899">899</span>
+<span id="900">900</span>
+<span id="901">901</span>
+<span id="902">902</span>
+<span id="903">903</span>
+<span id="904">904</span>
+<span id="905">905</span>
+<span id="906">906</span>
+<span id="907">907</span>
+<span id="908">908</span>
+<span id="909">909</span>
+<span id="910">910</span>
+<span id="911">911</span>
+<span id="912">912</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
@@ -1036,7 +1105,7 @@
     }
 }
 
-<span class="doccomment">/// Reprensents the final registration.</span>
+<span class="doccomment">/// Represents the final registration.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Registration</span> {
     <span class="ident">relay_id</span>: <span class="ident">RelayId</span>,
@@ -1486,6 +1555,7 @@
         <span class="ident">RegisterResponse</span> {
             <span class="ident">relay_id</span>: <span class="self">self</span>.<span class="ident">relay_id</span>,
             <span class="ident">token</span>: <span class="self">self</span>.<span class="ident">token</span>,
+            <span class="ident">version</span>: <span class="ident">RelayVersion</span>::<span class="ident">current</span>(),
         }
     }
 }
@@ -1498,6 +1568,8 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RegisterResponse</span> {
     <span class="ident">relay_id</span>: <span class="ident">RelayId</span>,
     <span class="ident">token</span>: <span class="ident">SignedRegisterState</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
+    <span class="ident">version</span>: <span class="ident">RelayVersion</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">RegisterResponse</span> {
@@ -1530,6 +1602,10 @@
     <span class="doccomment">/// Returns the token that needs signing.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">token</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">as_str</span>()
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayVersion</span> {
+        <span class="self">self</span>.<span class="ident">version</span>
     }
 }
 
@@ -1630,6 +1706,12 @@
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">challenge</span>.<span class="ident">relay_id</span>(), <span class="kw-2">&amp;</span><span class="ident">relay_id</span>);
     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">challenge</span>.<span class="ident">token</span>().<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">40</span>);
 
+    <span class="comment">// check the challenge contains the expected info</span>
+    <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">SignedRegisterState</span>(<span class="ident">challenge_token</span>.<span class="ident">clone</span>());
+    <span class="kw">let</span> <span class="ident">register_state</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">unpack</span>(<span class="ident">upstream_secret</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">register_state</span>.<span class="ident">public_key</span>, <span class="ident">pk</span>);
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">register_state</span>.<span class="ident">relay_id</span>, <span class="ident">relay_id</span>);
+
     <span class="comment">// create a response from the challenge</span>
     <span class="kw">let</span> <span class="ident">response</span> <span class="op">=</span> <span class="ident">challenge</span>.<span class="ident">into_response</span>();
 
@@ -1645,6 +1727,62 @@
 
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">response</span>.<span class="ident">relay_id</span>(), <span class="ident">relay_id</span>);
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">response</span>.<span class="ident">token</span>(), <span class="ident">challenge_token</span>);
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">response</span>.<span class="ident">version</span>, <span class="ident">LATEST_VERSION</span>);
+}
+<span class="doccomment">/// This is a pseudo-test to easily generate the strings used by test_auth.py</span>
+<span class="doccomment">/// You can copy the output to the top of the test_auth.py when there are changes in the</span>
+<span class="doccomment">/// exchanged authentication structures.</span>
+<span class="doccomment">/// It follows test_registration but instead of asserting it prints the strings  </span>
+<span class="attribute">#[<span class="ident">test</span>]</span>
+<span class="kw">fn</span> <span class="ident">test_generate_strings_for_test_auth_py</span>() {
+    <span class="kw">let</span> <span class="ident">max_age</span> <span class="op">=</span> <span class="ident">Duration</span>::<span class="ident">minutes</span>(<span class="number">15</span>);
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Generating test data for test_auth.py...&quot;</span>);
+
+    <span class="comment">// initial setup</span>
+    <span class="kw">let</span> <span class="ident">relay_id</span> <span class="op">=</span> <span class="ident">generate_relay_id</span>();
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;RELAY_ID = b\&quot;{}\&quot;&quot;</span>, <span class="ident">relay_id</span>);
+    <span class="kw">let</span> (<span class="ident">sk</span>, <span class="ident">pk</span>) <span class="op">=</span> <span class="ident">generate_key_pair</span>();
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;RELAY_KEY = b\&quot;{}\&quot;&quot;</span>, <span class="ident">pk</span>);
+
+    <span class="comment">// create a register request</span>
+    <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">RegisterRequest</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">relay_id</span>, <span class="kw-2">&amp;</span><span class="ident">pk</span>);
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;REQUEST = b&#39;{}&#39;&quot;</span>, <span class="ident">serde_json</span>::<span class="ident">to_string</span>(<span class="kw-2">&amp;</span><span class="ident">request</span>).<span class="ident">unwrap</span>());
+
+    <span class="comment">// sign it</span>
+    <span class="kw">let</span> (<span class="ident">request_bytes</span>, <span class="ident">request_sig</span>) <span class="op">=</span> <span class="ident">sk</span>.<span class="ident">pack</span>(<span class="kw-2">&amp;</span><span class="ident">request</span>);
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;REQUEST_SIG = \&quot;{}\&quot;&quot;</span>, <span class="ident">request_sig</span>);
+
+    <span class="comment">// attempt to get the data through bootstrap unpacking.</span>
+    <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span>
+        <span class="ident">RegisterRequest</span>::<span class="ident">bootstrap_unpack</span>(<span class="kw-2">&amp;</span><span class="ident">request_bytes</span>, <span class="kw-2">&amp;</span><span class="ident">request_sig</span>, <span class="prelude-val">Some</span>(<span class="ident">max_age</span>)).<span class="ident">unwrap</span>();
+
+    <span class="kw">let</span> <span class="ident">upstream_secret</span> <span class="op">=</span> <span class="string">b&quot;secret&quot;</span>;
+
+    <span class="comment">// create a challenge</span>
+    <span class="kw">let</span> <span class="ident">challenge</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">into_challenge</span>(<span class="ident">upstream_secret</span>);
+    <span class="kw">let</span> <span class="ident">challenge_token</span> <span class="op">=</span> <span class="ident">challenge</span>.<span class="ident">token</span>().<span class="ident">to_owned</span>();
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;TOKEN = \&quot;{}\&quot;&quot;</span>, <span class="ident">challenge_token</span>);
+
+    <span class="comment">// create a response from the challenge</span>
+    <span class="kw">let</span> <span class="ident">response</span> <span class="op">=</span> <span class="ident">challenge</span>.<span class="ident">into_response</span>();
+    <span class="kw">let</span> <span class="ident">serialized_response</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">to_string</span>(<span class="kw-2">&amp;</span><span class="ident">response</span>).<span class="ident">unwrap</span>();
+    <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">response_sig</span>) <span class="op">=</span> <span class="ident">sk</span>.<span class="ident">pack</span>(<span class="kw-2">&amp;</span><span class="ident">response</span>);
+
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;RESPONSE = b&#39;{}&#39;&quot;</span>, <span class="ident">serialized_response</span>);
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;RESPONSE_SIG = \&quot;{}\&quot;&quot;</span>, <span class="ident">response_sig</span>);
+
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;RELAY_VERSION = \&quot;{}\&quot;&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">LATEST_VERSION</span>);
+}
+
+<span class="doccomment">/// Test we can still deserialize an old response that does not contain the version</span>
+<span class="attribute">#[<span class="ident">test</span>]</span>
+<span class="kw">fn</span> <span class="ident">test_deserialize_old_response</span>() {
+    <span class="kw">let</span> <span class="ident">serialized_challenge</span> <span class="op">=</span> <span class="string">&quot;{\&quot;relay_id\&quot;:\&quot;6b7d15b8-cee2-4354-9fee-dae7ef43e434\&quot;,\&quot;token\&quot;:\&quot;eyJ0aW1lc3RhbXAiOjE1OTg5Njc0MzQsInJlbGF5X2lkIjoiNmI3ZDE1YjgtY2VlMi00MzU0LTlmZWUtZGFlN2VmNDNlNDM0IiwicHVibGljX2tleSI6ImtNcEdieWRIWlN2b2h6ZU1sZ2hjV3dIZDhNa3JlS0d6bF9uY2RrWlNPTWciLCJyYW5kIjoiLUViNG9Hal80dUZYOUNRRzFBVmdqTjRmdGxaNU9DSFlNOFl2d1podmlyVXhUY0tFSWYtQzhHaldsZmgwQTNlMzYxWE01dVh0RHhvN00tbWhZeXpWUWcifQ:KJUDXlwvibKNQmex-_Cu1U0FArlmoDkyqP7bYIDGrLXudfjGfCjH-UjNsUHWVDnbM28YdQ-R2MBSyF51aRLQcw\&quot;}&quot;</span>;
+    <span class="kw">let</span> <span class="ident">result</span>: <span class="ident">RegisterResponse</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">from_str</span>(<span class="ident">serialized_challenge</span>).<span class="ident">unwrap</span>();
+    <span class="macro">assert_eq</span><span class="macro">!</span>(
+        <span class="ident">result</span>.<span class="ident">relay_id</span>,
+        <span class="ident">Uuid</span>::<span class="ident">parse_str</span>(<span class="string">&quot;6b7d15b8-cee2-4354-9fee-dae7ef43e434&quot;</span>).<span class="ident">unwrap</span>()
+    )
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
