@@ -93,6 +93,36 @@ def test_normalize_measurement_interface(mini_sentry, relay_chain):
     assert "fp" not in event["measurements"], event["measurements"]
 
 
+def test_empty_measurement_interface(mini_sentry, relay_chain):
+
+    # set up relay
+
+    relay = relay_chain()
+    mini_sentry.project_configs[42] = relay.basic_project_config()
+
+    # construct envelope
+
+    transaction_item = generate_transaction_item()
+
+    transaction_item.update({"measurements": {}})
+
+    envelope = Envelope()
+    envelope.add_transaction(transaction_item)
+
+    # ingest envelope
+
+    relay.send_envelope(42, envelope)
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+
+    event = envelope.get_transaction_event()
+
+    # test actual output
+
+    assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
+    assert "measurements" not in event, event
+
+
 def test_strip_measurement_interface(mini_sentry, relay_chain):
 
     # set up relay
