@@ -470,6 +470,7 @@ pub struct Event {
 
     /// Measurements
     #[metastructure(skip_serialization = "empty_deep")]
+    #[metastructure(omit_from_schema)] // we only document error events for now
     pub measurements: Annotated<Measurements>,
 
     /// Internal ingestion and processing metrics.
