@@ -58,9 +58,7 @@ def test_persist_measurement_interface(mini_sentry, relay_chain):
     )
 
     envelope = Envelope()
-    envelope.add_item(
-        Item(payload=PayloadRef(json=transaction_item), type="transaction")
-    )
+    envelope.add_transaction(transaction_item)
 
     relay.send_envelope(42, envelope)
 
