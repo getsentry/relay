@@ -9,6 +9,8 @@ lazy_static::lazy_static! {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Measurement {
+    /// Value of observed measurement value
+    #[metastructure(required = "true")]
     pub value: Annotated<f64>,
 }
 
