@@ -60,19 +60,19 @@ impl FromValue for Measurements {
 
                     let measurement_name = raw_name.trim().to_lowercase();
 
-                    if !MEASUREMENT_NAME.is_match(&measurement_name) {
+                    if MEASUREMENT_NAME.is_match(&measurement_name) {
+                        if observed_value.value().is_some() {
+                            let measurement = Measurement {
+                                value: observed_value,
+                            };
+
+                            measurements.insert(measurement_name, Annotated::new(measurement));
+                        }
+                    } else {
                         meta.add_error(Error::expected(
                             "measurement name to contain only characters a-z0-9-_.",
                         ));
                         meta.set_original_value(Some(raw_name));
-                    }
-
-                    if observed_value.value().is_some() {
-                        let measurement = Measurement {
-                            value: observed_value,
-                        };
-
-                        measurements.insert(measurement_name, Annotated::new(measurement));
                     }
                 }
 
