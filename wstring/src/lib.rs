@@ -1,4 +1,21 @@
 //! A UTF-16 little-endian string type.
+//!
+//! The main type in this crate is [WStr] which is a type similar to [str] but with the
+//! underlying data encoded as UTF-16 with little-endian byte order.
+//!
+//! # Examples
+//!
+//! ```
+//! use wstring::WStr;
+//!
+//! let b = b"h\x00e\x00l\x00l\x00o\x00";
+//! let s = WStr::from_utf16le(b).unwrap();
+//!
+//! let chars: Vec<char> = s.chars().collect();
+//! assert_eq!(chars, vec!['h', 'e', 'l', 'l', 'o']);
+//!
+//! assert_eq!(s.to_utf8(), "hello");
+//! ```
 
 use std::error::Error;
 use std::fmt;
@@ -7,6 +24,7 @@ use std::ops::{
 };
 use std::slice::ChunksExact;
 
+/// Error for invalid UTF-16 encoded bytes.
 #[derive(Debug, Copy, Clone)]
 pub struct Utf16Error {}
 
@@ -18,6 +36,12 @@ impl fmt::Display for Utf16Error {
 
 impl Error for Utf16Error {}
 
+/// A UTF-16 [str]-like type with little-endian byte order.
+///
+/// This mostly behaves like [str] does for UTF-8 encoded bytes slices, but works with
+/// UTF-16LE encoded byte slices.
+///
+/// See the [module-level documentation](index.html) for some simple examples.
 #[derive(Debug, Eq, PartialEq)]
 #[repr(transparent)]
 pub struct WStr {
@@ -27,7 +51,7 @@ pub struct WStr {
 impl WStr {
     /// Create a new [WStr] from an existing UTF-16 little-endian encoded byte-slice.
     ///
-    /// If the byte-slice is not valid [DecodeUtf16Error] is returned.
+    /// If the byte-slice is not valid [Utf16Error] is returned.
     pub fn from_utf16le(raw: &[u8]) -> Result<&Self, Utf16Error> {
         validate_raw_utf16le(raw)?;
         Ok(unsafe { Self::from_utf16le_unchecked(raw) })
@@ -106,7 +130,7 @@ impl WStr {
         self.raw.as_mut_ptr()
     }
 
-    /// Return a subslice of [Self].
+    /// Return a subslice of `self`.
     ///
     /// The slice indices are on byte offsets of the underlying UTF-16LE encoded buffer, if
     /// the subslice is not on character boundaries or otherwise invalid this will return
@@ -118,7 +142,7 @@ impl WStr {
         index.get(self)
     }
 
-    /// Return a mutable subslice of [Self].
+    /// Return a mutable subslice of `Self`.
     ///
     /// The slice indices are on byte offsets of the underlying UTF-16LE encoded buffer, if
     /// the subslice is not on character boundaries or otherwise invalid this will return
@@ -130,7 +154,7 @@ impl WStr {
         index.get_mut(self)
     }
 
-    /// Return a subslice of [Self].
+    /// Return a subslice of `Self`.
     ///
     /// # Safety
     ///
@@ -143,7 +167,7 @@ impl WStr {
         index.get_unchecked(self)
     }
 
-    /// Return a mutable subslice of [Self].
+    /// Return a mutable subslice of `Self`.
     ///
     /// # Safety
     ///
