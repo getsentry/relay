@@ -47,14 +47,21 @@ def generate_transaction_item():
     }
 
 
-def test_persist_measurement_interface(mini_sentry, relay_chain):
+def test_normalize_measurement_interface(mini_sentry, relay_chain):
     relay = relay_chain()
     mini_sentry.project_configs[42] = relay.basic_project_config()
 
     transaction_item = generate_transaction_item()
 
     transaction_item.update(
-        {"measurements": {"foo": {"value": 420.69}, "BAR": {"value": 2020}}}
+        {
+            "measurements": {
+                "LCP": {"value": 420.69},
+                "fid": {"value": 2020},
+                "cls": {"value": None},
+                "fp": {"value": "im a first paint"},
+            }
+        }
     )
 
     envelope = Envelope()
@@ -69,9 +76,11 @@ def test_persist_measurement_interface(mini_sentry, relay_chain):
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     assert "trace" in event["contexts"]
     assert "measurements" in event, event
-    assert event["measurements"]["foo"]["value"] == 420.69
-    # expect the key "BAR" to be lowercased as part of the normalization
-    assert event["measurements"]["bar"]["value"] == 2020
+    # expect the key "LCP" to be lowercased as part of the normalization
+    assert event["measurements"]["lcp"]["value"] == 420.69
+    assert event["measurements"]["fid"]["value"] == 2020
+    assert "cls" not in event["measurements"], event["measurements"]
+    assert "fp" not in event["measurements"], event["measurements"]
 
 
 def test_strip_measurement_interface(mini_sentry, relay_chain):
@@ -82,7 +91,11 @@ def test_strip_measurement_interface(mini_sentry, relay_chain):
     envelope.add_event(
         {
             "message": "Hello, World!",
-            "measurements": {"foo": {"value": 420.69}, "BAR": {"value": 2020}},
+            "measurements": {
+                "LCP": {"value": 420.69},
+                "fid": {"value": 2020},
+                "cls": {"value": None},
+            },
         }
     )
     relay.send_envelope(42, envelope)
