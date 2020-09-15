@@ -1,0 +1,8 @@
+[package]
+name = "wstring"
+version = "0.1.0"
+authors = ["Sentry <oss@sentry.io>"]
+repository = "https://github.com/getsentry/relay"
+edition = "2018"
+license-file = "../LICENSE"
+publish = false
