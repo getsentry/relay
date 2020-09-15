@@ -88,7 +88,7 @@ impl FromValue for Measurements {
 
                     if !MEASUREMENT_NAME.is_match(&measurement_name) {
                         meta.add_error(Error::expected(
-                            "measurement name to contain only characters a-zA-Z0-9-_.",
+                            "measurement name to contain only characters a-z0-9-_.",
                         ));
                         meta.set_original_value(Some(raw_name));
 
