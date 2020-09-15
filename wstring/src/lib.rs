@@ -8,7 +8,7 @@ use std::ops::{
 use std::slice::ChunksExact;
 
 #[derive(Debug, Copy, Clone)]
-struct Utf16Error {}
+pub struct Utf16Error {}
 
 impl fmt::Display for Utf16Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -20,41 +20,20 @@ impl Error for Utf16Error {}
 
 #[derive(Debug, Eq, PartialEq)]
 #[repr(transparent)]
-struct WStr {
+pub struct WStr {
     raw: [u8],
-}
-
-/// Check that the raw bytes are valid UTF-16LE.
-fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
-    // This could be optimised as it does not need to be actually decoded, just needs to
-    // be a valid byte sequence.
-    if raw.len() % 2 != 0 {
-        return Err(Utf16Error {});
-    }
-    let u16iter = raw.chunks_exact(2).map(|chunk| {
-        let mut buf: [u8; 2] = [0; 2]; // TODO: avoid init
-        buf.copy_from_slice(chunk);
-        u16::from_le_bytes(buf)
-    });
-    for c in std::char::decode_utf16(u16iter) {
-        match c {
-            Ok(_) => (),
-            Err(_) => return Err(Utf16Error {}),
-        }
-    }
-    Ok(())
 }
 
 impl WStr {
     /// Create a new [WStr] from an existing UTF-16 little-endian encoded byte-slice.
     ///
     /// If the byte-slice is not valid [DecodeUtf16Error] is returned.
-    fn from_utf16le(raw: &[u8]) -> Result<&Self, Utf16Error> {
+    pub fn from_utf16le(raw: &[u8]) -> Result<&Self, Utf16Error> {
         validate_raw_utf16le(raw)?;
         Ok(unsafe { Self::from_utf16le_unchecked(raw) })
     }
 
-    fn from_utf16le_mut(raw: &mut [u8]) -> Result<&mut Self, Utf16Error> {
+    pub fn from_utf16le_mut(raw: &mut [u8]) -> Result<&mut Self, Utf16Error> {
         validate_raw_utf16le(raw)?;
         Ok(unsafe { Self::from_utf16le_unchecked_mut(raw) })
     }
@@ -63,27 +42,27 @@ impl WStr {
     ///
     /// You must guarantee that the buffer passed in is encoded correctly otherwise you will
     /// get undefined behaviour.
-    unsafe fn from_utf16le_unchecked(raw: &[u8]) -> &Self {
+    pub unsafe fn from_utf16le_unchecked(raw: &[u8]) -> &Self {
         &*(raw as *const [u8] as *const Self)
     }
 
     /// Like [Self::from_utf16le_unchecked] but return a mutable reference.
-    unsafe fn from_utf16le_unchecked_mut(raw: &mut [u8]) -> &mut Self {
+    pub unsafe fn from_utf16le_unchecked_mut(raw: &mut [u8]) -> &mut Self {
         &mut *(raw as *mut [u8] as *mut Self)
     }
 
     /// The length in bytes, not chars or graphemes.
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.raw.len()
     }
 
     /// Returns `true` if the [Self::len] is zero.
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Returns `true` if the index into the bytes is on a char boundary.
-    fn is_char_boundary(&self, index: usize) -> bool {
+    pub fn is_char_boundary(&self, index: usize) -> bool {
         if index == 0 || index == self.len() {
             return true;
         }
@@ -101,22 +80,22 @@ impl WStr {
     }
 
     /// Convert to a byte slice.
-    fn as_bytes(&self) -> &[u8] {
+    pub fn as_bytes(&self) -> &[u8] {
         &self.raw
     }
 
     /// Convert to a mutable byte slice.
-    fn as_bytes_mut(&mut self) -> &mut [u8] {
+    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.raw
     }
 
     /// Convert to a raw pointer to the byte slice.
-    const fn as_ptr(&self) -> *const u8 {
+    pub const fn as_ptr(&self) -> *const u8 {
         self.raw.as_ptr()
     }
 
     /// Convert to a mutable raw pointer to the byte slice.
-    fn as_mut_ptr(&mut self) -> *mut u8 {
+    pub fn as_mut_ptr(&mut self) -> *mut u8 {
         self.raw.as_mut_ptr()
     }
 
@@ -125,7 +104,7 @@ impl WStr {
     /// The slice indices are on byte offsets of the underlying UTF-16LE encoded buffer, if
     /// the subslice is not on character boundaries or otherwise invalid this will return
     /// `None`.
-    fn get<I>(&self, index: I) -> Option<&<I as SliceIndex<WStr>>::Output>
+    pub fn get<I>(&self, index: I) -> Option<&<I as SliceIndex<WStr>>::Output>
     where
         I: SliceIndex<WStr>,
     {
@@ -137,7 +116,7 @@ impl WStr {
     /// The slice indices are on byte offsets of the underlying UTF-16LE encoded buffer, if
     /// the subslice is not on character boundaries or otherwise invalid this will return
     /// `None`.
-    fn get_mut<I>(&mut self, index: I) -> Option<&mut <I as SliceIndex<WStr>>::Output>
+    pub fn get_mut<I>(&mut self, index: I) -> Option<&mut <I as SliceIndex<WStr>>::Output>
     where
         I: SliceIndex<WStr>,
     {
@@ -148,7 +127,7 @@ impl WStr {
     ///
     /// Like [Self::get] but this results in undefined behaviour if the sublice is not on
     /// character boundaries or otherwise invalid.
-    unsafe fn get_unchecked<I>(&self, index: I) -> &<I as SliceIndex<WStr>>::Output
+    pub unsafe fn get_unchecked<I>(&self, index: I) -> &<I as SliceIndex<WStr>>::Output
     where
         I: SliceIndex<WStr>,
     {
@@ -159,7 +138,7 @@ impl WStr {
     ///
     /// Lice [Self::get_mut] but this results in undefined behaviour if the subslice is not
     /// on character boundaries or otherwise invalid.
-    unsafe fn get_unchecked_mut<I>(&mut self, index: I) -> &mut <I as SliceIndex<WStr>>::Output
+    pub unsafe fn get_unchecked_mut<I>(&mut self, index: I) -> &mut <I as SliceIndex<WStr>>::Output
     where
         I: SliceIndex<WStr>,
     {
@@ -167,14 +146,14 @@ impl WStr {
     }
 
     /// Returns an iterator of the [char]s of a string slice.
-    fn chars<'a>(&'a self) -> WStrChars<'a> {
+    pub fn chars<'a>(&'a self) -> WStrChars<'a> {
         WStrChars {
             chunks: self.raw.chunks_exact(2),
         }
     }
 
     /// Returns and iterator over the [char]s of a string slice and their positions.
-    fn char_indices<'a>(&'a self) -> WStrCharIndices<'a> {
+    pub fn char_indices<'a>(&'a self) -> WStrCharIndices<'a> {
         WStrCharIndices {
             chars: self.chars(),
             index: 0,
@@ -182,16 +161,16 @@ impl WStr {
     }
 
     /// Returns the [WStr] as a new owned [String].
-    fn to_utf8(&self) -> String {
+    pub fn to_utf8(&self) -> String {
         self.chars().collect()
     }
 
     /// Returns `true` if all characters in the string are ASCII.
-    fn is_ascii(&self) -> bool {
+    pub fn is_ascii(&self) -> bool {
         self.as_bytes().is_ascii()
     }
 
-    fn mask(&mut self, with: u16) {
+    pub fn mask(&mut self, _with: u16) {
         todo!()
     }
 }
@@ -199,21 +178,20 @@ impl WStr {
 mod private {
     use super::*;
 
-    pub trait Sealed {}
+    pub trait SealedSliceIndex {}
 
-    impl Sealed for RangeFull {}
-    impl Sealed for Range<usize> {}
-    impl Sealed for RangeFrom<usize> {}
-    impl Sealed for RangeTo<usize> {}
-    impl Sealed for RangeInclusive<usize> {}
-    impl Sealed for RangeToInclusive<usize> {}
+    impl SealedSliceIndex for RangeFull {}
+    impl SealedSliceIndex for Range<usize> {}
+    impl SealedSliceIndex for RangeFrom<usize> {}
+    impl SealedSliceIndex for RangeTo<usize> {}
+    impl SealedSliceIndex for RangeInclusive<usize> {}
+    impl SealedSliceIndex for RangeToInclusive<usize> {}
 }
-
 /// Our own version of [std::slice::SliceIndex].
 ///
 /// Since this is a sealed trait, we need to re-define this trait.  This trait itself is
 /// sealed as well.
-trait SliceIndex<T>: private::Sealed
+pub trait SliceIndex<T>: private::SealedSliceIndex
 where
     T: ?Sized,
 {
@@ -544,7 +522,7 @@ where
 ///
 /// The slice must contain valid UTF-16, otherwise this may panic or cause undefined
 /// behaviour.
-struct WStrChars<'a> {
+pub struct WStrChars<'a> {
     chunks: ChunksExact<'a, u8>,
 }
 
@@ -579,7 +557,7 @@ impl<'a> Iterator for WStrChars<'a> {
 ///
 /// The slice must contain valid UTF-16, otherwise this may panic or cause undefined
 /// behaviour.
-struct WStrCharIndices<'a> {
+pub struct WStrCharIndices<'a> {
     chars: WStrChars<'a>,
     index: usize,
 }
@@ -607,6 +585,27 @@ impl AsMut<[u8]> for WStr {
     fn as_mut(&mut self) -> &mut [u8] {
         self.as_bytes_mut()
     }
+}
+
+/// Check that the raw bytes are valid UTF-16LE.
+fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
+    // This could be optimised as it does not need to be actually decoded, just needs to
+    // be a valid byte sequence.
+    if raw.len() % 2 != 0 {
+        return Err(Utf16Error {});
+    }
+    let u16iter = raw.chunks_exact(2).map(|chunk| {
+        let mut buf: [u8; 2] = [0; 2]; // TODO: avoid init
+        buf.copy_from_slice(chunk);
+        u16::from_le_bytes(buf)
+    });
+    for c in std::char::decode_utf16(u16iter) {
+        match c {
+            Ok(_) => (),
+            Err(_) => return Err(Utf16Error {}),
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -683,8 +682,8 @@ mod tests {
     #[test]
     fn test_wstr_as_bytes_mut() {
         let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00"[..]);
-        let mut s = unsafe { WStr::from_utf16le_unchecked_mut(b.as_mut_slice()) };
-        let mut buf = s.as_bytes_mut();
+        let s = unsafe { WStr::from_utf16le_unchecked_mut(b.as_mut_slice()) };
+        let buf = s.as_bytes_mut();
         let world = b"w\x00o\x00r\x00l\x00d\x00";
         buf.copy_from_slice(world);
         std::mem::drop(buf);
@@ -708,10 +707,10 @@ mod tests {
     fn test_wstr_get_mut() {
         // This is implemented with get_unchecked_mut() so this is also already tested.
         let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00"[..]);
-        let mut s = unsafe { WStr::from_utf16le_unchecked_mut(b.as_mut_slice()) };
+        let s = unsafe { WStr::from_utf16le_unchecked_mut(b.as_mut_slice()) };
 
-        let mut t = s.get_mut(0..2).expect("expected Some(&mut Wstr)");
-        let mut buf = t.as_bytes_mut();
+        let t = s.get_mut(0..2).expect("expected Some(&mut Wstr)");
+        let buf = t.as_bytes_mut();
         buf.copy_from_slice(b"x\x00");
 
         assert_eq!(s.as_bytes(), b"x\x00e\x00l\x00l\x00o\x00");
@@ -792,7 +791,7 @@ mod tests {
     #[test]
     fn test_wstr_as_mut() {
         let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00"[..]);
-        let mut s = unsafe { WStr::from_utf16le_unchecked_mut(b.as_mut_slice()) };
+        let s = unsafe { WStr::from_utf16le_unchecked_mut(b.as_mut_slice()) };
         let m: &mut [u8] = s.as_mut();
         let world = b"w\x00o\x00r\x00l\x00d\x00";
         m.copy_from_slice(world);
