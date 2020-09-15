@@ -1,9 +1,22 @@
 //! A UTF-16 little-endian string type.
 
+use std::error::Error;
+use std::fmt;
 use std::ops::{
     Index, IndexMut, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
 };
 use std::slice::ChunksExact;
+
+#[derive(Debug, Copy, Clone)]
+struct Utf16Error {}
+
+impl fmt::Display for Utf16Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Invalid UTF-16LE data in byte slice")
+    }
+}
+
+impl Error for Utf16Error {}
 
 #[derive(Debug, Eq, PartialEq)]
 #[repr(transparent)]
@@ -11,8 +24,42 @@ struct WStr {
     raw: [u8],
 }
 
+/// Check that the raw bytes are valid UTF-16LE.
+fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
+    // This could be optimised as it does not need to be actually decoded, just needs to
+    // be a valid byte sequence.
+    if raw.len() % 2 != 0 {
+        return Err(Utf16Error {});
+    }
+    let u16iter = raw.chunks_exact(2).map(|chunk| {
+        let mut buf: [u8; 2] = [0; 2]; // TODO: avoid init
+        buf.copy_from_slice(chunk);
+        u16::from_le_bytes(buf)
+    });
+    for c in std::char::decode_utf16(u16iter) {
+        match c {
+            Ok(_) => (),
+            Err(_) => return Err(Utf16Error {}),
+        }
+    }
+    Ok(())
+}
+
 impl WStr {
-    /// Create a new WStr from an existing UTF16 little-endian encoded byte-slice.
+    /// Create a new [WStr] from an existing UTF-16 little-endian encoded byte-slice.
+    ///
+    /// If the byte-slice is not valid [DecodeUtf16Error] is returned.
+    fn from_utf16le(raw: &[u8]) -> Result<&Self, Utf16Error> {
+        validate_raw_utf16le(raw)?;
+        Ok(unsafe { Self::from_utf16le_unchecked(raw) })
+    }
+
+    fn from_utf16le_mut(raw: &mut [u8]) -> Result<&mut Self, Utf16Error> {
+        validate_raw_utf16le(raw)?;
+        Ok(unsafe { Self::from_utf16le_unchecked_mut(raw) })
+    }
+
+    /// Create a new [WStr] from an existing UTF-16 little-endian encoded byte-slice.
     ///
     /// You must guarantee that the buffer passed in is encoded correctly otherwise you will
     /// get undefined behaviour.
@@ -567,9 +614,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_wstr_new() {
+    fn test_wstr_from_utf16le() {
+        let b = b"h\x00e\x00l\x00l\x00o\x00";
+        let s = WStr::from_utf16le(b).unwrap();
+        assert_eq!(s.to_utf8(), "hello");
+
+        // Odd number of bytes
+        let b = b"h\x00e\x00l\x00l\x00o";
+        let s = WStr::from_utf16le(b);
+        assert!(s.is_err());
+
+        // Lone leading surrogate
+        let b = b"\x00\xd8x\x00";
+        let s = WStr::from_utf16le(b);
+        assert!(s.is_err());
+
+        // Lone trailing surrogate
+        let b = b"\x00\xdcx\x00";
+        let s = WStr::from_utf16le(b);
+        assert!(s.is_err());
+    }
+
+    #[test]
+    fn test_wstr_from_utf16le_unchecked() {
         let b = b"h\x00e\x00l\x00l\x00o\x00";
         let s = unsafe { WStr::from_utf16le_unchecked(b) };
+        assert_eq!(s.to_utf8(), "hello");
     }
 
     #[test]
