@@ -19,20 +19,6 @@ def test_envelope(mini_sentry, relay_chain):
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
-def get_transaction_item(item):
-    if item.headers.get("type") == "transaction" and item.payload is not None:
-        return json.loads(item.payload.get_bytes())
-    return None
-
-
-def get_transaction(envelope):
-    for item in envelope.items:
-        event = get_transaction_item(item)
-        if event is not None:
-            return event
-    return None
-
-
 def generate_transaction_item():
     return {
         "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
@@ -80,7 +66,7 @@ def test_persist_measurement_interface(mini_sentry, relay_chain):
 
     envelope = mini_sentry.captured_events.get(timeout=1)
 
-    event = get_transaction(envelope)
+    event = envelope.get_transaction_event()
 
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     assert "trace" in event["contexts"]
