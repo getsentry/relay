@@ -48,8 +48,13 @@ def generate_transaction_item():
 
 
 def test_normalize_measurement_interface(mini_sentry, relay_chain):
+
+    # set up relay
+
     relay = relay_chain()
     mini_sentry.project_configs[42] = relay.basic_project_config()
+
+    # construct envelope
 
     transaction_item = generate_transaction_item()
 
@@ -67,15 +72,20 @@ def test_normalize_measurement_interface(mini_sentry, relay_chain):
     envelope = Envelope()
     envelope.add_transaction(transaction_item)
 
+    # ingest envelope
+
     relay.send_envelope(42, envelope)
 
     envelope = mini_sentry.captured_events.get(timeout=1)
 
     event = envelope.get_transaction_event()
 
+    # test actual output
+
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     assert "trace" in event["contexts"]
     assert "measurements" in event, event
+    assert len(event["measurements"]) == 2
     # expect the key "LCP" to be lowercased as part of the normalization
     assert event["measurements"]["lcp"]["value"] == 420.69
     assert event["measurements"]["fid"]["value"] == 2020
@@ -84,8 +94,13 @@ def test_normalize_measurement_interface(mini_sentry, relay_chain):
 
 
 def test_strip_measurement_interface(mini_sentry, relay_chain):
+
+    # set up relay
+
     relay = relay_chain()
     mini_sentry.project_configs[42] = relay.basic_project_config()
+
+    # construct envelope
 
     envelope = Envelope()
     envelope.add_event(
@@ -98,9 +113,14 @@ def test_strip_measurement_interface(mini_sentry, relay_chain):
             },
         }
     )
+
+    # ingest envelope
+
     relay.send_envelope(42, envelope)
 
     event = mini_sentry.captured_events.get(timeout=1).get_event()
+
+    # test actual output
 
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
