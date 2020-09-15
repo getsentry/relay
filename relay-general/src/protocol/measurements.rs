@@ -27,26 +27,6 @@ pub struct Measurement {
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Measurements(pub Object<Measurement>);
 
-impl Measurements {
-    pub fn merge(&mut self, input: Annotated<Measurements>) {
-        let input: Measurements = match input.into_value() {
-            None => {
-                return;
-            }
-            Some(measurements) => measurements,
-        };
-
-        if self.0.is_empty() {
-            self.0 = input.0;
-            return;
-        }
-
-        for (name, measurement) in input.0.into_iter() {
-            self.0.insert(name, measurement);
-        }
-    }
-}
-
 impl FromValue for Measurements {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
