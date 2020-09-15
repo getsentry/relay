@@ -15,6 +15,7 @@
 **Bug Fixes**:
 
 - Send requests to the `/envelope/` endpoint instead of the older `/store/` endpoint. This particularly fixes spurious `413 Payload Too Large` errors returned when using Relay with Sentry SaaS. ([#746](https://github.com/getsentry/relay/pull/746))
+- Remove gh-pages target from Craft ([#776](https://github.com/getsentry/relay/pull/776))
 
 **Internal**:
 
