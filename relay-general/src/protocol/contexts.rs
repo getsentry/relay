@@ -283,7 +283,6 @@ pub type OperationType = String;
 lazy_static::lazy_static! {
     static ref TRACE_ID: Regex = Regex::new("^[a-fA-F0-9]{32}$").unwrap();
     static ref SPAN_ID: Regex = Regex::new("^[a-fA-F0-9]{16}$").unwrap();
-    static ref MEASUREMENT_NAME: Regex = Regex::new("^[a-z0-9-._]+$").unwrap();
 }
 
 /// GPU information.
