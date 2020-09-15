@@ -296,23 +296,6 @@ impl EventProcessor {
             return Ok(());
         }
 
-        let mut measurements = Measurements::default();
-
-        let event_measurements = event
-            .measurements
-            .value_mut()
-            .get_or_insert_with(Measurements::default);
-
-        if event_measurements.0.is_empty() {
-            log::trace!("adding measurements interface");
-            *event_measurements = measurements;
-            return Ok(());
-        }
-
-        log::trace!("merging measurements interface");
-
-        event_measurements.merge(Annotated::new(measurements));
-
         Ok(())
     }
 
