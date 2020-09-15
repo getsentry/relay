@@ -14,14 +14,6 @@ pub struct Measurement {
     pub value: Annotated<f64>,
 }
 
-// impl Measurement {
-//     fn new(value: f64) -> Self {
-//         Measurement {
-//             value: Annotated::new(value),
-//         }
-//     }
-// }
-
 // TODO: need bag_size?
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
@@ -73,8 +65,6 @@ impl FromValue for Measurements {
                             "measurement name to contain only characters a-z0-9-_.",
                         ));
                         meta.set_original_value(Some(raw_name));
-
-                        // TODO: fix this
                     }
 
                     if observed_value.value().is_some() {
@@ -97,17 +87,3 @@ impl FromValue for Measurements {
         }
     }
 }
-
-// impl std::ops::Deref for Measurements {
-//     type Target = Object<Measurement>;
-
-//     fn deref(&self) -> &Self::Target {
-//         &self.0
-//     }
-// }
-
-// impl std::ops::DerefMut for Measurements {
-//     fn deref_mut(&mut self) -> &mut Self::Target {
-//         &mut self.0
-//     }
-// }
