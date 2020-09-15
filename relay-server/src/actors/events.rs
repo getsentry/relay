@@ -18,7 +18,7 @@ use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, LenientString,
-    Measurements, Metrics, SecurityReportType, SessionUpdate, Timestamp, Values,
+    Metrics, SecurityReportType, SessionUpdate, Timestamp, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
