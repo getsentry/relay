@@ -33,8 +33,8 @@ impl FromValue for Measurements {
             Annotated(Some(Value::Object(items)), mut meta) => {
                 let mut measurements = Object::<Measurement>::new();
 
-                for (raw_name, raw_value) in items.into_iter() {
-                    let value: Annotated<f64> = match raw_value {
+                for (raw_name, raw_observed_value) in items.into_iter() {
+                    let observed_value: Annotated<f64> = match raw_observed_value {
                         Annotated(Some(Value::Object(bag)), mut object_meta) => {
                             match bag.get("value") {
                                 Some(Annotated(Some(Value::I64(value)), meta)) => {
@@ -77,9 +77,13 @@ impl FromValue for Measurements {
                         // TODO: fix this
                     }
 
-                    let measurement = Measurement { value };
+                    if observed_value.value().is_some() {
+                        let measurement = Measurement {
+                            value: observed_value,
+                        };
 
-                    measurements.insert(measurement_name, Annotated::new(measurement));
+                        measurements.insert(measurement_name, Annotated::new(measurement));
+                    }
                 }
 
                 Annotated(Some(Measurements(measurements)), meta)
