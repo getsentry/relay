@@ -40,6 +40,8 @@ impl WStr {
 
     /// Create a new [WStr] from an existing UTF-16 little-endian encoded byte-slice.
     ///
+    /// # Safety
+    ///
     /// You must guarantee that the buffer passed in is encoded correctly otherwise you will
     /// get undefined behaviour.
     pub unsafe fn from_utf16le_unchecked(raw: &[u8]) -> &Self {
@@ -47,6 +49,11 @@ impl WStr {
     }
 
     /// Like [Self::from_utf16le_unchecked] but return a mutable reference.
+    ///
+    /// # Safety
+    ///
+    /// You must guarantee that the buffer passed in is encoded correctly otherwise you will
+    /// get undefined behaviour.
     pub unsafe fn from_utf16le_unchecked_mut(raw: &mut [u8]) -> &mut Self {
         &mut *(raw as *mut [u8] as *mut Self)
     }
@@ -125,6 +132,8 @@ impl WStr {
 
     /// Return a subslice of [Self].
     ///
+    /// # Safety
+    ///
     /// Like [Self::get] but this results in undefined behaviour if the sublice is not on
     /// character boundaries or otherwise invalid.
     pub unsafe fn get_unchecked<I>(&self, index: I) -> &<I as SliceIndex<WStr>>::Output
@@ -136,6 +145,8 @@ impl WStr {
 
     /// Return a mutable subslice of [Self].
     ///
+    /// # Safety
+    ///
     /// Lice [Self::get_mut] but this results in undefined behaviour if the subslice is not
     /// on character boundaries or otherwise invalid.
     pub unsafe fn get_unchecked_mut<I>(&mut self, index: I) -> &mut <I as SliceIndex<WStr>>::Output
@@ -146,14 +157,14 @@ impl WStr {
     }
 
     /// Returns an iterator of the [char]s of a string slice.
-    pub fn chars<'a>(&'a self) -> WStrChars<'a> {
+    pub fn chars(&self) -> WStrChars {
         WStrChars {
             chunks: self.raw.chunks_exact(2),
         }
     }
 
     /// Returns and iterator over the [char]s of a string slice and their positions.
-    pub fn char_indices<'a>(&'a self) -> WStrCharIndices<'a> {
+    pub fn char_indices(&self) -> WStrCharIndices {
         WStrCharIndices {
             chars: self.chars(),
             index: 0,
@@ -204,9 +215,19 @@ where
     fn get_mut(self, slice: &mut T) -> Option<&mut Self::Output>;
 
     /// Like [Self::get] but without bounds checking.
+    ///
+    /// # Safety
+    ///
+    /// You must guarantee the resulting slice is valid UTF-16LE, otherwise you will get
+    /// undefined behavour.
     unsafe fn get_unchecked(self, slice: &T) -> &Self::Output;
 
     /// Like [Self::get_mut] but without bounds checking.
+    ///
+    /// # Safety
+    ///
+    /// You must guarantee the resulting slice is valid UTF-16LE, otherwise you will get
+    /// undefined behavour.
     unsafe fn get_unchecked_mut(self, slice: &mut T) -> &mut Self::Output;
 
     /// Returns a shared reference to the output at this location, panicking if out of bounds.
@@ -537,7 +558,7 @@ impl<'a> Iterator for WStrChars<'a> {
         let u = u16::from_le_bytes(buf);
 
         if u < 0xD800 || 0xDFFF < u {
-            Some(unsafe { std::mem::transmute(u as u32) })
+            Some(unsafe { std::char::from_u32_unchecked(u as u32) })
         } else {
             assert!(u < 0xDC00, "u16 not a leading surrogate");
             let chunk = self.chunks.next().expect("missing trailing surrogate");
@@ -548,7 +569,7 @@ impl<'a> Iterator for WStrChars<'a> {
                 "u16 is not a trailing surrogate"
             );
             let c = (((u - 0xD800) as u32) << 10 | (u2 - 0xDC00) as u32) + 0x1_0000;
-            Some(unsafe { std::mem::transmute(c) })
+            Some(unsafe { std::char::from_u32_unchecked(c) })
         }
     }
 }
@@ -686,7 +707,6 @@ mod tests {
         let buf = s.as_bytes_mut();
         let world = b"w\x00o\x00r\x00l\x00d\x00";
         buf.copy_from_slice(world);
-        std::mem::drop(buf);
         assert_eq!(b.as_slice(), world);
     }
 
@@ -729,7 +749,7 @@ mod tests {
     fn test_wstr_bad_index() {
         let b = b"h\x00e\x00l\x00l\x00o\x00";
         let s = unsafe { WStr::from_utf16le_unchecked(b) };
-        &s[2..7];
+        let _r = &s[2..7];
     }
 
     #[test]
