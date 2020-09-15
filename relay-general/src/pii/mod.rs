@@ -12,6 +12,7 @@ mod processor;
 mod redactions;
 mod regexes;
 mod utils;
+mod wstring;
 
 pub use self::attachments::PiiAttachmentsProcessor;
 pub use self::builtin::BUILTIN_RULES;
