@@ -58,7 +58,7 @@ impl FromValue for Measurements {
                         }
                     };
 
-                    let measurement_name = raw_name.to_lowercase();
+                    let measurement_name = raw_name.trim().to_lowercase();
 
                     if !MEASUREMENT_NAME.is_match(&measurement_name) {
                         meta.add_error(Error::expected(
