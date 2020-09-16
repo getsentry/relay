@@ -1,5 +1,5 @@
 [package]
-name = "wstring"
+name = "relay-wstring"
 version = "0.1.0"
 authors = ["Sentry <oss@sentry.io>"]
 repository = "https://github.com/getsentry/relay"

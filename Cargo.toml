@@ -1,5 +1,5 @@
 [workspace]
-members = ["relay", "relay-*", "tools/*", "wstring"]
+members = ["relay", "relay-*", "tools/*"]
 default-members = ["relay"]
 
 [profile.release]

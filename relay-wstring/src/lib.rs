@@ -6,7 +6,7 @@
 //! # Examples
 //!
 //! ```
-//! use wstring::WStr;
+//! use relay_wstring::WStr;
 //!
 //! let b = b"h\x00e\x00l\x00l\x00o\x00";
 //! let s = WStr::from_utf16le(b).unwrap();

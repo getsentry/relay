@@ -3024,6 +3024,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-wstring"
+version = "0.1.0"
+
+[[package]]
 name = "remove_dir_all"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4590,10 +4594,6 @@ dependencies = [
  "winapi 0.2.8",
  "winapi-build",
 ]
-
-[[package]]
-name = "wstring"
-version = "0.1.0"
 
 [[package]]
 name = "xml-rs"
