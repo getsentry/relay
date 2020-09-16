@@ -2,7 +2,9 @@
 
 # NOTE: This file needs to be POSIX-shell compatible. No bash-isms, no zsh-isms, no fish-isms.
 
-if ! cargo fmt -- --help > /dev/null; then
+cargo_fmt="cargo +stable fmt --all --"
+
+if ! $cargo_fmt --help > /dev/null; then
     printf '%b' "\033[33mwarning: cargo fmt not installed\033[0m\n" 1>&2
     exit 0
 fi
@@ -19,7 +21,7 @@ if [ -z "$changed_files" ]; then
 fi
 
 # nullbytes + xargs to pass filenames with spaces correctly to cargo fmt.
-if ! echo "$changed_files" | tr '\n' '\0' | xargs -0 cargo fmt -- --check --color=always; then
+if ! echo "$changed_files" | tr '\n' '\0' | xargs -0 $cargo_fmt --check --color=always; then
     printf '%b' "\n\033[1m\033[2minfo: to fix this run \`cargo fmt --all\` and commit again\033[0m\n" 1>&2
     exit 1
 fi
