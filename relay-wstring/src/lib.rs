@@ -9,7 +9,7 @@
 //! use relay_wstring::WStr;
 //!
 //! let b = b"h\x00e\x00l\x00l\x00o\x00";
-//! let s = WStr::from_utf16le(b).unwrap();
+//! let s: &WStr = WStr::from_utf16le(b).unwrap();
 //!
 //! let chars: Vec<char> = s.chars().collect();
 //! assert_eq!(chars, vec!['h', 'e', 'l', 'l', 'o']);
@@ -17,12 +17,15 @@
 //! assert_eq!(s.to_utf8(), "hello");
 //! ```
 
+#[deny(missing_docs, missing_debug_implementations)]
 use std::error::Error;
 use std::fmt;
-use std::ops::{
-    Index, IndexMut, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
-};
 use std::slice::ChunksExact;
+
+mod slicing;
+
+#[doc(inline)]
+pub use crate::slicing::SliceIndex;
 
 /// Error for invalid UTF-16 encoded bytes.
 #[derive(Debug, Copy, Clone)]
@@ -42,14 +45,14 @@ impl Error for Utf16Error {}
 /// UTF-16LE encoded byte slices.
 ///
 /// See the [module-level documentation](index.html) for some simple examples.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 pub struct WStr {
     raw: [u8],
 }
 
 impl WStr {
-    /// Create a new [WStr] from an existing UTF-16 little-endian encoded byte-slice.
+    /// Create a new `&WStr` from an existing UTF-16 little-endian encoded byte-slice.
     ///
     /// If the byte-slice is not valid [Utf16Error] is returned.
     pub fn from_utf16le(raw: &[u8]) -> Result<&Self, Utf16Error> {
@@ -57,6 +60,9 @@ impl WStr {
         Ok(unsafe { Self::from_utf16le_unchecked(raw) })
     }
 
+    /// Create a new `&mut WStr` from an existing UTF-16 little-endian encoded byte-slice.
+    ///
+    /// If the byte-slice is not valid [Utf16Error] is returned.
     pub fn from_utf16le_mut(raw: &mut [u8]) -> Result<&mut Self, Utf16Error> {
         validate_raw_utf16le(raw)?;
         Ok(unsafe { Self::from_utf16le_unchecked_mut(raw) })
@@ -210,359 +216,6 @@ impl WStr {
     }
 }
 
-mod private {
-    use super::*;
-
-    pub trait SealedSliceIndex {}
-
-    impl SealedSliceIndex for RangeFull {}
-    impl SealedSliceIndex for Range<usize> {}
-    impl SealedSliceIndex for RangeFrom<usize> {}
-    impl SealedSliceIndex for RangeTo<usize> {}
-    impl SealedSliceIndex for RangeInclusive<usize> {}
-    impl SealedSliceIndex for RangeToInclusive<usize> {}
-}
-/// Our own version of [std::slice::SliceIndex].
-///
-/// Since this is a sealed trait, we need to re-define this trait.  This trait itself is
-/// sealed as well.
-pub trait SliceIndex<T>: private::SealedSliceIndex
-where
-    T: ?Sized,
-{
-    type Output: ?Sized;
-
-    /// Returns a shared reference to the output at this location, if in bounds.
-    fn get(self, slice: &T) -> Option<&Self::Output>;
-
-    /// Returns a mutable reference to the output at this location, if in bounds.
-    fn get_mut(self, slice: &mut T) -> Option<&mut Self::Output>;
-
-    /// Like [Self::get] but without bounds checking.
-    ///
-    /// # Safety
-    ///
-    /// You must guarantee the resulting slice is valid UTF-16LE, otherwise you will get
-    /// undefined behavour.
-    unsafe fn get_unchecked(self, slice: &T) -> &Self::Output;
-
-    /// Like [Self::get_mut] but without bounds checking.
-    ///
-    /// # Safety
-    ///
-    /// You must guarantee the resulting slice is valid UTF-16LE, otherwise you will get
-    /// undefined behavour.
-    unsafe fn get_unchecked_mut(self, slice: &mut T) -> &mut Self::Output;
-
-    /// Returns a shared reference to the output at this location, panicking if out of bounds.
-    fn index(self, slice: &T) -> &Self::Output;
-
-    /// Returns a mutable reference to the output at this location, panicking if out of bounds.
-    fn index_mut(self, slice: &mut T) -> &mut Self::Output;
-}
-
-/// Implments substring slicing with syntax `&self[..]` or `&mut self[..]`.\
-///
-/// Unlike other implementations this can never panic.
-impl SliceIndex<WStr> for RangeFull {
-    type Output = WStr;
-
-    #[inline]
-    fn get(self, slice: &WStr) -> Option<&Self::Output> {
-        Some(slice)
-    }
-
-    #[inline]
-    fn get_mut(self, slice: &mut WStr) -> Option<&mut Self::Output> {
-        Some(slice)
-    }
-
-    #[inline]
-    unsafe fn get_unchecked(self, slice: &WStr) -> &Self::Output {
-        slice
-    }
-
-    #[inline]
-    unsafe fn get_unchecked_mut(self, slice: &mut WStr) -> &mut Self::Output {
-        slice
-    }
-
-    #[inline]
-    fn index(self, slice: &WStr) -> &Self::Output {
-        slice
-    }
-
-    #[inline]
-    fn index_mut(self, slice: &mut WStr) -> &mut Self::Output {
-        slice
-    }
-}
-
-/// Implements substring slicing with syntax `&self[begin .. end]` or `&mut self[begin .. end]`.
-impl SliceIndex<WStr> for Range<usize> {
-    type Output = WStr;
-
-    #[inline]
-    fn get(self, slice: &WStr) -> Option<&Self::Output> {
-        if self.start <= self.end
-            && slice.is_char_boundary(self.start)
-            && slice.is_char_boundary(self.end)
-        {
-            Some(unsafe { self.get_unchecked(slice) })
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    fn get_mut(self, slice: &mut WStr) -> Option<&mut Self::Output> {
-        if self.start <= self.end
-            && slice.is_char_boundary(self.start)
-            && slice.is_char_boundary(self.end)
-        {
-            Some(unsafe { self.get_unchecked_mut(slice) })
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    unsafe fn get_unchecked(self, slice: &WStr) -> &Self::Output {
-        let ptr = slice.as_ptr().add(self.start);
-        let len = self.end - self.start;
-        WStr::from_utf16le_unchecked(std::slice::from_raw_parts(ptr, len))
-    }
-
-    #[inline]
-    unsafe fn get_unchecked_mut(self, slice: &mut WStr) -> &mut Self::Output {
-        let ptr = slice.as_mut_ptr().add(self.start);
-        let len = self.end - self.start;
-        WStr::from_utf16le_unchecked_mut(std::slice::from_raw_parts_mut(ptr, len))
-    }
-
-    #[inline]
-    fn index(self, slice: &WStr) -> &Self::Output {
-        self.get(slice).expect("slice index out of bounds")
-    }
-
-    #[inline]
-    fn index_mut(self, slice: &mut WStr) -> &mut Self::Output {
-        self.get_mut(slice).expect("slice index out of bounds")
-    }
-}
-
-/// Implements substring slicing with syntax `&self[.. end]` or `&mut self[.. end]`.
-impl SliceIndex<WStr> for RangeTo<usize> {
-    type Output = WStr;
-
-    #[inline]
-    fn get(self, slice: &WStr) -> Option<&Self::Output> {
-        if slice.is_char_boundary(self.end) {
-            Some(unsafe { self.get_unchecked(slice) })
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    fn get_mut(self, slice: &mut WStr) -> Option<&mut Self::Output> {
-        if slice.is_char_boundary(self.end) {
-            Some(unsafe { self.get_unchecked_mut(slice) })
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    unsafe fn get_unchecked(self, slice: &WStr) -> &Self::Output {
-        let ptr = slice.as_ptr();
-        WStr::from_utf16le_unchecked(std::slice::from_raw_parts(ptr, self.end))
-    }
-
-    #[inline]
-    unsafe fn get_unchecked_mut(self, slice: &mut WStr) -> &mut Self::Output {
-        let ptr = slice.as_mut_ptr();
-        WStr::from_utf16le_unchecked_mut(std::slice::from_raw_parts_mut(ptr, self.end))
-    }
-
-    #[inline]
-    fn index(self, slice: &WStr) -> &Self::Output {
-        self.get(slice).expect("slice index out of bounds")
-    }
-
-    #[inline]
-    fn index_mut(self, slice: &mut WStr) -> &mut Self::Output {
-        self.get_mut(slice).expect("slice index out of bounds")
-    }
-}
-
-/// Implements substring slicing with syntax `&self[begin ..]` or `&mut self[begin ..]`.
-impl SliceIndex<WStr> for RangeFrom<usize> {
-    type Output = WStr;
-
-    #[inline]
-    fn get(self, slice: &WStr) -> Option<&Self::Output> {
-        if slice.is_char_boundary(self.start) {
-            Some(unsafe { self.get_unchecked(slice) })
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    fn get_mut(self, slice: &mut WStr) -> Option<&mut Self::Output> {
-        if slice.is_char_boundary(self.start) {
-            Some(unsafe { self.get_unchecked_mut(slice) })
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    unsafe fn get_unchecked(self, slice: &WStr) -> &Self::Output {
-        let ptr = slice.as_ptr();
-        let len = slice.len() - self.start;
-        WStr::from_utf16le_unchecked(std::slice::from_raw_parts(ptr, len))
-    }
-
-    #[inline]
-    unsafe fn get_unchecked_mut(self, slice: &mut WStr) -> &mut Self::Output {
-        let ptr = slice.as_mut_ptr();
-        let len = slice.len() - self.start;
-        WStr::from_utf16le_unchecked_mut(std::slice::from_raw_parts_mut(ptr, len))
-    }
-
-    #[inline]
-    fn index(self, slice: &WStr) -> &Self::Output {
-        self.get(slice).expect("slice index out of bounds")
-    }
-
-    #[inline]
-    fn index_mut(self, slice: &mut WStr) -> &mut Self::Output {
-        self.get_mut(slice).expect("slice index out of bounds")
-    }
-}
-
-/// Implements substring slicing with syntax `&self[begin ..= end]` or `&mut self[begin ..= end]`.
-impl SliceIndex<WStr> for RangeInclusive<usize> {
-    type Output = WStr;
-
-    #[inline]
-    fn get(self, slice: &WStr) -> Option<&Self::Output> {
-        if *self.end() == usize::MAX {
-            None
-        } else {
-            (*self.start()..self.end() + 1).get(slice)
-        }
-    }
-
-    #[inline]
-    fn get_mut(self, slice: &mut WStr) -> Option<&mut Self::Output> {
-        if *self.end() == usize::MAX {
-            None
-        } else {
-            (*self.start()..self.end() + 1).get_mut(slice)
-        }
-    }
-
-    #[inline]
-    unsafe fn get_unchecked(self, slice: &WStr) -> &Self::Output {
-        (*self.start()..self.end() + 1).get_unchecked(slice)
-    }
-
-    #[inline]
-    unsafe fn get_unchecked_mut(self, slice: &mut WStr) -> &mut Self::Output {
-        (*self.start()..self.end() + 1).get_unchecked_mut(slice)
-    }
-
-    #[inline]
-    fn index(self, slice: &WStr) -> &Self::Output {
-        if *self.end() == usize::MAX {
-            panic!("index overflow");
-        }
-        (*self.start()..self.end() + 1).index(slice)
-    }
-
-    #[inline]
-    fn index_mut(self, slice: &mut WStr) -> &mut Self::Output {
-        if *self.end() == usize::MAX {
-            panic!("index overflow");
-        }
-        (*self.start()..self.end() + 1).index_mut(slice)
-    }
-}
-
-/// Implements substring slicing with syntax `&self[..= end]` or `&mut self[..= end]`.
-impl SliceIndex<WStr> for RangeToInclusive<usize> {
-    type Output = WStr;
-
-    #[inline]
-    fn get(self, slice: &WStr) -> Option<&Self::Output> {
-        if self.end == usize::MAX {
-            None
-        } else {
-            (..self.end + 1).get(slice)
-        }
-    }
-
-    #[inline]
-    fn get_mut(self, slice: &mut WStr) -> Option<&mut Self::Output> {
-        if self.end == usize::MAX {
-            None
-        } else {
-            (..self.end + 1).get_mut(slice)
-        }
-    }
-
-    #[inline]
-    unsafe fn get_unchecked(self, slice: &WStr) -> &Self::Output {
-        (..self.end + 1).get_unchecked(slice)
-    }
-
-    #[inline]
-    unsafe fn get_unchecked_mut(self, slice: &mut WStr) -> &mut Self::Output {
-        (..self.end + 1).get_unchecked_mut(slice)
-    }
-
-    #[inline]
-    fn index(self, slice: &WStr) -> &Self::Output {
-        if self.end == usize::MAX {
-            panic!("index overflow");
-        }
-        (..self.end + 1).index(slice)
-    }
-
-    #[inline]
-    fn index_mut(self, slice: &mut WStr) -> &mut Self::Output {
-        if self.end == usize::MAX {
-            panic!("index overflow");
-        }
-        (..self.end + 1).index_mut(slice)
-    }
-}
-
-impl<I> Index<I> for WStr
-where
-    I: SliceIndex<WStr>,
-{
-    type Output = I::Output;
-
-    #[inline]
-    fn index(&self, index: I) -> &I::Output {
-        index.index(self)
-    }
-}
-
-impl<I> IndexMut<I> for WStr
-where
-    I: SliceIndex<WStr>,
-{
-    #[inline]
-    fn index_mut(&mut self, index: I) -> &mut I::Output {
-        index.index_mut(self)
-    }
-}
-
 /// Iterator yielding `char` from a UTF-16 little-endian encoded byte slice.
 ///
 /// The slice must contain valid UTF-16, otherwise this may panic or cause undefined
@@ -575,7 +228,7 @@ impl<'a> Iterator for WStrChars<'a> {
     type Item = char;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // Our input is valid UTF-16, so we can take a lot of shortcuts.
+        // Our input is valid UTF-16LE, so we can take a lot of shortcuts.
         let chunk = self.chunks.next()?;
         let mut buf: [u8; 2] = [0; 2]; // TODO: avoid init
         buf.copy_from_slice(chunk);
@@ -584,11 +237,11 @@ impl<'a> Iterator for WStrChars<'a> {
         if u < 0xD800 || 0xDFFF < u {
             Some(unsafe { std::char::from_u32_unchecked(u as u32) })
         } else {
-            assert!(u < 0xDC00, "u16 not a leading surrogate");
+            debug_assert!(u < 0xDC00, "u16 not a leading surrogate");
             let chunk = self.chunks.next().expect("missing trailing surrogate");
             buf.copy_from_slice(chunk);
             let u2 = u16::from_le_bytes(buf);
-            assert!(
+            debug_assert!(
                 0xDC00 <= u2 && u2 <= 0xDFFF,
                 "u16 is not a trailing surrogate"
             );
