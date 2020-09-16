@@ -158,4 +158,4 @@ clean-target-dir:
 	virtualenv -p $$RELAY_PYTHON_VERSION .venv
 
 .git/hooks/pre-commit:
-	@cd .git/hooks && ln -sf ../../scripts/git-precommit-hook.py pre-commit
+	@cd .git/hooks && ln -sf ../../scripts/git-precommit-hook pre-commit
