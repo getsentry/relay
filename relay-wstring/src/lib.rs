@@ -39,6 +39,12 @@ impl fmt::Display for Utf16Error {
 
 impl Error for Utf16Error {}
 
+impl Utf16Error {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 /// A UTF-16 [str]-like type with little-endian byte order.
 ///
 /// This mostly behaves like [str] does for UTF-8 encoded bytes slices, but works with
@@ -210,10 +216,6 @@ impl WStr {
     pub fn is_ascii(&self) -> bool {
         self.as_bytes().is_ascii()
     }
-
-    pub fn mask(&mut self, _with: u16) {
-        todo!()
-    }
 }
 
 /// Iterator yielding `char` from a UTF-16 little-endian encoded byte slice.
@@ -290,7 +292,7 @@ fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
     // This could be optimised as it does not need to be actually decoded, just needs to
     // be a valid byte sequence.
     if raw.len() % 2 != 0 {
-        return Err(Utf16Error {});
+        return Err(Utf16Error::new());
     }
     let u16iter = raw.chunks_exact(2).map(|chunk| {
         let mut buf: [u8; 2] = [0; 2]; // TODO: avoid init
@@ -300,7 +302,7 @@ fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
     for c in std::char::decode_utf16(u16iter) {
         match c {
             Ok(_) => (),
-            Err(_) => return Err(Utf16Error {}),
+            Err(_) => return Err(Utf16Error::new()),
         }
     }
     Ok(())

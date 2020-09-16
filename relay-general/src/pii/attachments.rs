@@ -5,6 +5,7 @@ use encoding::all::UTF_16LE;
 use encoding::{Encoding, RawDecoder};
 use regex::bytes::RegexBuilder as BytesRegexBuilder;
 use regex::Regex;
+use relay_wstring::{Utf16Error, WStr};
 use smallvec::SmallVec;
 
 use crate::pii::compiledconfig::RuleRef;
@@ -119,135 +120,173 @@ fn apply_regex_to_utf16_slices(
     regex: &Regex,
     replace_behavior: &ReplaceBehavior,
 ) -> bool {
-    // let mut maybe_segment = Segment::first(data, *UTF_16LE);
-    // while let Some(segment) = maybe_segment {
-    //     let mut matches = Vec::new();
-    //     match replace_behavior {
-    //         ReplaceBehavior::Value => {
-    //             for re_match in regex.find_iter(&segment.decoded) {
-    //                 matches.push(re_match);
-    //             }
-    //         }
-    //         ReplaceBehavior::Groups(ref replace_groups) => {
-    //             for captures in regex.captures_iter(&segment.decoded) {
-    //                 for group_idx in replace_groups.iter() {
-    //                     if let Some(re_match) = captures.get(*group_idx as usize) {
-    //                         matches.push(re_match)
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
+    for segment in MutSegmentIter::new(data, *UTF_16LE) {
+        let mut matches = Vec::new();
+        match replace_behavior {
+            ReplaceBehavior::Value => {
+                for re_match in regex.find_iter(&segment.decoded) {
+                    matches.push(re_match);
+                }
+            }
+            ReplaceBehavior::Groups(ref replace_groups) => {
+                for captures in regex.captures_iter(&segment.decoded) {
+                    for group_idx in replace_groups.iter() {
+                        if let Some(re_match) = captures.get(*group_idx as usize) {
+                            matches.push(re_match)
+                        }
+                    }
+                }
+            }
+        }
 
-    //     let raw_string = unsafe { Utf16LeStr::new_unchecked(segment.get_mut()) };
+        let segment_wstr = unsafe { WStr::from_utf16le_unchecked_mut(segment.raw) };
 
-    //     for re_match in matches.iter() {
-    //             let mut char_offset = 0;
-    //             let mut char_len = 0;
+        for re_match in matches.iter() {
+            let mut segment_char_start = 0;
+            let mut segment_char_end = 0;
+            for (cur_char_offset, (cur_byte_offset, _cur_char)) in
+                segment.decoded.char_indices().enumerate()
+            {
+                if cur_byte_offset == re_match.start() {
+                    segment_char_start = cur_char_offset;
+                }
+                if cur_byte_offset == re_match.end() {
+                    segment_char_end = cur_char_offset;
+                    break;
+                }
+            }
 
-    //             for (cur_char_offset, (cur_byte_offset, c)) in
-    //                 segment.decoded.char_indices().enumerate()
-    //             {
-    //                 if cur_byte_offset == re_match.start() {
-    //                     char_offset = cur_char_offset;
-    //                 }
-    //                 if cur_byte_offset == re_match.end() {
-    //                     char_len = cur_char_offset - char_offset;
-    //                     break;
-    //                 }
-    //             }
+            let mut segment_byte_start = 0;
+            let mut segment_byte_end = 0;
+            for (cur_char_offset, (cur_byte_offset, _cur_char)) in
+                segment_wstr.char_indices().enumerate()
+            {
+                if cur_char_offset == segment_char_start {
+                    segment_byte_start = cur_byte_offset;
+                }
+                if cur_char_offset == segment_char_end {
+                    segment_byte_end = cur_byte_offset;
+                }
+            }
 
-    //             let mut utf16_byte_offset = 0;
-    //             let mut utf16_byte_len = 0;
+            let match_wstr = &mut segment_wstr[segment_byte_start..segment_byte_end];
 
-    //             for (cur_char_offset, (cur_byte_offset, c)) in raw_string.char_indices().enumerate() {
-    //                 if cur_char_offset == char_offset {
-    //                     utf16_byte_offset = cur_byte_offset;
-    //                 }
-    //                 if cur_char_offset == char_offset + char_len {
-    //                     utf16_byte_len = cur_byte_offset - utf16_byte_offset;
-    //                 }
-    //             }
+            const PADDING: char = 'x';
+            const MASK: char = '*';
 
-    //             let start = segment.input_pos.start + utf16_byte_offset;
-    //             let end = start + utf16_byte_len;
-    //             let utf16_match_slice = &mut data[start..end];
-
-    //             const DEFAULT_PADDING_UTF16: [u8; 2] = [b'x', b'\x00'];
-    //             // ASCII characters can be simply casted to u16
-    //             const DEFAULT_PADDING_U8: u8 = b'x';
-    //             const MASK_PADDING: u8 = b'*';
-
-    //             match rule.redaction {
-    //                 Redaction::Default | Redaction::Remove => {
-    //                     for c in utf16_match_slice.chunks_exact_mut(2) {
-    //                         *c.get_mut(0).unwrap() = DEFAULT_PADDING_UTF16[0];
-    //                         *c.get_mut(1).unwrap() = DEFAULT_PADDING_UTF16[1];
-    //                     }
-    //                 }
-    //                 Redaction::Mask => {
-    //                     for bb in utf16_match_slice.chunks_exact_mut(2) {
-    //                         *bb.get_mut(0).unwrap() = MASK_PADDING;
-    //                         *bb.get_mut(1).unwrap() = b'\x00';
-    //                     }
-    //                 }
-    //                 Redaction::Hash => {
-    //                     // Note, we are hashing bytes containing utf16, not utf8.
-    //                     let hashed = hash_value(utf16_match_slice);
-    //                     replace_utf16_bytes_padded(
-    //                         hashed.as_str(),
-    //                         &mut utf16_match_slice[..],
-    //                         DEFAULT_PADDING_U8 as u16,
-    //                     );
-    //                 }
-    //                 Redaction::Replace(ref replace) => {
-    //                     replace_utf16_bytes_padded(
-    //                         replace.text.as_str(),
-    //                         utf16_match_slice,
-    //                         DEFAULT_PADDING_U8 as u16,
-    //                     );
-    //                 }
-    //             }
-    //     }
-
-    //     maybe_segment = segment.next()
-    // }
+            match rule.redaction {
+                Redaction::Default | Redaction::Remove => {
+                    match_wstr.fill_content(PADDING).unwrap();
+                }
+                Redaction::Mask => {
+                    match_wstr.fill_content(MASK).unwrap();
+                }
+                Redaction::Hash => {
+                    // Note: we are hashing bytes containing utf16, not utf8.
+                    let hashed = hash_value(match_wstr.as_bytes());
+                    match_wstr.swap_content(&hashed, PADDING).unwrap();
+                }
+                Redaction::Replace(ref replace) => {
+                    match_wstr
+                        .swap_content(replace.text.as_str(), PADDING)
+                        .unwrap();
+                }
+            }
+        }
+    }
     true // eh?
 }
 
-fn replace_utf16_bytes_padded(source: &str, target: &mut [u8], padding: u16) {
-    let target_len = target.len();
-    let mut target_offset = 0;
-    for code in source.encode_utf16() {
-        // Consider iterating over chars instead and use utf16_len() which avoids hardcoding
-        // codec knowledge.
-        let byte_len = if 0xD800 & code == 0xD800 {
-            // let byte_len = if 0xD800 <= code && code <= 0xDBFF {
-            4 // high or leading surrogate
-        } else {
-            2
-        };
-        if (target_len - target_offset) < byte_len {
-            break;
+/// Traits to modify the strings in ways we need.
+trait StringMods {
+    type Error;
+
+    /// Replace this string's contents by repeating the given character into it.
+    ///
+    /// If the string's `len` (its length in bytes) is not a multiple of the number of bytes
+    /// which the given character encodes as, `Err` is returned.  In most encodings you can
+    /// avoid this by using an ASCII replacement character.
+    fn fill_content(&mut self, fill_char: char) -> Result<(), Self::Error>;
+
+    /// Replace this string's contents with the given replacement string.
+    ///
+    /// If the replacement string encodes to a shorter byte-slice than the current string
+    /// any remaining space will be filled with the padding character.
+    ///
+    /// If the replacement string encodes to a longer byte-slice than the current string the
+    /// replacement string is truncated.  If this does not align with a character boundary
+    /// in the replacement string it is further trucated to the previous character boundary
+    /// and the remainder is filled with the padding char.
+    ///
+    /// If the combination of the possibly truncated replacement string plus the padding
+    /// character can not match the byte-slice of the current string `Err` is returned.
+    fn swap_content(&mut self, replacement: &str, padding: char) -> Result<(), Self::Error>;
+}
+
+impl StringMods for WStr {
+    type Error = Utf16Error;
+
+    fn fill_content(&mut self, fill_char: char) -> Result<(), Self::Error> {
+        let size = std::mem::size_of::<u16>();
+
+        if fill_char.len_utf16() == 2 {
+            if (self.len() / size) % 2 != 0 {
+                return Err(Utf16Error::new());
+            }
         }
-        for byte in code.to_le_bytes().iter() {
-            target[target_offset] = *byte;
-            target_offset += 1;
+
+        let mut buf = [0u16; 2];
+        let fill_u16 = fill_char.encode_utf16(&mut buf[..]);
+        let mut fill_bytes: Vec<u8> = Vec::with_capacity(fill_u16.len() * size);
+        for code in fill_u16 {
+            fill_bytes.extend_from_slice(&code.to_le_bytes());
         }
+
+        debug_assert!(
+            self.len() % fill_bytes.len() == 0,
+            "string size not multiple of fill size"
+        );
+        let chunks = self.as_bytes_mut().chunks_exact_mut(fill_bytes.len());
+        for chunk in chunks {
+            chunk.copy_from_slice(fill_bytes.as_slice());
+        }
+
+        Ok(())
     }
 
-    while target_offset < target_len - 1 {
-        for byte in padding.to_le_bytes().iter() {
-            target[target_offset] = *byte;
-            target_offset += 1;
+    fn swap_content(&mut self, replacement: &str, padding: char) -> Result<(), Self::Error> {
+        // WARNING: This implementation writes to the current string before it knows things
+        // will work out.  That is incorrect!
+        let size = std::mem::size_of::<u16>();
+        let len = self.len();
+        let mut offset = 0;
+        for code in replacement.encode_utf16() {
+            let char_len = if 0xD800 & code == 0xD800 {
+                size * 2 // leading surrogate
+            } else {
+                size
+            };
+            if (len - offset) < char_len {
+                break; // Not enough space for this char
+            }
+            let target = &mut self.as_bytes_mut()[offset..offset + size];
+            target.copy_from_slice(&code.to_le_bytes());
+            offset += size;
         }
+
+        // Our current WStr could be invalid UTF-16LE at this point, up to the current
+        // offset it is valid, but afterwards is may not be.  So we can not just slice
+        // ourselves and must slice the raw bytes, creating a new WStr with them.  This new
+        // WStr could be invalid, but after we called .fill_content() it will be valid.
+        let remainder_bytes = &mut self.as_bytes_mut()[offset..];
+        let remainder = unsafe { WStr::from_utf16le_unchecked_mut(remainder_bytes) };
+        remainder.fill_content(padding)
     }
 }
 
 struct MutSegmentIter<'a> {
     data: &'a mut [u8],
     decoder: Box<dyn RawDecoder>,
-    encoding: &'static str,
     offset: usize,
 }
 
@@ -256,7 +295,6 @@ impl<'a> MutSegmentIter<'a> {
         Self {
             data,
             decoder: encoding.raw_decoder(),
-            encoding: encoding.name(),
             offset: 0,
         }
     }
@@ -290,8 +328,7 @@ impl<'a> Iterator for MutSegmentIter<'a> {
                 }
                 if decoded.len() > 2 {
                     return Some(MutSegment {
-                        data: unsafe { std::mem::transmute(&mut self.data[start..end]) },
-                        encoding: self.encoding,
+                        raw: unsafe { std::mem::transmute(&mut self.data[start..end]) },
                         decoded,
                     });
                 } else {
@@ -301,8 +338,7 @@ impl<'a> Iterator for MutSegmentIter<'a> {
                 self.offset += unprocessed_offset;
                 if decoded.len() > 2 {
                     return Some(MutSegment {
-                        data: unsafe { std::mem::transmute(&mut self.data[start..end]) },
-                        encoding: self.encoding,
+                        raw: unsafe { std::mem::transmute(&mut self.data[start..end]) },
                         decoded,
                     });
                 } else {
@@ -324,147 +360,11 @@ impl<'a> FusedIterator for MutSegmentIter<'a> {}
 /// While the `data` field is mutable, after mutating this the string in `decoded` will no
 /// longer match.
 struct MutSegment<'a> {
-    /// The raw data of this segment.
-    data: &'a mut [u8],
-    /// The name of the encoding for this segment.
-    encoding: &'static str,
+    /// The raw bytes of this segment.
+    raw: &'a mut [u8],
     /// The decoded string of this segment.
     decoded: String,
 }
-
-// /// An encoded string segment in a larger data block.
-// ///
-// /// The slice of data will contain the entire block which will be valid according to the
-// /// encoding.
-// ///
-// /// This kind of behaves like an iterator, but because you are allowed to mutate the result
-// /// the entire iterator state is contained in the yielded item itself.  Create the first
-// /// item using [Segment::first] and then continue getting the next elements using
-// /// [Segment::next].
-// struct Segment<'a> {
-//     /// The decoder state which needs to be carried from one segment to the next.
-//     ///
-//     /// This also keeps the reference to the raw data.
-//     decoder: SegmentDecoder<'a>,
-//     /// The decoded string of this segment.
-//     decoded: String,
-//     /// The range of the segment in the raw data stored in the [decoder] field.
-//     range: Range<usize>,
-// }
-
-// impl<'a> Segment<'a> {
-//     /// Create the first segment found in `data`.
-//     fn first(data: &'a mut [u8], encoding: impl Encoding) -> Option<Self> {
-//         let data_len = data.len();
-//         let mut decoder = SegmentDecoder {
-//             data,
-//             decoder: encoding.raw_decoder(),
-//             encoding: encoding.name(),
-//             offset: 0,
-//         };
-//         let mut decoded = String::with_capacity(data_len);
-//         decoder.next(&mut decoded).map(|range| Segment {
-//             decoder,
-//             decoded,
-//             range,
-//         })
-//     }
-
-//     /// Consume this segment and return the next one found in the underlying data.
-//     fn next(mut self) -> Option<Self> {
-//         self.decoder.next(&mut self.decoded).map(|range| Segment {
-//             decoder: self.decoder,
-//             decoded: self.decoded,
-//             range,
-//         })
-//     }
-
-//     /// The name of the encoding the data in this segment is encoded with.
-//     ///
-//     /// This is the name of the encoder passed into [Segment::first].
-//     fn encoding(&self) -> &'static str {
-//         &self.decoder.encoding
-//     }
-
-//     /// The originally decoded data.
-//     ///
-//     /// Be aware that if the data in the segment is modified may be no longer correct.
-//     // Consider making this an option?  Make it decode on the fly?
-//     fn decoded(&self) -> &str {
-//         &self.decoded
-//     }
-
-//     /// Get the slice of the segment.
-//     ///
-//     /// While you get raw bytes, you can be guaranteed that these bytes are valid according
-//     /// to the encoding the [Segment] was initialy created with (see also
-//     /// [Segment::encoding]).
-//     fn get(&self) -> &[u8] {
-//         &self.decoder.data[self.range.clone()]
-//     }
-
-//     /// Get the slice of the segment, mutable.
-//     ///
-//     /// As for [Segment::get] you are guaranteed the data is validly encoded.  You should
-//     /// uphold this property when mutating, though it is not required for the proceeding
-//     /// segments which will remain correct regardless.
-//     ///
-//     /// Be aware that mutating this slice means [Segment::decoded] will no longer return the
-//     /// correct version.
-//     fn get_mut(&mut self) -> &mut [u8] {
-//         &mut self.decoder.data[self.range.clone()]
-//     }
-// }
-
-// /// Internal state for the [Segment] "iterator", do not use directly.
-// struct SegmentDecoder<'a> {
-//     data: &'a mut [u8],
-//     decoder: Box<dyn RawDecoder>,
-//     encoding: &'static str,
-//     offset: usize,
-// }
-
-// impl<'a> SegmentDecoder<'a> {
-//     fn next(&mut self, writer: &mut String) -> Option<Range<usize>> {
-//         loop {
-//             if self.offset >= self.data.len() {
-//                 return None;
-//             }
-
-//             writer.clear();
-//             let start = self.offset;
-//             let (unprocessed_offset, err) = self.decoder.raw_feed(&self.data[start..], writer);
-//             let end = start + unprocessed_offset;
-//             dbg!(&start);
-//             dbg!(&end);
-//             dbg!(&unprocessed_offset);
-//             dbg!(&writer);
-
-//             if let Some(err) = err {
-//                 if err.upto > 0 {
-//                     self.offset += err.upto as usize;
-//                 } else {
-//                     // This should never happen, but if it does, re-set the decoder and skip
-//                     // forward to the next 2 bytes.
-//                     self.offset += std::mem::size_of::<u16>(); // TODO: encoding-neutral?!?
-//                     self.decoder = self.decoder.from_self();
-//                 }
-//                 if writer.len() > 2 {
-//                     return Some(Range { start, end });
-//                 } else {
-//                     continue;
-//                 }
-//             } else {
-//                 self.offset += unprocessed_offset;
-//                 if writer.len() > 2 {
-//                     return Some(Range { start, end });
-//                 } else {
-//                     return None;
-//                 }
-//             }
-//         }
-//     }
-// }
 
 /// A PII processor for attachment files.
 pub struct PiiAttachmentsProcessor<'a> {
@@ -825,9 +725,8 @@ mod tests {
         let mut iter = MutSegmentIter::new(&mut data[..], *UTF_16LE);
 
         let segment = iter.next().unwrap();
-        assert_eq!(segment.encoding, "utf-16le");
         assert_eq!(segment.decoded, "hello");
-        assert_eq!(segment.data, b"h\x00e\x00l\x00l\x00o\x00");
+        assert_eq!(segment.raw, b"h\x00e\x00l\x00l\x00o\x00");
 
         assert!(iter.next().is_none());
     }
@@ -839,7 +738,7 @@ mod tests {
 
         let segment = iter.next().unwrap();
         assert_eq!(segment.decoded, "hello");
-        assert_eq!(segment.data, b"h\x00e\x00l\x00l\x00o\x00");
+        assert_eq!(segment.raw, b"h\x00e\x00l\x00l\x00o\x00");
 
         assert!(iter.next().is_none());
     }
@@ -851,7 +750,7 @@ mod tests {
 
         let segment = iter.next().unwrap();
         segment
-            .data
+            .raw
             .copy_from_slice(&b"w\x00o\x00r\x00l\x00d\x00"[..]);
 
         assert!(iter.next().is_none());

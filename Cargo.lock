@@ -2929,6 +2929,7 @@ dependencies = [
  "regex",
  "relay-common",
  "relay-general-derive",
+ "relay-wstring",
  "schemars",
  "serde",
  "serde_json",
