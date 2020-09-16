@@ -101,60 +101,6 @@ def test_broken_json():
         assert event["logentry"]["formatted"] != bad_str
 
 
-def test_data_scrubbing_missing_config():
-    event = {"extra": PII_VARS}
-    config = None
-
-    scrubbed = sentry_relay.scrub_event(config, event)
-    assert event == scrubbed
-
-
-def test_data_scrubbing_empty_config():
-    event = {"extra": PII_VARS}
-    config = {}
-
-    scrubbed = sentry_relay.scrub_event(config, event)
-    assert event == scrubbed
-
-
-def test_data_scrubbing_disabled_config():
-    event = {"extra": PII_VARS}
-    config = {
-        "scrubData": False,
-        "excludeFields": [],
-        "scrubIpAddresses": False,
-        "sensitiveFields": [],
-        "scrubDefaults": True,
-    }
-
-    scrubbed = sentry_relay.scrub_event(config, event)
-    assert event == scrubbed
-
-
-def test_data_scrubbing_default_config():
-    event = {"extra": PII_VARS}
-    config = {
-        "scrubData": True,
-        "excludeFields": [],
-        "scrubIpAddresses": True,
-        "sensitiveFields": [],
-        "scrubDefaults": True,
-    }
-
-    scrubbed = sentry_relay.scrub_event(config, event)
-    assert scrubbed.pop("_meta", None)
-    assert scrubbed == {
-        "extra": {
-            "foo": "bar",
-            "password": "[Filtered]",
-            "the_secret": "[Filtered]",
-            "a_password_here": "[Filtered]",
-            "api_key": "[Filtered]",
-            "apiKey": "[Filtered]",
-        }
-    }
-
-
 def test_validate_pii_config():
     sentry_relay.validate_pii_config("{}")
     sentry_relay.validate_pii_config('{"applications": {}}')

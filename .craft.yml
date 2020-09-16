@@ -9,7 +9,6 @@ statusProvider:
 
 targets:
   - name: github
-  - name: gh-pages
   - name: registry
     type: app
     urlTemplate: "https://downloads.sentry-cdn.com/relay/{{version}}/{{file}}"
