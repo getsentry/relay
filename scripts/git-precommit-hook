@@ -2,26 +2,42 @@
 
 # NOTE: This file needs to be POSIX-shell compatible. No bash-isms, no zsh-isms, no fish-isms.
 
-cargo_fmt="cargo +stable fmt --all --"
-
-if ! $cargo_fmt --help > /dev/null; then
-    printf '%b' "\033[33mwarning: cargo fmt not installed\033[0m\n" 1>&2
-    exit 0
-fi
-
 if ! which grep > /dev/null; then
     printf '%b' "\033[33mwarning: grep not installed\033[0m\n" 1>&2
     exit 0
 fi
 
-changed_files="`git diff-index --cached --name-only HEAD | grep \\.rs$`"
+# () instead of {} for subshell and local scoping
+check_changed_files() (
+    fileext="$1"; shift
 
-if [ -z "$changed_files" ]; then
-    exit 0
+    changed_files="`git diff-index --cached --name-only HEAD | grep \\.$fileext$`"
+
+    if [ -z "$changed_files" ]; then
+        exit 0
+    fi
+
+    # nullbytes + xargs to pass filenames with spaces correctly to cargo fmt.
+    if echo "$changed_files" | tr '\n' '\0' | xargs -0 $@; then
+        exit 0
+    fi
+
+    printf '%b' "\n\033[1m\033[2minfo: to fix this run \`make format\` and commit again\033[0m\n" 1>&2
+    exit 1
+)
+
+cargo_fmt="cargo +stable fmt --all --"
+
+if ! $cargo_fmt --help > /dev/null; then
+    printf '%b' "\033[33mwarning: cargo fmt not installed\033[0m\n" 1>&2
+else
+    check_changed_files rs $cargo_fmt --check --color=always || exit 1
 fi
 
-# nullbytes + xargs to pass filenames with spaces correctly to cargo fmt.
-if ! echo "$changed_files" | tr '\n' '\0' | xargs -0 $cargo_fmt --check --color=always; then
-    printf '%b' "\n\033[1m\033[2minfo: to fix this run \`cargo fmt --all\` and commit again\033[0m\n" 1>&2
-    exit 1
+black="black"
+
+if ! $black --help > /dev/null; then
+    printf '%b' "\033[33mwarning: black not installed\033[0m\n" 1>&2
+else
+    check_changed_files py $black --check --diff || exit 1
 fi
