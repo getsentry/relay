@@ -490,12 +490,12 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         // Normalize connected attributes and interfaces
-        self.normalize_measurements(event);
         self.normalize_release_dist(event);
         self.normalize_timestamps(event, meta, state)?;
         self.normalize_event_tags(event)?;
         self.normalize_exceptions(event)?;
         self.normalize_user_agent(event);
+        self.normalize_measurements(event);
 
         Ok(())
     }
