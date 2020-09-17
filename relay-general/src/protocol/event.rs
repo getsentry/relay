@@ -468,7 +468,10 @@ pub struct Event {
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub spans: Annotated<Array<Span>>,
 
-    /// Measurements
+    /// Measurements which holds observed values such as web vitals.
+    ///
+    /// Measurements are only available on transactions. They contain measurement values of observed
+    /// values such as Largest Contentful Paint (LCP).
     #[metastructure(skip_serialization = "empty")]
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub measurements: Annotated<Measurements>,
