@@ -354,24 +354,24 @@ mod tests {
     #[test]
     fn test_wstr_len() {
         let b = b"h\x00e\x00l\x00l\x00o\x00";
-        let s = unsafe { WStr::from_utf16le_unchecked(b) };
+        let s = WStr::from_utf16le(b).unwrap();
         assert_eq!(s.len(), b.len());
     }
 
     #[test]
     fn test_wstr_is_empty() {
         let b = b"h\x00e\x00l\x00l\x00o\x00";
-        let s = unsafe { WStr::from_utf16le_unchecked(b) };
+        let s = WStr::from_utf16le(b).unwrap();
         assert!(!s.is_empty());
 
-        let s = unsafe { WStr::from_utf16le_unchecked(b"") };
+        let s = WStr::from_utf16le(b"").unwrap();
         assert!(s.is_empty());
     }
 
     #[test]
     fn test_wstr_is_char_boundary() {
         let b = b"\x00\xd8\x00\xdcx\x00"; // "\u{10000}\u{78}"
-        let s = unsafe { WStr::from_utf16le_unchecked(b) };
+        let s = WStr::from_utf16le(b).unwrap();
         assert!(s.is_char_boundary(0));
         assert!(!s.is_char_boundary(1));
         assert!(!s.is_char_boundary(2));
@@ -385,14 +385,14 @@ mod tests {
     #[test]
     fn test_wstr_as_bytes() {
         let b = b"h\x00e\x00l\x00l\x00o\x00";
-        let s = unsafe { WStr::from_utf16le_unchecked(b) };
+        let s = WStr::from_utf16le(b).unwrap();
         assert_eq!(s.as_bytes(), b);
     }
 
     #[test]
     fn test_wstr_as_bytes_mut() {
         let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00"[..]);
-        let s = unsafe { WStr::from_utf16le_unchecked_mut(b.as_mut_slice()) };
+        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
         let buf = s.as_bytes_mut();
         let world = b"w\x00o\x00r\x00l\x00d\x00";
         buf.copy_from_slice(world);
@@ -403,7 +403,7 @@ mod tests {
     fn test_wstr_get() {
         // This is implemented with get_unchecked() so this is also already tested.
         let b = b"h\x00e\x00l\x00l\x00o\x00";
-        let s = unsafe { WStr::from_utf16le_unchecked(b) };
+        let s = WStr::from_utf16le(b).unwrap();
 
         let t = s.get(0..8).expect("expected Some(&WStr)");
         assert_eq!(t.as_bytes(), b"h\x00e\x00l\x00l\x00");
@@ -416,7 +416,7 @@ mod tests {
     fn test_wstr_get_mut() {
         // This is implemented with get_unchecked_mut() so this is also already tested.
         let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00"[..]);
-        let s = unsafe { WStr::from_utf16le_unchecked_mut(b.as_mut_slice()) };
+        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
 
         let t = s.get_mut(0..2).expect("expected Some(&mut Wstr)");
         let buf = t.as_bytes_mut();
@@ -428,7 +428,7 @@ mod tests {
     #[test]
     fn test_wstr_slice() {
         let b = b"h\x00e\x00l\x00l\x00o\x00";
-        let s = unsafe { WStr::from_utf16le_unchecked(b) };
+        let s = WStr::from_utf16le(b).unwrap();
         let sub = &s[2..8];
         assert_eq!(sub.as_bytes(), b"e\x00l\x00l\x00");
     }
@@ -437,19 +437,19 @@ mod tests {
     #[should_panic]
     fn test_wstr_bad_index() {
         let b = b"h\x00e\x00l\x00l\x00o\x00";
-        let s = unsafe { WStr::from_utf16le_unchecked(b) };
+        let s = WStr::from_utf16le(b).unwrap();
         let _r = &s[2..7];
     }
 
     #[test]
     fn test_wstr_chars() {
         let b = b"h\x00e\x00l\x00l\x00o\x00";
-        let s = unsafe { WStr::from_utf16le_unchecked(b) };
+        let s = WStr::from_utf16le(b).unwrap();
         let chars: Vec<char> = s.chars().collect();
         assert_eq!(chars, vec!['h', 'e', 'l', 'l', 'o']);
 
         let b = b"\x00\xd8\x00\xdcx\x00";
-        let s = unsafe { WStr::from_utf16le_unchecked(b) };
+        let s = WStr::from_utf16le(b).unwrap();
         let chars: Vec<char> = s.chars().collect();
         assert_eq!(chars, vec!['\u{10000}', 'x']);
     }
@@ -457,7 +457,7 @@ mod tests {
     #[test]
     fn test_wstr_char_indices() {
         let b = b"h\x00e\x00l\x00l\x00o\x00";
-        let s = unsafe { WStr::from_utf16le_unchecked(b) };
+        let s = WStr::from_utf16le(b).unwrap();
         let chars: Vec<(usize, char)> = s.char_indices().collect();
         assert_eq!(
             chars,
@@ -465,7 +465,7 @@ mod tests {
         );
 
         let b = b"\x00\xd8\x00\xdcx\x00";
-        let s = unsafe { WStr::from_utf16le_unchecked(b) };
+        let s = WStr::from_utf16le(b).unwrap();
         let chars: Vec<(usize, char)> = s.char_indices().collect();
         assert_eq!(chars, vec![(0, '\u{10000}'), (4, 'x')]);
     }
@@ -473,7 +473,7 @@ mod tests {
     #[test]
     fn test_wstr_to_utf8() {
         let b = b"h\x00e\x00l\x00l\x00o\x00";
-        let s = unsafe { WStr::from_utf16le_unchecked(b) };
+        let s = WStr::from_utf16le(b).unwrap();
         let out: String = s.to_utf8();
         assert_eq!(out, "hello");
     }
@@ -481,18 +481,18 @@ mod tests {
     #[test]
     fn test_wstr_is_ascii() {
         let b = b"h\x00e\x00l\x00l\x00o\x00";
-        let s = unsafe { WStr::from_utf16le_unchecked(b) };
+        let s = WStr::from_utf16le(b).unwrap();
         assert!(s.is_ascii());
 
         let b = b"\x00\xd8\x00\xdcx\x00";
-        let s = unsafe { WStr::from_utf16le_unchecked(b) };
+        let s = WStr::from_utf16le(b).unwrap();
         assert!(!s.is_ascii());
     }
 
     #[test]
     fn test_wstr_as_ref() {
         let b = b"h\x00e\x00l\x00l\x00o\x00";
-        let s = unsafe { WStr::from_utf16le_unchecked(b) };
+        let s = WStr::from_utf16le(b).unwrap();
         let r: &[u8] = s.as_ref();
         assert_eq!(r, b);
     }
@@ -500,7 +500,7 @@ mod tests {
     #[test]
     fn test_wstr_as_mut() {
         let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00"[..]);
-        let s = unsafe { WStr::from_utf16le_unchecked_mut(b.as_mut_slice()) };
+        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
         let m: &mut [u8] = s.as_mut();
         let world = b"w\x00o\x00r\x00l\x00d\x00";
         m.copy_from_slice(world);
