@@ -74,7 +74,8 @@ def mini_sentry(request):
             return False
         return relay_id in project_config["config"]["trustedRelays"]
 
-    def get_error_message(data):
+    def get_error_message(event):
+        data = json.loads(event)
         exceptions = data.get("exception", {}).get("values", [])
         exc_msg = (exceptions[0] or {}).get("value")
         message = data.get("message", {}).get("formatted")
@@ -112,15 +113,18 @@ def mini_sentry(request):
         assert relay_id in authenticated_relays
         return jsonify({"relay_id": relay_id})
 
-    @app.route("/api/666/envelope/", methods=["POST"])
+    @app.route("/api/666/store/", methods=["POST"])
     def store_internal_error_event():
-        envelope = Envelope.deserialize(flask_request.data)
-        event = envelope.get_event()
-
-        if event is not None:
-            error = AssertionError("Relay sent us event: " + get_error_message(event))
-            sentry.test_failures.append(("/api/666/envelope/", error))
-
+        sentry.test_failures.append(
+            (
+                "/api/666/store/",
+                AssertionError(
+                    "Relay sent us event: {}".format(
+                        get_error_message(flask_request.data)
+                    ),
+                ),
+            )
+        )
         return jsonify({"event_id": uuid.uuid4().hex})
 
     @app.route("/api/42/envelope/", methods=["POST"])

@@ -2,7 +2,6 @@ use std::env;
 use std::io;
 use std::io::Write;
 use std::mem;
-use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use failure::{err_msg, Error};
@@ -56,6 +55,28 @@ pub fn dump_credentials(config: &Config) {
 
 /// Initialize the logging system.
 pub fn init_logging(config: &Config) {
+    let guard = sentry::init(sentry::ClientOptions {
+        dsn: config
+            .sentry_dsn()
+            .map(|dsn| dsn.to_string().parse().unwrap()),
+        in_app_include: vec![
+            "relay_common::",
+            "relay_auth::",
+            "relay_common::",
+            "relay_config::",
+            "relay_filter::",
+            "relay_general::",
+            "relay_quotas::",
+            "relay_redis::",
+            "relay_server::",
+            "relay::",
+        ],
+        release: sentry::release_name!(),
+        ..Default::default()
+    });
+
+    mem::forget(guard);
+
     if config.enable_backtraces() {
         env::set_var("RUST_BACKTRACE", "1");
     }
@@ -164,36 +185,18 @@ pub fn init_logging(config: &Config) {
     };
 
     let log = Box::new(log_builder.build());
+    let global_filter = log.filter();
 
-    let log_integration = sentry::integrations::log::LogIntegration {
-        global_filter: Some(log.filter()),
-        attach_stacktraces: config.enable_backtraces(),
-        dest_log: Some(log),
-        ..Default::default()
-    };
+    sentry::integrations::log::init(
+        Some(log),
+        sentry::integrations::log::LoggerOptions {
+            global_filter: Some(global_filter),
+            attach_stacktraces: config.enable_backtraces(),
+            ..Default::default()
+        },
+    );
 
-    let guard = sentry::init(sentry::ClientOptions {
-        dsn: config
-            .sentry_dsn()
-            .map(|dsn| dsn.to_string().parse().unwrap()),
-        in_app_include: vec![
-            "relay_auth::",
-            "relay_common::",
-            "relay_config::",
-            "relay_filter::",
-            "relay_general::",
-            "relay_quotas::",
-            "relay_redis::",
-            "relay_server::",
-            "relay::",
-        ],
-        release: sentry::release_name!(),
-        integrations: vec![Arc::new(log_integration)],
-        ..Default::default()
-    });
-
-    // Keep the client initialized. The client is flushed manually in `main`.
-    mem::forget(guard);
+    sentry::integrations::panic::register_panic_handler();
 }
 
 /// Initialize the metric system.
