@@ -10,7 +10,7 @@ lazy_static::lazy_static! {
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Measurement {
     /// Value of observed measurement value
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(required = "true", skip_serialization = "empty")]
     pub value: Annotated<f64>,
 }
 
