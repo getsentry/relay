@@ -4,7 +4,7 @@ use std::iter::FusedIterator;
 use encoding::all::UTF_16LE;
 use encoding::{Encoding, RawDecoder};
 use regex::bytes::RegexBuilder as BytesRegexBuilder;
-use regex::Regex;
+use regex::{Match, Regex};
 use relay_wstring::{Utf16Error, WStr};
 use smallvec::SmallVec;
 
@@ -114,87 +114,90 @@ fn apply_regex_to_bytes(
     true
 }
 
+/// Scrub a single regex match.
+///
+/// This doesn't care if the match is a group or the entire match, the scrubbing behaviour
+/// is the same.
+fn scrub_match(all_text: &str, re_match: Match, redaction: &Redaction, all_encoded: &mut WStr) {
+    let mut segment_char_start = 0;
+    let mut segment_char_end = 0;
+    for (cur_char_offset, (cur_byte_offset, _cur_char)) in all_text.char_indices().enumerate() {
+        if cur_byte_offset == re_match.start() {
+            segment_char_start = cur_char_offset;
+        }
+        if cur_byte_offset == re_match.end() {
+            segment_char_end = cur_char_offset;
+            break;
+        }
+    }
+
+    let mut segment_byte_start = 0;
+    let mut segment_byte_end = 0;
+    for (cur_char_offset, (cur_byte_offset, _cur_char)) in all_encoded.char_indices().enumerate() {
+        if cur_char_offset == segment_char_start {
+            segment_byte_start = cur_byte_offset;
+        }
+        if cur_char_offset == segment_char_end {
+            segment_byte_end = cur_byte_offset;
+        }
+    }
+
+    let match_encoded = &mut all_encoded[segment_byte_start..segment_byte_end];
+
+    const PADDING: char = 'x';
+    const MASK: char = '*';
+
+    // We can unwrap the .fill_content() .swap_content() calls because our padding chars are
+    // ASCII and encode to the minimum number of bytes for the encodings we use.
+    match redaction {
+        Redaction::Default | Redaction::Remove => {
+            match_encoded.fill_content(PADDING).unwrap();
+        }
+        Redaction::Mask => {
+            match_encoded.fill_content(MASK).unwrap();
+        }
+        Redaction::Hash => {
+            // Note: we are hashing bytes containing utf16, not utf8.
+            let hashed = hash_value(match_encoded.as_bytes());
+            match_encoded.swap_content(&hashed, PADDING).unwrap();
+        }
+        Redaction::Replace(ref replace) => {
+            match_encoded
+                .swap_content(replace.text.as_str(), PADDING)
+                .unwrap();
+        }
+    }
+}
+
 fn apply_regex_to_utf16_slices(
     data: &mut [u8],
     rule: &RuleRef,
     regex: &Regex,
     replace_behavior: &ReplaceBehavior,
 ) -> bool {
+    let mut changed = false;
     for segment in MutSegmentIter::new(data, *UTF_16LE) {
-        let mut matches = Vec::new();
+        let segment_wstr = unsafe { WStr::from_utf16le_unchecked_mut(segment.raw) };
         match replace_behavior {
             ReplaceBehavior::Value => {
                 for re_match in regex.find_iter(&segment.decoded) {
-                    matches.push(re_match);
+                    changed = true;
+                    scrub_match(&segment.decoded, re_match, &rule.redaction, segment_wstr);
                 }
             }
             ReplaceBehavior::Groups(ref replace_groups) => {
                 for captures in regex.captures_iter(&segment.decoded) {
                     for group_idx in replace_groups.iter() {
                         if let Some(re_match) = captures.get(*group_idx as usize) {
-                            matches.push(re_match)
+                            changed = true;
+                            scrub_match(&segment.decoded, re_match, &rule.redaction, segment_wstr);
                         }
                     }
                 }
             }
         }
-
-        let segment_wstr = unsafe { WStr::from_utf16le_unchecked_mut(segment.raw) };
-
-        for re_match in matches.iter() {
-            let mut segment_char_start = 0;
-            let mut segment_char_end = 0;
-            for (cur_char_offset, (cur_byte_offset, _cur_char)) in
-                segment.decoded.char_indices().enumerate()
-            {
-                if cur_byte_offset == re_match.start() {
-                    segment_char_start = cur_char_offset;
-                }
-                if cur_byte_offset == re_match.end() {
-                    segment_char_end = cur_char_offset;
-                    break;
-                }
-            }
-
-            let mut segment_byte_start = 0;
-            let mut segment_byte_end = 0;
-            for (cur_char_offset, (cur_byte_offset, _cur_char)) in
-                segment_wstr.char_indices().enumerate()
-            {
-                if cur_char_offset == segment_char_start {
-                    segment_byte_start = cur_byte_offset;
-                }
-                if cur_char_offset == segment_char_end {
-                    segment_byte_end = cur_byte_offset;
-                }
-            }
-
-            let match_wstr = &mut segment_wstr[segment_byte_start..segment_byte_end];
-
-            const PADDING: char = 'x';
-            const MASK: char = '*';
-
-            match rule.redaction {
-                Redaction::Default | Redaction::Remove => {
-                    match_wstr.fill_content(PADDING).unwrap();
-                }
-                Redaction::Mask => {
-                    match_wstr.fill_content(MASK).unwrap();
-                }
-                Redaction::Hash => {
-                    // Note: we are hashing bytes containing utf16, not utf8.
-                    let hashed = hash_value(match_wstr.as_bytes());
-                    match_wstr.swap_content(&hashed, PADDING).unwrap();
-                }
-                Redaction::Replace(ref replace) => {
-                    match_wstr
-                        .swap_content(replace.text.as_str(), PADDING)
-                        .unwrap();
-                }
-            }
-        }
     }
-    true // eh?
+    changed
 }
 
 /// Traits to modify the strings in ways we need.
