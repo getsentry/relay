@@ -153,7 +153,7 @@ def test_empty_measurement_value(mini_sentry, relay_chain):
     # test actual output
 
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
-    assert "measurements" not in event, event
+    assert len(event["measurements"]) == 0, event
 
 def test_strip_measurement_interface(mini_sentry, relay_with_processing, events_consumer):
 

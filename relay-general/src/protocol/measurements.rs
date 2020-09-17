@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use crate::types::{Annotated, FromValue, Object, Value};
+use crate::types::{Annotated, Error, FromValue, Object, Value};
 
 lazy_static::lazy_static! {
     static ref MEASUREMENT_NAME: Regex = Regex::new("^[a-z0-9-._]+$").unwrap();
@@ -20,24 +20,56 @@ pub struct Measurements(#[metastructure(skip_serialization = "empty")] pub Objec
 
 impl FromValue for Measurements {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        Object::<Measurement>::from_value(value).map_value(|measurements| {
-            Self(
-                measurements
-                    .into_iter()
-                    .map(|(name, _value)| {
-                        return (name.trim().to_lowercase(), _value);
-                    })
-                    .filter(|(name, value)| {
-                        if let Some(measurement_value) = value.value() {
-                            return measurement_value.value.value().is_some()
-                                && MEASUREMENT_NAME.is_match(&name);
+        let mut processing_errors = vec![];
+
+        let mut measurements = Object::<Measurement>::from_value(value).map_value(|measurements| {
+            Self(measurements.into_iter().fold(
+                Default::default(),
+                |mut measurements: Object<Measurement>,
+                 (original_name, value): (String, Annotated<Measurement>)| {
+                    let name = original_name.trim().to_lowercase();
+
+                    if let Some(measurement_value) = value.value() {
+                        if MEASUREMENT_NAME.is_match(&name) {
+                            if measurement_value.value.value().is_some() {
+                                measurements.insert(name, value);
+                                return measurements;
+                            }
+
+                            processing_errors.push(Error::invalid(
+                                format!("measurement value for '{}' to be a number", original_name)
+                                    .as_str(),
+                            ));
+                            return measurements;
                         }
 
-                        return false;
-                    })
-                    .collect(),
-            )
-        })
+                        processing_errors.push(Error::invalid(
+                            format!(
+                                "measurement name '{}' to contain only characters a-z0-9-_.",
+                                original_name
+                            )
+                            .as_str(),
+                        ));
+
+                        return measurements;
+                    }
+
+                    processing_errors.push(Error::expected(
+                        format!("measurement '{}' to have a value", original_name).as_str(),
+                    ));
+
+                    return measurements;
+                },
+            ))
+        });
+
+        let measurements_meta = measurements.meta_mut();
+
+        for error in processing_errors {
+            measurements_meta.add_error(error);
+        }
+
+        measurements
     }
     // fn from_value(value: Annotated<Value>) -> Annotated<Self> {
     //     match value {
@@ -121,7 +153,6 @@ impl FromValue for Measurements {
 #[test]
 fn test_measurements_serialization() {
     use crate::protocol::Event;
-    use crate::types::Error;
 
     let input = r#"{
     "measurements": {
@@ -153,19 +184,19 @@ fn test_measurements_serialization() {
           [
             "invalid_data",
             {
-              "reason": "expected measurement name 'Total Blocking Time' to contain only characters a-z0-9-_."
+              "reason": "measurement name 'Total Blocking Time' to contain only characters a-z0-9-_."
             }
           ],
           [
             "invalid_data",
             {
-              "reason": "expected measurement value for 'cls' to be a number"
+              "reason": "measurement value for 'cls' to be a number"
             }
           ],
           [
             "invalid_data",
             {
-              "reason": "expected measurement value for 'fp' to be a number"
+              "reason": "measurement value for 'fp' to be a number"
             }
           ]
         ]
@@ -199,15 +230,13 @@ fn test_measurements_serialization() {
 
     let measurements_meta = measurements.meta_mut();
 
-    measurements_meta.add_error(Error::expected(
+    measurements_meta.add_error(Error::invalid(
         "measurement name 'Total Blocking Time' to contain only characters a-z0-9-_.",
     ));
 
-    measurements_meta.add_error(Error::expected(
-        "measurement value for 'cls' to be a number",
-    ));
+    measurements_meta.add_error(Error::invalid("measurement value for 'cls' to be a number"));
 
-    measurements_meta.add_error(Error::expected("measurement value for 'fp' to be a number"));
+    measurements_meta.add_error(Error::invalid("measurement value for 'fp' to be a number"));
 
     let event = Annotated::new(Event {
         measurements,
