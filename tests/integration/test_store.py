@@ -231,7 +231,7 @@ def test_store_timeout(mini_sentry, relay):
     assert event["logentry"] == {"formatted": "correct"}
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
     ((route, error),) = mini_sentry.test_failures
-    assert route == "/api/666/store/"
+    assert route == "/api/666/envelope/"
     assert "configured lifetime" in str(error)
     mini_sentry.test_failures.clear()
 
