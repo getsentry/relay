@@ -39,6 +39,14 @@ impl FromValue for Measurements {
                                     Annotated(Some(*value), meta.clone())
                                 }
                                 Some(Annotated(value, meta)) => {
+                                    measurement_meta.add_error(Error::expected(
+                                        format!(
+                                            "measurement value for '{}' to be a number",
+                                            raw_name
+                                        )
+                                        .as_str(),
+                                    ));
+
                                     let mut meta = meta.clone();
                                     meta.add_error(Error::expected("number"));
                                     meta.set_original_value(value.clone());
@@ -127,6 +135,18 @@ fn test_measurements_serialization() {
             {
               "reason": "expected measurement name 'Total Blocking Time' to contain only characters a-z0-9-_."
             }
+          ],
+          [
+            "invalid_data",
+            {
+              "reason": "expected measurement value for 'cls' to be a number"
+            }
+          ],
+          [
+            "invalid_data",
+            {
+              "reason": "expected measurement value for 'fp' to be a number"
+            }
           ]
         ]
       }
@@ -162,6 +182,12 @@ fn test_measurements_serialization() {
     measurements_meta.add_error(Error::expected(
         "measurement name 'Total Blocking Time' to contain only characters a-z0-9-_.",
     ));
+
+    measurements_meta.add_error(Error::expected(
+        "measurement value for 'cls' to be a number",
+    ));
+
+    measurements_meta.add_error(Error::expected("measurement value for 'fp' to be a number"));
 
     let event = Annotated::new(Event {
         measurements,
