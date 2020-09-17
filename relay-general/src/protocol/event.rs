@@ -469,7 +469,7 @@ pub struct Event {
     pub spans: Annotated<Array<Span>>,
 
     /// Measurements
-    #[metastructure(skip_serialization = "empty_deep")]
+    #[metastructure(skip_serialization = "empty")]
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub measurements: Annotated<Measurements>,
 
