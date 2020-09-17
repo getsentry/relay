@@ -329,7 +329,11 @@ impl<'a> Iterator for MutSegmentIter<'a> {
                 }
                 if decoded.len() > 2 {
                     return Some(MutSegment {
-                        raw: unsafe { std::mem::transmute(&mut self.data[start..end]) },
+                        raw: unsafe {
+                            std::mem::transmute::<&'_ mut [u8], &'_ mut [u8]>(
+                                &mut self.data[start..end],
+                            )
+                        },
                         decoded,
                     });
                 } else {
@@ -339,7 +343,11 @@ impl<'a> Iterator for MutSegmentIter<'a> {
                 self.offset += unprocessed_offset;
                 if decoded.len() > 2 {
                     return Some(MutSegment {
-                        raw: unsafe { std::mem::transmute(&mut self.data[start..end]) },
+                        raw: unsafe {
+                            std::mem::transmute::<&'_ mut [u8], &'_ mut [u8]>(
+                                &mut self.data[start..end],
+                            )
+                        },
                         decoded,
                     });
                 } else {
