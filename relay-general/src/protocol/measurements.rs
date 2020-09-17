@@ -22,7 +22,7 @@ pub struct Measurements(pub Object<Measurement>);
 impl FromValue for Measurements {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
-            Annotated(Some(Value::Object(items)), mut meta) => {
+            Annotated(Some(Value::Object(items)), mut measurement_meta) => {
                 let mut measurements = Object::<Measurement>::new();
 
                 for (raw_name, raw_observed_value) in items.into_iter() {
@@ -69,14 +69,17 @@ impl FromValue for Measurements {
                             measurements.insert(measurement_name, Annotated::new(measurement));
                         }
                     } else {
-                        meta.add_error(Error::expected(
-                            "measurement name to contain only characters a-z0-9-_.",
+                        measurement_meta.add_error(Error::expected(
+                            format!(
+                                "measurement name '{}' to contain only characters a-z0-9-_.",
+                                raw_name
+                            )
+                            .as_str(),
                         ));
-                        meta.set_original_value(Some(raw_name));
                     }
                 }
 
-                Annotated(Some(Measurements(measurements)), meta)
+                Annotated(Some(Measurements(measurements)), measurement_meta)
             }
             Annotated(None, meta) => Annotated(None, meta),
             Annotated(Some(value), mut meta) => {
@@ -86,4 +89,85 @@ impl FromValue for Measurements {
             }
         }
     }
+}
+
+#[test]
+fn test_measurements_serialization() {
+    use crate::protocol::Event;
+
+    let input = r#"{
+    "measurements": {
+        "LCP": {"value": 420.69},
+        "   lcp_final.element-Size  ": {"value": 1},
+        "fid": {"value": 2020},
+        "cls": {"value": null},
+        "fp": {"value": "im a first paint"},
+        "Total Blocking Time": {"value": 3.14159}
+    }
+}"#;
+
+    let output = r#"{
+  "measurements": {
+    "fid": {
+      "value": 2020.0
+    },
+    "lcp": {
+      "value": 420.69
+    },
+    "lcp_final.element-size": {
+      "value": 1.0
+    }
+  },
+  "_meta": {
+    "measurements": {
+      "": {
+        "err": [
+          [
+            "invalid_data",
+            {
+              "reason": "expected measurement name 'Total Blocking Time' to contain only characters a-z0-9-_."
+            }
+          ]
+        ]
+      }
+    }
+  }
+}"#;
+
+    let mut measurements = Annotated::new(Measurements({
+        let mut measurements = Object::new();
+        measurements.insert(
+            "lcp".to_owned(),
+            Annotated::new(Measurement {
+                value: Annotated::new(420.69),
+            }),
+        );
+        measurements.insert(
+            "lcp_final.element-size".to_owned(),
+            Annotated::new(Measurement {
+                value: Annotated::new(1f64),
+            }),
+        );
+        measurements.insert(
+            "fid".to_owned(),
+            Annotated::new(Measurement {
+                value: Annotated::new(2020f64),
+            }),
+        );
+        measurements
+    }));
+
+    let measurements_meta = measurements.meta_mut();
+
+    measurements_meta.add_error(Error::expected(
+        "measurement name 'Total Blocking Time' to contain only characters a-z0-9-_.",
+    ));
+
+    let event = Annotated::new(Event {
+        measurements,
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(event, Annotated::from_json(input).unwrap());
+    assert_eq_str!(event.to_json_pretty().unwrap(), output);
 }
