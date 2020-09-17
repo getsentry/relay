@@ -126,6 +126,7 @@ def test_empty_measurement_interface(mini_sentry, relay_chain):
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     assert "measurements" not in event, event
 
+
 def test_empty_measurement_value(mini_sentry, relay_chain):
 
     # set up relay
@@ -137,7 +138,7 @@ def test_empty_measurement_value(mini_sentry, relay_chain):
 
     transaction_item = generate_transaction_item()
 
-    transaction_item.update({"measurements": { "fcp": {"value": None}}})
+    transaction_item.update({"measurements": {"fcp": {"value": None}}})
 
     envelope = Envelope()
     envelope.add_transaction(transaction_item)
@@ -155,7 +156,10 @@ def test_empty_measurement_value(mini_sentry, relay_chain):
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     assert len(event["measurements"]) == 0, event
 
-def test_strip_measurement_interface(mini_sentry, relay_with_processing, events_consumer):
+
+def test_strip_measurement_interface(
+    mini_sentry, relay_with_processing, events_consumer
+):
 
     # set up relay
 
