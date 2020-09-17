@@ -21,6 +21,7 @@
 
 use std::error::Error;
 use std::fmt;
+use std::iter::FusedIterator;
 use std::slice::ChunksExact;
 
 mod slicing;
@@ -260,6 +261,8 @@ impl<'a> Iterator for WStrChars<'a> {
     }
 }
 
+impl<'a> FusedIterator for WStrChars<'a> {}
+
 /// Iterator yielding `(index, char)` tuples from a UTF-16 little-endian encoded byte slice.
 ///
 /// The slice must contain valid UTF-16, otherwise this may panic or cause undefined
@@ -280,6 +283,8 @@ impl<'a> Iterator for WStrCharIndices<'a> {
         Some((pos, c))
     }
 }
+
+impl<'a> FusedIterator for WStrCharIndices<'a> {}
 
 impl AsRef<[u8]> for WStr {
     #[inline]
