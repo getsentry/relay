@@ -14,7 +14,6 @@ pub struct Measurement {
     pub value: Annotated<f64>,
 }
 
-// TODO: need bag_size?
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Measurements(pub Object<Measurement>);
