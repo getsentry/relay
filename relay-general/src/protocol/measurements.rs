@@ -58,7 +58,7 @@ impl FromValue for Measurements {
                         format!("measurement '{}' to have a value", original_name).as_str(),
                     ));
 
-                    return measurements;
+                    measurements
                 },
             ))
         });
