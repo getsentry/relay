@@ -376,6 +376,13 @@ pub struct PublicKeyConfig {
     /// Only available for internal relays.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub numeric_id: Option<u64>,
+
+    /// The project id to redirect events to.
+    ///
+    /// If this is set, the key has moved to a new project. Project configuration for the given
+    /// project must be retrieved instead of the project declared in the DSN.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub redirect_project_id: Option<ProjectId>,
 }
 
 mod limited_public_key_comfigs {
