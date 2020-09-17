@@ -17,7 +17,8 @@
 //! assert_eq!(s.to_utf8(), "hello");
 //! ```
 
-#[deny(missing_docs, missing_debug_implementations)]
+#![deny(missing_docs, missing_debug_implementations)]
+
 use std::error::Error;
 use std::fmt;
 use std::slice::ChunksExact;
@@ -40,8 +41,15 @@ impl fmt::Display for Utf16Error {
 impl Error for Utf16Error {}
 
 impl Utf16Error {
+    /// Create a new [Utf16Error].
     pub fn new() -> Self {
         Self {}
+    }
+}
+
+impl Default for Utf16Error {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -222,6 +230,7 @@ impl WStr {
 ///
 /// The slice must contain valid UTF-16, otherwise this may panic or cause undefined
 /// behaviour.
+#[derive(Debug)]
 pub struct WStrChars<'a> {
     chunks: ChunksExact<'a, u8>,
 }
@@ -257,6 +266,7 @@ impl<'a> Iterator for WStrChars<'a> {
 ///
 /// The slice must contain valid UTF-16, otherwise this may panic or cause undefined
 /// behaviour.
+#[derive(Debug)]
 pub struct WStrCharIndices<'a> {
     chars: WStrChars<'a>,
     index: usize,

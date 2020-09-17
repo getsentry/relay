@@ -28,6 +28,7 @@ pub trait SliceIndex<T>: private::SealedSliceIndex
 where
     T: ?Sized,
 {
+    /// The result of slicing, another slice of the same type as you started with normally.
     type Output: ?Sized;
 
     /// Returns a shared reference to the output at this location, if in bounds.

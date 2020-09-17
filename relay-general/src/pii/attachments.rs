@@ -229,10 +229,8 @@ impl StringMods for WStr {
     fn fill_content(&mut self, fill_char: char) -> Result<(), Self::Error> {
         let size = std::mem::size_of::<u16>();
 
-        if fill_char.len_utf16() == 2 {
-            if (self.len() / size) % 2 != 0 {
-                return Err(Utf16Error::new());
-            }
+        if (fill_char.len_utf16() == 2) && ((self.len() / size) % 2 != 0) {
+            return Err(Utf16Error::new());
         }
 
         let mut buf = [0u16; 2];
