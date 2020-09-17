@@ -292,7 +292,7 @@ impl EventProcessor {
 
         if !is_transaction {
             // Only transaction events may have a measurements interface
-            event.measurements.set_value(None);
+            event.measurements = Annotated::empty();
             return Ok(());
         }
 
