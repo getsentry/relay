@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use crate::types::{Annotated, Error, FromValue, Object, Value};
+use crate::types::{Annotated, FromValue, Object, Value};
 
 lazy_static::lazy_static! {
     static ref MEASUREMENT_NAME: Regex = Regex::new("^[a-z0-9-._]+$").unwrap();
@@ -10,97 +10,118 @@ lazy_static::lazy_static! {
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Measurement {
     /// Value of observed measurement value
-    #[metastructure(required = "true")]
+    #[metastructure(skip_serialization = "empty")]
     pub value: Annotated<f64>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct Measurements(pub Object<Measurement>);
+pub struct Measurements(#[metastructure(skip_serialization = "empty")] pub Object<Measurement>);
 
 impl FromValue for Measurements {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        match value {
-            Annotated(Some(Value::Object(items)), mut measurement_meta) => {
-                let mut measurements = Object::<Measurement>::new();
-
-                for (raw_name, raw_observed_value) in items.into_iter() {
-                    let observed_value: Annotated<f64> = match raw_observed_value {
-                        Annotated(Some(Value::Object(bag)), mut object_meta) => {
-                            match bag.get("value") {
-                                Some(Annotated(Some(Value::I64(value)), meta)) => {
-                                    Annotated(Some(*value as f64), meta.clone())
-                                }
-                                Some(Annotated(Some(Value::U64(value)), meta)) => {
-                                    Annotated(Some(*value as f64), meta.clone())
-                                }
-                                Some(Annotated(Some(Value::F64(value)), meta)) => {
-                                    Annotated(Some(*value), meta.clone())
-                                }
-                                Some(Annotated(value, meta)) => {
-                                    measurement_meta.add_error(Error::expected(
-                                        format!(
-                                            "measurement value for '{}' to be a number",
-                                            raw_name
-                                        )
-                                        .as_str(),
-                                    ));
-
-                                    let mut meta = meta.clone();
-                                    meta.add_error(Error::expected("number"));
-                                    meta.set_original_value(value.clone());
-                                    Annotated(None, meta)
-                                }
-                                None => {
-                                    object_meta.add_error(Error::expected("value"));
-                                    Annotated(None, object_meta)
-                                }
-                            }
+        Object::<Measurement>::from_value(value).map_value(|measurements| {
+            Self(
+                measurements
+                    .into_iter()
+                    .map(|(name, _value)| {
+                        return (name.trim().to_lowercase(), _value);
+                    })
+                    .filter(|(name, value)| {
+                        if let Some(measurement_value) = value.value() {
+                            return measurement_value.value.value().is_some()
+                                && MEASUREMENT_NAME.is_match(&name);
                         }
-                        Annotated(value, meta) => {
-                            let mut meta = meta.clone();
-                            meta.add_error(Error::expected("object"));
-                            meta.set_original_value(value);
-                            Annotated(None, meta.clone())
-                        }
-                    };
 
-                    let measurement_name = raw_name.trim().to_lowercase();
-
-                    if MEASUREMENT_NAME.is_match(&measurement_name) {
-                        if observed_value.value().is_some() {
-                            let measurement = Measurement {
-                                value: observed_value,
-                            };
-
-                            measurements.insert(measurement_name, Annotated::new(measurement));
-                        }
-                    } else {
-                        measurement_meta.add_error(Error::expected(
-                            format!(
-                                "measurement name '{}' to contain only characters a-z0-9-_.",
-                                raw_name
-                            )
-                            .as_str(),
-                        ));
-                    }
-                }
-
-                Annotated(Some(Measurements(measurements)), measurement_meta)
-            }
-            Annotated(None, meta) => Annotated(None, meta),
-            Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("measurements"));
-                meta.set_original_value(Some(value));
-                Annotated(None, meta)
-            }
-        }
+                        return false;
+                    })
+                    .collect(),
+            )
+        })
     }
+    // fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    //     match value {
+    //         Annotated(Some(Value::Object(items)), mut measurement_meta) => {
+    //             let mut measurements = Object::<Measurement>::new();
+
+    //             for (raw_name, raw_observed_value) in items.into_iter() {
+    //                 let observed_value: Annotated<f64> = match raw_observed_value {
+    //                     Annotated(Some(Value::Object(bag)), mut object_meta) => {
+    //                         match bag.get("value") {
+    //                             Some(Annotated(Some(Value::I64(value)), meta)) => {
+    //                                 Annotated(Some(*value as f64), meta.clone())
+    //                             }
+    //                             Some(Annotated(Some(Value::U64(value)), meta)) => {
+    //                                 Annotated(Some(*value as f64), meta.clone())
+    //                             }
+    //                             Some(Annotated(Some(Value::F64(value)), meta)) => {
+    //                                 Annotated(Some(*value), meta.clone())
+    //                             }
+    //                             Some(Annotated(value, meta)) => {
+    //                                 measurement_meta.add_error(Error::expected(
+    //                                     format!(
+    //                                         "measurement value for '{}' to be a number",
+    //                                         raw_name
+    //                                     )
+    //                                     .as_str(),
+    //                                 ));
+
+    //                                 let mut meta = meta.clone();
+    //                                 meta.add_error(Error::expected("number"));
+    //                                 meta.set_original_value(value.clone());
+    //                                 Annotated(None, meta)
+    //                             }
+    //                             None => {
+    //                                 object_meta.add_error(Error::expected("value"));
+    //                                 Annotated(None, object_meta)
+    //                             }
+    //                         }
+    //                     }
+    //                     Annotated(value, meta) => {
+    //                         let mut meta = meta.clone();
+    //                         meta.add_error(Error::expected("object"));
+    //                         meta.set_original_value(value);
+    //                         Annotated(None, meta.clone())
+    //                     }
+    //                 };
+
+    //                 let measurement_name = raw_name.trim().to_lowercase();
+
+    //                 if MEASUREMENT_NAME.is_match(&measurement_name) {
+    //                     if observed_value.value().is_some() {
+    //                         let measurement = Measurement {
+    //                             value: observed_value,
+    //                         };
+
+    //                         measurements.insert(measurement_name, Annotated::new(measurement));
+    //                     }
+    //                 } else {
+    //                     measurement_meta.add_error(Error::expected(
+    //                         format!(
+    //                             "measurement name '{}' to contain only characters a-z0-9-_.",
+    //                             raw_name
+    //                         )
+    //                         .as_str(),
+    //                     ));
+    //                 }
+    //             }
+
+    //             Annotated(Some(Measurements(measurements)), measurement_meta)
+    //         }
+    //         Annotated(None, meta) => Annotated(None, meta),
+    //         Annotated(Some(value), mut meta) => {
+    //             meta.add_error(Error::expected("measurements"));
+    //             meta.set_original_value(Some(value));
+    //             Annotated(None, meta)
+    //         }
+    //     }
+    // }
 }
 
 #[test]
 fn test_measurements_serialization() {
     use crate::protocol::Event;
+    use crate::types::Error;
 
     let input = r#"{
     "measurements": {

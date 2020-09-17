@@ -276,29 +276,6 @@ impl EventProcessor {
         Self { config }
     }
 
-    /// Validates any and all measurements in the envelope.
-    fn process_measurements(
-        &self,
-        state: &mut ProcessEnvelopeState,
-    ) -> Result<(), ProcessingError> {
-        log::trace!("processing measurements");
-
-        let is_transaction = state.event_type() == Some(EventType::Transaction);
-
-        let event = match state.event.value_mut() {
-            Some(event) => event,
-            None => return Ok(()),
-        };
-
-        if !is_transaction {
-            // Only transaction events may have a measurements interface
-            event.measurements = Annotated::empty();
-            return Ok(());
-        }
-
-        Ok(())
-    }
-
     /// Validates all sessions in the envelope, if any.
     ///
     /// Sessions are removed from the envelope if they contain invalid JSON or if their timestamps
@@ -1100,8 +1077,6 @@ impl EventProcessor {
                 self.process_unreal(&mut state)?;
                 self.create_placeholders(&mut state)?;
             });
-
-            self.process_measurements(&mut state)?;
 
             self.finalize_event(&mut state)?;
 

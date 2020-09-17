@@ -104,6 +104,15 @@ impl<'a> NormalizeProcessor<'a> {
         })
     }
 
+    /// Fill me with docs
+    fn normalize_measurements(&self, event: &mut Event) {
+        if event.ty.value() != Some(&EventType::Transaction) {
+            // Only transaction events may have a measurements interface
+            event.measurements = Annotated::empty();
+            return;
+        }
+    }
+
     /// Ensures that the `release` and `dist` fields match up.
     fn normalize_release_dist(&self, event: &mut Event) {
         if event.dist.value().is_some() && event.release.value().is_empty() {
@@ -481,6 +490,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         // Normalize connected attributes and interfaces
+        self.normalize_measurements(event);
         self.normalize_release_dist(event);
         self.normalize_timestamps(event, meta, state)?;
         self.normalize_event_tags(event)?;
