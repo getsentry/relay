@@ -5,9 +5,6 @@ on:
     branches:
       - release-library/**
 
-  # TODO: Only push
-  pull_request:
-
 jobs:
   linux:
     strategy:
