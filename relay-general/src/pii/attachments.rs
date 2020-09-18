@@ -6,8 +6,9 @@ use encoding::all::UTF_16LE;
 use encoding::{Encoding, RawDecoder};
 use regex::bytes::RegexBuilder as BytesRegexBuilder;
 use regex::{Match, Regex};
-use relay_wstring::{Utf16Error, WStr};
 use smallvec::SmallVec;
+
+use relay_wstring::{Utf16Error, WStr};
 
 use crate::pii::compiledconfig::RuleRef;
 use crate::pii::regexes::{get_regex_for_rule_type, ReplaceBehavior};
