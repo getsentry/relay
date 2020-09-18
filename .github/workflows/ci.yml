@@ -56,7 +56,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     # Skip redundant checks for library releases
-    if: "!startsWith(github.ref , 'refs/heads/release-library/')"
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
       - uses: actions/checkout@v2
@@ -89,7 +89,7 @@ jobs:
     runs-on: ubuntu-latest
 
     # Skip redundant checks for library releases
-    if: "!startsWith(github.ref , 'refs/heads/release-library/')"
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     # Testing all features requires Docker container operations that are only available on
     # `ubuntu-latest`. This `test-all` job is to be seen as complementary to the `test` job. If
@@ -128,12 +128,57 @@ jobs:
           command: test
           args: --workspace --all-features
 
+  test-py:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [2.7, 3.7]
+
+    # Skip redundant checks for binary releases
+    if: "!startsWith(github.ref, 'refs/heads/release/')"
+
+    name: Test Python ${{ matrix.python-version }}
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions-rs/toolchain@v1
+        id: toolchain
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Dependencies
+        run: pip install -U pytest
+
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: pytest-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build and Install Library
+        run: pip install -v --editable py
+        env: RELAY_DEBUG=1
+
+      - name: Run Python Tests
+        run: pytest -v py
+
   test-integration:
     name: Integration Tests
     runs-on: ubuntu-latest
 
     # Skip redundant checks for library releases
-    if: "!startsWith(github.ref , 'refs/heads/release-library/')"
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     services:
       redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
@@ -193,7 +238,7 @@ jobs:
 
   cargo_docs:
     name: Cargo Docs
-    if: "!startsWith(github.ref , 'refs/heads/release')"
+    if: "!startsWith(github.ref, 'refs/heads/release')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -227,7 +272,7 @@ jobs:
 
   event_schema:
     name: Event Schema
-    if: "!startsWith(github.ref , 'refs/heads/release')"
+    if: "!startsWith(github.ref, 'refs/heads/release')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -288,7 +333,7 @@ jobs:
 
   metrics_docs:
     name: Metrics Docs
-    if: "!startsWith(github.ref , 'refs/heads/release')"
+    if: "!startsWith(github.ref, 'refs/heads/release')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2

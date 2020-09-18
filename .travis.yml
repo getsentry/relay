@@ -25,19 +25,6 @@ jobs:
   fast_finish: true
   include:
     # -------------------------------------
-    # PYTHON LIBRARY TESTS
-    # -------------------------------------
-
-    - name: "test: librelay"
-      if: NOT branch ~= /^release\/[\d.]+$/
-      script: make -e test-python
-
-    - name: "test: librelay[py2]"
-      python: "2.7"
-      if: NOT branch ~= /^release\/[\d.]+$/
-      script: make -e RELAY_PYTHON_VERSION=python2 test-python
-
-    # -------------------------------------
     # RUST RELEASE BUILDS
     # -------------------------------------
 
