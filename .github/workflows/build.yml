@@ -1,27 +1,30 @@
 name: Release Build
 
-# TODO: Only push
 on:
-  - push
-  - pull_request
+  push:
+    - release/**
+    - release-library/**
+
+  # TODO: Only push
+  pull_request:
 
 jobs:
   linux:
-    name: Build (Linux)
+    name: Build Linux
     runs-on: ubuntu-latest
 
     # Only build on binary release branches
-    if: "startsWith(github.ref, 'refs/heads/release/')"
+    # if: "startsWith(github.ref, 'refs/heads/release/')"
 
     steps:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
 
-      # - name: Build in Docker
-      #   run: scripts/docker-build-linux.sh
-      #   env:
-      #     BUILD_ARCH: x86_64
+      - name: Build in Docker
+        run: scripts/docker-build-linux.sh
+        env:
+          BUILD_ARCH: x86_64
 
       - uses: actions/setup-node@v1
 
@@ -32,6 +35,91 @@ jobs:
         run: |
           npm install -D @zeus-ci/cli
           npx zeus job update -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -r $GITHUB_SHA
-          # npx zeus upload -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -t "application/octet-stream" -n relay-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/relay
-          # npx zeus upload -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -t "application/octet-stream" -n relay-Linux-x86_64-debug.zip relay-debug.zip
+          npx zeus upload -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -t "application/octet-stream" -n relay-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/relay
+          npx zeus upload -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -t "application/octet-stream" -n relay-Linux-x86_64-debug.zip relay-debug.zip
           npx zeus job update --status=passed -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -r $GITHUB_SHA
+
+  macos:
+    name: Build macOS
+    runs-on: macos-10.15
+
+    # Only build on binary release branches
+    # if: "startsWith(github.ref, 'refs/heads/release/')"
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions-rs/toolchain@v1
+        id: toolchain
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Run Cargo Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --features ssl
+
+      - name: Bundle dSYM
+        run: zip -r relay-dsym.zip target/release/relay.dSYM
+
+      - uses: actions/setup-node@v1
+
+      - name: Upload to Zeus
+        env:
+          ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
+          ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
+        run: |
+          npm install -D @zeus-ci/cli
+          npx zeus job update -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -r $GITHUB_SHA
+          npx zeus upload -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -t "application/octet-stream" -n relay-Darwin-x86_64 target/release/relay
+          npx zeus upload -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -t "application/octet-stream" -n relay-Darwin-x86_64-dsym.zip relay-dsym.zip
+          npx zeus job update --status=passed -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -r $GITHUB_SHA
+
+  windows:
+    name: Build Windows
+    runs-on: windows-2019
+
+    # Only build on binary release branches
+    # if: "startsWith(github.ref, 'refs/heads/release/')"
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions-rs/toolchain@v1
+        id: toolchain
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      # - name: Run Cargo Build
+      #   uses: actions-rs/cargo@v1
+      #   with:
+      #     command: build
+      #     args: --features ssl
+
+      # - name: Bundle PDB
+      #   run: |
+      #     Install-Module 7Zip4PowerShell -Force -Verbose
+      #     7z a .\relay-pdb.zip .\target\release\relay.pdb
+
+      - uses: actions/setup-node@v1
+
+      - name: Upload to Zeus
+        env:
+          ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
+          ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
+        run: |
+          npm install -D @zeus-ci/cli
+          npx zeus job update -b ${env:GITHUB_RUN_ID} -j ${env:GITHUB_RUN_NUMBER} -r ${env:GITHUB_SHA}
+          npx zeus upload -b ${env:GITHUB_RUN_ID} -j ${env:GITHUB_RUN_NUMBER} -t "application/octet-stream" -n Cargo.toml .\Cargo.toml
+          # npx zeus upload -b ${env:GITHUB_RUN_ID} -j ${env:GITHUB_RUN_NUMBER} -t "application/octet-stream" -n relay-Darwin-x86_64 .\target\release\relay
+          # npx zeus upload -b ${env:GITHUB_RUN_ID} -j ${env:GITHUB_RUN_NUMBER} -t "application/octet-stream" -n relay-Darwin-x86_64-dsym.zip .\relay-dsym.zip
+          npx zeus job update --status=passed -b ${env:GITHUB_RUN_ID} -j ${env:GITHUB_RUN_NUMBER} -r ${env:GITHUB_SHA}

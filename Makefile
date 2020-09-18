@@ -23,10 +23,6 @@ release: setup-git
 	@cd relay && cargo +stable build --release --locked --features ${RELAY_FEATURES}
 .PHONY: release
 
-docker: setup-git
-	@scripts/docker-build-linux.sh
-.PHONY: docker
-
 build-linux-release: setup-git
 	cd relay && cargo build --release --locked --features ${RELAY_FEATURES} --target=${TARGET}
 	objcopy --only-keep-debug target/${TARGET}/release/relay{,.debug}
