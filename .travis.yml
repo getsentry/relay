@@ -7,7 +7,6 @@ git:
 
 branches:
   only:
-    - master
     - /^release\/[\d.]+$/
     - /^release-library\/[\d.]+$/
 
@@ -27,22 +26,6 @@ jobs:
     # -------------------------------------
     # RUST RELEASE BUILDS
     # -------------------------------------
-
-    - name: "release: relay[linux]"
-      if: branch ~= /^release\/[\d.]+$/
-      language: generic
-      before_install: skip
-      services:
-        - docker
-      env:
-        - BUILD_ARCH=x86_64
-      script:
-        - make -e docker
-        - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
-        - zeus upload -t "application/octet-stream" -n relay-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/relay  || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
-        - zip relay-debug.zip target/x86_64-unknown-linux-gnu/release/relay.debug
-        - zeus upload -t "application/octet-stream" -n relay-Linux-x86_64-debug.zip relay-debug.zip  || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
-
     - name: "release: relay[macos]"
       if: branch ~= /^release\/[\d.]+$/
       os: osx

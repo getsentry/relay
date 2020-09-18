@@ -84,7 +84,7 @@ jobs:
           command: test
           args: --workspace
 
-  test-all:
+  test_all:
     name: Test All Features (ubuntu-latest)
     runs-on: ubuntu-latest
 
@@ -128,7 +128,7 @@ jobs:
           command: test
           args: --workspace --all-features
 
-  test-py:
+  test_py:
     strategy:
       fail-fast: false
       matrix:
@@ -173,7 +173,7 @@ jobs:
       - name: Run Python Tests
         run: pytest -v py
 
-  test-integration:
+  test_integration:
     name: Integration Tests
     runs-on: ubuntu-latest
 
@@ -235,6 +235,36 @@ jobs:
 
       - name: Run tests
         run: pytest tests -n auto -v
+
+  build_linux:
+    name: Build (Linux)
+    runs-on: ubuntu-latest
+
+    # Only build on binary release branches
+    # if: "startsWith(github.ref, 'refs/heads/release/')"
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      # - name: Build in Docker
+      #   run: scripts/docker-build-linux.sh
+      #   env:
+      #     BUILD_ARCH: x86_64
+
+      - uses: actions/setup-node@v1
+
+      - name: Upload to Zeus
+        env:
+          ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
+          ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
+        run: |
+          npx -p "@zeus-ci/cli" zeus job update -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -r $GITHUB_SHA
+          npx -p "@zeus-ci/cli" zeus upload -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER  -t "application/octet-stream" -n Cargo.toml Cargo.toml
+          # npx -p "@zeus-ci/cli" zeus upload -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER  -t "application/octet-stream" -n relay-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/relay
+          # npx -p "@zeus-ci/cli" zeus upload -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER  -t "application/octet-stream" -n relay-Linux-x86_64-debug.zip relay-debug.zip
+          npx -p "@zeus-ci/cli" zeus job update --status=passed -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -r $GITHUB_SHA
 
   cargo_docs:
     name: Cargo Docs
