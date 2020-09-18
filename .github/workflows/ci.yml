@@ -46,6 +46,38 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --workspace --all-features --tests -- -D clippy::all
 
+  test:
+    matrix:
+      os: [ubuntu-latest, macos-latest, windows-latest]
+
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions-rs/toolchain@v1
+        id: toolchain
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: lint-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run Rustfmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: test --workspace
+
   cargo_docs:
     name: Cargo Docs
     if: "!startsWith(github.ref , 'refs/heads/release')"
