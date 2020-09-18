@@ -99,11 +99,6 @@ jobs:
     services:
       redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
         image: redis
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
         ports:
           - 6379:6379
 
@@ -143,11 +138,6 @@ jobs:
     services:
       redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
         image: redis
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
         ports:
           - 6379:6379
 
@@ -185,7 +175,7 @@ jobs:
             target
           key: integration-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build
+      - name: Cargo build
         uses: actions-rs/cargo@v1
         with:
           command: build
@@ -194,12 +184,6 @@ jobs:
       - uses: actions/setup-python@v2
         with:
           python-version: 3.7
-
-      - name: Cache pip
-        uses: actions/cache@v2
-        with:
-          path: ~/.cache/pip
-          key: integration-pip-${{ runner.os }}-${{ hashFiles('requirements-test.txt') }}
 
       - name: Install dependencies
         run: pip install -U -r requirements-test.txt
