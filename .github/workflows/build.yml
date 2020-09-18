@@ -26,6 +26,7 @@ jobs:
         run: scripts/docker-build-linux.sh
         env:
           BUILD_ARCH: x86_64
+          RELAY_FEATURES: ssl
 
       - uses: actions/setup-node@v1
 
@@ -63,7 +64,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --features ssl
+          args: --manifest-path=relay/Cargo.toml --features ssl
 
       - name: Bundle dSYM
         run: zip -r relay-dsym.zip target/release/relay.dSYM
@@ -100,16 +101,16 @@ jobs:
           profile: minimal
           override: true
 
-      # - name: Run Cargo Build
-      #   uses: actions-rs/cargo@v1
-      #   with:
-      #     command: build
-      #     args: --features ssl
+      - name: Run Cargo Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --manifest-path=relay/Cargo.toml --features ssl
 
-      # - name: Bundle PDB
-      #   run: |
-      #     Install-Module 7Zip4PowerShell -Force -Verbose
-      #     7z a .\relay-pdb.zip .\target\release\relay.pdb
+      - name: Bundle PDB
+        run: |
+          Install-Module 7Zip4PowerShell -Force -Verbose
+          7z a .\relay-pdb.zip .\target\release\relay.pdb
 
       - uses: actions/setup-node@v1
 
@@ -121,6 +122,6 @@ jobs:
           npm install -D @zeus-ci/cli
           npx zeus job update -b ${env:GITHUB_RUN_ID} -j ${env:GITHUB_RUN_NUMBER} -r ${env:GITHUB_SHA}
           npx zeus upload -b ${env:GITHUB_RUN_ID} -j ${env:GITHUB_RUN_NUMBER} -t "application/octet-stream" -n Cargo.toml .\Cargo.toml
-          # npx zeus upload -b ${env:GITHUB_RUN_ID} -j ${env:GITHUB_RUN_NUMBER} -t "application/octet-stream" -n relay-Darwin-x86_64 .\target\release\relay
-          # npx zeus upload -b ${env:GITHUB_RUN_ID} -j ${env:GITHUB_RUN_NUMBER} -t "application/octet-stream" -n relay-Darwin-x86_64-dsym.zip .\relay-dsym.zip
+          npx zeus upload -b ${env:GITHUB_RUN_ID} -j ${env:GITHUB_RUN_NUMBER} -t "application/octet-stream" -n relay-Darwin-x86_64 .\target\release\relay
+          npx zeus upload -b ${env:GITHUB_RUN_ID} -j ${env:GITHUB_RUN_NUMBER} -t "application/octet-stream" -n relay-Darwin-x86_64-dsym.zip .\relay-dsym.zip
           npx zeus job update --status=passed -b ${env:GITHUB_RUN_ID} -j ${env:GITHUB_RUN_NUMBER} -r ${env:GITHUB_SHA}
