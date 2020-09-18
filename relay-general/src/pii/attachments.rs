@@ -180,10 +180,12 @@ impl StringMods for WStr {
     type Error = Utf16Error;
 
     fn fill_content(&mut self, fill_char: char) {
+        // If fill_char is too wide, fill_char.encode_utf16() will panic, fulfilling the
+        // trait's contract that we must panic if fill_char is too wide.
         let size = std::mem::size_of::<u16>();
 
         let mut buf = [0u16; 1];
-        let fill_u16 = fill_char.encode_utf16(&mut buf[..]); // this panics for us
+        let fill_u16 = fill_char.encode_utf16(&mut buf[..]);
         let fill_buf = fill_u16[0].to_le_bytes();
 
         let chunks = self.as_bytes_mut().chunks_exact_mut(size);
@@ -193,11 +195,13 @@ impl StringMods for WStr {
     }
 
     fn swap_content(&mut self, replacement: &str, padding: char) {
+        // If the padding char is too wide, padding.encode_utf16() will panic, fulfilling
+        // the trait's contract that we must panic in this case.
         let size = std::mem::size_of::<u16>();
         let len = self.len();
 
         let mut buf = [0u16; 1];
-        let fill_u16 = padding.encode_utf16(&mut buf[..]); // this panics for us.
+        let fill_u16 = padding.encode_utf16(&mut buf[..]);
         let fill_buf = fill_u16[0].to_le_bytes();
 
         let mut offset = 0;
@@ -227,16 +231,20 @@ impl StringMods for [u8] {
     type Error = Utf8Error;
 
     fn fill_content(&mut self, fill_char: char) {
+        // If fill_char is too wide, fill_char.encode_utf16() will panic, fulfilling the
+        // trait's contract that we must panic if fill_char is too wide.
         let mut buf = [0u8; 1];
-        fill_char.encode_utf8(&mut buf[..]); // this panics for us
+        fill_char.encode_utf8(&mut buf[..]);
         for byte in self {
             *byte = buf[0];
         }
     }
 
     fn swap_content(&mut self, replacement: &str, padding: char) {
+        // If the padding char is too wide, padding.encode_utf16() will panic, fulfilling
+        // the trait's contract that we must panic in this case.
         let mut buf = [0u8; 1];
-        padding.encode_utf8(&mut buf[..]); // this panics for us
+        padding.encode_utf8(&mut buf[..]);
 
         let cutoff = replacement.len().min(self.len());
         let (left, right) = self.split_at_mut(cutoff);
