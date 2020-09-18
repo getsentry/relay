@@ -73,11 +73,11 @@ jobs:
             target
           key: lint-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Run Rustfmt
+      - name: Run Cargo Tests
         uses: actions-rs/cargo@v1
         with:
-          command: fmt
-          args: test --workspace
+          command: test
+          args: --workspace
 
   cargo_docs:
     name: Cargo Docs
