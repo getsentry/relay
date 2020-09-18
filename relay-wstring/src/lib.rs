@@ -124,11 +124,10 @@ impl WStr {
 
         // Since we always have a valid UTF-16LE string in here we now are sure we always
         // have a byte at index + 1.  The only invalid thing now is a trailing surrogate.
-
         let mut buf = [0u8; 2];
         buf.copy_from_slice(&self.raw[index..index + 2]);
-        let u = u16::from_le_bytes(buf);
-        u & 0xDC00 != 0xDC00
+        let code_unit = u16::from_le_bytes(buf);
+        !is_trailing_surrogate(code_unit)
     }
 
     /// Convert to a byte slice.
@@ -246,17 +245,17 @@ impl<'a> Iterator for WStrChars<'a> {
         buf.copy_from_slice(chunk);
         let u = u16::from_le_bytes(buf);
 
-        if u < 0xD800 || 0xDFFF < u {
+        if !is_leading_surrogate(u) && !is_trailing_surrogate(u) {
             // SAFETY: This is now guaranteed a valid Unicode code point.
             Some(unsafe { std::char::from_u32_unchecked(u as u32) })
         } else {
-            debug_assert!(u < 0xDC00, "u16 not a leading surrogate");
+            debug_assert!(is_leading_surrogate(u), "code unit not a leading surrogate");
             let chunk = self.chunks.next().expect("missing trailing surrogate");
             buf.copy_from_slice(chunk);
             let u2 = u16::from_le_bytes(buf);
             debug_assert!(
-                0xDC00 <= u2 && u2 <= 0xDFFF,
-                "u16 is not a trailing surrogate"
+                is_trailing_surrogate(u2),
+                "code unit not a trailing surrogate"
             );
             let c = (((u - 0xD800) as u32) << 10 | (u2 - 0xDC00) as u32) + 0x1_0000;
             // SAFETY: This is now guaranteed a valid Unicode code point.
@@ -302,6 +301,38 @@ impl AsMut<[u8]> for WStr {
     fn as_mut(&mut self) -> &mut [u8] {
         self.as_bytes_mut()
     }
+}
+
+/// Whether a code unit is a leading or high surrogate.
+///
+/// If a Unicode code point does not fit in one code unit (i.e. in one `u16`) it is split
+/// into two code units called a *surrogate pair*.  The first code unit of this pair is the
+/// *leading surrogate* and since it carries the high bits of the complete Unicode code
+/// point it is also known as the *high surrogate*.
+///
+/// These surrogate code units have the first 6 bits set to a fixed prefix identifying
+/// whether they are the *leading* or *trailing* code unit of the surrogate pair.  And for
+/// the leading surrogate this bit prefix is `110110`, thus all leading surrogates have a
+/// code unit between 0xD800-0xDBFF.
+#[inline]
+fn is_leading_surrogate(code_unit: u16) -> bool {
+    code_unit & 0xD800 == 0xD800
+}
+
+/// Whether a code unit is a trailing or low surrogate.
+///
+/// If a Unicode code point does not fit in one code unit (i.e. in one `u16`) it is split
+/// into two code units called a *surrogate pair*.  The second code unit of this pair is the
+/// *trailing surrogate* and since it carries the low bits of the complete Unicode code
+/// point it is also know as the *low surrogate*.
+///
+/// These surrogate code unites have the first 6 bits set to a fixed prefix identifying
+/// whether tye are the *leading* or *trailing* code unit of the surrogate pair.  Anf for
+/// the trailing surrogate this bit prefix is `110111`, thus all trailing surrogates have a
+/// code unit between 0xDC00-0xDFFF.
+#[inline]
+fn is_trailing_surrogate(code_unit: u16) -> bool {
+    code_unit & 0xDC00 == 0xDC00
 }
 
 /// Check that the raw bytes are valid UTF-16LE.
