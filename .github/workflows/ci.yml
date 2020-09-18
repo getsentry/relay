@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - master
+      - release/**
+      - release-library/**
 
   pull_request:
 
@@ -46,6 +48,7 @@ jobs:
 
   cargo_docs:
     name: Cargo Docs
+    if: "!startsWith(github.ref , 'refs/heads/release')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -79,6 +82,7 @@ jobs:
 
   event_schema:
     name: Event Schema
+    if: "!startsWith(github.ref , 'refs/heads/release')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -139,6 +143,7 @@ jobs:
 
   metrics_docs:
     name: Metrics Docs
+    if: "!startsWith(github.ref , 'refs/heads/release')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
