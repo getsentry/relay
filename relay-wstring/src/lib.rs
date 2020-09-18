@@ -104,16 +104,19 @@ impl WStr {
     }
 
     /// The length in bytes, not chars or graphemes.
+    #[inline]
     pub fn len(&self) -> usize {
         self.raw.len()
     }
 
     /// Returns `true` if the [Self::len] is zero.
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Returns `true` if the index into the bytes is on a char boundary.
+    #[inline]
     pub fn is_char_boundary(&self, index: usize) -> bool {
         if index == 0 || index == self.len() {
             return true;
@@ -131,21 +134,25 @@ impl WStr {
     }
 
     /// Converts to a byte slice.
+    #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         &self.raw
     }
 
     /// Converts to a mutable byte slice.
+    #[inline]
     pub fn as_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.raw
     }
 
     /// Converts to a raw pointer to the byte slice.
+    #[inline]
     pub const fn as_ptr(&self) -> *const u8 {
         self.raw.as_ptr()
     }
 
     /// Converts to a mutable raw pointer to the byte slice.
+    #[inline]
     pub fn as_mut_ptr(&mut self) -> *mut u8 {
         self.raw.as_mut_ptr()
     }
@@ -155,6 +162,7 @@ impl WStr {
     /// The slice indices are on byte offsets of the underlying UTF-16LE encoded buffer, if
     /// the subslice is not on character boundaries or otherwise invalid this will return
     /// `None`.
+    #[inline]
     pub fn get<I>(&self, index: I) -> Option<&<I as SliceIndex<WStr>>::Output>
     where
         I: SliceIndex<WStr>,
@@ -167,6 +175,7 @@ impl WStr {
     /// The slice indices are on byte offsets of the underlying UTF-16LE encoded buffer, if
     /// the subslice is not on character boundaries or otherwise invalid this will return
     /// `None`.
+    #[inline]
     pub fn get_mut<I>(&mut self, index: I) -> Option<&mut <I as SliceIndex<WStr>>::Output>
     where
         I: SliceIndex<WStr>,
@@ -180,6 +189,7 @@ impl WStr {
     ///
     /// Like [Self::get] but this results in undefined behaviour if the sublice is not on
     /// character boundaries or otherwise invalid.
+    #[inline]
     pub unsafe fn get_unchecked<I>(&self, index: I) -> &<I as SliceIndex<WStr>>::Output
     where
         I: SliceIndex<WStr>,
@@ -193,6 +203,7 @@ impl WStr {
     ///
     /// Lice [Self::get_mut] but this results in undefined behaviour if the subslice is not
     /// on character boundaries or otherwise invalid.
+    #[inline]
     pub unsafe fn get_unchecked_mut<I>(&mut self, index: I) -> &mut <I as SliceIndex<WStr>>::Output
     where
         I: SliceIndex<WStr>,
@@ -201,6 +212,7 @@ impl WStr {
     }
 
     /// Returns an iterator of the [char]s of a string slice.
+    #[inline]
     pub fn chars(&self) -> WStrChars {
         WStrChars {
             chunks: self.raw.chunks_exact(2),
@@ -208,6 +220,7 @@ impl WStr {
     }
 
     /// Returns and iterator over the [char]s of a string slice and their positions.
+    #[inline]
     pub fn char_indices(&self) -> WStrCharIndices {
         WStrCharIndices {
             chars: self.chars(),
@@ -221,6 +234,7 @@ impl WStr {
     }
 
     /// Returns `true` if all characters in the string are ASCII.
+    #[inline]
     pub fn is_ascii(&self) -> bool {
         self.as_bytes().is_ascii()
     }
