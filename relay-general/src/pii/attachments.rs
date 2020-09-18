@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::iter::FusedIterator;
+use std::str::Utf8Error;
 
 use encoding::all::UTF_16LE;
 use encoding::{Encoding, RawDecoder};
@@ -13,17 +14,6 @@ use crate::pii::regexes::{get_regex_for_rule_type, ReplaceBehavior};
 use crate::pii::utils::hash_value;
 use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::processor::{FieldAttrs, Pii, ProcessingState, ValueType};
-
-/// Copy `source` into `target`, truncating/padding with `padding` if necessary.
-fn replace_bytes_padded(source: &[u8], target: &mut [u8], padding: u8) {
-    let cutoff = source.len().min(target.len());
-    let (left, right) = target.split_at_mut(cutoff);
-    left.copy_from_slice(&source[..cutoff]);
-
-    for byte in right {
-        *byte = padding;
-    }
-}
 
 fn apply_regex_to_utf8_bytes(
     data: &mut [u8],
@@ -75,42 +65,9 @@ fn apply_regex_to_utf8_bytes(
         return false;
     }
 
-    const DEFAULT_PADDING: u8 = b'x';
-    const MASK_PADDING: u8 = b'*';
-
-    match rule.redaction {
-        Redaction::Default | Redaction::Remove => {
-            for (start, end) in matches {
-                for c in &mut data[start..end] {
-                    *c = DEFAULT_PADDING;
-                }
-            }
-        }
-        Redaction::Mask => {
-            for (start, end) in matches {
-                let match_slice = &mut data[start..end];
-                for c in match_slice.iter_mut() {
-                    *c = MASK_PADDING;
-                }
-            }
-        }
-        Redaction::Hash => {
-            for (start, end) in matches {
-                let hashed = hash_value(&data[start..end]);
-                replace_bytes_padded(hashed.as_bytes(), &mut data[start..end], DEFAULT_PADDING);
-            }
-        }
-        Redaction::Replace(ref replace) => {
-            for (start, end) in matches {
-                replace_bytes_padded(
-                    replace.text.as_bytes(),
-                    &mut data[start..end],
-                    DEFAULT_PADDING,
-                );
-            }
-        }
+    for (start, end) in matches {
+        data[start..end].apply_redaction(&rule.redaction);
     }
-
     true
 }
 
@@ -232,7 +189,7 @@ impl StringMods for WStr {
         let size = std::mem::size_of::<u16>();
 
         let mut buf = [0u16; 1];
-        let fill_u16 = fill_char.encode_utf16(&mut buf[..]); // this panics for us.
+        let fill_u16 = fill_char.encode_utf16(&mut buf[..]); // this panics for us
         let fill_buf = fill_u16[0].to_le_bytes();
 
         let chunks = self.as_bytes_mut().chunks_exact_mut(size);
@@ -268,6 +225,31 @@ impl StringMods for WStr {
         let chunks = remainder_bytes.chunks_exact_mut(size);
         for chunk in chunks {
             chunk.copy_from_slice(&fill_buf);
+        }
+    }
+}
+
+impl StringMods for [u8] {
+    type Error = Utf8Error;
+
+    fn fill_content(&mut self, fill_char: char) {
+        let mut buf = [0u8; 1];
+        fill_char.encode_utf8(&mut buf[..]); // this panics for us
+        for byte in self {
+            *byte = buf[0];
+        }
+    }
+
+    fn swap_content(&mut self, replacement: &str, padding: char) {
+        let mut buf = [0u8; 1];
+        padding.encode_utf8(&mut buf[..]); // this panics for us
+
+        let cutoff = replacement.len().min(self.len());
+        let (left, right) = self.split_at_mut(cutoff);
+        left.copy_from_slice(&replacement.as_bytes()[..cutoff]);
+
+        for byte in right {
+            *byte = buf[0];
         }
     }
 }
