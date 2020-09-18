@@ -38,28 +38,6 @@ jobs:
       script: make -e RELAY_PYTHON_VERSION=python2 test-python
 
     # -------------------------------------
-    # EXECUTALE INTEGRATION TESTS
-    # -------------------------------------
-
-    - name: "integration-test: relay"
-      if: NOT branch ~= /^release-library\/[\d.]+$/
-      env:
-        - KAFKA_BOOTSTRAP_SERVER="localhost:9092"
-      install:
-        - export PATH=$PATH:$HOME/.cargo/bin
-        - wget https://github.com/yyyar/gobetween/releases/download/0.6.0/gobetween_0.6.0_linux_amd64.tar.gz -O - | tar xz; mv gobetween $HOME/.cargo/bin
-        - sudo add-apt-repository ppa:vbernat/haproxy-1.8 -y
-        - sudo apt-get clean && sudo rm -r /var/lib/apt/lists/*
-        - sudo apt-get update
-        - sudo apt-get install haproxy redis-server -y
-        # Start Zookeeper, Kafka and Redis
-        - docker run -d --network host --name zookeeper -e ZOOKEEPER_CLIENT_PORT=2181 confluentinc/cp-zookeeper:4.1.2-3
-        - docker run -d --network host --name kafka -e KAFKA_ZOOKEEPER_CONNECT=localhost:2181 -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$KAFKA_BOOTSTRAP_SERVER -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 confluentinc/cp-kafka:4.1.2-3
-        - sudo service redis-server start --bind 127.0.0.1
-      script:
-        - make -e test-integration
-
-    # -------------------------------------
     # RUST RELEASE BUILDS
     # -------------------------------------
 
