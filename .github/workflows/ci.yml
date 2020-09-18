@@ -47,8 +47,9 @@ jobs:
           args: --workspace --all-features --tests -- -D clippy::all
 
   test:
-    matrix:
-      os: [ubuntu-latest, macos-latest, windows-latest]
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
