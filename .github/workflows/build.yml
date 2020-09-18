@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     # Only build on binary release branches
-    # if: "startsWith(github.ref, 'refs/heads/release/')"
+    if: "startsWith(github.ref, 'refs/heads/release/')"
 
     steps:
       - uses: actions/checkout@v2
@@ -41,7 +41,7 @@ jobs:
           npm install -D @zeus-ci/cli
           npx zeus job update -b $GITHUB_RUN_ID -j 1 -r $GITHUB_SHA
           npx zeus upload -b $GITHUB_RUN_ID -j 1 -t "application/octet-stream" -n relay-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/relay
-          npx zeus upload -b $GITHUB_RUN_ID -j 1 -t "application/octet-stream" -n relay-Linux-x86_64-debug.zip relay-debug.zip
+          npx zeus upload -b $GITHUB_RUN_ID -j 1 -t "application/zip" -n relay-Linux-x86_64-debug.zip relay-debug.zip
           npx zeus job update --status=passed -b $GITHUB_RUN_ID -j 1 -r $GITHUB_SHA
 
   macos:
@@ -49,7 +49,7 @@ jobs:
     runs-on: macos-10.15
 
     # Only build on binary release branches
-    # if: "startsWith(github.ref, 'refs/heads/release/')"
+    if: "startsWith(github.ref, 'refs/heads/release/')"
 
     steps:
       - uses: actions/checkout@v2
@@ -82,7 +82,7 @@ jobs:
           npm install -D @zeus-ci/cli
           npx zeus job update -b $GITHUB_RUN_ID -j 2 -r $GITHUB_SHA
           npx zeus upload -b $GITHUB_RUN_ID -j 2 -t "application/octet-stream" -n relay-Darwin-x86_64 target/release/relay
-          npx zeus upload -b $GITHUB_RUN_ID -j 2 -t "application/octet-stream" -n relay-Darwin-x86_64-dsym.zip relay-dsym.zip
+          npx zeus upload -b $GITHUB_RUN_ID -j 2 -t "application/zip" -n relay-Darwin-x86_64-dsym.zip relay-dsym.zip
           npx zeus job update --status=passed -b $GITHUB_RUN_ID -j 2 -r $GITHUB_SHA
 
   windows:
@@ -124,6 +124,111 @@ jobs:
         run: |
           npm install -D @zeus-ci/cli
           npx zeus job update -b ${env:GITHUB_RUN_ID} -j 3 -r ${env:GITHUB_SHA}
-          npx zeus upload -b ${env:GITHUB_RUN_ID} -j 3 -t "application/octet-stream" -n relay-Darwin-x86_64 target/release/relay
-          npx zeus upload -b ${env:GITHUB_RUN_ID} -j 3 -t "application/octet-stream" -n relay-Darwin-x86_64-dsym.zip relay-dsym.zip
+          npx zeus upload -b ${env:GITHUB_RUN_ID} -j 3 -t "application/octet-stream" -n relay-Windows-x86_64.exe target/release/relay.exe
+          npx zeus upload -b ${env:GITHUB_RUN_ID} -j 3 -t "application/zip" -n relay-Windows-x86_64-pdb.zip relay-pdb.zip
           npx zeus job update --status=passed -b ${env:GITHUB_RUN_ID} -j 3 -r ${env:GITHUB_SHA}
+
+  py_linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        build-arch: [i686, x86_64]
+
+    name: Python Linux ${{ matrix.build-arch }}
+    runs-on: ubuntu-latest
+
+    # Only build on library release branches
+    # if: "startsWith(github.ref, 'refs/heads/release-library/')"
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Build in Docker
+        run: scripts/docker-manylinux.sh
+        env:
+          BUILD_ARCH: ${{ matrix.build-arch }}
+
+      - uses: actions/setup-node@v1
+
+      - name: Upload to Zeus
+        env:
+          ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
+          ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
+        run: |
+          npm install -D @zeus-ci/cli
+          npx zeus job update -b $GITHUB_RUN_ID -j 4 -r $GITHUB_SHA
+          npx zeus upload -b $GITHUB_RUN_ID -j 4 -t "application/zip+wheel" py/dist/*
+          npx zeus job update --status=passed -b $GITHUB_RUN_ID -j 4 -r $GITHUB_SHA
+
+  py_macos:
+    name: Python macOS
+    runs-on: macos-10.13
+
+    # Only build on library release branches
+    # if: "startsWith(github.ref, 'refs/heads/release-library/')"
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions-rs/toolchain@v1
+        id: toolchain
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 2.7
+
+      - name: Build Wheel
+        run: python setup.py bdist_wheel
+        working-directory: py
+
+      - uses: actions/setup-node@v1
+
+      - name: Upload to Zeus
+        env:
+          ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
+          ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
+        run: |
+          npm install -D @zeus-ci/cli
+          npx zeus job update -b $GITHUB_RUN_ID -j 5 -r $GITHUB_SHA
+          npx zeus upload -b $GITHUB_RUN_ID -j 5 -t "application/zip+wheel" py/dist/*
+          npx zeus job update --status=passed -b $GITHUB_RUN_ID -j 5 -r $GITHUB_SHA
+
+  py_sdist:
+    name: Python sdist
+    runs-on: ubuntu-latest
+
+    # Only build on library release branches
+    # if: "startsWith(github.ref, 'refs/heads/release-library/')"
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 2.7
+
+      - name: Build sdist
+        run: python setup.py sdist --format=zip
+        working-directory: py
+
+      - uses: actions/setup-node@v1
+
+      - name: Upload to Zeus
+        env:
+          ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
+          ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
+        run: |
+          npm install -D @zeus-ci/cli
+          npx zeus job update -b $GITHUB_RUN_ID -j 5 -r $GITHUB_SHA
+          npx zeus upload -b $GITHUB_RUN_ID -j 5 -t "application/zip+wheel" py/dist/*
+          npx zeus job update --status=passed -b $GITHUB_RUN_ID -j 5 -r $GITHUB_SHA
