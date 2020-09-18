@@ -246,7 +246,10 @@ impl<'a> Iterator for WStrChars<'a> {
         buf.copy_from_slice(chunk);
         let u = u16::from_le_bytes(buf);
 
-        std::char::from_u32(u as u32).or_else(|| {
+        if u < 0xD800 || 0xDFFF < u {
+            // SAFETY: This is now guaranteed a valid Unicode code point.
+            Some(unsafe { std::char::from_u32_unchecked(u as u32) })
+        } else {
             debug_assert!(u < 0xDC00, "u16 not a leading surrogate");
             let chunk = self.chunks.next().expect("missing trailing surrogate");
             buf.copy_from_slice(chunk);
@@ -256,8 +259,9 @@ impl<'a> Iterator for WStrChars<'a> {
                 "u16 is not a trailing surrogate"
             );
             let c = (((u - 0xD800) as u32) << 10 | (u2 - 0xDC00) as u32) + 0x1_0000;
-            Some(std::char::from_u32(c).unwrap())
-        })
+            // SAFETY: This is now guaranteed a valid Unicode code point.
+            Some(unsafe { std::char::from_u32_unchecked(c) })
+        }
     }
 }
 
