@@ -25,14 +25,6 @@ configuration:
 for:
   - matrix:
       only:
-        - configuration: Test
-
-    build: off # Skip default build discovery and just run tests
-    test_script:
-      - C:\MinGW\bin\mingw32-make test-rust
-
-  - matrix:
-      only:
         - configuration: Release
 
     branches:

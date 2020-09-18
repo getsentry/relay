@@ -25,30 +25,6 @@ jobs:
   fast_finish: true
   include:
     # -------------------------------------
-    # RUST TESTS
-    # -------------------------------------
-
-    - name: "test: relay[linux]"
-      if: NOT branch ~= /^release-library\/[\d.]+$/
-      addons:
-        apt:
-          packages:
-            - libssl-dev
-      services:
-        - redis
-      script: make -e test-rust-all
-
-    - name: "test: relay[macos]"
-      if: branch ~= /^release\/[\d.]+$/
-      os: osx
-      language: generic
-      install:
-        - brew update-reset
-        - brew install redis
-        - brew services start redis
-      script: make -e test-rust-all
-
-    # -------------------------------------
     # PYTHON LIBRARY TESTS
     # -------------------------------------
 

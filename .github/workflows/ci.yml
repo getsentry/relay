@@ -55,6 +55,9 @@ jobs:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
 
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref , 'refs/heads/release-library/')"
+
     steps:
       - uses: actions/checkout@v2
         with:
@@ -84,6 +87,9 @@ jobs:
   test-all:
     name: Test All Features (ubuntu-latest)
     runs-on: ubuntu-latest
+
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref , 'refs/heads/release-library/')"
 
     # Testing all features requires Docker container operations that are only available on
     # `ubuntu-latest`. This `test-all` job is to be seen as complementary to the `test` job. If
