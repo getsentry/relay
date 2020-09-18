@@ -36,9 +36,9 @@ jobs:
           ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
         run: |
           npm install -D @zeus-ci/cli
-          npx zeus job update -b $GITHUB_RUN_ID -j 4 -r $GITHUB_SHA
-          npx zeus upload -b $GITHUB_RUN_ID -j 4 -t "application/zip+wheel" py/dist/*
-          npx zeus job update --status=passed -b $GITHUB_RUN_ID -j 4 -r $GITHUB_SHA
+          npx zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip+wheel" py/dist/*
+          npx zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
 
   macos:
     name: Python macOS
@@ -74,9 +74,9 @@ jobs:
           ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
         run: |
           npm install -D @zeus-ci/cli
-          npx zeus job update -b $GITHUB_RUN_ID -j 5 -r $GITHUB_SHA
-          npx zeus upload -b $GITHUB_RUN_ID -j 5 -t "application/zip+wheel" py/dist/*
-          npx zeus job update --status=passed -b $GITHUB_RUN_ID -j 5 -r $GITHUB_SHA
+          npx zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip+wheel" py/dist/*
+          npx zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
 
   sdist:
     name: Python sdist
@@ -103,6 +103,6 @@ jobs:
           ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
         run: |
           npm install -D @zeus-ci/cli
-          npx zeus job update -b $GITHUB_RUN_ID -j 5 -r $GITHUB_SHA
-          npx zeus upload -b $GITHUB_RUN_ID -j 5 -t "application/zip+wheel" py/dist/*
-          npx zeus job update --status=passed -b $GITHUB_RUN_ID -j 5 -r $GITHUB_SHA
+          npx zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip+wheel" py/dist/*
+          npx zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
