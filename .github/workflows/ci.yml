@@ -23,7 +23,7 @@ jobs:
           python-version: 3.7
 
       - name: Install Dependencies
-        run: pip install -U -r requirements-test.txt
+        run: pip install -U -r requirements-dev.txt
 
       - name: Run Black
         run: black --check py tests --exclude '\.eggs|sentry_relay/_lowlevel.*'
