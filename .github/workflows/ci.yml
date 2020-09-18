@@ -50,10 +50,45 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [macos-latest, windows-latest]
 
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions-rs/toolchain@v1
+        id: toolchain
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: test-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run Cargo Tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace
+
+  test-all:
+    name: Test All Features (ubuntu-latest)
+    runs-on: ubuntu-latest
+
+    # Testing all features requires Docker container operations that are only available on
+    # `ubuntu-latest`. This `test-all` job is to be seen as complementary to the `test` job. If
+    # services become available on other platforms, the jobs should be consolidated. See
+    # https://docs.github.com/en/actions/guides/about-service-containers
 
     services:
       redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
@@ -89,8 +124,6 @@ jobs:
         with:
           command: test
           args: --workspace --all-features
-        env:
-          RELAY_REDIS_URL: redis://redis:6379
 
   cargo_docs:
     name: Cargo Docs
