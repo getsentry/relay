@@ -110,7 +110,7 @@ fn apply_regex_to_utf16le_bytes(
 /// Extract the matching encoded slice from the encoded string.
 fn get_wstr_match<'a>(all_text: &str, re_match: Match, all_encoded: &'a mut WStr) -> &'a mut WStr {
     let mut encoded_start = 0;
-    let mut encoded_end = 0;
+    let mut encoded_end = all_encoded.len();
 
     let offsets_iter = all_text.char_indices().zip(all_encoded.char_indices());
     for ((text_offset, _text_char), (encoded_offset, _encoded_char)) in offsets_iter {
@@ -122,7 +122,6 @@ fn get_wstr_match<'a>(all_text: &str, re_match: Match, all_encoded: &'a mut WStr
             break;
         }
     }
-
     &mut all_encoded[encoded_start..encoded_end]
 }
 
@@ -848,5 +847,27 @@ mod tests {
         let mut b = Vec::from(&b"h\x00e\x00y\x00"[..]);
         let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
         s.swap_content("yo", '\u{10000}');
+    }
+
+    #[test]
+    fn test_get_wstr_match() {
+        let s = "hello there";
+        let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00 \x00t\x00h\x00e\x00r\x00e\x00"[..]);
+        let w = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
+
+        // Partial match
+        let re = Regex::new("hello").unwrap();
+        let re_match = re.find(s).unwrap();
+        let m = get_wstr_match(s, re_match, w);
+        assert_eq!(m.as_bytes(), b"h\x00e\x00l\x00l\x00o\x00");
+
+        // Full match
+        let re = Regex::new(".*").unwrap();
+        let re_match = re.find(s).unwrap();
+        let m = get_wstr_match(s, re_match, w);
+        assert_eq!(
+            m.as_bytes(),
+            b"h\x00e\x00l\x00l\x00o\x00 \x00t\x00h\x00e\x00r\x00e\x00"
+        );
     }
 }
