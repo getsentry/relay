@@ -39,10 +39,10 @@ jobs:
           ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
         run: |
           npm install -D @zeus-ci/cli
-          npx zeus job update -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -r $GITHUB_SHA
-          npx zeus upload -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -t "application/octet-stream" -n relay-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/relay
-          npx zeus upload -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -t "application/octet-stream" -n relay-Linux-x86_64-debug.zip relay-debug.zip
-          npx zeus job update --status=passed -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -r $GITHUB_SHA
+          npx zeus job update -b $GITHUB_RUN_ID -j 1 -r $GITHUB_SHA
+          npx zeus upload -b $GITHUB_RUN_ID -j 1 -t "application/octet-stream" -n relay-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/relay
+          npx zeus upload -b $GITHUB_RUN_ID -j 1 -t "application/octet-stream" -n relay-Linux-x86_64-debug.zip relay-debug.zip
+          npx zeus job update --status=passed -b $GITHUB_RUN_ID -j 1 -r $GITHUB_SHA
 
   macos:
     name: macOS
@@ -80,10 +80,10 @@ jobs:
           ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
         run: |
           npm install -D @zeus-ci/cli
-          npx zeus job update -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -r $GITHUB_SHA
-          npx zeus upload -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -t "application/octet-stream" -n relay-Darwin-x86_64 target/release/relay
-          npx zeus upload -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -t "application/octet-stream" -n relay-Darwin-x86_64-dsym.zip relay-dsym.zip
-          npx zeus job update --status=passed -b $GITHUB_RUN_ID -j $GITHUB_RUN_NUMBER -r $GITHUB_SHA
+          npx zeus job update -b $GITHUB_RUN_ID -j 2 -r $GITHUB_SHA
+          npx zeus upload -b $GITHUB_RUN_ID -j 2 -t "application/octet-stream" -n relay-Darwin-x86_64 target/release/relay
+          npx zeus upload -b $GITHUB_RUN_ID -j 2 -t "application/octet-stream" -n relay-Darwin-x86_64-dsym.zip relay-dsym.zip
+          npx zeus job update --status=passed -b $GITHUB_RUN_ID -j 2 -r $GITHUB_SHA
 
   windows:
     name: Windows
@@ -123,8 +123,7 @@ jobs:
           ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
         run: |
           npm install -D @zeus-ci/cli
-          npx zeus job update -b ${env:GITHUB_RUN_ID} -j ${env:GITHUB_RUN_NUMBER} -r ${env:GITHUB_SHA}
-          npx zeus upload -b ${env:GITHUB_RUN_ID} -j ${env:GITHUB_RUN_NUMBER} -t "application/octet-stream" -n Cargo.toml .\Cargo.toml
-          npx zeus upload -b ${env:GITHUB_RUN_ID} -j ${env:GITHUB_RUN_NUMBER} -t "application/octet-stream" -n relay-Darwin-x86_64 .\target\release\relay
-          npx zeus upload -b ${env:GITHUB_RUN_ID} -j ${env:GITHUB_RUN_NUMBER} -t "application/octet-stream" -n relay-Darwin-x86_64-dsym.zip .\relay-dsym.zip
-          npx zeus job update --status=passed -b ${env:GITHUB_RUN_ID} -j ${env:GITHUB_RUN_NUMBER} -r ${env:GITHUB_SHA}
+          npx zeus job update -b ${env:GITHUB_RUN_ID} -j 3 -r ${env:GITHUB_SHA}
+          npx zeus upload -b ${env:GITHUB_RUN_ID} -j 3 -t "application/octet-stream" -n relay-Darwin-x86_64 target/release/relay
+          npx zeus upload -b ${env:GITHUB_RUN_ID} -j 3 -t "application/octet-stream" -n relay-Darwin-x86_64-dsym.zip relay-dsym.zip
+          npx zeus job update --status=passed -b ${env:GITHUB_RUN_ID} -j 3 -r ${env:GITHUB_SHA}
