@@ -119,29 +119,18 @@ fn apply_regex_to_bytes(
 /// This doesn't care if the match is a group or the entire match, the scrubbing behaviour
 /// is the same.
 fn scrub_match(all_text: &str, re_match: Match, redaction: &Redaction, all_encoded: &mut WStr) {
-    let mut segment_char_start = 0;
-    let mut segment_char_end = 0;
-    for (cur_char_offset, (cur_byte_offset, _cur_char)) in all_text.char_indices().enumerate() {
-        if cur_byte_offset == re_match.start() {
-            segment_char_start = cur_char_offset;
+    let mut segment_byte_start = 0;
+    let mut segment_byte_end = 0;
+    let offsets_iter = all_text.char_indices().zip(all_encoded.char_indices());
+    for ((text_offset, _text_char), (encoded_offset, _encoded_char)) in offsets_iter {
+        if text_offset == re_match.start() {
+            segment_byte_start = encoded_offset;
         }
-        if cur_byte_offset == re_match.end() {
-            segment_char_end = cur_char_offset;
+        if text_offset == re_match.end() {
+            segment_byte_end = encoded_offset;
             break;
         }
     }
-
-    let mut segment_byte_start = 0;
-    let mut segment_byte_end = 0;
-    for (cur_char_offset, (cur_byte_offset, _cur_char)) in all_encoded.char_indices().enumerate() {
-        if cur_char_offset == segment_char_start {
-            segment_byte_start = cur_byte_offset;
-        }
-        if cur_char_offset == segment_char_end {
-            segment_byte_end = cur_byte_offset;
-        }
-    }
-
     let match_encoded = &mut all_encoded[segment_byte_start..segment_byte_end];
 
     const PADDING: char = 'x';
