@@ -182,13 +182,13 @@ impl StringMods for WStr {
     fn fill_content(&mut self, fill_char: char) {
         // If fill_char is too wide, fill_char.encode_utf16() will panic, fulfilling the
         // trait's contract that we must panic if fill_char is too wide.
-        let size = std::mem::size_of::<u16>();
-
         let mut buf = [0u16; 1];
         let fill_u16 = fill_char.encode_utf16(&mut buf[..]);
         let fill_buf = fill_u16[0].to_le_bytes();
 
-        let chunks = self.as_bytes_mut().chunks_exact_mut(size);
+        let chunks = self
+            .as_bytes_mut()
+            .chunks_exact_mut(std::mem::size_of::<u16>());
         for chunk in chunks {
             chunk.copy_from_slice(&fill_buf);
         }
@@ -197,30 +197,29 @@ impl StringMods for WStr {
     fn swap_content(&mut self, replacement: &str, padding: char) {
         // If the padding char is too wide, padding.encode_utf16() will panic, fulfilling
         // the trait's contract that we must panic in this case.
-        let size = std::mem::size_of::<u16>();
         let len = self.len();
 
         let mut buf = [0u16; 1];
-        let fill_u16 = padding.encode_utf16(&mut buf[..]);
-        let fill_buf = fill_u16[0].to_le_bytes();
+        padding.encode_utf16(&mut buf[..]);
+        let fill_buf = buf[0].to_le_bytes();
 
         let mut offset = 0;
         for code in replacement.encode_utf16() {
             let char_len = if 0xD800 & code == 0xD800 {
-                size * 2 // leading surrogate
+                std::mem::size_of::<u16>() * 2 // leading surrogate
             } else {
-                size
+                std::mem::size_of::<u16>()
             };
             if (len - offset) < char_len {
                 break; // Not enough space for this char
             }
-            let target = &mut self.as_bytes_mut()[offset..offset + size];
+            let target = &mut self.as_bytes_mut()[offset..offset + std::mem::size_of::<u16>()];
             target.copy_from_slice(&code.to_le_bytes());
-            offset += size;
+            offset += std::mem::size_of::<u16>();
         }
 
         let remainder_bytes = &mut self.as_bytes_mut()[offset..];
-        let chunks = remainder_bytes.chunks_exact_mut(size);
+        let chunks = remainder_bytes.chunks_exact_mut(std::mem::size_of::<u16>());
         for chunk in chunks {
             chunk.copy_from_slice(&fill_buf);
         }
