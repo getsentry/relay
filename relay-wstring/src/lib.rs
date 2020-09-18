@@ -125,7 +125,7 @@ impl WStr {
         // Since we always have a valid UTF-16LE string in here we now are sure we always
         // have a byte at index + 1.  The only invalid thing now is a trailing surrogate.
 
-        let mut buf: [u8; 2] = [0; 2]; // TODO: avoid init
+        let mut buf = [0u8; 2];
         buf.copy_from_slice(&self.raw[index..index + 2]);
         let u = u16::from_le_bytes(buf);
         u & 0xDC00 != 0xDC00
@@ -242,7 +242,7 @@ impl<'a> Iterator for WStrChars<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         // Our input is valid UTF-16LE, so we can take a lot of shortcuts.
         let chunk = self.chunks.next()?;
-        let mut buf: [u8; 2] = [0; 2]; // TODO: avoid init
+        let mut buf = [0u8; 2];
         buf.copy_from_slice(chunk);
         let u = u16::from_le_bytes(buf);
 
@@ -308,7 +308,7 @@ fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
         return Err(Utf16Error::new());
     }
     let u16iter = raw.chunks_exact(2).map(|chunk| {
-        let mut buf: [u8; 2] = [0; 2]; // TODO: avoid init
+        let mut buf = [0u8; 2];
         buf.copy_from_slice(chunk);
         u16::from_le_bytes(buf)
     });
