@@ -153,12 +153,6 @@ trait StringMods: AsRef<[u8]> {
     /// will panic.  Using an ASCII padding character is usually safe in most encodings.
     fn swap_content(&mut self, replacement: &str, padding: char);
 
-    // /// Scrub a single regex match.
-    // ///
-    // /// This doesn't care if the match is a group or the entire match, the scrubbing
-    // /// behaviour is the same.
-    // fn scrub_match(&mut self, all_text: &str, re_match: Match, redaction: &Redaction) {
-
     /// Apply a PII scrubbing redaction to this string slice.
     fn apply_redaction(&mut self, redaction: &Redaction) {
         const PADDING: char = 'x';
@@ -274,6 +268,9 @@ impl<'a> Iterator for MutSegmentIter<'a> {
     type Item = MutSegment<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // We are handing out multiple mutable slices from the same mutable slice.  This is
+        // safe because we know they are not overlapping.  However the compiler doesn't know
+        // this so we need to transmute the lifetimes of the slices we return.
         let mut decoded = String::with_capacity(self.data.len() - self.offset);
 
         loop {
