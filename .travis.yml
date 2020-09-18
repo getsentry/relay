@@ -24,20 +24,6 @@ jobs:
   fast_finish: true
   include:
     # -------------------------------------
-    # RUST RELEASE BUILDS
-    # -------------------------------------
-    - name: "release: relay[macos]"
-      if: branch ~= /^release\/[\d.]+$/
-      os: osx
-      language: generic
-      script:
-        - make -e release
-        - npm install -g @zeus-ci/cli || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
-        - zeus upload -t "application/octet-stream" -n relay-Darwin-x86_64 target/release/relay || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
-        - zip -r relay-dsym.zip target/release/relay.dSYM
-        - zeus upload -t "application/octet-stream" -n relay-Darwin-x86_64-dsym.zip relay-dsym.zip || [[ ! "$TRAVIS_BRANCH" =~ ^release/ ]]
-
-    # -------------------------------------
     # PYTHON RELEASE BUILDS
     # -------------------------------------
 
