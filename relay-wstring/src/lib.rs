@@ -361,13 +361,11 @@ fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
         buf.copy_from_slice(chunk);
         u16::from_le_bytes(buf)
     });
-    for c in std::char::decode_utf16(u16iter) {
-        match c {
-            Ok(_) => (),
-            Err(_) => return Err(Utf16Error::new()),
-        }
+    if std::char::decode_utf16(u16iter).all(|result| result.is_ok()) {
+        Ok(())
+    } else {
+        Err(Utf16Error::new())
     }
-    Ok(())
 }
 
 #[cfg(test)]
