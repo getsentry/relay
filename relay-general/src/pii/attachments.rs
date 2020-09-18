@@ -25,7 +25,7 @@ fn replace_bytes_padded(source: &[u8], target: &mut [u8], padding: u8) {
     }
 }
 
-fn apply_regex_to_bytes(
+fn apply_regex_to_utf8_bytes(
     data: &mut [u8],
     rule: &RuleRef,
     regex: &Regex,
@@ -114,47 +114,7 @@ fn apply_regex_to_bytes(
     true
 }
 
-/// Scrub a single regex match.
-///
-/// This doesn't care if the match is a group or the entire match, the scrubbing behaviour
-/// is the same.
-fn scrub_match(all_text: &str, re_match: Match, redaction: &Redaction, all_encoded: &mut WStr) {
-    let mut segment_byte_start = 0;
-    let mut segment_byte_end = 0;
-    let offsets_iter = all_text.char_indices().zip(all_encoded.char_indices());
-    for ((text_offset, _text_char), (encoded_offset, _encoded_char)) in offsets_iter {
-        if text_offset == re_match.start() {
-            segment_byte_start = encoded_offset;
-        }
-        if text_offset == re_match.end() {
-            segment_byte_end = encoded_offset;
-            break;
-        }
-    }
-    let match_encoded = &mut all_encoded[segment_byte_start..segment_byte_end];
-
-    const PADDING: char = 'x';
-    const MASK: char = '*';
-
-    match redaction {
-        Redaction::Default | Redaction::Remove => {
-            match_encoded.fill_content(PADDING);
-        }
-        Redaction::Mask => {
-            match_encoded.fill_content(MASK);
-        }
-        Redaction::Hash => {
-            // Note: we are hashing bytes containing utf16, not utf8.
-            let hashed = hash_value(match_encoded.as_bytes());
-            match_encoded.swap_content(&hashed, PADDING);
-        }
-        Redaction::Replace(ref replace) => {
-            match_encoded.swap_content(replace.text.as_str(), PADDING);
-        }
-    }
-}
-
-fn apply_regex_to_utf16_slices(
+fn apply_regex_to_utf16le_bytes(
     data: &mut [u8],
     rule: &RuleRef,
     regex: &Regex,
@@ -163,11 +123,13 @@ fn apply_regex_to_utf16_slices(
     let mut changed = false;
     for segment in MutSegmentIter::new(data, *UTF_16LE) {
         let segment_wstr = unsafe { WStr::from_utf16le_unchecked_mut(segment.raw) };
+
         match replace_behavior {
             ReplaceBehavior::Value => {
                 for re_match in regex.find_iter(&segment.decoded) {
                     changed = true;
-                    scrub_match(&segment.decoded, re_match, &rule.redaction, segment_wstr);
+                    let match_wstr = get_wstr_match(&segment.decoded, re_match, segment_wstr);
+                    match_wstr.apply_redaction(&rule.redaction);
                 }
             }
             ReplaceBehavior::Groups(ref replace_groups) => {
@@ -175,7 +137,9 @@ fn apply_regex_to_utf16_slices(
                     for group_idx in replace_groups.iter() {
                         if let Some(re_match) = captures.get(*group_idx as usize) {
                             changed = true;
-                            scrub_match(&segment.decoded, re_match, &rule.redaction, segment_wstr);
+                            let match_wstr =
+                                get_wstr_match(&segment.decoded, re_match, segment_wstr);
+                            match_wstr.apply_redaction(&rule.redaction);
                         }
                     }
                 }
@@ -185,8 +149,27 @@ fn apply_regex_to_utf16_slices(
     changed
 }
 
+/// Extract the matching encoded slice from the encoded string.
+fn get_wstr_match<'a>(all_text: &str, re_match: Match, all_encoded: &'a mut WStr) -> &'a mut WStr {
+    let mut encoded_start = 0;
+    let mut encoded_end = 0;
+
+    let offsets_iter = all_text.char_indices().zip(all_encoded.char_indices());
+    for ((text_offset, _text_char), (encoded_offset, _encoded_char)) in offsets_iter {
+        if text_offset == re_match.start() {
+            encoded_start = encoded_offset;
+        }
+        if text_offset == re_match.end() {
+            encoded_end = encoded_offset;
+            break;
+        }
+    }
+
+    &mut all_encoded[encoded_start..encoded_end]
+}
+
 /// Traits to modify the strings in ways we need.
-trait StringMods {
+trait StringMods: AsRef<[u8]> {
     type Error;
 
     /// Replace this string's contents by repeating the given character into it.
@@ -212,6 +195,34 @@ trait StringMods {
     /// The `padding` character has to encode to the smallest encoding unit, otherwise this
     /// will panic.  Using an ASCII padding character is usually safe in most encodings.
     fn swap_content(&mut self, replacement: &str, padding: char);
+
+    // /// Scrub a single regex match.
+    // ///
+    // /// This doesn't care if the match is a group or the entire match, the scrubbing
+    // /// behaviour is the same.
+    // fn scrub_match(&mut self, all_text: &str, re_match: Match, redaction: &Redaction) {
+
+    /// Apply a PII scrubbing redaction to this string slice.
+    fn apply_redaction(&mut self, redaction: &Redaction) {
+        const PADDING: char = 'x';
+        const MASK: char = '*';
+
+        match redaction {
+            Redaction::Default | Redaction::Remove => {
+                self.fill_content(PADDING);
+            }
+            Redaction::Mask => {
+                self.fill_content(MASK);
+            }
+            Redaction::Hash => {
+                let hashed = hash_value(self.as_ref());
+                self.swap_content(&hashed, PADDING);
+            }
+            Redaction::Replace(ref replace) => {
+                self.swap_content(replace.text.as_str(), PADDING);
+            }
+        }
+    }
 }
 
 impl StringMods for WStr {
@@ -406,9 +417,9 @@ impl<'a> PiiAttachmentsProcessor<'a> {
                     for (_pattern_type, regex, replace_behavior) in
                         get_regex_for_rule_type(&rule.ty)
                     {
-                        changed |= apply_regex_to_bytes(data, rule, regex, &replace_behavior);
+                        changed |= apply_regex_to_utf8_bytes(data, rule, regex, &replace_behavior);
                         changed |=
-                            apply_regex_to_utf16_slices(data, rule, regex, &replace_behavior);
+                            apply_regex_to_utf16le_bytes(data, rule, regex, &replace_behavior);
                     }
                 }
             }
