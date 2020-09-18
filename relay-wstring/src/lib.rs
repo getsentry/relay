@@ -67,7 +67,7 @@ pub struct WStr {
 }
 
 impl WStr {
-    /// Create a new `&WStr` from an existing UTF-16 little-endian encoded byte-slice.
+    /// Creates a new `&WStr` from an existing UTF-16 little-endian encoded byte-slice.
     ///
     /// If the byte-slice is not valid [Utf16Error] is returned.
     pub fn from_utf16le(raw: &[u8]) -> Result<&Self, Utf16Error> {
@@ -75,7 +75,7 @@ impl WStr {
         Ok(unsafe { Self::from_utf16le_unchecked(raw) })
     }
 
-    /// Create a new `&mut WStr` from an existing UTF-16 little-endian encoded byte-slice.
+    /// Creates a new `&mut WStr` from an existing UTF-16 little-endian encoded byte-slice.
     ///
     /// If the byte-slice is not valid [Utf16Error] is returned.
     pub fn from_utf16le_mut(raw: &mut [u8]) -> Result<&mut Self, Utf16Error> {
@@ -83,7 +83,7 @@ impl WStr {
         Ok(unsafe { Self::from_utf16le_unchecked_mut(raw) })
     }
 
-    /// Create a new [WStr] from an existing UTF-16 little-endian encoded byte-slice.
+    /// Creates a new [WStr] from an existing UTF-16 little-endian encoded byte-slice.
     ///
     /// # Safety
     ///
@@ -130,27 +130,27 @@ impl WStr {
         !is_trailing_surrogate(code_unit)
     }
 
-    /// Convert to a byte slice.
+    /// Converts to a byte slice.
     pub fn as_bytes(&self) -> &[u8] {
         &self.raw
     }
 
-    /// Convert to a mutable byte slice.
+    /// Converts to a mutable byte slice.
     pub fn as_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.raw
     }
 
-    /// Convert to a raw pointer to the byte slice.
+    /// Converts to a raw pointer to the byte slice.
     pub const fn as_ptr(&self) -> *const u8 {
         self.raw.as_ptr()
     }
 
-    /// Convert to a mutable raw pointer to the byte slice.
+    /// Converts to a mutable raw pointer to the byte slice.
     pub fn as_mut_ptr(&mut self) -> *mut u8 {
         self.raw.as_mut_ptr()
     }
 
-    /// Return a subslice of `self`.
+    /// Returns a subslice of `self`.
     ///
     /// The slice indices are on byte offsets of the underlying UTF-16LE encoded buffer, if
     /// the subslice is not on character boundaries or otherwise invalid this will return
@@ -162,7 +162,7 @@ impl WStr {
         index.get(self)
     }
 
-    /// Return a mutable subslice of `Self`.
+    /// Returns a mutable subslice of `Self`.
     ///
     /// The slice indices are on byte offsets of the underlying UTF-16LE encoded buffer, if
     /// the subslice is not on character boundaries or otherwise invalid this will return
@@ -174,7 +174,7 @@ impl WStr {
         index.get_mut(self)
     }
 
-    /// Return a subslice of `Self`.
+    /// Returns a subslice of `Self`.
     ///
     /// # Safety
     ///
@@ -187,7 +187,7 @@ impl WStr {
         index.get_unchecked(self)
     }
 
-    /// Return a mutable subslice of `Self`.
+    /// Returns a mutable subslice of `Self`.
     ///
     /// # Safety
     ///
@@ -335,7 +335,7 @@ fn is_trailing_surrogate(code_unit: u16) -> bool {
     code_unit & 0xDC00 == 0xDC00
 }
 
-/// Check that the raw bytes are valid UTF-16LE.
+/// Checks that the raw bytes are valid UTF-16LE.
 fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
     // This could be optimised as it does not need to be actually decoded, just needs to
     // be a valid byte sequence.
