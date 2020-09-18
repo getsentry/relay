@@ -69,6 +69,7 @@ pub fn init_logging(config: &Config) {
             "relay_quotas::",
             "relay_redis::",
             "relay_server::",
+            "relay_wstring::",
             "relay::",
         ],
         release: sentry::release_name!(),
@@ -102,6 +103,7 @@ pub fn init_logging(config: &Config) {
                  relay_quotas=DEBUG,\
                  relay_redis=DEBUG,\
                  relay_server=DEBUG,\
+                 relay_wstring=DEBUG,\
                  relay=DEBUG"
             }
             LevelFilter::Trace => {
@@ -116,6 +118,7 @@ pub fn init_logging(config: &Config) {
                  relay_quotas=TRACE,\
                  relay_redis=TRACE,\
                  relay_server=TRACE,\
+                 relay_wstring=TRACE,\
                  relay=TRACE"
             }
         }
