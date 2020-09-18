@@ -151,20 +151,18 @@ fn scrub_match(all_text: &str, re_match: Match, redaction: &Redaction, all_encod
     // ASCII and encode to the minimum number of bytes for the encodings we use.
     match redaction {
         Redaction::Default | Redaction::Remove => {
-            match_encoded.fill_content(PADDING).unwrap();
+            match_encoded.fill_content(PADDING);
         }
         Redaction::Mask => {
-            match_encoded.fill_content(MASK).unwrap();
+            match_encoded.fill_content(MASK);
         }
         Redaction::Hash => {
             // Note: we are hashing bytes containing utf16, not utf8.
             let hashed = hash_value(match_encoded.as_bytes());
-            match_encoded.swap_content(&hashed, PADDING).unwrap();
+            match_encoded.swap_content(&hashed, PADDING);
         }
         Redaction::Replace(ref replace) => {
-            match_encoded
-                .swap_content(replace.text.as_str(), PADDING)
-                .unwrap();
+            match_encoded.swap_content(replace.text.as_str(), PADDING);
         }
     }
 }
@@ -206,10 +204,11 @@ trait StringMods {
 
     /// Replace this string's contents by repeating the given character into it.
     ///
-    /// If the string's `len` (its length in bytes) is not a multiple of the number of bytes
-    /// which the given character encodes as, `Err` is returned.  In most encodings you can
-    /// avoid this by using an ASCII replacement character.
-    fn fill_content(&mut self, fill_char: char) -> Result<(), Self::Error>;
+    /// # Panics
+    ///
+    /// The `fill_char` has to encode to the smallest encoding unit, otherwise this will
+    /// panic.  Using an ASCII replacement character is usually safe in most encodings.
+    fn fill_content(&mut self, fill_char: char);
 
     /// Replace this string's contents with the given replacement string.
     ///
@@ -221,45 +220,37 @@ trait StringMods {
     /// in the replacement string it is further trucated to the previous character boundary
     /// and the remainder is filled with the padding char.
     ///
-    /// If the combination of the possibly truncated replacement string plus the padding
-    /// character can not match the byte-slice of the current string `Err` is returned.
-    fn swap_content(&mut self, replacement: &str, padding: char) -> Result<(), Self::Error>;
+    /// # Panics
+    ///
+    /// The `padding` character has to encode to the smallest encoding unit, otherwise this
+    /// will panic.  Using an ASCII padding character is usually safe in most encodings.
+    fn swap_content(&mut self, replacement: &str, padding: char);
 }
 
 impl StringMods for WStr {
     type Error = Utf16Error;
 
-    fn fill_content(&mut self, fill_char: char) -> Result<(), Self::Error> {
+    fn fill_content(&mut self, fill_char: char) {
         let size = std::mem::size_of::<u16>();
 
-        if (fill_char.len_utf16() == 2) && ((self.len() / size) % 2 != 0) {
-            return Err(Utf16Error::new());
-        }
+        let mut buf = [0u16; 1];
+        let fill_u16 = fill_char.encode_utf16(&mut buf[..]); // this panics for us.
+        let fill_buf = fill_u16[0].to_le_bytes();
 
-        let mut buf = [0u16; 2];
-        let fill_u16 = fill_char.encode_utf16(&mut buf[..]);
-        let mut fill_bytes: Vec<u8> = Vec::with_capacity(fill_u16.len() * size);
-        for code in fill_u16 {
-            fill_bytes.extend_from_slice(&code.to_le_bytes());
-        }
-
-        debug_assert!(
-            self.len() % fill_bytes.len() == 0,
-            "string size not multiple of fill size"
-        );
-        let chunks = self.as_bytes_mut().chunks_exact_mut(fill_bytes.len());
+        let chunks = self.as_bytes_mut().chunks_exact_mut(size);
         for chunk in chunks {
-            chunk.copy_from_slice(fill_bytes.as_slice());
+            chunk.copy_from_slice(&fill_buf);
         }
-
-        Ok(())
     }
 
-    fn swap_content(&mut self, replacement: &str, padding: char) -> Result<(), Self::Error> {
-        // WARNING: This implementation writes to the current string before it knows things
-        // will work out.  That is incorrect!
+    fn swap_content(&mut self, replacement: &str, padding: char) {
         let size = std::mem::size_of::<u16>();
         let len = self.len();
+
+        let mut buf = [0u16; 1];
+        let fill_u16 = padding.encode_utf16(&mut buf[..]); // this panics for us.
+        let fill_buf = fill_u16[0].to_le_bytes();
+
         let mut offset = 0;
         for code in replacement.encode_utf16() {
             let char_len = if 0xD800 & code == 0xD800 {
@@ -275,13 +266,11 @@ impl StringMods for WStr {
             offset += size;
         }
 
-        // Our current WStr could be invalid UTF-16LE at this point, up to the current
-        // offset it is valid, but afterwards is may not be.  So we can not just slice
-        // ourselves and must slice the raw bytes, creating a new WStr with them.  This new
-        // WStr could be invalid, but after we called .fill_content() it will be valid.
         let remainder_bytes = &mut self.as_bytes_mut()[offset..];
-        let remainder = unsafe { WStr::from_utf16le_unchecked_mut(remainder_bytes) };
-        remainder.fill_content(padding)
+        let chunks = remainder_bytes.chunks_exact_mut(size);
+        for chunk in chunks {
+            chunk.copy_from_slice(&fill_buf);
+        }
     }
 }
 
@@ -823,5 +812,56 @@ mod tests {
         assert_eq!(segment.decoded, "world");
 
         assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_fill_content_wstr() {
+        let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00"[..]);
+        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
+        s.fill_content('x');
+        assert_eq!(b.as_slice(), b"x\x00x\x00x\x00x\x00x\x00");
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_fill_content_wstr_panic() {
+        let mut b = Vec::from(&b"h\x00e\x00y\x00"[..]);
+        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
+        s.fill_content('\u{10000}');
+    }
+
+    #[test]
+    fn test_swap_content_wstr() {
+        // Exact same size
+        let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00"[..]);
+        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
+        s.swap_content("world", 'x');
+        assert_eq!(b.as_slice(), b"w\x00o\x00r\x00l\x00d\x00");
+
+        // Shorter, padding fits
+        let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00"[..]);
+        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
+        s.swap_content("hey", 'x');
+        assert_eq!(b.as_slice(), b"h\x00e\x00y\x00x\x00x\x00");
+
+        // Longer, truncated fits
+        let mut b = Vec::from(&b"h\x00e\x00y\x00"[..]);
+        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
+        s.swap_content("world", 'x');
+        assert_eq!(b.as_slice(), b"w\x00o\x00r\x00");
+
+        // Longer, truncated + padding
+        let mut b = Vec::from(&b"h\x00e\x00y\x00"[..]);
+        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
+        s.swap_content("yo\u{10000}", 'x');
+        assert_eq!(b.as_slice(), b"y\x00o\x00x\x00");
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_swap_content_wstr_panic() {
+        let mut b = Vec::from(&b"h\x00e\x00y\x00"[..]);
+        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
+        s.swap_content("yo", '\u{10000}');
     }
 }
