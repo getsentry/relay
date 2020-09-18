@@ -18,6 +18,19 @@ jobs:
         with:
           submodules: recursive
 
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.7
+
+      - name: Install Dependencies
+        run: pip install -U -r requirements-test.txt
+
+      - name: Run Black
+        run: black --check py tests --exclude '\.eggs|sentry_relay/_lowlevel.*'
+
+      - name: Run Flake8
+        run: flake8 py
+
       - uses: actions-rs/toolchain@v1
         id: toolchain
         with:
