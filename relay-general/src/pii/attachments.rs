@@ -136,8 +136,6 @@ fn scrub_match(all_text: &str, re_match: Match, redaction: &Redaction, all_encod
     const PADDING: char = 'x';
     const MASK: char = '*';
 
-    // We can unwrap the .fill_content() .swap_content() calls because our padding chars are
-    // ASCII and encode to the minimum number of bytes for the encodings we use.
     match redaction {
         Redaction::Default | Redaction::Remove => {
             match_encoded.fill_content(PADDING);
