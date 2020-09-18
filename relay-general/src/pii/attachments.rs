@@ -287,7 +287,8 @@ impl<'a> Iterator for WStrSegmentIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         // We are handing out multiple mutable slices from the same mutable slice.  This is
         // safe because we know they are not overlapping.  However the compiler doesn't know
-        // this so we need to transmute the lifetimes of the slices we return.
+        // this so we need to transmute the lifetimes of the slices we return with
+        // std::slice::from_raw_parts_mut().
         let mut decoded = String::with_capacity(self.data.len() - self.offset);
 
         loop {
@@ -311,30 +312,26 @@ impl<'a> Iterator for WStrSegmentIter<'a> {
                     self.decoder = self.decoder.from_self();
                 }
                 if decoded.len() > 2 {
-                    let slice = unsafe {
-                        std::mem::transmute::<&'_ mut [u8], &'_ mut [u8]>(
-                            &mut self.data[start..end],
-                        )
+                    let slice = &mut self.data[start..end];
+                    let len = slice.len();
+                    let ptr = slice.as_mut_ptr();
+                    let encoded = unsafe {
+                        WStr::from_utf16le_unchecked_mut(std::slice::from_raw_parts_mut(ptr, len))
                     };
-                    return Some(WstrSegment {
-                        encoded: unsafe { WStr::from_utf16le_unchecked_mut(slice) },
-                        decoded,
-                    });
+                    return Some(WstrSegment { encoded, decoded });
                 } else {
                     continue;
                 }
             } else {
                 self.offset += unprocessed_offset;
                 if decoded.len() >= MIN_STRING_LEN {
-                    let slice = unsafe {
-                        std::mem::transmute::<&'_ mut [u8], &'_ mut [u8]>(
-                            &mut self.data[start..end],
-                        )
+                    let slice = &mut self.data[start..end];
+                    let len = slice.len();
+                    let ptr = slice.as_mut_ptr();
+                    let encoded = unsafe {
+                        WStr::from_utf16le_unchecked_mut(std::slice::from_raw_parts_mut(ptr, len))
                     };
-                    return Some(WstrSegment {
-                        encoded: unsafe { WStr::from_utf16le_unchecked_mut(slice) },
-                        decoded,
-                    });
+                    return Some(WstrSegment { encoded, decoded });
                 } else {
                     return None;
                 }
