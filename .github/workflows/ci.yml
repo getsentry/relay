@@ -138,6 +138,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release/')"
 
     name: Test Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
@@ -168,7 +169,8 @@ jobs:
 
       - name: Build and Install Library
         run: pip install -v --editable py
-        env: RELAY_DEBUG=1
+        env:
+          RELAY_DEBUG: 1
 
       - name: Run Python Tests
         run: pytest -v py
