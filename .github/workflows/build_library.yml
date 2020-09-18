@@ -1,0 +1,106 @@
+name: Library Release Build
+
+on:
+  push:
+    branches:
+      - release-library/**
+
+  # TODO: Only push
+  pull_request:
+
+jobs:
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        build-arch: [i686, x86_64]
+
+    name: Python Linux ${{ matrix.build-arch }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Build in Docker
+        run: scripts/docker-manylinux.sh
+        env:
+          BUILD_ARCH: ${{ matrix.build-arch }}
+
+      - uses: actions/setup-node@v1
+
+      - name: Upload to Zeus
+        env:
+          ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
+          ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
+        run: |
+          npm install -D @zeus-ci/cli
+          npx zeus job update -b $GITHUB_RUN_ID -j 4 -r $GITHUB_SHA
+          npx zeus upload -b $GITHUB_RUN_ID -j 4 -t "application/zip+wheel" py/dist/*
+          npx zeus job update --status=passed -b $GITHUB_RUN_ID -j 4 -r $GITHUB_SHA
+
+  macos:
+    name: Python macOS
+    runs-on: macos-10.13
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions-rs/toolchain@v1
+        id: toolchain
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 2.7
+
+      - name: Build Wheel
+        run: python setup.py bdist_wheel
+        working-directory: py
+
+      - uses: actions/setup-node@v1
+
+      - name: Upload to Zeus
+        env:
+          ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
+          ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
+        run: |
+          npm install -D @zeus-ci/cli
+          npx zeus job update -b $GITHUB_RUN_ID -j 5 -r $GITHUB_SHA
+          npx zeus upload -b $GITHUB_RUN_ID -j 5 -t "application/zip+wheel" py/dist/*
+          npx zeus job update --status=passed -b $GITHUB_RUN_ID -j 5 -r $GITHUB_SHA
+
+  sdist:
+    name: Python sdist
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 2.7
+
+      - name: Build sdist
+        run: python setup.py sdist --format=zip
+        working-directory: py
+
+      - uses: actions/setup-node@v1
+
+      - name: Upload to Zeus
+        env:
+          ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
+          ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
+        run: |
+          npm install -D @zeus-ci/cli
+          npx zeus job update -b $GITHUB_RUN_ID -j 5 -r $GITHUB_SHA
+          npx zeus upload -b $GITHUB_RUN_ID -j 5 -t "application/zip+wheel" py/dist/*
+          npx zeus job update --status=passed -b $GITHUB_RUN_ID -j 5 -r $GITHUB_SHA
