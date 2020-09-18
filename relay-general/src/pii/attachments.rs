@@ -16,6 +16,13 @@ use crate::pii::utils::hash_value;
 use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::processor::{FieldAttrs, Pii, ProcessingState, ValueType};
 
+/// The minimum length a string needs to be in a binary blob.
+///
+/// This module extracts encoded strings from within binary blobs, this specifies the
+/// minimum length we require those strings to be before we accept them to match scrubbing
+/// selectors on.
+static MIN_STRING_LEN: usize = 5;
+
 fn apply_regex_to_utf8_bytes(
     data: &mut [u8],
     rule: &RuleRef,
@@ -79,14 +86,12 @@ fn apply_regex_to_utf16le_bytes(
     replace_behavior: &ReplaceBehavior,
 ) -> bool {
     let mut changed = false;
-    for segment in MutSegmentIter::new(data, *UTF_16LE) {
-        let segment_wstr = unsafe { WStr::from_utf16le_unchecked_mut(segment.raw) };
-
+    for segment in WStrSegmentIter::new(data) {
         match replace_behavior {
             ReplaceBehavior::Value => {
                 for re_match in regex.find_iter(&segment.decoded) {
                     changed = true;
-                    let match_wstr = get_wstr_match(&segment.decoded, re_match, segment_wstr);
+                    let match_wstr = get_wstr_match(&segment.decoded, re_match, segment.encoded);
                     match_wstr.apply_redaction(&rule.redaction);
                 }
             }
@@ -96,7 +101,7 @@ fn apply_regex_to_utf16le_bytes(
                         if let Some(re_match) = captures.get(*group_idx as usize) {
                             changed = true;
                             let match_wstr =
-                                get_wstr_match(&segment.decoded, re_match, segment_wstr);
+                                get_wstr_match(&segment.decoded, re_match, segment.encoded);
                             match_wstr.apply_redaction(&rule.redaction);
                         }
                     }
@@ -255,24 +260,29 @@ impl StringMods for [u8] {
     }
 }
 
-struct MutSegmentIter<'a> {
+/// An iterator over segments of text in binary data.
+///
+/// This iterator will look for blocks of UTF-16 encoded text with little-endian byte order
+/// in a block of binary data and yield those slices as segments with both the decoded and
+/// encoded text.
+struct WStrSegmentIter<'a> {
     data: &'a mut [u8],
     decoder: Box<dyn RawDecoder>,
     offset: usize,
 }
 
-impl<'a> MutSegmentIter<'a> {
-    fn new(data: &'a mut [u8], encoding: impl Encoding) -> Self {
+impl<'a> WStrSegmentIter<'a> {
+    fn new(data: &'a mut [u8]) -> Self {
         Self {
             data,
-            decoder: encoding.raw_decoder(),
+            decoder: UTF_16LE.raw_decoder(),
             offset: 0,
         }
     }
 }
 
-impl<'a> Iterator for MutSegmentIter<'a> {
-    type Item = MutSegment<'a>;
+impl<'a> Iterator for WStrSegmentIter<'a> {
+    type Item = WstrSegment<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // We are handing out multiple mutable slices from the same mutable slice.  This is
@@ -301,12 +311,13 @@ impl<'a> Iterator for MutSegmentIter<'a> {
                     self.decoder = self.decoder.from_self();
                 }
                 if decoded.len() > 2 {
-                    return Some(MutSegment {
-                        raw: unsafe {
-                            std::mem::transmute::<&'_ mut [u8], &'_ mut [u8]>(
-                                &mut self.data[start..end],
-                            )
-                        },
+                    let slice = unsafe {
+                        std::mem::transmute::<&'_ mut [u8], &'_ mut [u8]>(
+                            &mut self.data[start..end],
+                        )
+                    };
+                    return Some(WstrSegment {
+                        encoded: unsafe { WStr::from_utf16le_unchecked_mut(slice) },
                         decoded,
                     });
                 } else {
@@ -314,13 +325,14 @@ impl<'a> Iterator for MutSegmentIter<'a> {
                 }
             } else {
                 self.offset += unprocessed_offset;
-                if decoded.len() > 2 {
-                    return Some(MutSegment {
-                        raw: unsafe {
-                            std::mem::transmute::<&'_ mut [u8], &'_ mut [u8]>(
-                                &mut self.data[start..end],
-                            )
-                        },
+                if decoded.len() >= MIN_STRING_LEN {
+                    let slice = unsafe {
+                        std::mem::transmute::<&'_ mut [u8], &'_ mut [u8]>(
+                            &mut self.data[start..end],
+                        )
+                    };
+                    return Some(WstrSegment {
+                        encoded: unsafe { WStr::from_utf16le_unchecked_mut(slice) },
                         decoded,
                     });
                 } else {
@@ -331,7 +343,7 @@ impl<'a> Iterator for MutSegmentIter<'a> {
     }
 }
 
-impl<'a> FusedIterator for MutSegmentIter<'a> {}
+impl<'a> FusedIterator for WStrSegmentIter<'a> {}
 
 /// An encoded string segment in a larger data block.
 ///
@@ -341,9 +353,9 @@ impl<'a> FusedIterator for MutSegmentIter<'a> {}
 ///
 /// While the `data` field is mutable, after mutating this the string in `decoded` will no
 /// longer match.
-struct MutSegment<'a> {
+struct WstrSegment<'a> {
     /// The raw bytes of this segment.
-    raw: &'a mut [u8],
+    encoded: &'a mut WStr,
     /// The decoded string of this segment.
     decoded: String,
 }
@@ -704,11 +716,11 @@ mod tests {
     #[test]
     fn test_segments_all_data() {
         let mut data = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00"[..]);
-        let mut iter = MutSegmentIter::new(&mut data[..], *UTF_16LE);
+        let mut iter = WStrSegmentIter::new(&mut data[..]);
 
         let segment = iter.next().unwrap();
         assert_eq!(segment.decoded, "hello");
-        assert_eq!(segment.raw, b"h\x00e\x00l\x00l\x00o\x00");
+        assert_eq!(segment.encoded.as_bytes(), b"h\x00e\x00l\x00l\x00o\x00");
 
         assert!(iter.next().is_none());
     }
@@ -716,11 +728,11 @@ mod tests {
     #[test]
     fn test_segments_middle_2_byte_aligned() {
         let mut data = Vec::from(&b"\xd8\xd8\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8"[..]);
-        let mut iter = MutSegmentIter::new(&mut data[..], *UTF_16LE);
+        let mut iter = WStrSegmentIter::new(&mut data[..]);
 
         let segment = iter.next().unwrap();
         assert_eq!(segment.decoded, "hello");
-        assert_eq!(segment.raw, b"h\x00e\x00l\x00l\x00o\x00");
+        assert_eq!(segment.encoded.as_bytes(), b"h\x00e\x00l\x00l\x00o\x00");
 
         assert!(iter.next().is_none());
     }
@@ -728,11 +740,12 @@ mod tests {
     #[test]
     fn test_segments_middle_2_byte_aligned_mutation() {
         let mut data = Vec::from(&b"\xd8\xd8\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8"[..]);
-        let mut iter = MutSegmentIter::new(&mut data[..], *UTF_16LE);
+        let mut iter = WStrSegmentIter::new(&mut data[..]);
 
         let segment = iter.next().unwrap();
         segment
-            .raw
+            .encoded
+            .as_bytes_mut()
             .copy_from_slice(&b"w\x00o\x00r\x00l\x00d\x00"[..]);
 
         assert!(iter.next().is_none());
@@ -743,7 +756,7 @@ mod tests {
     #[test]
     fn test_segments_middle_unaligned() {
         let mut data = Vec::from(&b"\xd8\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8"[..]);
-        let mut iter = MutSegmentIter::new(&mut data, *UTF_16LE);
+        let mut iter = WStrSegmentIter::new(&mut data);
 
         // Off-by-one is devastating, nearly everything is valid unicode.
         let segment = iter.next().unwrap();
@@ -755,7 +768,7 @@ mod tests {
     #[test]
     fn test_segments_end_aligned() {
         let mut data = Vec::from(&b"\xd8\xd8h\x00e\x00l\x00l\x00o\x00"[..]);
-        let mut iter = MutSegmentIter::new(&mut data, *UTF_16LE);
+        let mut iter = WStrSegmentIter::new(&mut data);
 
         let segment = iter.next().unwrap();
         assert_eq!(segment.decoded, "hello");
@@ -766,7 +779,7 @@ mod tests {
     #[test]
     fn test_segments_garbage() {
         let mut data = Vec::from(&b"\xd8\xd8"[..]);
-        let mut iter = MutSegmentIter::new(&mut data, *UTF_16LE);
+        let mut iter = WStrSegmentIter::new(&mut data);
 
         assert!(iter.next().is_none());
     }
@@ -774,7 +787,7 @@ mod tests {
     #[test]
     fn test_segments_too_short() {
         let mut data = Vec::from(&b"\xd8\xd8y\x00o\x00\xd8\xd8h\x00e\x00l\x00l\x00o\x00"[..]);
-        let mut iter = MutSegmentIter::new(&mut data, *UTF_16LE);
+        let mut iter = WStrSegmentIter::new(&mut data);
 
         let segment = iter.next().unwrap();
         assert_eq!(segment.decoded, "hello");
@@ -787,7 +800,7 @@ mod tests {
         let mut data =
             Vec::from(&b"\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8w\x00o\x00r\x00l\x00d\x00"[..]);
 
-        let mut iter = MutSegmentIter::new(&mut data, *UTF_16LE);
+        let mut iter = WStrSegmentIter::new(&mut data);
 
         let segment = iter.next().unwrap();
         assert_eq!(segment.decoded, "hello");
