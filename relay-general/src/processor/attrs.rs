@@ -115,6 +115,7 @@ impl FromStr for ValueType {
             "minidump" => ValueType::Minidump,
             "heap_memory" => ValueType::HeapMemory,
             "stack_memory" => ValueType::StackMemory,
+            "span" => ValueType::Span,
             _ => return Err(UnknownValueTypeError),
         })
     }
