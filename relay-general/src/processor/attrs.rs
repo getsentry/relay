@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::fmt;
-use std::str::FromStr;
 
 use failure::Fail;
 use smallvec::SmallVec;
@@ -52,74 +51,33 @@ impl ValueType {
     pub fn for_field<T: ProcessValue>(field: &Annotated<T>) -> Option<Self> {
         field.value().and_then(ProcessValue::value_type)
     }
-
-    pub fn name(self) -> &'static str {
-        match self {
-            ValueType::String => "string",
-            ValueType::Binary => "binary",
-            ValueType::Number => "number",
-            ValueType::Boolean => "boolean",
-            ValueType::DateTime => "datetime",
-            ValueType::Array => "array",
-            ValueType::Object => "object",
-            ValueType::Event => "event",
-            ValueType::Attachments => "attachments",
-            ValueType::Exception => "error",
-            ValueType::Stacktrace => "stack",
-            ValueType::Frame => "frame",
-            ValueType::Request => "http",
-            ValueType::User => "user",
-            ValueType::LogEntry => "logentry",
-            ValueType::Message => "message",
-            ValueType::Thread => "thread",
-            ValueType::Breadcrumb => "breadcrumb",
-            ValueType::Span => "span",
-            ValueType::ClientSdkInfo => "sdk",
-            ValueType::Minidump => "minidump",
-            ValueType::HeapMemory => "heap_memory",
-            ValueType::StackMemory => "stack_memory",
-        }
-    }
 }
 
-impl fmt::Display for ValueType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.name())
-    }
-}
-
-impl FromStr for ValueType {
-    type Err = UnknownValueTypeError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s {
-            "string" => ValueType::String,
-            "binary" => ValueType::Binary,
-            "number" => ValueType::Number,
-            "bool" | "boolean" => ValueType::Boolean,
-            "datetime" => ValueType::DateTime,
-            "array" | "list" => ValueType::Array,
-            "object" => ValueType::Object,
-            "event" => ValueType::Event,
-            "attachments" => ValueType::Attachments,
-            "exception" | "error" => ValueType::Exception,
-            "stacktrace" | "stack" => ValueType::Stacktrace,
-            "frame" => ValueType::Frame,
-            "request" | "http" => ValueType::Request,
-            "user" => ValueType::User,
-            "logentry" => ValueType::LogEntry,
-            "message" => ValueType::Message,
-            "thread" => ValueType::Thread,
-            "breadcrumb" => ValueType::Breadcrumb,
-            "sdk" => ValueType::ClientSdkInfo,
-            "minidump" => ValueType::Minidump,
-            "heap_memory" => ValueType::HeapMemory,
-            "stack_memory" => ValueType::StackMemory,
-            "span" => ValueType::Span,
-            _ => return Err(UnknownValueTypeError),
-        })
-    }
-}
+derive_fromstr_and_display!(ValueType, UnknownValueTypeError, {
+    ValueType::String => "string",
+    ValueType::Binary => "binary",
+    ValueType::Number => "number",
+    ValueType::Boolean => "boolean" | "bool",
+    ValueType::DateTime => "datetime",
+    ValueType::Array => "array" | "list",
+    ValueType::Object => "object",
+    ValueType::Event => "event",
+    ValueType::Attachments => "attachments",
+    ValueType::Exception => "error" | "exception",
+    ValueType::Stacktrace => "stack" | "stacktrace",
+    ValueType::Frame => "frame",
+    ValueType::Request => "http" | "request",
+    ValueType::User => "user",
+    ValueType::LogEntry => "logentry",
+    ValueType::Message => "message",
+    ValueType::Thread => "thread",
+    ValueType::Breadcrumb => "breadcrumb",
+    ValueType::Span => "span",
+    ValueType::ClientSdkInfo => "sdk",
+    ValueType::Minidump => "minidump",
+    ValueType::HeapMemory => "heap_memory",
+    ValueType::StackMemory => "stack_memory",
+});
 
 /// The maximum length of a field.
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]
