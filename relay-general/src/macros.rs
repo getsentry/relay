@@ -120,7 +120,7 @@ macro_rules! impl_str_serde {
 /// });
 /// ```
 macro_rules! derive_fromstr_and_display {
-    ($type:ty, $error_type:tt, { $($variant:path => $($name:literal)|*),* $(,)* }) => {
+    ($type:ty, $error_type:tt, { $($variant:path => $($name:literal)|*),+ $(,)? }) => {
         impl $type {
             pub fn as_str(&self) -> &'static str {
                 match *self {
