@@ -28,7 +28,9 @@ fn apply_regex_to_utf8_bytes(
     rule: &RuleRef,
     regex: &Regex,
     replace_behavior: &ReplaceBehavior,
-) -> bool {
+) -> SmallVec<[(usize, usize); 1]> {
+    let mut matches = SmallVec::<[(usize, usize); 1]>::new();
+
     let regex = match BytesRegexBuilder::new(regex.as_str())
         // https://github.com/rust-lang/regex/issues/697
         .unicode(false)
@@ -41,11 +43,9 @@ fn apply_regex_to_utf8_bytes(
             // XXX: This is not going to fly long-term
             // Idea: Disable unicode support for regexes entirely, that drastically increases the
             // likelihood this conversion will never fail.
-            return false;
+            return matches;
         }
     };
-
-    let mut matches = SmallVec::<[(usize, usize); 1]>::new();
 
     for captures in regex.captures_iter(data) {
         for (idx, group) in captures.iter().enumerate() {
@@ -69,14 +69,10 @@ fn apply_regex_to_utf8_bytes(
         }
     }
 
-    if matches.is_empty() {
-        return false;
+    for (start, end) in matches.iter() {
+        data[*start..*end].apply_redaction(&rule.redaction);
     }
-
-    for (start, end) in matches {
-        data[start..end].apply_redaction(&rule.redaction);
-    }
-    true
+    matches
 }
 
 fn apply_regex_to_utf16le_bytes(
@@ -412,9 +408,34 @@ impl<'a> PiiAttachmentsProcessor<'a> {
                     for (_pattern_type, regex, replace_behavior) in
                         get_regex_for_rule_type(&rule.ty)
                     {
-                        changed |= apply_regex_to_utf8_bytes(data, rule, regex, &replace_behavior);
-                        changed |=
-                            apply_regex_to_utf16le_bytes(data, rule, regex, &replace_behavior);
+                        let matches =
+                            apply_regex_to_utf8_bytes(data, rule, regex, &replace_behavior);
+                        changed |= !(matches.is_empty());
+
+                        // Only scrub regions with the UTF-16 scrubber if they haven't been
+                        // scrubbed yet.
+                        let windowed_matches = matches
+                            .into_iter()
+                            .chain(std::iter::once((data.len(), 0)))
+                            .scan((0usize, 0usize), |previous, current| {
+                                let start = if previous.1 % 2 == 0 {
+                                    previous.1
+                                } else {
+                                    previous.1 + 1
+                                };
+                                let item = (start, current.0);
+                                *previous = current;
+                                Some(item)
+                            })
+                            .filter(|(start, end)| end > start);
+                        for (start, end) in windowed_matches {
+                            changed |= apply_regex_to_utf16le_bytes(
+                                &mut data[start..end],
+                                rule,
+                                regex,
+                                &replace_behavior,
+                            );
+                        }
                     }
                 }
             }
