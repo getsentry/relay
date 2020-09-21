@@ -256,12 +256,15 @@ mod tests {
 
     use super::*;
 
-    lazy_static::lazy_static! {
-        static ref RATE_LIMITER: RedisRateLimiter = RedisRateLimiter {
-            pool: RedisPool::single("redis://127.0.0.1").unwrap(),
+    fn build_rate_limiter() -> RedisRateLimiter {
+        let url = std::env::var("RELAY_REDIS_URL")
+            .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
+
+        RedisRateLimiter {
+            pool: RedisPool::single(&url).unwrap(),
             script: Arc::new(load_lua_script()),
             max_limit: None,
-        };
+        }
     }
 
     #[test]
@@ -297,7 +300,7 @@ mod tests {
             },
         };
 
-        let rate_limits: Vec<RateLimit> = RATE_LIMITER
+        let rate_limits: Vec<RateLimit> = build_rate_limiter()
             .is_rate_limited(quotas, scoping, 1)
             .expect("rate limiting failed")
             .into_iter()
@@ -336,8 +339,10 @@ mod tests {
             },
         };
 
+        let rate_limiter = build_rate_limiter();
+
         for i in 0..10 {
-            let rate_limits: Vec<RateLimit> = RATE_LIMITER
+            let rate_limits: Vec<RateLimit> = rate_limiter
                 .is_rate_limited(quotas, scoping, 1)
                 .expect("rate limiting failed")
                 .into_iter()
@@ -371,7 +376,7 @@ mod tests {
             },
         };
 
-        let rate_limits: Vec<RateLimit> = RATE_LIMITER
+        let rate_limits: Vec<RateLimit> = build_rate_limiter()
             .is_rate_limited(&[], scoping, 1)
             .expect("rate limiting failed")
             .into_iter()
@@ -413,8 +418,10 @@ mod tests {
             },
         };
 
+        let rate_limiter = build_rate_limiter();
+
         for i in 0..1 {
-            let rate_limits: Vec<RateLimit> = RATE_LIMITER
+            let rate_limits: Vec<RateLimit> = rate_limiter
                 .is_rate_limited(quotas, scoping, 1)
                 .expect("rate limiting failed")
                 .into_iter()
@@ -458,8 +465,10 @@ mod tests {
             },
         };
 
+        let rate_limiter = build_rate_limiter();
+
         for i in 0..10 {
-            let rate_limits: Vec<RateLimit> = RATE_LIMITER
+            let rate_limits: Vec<RateLimit> = rate_limiter
                 .is_rate_limited(quotas, scoping, 100)
                 .expect("rate limiting failed")
                 .into_iter()
@@ -543,7 +552,8 @@ mod tests {
             .map(|duration| duration.as_secs())
             .unwrap();
 
-        let mut client = RATE_LIMITER.pool.client().expect("get client");
+        let rate_limiter = build_rate_limiter();
+        let mut client = rate_limiter.pool.client().expect("get client");
         let mut conn = client.connection();
 
         // define a few keys with random seed such that they do not collide with repeated test runs

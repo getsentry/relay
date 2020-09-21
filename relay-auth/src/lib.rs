@@ -192,7 +192,7 @@ impl Clone for SecretKey {
     }
 }
 
-/// Reprensents the final registration.
+/// Represents the final registration.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Registration {
     relay_id: RelayId,
@@ -642,6 +642,7 @@ impl RegisterChallenge {
         RegisterResponse {
             relay_id: self.relay_id,
             token: self.token,
+            version: RelayVersion::current(),
         }
     }
 }
@@ -654,6 +655,8 @@ impl RegisterChallenge {
 pub struct RegisterResponse {
     relay_id: RelayId,
     token: SignedRegisterState,
+    #[serde(default)]
+    version: RelayVersion,
 }
 
 impl RegisterResponse {
@@ -686,6 +689,10 @@ impl RegisterResponse {
     /// Returns the token that needs signing.
     pub fn token(&self) -> &str {
         self.token.as_str()
+    }
+
+    pub fn version(&self) -> RelayVersion {
+        self.version
     }
 }
 
@@ -786,6 +793,12 @@ fn test_registration() {
     assert_eq!(challenge.relay_id(), &relay_id);
     assert!(challenge.token().len() > 40);
 
+    // check the challenge contains the expected info
+    let state = SignedRegisterState(challenge_token.clone());
+    let register_state = state.unpack(upstream_secret, None).unwrap();
+    assert_eq!(register_state.public_key, pk);
+    assert_eq!(register_state.relay_id, relay_id);
+
     // create a response from the challenge
     let response = challenge.into_response();
 
@@ -801,6 +814,62 @@ fn test_registration() {
 
     assert_eq!(response.relay_id(), relay_id);
     assert_eq!(response.token(), challenge_token);
+    assert_eq!(response.version, LATEST_VERSION);
+}
+/// This is a pseudo-test to easily generate the strings used by test_auth.py
+/// You can copy the output to the top of the test_auth.py when there are changes in the
+/// exchanged authentication structures.
+/// It follows test_registration but instead of asserting it prints the strings  
+#[test]
+fn test_generate_strings_for_test_auth_py() {
+    let max_age = Duration::minutes(15);
+    println!("Generating test data for test_auth.py...");
+
+    // initial setup
+    let relay_id = generate_relay_id();
+    println!("RELAY_ID = b\"{}\"", relay_id);
+    let (sk, pk) = generate_key_pair();
+    println!("RELAY_KEY = b\"{}\"", pk);
+
+    // create a register request
+    let request = RegisterRequest::new(&relay_id, &pk);
+    println!("REQUEST = b'{}'", serde_json::to_string(&request).unwrap());
+
+    // sign it
+    let (request_bytes, request_sig) = sk.pack(&request);
+    println!("REQUEST_SIG = \"{}\"", request_sig);
+
+    // attempt to get the data through bootstrap unpacking.
+    let request =
+        RegisterRequest::bootstrap_unpack(&request_bytes, &request_sig, Some(max_age)).unwrap();
+
+    let upstream_secret = b"secret";
+
+    // create a challenge
+    let challenge = request.into_challenge(upstream_secret);
+    let challenge_token = challenge.token().to_owned();
+    println!("TOKEN = \"{}\"", challenge_token);
+
+    // create a response from the challenge
+    let response = challenge.into_response();
+    let serialized_response = serde_json::to_string(&response).unwrap();
+    let (_, response_sig) = sk.pack(&response);
+
+    println!("RESPONSE = b'{}'", serialized_response);
+    println!("RESPONSE_SIG = \"{}\"", response_sig);
+
+    println!("RELAY_VERSION = \"{}\"", &LATEST_VERSION);
+}
+
+/// Test we can still deserialize an old response that does not contain the version
+#[test]
+fn test_deserialize_old_response() {
+    let serialized_challenge = "{\"relay_id\":\"6b7d15b8-cee2-4354-9fee-dae7ef43e434\",\"token\":\"eyJ0aW1lc3RhbXAiOjE1OTg5Njc0MzQsInJlbGF5X2lkIjoiNmI3ZDE1YjgtY2VlMi00MzU0LTlmZWUtZGFlN2VmNDNlNDM0IiwicHVibGljX2tleSI6ImtNcEdieWRIWlN2b2h6ZU1sZ2hjV3dIZDhNa3JlS0d6bF9uY2RrWlNPTWciLCJyYW5kIjoiLUViNG9Hal80dUZYOUNRRzFBVmdqTjRmdGxaNU9DSFlNOFl2d1podmlyVXhUY0tFSWYtQzhHaldsZmgwQTNlMzYxWE01dVh0RHhvN00tbWhZeXpWUWcifQ:KJUDXlwvibKNQmex-_Cu1U0FArlmoDkyqP7bYIDGrLXudfjGfCjH-UjNsUHWVDnbM28YdQ-R2MBSyF51aRLQcw\"}";
+    let result: RegisterResponse = serde_json::from_str(serialized_challenge).unwrap();
+    assert_eq!(
+        result.relay_id,
+        Uuid::parse_str("6b7d15b8-cee2-4354-9fee-dae7ef43e434").unwrap()
+    )
 }
 
 #[test]

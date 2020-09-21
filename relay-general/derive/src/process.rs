@@ -81,10 +81,7 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
             let field_attrs_tokens = field_attrs.as_tokens(None);
 
             (quote! {
-                ::lazy_static::lazy_static! {
-                    static ref #field_attrs_name: crate::processor::FieldAttrs =
-                        #field_attrs_tokens;
-                }
+                static #field_attrs_name: crate::processor::FieldAttrs = #field_attrs_tokens;
             })
             .to_tokens(&mut body);
 
@@ -94,13 +91,13 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
                 }
 
                 quote! {
-                    __state.enter_nothing(Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)))
+                    __state.enter_nothing(Some(::std::borrow::Cow::Borrowed(&#field_attrs_name)))
                 }
             } else if is_tuple_struct {
                 quote! {
                     __state.enter_index(
                         #index,
-                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)),
+                        Some(::std::borrow::Cow::Borrowed(&#field_attrs_name)),
                         crate::processor::ValueType::for_field(#ident),
                     )
                 }
@@ -108,7 +105,7 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
                 quote! {
                     __state.enter_static(
                         #field_name,
-                        Some(::std::borrow::Cow::Borrowed(&*#field_attrs_name)),
+                        Some(::std::borrow::Cow::Borrowed(&#field_attrs_name)),
                         crate::processor::ValueType::for_field(#ident),
                     )
                 }

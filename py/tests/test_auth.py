@@ -5,13 +5,16 @@ import pytest
 
 UPSTREAM_SECRET = "secret"
 
-RELAY_ID = b"6b7d15b8-cee2-4354-9fee-dae7ef43e434"
-RELAY_KEY = b"kMpGbydHZSvohzeMlghcWwHd8MkreKGzl_ncdkZSOMg"
-REQUEST = b'{"relay_id":"6b7d15b8-cee2-4354-9fee-dae7ef43e434","public_key":"kMpGbydHZSvohzeMlghcWwHd8MkreKGzl_ncdkZSOMg","version":"20.8.0"}'
-REQUEST_SIG = "JIwzIb3kuOaVwgq_DRuPpquGVIIu0plfpOSvz_ixzfw_RmdyHr35cJrna7Jg_uXqNHQbSP1Yj0-4X5Omk9jcBA.eyJ0IjoiMjAyMC0wOS0wMVQxMzozNzoxNC40Nzk0NjVaIn0"
-TOKEN = "eyJ0aW1lc3RhbXAiOjE1OTg5Njc0MzQsInJlbGF5X2lkIjoiNmI3ZDE1YjgtY2VlMi00MzU0LTlmZWUtZGFlN2VmNDNlNDM0IiwicHVibGljX2tleSI6ImtNcEdieWRIWlN2b2h6ZU1sZ2hjV3dIZDhNa3JlS0d6bF9uY2RrWlNPTWciLCJyYW5kIjoiLUViNG9Hal80dUZYOUNRRzFBVmdqTjRmdGxaNU9DSFlNOFl2d1podmlyVXhUY0tFSWYtQzhHaldsZmgwQTNlMzYxWE01dVh0RHhvN00tbWhZeXpWUWcifQ:KJUDXlwvibKNQmex-_Cu1U0FArlmoDkyqP7bYIDGrLXudfjGfCjH-UjNsUHWVDnbM28YdQ-R2MBSyF51aRLQcw"
-RESPONSE = b'{"relay_id":"6b7d15b8-cee2-4354-9fee-dae7ef43e434","token":"eyJ0aW1lc3RhbXAiOjE1OTg5Njc0MzQsInJlbGF5X2lkIjoiNmI3ZDE1YjgtY2VlMi00MzU0LTlmZWUtZGFlN2VmNDNlNDM0IiwicHVibGljX2tleSI6ImtNcEdieWRIWlN2b2h6ZU1sZ2hjV3dIZDhNa3JlS0d6bF9uY2RrWlNPTWciLCJyYW5kIjoiLUViNG9Hal80dUZYOUNRRzFBVmdqTjRmdGxaNU9DSFlNOFl2d1podmlyVXhUY0tFSWYtQzhHaldsZmgwQTNlMzYxWE01dVh0RHhvN00tbWhZeXpWUWcifQ:KJUDXlwvibKNQmex-_Cu1U0FArlmoDkyqP7bYIDGrLXudfjGfCjH-UjNsUHWVDnbM28YdQ-R2MBSyF51aRLQcw"}'
-RESPONSE_SIG = "HUp3eybT_5AmRJ_QzutfvStKTeE-cgD_reLPjIf4OpoOJT_Hln8ThrFqGyT_C6P8qF1LHbFLcrYFvQy4iNaqAQ.eyJ0IjoiMjAyMC0wOS0wMVQxMzozNzoxNC40ODEwNTNaIn0"
+# NOTE in order to regenerate the test data (in case of changes) run the rust test:
+# test_generate_strings_for_test_auth_py and copy its output below
+RELAY_ID = b"29308cac-9783-40e9-98ac-b5503dffe3a4"
+RELAY_KEY = b"dXq9IiKDLgma0J8dLVITOdkpaU8mPZPJj18t4HCKTfs"
+REQUEST = b'{"relay_id":"29308cac-9783-40e9-98ac-b5503dffe3a4","public_key":"dXq9IiKDLgma0J8dLVITOdkpaU8mPZPJj18t4HCKTfs","version":"20.8.0"}'
+REQUEST_SIG = "VgFn-7B5JmbSPiM5bikxkn7DjImV8LkfW3UVQcXnK8nLumvLaS7ML0KTY7a7LlU_3grGtSNZlEUbBudOp__RDA.eyJ0IjoiMjAyMC0wOS0wOFQxMzozMzozNS45OTM5MDRaIn0"
+TOKEN = "eyJ0aW1lc3RhbXAiOjE1OTk1NzIwMTUsInJlbGF5X2lkIjoiMjkzMDhjYWMtOTc4My00MGU5LTk4YWMtYjU1MDNkZmZlM2E0IiwicHVibGljX2tleSI6ImRYcTlJaUtETGdtYTBKOGRMVklUT2RrcGFVOG1QWlBKajE4dDRIQ0tUZnMiLCJyYW5kIjoiQURNNG9yLVZNZ0Y1eTRLQUo2cHkyQnB5T3lmUmV1NGRjZTJCdmd5UHlSdnczRXFaUmc4SkE0NHdxVWdBVlBQMGhIeHR0am81YTdBYW93UEFVaUR2NUEifQ:XXYCNWscmAiBWzI84ToZWAGgmIrupWQufYcSBhIEcxiDxyBp_BRO0d_LN9wnc0tjtFcT9JViLoGCgfOt6vDS7A"
+RESPONSE = b'{"relay_id":"29308cac-9783-40e9-98ac-b5503dffe3a4","token":"eyJ0aW1lc3RhbXAiOjE1OTk1NzIwMTUsInJlbGF5X2lkIjoiMjkzMDhjYWMtOTc4My00MGU5LTk4YWMtYjU1MDNkZmZlM2E0IiwicHVibGljX2tleSI6ImRYcTlJaUtETGdtYTBKOGRMVklUT2RrcGFVOG1QWlBKajE4dDRIQ0tUZnMiLCJyYW5kIjoiQURNNG9yLVZNZ0Y1eTRLQUo2cHkyQnB5T3lmUmV1NGRjZTJCdmd5UHlSdnczRXFaUmc4SkE0NHdxVWdBVlBQMGhIeHR0am81YTdBYW93UEFVaUR2NUEifQ:XXYCNWscmAiBWzI84ToZWAGgmIrupWQufYcSBhIEcxiDxyBp_BRO0d_LN9wnc0tjtFcT9JViLoGCgfOt6vDS7A","version":"20.8.0"}'
+RESPONSE_SIG = "iPFV5KcSXDrhjY_99X8r_pMB1NQdw-YWF7hjvdrYpXmsaSier-mp1-3viWsEPIcTNbA76B4t51sjbSYFZPzXBg.eyJ0IjoiMjAyMC0wOS0wOFQxMzozMzozNS45OTU2ODJaIn0"
+RELAY_VERSION = "20.8.0"
 
 
 def test_basic_key_functions():
@@ -56,6 +59,7 @@ def test_register_response():
     )
     assert resp["token"] == TOKEN
     assert resp["relay_id"] == uuid.UUID(RELAY_ID.decode("utf8"))
+    assert resp["version"] == RELAY_VERSION
 
 
 def test_is_version_supported():

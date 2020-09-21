@@ -1,6 +1,6 @@
 [package]
 name = "relay-cabi"
-version = "0.6.1"
+version = "0.7.0"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
@@ -10,11 +10,7 @@ license-file = "../LICENSE"
 publish = false
 
 [lib]
-name = "relay"
 crate-type = ["cdylib"]
-
-# Cannot document, as this would override docs for "relay" due to the renamed library.
-doc = false
 
 [dependencies]
 chrono = "0.4.11"
@@ -25,5 +21,6 @@ serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
 relay-auth = { path = "../relay-auth" }
 relay-common = { path = "../relay-common" }
+relay-ffi = { path = "../relay-ffi" }
 relay-general = { path = "../relay-general" }
 sentry-release-parser = { version = "0.6.0", features = ["serde"] }

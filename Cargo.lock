@@ -1483,9 +1483,9 @@ dependencies = [
 
 [[package]]
 name = "im"
-version = "14.3.0"
+version = "15.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "696059c87b83c5a258817ecd67c3af915e3ed141891fc35a1e79908801cf0ce7"
+checksum = "111c1983f3c5bb72732df25cddacee9b546d08325fb584b5ebd38148be7b0246"
 dependencies = [
  "bitmaps",
  "rand_core 0.5.1",
@@ -1562,6 +1562,12 @@ dependencies = [
  "winapi 0.3.8",
  "winreg 0.5.1",
 ]
+
+[[package]]
+name = "ipnet"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47be2f14c678be2fdcab04ab1171db51b2762ce6f0a8ee87c8dd4a04ed216135"
 
 [[package]]
 name = "ipnetwork"
@@ -2795,7 +2801,7 @@ checksum = "26412eb97c6b088a6997e05f69403a802a92d520de2f8e63c2b65f9e0f47c4e8"
 
 [[package]]
 name = "relay"
-version = "20.8.0"
+version = "20.9.0"
 dependencies = [
  "chrono",
  "clap",
@@ -2819,7 +2825,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "20.8.0"
+version = "20.9.0"
 dependencies = [
  "base64 0.10.1",
  "chrono",
@@ -2835,7 +2841,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "chrono",
  "failure",
@@ -2843,6 +2849,7 @@ dependencies = [
  "lazy_static",
  "relay-auth",
  "relay-common",
+ "relay-ffi",
  "relay-general",
  "sentry-release-parser",
  "serde",
@@ -2851,7 +2858,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "20.8.0"
+version = "20.9.0"
 dependencies = [
  "backoff",
  "cadence",
@@ -2871,7 +2878,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "20.8.0"
+version = "20.9.0"
 dependencies = [
  "failure",
  "human-size",
@@ -2887,8 +2894,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-ffi"
+version = "20.9.0"
+dependencies = [
+ "failure",
+ "relay-ffi-macros",
+]
+
+[[package]]
+name = "relay-ffi-macros"
+version = "20.9.0"
+dependencies = [
+ "quote 1.0.7",
+ "syn 1.0.39",
+]
+
+[[package]]
 name = "relay-filter"
-version = "20.8.0"
+version = "20.9.0"
 dependencies = [
  "globset",
  "insta 0.15.0",
@@ -2904,7 +2927,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general"
-version = "20.8.0"
+version = "20.9.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -2944,7 +2967,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general-derive"
-version = "20.8.0"
+version = "20.9.0"
 dependencies = [
  "proc-macro2 1.0.18",
  "quote 1.0.7",
@@ -2954,7 +2977,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "20.8.0"
+version = "20.9.0"
 dependencies = [
  "failure",
  "insta 0.15.0",
@@ -2970,7 +2993,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "20.8.0"
+version = "20.9.0"
 dependencies = [
  "failure",
  "r2d2",
@@ -2980,7 +3003,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "20.8.0"
+version = "20.9.0"
 dependencies = [
  "actix",
  "actix-web",
@@ -3039,9 +3062,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.10.6"
+version = "0.10.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b82c9238b305f26f53443e3a4bc8528d64b8d0bee408ec949eb7bf5635ec680"
+checksum = "e9eaa17ac5d7b838b7503d118fa16ad88f440498bf9ffe5424e621f93190d61e"
 dependencies = [
  "base64 0.12.3",
  "bytes 0.5.5",
@@ -3052,6 +3075,7 @@ dependencies = [
  "http-body",
  "hyper",
  "hyper-tls",
+ "ipnet",
  "js-sys",
  "lazy_static",
  "log",
@@ -3299,39 +3323,116 @@ checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 
 [[package]]
 name = "sentry"
-version = "0.18.1"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b01b723fc1b0a0f9394ca1a8451daec6e20206d47f96c3dceea7fd11ec9eec0"
+checksum = "144e85b28d129f056ef91664fe2b985eade906d2838752c2f61c9f233cd98e4a"
 dependencies = [
- "backtrace",
- "env_logger",
- "failure",
- "findshlibs",
- "hostname",
  "httpdate",
- "im",
- "lazy_static",
- "libc",
- "log",
- "rand 0.7.3",
- "regex",
  "reqwest",
- "rustc_version",
- "sentry-types",
- "uname",
- "url 2.1.1",
+ "sentry-backtrace",
+ "sentry-contexts",
+ "sentry-core",
+ "sentry-debug-images",
+ "sentry-failure",
+ "sentry-log",
+ "sentry-panic",
 ]
 
 [[package]]
 name = "sentry-actix"
-version = "0.18.1"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51911a8a3d287ab6ca708aa091537be468680437c9f371f014ee42bc514daec2"
+checksum = "f534ff69609cdb84413cea364545d9318a02dccd629a5786cceff2604480f85f"
 dependencies = [
  "actix-web",
  "failure",
  "fragile",
  "sentry",
+ "sentry-failure",
+]
+
+[[package]]
+name = "sentry-backtrace"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92dabd890482f152fb6d261fe2034a193facc2c99c0c571bbf7687c356fcb2e8"
+dependencies = [
+ "backtrace",
+ "lazy_static",
+ "regex",
+ "sentry-core",
+]
+
+[[package]]
+name = "sentry-contexts"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "039ac50d2d740d51c5d376c2e9e93725eea662fa3acdcbcfe1b8b93a3b30c478"
+dependencies = [
+ "hostname",
+ "lazy_static",
+ "libc",
+ "regex",
+ "rustc_version",
+ "sentry-core",
+ "uname",
+]
+
+[[package]]
+name = "sentry-core"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3fe4fe890b12416701f838c702898a9c5e574c333cfbbee9fb7855a14e6490a3"
+dependencies = [
+ "im",
+ "lazy_static",
+ "rand 0.7.3",
+ "sentry-types",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "sentry-debug-images"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f3d5f2b7822a6e54a7711cc49a92e2bab023198fb1a7342b8d1768d4987ec6a"
+dependencies = [
+ "findshlibs",
+ "lazy_static",
+ "sentry-core",
+]
+
+[[package]]
+name = "sentry-failure"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ead35e7019f77a79ed0345b3f3c28427139100f87f318c1c3e2788db2cdea8b7"
+dependencies = [
+ "failure",
+ "sentry-backtrace",
+ "sentry-core",
+]
+
+[[package]]
+name = "sentry-log"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ecacbaff50702c1028124ac834a25040bf13b6fbd720156fb817eafaea2c0e9"
+dependencies = [
+ "log",
+ "sentry-backtrace",
+ "sentry-core",
+]
+
+[[package]]
+name = "sentry-panic"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab8a3ac989339a76efd6155f9d02675ce4b04419cd8083ca58d083c222554147"
+dependencies = [
+ "sentry-backtrace",
+ "sentry-core",
 ]
 
 [[package]]
@@ -3347,15 +3448,15 @@ dependencies = [
 
 [[package]]
 name = "sentry-types"
-version = "0.14.1"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12ec406c11c060c8a7d5d67fc6f4beb2888338dcb12b9af409451995f124749d"
+checksum = "c8124f0e9bc1113ecbcc8c3746e0e590943cf23e7d09c70a088c116869bb12e3"
 dependencies = [
  "chrono",
  "debugid",
- "failure",
  "serde",
  "serde_json",
+ "thiserror",
  "url 2.1.1",
  "uuid 0.8.1",
 ]
@@ -3486,9 +3587,9 @@ checksum = "fa8f3741c7372e75519bd9346068370c9cdaabcc1f9599cbcf2a2719352286b7"
 
 [[package]]
 name = "sized-chunks"
-version = "0.5.3"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d59044ea371ad781ff976f7b06480b9f0180e834eda94114f2afb4afc12b7718"
+checksum = "1ec31ceca5644fa6d444cc77548b88b67f46db6f7c71683b0f9336e671830d2f"
 dependencies = [
  "bitmaps",
  "typenum",
@@ -3779,6 +3880,26 @@ checksum = "d326610f408c7a4eb6f51c37c330e496b08506c9457c9d34287ecc38809fb060"
 dependencies = [
  "term_size",
  "unicode-width",
+]
+
+[[package]]
+name = "thiserror"
+version = "1.0.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7dfdd070ccd8ccb78f4ad66bf1982dc37f620ef696c6b5028fe2ed83dd3d0d08"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd80fc12f73063ac132ac92aceea36734f04a1d93c1240c6944e23a3b8841793"
+dependencies = [
+ "proc-macro2 1.0.18",
+ "quote 1.0.7",
+ "syn 1.0.39",
 ]
 
 [[package]]

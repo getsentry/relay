@@ -45,7 +45,7 @@ def test_forced_shutdown(mini_sentry, relay):
     dropped_unfinished_error_found = False
     tracked_future_error_found = False
     for (route, error) in failures:
-        assert route == "/api/666/store/"
+        assert route == "/api/666/envelope/"
         if "Dropped unfinished future" in str(error):
             dropped_unfinished_error_found = True
         if "TrackedFuture" in str(error):

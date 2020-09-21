@@ -1,5 +1,5 @@
 ---
-minVersion: "0.10.0"
+minVersion: "0.11.1"
 github:
   owner: getsentry
   repo: relay
@@ -9,7 +9,6 @@ statusProvider:
 
 targets:
   - name: github
-  - name: gh-pages
   - name: registry
     type: app
     urlTemplate: "https://downloads.sentry-cdn.com/relay/{{version}}/{{file}}"
