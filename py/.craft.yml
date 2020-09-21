@@ -6,9 +6,7 @@ github:
 changelogPolicy: auto
 statusProvider:
   name: github
-  config:
-    contexts:
-      - Travis CI - Branch
+
 preReleaseCommand: ../scripts/bump-library.sh
 releaseBranchPrefix: release-library
 
