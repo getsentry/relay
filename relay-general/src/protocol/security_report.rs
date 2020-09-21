@@ -5,7 +5,6 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::{self, Write};
-use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
 use serde::de::{Error, IgnoredAny};
@@ -54,68 +53,31 @@ pub enum CspDirective {
     // Sandbox , // unsupported
 }
 
-impl fmt::Display for CspDirective {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Self::BaseUri => write!(f, "base-uri"),
-            Self::ChildSrc => write!(f, "child-src"),
-            Self::ConnectSrc => write!(f, "connect-src"),
-            Self::DefaultSrc => write!(f, "default-src"),
-            Self::FontSrc => write!(f, "font-src"),
-            Self::FormAction => write!(f, "form-action"),
-            Self::FrameAncestors => write!(f, "frame-ancestors"),
-            Self::FrameSrc => write!(f, "frame-src"),
-            Self::ImgSrc => write!(f, "img-src"),
-            Self::ManifestSrc => write!(f, "manifest-src"),
-            Self::MediaSrc => write!(f, "media-src"),
-            Self::ObjectSrc => write!(f, "object-src"),
-            Self::PluginTypes => write!(f, "plugin-types"),
-            Self::PrefetchSrc => write!(f, "prefetch-src"),
-            Self::Referrer => write!(f, "referrer"),
-            Self::ScriptSrc => write!(f, "script-src"),
-            Self::ScriptSrcAttr => write!(f, "script-src-attr"),
-            Self::ScriptSrcElem => write!(f, "script-src-elem"),
-            Self::StyleSrc => write!(f, "style-src"),
-            Self::StyleSrcElem => write!(f, "style-src-elem"),
-            Self::StyleSrcAttr => write!(f, "style-src-attr"),
-            Self::UpgradeInsecureRequests => write!(f, "upgrade-insecure-requests"),
-            Self::WorkerSrc => write!(f, "worker-src"),
-        }
-    }
-}
-
-impl FromStr for CspDirective {
-    type Err = InvalidSecurityError;
-
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        Ok(match string {
-            "base-uri" => Self::BaseUri,
-            "child-src" => Self::ChildSrc,
-            "connect-src" => Self::ConnectSrc,
-            "default-src" => Self::DefaultSrc,
-            "font-src" => Self::FontSrc,
-            "form-action" => Self::FormAction,
-            "frame-ancestors" => Self::FrameAncestors,
-            "frame-src" => Self::FrameSrc,
-            "img-src" => Self::ImgSrc,
-            "manifest-src" => Self::ManifestSrc,
-            "media-src" => Self::MediaSrc,
-            "object-src" => Self::ObjectSrc,
-            "plugin-types" => Self::PluginTypes,
-            "prefetch-src" => Self::PrefetchSrc,
-            "referrer" => Self::Referrer,
-            "script-src" => Self::ScriptSrc,
-            "script-src-attr" => Self::ScriptSrcAttr,
-            "script-src-elem" => Self::ScriptSrcElem,
-            "style-src" => Self::StyleSrc,
-            "style-src-elem" => Self::StyleSrcElem,
-            "style-src-attr" => Self::StyleSrcAttr,
-            "upgrade-insecure-requests" => Self::UpgradeInsecureRequests,
-            "worker-src" => Self::WorkerSrc,
-            _ => return Err(InvalidSecurityError),
-        })
-    }
-}
+derive_fromstr_and_display!(CspDirective, InvalidSecurityError, {
+    CspDirective::BaseUri => "base-uri",
+    CspDirective::ChildSrc => "child-src",
+    CspDirective::ConnectSrc => "connect-src",
+    CspDirective::DefaultSrc => "default-src",
+    CspDirective::FontSrc => "font-src",
+    CspDirective::FormAction => "form-action",
+    CspDirective::FrameAncestors => "frame-ancestors",
+    CspDirective::FrameSrc => "frame-src",
+    CspDirective::ImgSrc => "img-src",
+    CspDirective::ManifestSrc => "manifest-src",
+    CspDirective::MediaSrc => "media-src",
+    CspDirective::ObjectSrc => "object-src",
+    CspDirective::PluginTypes => "plugin-types",
+    CspDirective::PrefetchSrc => "prefetch-src",
+    CspDirective::Referrer => "referrer",
+    CspDirective::ScriptSrc => "script-src",
+    CspDirective::ScriptSrcAttr => "script-src-attr",
+    CspDirective::ScriptSrcElem => "script-src-elem",
+    CspDirective::StyleSrc => "style-src",
+    CspDirective::StyleSrcElem => "style-src-elem",
+    CspDirective::StyleSrcAttr => "style-src-attr",
+    CspDirective::UpgradeInsecureRequests => "upgrade-insecure-requests",
+    CspDirective::WorkerSrc => "worker-src",
+});
 
 impl_str_serde!(CspDirective);
 
@@ -507,28 +469,11 @@ enum ExpectCtStatus {
     Invalid,
 }
 
-impl fmt::Display for ExpectCtStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Self::Unknown => write!(f, "unknown"),
-            Self::Valid => write!(f, "valid"),
-            Self::Invalid => write!(f, "invalid"),
-        }
-    }
-}
-
-impl FromStr for ExpectCtStatus {
-    type Err = InvalidSecurityError;
-
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        Ok(match string {
-            "unknown" => Self::Unknown,
-            "valid" => Self::Valid,
-            "invalid" => Self::Invalid,
-            _ => return Err(InvalidSecurityError),
-        })
-    }
-}
+derive_fromstr_and_display!(ExpectCtStatus, InvalidSecurityError, {
+    ExpectCtStatus::Unknown => "unknown",
+    ExpectCtStatus::Valid => "valid",
+    ExpectCtStatus::Invalid => "invalid",
+});
 
 impl_str_serde!(ExpectCtStatus);
 
@@ -539,28 +484,11 @@ enum ExpectCtSource {
     Embedded,
 }
 
-impl fmt::Display for ExpectCtSource {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Self::TlsExtension => write!(f, "tls-extension"),
-            Self::Ocsp => write!(f, "ocsp"),
-            Self::Embedded => write!(f, "embedded"),
-        }
-    }
-}
-
-impl FromStr for ExpectCtSource {
-    type Err = InvalidSecurityError;
-
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        Ok(match string {
-            "tls-extension" => Self::TlsExtension,
-            "ocsp" => Self::Ocsp,
-            "embedded" => Self::Embedded,
-            _ => return Err(InvalidSecurityError),
-        })
-    }
-}
+derive_fromstr_and_display!(ExpectCtSource, InvalidSecurityError, {
+            ExpectCtSource::TlsExtension => "tls-extension",
+            ExpectCtSource::Ocsp => "ocsp",
+            ExpectCtSource::Embedded => "embedded",
+});
 
 impl_str_serde!(ExpectCtSource);
 
@@ -915,38 +843,16 @@ pub enum ExpectStapleResponseStatus {
     ParseResponseDataError,
 }
 
-impl fmt::Display for ExpectStapleResponseStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Self::Missing => write!(f, "MISSING"),
-            Self::Provided => write!(f, "PROVIDED"),
-            Self::ErrorResponse => write!(f, "ERROR_RESPONSE"),
-            Self::BadProducedAt => write!(f, "BAD_PRODUCED_AT"),
-            Self::NoMatchingResponse => write!(f, "NO_MATCHING_RESPONSE"),
-            Self::InvalidDate => write!(f, "INVALID_DATE"),
-            Self::ParseResponseError => write!(f, "PARSE_RESPONSE_ERROR"),
-            Self::ParseResponseDataError => write!(f, "PARSE_RESPONSE_DATA_ERROR"),
-        }
-    }
-}
-
-impl FromStr for ExpectStapleResponseStatus {
-    type Err = InvalidSecurityError;
-
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        Ok(match string {
-            "MISSING" => Self::Missing,
-            "PROVIDED" => Self::Provided,
-            "ERROR_RESPONSE" => Self::ErrorResponse,
-            "BAD_PRODUCED_AT" => Self::BadProducedAt,
-            "NO_MATCHING_RESPONSE" => Self::NoMatchingResponse,
-            "INVALID_DATE" => Self::InvalidDate,
-            "PARSE_RESPONSE_ERROR" => Self::ParseResponseError,
-            "PARSE_RESPONSE_DATA_ERROR" => Self::ParseResponseDataError,
-            _ => return Err(InvalidSecurityError),
-        })
-    }
-}
+derive_fromstr_and_display!(ExpectStapleResponseStatus, InvalidSecurityError, {
+    ExpectStapleResponseStatus::Missing => "MISSING",
+    ExpectStapleResponseStatus::Provided => "PROVIDED",
+    ExpectStapleResponseStatus::ErrorResponse => "ERROR_RESPONSE",
+    ExpectStapleResponseStatus::BadProducedAt => "BAD_PRODUCED_AT",
+    ExpectStapleResponseStatus::NoMatchingResponse => "NO_MATCHING_RESPONSE",
+    ExpectStapleResponseStatus::InvalidDate => "INVALID_DATE",
+    ExpectStapleResponseStatus::ParseResponseError => "PARSE_RESPONSE_ERROR",
+    ExpectStapleResponseStatus::ParseResponseDataError => "PARSE_RESPONSE_DATA_ERROR",
+});
 
 impl_str_serde!(ExpectStapleResponseStatus);
 
@@ -957,28 +863,11 @@ pub enum ExpectStapleCertStatus {
     Unknown,
 }
 
-impl fmt::Display for ExpectStapleCertStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Self::Good => write!(f, "GOOD"),
-            Self::Revoked => write!(f, "REVOKED"),
-            Self::Unknown => write!(f, "UNKNOWN"),
-        }
-    }
-}
-
-impl FromStr for ExpectStapleCertStatus {
-    type Err = InvalidSecurityError;
-
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        Ok(match string {
-            "GOOD" => Self::Good,
-            "REVOKED" => Self::Revoked,
-            "UNKNOWN" => Self::Unknown,
-            _ => return Err(InvalidSecurityError),
-        })
-    }
-}
+derive_fromstr_and_display!(ExpectStapleCertStatus, InvalidSecurityError, {
+    ExpectStapleCertStatus::Good => "GOOD",
+    ExpectStapleCertStatus::Revoked => "REVOKED",
+    ExpectStapleCertStatus::Unknown => "UNKNOWN",
+});
 
 impl_str_serde!(ExpectStapleCertStatus);
 

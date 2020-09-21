@@ -7,9 +7,8 @@
 
 # Official Sentry Relay
 
-[![Travis](https://travis-ci.com/getsentry/relay.svg?branch=master)](https://travis-ci.com/getsentry/relay)
-[![AppVeyor](https://img.shields.io/appveyor/ci/sentry/relay.svg)](https://ci.appveyor.com/project/sentry/relay)
-[![GitHub release](https://img.shields.io/github/release/getsentry/relay.svg)](https://github.com/getsentry/relay/releases/latest)
+[![CI](https://github.com/getsentry/relay/workflows/CI/badge.svg?branch=master)](https://github.com/getsentry/relay/actions?query=workflow%3ACI+branch%3Amaster)
+[![GitHub Release](https://img.shields.io/github/release/getsentry/relay.svg)](https://github.com/getsentry/relay/releases/latest)
 [![PyPI](https://img.shields.io/pypi/v/sentry-relay.svg)](https://pypi.python.org/pypi/sentry-relay)
 
 <p align="center">
