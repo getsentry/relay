@@ -16,6 +16,7 @@ RESPONSE = b'{"relay_id":"29308cac-9783-40e9-98ac-b5503dffe3a4","token":"eyJ0aW1
 RESPONSE_SIG = "iPFV5KcSXDrhjY_99X8r_pMB1NQdw-YWF7hjvdrYpXmsaSier-mp1-3viWsEPIcTNbA76B4t51sjbSYFZPzXBg.eyJ0IjoiMjAyMC0wOS0wOFQxMzozMzozNS45OTU2ODJaIn0"
 RELAY_VERSION = "20.8.0"
 
+
 def test_basic_key_functions():
     sk, pk = sentry_relay.generate_key_pair()
     signature = sk.sign(b"some secret data")
