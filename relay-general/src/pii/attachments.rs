@@ -21,7 +21,7 @@ use crate::processor::{FieldAttrs, Pii, ProcessingState, ValueType};
 /// This module extracts encoded strings from within binary blobs, this specifies the
 /// minimum length we require those strings to be before we accept them to match scrubbing
 /// selectors on.
-static MIN_STRING_LEN: usize = 5;
+const MIN_STRING_LEN: usize = 5;
 
 fn apply_regex_to_utf8_bytes(
     data: &mut [u8],
