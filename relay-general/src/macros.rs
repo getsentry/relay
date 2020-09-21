@@ -98,3 +98,56 @@ macro_rules! impl_str_serde {
         impl_str_de!($type);
     };
 }
+
+/// Implements FromStr and Display on a flat/C-like enum such that strings roundtrip correctly and
+/// all variants can be FromStr'd.
+///
+///
+/// Usage:
+///
+/// ```rust
+/// // derive fail for this or whatever you need. The type must be ZST though.
+/// struct ValueTypeError;
+///
+/// enum ValueType {
+///     Foo,
+///     Bar,
+/// }
+///
+/// derive_fromstr_and_display!(ValueType, ValueTypeError, {
+///     ValueType::Foo => "foo" | "foo2",  // fromstr will recognize foo/foo2, display will use foo.
+///     ValueType::Bar => "bar",
+/// });
+/// ```
+macro_rules! derive_fromstr_and_display {
+    ($type:ty, $error_type:tt, { $($variant:path => $($name:literal)|*),+ $(,)? }) => {
+        impl $type {
+            pub fn as_str(&self) -> &'static str {
+                match *self {
+                    $(
+                        $variant => ($($name, )*).0
+                    ),*
+                }
+            }
+        }
+
+        impl ::std::fmt::Display for $type {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                write!(f, "{}", self.as_str())
+            }
+        }
+
+        impl ::std::str::FromStr for $type {
+            type Err = $error_type;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                Ok(match s {
+                    $(
+                        $($name)|* => $variant,
+                    )*
+                    _ => return Err($error_type)
+                })
+            }
+        }
+    }
+}
