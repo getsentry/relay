@@ -26,7 +26,7 @@ def processing_config(get_topic_name):
     """
 
     def inner(options=None):
-        # The Travis script sets the kafka bootstrap server into system environment variable.
+        # The CI script sets the kafka bootstrap server into system environment variable.
         bootstrap_servers = os.environ.get("KAFKA_BOOTSTRAP_SERVER", "127.0.0.1:9092")
 
         options = deepcopy(options)  # avoid lateral effects
