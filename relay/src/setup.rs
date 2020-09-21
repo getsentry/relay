@@ -165,35 +165,40 @@ pub fn init_logging(config: &Config) {
 
     let log = Box::new(log_builder.build());
 
-    let log_integration = sentry::integrations::log::LogIntegration {
-        global_filter: Some(log.filter()),
-        attach_stacktraces: config.enable_backtraces(),
-        dest_log: Some(log),
-        ..Default::default()
-    };
+    if let Some(dsn) = config.sentry_dsn() {
+        let log_integration = sentry::integrations::log::LogIntegration {
+            global_filter: Some(log.filter()),
+            attach_stacktraces: config.enable_backtraces(),
+            dest_log: Some(log),
+            ..Default::default()
+        };
 
-    let guard = sentry::init(sentry::ClientOptions {
-        dsn: config
-            .sentry_dsn()
-            .map(|dsn| dsn.to_string().parse().unwrap()),
-        in_app_include: vec![
-            "relay_auth::",
-            "relay_common::",
-            "relay_config::",
-            "relay_filter::",
-            "relay_general::",
-            "relay_quotas::",
-            "relay_redis::",
-            "relay_server::",
-            "relay::",
-        ],
-        release: sentry::release_name!(),
-        integrations: vec![Arc::new(log_integration)],
-        ..Default::default()
-    });
+        let guard = sentry::init(sentry::ClientOptions {
+            dsn: Some(dsn.to_string().parse().unwrap()),
+            in_app_include: vec![
+                "relay_auth::",
+                "relay_common::",
+                "relay_config::",
+                "relay_filter::",
+                "relay_general::",
+                "relay_quotas::",
+                "relay_redis::",
+                "relay_server::",
+                "relay::",
+            ],
+            release: sentry::release_name!(),
+            integrations: vec![Arc::new(log_integration)],
+            ..Default::default()
+        });
 
-    // Keep the client initialized. The client is flushed manually in `main`.
-    mem::forget(guard);
+        // Keep the client initialized. The client is flushed manually in `main`.
+        mem::forget(guard);
+    } else {
+        // Work around a bug in the Sentry 0.20.1 log integration that suppresses logs when Sentry
+        // is disabled. Instead, register the plain logger and skip initializing Sentry.
+        log::set_max_level(log.filter());
+        log::set_boxed_logger(log).ok();
+    }
 }
 
 /// Initialize the metric system.
