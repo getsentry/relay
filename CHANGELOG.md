@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+- Add support for scrubbing UTF-16 data in attachments ([#742](https://github.com/getsentry/relay/pull/742))
+
 ## 20.9.0
 
 **Features**:
@@ -11,7 +16,6 @@
 - Compress outgoing store requests for events and envelopes including attachements using `gzip` content encoding. ([#745](https://github.com/getsentry/relay/pull/745))
 - Relay now buffers all requests until it has authenticated with the upstream. ([#747](//github.com/getsentry/relay/pull/747))
 - Add a configuration option to change content encoding of upstream store requests. The default is `gzip`, and other options are `identity`, `deflate`, or `br`. ([#771](https://github.com/getsentry/relay/pull/771))
-- Add support for scrubbing UTF-16 data in attachments ([#742](https://github.com/getsentry/relay/pull/742))
 
 **Bug Fixes**:
 
