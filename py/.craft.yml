@@ -1,14 +1,12 @@
 ---
-minVersion: "0.9.6"
+minVersion: "0.11.1"
 github:
   owner: getsentry
   repo: relay
 changelogPolicy: auto
 statusProvider:
   name: github
-  config:
-    contexts:
-      - Travis CI - Branch
+
 preReleaseCommand: ../scripts/bump-library.sh
 releaseBranchPrefix: release-library
 
@@ -23,7 +21,7 @@ targets:
           cacheControl: "public, max-age=2592000"
 
 requireNames:
-  - /^sentry_relay-.*-py2.py3-none-macosx_10_13_x86_64.whl$/
+  - /^sentry_relay-.*-py2.py3-none-macosx_10_15_x86_64.whl$/
   - /^sentry_relay-.*-py2.py3-none-manylinux1_i686.whl$/
   - /^sentry_relay-.*-py2.py3-none-manylinux1_x86_64.whl$/
   - /^sentry-relay-.*.zip$/
