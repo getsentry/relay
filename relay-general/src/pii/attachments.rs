@@ -861,6 +861,8 @@ mod tests {
 
     #[test]
     fn test_get_wstr_match() {
+        #![allow(clippy::trivial_regex)]
+
         let s = "hello there";
         let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00 \x00t\x00h\x00e\x00r\x00e\x00"[..]);
         let w = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
