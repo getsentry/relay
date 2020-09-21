@@ -1,6 +1,4 @@
-use std::fmt;
 use std::net::IpAddr;
-use std::str::FromStr;
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
@@ -35,30 +33,12 @@ impl Default for SessionStatus {
 #[fail(display = "invalid session status")]
 pub struct ParseSessionStatusError;
 
-impl FromStr for SessionStatus {
-    type Err = ParseSessionStatusError;
-
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        Ok(match string {
-            "ok" => SessionStatus::Ok,
-            "crashed" => SessionStatus::Crashed,
-            "abnormal" => SessionStatus::Abnormal,
-            "exited" => SessionStatus::Exited,
-            _ => return Err(ParseSessionStatusError),
-        })
-    }
-}
-
-impl fmt::Display for SessionStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            SessionStatus::Ok => write!(f, "ok"),
-            SessionStatus::Crashed => write!(f, "crashed"),
-            SessionStatus::Abnormal => write!(f, "abnormal"),
-            SessionStatus::Exited => write!(f, "exited"),
-        }
-    }
-}
+derive_fromstr_and_display!(SessionStatus, ParseSessionStatusError, {
+    SessionStatus::Ok => "ok",
+    SessionStatus::Crashed => "crashed",
+    SessionStatus::Abnormal => "abnormal",
+    SessionStatus::Exited => "exited",
+});
 
 /// Additional attributes for Sessions.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

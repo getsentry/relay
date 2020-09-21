@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - master
+      - release/**
+      - release-library/**
 
   pull_request:
 
@@ -15,6 +17,19 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.7
+
+      - name: Install Dependencies
+        run: pip install -U -r requirements-dev.txt
+
+      - name: Run Black
+        run: black --check py tests --exclude '\.eggs|sentry_relay/_lowlevel.*'
+
+      - name: Run Flake8
+        run: flake8 py
 
       - uses: actions-rs/toolchain@v1
         id: toolchain
@@ -44,42 +59,18 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --workspace --all-features --tests -- -D clippy::all
 
-  cargo_docs:
-    name: Cargo Docs
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
 
-      - uses: actions-rs/toolchain@v1
-        id: toolchain
-        with:
-          toolchain: stable
-          profile: minimal
-          components: rust-docs
-          override: true
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
 
-      - uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: doc-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
-      - run: make doc
-
-      - name: Deploy
-        if: github.ref == 'refs/heads/master'
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: target/doc
-
-  event_schema:
-    name: Event Schema
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
         with:
@@ -98,50 +89,36 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: schema-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+          key: test-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Generate Schema
+      - name: Run Cargo Tests
         uses: actions-rs/cargo@v1
         with:
-          command: run
-          args: -p generate-schema -- -o event.schema.json
+          command: test
+          args: --workspace
 
-      - name: Deploy
-        if: github.ref == 'refs/heads/master'
-        env:
-          GITHUB_TOKEN: ${{ secrets.DATA_SCHEMAS_GITHUB_TOKEN }}
-        run: |
-          git config --global user.name "$(git log -1 --pretty=format:%an $GITHUB_SHA)"
-          git config --global user.email "$(git log -1 --pretty=format:%ae $GITHUB_SHA)"
-          git clone https://getsentry-bot:$GITHUB_TOKEN@github.com/getsentry/sentry-data-schemas
-          cd sentry-data-schemas/
-          mkdir -p ./relay/
-          mv ../event.schema.json relay/event.schema.json
-          git add relay/event.schema.json
-
-          echo "attempting commit"
-          if ! git commit -m "getsentry/relay@$GITHUB_SHA" ; then
-            echo "Stopping, no changes"
-            exit 0
-          fi
-
-          for i in 1 2 3 4 5; do
-            echo "git push; Attempt $i"
-            if git push; then
-              exit 0
-            fi
-
-            git pull --rebase
-          done
-
-          echo "Failed to push"
-          exit 1
-
-  metrics_docs:
-    name: Metrics Docs
+  test_all:
+    name: Test All Features (ubuntu-latest)
     runs-on: ubuntu-latest
+
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+
+    # Testing all features requires Docker container operations that are only available on
+    # `ubuntu-latest`. This `test-all` job is to be seen as complementary to the `test` job. If
+    # services become available on other platforms, the jobs should be consolidated. See
+    # https://docs.github.com/en/actions/guides/about-service-containers
+
+    services:
+      redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
+        image: redis
+        ports:
+          - 6379:6379
+
     steps:
       - uses: actions/checkout@v2
+        with:
+          submodules: recursive
 
       - uses: actions-rs/toolchain@v1
         id: toolchain
@@ -156,40 +133,121 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: metrics-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+          key: test-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Document Metrics
+      - name: Run Cargo Tests
         uses: actions-rs/cargo@v1
         with:
-          command: run
-          args: -p document-metrics -- -o relay_metrics.json
+          command: test
+          args: --workspace --all-features
 
-      - name: Deploy
-        if: github.ref == 'refs/heads/master'
+  test_py:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [2.7, 3.7]
+
+    # Skip redundant checks for binary releases
+    if: "!startsWith(github.ref, 'refs/heads/release/')"
+
+    name: Test Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions-rs/toolchain@v1
+        id: toolchain
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Dependencies
+        run: pip install -U pytest
+
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: pytest-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build and Install Library
+        run: pip install -v --editable py
         env:
-          GITHUB_TOKEN: ${{ secrets.DATA_SCHEMAS_GITHUB_TOKEN }}
-        run: |
-          git config --global user.name "$(git log -1 --pretty=format:%an $GITHUB_SHA)"
-          git config --global user.email "$(git log -1 --pretty=format:%ae $GITHUB_SHA)"
-          git clone https://getsentry-bot:$GITHUB_TOKEN@github.com/getsentry/sentry-docs
-          cd sentry-docs/
-          mv ../relay_metrics.json src/data/relay_metrics.json
-          git add src/data/relay_metrics.json
+          RELAY_DEBUG: 1
 
-          echo "attempting commit"
-          if ! git commit -m "getsentry/relay@$GITHUB_SHA" ; then
-            echo "Stopping, no changes"
-            exit 0
-          fi
+      - name: Run Python Tests
+        run: pytest -v py
 
-          for i in 1 2 3 4 5; do
-            echo "git push; Attempt $i"
-            if git push; then
-              exit 0
-            fi
+  test_integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
 
-            git pull --rebase
-          done
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
-          echo "Failed to push"
-          exit 1
+    services:
+      redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
+        image: redis
+        ports:
+          - 6379:6379
+
+      zookeeper:
+        image: confluentinc/cp-zookeeper
+        env:
+          ZOOKEEPER_CLIENT_PORT: 2181
+
+      kafka:
+        image: confluentinc/cp-kafka
+        env:
+          KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
+        ports:
+          - 9092:9092
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions-rs/toolchain@v1
+        id: toolchain
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: integration-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all-features
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.7
+
+      - name: Install dependencies
+        run: pip install -U -r requirements-test.txt
+
+      - name: Run tests
+        run: pytest tests -n auto -v

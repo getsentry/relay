@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0
+
+- Fix issue where `$span` would not be recognized in Advanced Data Scrubbing. ([#781](https://github.com/getsentry/relay/pull/781))
+- Require macOS 10.15.0 or newer for the macOS wheel after moving to GitHub Actions. ([#780](https://github.com/getsentry/relay/pull/780))
+
 ## 0.7.0
 
 - In PII configs, all options on hash and mask redactions (replacement characters, ignored characters, hash algorithm/key) are removed. If they still exist in the configuration, they are ignored. ([#760](https://github.com/getsentry/relay/pull/760))
@@ -19,7 +24,7 @@
 
 ## 0.5.13
 
-*Note: This accidentally got released as 0.15.13 as well, which has since been yanked.*
+_Note: This accidentally got released as 0.15.13 as well, which has since been yanked._
 
 - Fix Python 3 incompatibilities in Relay authentication helpers. ([#712](https://github.com/getsentry/relay/pull/712))
 
