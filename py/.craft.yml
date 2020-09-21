@@ -21,7 +21,7 @@ targets:
           cacheControl: "public, max-age=2592000"
 
 requireNames:
-  - /^sentry_relay-.*-py2.py3-none-macosx_10_13_x86_64.whl$/
+  - /^sentry_relay-.*-py2.py3-none-macosx_10_15_x86_64.whl$/
   - /^sentry_relay-.*-py2.py3-none-manylinux1_i686.whl$/
   - /^sentry_relay-.*-py2.py3-none-manylinux1_x86_64.whl$/
   - /^sentry-relay-.*.zip$/
