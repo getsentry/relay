@@ -22,7 +22,7 @@ from the Sentry SDKs as well as the Sentry server into a proxy process.
 
 ## Documentation
 
-- Product documentation can be found at: [https://docs.sentry.io/product/relay/](https://docs.sentry.io/product/relay).
+- Product documentation can be found at: [https://docs.sentry.io/meta/relay/](https://docs.sentry.io/meta/relay).
 - Code and development documentation can be found at:
   [https://getsentry.github.io/relay/](https://getsentry.github.io/relay/).
 
