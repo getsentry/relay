@@ -140,8 +140,13 @@ impl WStr {
     }
 
     /// Converts to a mutable byte slice.
+    ///
+    /// # Safety
+    ///
+    /// When mutating the bytes it must still be valid little-endian encoded UTF-16
+    /// otherwise you will get undefined behaviour.
     #[inline]
-    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
+    pub unsafe fn as_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.raw
     }
 
@@ -310,13 +315,6 @@ impl AsRef<[u8]> for WStr {
     }
 }
 
-impl AsMut<[u8]> for WStr {
-    #[inline]
-    fn as_mut(&mut self) -> &mut [u8] {
-        self.as_bytes_mut()
-    }
-}
-
 /// Whether a code unit is a leading or high surrogate.
 ///
 /// If a Unicode code point does not fit in one code unit (i.e. in one `u16`) it is split
@@ -443,9 +441,11 @@ mod tests {
     fn test_wstr_as_bytes_mut() {
         let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00"[..]);
         let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
-        let buf = s.as_bytes_mut();
         let world = b"w\x00o\x00r\x00l\x00d\x00";
-        buf.copy_from_slice(world);
+        unsafe {
+            let buf = s.as_bytes_mut();
+            buf.copy_from_slice(world);
+        }
         assert_eq!(b.as_slice(), world);
     }
 
@@ -469,8 +469,10 @@ mod tests {
         let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
 
         let t = s.get_mut(0..2).expect("expected Some(&mut Wstr)");
-        let buf = t.as_bytes_mut();
-        buf.copy_from_slice(b"x\x00");
+        unsafe {
+            let buf = t.as_bytes_mut();
+            buf.copy_from_slice(b"x\x00");
+        }
 
         assert_eq!(s.as_bytes(), b"x\x00e\x00l\x00l\x00o\x00");
     }
@@ -545,15 +547,5 @@ mod tests {
         let s = WStr::from_utf16le(b).unwrap();
         let r: &[u8] = s.as_ref();
         assert_eq!(r, b);
-    }
-
-    #[test]
-    fn test_wstr_as_mut() {
-        let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00"[..]);
-        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
-        let m: &mut [u8] = s.as_mut();
-        let world = b"w\x00o\x00r\x00l\x00d\x00";
-        m.copy_from_slice(world);
-        assert_eq!(b.as_slice(), world);
     }
 }
