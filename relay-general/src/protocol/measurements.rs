@@ -1,10 +1,4 @@
-use regex::Regex;
-
 use crate::types::{Annotated, Error, FromValue, Object, Value};
-
-lazy_static::lazy_static! {
-    static ref MEASUREMENT_NAME: Regex = Regex::new("^[a-z0-9-._]+$").unwrap();
-}
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
@@ -30,7 +24,7 @@ impl FromValue for Measurements {
                     let name = original_name.trim().to_lowercase();
 
                     if let Some(measurement_value) = value.value() {
-                        if MEASUREMENT_NAME.is_match(&name) {
+                        if is_valid_measurement_name(&name) {
                             if measurement_value.value.value().is_some() {
                                 measurements.insert(name, value);
                                 return measurements;
@@ -71,6 +65,12 @@ impl FromValue for Measurements {
 
         measurements
     }
+}
+
+fn is_valid_measurement_name(name: &str) -> bool {
+    return name
+        .chars()
+        .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '-' | '_' | '.'));
 }
 
 #[test]
