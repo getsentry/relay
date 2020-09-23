@@ -68,9 +68,8 @@ impl FromValue for Measurements {
 }
 
 fn is_valid_measurement_name(name: &str) -> bool {
-    return name
-        .chars()
-        .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '-' | '_' | '.'));
+    name.chars()
+        .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '-' | '_' | '.'))
 }
 
 #[test]
