@@ -16,7 +16,7 @@ pub struct Measurement {
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct Measurements(#[metastructure(skip_serialization = "empty")] pub Object<Measurement>);
+pub struct Measurements(pub Object<Measurement>);
 
 impl FromValue for Measurements {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
