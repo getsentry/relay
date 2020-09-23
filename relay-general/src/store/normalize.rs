@@ -109,7 +109,6 @@ impl<'a> NormalizeProcessor<'a> {
         if event.ty.value() != Some(&EventType::Transaction) {
             // Only transaction events may have a measurements interface
             event.measurements = Annotated::empty();
-            return;
         }
     }
 
