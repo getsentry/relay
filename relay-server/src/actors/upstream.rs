@@ -294,23 +294,55 @@ impl UpstreamRelay {
         }
     }
 
+    /// Predicate, checks if a Relay performs authentication
+    fn authenticates(&self) -> bool {
+        self.config.relay_mode() == RelayMode::Managed
+    }
+
+    /// Predicate, checks if a Relay does re-authentication
+    fn reauthenticates(&self) -> bool {
+        self.authenticates()
+            && self.config.http_auth_interval().is_some()
+            && self.config.processing_enabled()
+    }
+
+    /// Predicate, checks if we are in an network outage situation
+    fn is_network_outage(&self) -> bool {
+        if let Some(first_error) = self.first_error {
+            let now = Instant::now();
+            first_error + self.config.http_auth_grace_period() < now
+        }
+        false
+    }
+
+    /// called when a network error is detected in order to keep track
+    fn remember_network_error(&mut self) {
+        if self.first_error == None {
+            self.first_error = Some(Instant::now())
+        }
+    }
+
+    /// called when a message to the upstream goes through without a network error
+    fn reset_network_error(&mut self) {
+        self.first_error = None
+    }
+
     fn is_ready(&self) -> bool {
         match self.auth_state {
             // Relays that have auth errors cannot send messages, even in proxy mode
             AuthState::Error => false,
             // Non-managed mode Relays do not authenticate and are ready immediately
-            AuthState::Unknown => self.config.relay_mode() != RelayMode::Managed,
+            AuthState::Unknown => !self.authenticates(),
             // All good in managed mode
             AuthState::Registered => true,
         }
     }
 
     fn handle_network_error(&mut self, ctx: &mut Context<Self>) {
-        let now = Instant::now();
-        let first_error = *self.first_error.get_or_insert(now);
+        self.remember_network_error();
 
-        // Only take action if we exceeded the grace period.
-        if first_error + self.config.http_auth_grace_period() > now {
+        // Only take action if we are in an outage.
+        if !self.is_network_outage() {
             return;
         }
 
@@ -397,7 +429,7 @@ impl UpstreamRelay {
             }
         } else {
             // we managed a request without a network error, reset the first time we got a network error
-            self.first_error = None;
+            self.reset_network_error();
         }
 
         request.response_sender.send(send_result).ok();
@@ -519,7 +551,7 @@ impl Actor for UpstreamRelay {
 
         self.backoff.reset();
 
-        if self.config.relay_mode() == RelayMode::Managed {
+        if self.authenticates() {
             context.notify(Authenticate);
         }
     }
