@@ -23,8 +23,8 @@ use crate::types::{
 /// Those strings get special treatment in our PII processor to avoid stripping the basename.
 #[derive(Debug, FromValue, ToValue, Empty, Clone, PartialEq)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+#[metastructure(value_type = "Filepath")]
 pub struct Filepath(pub String);
-// pub struct Filepath(#[metastructure(value_type = "Filepath")] pub String);
 
 impl Filepath {
     pub fn as_str(&self) -> &str {
