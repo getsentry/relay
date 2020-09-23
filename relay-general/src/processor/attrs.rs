@@ -45,6 +45,7 @@ pub enum ValueType {
     Minidump,
     HeapMemory,
     StackMemory,
+    Filepath,
 }
 
 impl ValueType {
@@ -77,6 +78,7 @@ derive_fromstr_and_display!(ValueType, UnknownValueTypeError, {
     ValueType::Minidump => "minidump",
     ValueType::HeapMemory => "heap_memory",
     ValueType::StackMemory => "stack_memory",
+    ValueType::Filepath => "filepath",
 });
 
 /// The maximum length of a field.

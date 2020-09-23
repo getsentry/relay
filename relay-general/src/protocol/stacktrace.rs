@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::protocol::{Addr, NativeImagePath, RegVal};
+use crate::protocol::{Addr, Filepath, RegVal};
 use crate::types::{Annotated, Array, FromValue, Object, Value};
 
 /// Holds information about a single stacktrace frame.
@@ -68,12 +68,12 @@ pub struct Frame {
     /// The source file name (basename only).
     #[metastructure(max_chars = "path")]
     #[metastructure(skip_serialization = "empty", pii = "maybe")]
-    pub filename: Annotated<NativeImagePath>,
+    pub filename: Annotated<Filepath>,
 
     /// Absolute path to the source file.
     #[metastructure(max_chars = "path")]
     #[metastructure(skip_serialization = "empty", pii = "maybe")]
-    pub abs_path: Annotated<NativeImagePath>,
+    pub abs_path: Annotated<Filepath>,
 
     /// Line number within the source file, starting at 1.
     pub lineno: Annotated<u64>,

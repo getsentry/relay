@@ -23,21 +23,22 @@ use crate::types::{
 /// Those strings get special treatment in our PII processor to avoid stripping the basename.
 #[derive(Debug, FromValue, ToValue, Empty, Clone, PartialEq)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct NativeImagePath(pub String);
+pub struct Filepath(pub String);
+// pub struct Filepath(#[metastructure(value_type = "Filepath")] pub String);
 
-impl NativeImagePath {
+impl Filepath {
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
 }
 
-impl<T: Into<String>> From<T> for NativeImagePath {
-    fn from(value: T) -> NativeImagePath {
-        NativeImagePath(value.into())
+impl<T: Into<String>> From<T> for Filepath {
+    fn from(value: T) -> Filepath {
+        Filepath(value.into())
     }
 }
 
-impl ProcessValue for NativeImagePath {
+impl ProcessValue for Filepath {
     #[inline]
     fn value_type(&self) -> Option<ValueType> {
         Some(ValueType::String)
@@ -53,7 +54,7 @@ impl ProcessValue for NativeImagePath {
     where
         P: Processor,
     {
-        processor.process_native_image_path(self, meta, state)
+        processor.process_filepath(self, meta, state)
     }
 
     fn process_child_values<P>(
@@ -327,7 +328,7 @@ pub struct NativeDebugImage {
     /// - `pe`: The code file should be provided to allow server-side stack walking of binary crash reports, such as Minidumps.
     #[metastructure(required = "true", legacy_alias = "name")]
     #[metastructure(pii = "maybe")]
-    pub code_file: Annotated<NativeImagePath>,
+    pub code_file: Annotated<Filepath>,
 
     /// Unique debug identifier of the image.
     ///
@@ -361,7 +362,7 @@ pub struct NativeDebugImage {
     ///
     /// - `macho`: Name or absolute path to the dSYM file containing debug information for this image. This value might be required to retrieve debug files from certain symbol servers.
     #[metastructure(pii = "maybe")]
-    pub debug_file: Annotated<NativeImagePath>,
+    pub debug_file: Annotated<Filepath>,
 
     /// CPU architecture target.
     ///
