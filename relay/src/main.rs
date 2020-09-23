@@ -51,7 +51,7 @@
 //!  - [`process-event`]: Process a Sentry event payload.
 //!  - [`scrub-minidump`]: Scrub PII from a Minidump file.
 //!
-//! [relay documentation]: https://docs.sentry.io/product/relay/
+//! [relay documentation]: https://docs.sentry.io/meta/relay/
 //! [`relay-auth`]: ../relay_auth/index.html
 //! [`relay-cabi`]: ../relay_cabi/index.html
 //! [`relay-common`]: ../relay_common/index.html
