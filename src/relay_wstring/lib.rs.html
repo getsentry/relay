@@ -549,14 +549,6 @@
 <span id="549">549</span>
 <span id="550">550</span>
 <span id="551">551</span>
-<span id="552">552</span>
-<span id="553">553</span>
-<span id="554">554</span>
-<span id="555">555</span>
-<span id="556">556</span>
-<span id="557">557</span>
-<span id="558">558</span>
-<span id="559">559</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! A UTF-16 little-endian string type.</span>
 <span class="doccomment">//!</span>
@@ -700,8 +692,13 @@
     }
 
     <span class="doccomment">/// Converts to a mutable byte slice.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Safety</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// When mutating the bytes it must still be valid little-endian encoded UTF-16</span>
+    <span class="doccomment">/// otherwise you will get undefined behaviour.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_bytes_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>] {
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_bytes_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>] {
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">raw</span>
     }
 
@@ -870,13 +867,6 @@
     }
 }
 
-<span class="kw">impl</span> <span class="ident">AsMut</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">WStr</span> {
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">as_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>] {
-        <span class="self">self</span>.<span class="ident">as_bytes_mut</span>()
-    }
-}
-
 <span class="doccomment">/// Whether a code unit is a leading or high surrogate.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// If a Unicode code point does not fit in one code unit (i.e. in one `u16`) it is split</span>
@@ -1003,9 +993,11 @@
     <span class="kw">fn</span> <span class="ident">test_wstr_as_bytes_mut</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">b</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">from</span>(<span class="kw-2">&amp;</span><span class="string">b&quot;h\x00e\x00l\x00l\x00o\x00&quot;</span>[..]);
         <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">WStr</span>::<span class="ident">from_utf16le_mut</span>(<span class="ident">b</span>.<span class="ident">as_mut_slice</span>()).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">buf</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">as_bytes_mut</span>();
         <span class="kw">let</span> <span class="ident">world</span> <span class="op">=</span> <span class="string">b&quot;w\x00o\x00r\x00l\x00d\x00&quot;</span>;
-        <span class="ident">buf</span>.<span class="ident">copy_from_slice</span>(<span class="ident">world</span>);
+        <span class="kw">unsafe</span> {
+            <span class="kw">let</span> <span class="ident">buf</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">as_bytes_mut</span>();
+            <span class="ident">buf</span>.<span class="ident">copy_from_slice</span>(<span class="ident">world</span>);
+        }
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">b</span>.<span class="ident">as_slice</span>(), <span class="ident">world</span>);
     }
 
@@ -1029,8 +1021,10 @@
         <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">WStr</span>::<span class="ident">from_utf16le_mut</span>(<span class="ident">b</span>.<span class="ident">as_mut_slice</span>()).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">t</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">get_mut</span>(<span class="number">0</span>..<span class="number">2</span>).<span class="ident">expect</span>(<span class="string">&quot;expected Some(&amp;mut Wstr)&quot;</span>);
-        <span class="kw">let</span> <span class="ident">buf</span> <span class="op">=</span> <span class="ident">t</span>.<span class="ident">as_bytes_mut</span>();
-        <span class="ident">buf</span>.<span class="ident">copy_from_slice</span>(<span class="string">b&quot;x\x00&quot;</span>);
+        <span class="kw">unsafe</span> {
+            <span class="kw">let</span> <span class="ident">buf</span> <span class="op">=</span> <span class="ident">t</span>.<span class="ident">as_bytes_mut</span>();
+            <span class="ident">buf</span>.<span class="ident">copy_from_slice</span>(<span class="string">b&quot;x\x00&quot;</span>);
+        }
 
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="string">b&quot;x\x00e\x00l\x00l\x00o\x00&quot;</span>);
     }
@@ -1105,16 +1099,6 @@
         <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">WStr</span>::<span class="ident">from_utf16le</span>(<span class="ident">b</span>).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">r</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="ident">s</span>.<span class="ident">as_ref</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">r</span>, <span class="ident">b</span>);
-    }
-
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_wstr_as_mut</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">b</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">from</span>(<span class="kw-2">&amp;</span><span class="string">b&quot;h\x00e\x00l\x00l\x00o\x00&quot;</span>[..]);
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">WStr</span>::<span class="ident">from_utf16le_mut</span>(<span class="ident">b</span>.<span class="ident">as_mut_slice</span>()).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">m</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>] <span class="op">=</span> <span class="ident">s</span>.<span class="ident">as_mut</span>();
-        <span class="kw">let</span> <span class="ident">world</span> <span class="op">=</span> <span class="string">b&quot;w\x00o\x00r\x00l\x00d\x00&quot;</span>;
-        <span class="ident">m</span>.<span class="ident">copy_from_slice</span>(<span class="ident">world</span>);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">b</span>.<span class="ident">as_slice</span>(), <span class="ident">world</span>);
     }
 }
 </pre></div>

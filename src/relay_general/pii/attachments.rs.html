@@ -904,6 +904,14 @@
 <span id="904">904</span>
 <span id="905">905</span>
 <span id="906">906</span>
+<span id="907">907</span>
+<span id="908">908</span>
+<span id="909">909</span>
+<span id="910">910</span>
+<span id="911">911</span>
+<span id="912">912</span>
+<span id="913">913</span>
+<span id="914">914</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>::<span class="ident">FusedIterator</span>;
@@ -1094,11 +1102,13 @@
         <span class="kw">let</span> <span class="ident">fill_u16</span> <span class="op">=</span> <span class="ident">fill_char</span>.<span class="ident">encode_utf16</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>[..]);
         <span class="kw">let</span> <span class="ident">fill_buf</span> <span class="op">=</span> <span class="ident">fill_u16</span>[<span class="number">0</span>].<span class="ident">to_le_bytes</span>();
 
-        <span class="kw">let</span> <span class="ident">chunks</span> <span class="op">=</span> <span class="self">self</span>
-            .<span class="ident">as_bytes_mut</span>()
-            .<span class="ident">chunks_exact_mut</span>(<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>());
-        <span class="kw">for</span> <span class="ident">chunk</span> <span class="kw">in</span> <span class="ident">chunks</span> {
-            <span class="ident">chunk</span>.<span class="ident">copy_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">fill_buf</span>);
+        <span class="kw">unsafe</span> {
+            <span class="kw">let</span> <span class="ident">chunks</span> <span class="op">=</span> <span class="self">self</span>
+                .<span class="ident">as_bytes_mut</span>()
+                .<span class="ident">chunks_exact_mut</span>(<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>());
+            <span class="kw">for</span> <span class="ident">chunk</span> <span class="kw">in</span> <span class="ident">chunks</span> {
+                <span class="ident">chunk</span>.<span class="ident">copy_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">fill_buf</span>);
+            }
         }
     }
 
@@ -1121,15 +1131,19 @@
             <span class="kw">if</span> (<span class="ident">len</span> <span class="op">-</span> <span class="ident">offset</span>) <span class="op">&lt;</span> <span class="ident">char_len</span> {
                 <span class="kw">break</span>; <span class="comment">// Not enough space for this char</span>
             }
-            <span class="kw">let</span> <span class="ident">target</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">as_bytes_mut</span>()[<span class="ident">offset</span>..<span class="ident">offset</span> <span class="op">+</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>()];
-            <span class="ident">target</span>.<span class="ident">copy_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">code</span>.<span class="ident">to_le_bytes</span>());
+            <span class="kw">unsafe</span> {
+                <span class="kw">let</span> <span class="ident">target</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">as_bytes_mut</span>()[<span class="ident">offset</span>..<span class="ident">offset</span> <span class="op">+</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>()];
+                <span class="ident">target</span>.<span class="ident">copy_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">code</span>.<span class="ident">to_le_bytes</span>());
+            }
             <span class="ident">offset</span> <span class="op">+</span><span class="op">=</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>();
         }
 
-        <span class="kw">let</span> <span class="ident">remainder_bytes</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">as_bytes_mut</span>()[<span class="ident">offset</span>..];
-        <span class="kw">let</span> <span class="ident">chunks</span> <span class="op">=</span> <span class="ident">remainder_bytes</span>.<span class="ident">chunks_exact_mut</span>(<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>());
-        <span class="kw">for</span> <span class="ident">chunk</span> <span class="kw">in</span> <span class="ident">chunks</span> {
-            <span class="ident">chunk</span>.<span class="ident">copy_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">fill_buf</span>);
+        <span class="kw">unsafe</span> {
+            <span class="kw">let</span> <span class="ident">remainder_bytes</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">as_bytes_mut</span>()[<span class="ident">offset</span>..];
+            <span class="kw">let</span> <span class="ident">chunks</span> <span class="op">=</span> <span class="ident">remainder_bytes</span>.<span class="ident">chunks_exact_mut</span>(<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>());
+            <span class="kw">for</span> <span class="ident">chunk</span> <span class="kw">in</span> <span class="ident">chunks</span> {
+                <span class="ident">chunk</span>.<span class="ident">copy_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">fill_buf</span>);
+            }
         }
     }
 }
@@ -1668,10 +1682,12 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="ident">WStrSegmentIter</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>[..]);
 
         <span class="kw">let</span> <span class="ident">segment</span> <span class="op">=</span> <span class="ident">iter</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>();
-        <span class="ident">segment</span>
-            .<span class="ident">encoded</span>
-            .<span class="ident">as_bytes_mut</span>()
-            .<span class="ident">copy_from_slice</span>(<span class="kw-2">&amp;</span><span class="string">b&quot;w\x00o\x00r\x00l\x00d\x00&quot;</span>[..]);
+        <span class="kw">unsafe</span> {
+            <span class="ident">segment</span>
+                .<span class="ident">encoded</span>
+                .<span class="ident">as_bytes_mut</span>()
+                .<span class="ident">copy_from_slice</span>(<span class="kw-2">&amp;</span><span class="string">b&quot;w\x00o\x00r\x00l\x00d\x00&quot;</span>[..]);
+        }
 
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">iter</span>.<span class="ident">next</span>().<span class="ident">is_none</span>());
 
