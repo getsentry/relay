@@ -14,6 +14,7 @@ use minidump::{
     Error as MinidumpError, Minidump, MinidumpMemoryList, MinidumpModuleList, MinidumpThreadList,
 };
 use num_traits::FromPrimitive;
+use scroll::Endian;
 
 use relay_wstring::{Utf16Error, WStr};
 
@@ -191,7 +192,7 @@ impl<'a> MinidumpData<'a> {
             } else {
                 rvas.push(rva);
             }
-            let len: usize = u32_from_le_bytes(&self.data[rva..])?.try_into()?;
+            let len: usize = u32_from_bytes(&self.data[rva..], self.minidump.endian)?.try_into()?;
             let start: usize = rva + 4;
             items.push(MinidumpItem::CodeModuleName(start..start + len));
 
@@ -199,7 +200,7 @@ impl<'a> MinidumpData<'a> {
             let codeview_loc = module.raw.cv_record;
             let cv_start: usize = codeview_loc.rva.try_into()?;
             let cv_len: usize = codeview_loc.data_size.try_into()?;
-            let signature = u32_from_le_bytes(&self.data[cv_start..])?;
+            let signature = u32_from_bytes(&self.data[cv_start..], self.minidump.endian)?;
             match CvSignature::from_u32(signature) {
                 Some(CvSignature::Pdb70) => {
                     let offset: usize = 4 + (4 + 2 + 2 + 8) + 4; // cv_sig + sig GUID + age
@@ -221,10 +222,18 @@ impl<'a> MinidumpData<'a> {
     }
 }
 
-fn u32_from_le_bytes(bytes: &[u8]) -> Result<u32, ScrubMinidumpError> {
+/// Read a u32 from the start of a byte-slice.
+///
+/// This uses the [Endian] indicator as used by scroll.  It is exceedingly close in
+/// functionality to `bytes.pread_with(0, endian)` from scroll directly, only differing in
+/// the error type.
+fn u32_from_bytes(bytes: &[u8], endian: Endian) -> Result<u32, ScrubMinidumpError> {
     let mut buf = [0u8; 4];
     buf.copy_from_slice(bytes.get(..4).ok_or(ScrubMinidumpError::InvalidAddress)?);
-    Ok(u32::from_le_bytes(buf))
+    match endian {
+        Endian::Little => Ok(u32::from_le_bytes(buf)),
+        Endian::Big => Ok(u32::from_be_bytes(buf)),
+    }
 }
 
 impl PiiAttachmentsProcessor<'_> {
