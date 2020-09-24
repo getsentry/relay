@@ -32,7 +32,7 @@ pub use self::contexts::{
     OperationType, OsContext, RuntimeContext, SpanId, SpanStatus, TraceContext, TraceId,
 };
 pub use self::debugmeta::{
-    AppleDebugImage, CodeId, DebugId, DebugImage, DebugMeta, Filepath, NativeDebugImage,
+    AppleDebugImage, CodeId, DebugId, DebugImage, DebugMeta, NativeDebugImage, NativeImagePath,
     SystemSdkInfo,
 };
 pub use self::event::{

@@ -23,24 +23,29 @@ use crate::types::{
 /// Those strings get special treatment in our PII processor to avoid stripping the basename.
 #[derive(Debug, FromValue, ToValue, Empty, Clone, PartialEq)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-#[metastructure(value_type = "Filepath")]
-pub struct Filepath(pub String);
+pub struct NativeImagePath(pub String);
 
-impl Filepath {
+impl NativeImagePath {
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
 }
 
-impl<T: Into<String>> From<T> for Filepath {
-    fn from(value: T) -> Filepath {
-        Filepath(value.into())
+impl<T: Into<String>> From<T> for NativeImagePath {
+    fn from(value: T) -> NativeImagePath {
+        NativeImagePath(value.into())
     }
 }
 
-impl ProcessValue for Filepath {
+impl ProcessValue for NativeImagePath {
     #[inline]
     fn value_type(&self) -> Option<ValueType> {
+        // Explicit decision not to expose NativeImagePath as valuetype, as people should not be
+        // able to address processing internals.
+        //
+        // Also decided against exposing a $filepath ("things that may contain filenames") because
+        // ruletypes/regexes are better suited for this, and in the case of $frame.package (where
+        // it depends on platform) it's really not that useful.
         Some(ValueType::String)
     }
 
@@ -54,7 +59,7 @@ impl ProcessValue for Filepath {
     where
         P: Processor,
     {
-        processor.process_filepath(self, meta, state)
+        processor.process_native_image_path(self, meta, state)
     }
 
     fn process_child_values<P>(
@@ -328,7 +333,7 @@ pub struct NativeDebugImage {
     /// - `pe`: The code file should be provided to allow server-side stack walking of binary crash reports, such as Minidumps.
     #[metastructure(required = "true", legacy_alias = "name")]
     #[metastructure(pii = "maybe")]
-    pub code_file: Annotated<Filepath>,
+    pub code_file: Annotated<NativeImagePath>,
 
     /// Unique debug identifier of the image.
     ///
@@ -362,7 +367,7 @@ pub struct NativeDebugImage {
     ///
     /// - `macho`: Name or absolute path to the dSYM file containing debug information for this image. This value might be required to retrieve debug files from certain symbol servers.
     #[metastructure(pii = "maybe")]
-    pub debug_file: Annotated<Filepath>,
+    pub debug_file: Annotated<NativeImagePath>,
 
     /// CPU architecture target.
     ///

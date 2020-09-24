@@ -134,7 +134,6 @@ impl SelectorSpec {
                             | ValueType::Minidump
                             | ValueType::HeapMemory
                             | ValueType::StackMemory
-                            | ValueType::Filepath
                             | ValueType::ClientSdkInfo => i == 0,
                         },
                         SelectorPathItem::Index(_) => true,

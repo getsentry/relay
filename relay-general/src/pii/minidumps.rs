@@ -290,11 +290,9 @@ impl PiiAttachmentsProcessor<'_> {
                     let slice = data
                         .get_mut(range)
                         .ok_or(ScrubMinidumpError::InvalidAddress)?;
-                    let state = file_state.enter_static(
-                        "code_file",
-                        Some(attrs),
-                        Some(ValueType::Filepath),
-                    );
+                    // Mirrors decisions made on NativeImagePath type
+                    let state =
+                        file_state.enter_static("code_file", Some(attrs), Some(ValueType::String));
                     let wstr = WStr::from_utf16le_mut(slice)?; // TODO: Consider making this lossy?
                     changed |= self.scrub_utf16_filepath(wstr, &state);
                 }
@@ -302,11 +300,9 @@ impl PiiAttachmentsProcessor<'_> {
                     let slice = data
                         .get_mut(range)
                         .ok_or(ScrubMinidumpError::InvalidAddress)?;
-                    let state = file_state.enter_static(
-                        "debug_file",
-                        Some(attrs),
-                        Some(ValueType::Filepath),
-                    );
+                    // Mirrors decisions made on NativeImagePath type
+                    let state =
+                        file_state.enter_static("debug_file", Some(attrs), Some(ValueType::String));
                     let s = std::str::from_utf8_mut(slice)?;
                     changed |= self.scrub_utf8_filepath(s, &state);
                 }

@@ -11,7 +11,7 @@ use crate::pii::{CompiledPiiConfig, Redaction, RuleType};
 use crate::processor::{
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
-use crate::protocol::{AsPair, Filepath, IpAddr, PairList, User};
+use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, User};
 use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
 // The Regex initializer needs a scope to avoid an endless loop/recursion in RustAnalyzer:
@@ -100,13 +100,13 @@ impl<'a> Processor for PiiProcessor<'a> {
         self.apply_all_rules(meta, state, Some(value))
     }
 
-    fn process_filepath(
+    fn process_native_image_path(
         &mut self,
-        Filepath(ref mut value): &mut Filepath,
+        NativeImagePath(ref mut value): &mut NativeImagePath,
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        // In Filepath we must not strip the file's basename because that would break
+        // In NativeImagePath we must not strip the file's basename because that would break
         // processing.
         //
         // We pop the basename from the end of the string, call process_string and push the
