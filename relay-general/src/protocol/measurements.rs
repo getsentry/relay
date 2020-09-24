@@ -38,7 +38,7 @@ impl FromValue for Measurements {
                             }
                         } else {
                             processing_errors.push(Error::invalid(format!(
-                                "measurement name '{}' can contain only characters a-z0-9-_",
+                                "measurement name '{}' can contain only characters a-z0-9.-_",
                                 name
                             )));
                         }
@@ -103,7 +103,7 @@ fn test_measurements_serialization() {
           [
             "invalid_data",
             {
-              "reason": "measurement name 'Total Blocking Time' can contain only characters a-z0-9-_"
+              "reason": "measurement name 'Total Blocking Time' can contain only characters a-z0-9.-_"
             }
           ],
           [
@@ -150,7 +150,7 @@ fn test_measurements_serialization() {
     let measurements_meta = measurements.meta_mut();
 
     measurements_meta.add_error(Error::invalid(
-        "measurement name 'Total Blocking Time' can contain only characters a-z0-9-_",
+        "measurement name 'Total Blocking Time' can contain only characters a-z0-9.-_",
     ));
 
     measurements_meta.add_error(Error::invalid(
