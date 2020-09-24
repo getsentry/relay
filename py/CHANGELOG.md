@@ -2,8 +2,6 @@
 
 ## Unreleased
 
-**Features**:
-
 - Add support for measurement ingestion. ([#724](https://github.com/getsentry/relay/pull/724))
 
 ## 0.8.0
