@@ -433,9 +433,6 @@ impl<'a> PiiAttachmentsProcessor<'a> {
                                 changed |= !(matches.is_empty());
                             }
                             ScrubEncodings::Utf16Le => {
-                                dbg!(&data);
-                                eprintln!("regex: {}", regex);
-                                dbg!(&regex);
                                 changed |= apply_regex_to_utf16le_bytes(
                                     data,
                                     rule,
@@ -492,12 +489,9 @@ impl<'a> PiiAttachmentsProcessor<'a> {
 
     /// Scrub a filepath, preserving the basename.
     pub fn scrub_utf8_filepath(&self, path: &mut str, state: &ProcessingState<'_>) -> bool {
-        eprintln!("utf8 path: {}", path);
         if let Some(index) = path.rfind(|c| c == '/' || c == '\\') {
             let data = unsafe { &mut path.as_bytes_mut()[..index] };
-            eprintln!("Going to scrub: {:?}", data);
             let ret = self.scrub_bytes(data, state, ScrubEncodings::Utf8);
-            eprintln!("Going to scrub: {:?}", data);
             ret
         } else {
             false
@@ -506,7 +500,6 @@ impl<'a> PiiAttachmentsProcessor<'a> {
 
     /// Scrub a filepath, preserving the basename.
     pub fn scrub_utf16_filepath(&self, path: &mut WStr, state: &ProcessingState<'_>) -> bool {
-        eprintln!("utf16 path: {} {:?}", path.to_utf8(), path);
         let mut found = false;
         let mut index = 0;
         for (i, c) in path.char_indices() {
@@ -515,17 +508,10 @@ impl<'a> PiiAttachmentsProcessor<'a> {
                 index = i;
             }
         }
-        eprintln!(
-            "found: {}, index: {}, len: {}",
-            found,
-            index,
-            path.as_bytes().len()
-        );
+
         if found {
             let data = unsafe { &mut path.as_bytes_mut()[..index] };
-            eprintln!("Going to scrub: {:?}", data);
             let ret = self.scrub_bytes(data, state, ScrubEncodings::Utf16Le);
-            eprintln!("Scurbbed: {:?}", data);
             ret
         } else {
             false

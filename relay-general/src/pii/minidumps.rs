@@ -7,11 +7,13 @@ use std::ops::Range;
 use std::str::Utf8Error;
 
 use failure::Fail;
-use minidump::format::{MINIDUMP_LOCATION_DESCRIPTOR, MINIDUMP_STREAM_TYPE as StreamType, RVA};
-use minidump::{
-    CodeView, Error as MinidumpError, Minidump, MinidumpMemoryList, MinidumpModuleList,
-    MinidumpThreadList,
+use minidump::format::{
+    CvSignature, MINIDUMP_LOCATION_DESCRIPTOR, MINIDUMP_STREAM_TYPE as StreamType, RVA,
 };
+use minidump::{
+    Error as MinidumpError, Minidump, MinidumpMemoryList, MinidumpModuleList, MinidumpThreadList,
+};
+use num_traits::FromPrimitive;
 
 use relay_wstring::{Utf16Error, WStr};
 
@@ -189,38 +191,40 @@ impl<'a> MinidumpData<'a> {
             } else {
                 rvas.push(rva);
             }
-            let mut buf = [0u8; 4];
-            buf.copy_from_slice(&self.data[rva..rva + 4]);
-            let len: usize = u32::from_le_bytes(buf).try_into()?;
+            let len: usize = u32_from_le_bytes(&self.data[rva..])?.try_into()?;
             let start: usize = rva + 4;
-            let range = Range {
-                start,
-                end: start + len,
-            };
-            items.push(MinidumpItem::CodeModuleName(range));
-            if let Some(ref codeview) = module.codeview_info {
-                match codeview {
-                    CodeView::Pdb20(ref raw) => {
-                        if let Some(s) = raw.pdb_file_name.split(|&b| b == 0).next() {
-                            if let Some(range) = self.slice_range(s) {
-                                items.push(MinidumpItem::DebugModuleName(range));
-                            }
-                        }
-                    }
-                    CodeView::Pdb70(ref raw) => {
-                        if let Some(s) = raw.pdb_file_name.split(|&b| b == 0).next() {
-                            if let Some(range) = self.slice_range(s) {
-                                items.push(MinidumpItem::DebugModuleName(range));
-                            }
-                        }
-                    }
-                    _ => (),
+            items.push(MinidumpItem::CodeModuleName(start..start + len));
+
+            // Try to get the raw debug name range.  Minidump API only give us an owned version.
+            let codeview_loc = module.raw.cv_record;
+            let cv_start: usize = codeview_loc.rva.try_into()?;
+            let cv_len: usize = codeview_loc.data_size.try_into()?;
+            let signature = u32_from_le_bytes(&self.data[cv_start..])?;
+            match CvSignature::from_u32(signature) {
+                Some(CvSignature::Pdb70) => {
+                    let offset: usize = 4 + (4 + 2 + 2 + 8) + 4; // cv_sig + sig GUID + age
+                    items.push(MinidumpItem::DebugModuleName(
+                        (cv_start + offset)..(cv_start + cv_len),
+                    ));
                 }
+                Some(CvSignature::Pdb20) => {
+                    let offset: usize = 4 + 4 + 4 + 4; // cv_sig + cv_offset + sig + age
+                    items.push(MinidumpItem::DebugModuleName(
+                        (cv_start + offset)..(cv_start + cv_len),
+                    ));
+                }
+                _ => {}
             }
         }
 
         Ok(items)
     }
+}
+
+fn u32_from_le_bytes(bytes: &[u8]) -> Result<u32, ScrubMinidumpError> {
+    let mut buf = [0u8; 4];
+    buf.copy_from_slice(bytes.get(..4).ok_or(ScrubMinidumpError::InvalidAddress)?);
+    Ok(u32::from_le_bytes(buf))
 }
 
 impl PiiAttachmentsProcessor<'_> {
