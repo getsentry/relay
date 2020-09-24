@@ -971,25 +971,4 @@ mod tests {
             b"h\x00e\x00l\x00l\x00o\x00 \x00t\x00h\x00e\x00r\x00e\x00"
         );
     }
-
-    #[test]
-    fn test_module_list_scrubbing() {
-        let config = serde_json::from_value::<PiiConfig>(serde_json::json!(
-            {
-                "rules": {
-                    "custom": {
-                        "type": "userpath",
-                        "redaction": {
-                          "method": "mask"
-                        }
-                    }
-                },
-                "applications": {
-                    "$filepath": ["custom"]
-                }
-            }
-        ))
-        .unwrap();
-        todo!();
-    }
 }

@@ -316,3 +316,98 @@ impl PiiAttachmentsProcessor<'_> {
         Ok(changed)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use minidump::Module;
+
+    use crate::pii::PiiConfig;
+
+    use super::*;
+
+    #[test]
+    fn test_module_list_removed_win() {
+        let config = serde_json::from_value::<PiiConfig>(serde_json::json!(
+            {
+                "applications": {
+                    "$filepath": ["@anything:mask"]
+                }
+            }
+        ))
+        .unwrap();
+        let compiled = config.compiled();
+        let orig_data = include_bytes!("../../../tests/fixtures/windows.dmp");
+        let mut data = Vec::from(&orig_data[..]);
+        let processor = PiiAttachmentsProcessor::new(&compiled);
+
+        let changed = processor
+            .scrub_minidump("windows.dmp", data.as_mut_slice())
+            .unwrap();
+        assert!(changed);
+
+        // The original minidump, just verifying our input.
+        let orig_dump = Minidump::read(&orig_data[..]).unwrap();
+        let orig_all_mods: MinidumpModuleList = orig_dump.get_stream().unwrap();
+        let orig_main = orig_all_mods.main_module().unwrap();
+        assert_eq!(
+            orig_main.code_file(),
+            "C:\\projects\\breakpad-tools\\windows\\Release\\crash.exe"
+        );
+        assert_eq!(
+            orig_main.debug_file().unwrap(),
+            "C:\\projects\\breakpad-tools\\windows\\Release\\crash.pdb"
+        );
+
+        let orig_mods: Vec<_> = orig_all_mods
+            .iter()
+            .filter(|m| m.base_address() != orig_main.base_address())
+            .collect();
+        let orig_code_files: Vec<_> = orig_mods.iter().map(|m| m.code_file()).collect();
+        dbg!(&orig_code_files);
+        for code_file in orig_code_files.iter() {
+            assert!(
+                code_file.starts_with("C:\\Windows\\System32\\"),
+                "code file without full path"
+            );
+        }
+        let orig_debug_files: Vec<_> = orig_mods.iter().filter_map(|m| m.debug_file()).collect();
+        dbg!(&orig_debug_files);
+        for debug_file in orig_debug_files.iter() {
+            assert!(debug_file.ends_with(".pdb"));
+        }
+
+        // The scrubbed minidump.
+        let scrubbed_dump = Minidump::read(data.as_slice()).unwrap();
+        let scrubbed_all_mods: MinidumpModuleList = scrubbed_dump.get_stream().unwrap();
+        let scrubbed_main = scrubbed_all_mods.main_module().unwrap();
+        assert_eq!(
+            scrubbed_main.code_file(),
+            "******************************************\\crash.exe"
+        );
+        assert_eq!(
+            scrubbed_main.debug_file().unwrap(),
+            "******************************************\\crash.pdb"
+        );
+
+        let scrubbed_mods: Vec<_> = scrubbed_all_mods
+            .iter()
+            .filter(|m| m.base_address() != scrubbed_main.base_address())
+            .collect();
+        let scrubbed_code_files: Vec<_> = scrubbed_mods.iter().map(|m| m.code_file()).collect();
+        dbg!(&scrubbed_code_files);
+        for code_file in scrubbed_code_files.iter() {
+            assert!(
+                code_file.starts_with("*******************\\"),
+                "code file without full path"
+            );
+        }
+        let scrubbed_debug_files: Vec<_> = scrubbed_mods
+            .iter()
+            .filter_map(|m| m.debug_file())
+            .collect();
+        dbg!(&scrubbed_debug_files);
+        for debug_file in scrubbed_debug_files.iter() {
+            assert!(debug_file.ends_with(".pdb"));
+        }
+    }
+}
