@@ -89,12 +89,11 @@ def test_normalize_measurement_interface(mini_sentry, relay_chain):
     assert "measurements" in event, event
     assert len(event["measurements"]) == 3, event["measurements"]
     # expect the key "LCP" to be lowercased as part of the normalization
-    assert event["measurements"]["lcp"]["value"] == 420.69
-    assert event["measurements"]["lcp_final.element-size"]["value"] == 1
-    assert event["measurements"]["fid"]["value"] == 2020
-    assert "cls" not in event["measurements"], event["measurements"]
-    assert "fp" not in event["measurements"], event["measurements"]
-    assert "Total Blocking Time" not in event["measurements"], event["measurements"]
+    assert event["measurements"] == {
+        "lcp": {"value": 420.69},
+        "lcp_final.element-size": {"value": 1},
+        "fid": {"value": 2020},
+    }
 
 
 def test_empty_measurement_interface(mini_sentry, relay_chain):
