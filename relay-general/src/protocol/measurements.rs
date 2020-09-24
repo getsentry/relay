@@ -1,66 +1,63 @@
 use crate::types::{Annotated, Error, FromValue, Object, Value};
 
+/// An individual observed measurement.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Measurement {
-    /// Value of observed measurement value
+    /// Value of observed measurement value.
     #[metastructure(required = "true")]
     pub value: Annotated<f64>,
 }
 
+/// A map of observed measurement values.
+///
+/// Measurements are only available on transactions. They contain measurement values of observed
+/// values such as Largest Contentful Paint (LCP).
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Measurements(pub Object<Measurement>);
 
 impl FromValue for Measurements {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        let mut processing_errors = vec![];
+        let mut processing_errors = Vec::new();
 
         let mut measurements = Object::<Measurement>::from_value(value).map_value(|measurements| {
-            Self(measurements.into_iter().fold(
-                Default::default(),
-                |mut measurements: Object<Measurement>,
-                 (original_name, value): (String, Annotated<Measurement>)| {
-                    let name = original_name.trim().to_lowercase();
-
+            let measurements = measurements
+                .into_iter()
+                .filter_map(|(name, value)| {
+                    let name = name.trim();
                     if let Some(measurement_value) = value.value() {
-                        if is_valid_measurement_name(&name) {
+                        if is_valid_measurement_name(name) {
                             if measurement_value.value.value().is_some() {
-                                measurements.insert(name, value);
-                                return measurements;
+                                return Some((name.to_lowercase(), value));
+                            } else {
+                                processing_errors.push(Error::invalid(format!(
+                                    "measurement value for '{}' must be numeric",
+                                    name
+                                )));
                             }
-
-                            processing_errors.push(Error::invalid(
-                                format!("measurement value for '{}' to be a number", original_name)
-                                    .as_str(),
-                            ));
-                            return measurements;
+                        } else {
+                            processing_errors.push(Error::invalid(format!(
+                                "measurement name '{}' can contain only characters a-z0-9-_",
+                                name
+                            )));
                         }
-
-                        processing_errors.push(Error::invalid(
-                            format!(
-                                "measurement name '{}' to contain only characters a-z0-9-_.",
-                                original_name
-                            )
-                            .as_str(),
-                        ));
-
-                        return measurements;
+                    } else {
+                        processing_errors.push(Error::invalid(format!(
+                            "measurement '{}' missing value",
+                            name
+                        )));
                     }
 
-                    processing_errors.push(Error::expected(
-                        format!("measurement '{}' to have a value", original_name).as_str(),
-                    ));
+                    None
+                })
+                .collect();
 
-                    measurements
-                },
-            ))
+            Self(measurements)
         });
 
-        let measurements_meta = measurements.meta_mut();
-
         for error in processing_errors {
-            measurements_meta.add_error(error);
+            measurements.meta_mut().add_error(error);
         }
 
         measurements
@@ -106,19 +103,19 @@ fn test_measurements_serialization() {
           [
             "invalid_data",
             {
-              "reason": "measurement name 'Total Blocking Time' to contain only characters a-z0-9-_."
+              "reason": "measurement name 'Total Blocking Time' can contain only characters a-z0-9-_"
             }
           ],
           [
             "invalid_data",
             {
-              "reason": "measurement value for 'cls' to be a number"
+              "reason": "measurement value for 'cls' must be numeric"
             }
           ],
           [
             "invalid_data",
             {
-              "reason": "measurement value for 'fp' to be a number"
+              "reason": "measurement value for 'fp' must be numeric"
             }
           ]
         ]
@@ -153,12 +150,14 @@ fn test_measurements_serialization() {
     let measurements_meta = measurements.meta_mut();
 
     measurements_meta.add_error(Error::invalid(
-        "measurement name 'Total Blocking Time' to contain only characters a-z0-9-_.",
+        "measurement name 'Total Blocking Time' can contain only characters a-z0-9-_",
     ));
 
-    measurements_meta.add_error(Error::invalid("measurement value for 'cls' to be a number"));
+    measurements_meta.add_error(Error::invalid(
+        "measurement value for 'cls' must be numeric",
+    ));
 
-    measurements_meta.add_error(Error::invalid("measurement value for 'fp' to be a number"));
+    measurements_meta.add_error(Error::invalid("measurement value for 'fp' must be numeric"));
 
     let event = Annotated::new(Event {
         measurements,
