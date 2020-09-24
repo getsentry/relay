@@ -87,12 +87,12 @@ def test_normalize_measurement_interface(mini_sentry, relay_chain):
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     assert "trace" in event["contexts"]
     assert "measurements" in event, event
-    assert len(event["measurements"]) == 3, event["measurements"]
-    # expect the key "LCP" to be lowercased as part of the normalization
     assert event["measurements"] == {
         "lcp": {"value": 420.69},
         "lcp_final.element-size": {"value": 1},
         "fid": {"value": 2020},
+        "cls": {"value": None},
+        "fp": {"value": None},
     }
 
 
@@ -124,36 +124,6 @@ def test_empty_measurement_interface(mini_sentry, relay_chain):
 
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     assert "measurements" not in event, event
-
-
-def test_empty_measurement_value(mini_sentry, relay_chain):
-
-    # set up relay
-
-    relay = relay_chain()
-    mini_sentry.project_configs[42] = relay.basic_project_config()
-
-    # construct envelope
-
-    transaction_item = generate_transaction_item()
-
-    transaction_item.update({"measurements": {"fcp": {"value": None}}})
-
-    envelope = Envelope()
-    envelope.add_transaction(transaction_item)
-
-    # ingest envelope
-
-    relay.send_envelope(42, envelope)
-
-    envelope = mini_sentry.captured_events.get(timeout=1)
-
-    event = envelope.get_transaction_event()
-
-    # test actual output
-
-    assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
-    assert len(event["measurements"]) == 0, event
 
 
 def test_strip_measurement_interface(

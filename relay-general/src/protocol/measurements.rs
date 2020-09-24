@@ -31,10 +31,14 @@ impl FromValue for Measurements {
                             if measurement_value.value.value().is_some() {
                                 return Some((name.to_lowercase(), value));
                             } else {
-                                processing_errors.push(Error::invalid(format!(
-                                    "measurement value for '{}' must be numeric",
-                                    name
-                                )));
+                                let new_value = Measurement {
+                                    value: Annotated::from_error(
+                                        Error::invalid("measurement value must be numeric"),
+                                        None,
+                                    ),
+                                };
+
+                                return Some((name.to_lowercase(), Annotated::new(new_value)));
                             }
                         } else {
                             processing_errors.push(Error::invalid(format!(
@@ -86,8 +90,14 @@ fn test_measurements_serialization() {
 
     let output = r#"{
   "measurements": {
+    "cls": {
+      "value": null
+    },
     "fid": {
       "value": 2020.0
+    },
+    "fp": {
+      "value": null
     },
     "lcp": {
       "value": 420.69
@@ -105,20 +115,36 @@ fn test_measurements_serialization() {
             {
               "reason": "measurement name 'Total Blocking Time' can contain only characters a-z0-9.-_"
             }
-          ],
-          [
-            "invalid_data",
-            {
-              "reason": "measurement value for 'cls' must be numeric"
-            }
-          ],
-          [
-            "invalid_data",
-            {
-              "reason": "measurement value for 'fp' must be numeric"
-            }
           ]
         ]
+      },
+      "cls": {
+        "value": {
+          "": {
+            "err": [
+              [
+                "invalid_data",
+                {
+                  "reason": "measurement value must be numeric"
+                }
+              ]
+            ]
+          }
+        }
+      },
+      "fp": {
+        "value": {
+          "": {
+            "err": [
+              [
+                "invalid_data",
+                {
+                  "reason": "measurement value must be numeric"
+                }
+              ]
+            ]
+          }
+        }
       }
     }
   }
@@ -126,6 +152,15 @@ fn test_measurements_serialization() {
 
     let mut measurements = Annotated::new(Measurements({
         let mut measurements = Object::new();
+        measurements.insert(
+            "cls".to_owned(),
+            Annotated::new(Measurement {
+                value: Annotated::from_error(
+                    Error::invalid("measurement value must be numeric"),
+                    None,
+                ),
+            }),
+        );
         measurements.insert(
             "lcp".to_owned(),
             Annotated::new(Measurement {
@@ -144,6 +179,15 @@ fn test_measurements_serialization() {
                 value: Annotated::new(2020f64),
             }),
         );
+        measurements.insert(
+            "fp".to_owned(),
+            Annotated::new(Measurement {
+                value: Annotated::from_error(
+                    Error::invalid("measurement value must be numeric"),
+                    None,
+                ),
+            }),
+        );
         measurements
     }));
 
@@ -152,12 +196,6 @@ fn test_measurements_serialization() {
     measurements_meta.add_error(Error::invalid(
         "measurement name 'Total Blocking Time' can contain only characters a-z0-9.-_",
     ));
-
-    measurements_meta.add_error(Error::invalid(
-        "measurement value for 'cls' must be numeric",
-    ));
-
-    measurements_meta.add_error(Error::invalid("measurement value for 'fp' must be numeric"));
 
     let event = Annotated::new(Event {
         measurements,
