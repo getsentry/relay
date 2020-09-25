@@ -500,19 +500,20 @@ impl<'a> PiiAttachmentsProcessor<'a> {
 
     /// Scrub a filepath, preserving the basename.
     pub fn scrub_utf16_filepath(&self, path: &mut WStr, state: &ProcessingState<'_>) -> bool {
-        let mut found = false;
-        let mut index = 0;
-        for (i, c) in path.char_indices() {
-            if c == '/' || c == '\\' {
-                found = true;
-                index = i;
-            }
-        }
+        let index =
+            path.char_indices().rev().find_map(
+                |(i, c)| {
+                    if c == '/' || c == '\\' {
+                        Some(i)
+                    } else {
+                        None
+                    }
+                },
+            );
 
-        if found {
+        if let Some(index) = index {
             let data = unsafe { &mut path.as_bytes_mut()[..index] };
-            let ret = self.scrub_bytes(data, state, ScrubEncodings::Utf16Le);
-            ret
+            self.scrub_bytes(data, state, ScrubEncodings::Utf16Le)
         } else {
             false
         }
