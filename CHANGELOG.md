@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add support for scrubbing UTF-16 data in attachments ([#742](https://github.com/getsentry/relay/pull/742))
+- Add support for scrubbing UTF-16 data in attachments ([#742](https://github.com/getsentry/relay/pull/742)) ([#784](https://github.com/getsentry/relay/pull/784))
 
 **Bug Fixes**:
 
