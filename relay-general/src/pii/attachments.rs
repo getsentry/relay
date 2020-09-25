@@ -491,8 +491,7 @@ impl<'a> PiiAttachmentsProcessor<'a> {
     pub fn scrub_utf8_filepath(&self, path: &mut str, state: &ProcessingState<'_>) -> bool {
         if let Some(index) = path.rfind(|c| c == '/' || c == '\\') {
             let data = unsafe { &mut path.as_bytes_mut()[..index] };
-            let ret = self.scrub_bytes(data, state, ScrubEncodings::Utf8);
-            ret
+            self.scrub_bytes(data, state, ScrubEncodings::Utf8)
         } else {
             false
         }
