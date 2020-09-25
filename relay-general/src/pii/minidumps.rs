@@ -315,95 +315,232 @@ impl PiiAttachmentsProcessor<'_> {
 
 #[cfg(test)]
 mod tests {
-    use minidump::Module;
+    use minidump::{MinidumpModule, Module};
 
     use crate::pii::PiiConfig;
 
     use super::*;
 
+    struct TestScrubber {
+        orig_dump: Minidump<'static, &'static [u8]>,
+        _scrubbed_data: Vec<u8>,
+        scrubbed_dump: Minidump<'static, &'static [u8]>,
+    }
+
+    impl TestScrubber {
+        fn new(filename: &str, orig_data: &'static [u8], json: serde_json::Value) -> Self {
+            let orig_dump = Minidump::read(orig_data).expect("original minidump failed to parse");
+            let mut scrubbed_data = Vec::from(orig_data);
+
+            let config = serde_json::from_value::<PiiConfig>(json).expect("invalid config json");
+            let compiled = config.compiled();
+            let processor = PiiAttachmentsProcessor::new(&compiled);
+            processor
+                .scrub_minidump(filename, scrubbed_data.as_mut_slice())
+                .expect("scrubbing failed");
+
+            // We could let scrubbed_dump just consume the Vec<[u8]>, but that would give
+            // both our dumps different types which is awkward to work with.  So we store
+            // the Vec separately to keep the slice alive and pretend we give Minidump a
+            // &'static [u8].
+            let slice = unsafe { std::mem::transmute(scrubbed_data.as_slice()) };
+            let scrubbed_dump = Minidump::read(slice).expect("scrubbed minidump failed to parse");
+            Self {
+                orig_dump,
+                _scrubbed_data: scrubbed_data,
+                scrubbed_dump,
+            }
+        }
+    }
+
+    enum Which {
+        Original,
+        Scrubbed,
+    }
+
+    impl TestScrubber {
+        fn main_module(&self, which: Which) -> MinidumpModule {
+            let dump = match which {
+                Which::Original => &self.orig_dump,
+                Which::Scrubbed => &self.scrubbed_dump,
+            };
+            let modules: MinidumpModuleList = dump.get_stream().unwrap();
+            modules.main_module().unwrap().clone()
+        }
+
+        fn other_modules(&self, which: Which) -> Vec<MinidumpModule> {
+            let dump = match which {
+                Which::Original => &self.orig_dump,
+                Which::Scrubbed => &self.scrubbed_dump,
+            };
+            let modules: MinidumpModuleList = dump.get_stream().unwrap();
+            let mut iter = modules.iter();
+            iter.next(); // remove main module
+            iter.cloned().collect()
+        }
+    }
+
     #[test]
     fn test_module_list_removed_win() {
-        let config = serde_json::from_value::<PiiConfig>(serde_json::json!(
-            {
-                "applications": {
-                    "$filepath": ["@anything:mask"]
+        let scrubber = TestScrubber::new(
+            "windows.dmp",
+            include_bytes!("../../../tests/fixtures/windows.dmp"),
+            serde_json::json!(
+                {
+                    "applications": {
+                        "debug_file": ["@anything:mask"],
+                        "$attachments.'windows.dmp'.code_file": ["@anything:mask"]
+                    }
                 }
-            }
-        ))
-        .unwrap();
-        let compiled = config.compiled();
-        let orig_data = include_bytes!("../../../tests/fixtures/windows.dmp");
-        let mut data = Vec::from(&orig_data[..]);
-        let processor = PiiAttachmentsProcessor::new(&compiled);
+            ),
+        );
 
-        let changed = processor
-            .scrub_minidump("windows.dmp", data.as_mut_slice())
-            .unwrap();
-        assert!(changed);
-
-        // The original minidump, just verifying our input.
-        let orig_dump = Minidump::read(&orig_data[..]).unwrap();
-        let orig_all_mods: MinidumpModuleList = orig_dump.get_stream().unwrap();
-        let orig_main = orig_all_mods.main_module().unwrap();
+        let main = scrubber.main_module(Which::Original);
         assert_eq!(
-            orig_main.code_file(),
+            main.code_file(),
             "C:\\projects\\breakpad-tools\\windows\\Release\\crash.exe"
         );
         assert_eq!(
-            orig_main.debug_file().unwrap(),
+            main.debug_file().unwrap(),
             "C:\\projects\\breakpad-tools\\windows\\Release\\crash.pdb"
         );
 
-        let orig_mods: Vec<_> = orig_all_mods
-            .iter()
-            .filter(|m| m.base_address() != orig_main.base_address())
-            .collect();
-        let orig_code_files: Vec<_> = orig_mods.iter().map(|m| m.code_file()).collect();
-        dbg!(&orig_code_files);
-        for code_file in orig_code_files.iter() {
-            assert!(
-                code_file.starts_with("C:\\Windows\\System32\\"),
-                "code file without full path"
-            );
-        }
-        let orig_debug_files: Vec<_> = orig_mods.iter().filter_map(|m| m.debug_file()).collect();
-        dbg!(&orig_debug_files);
-        for debug_file in orig_debug_files.iter() {
-            assert!(debug_file.ends_with(".pdb"));
-        }
-
-        // The scrubbed minidump.
-        let scrubbed_dump = Minidump::read(data.as_slice()).unwrap();
-        let scrubbed_all_mods: MinidumpModuleList = scrubbed_dump.get_stream().unwrap();
-        let scrubbed_main = scrubbed_all_mods.main_module().unwrap();
+        let main = scrubber.main_module(Which::Scrubbed);
         assert_eq!(
-            scrubbed_main.code_file(),
+            main.code_file(),
             "******************************************\\crash.exe"
         );
         assert_eq!(
-            scrubbed_main.debug_file().unwrap(),
+            main.debug_file().unwrap(),
             "******************************************\\crash.pdb"
         );
 
-        let scrubbed_mods: Vec<_> = scrubbed_all_mods
-            .iter()
-            .filter(|m| m.base_address() != scrubbed_main.base_address())
-            .collect();
-        let scrubbed_code_files: Vec<_> = scrubbed_mods.iter().map(|m| m.code_file()).collect();
-        dbg!(&scrubbed_code_files);
-        for code_file in scrubbed_code_files.iter() {
+        let modules = scrubber.other_modules(Which::Original);
+        for module in modules {
             assert!(
-                code_file.starts_with("*******************\\"),
+                module.code_file().starts_with("C:\\Windows\\System32\\"),
                 "code file without full path"
             );
+            assert!(module.debug_file().unwrap().ends_with(".pdb"));
         }
-        let scrubbed_debug_files: Vec<_> = scrubbed_mods
-            .iter()
-            .filter_map(|m| m.debug_file())
-            .collect();
-        dbg!(&scrubbed_debug_files);
-        for debug_file in scrubbed_debug_files.iter() {
-            assert!(debug_file.ends_with(".pdb"));
+
+        let modules = scrubber.other_modules(Which::Scrubbed);
+        for module in modules {
+            assert!(
+                module.code_file().starts_with("*******************\\"),
+                "code file path not scrubbed"
+            );
+            assert!(module.debug_file().unwrap().ends_with(".pdb"));
+        }
+    }
+
+    #[test]
+    fn test_module_list_removed_lin() {
+        let scrubber = TestScrubber::new(
+            "linux.dmp",
+            include_bytes!("../../../tests/fixtures/linux.dmp"),
+            serde_json::json!(
+                {
+                    "applications": {
+                        "debug_file": ["@anything:mask"],
+                        "$attachments.*.code_file": ["@anything:mask"]
+                    }
+                }
+            ),
+        );
+
+        let main = scrubber.main_module(Which::Original);
+        assert_eq!(main.code_file(), "/work/linux/build/crash");
+        assert_eq!(main.debug_file().unwrap(), "/work/linux/build/crash");
+
+        let main = scrubber.main_module(Which::Scrubbed);
+        assert_eq!(main.code_file(), "*****************/crash");
+        assert_eq!(main.debug_file().unwrap(), "*****************/crash");
+
+        let modules = scrubber.other_modules(Which::Original);
+        for module in modules {
+            assert!(
+                module.code_file().matches('/').count() > 1
+                    || module.code_file() == "linux-gate.so",
+                "code file does not contain path"
+            );
+            assert!(
+                module.debug_file().unwrap().matches('/').count() > 1
+                    || module.debug_file().unwrap() == "linux-gate.so",
+                "debug file does not contain a path"
+            );
+        }
+
+        let modules = scrubber.other_modules(Which::Scrubbed);
+        for module in modules {
+            assert!(
+                module.code_file().matches('/').count() == 1
+                    || module.code_file() == "linux-gate.so",
+                "code file not scrubbed"
+            );
+            assert!(
+                module.debug_file().unwrap().matches('/').count() == 1
+                    || module.debug_file().unwrap() == "linux-gate.so",
+                "scrubbed debug file contains a path"
+            );
+        }
+    }
+
+    #[test]
+    fn test_module_list_removed_mac() {
+        let scrubber = TestScrubber::new(
+            "macos.dmp",
+            include_bytes!("../../../tests/fixtures/macos.dmp"),
+            serde_json::json!(
+                {
+                    "applications": {
+                        "debug_file": ["@anything:mask"],
+                        "$attachments.*.code_file": ["@anything:mask"]
+                    }
+                }
+            ),
+        );
+
+        let main = scrubber.main_module(Which::Original);
+        assert_eq!(
+            main.code_file(),
+            "/Users/travis/build/getsentry/breakpad-tools/macos/build/./crash"
+        );
+        assert_eq!(main.debug_file().unwrap(), "crash");
+
+        let main = scrubber.main_module(Which::Scrubbed);
+        assert_eq!(
+            main.code_file(),
+            "**********************************************************/crash"
+        );
+        assert_eq!(main.debug_file().unwrap(), "crash");
+
+        let modules = scrubber.other_modules(Which::Original);
+        for module in modules.iter() {
+            dbg!(module.code_file());
+            dbg!(module.debug_file());
+        }
+        for module in modules {
+            assert!(
+                module.code_file().matches('/').count() > 1,
+                "code file does not contain path"
+            );
+            assert!(
+                module.debug_file().unwrap().matches('/').count() == 0,
+                "debug file contains a path"
+            );
+        }
+
+        let modules = scrubber.other_modules(Which::Scrubbed);
+        for module in modules {
+            assert!(
+                module.code_file().matches('/').count() == 1,
+                "code file not scrubbed"
+            );
+            assert!(
+                module.debug_file().unwrap().matches('/').count() == 0,
+                "scrubbed debug file contains a path"
+            );
         }
     }
 }
