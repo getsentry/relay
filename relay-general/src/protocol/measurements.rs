@@ -47,10 +47,7 @@ impl FromValue for Measurements {
                             )));
                         }
                     } else {
-                        processing_errors.push(Error::invalid(format!(
-                            "measurement '{}' missing value",
-                            name
-                        )));
+                        processing_errors.push(Error::expected("object"));
                     }
 
                     None
@@ -84,7 +81,8 @@ fn test_measurements_serialization() {
         "fid": {"value": 2020},
         "cls": {"value": null},
         "fp": {"value": "im a first paint"},
-        "Total Blocking Time": {"value": 3.14159}
+        "Total Blocking Time": {"value": 3.14159},
+        "missing_value": "string"
     }
 }"#;
 
@@ -114,6 +112,12 @@ fn test_measurements_serialization() {
             "invalid_data",
             {
               "reason": "measurement name 'Total Blocking Time' can contain only characters a-z0-9.-_"
+            }
+          ],
+          [
+            "invalid_data",
+            {
+              "reason": "expected object"
             }
           ]
         ]
@@ -196,6 +200,8 @@ fn test_measurements_serialization() {
     measurements_meta.add_error(Error::invalid(
         "measurement name 'Total Blocking Time' can contain only characters a-z0-9.-_",
     ));
+
+    measurements_meta.add_error(Error::expected("object"));
 
     let event = Annotated::new(Event {
         measurements,
