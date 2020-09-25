@@ -315,6 +315,12 @@ impl AsRef<[u8]> for WStr {
     }
 }
 
+impl fmt::Display for WStr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_utf8())
+    }
+}
+
 /// Whether a code unit is a leading or high surrogate.
 ///
 /// If a Unicode code point does not fit in one code unit (i.e. in one `u16`) it is split
@@ -547,5 +553,12 @@ mod tests {
         let s = WStr::from_utf16le(b).unwrap();
         let r: &[u8] = s.as_ref();
         assert_eq!(r, b);
+    }
+
+    #[test]
+    fn test_display() {
+        let b = b"h\x00e\x00l\x00l\x00o\x00";
+        let s = WStr::from_utf16le(b).unwrap();
+        assert_eq!(format!("{}", s), "hello");
     }
 }
