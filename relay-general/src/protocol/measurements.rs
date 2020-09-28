@@ -100,6 +100,9 @@ fn test_measurements_serialization() {
     },
     "lcp_final.element-size": {
       "value": 1.0
+    },
+    "missing_value": {
+      "value": null
     }
   },
   "_meta": {
@@ -111,28 +114,8 @@ fn test_measurements_serialization() {
             {
               "reason": "measurement name 'Total Blocking Time' can contain only characters a-z0-9.-_"
             }
-          ],
-          [
-            "invalid_data",
-            {
-              "reason": "expected object"
-            }
           ]
         ]
-      },
-      "cls": {
-        "value": {
-          "": {
-            "err": [
-              [
-                "invalid_data",
-                {
-                  "reason": "measurement value must be numeric"
-                }
-              ]
-            ]
-          }
-        }
       },
       "fp": {
         "value": {
@@ -141,11 +124,25 @@ fn test_measurements_serialization() {
               [
                 "invalid_data",
                 {
-                  "reason": "measurement value must be numeric"
+                  "reason": "expected a floating point number"
                 }
               ]
-            ]
+            ],
+            "val": "im a first paint"
           }
+        }
+      },
+      "missing_value": {
+        "": {
+          "err": [
+            [
+              "invalid_data",
+              {
+                "reason": "expected measurement"
+              }
+            ]
+          ],
+          "val": "string"
         }
       }
     }
@@ -157,10 +154,7 @@ fn test_measurements_serialization() {
         measurements.insert(
             "cls".to_owned(),
             Annotated::new(Measurement {
-                value: Annotated::from_error(
-                    Error::invalid("measurement value must be numeric"),
-                    None,
-                ),
+                value: Annotated::empty(),
             }),
         );
         measurements.insert(
@@ -185,11 +179,22 @@ fn test_measurements_serialization() {
             "fp".to_owned(),
             Annotated::new(Measurement {
                 value: Annotated::from_error(
-                    Error::invalid("measurement value must be numeric"),
-                    None,
+                    Error::expected("a floating point number"),
+                    Some("im a first paint".into()),
                 ),
             }),
         );
+
+        measurements.insert("missing_value".to_owned(), {
+            let mut value =
+                Annotated::from_error(Error::expected("measurement"), Some("string".into()));
+            value.set_value(Some(Measurement {
+                value: Annotated::empty(),
+            }));
+
+            value
+        });
+
         measurements
     }));
 
@@ -198,8 +203,6 @@ fn test_measurements_serialization() {
     measurements_meta.add_error(Error::invalid(
         "measurement name 'Total Blocking Time' can contain only characters a-z0-9.-_",
     ));
-
-    measurements_meta.add_error(Error::expected("object"));
 
     let event = Annotated::new(Event {
         measurements,
