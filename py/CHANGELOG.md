@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add support for measurement ingestion. ([#724](https://github.com/getsentry/relay/pull/724))
+
 ## 0.8.0
 
 - Fix issue where `$span` would not be recognized in Advanced Data Scrubbing. ([#781](https://github.com/getsentry/relay/pull/781))
