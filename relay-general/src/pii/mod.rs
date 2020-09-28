@@ -13,7 +13,7 @@ mod redactions;
 mod regexes;
 mod utils;
 
-pub use self::attachments::PiiAttachmentsProcessor;
+pub use self::attachments::{PiiAttachmentsProcessor, ScrubEncodings};
 pub use self::builtin::BUILTIN_RULES;
 pub use self::compiledconfig::CompiledPiiConfig;
 pub use self::config::{

@@ -365,6 +365,13 @@ pub struct PiiAttachmentsProcessor<'a> {
     root_state: ProcessingState<'static>,
 }
 
+/// Which encodings to scrub for `scrub_bytes`.
+pub enum ScrubEncodings {
+    Utf8,
+    Utf16Le,
+    All,
+}
+
 impl<'a> PiiAttachmentsProcessor<'a> {
     /// Creates a new `PiiAttachmentsProcessor` from the given PII config.
     pub fn new(compiled_config: &'a CompiledPiiConfig) -> Self {
@@ -396,7 +403,12 @@ impl<'a> PiiAttachmentsProcessor<'a> {
     /// Applies PII rules to a plain buffer.
     ///
     /// Returns `true`, if the buffer was modified.
-    pub(crate) fn scrub_bytes(&self, data: &mut [u8], state: &ProcessingState<'_>) -> bool {
+    pub(crate) fn scrub_bytes(
+        &self,
+        data: &mut [u8],
+        state: &ProcessingState<'_>,
+        encodings: ScrubEncodings,
+    ) -> bool {
         let mut changed = false;
 
         for (selector, rules) in &self.compiled_config.applications {
@@ -414,33 +426,50 @@ impl<'a> PiiAttachmentsProcessor<'a> {
                     for (_pattern_type, regex, replace_behavior) in
                         get_regex_for_rule_type(&rule.ty)
                     {
-                        let matches =
-                            apply_regex_to_utf8_bytes(data, rule, regex, &replace_behavior);
-                        changed |= !(matches.is_empty());
+                        match encodings {
+                            ScrubEncodings::Utf8 => {
+                                let matches =
+                                    apply_regex_to_utf8_bytes(data, rule, regex, &replace_behavior);
+                                changed |= !(matches.is_empty());
+                            }
+                            ScrubEncodings::Utf16Le => {
+                                changed |= apply_regex_to_utf16le_bytes(
+                                    data,
+                                    rule,
+                                    regex,
+                                    &replace_behavior,
+                                );
+                            }
+                            ScrubEncodings::All => {
+                                let matches =
+                                    apply_regex_to_utf8_bytes(data, rule, regex, &replace_behavior);
+                                changed |= !(matches.is_empty());
 
-                        // Only scrub regions with the UTF-16 scrubber if they haven't been
-                        // scrubbed yet.
-                        let windowed_matches = matches
-                            .into_iter()
-                            .chain(std::iter::once((data.len(), 0)))
-                            .scan((0usize, 0usize), |previous, current| {
-                                let start = if previous.1 % 2 == 0 {
-                                    previous.1
-                                } else {
-                                    previous.1 + 1
-                                };
-                                let item = (start, current.0);
-                                *previous = current;
-                                Some(item)
-                            })
-                            .filter(|(start, end)| end > start);
-                        for (start, end) in windowed_matches {
-                            changed |= apply_regex_to_utf16le_bytes(
-                                &mut data[start..end],
-                                rule,
-                                regex,
-                                &replace_behavior,
-                            );
+                                // Only scrub regions with the UTF-16 scrubber if they haven't been
+                                // scrubbed yet.
+                                let unscrubbed_ranges = matches
+                                    .into_iter()
+                                    .chain(std::iter::once((data.len(), 0)))
+                                    .scan((0usize, 0usize), |previous, current| {
+                                        let start = if previous.1 % 2 == 0 {
+                                            previous.1
+                                        } else {
+                                            previous.1 + 1
+                                        };
+                                        let item = (start, current.0);
+                                        *previous = current;
+                                        Some(item)
+                                    })
+                                    .filter(|(start, end)| end > start);
+                                for (start, end) in unscrubbed_ranges {
+                                    changed |= apply_regex_to_utf16le_bytes(
+                                        &mut data[start..end],
+                                        rule,
+                                        regex,
+                                        &replace_behavior,
+                                    );
+                                }
+                            }
                         }
                     }
                 }
@@ -455,7 +484,38 @@ impl<'a> PiiAttachmentsProcessor<'a> {
     /// Returns `true`, if the attachment was modified.
     pub fn scrub_attachment(&self, filename: &str, data: &mut [u8]) -> bool {
         let state = self.state(filename, ValueType::Binary);
-        self.scrub_bytes(data, &state)
+        self.scrub_bytes(data, &state, ScrubEncodings::All)
+    }
+
+    /// Scrub a filepath, preserving the basename.
+    pub fn scrub_utf8_filepath(&self, path: &mut str, state: &ProcessingState<'_>) -> bool {
+        if let Some(index) = path.rfind(|c| c == '/' || c == '\\') {
+            let data = unsafe { &mut path.as_bytes_mut()[..index] };
+            self.scrub_bytes(data, state, ScrubEncodings::Utf8)
+        } else {
+            false
+        }
+    }
+
+    /// Scrub a filepath, preserving the basename.
+    pub fn scrub_utf16_filepath(&self, path: &mut WStr, state: &ProcessingState<'_>) -> bool {
+        let index =
+            path.char_indices().rev().find_map(
+                |(i, c)| {
+                    if c == '/' || c == '\\' {
+                        Some(i)
+                    } else {
+                        None
+                    }
+                },
+            );
+
+        if let Some(index) = index {
+            let data = unsafe { &mut path.as_bytes_mut()[..index] };
+            self.scrub_bytes(data, state, ScrubEncodings::Utf16Le)
+        } else {
+            false
+        }
     }
 }
 
@@ -545,7 +605,7 @@ mod tests {
             let mut data = input.to_owned();
             let processor = PiiAttachmentsProcessor::new(&compiled);
             let state = processor.state(filename, value_type);
-            let has_changed = processor.scrub_bytes(&mut data, &state);
+            let has_changed = processor.scrub_bytes(&mut data, &state, ScrubEncodings::All);
 
             assert_eq_bytes_str!(data, output);
             assert_eq!(changed, has_changed);

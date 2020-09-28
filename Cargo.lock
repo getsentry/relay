@@ -2954,6 +2954,7 @@ dependencies = [
  "relay-general-derive",
  "relay-wstring",
  "schemars",
+ "scroll 0.9.2",
  "serde",
  "serde_json",
  "serde_urlencoded 0.5.5",
