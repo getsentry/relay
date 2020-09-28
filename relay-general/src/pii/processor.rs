@@ -106,7 +106,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        // In NativeImagePaths we must not strip the file's basename because that would break
+        // In NativeImagePath we must not strip the file's basename because that would break
         // processing.
         //
         // We pop the basename from the end of the string, call process_string and push the
