@@ -1,3 +1,8 @@
+//! Legacy datascrubbing coniguration
+//!
+//! All these configuration options are ignored by the new data scrubbers which operate
+//! solely from the [PiiConfig] rules for the project.
+
 use serde::{Deserialize, Serialize};
 
 use relay_common::{LazyCellRef, UpsertingLazyCell};
