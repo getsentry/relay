@@ -187,11 +187,13 @@ impl StringMods for WStr {
         let fill_u16 = fill_char.encode_utf16(&mut buf[..]);
         let fill_buf = fill_u16[0].to_le_bytes();
 
-        let chunks = self
-            .as_bytes_mut()
-            .chunks_exact_mut(std::mem::size_of::<u16>());
-        for chunk in chunks {
-            chunk.copy_from_slice(&fill_buf);
+        unsafe {
+            let chunks = self
+                .as_bytes_mut()
+                .chunks_exact_mut(std::mem::size_of::<u16>());
+            for chunk in chunks {
+                chunk.copy_from_slice(&fill_buf);
+            }
         }
     }
 
@@ -214,15 +216,19 @@ impl StringMods for WStr {
             if (len - offset) < char_len {
                 break; // Not enough space for this char
             }
-            let target = &mut self.as_bytes_mut()[offset..offset + std::mem::size_of::<u16>()];
-            target.copy_from_slice(&code.to_le_bytes());
+            unsafe {
+                let target = &mut self.as_bytes_mut()[offset..offset + std::mem::size_of::<u16>()];
+                target.copy_from_slice(&code.to_le_bytes());
+            }
             offset += std::mem::size_of::<u16>();
         }
 
-        let remainder_bytes = &mut self.as_bytes_mut()[offset..];
-        let chunks = remainder_bytes.chunks_exact_mut(std::mem::size_of::<u16>());
-        for chunk in chunks {
-            chunk.copy_from_slice(&fill_buf);
+        unsafe {
+            let remainder_bytes = &mut self.as_bytes_mut()[offset..];
+            let chunks = remainder_bytes.chunks_exact_mut(std::mem::size_of::<u16>());
+            for chunk in chunks {
+                chunk.copy_from_slice(&fill_buf);
+            }
         }
     }
 }
@@ -761,10 +767,12 @@ mod tests {
         let mut iter = WStrSegmentIter::new(&mut data[..]);
 
         let segment = iter.next().unwrap();
-        segment
-            .encoded
-            .as_bytes_mut()
-            .copy_from_slice(&b"w\x00o\x00r\x00l\x00d\x00"[..]);
+        unsafe {
+            segment
+                .encoded
+                .as_bytes_mut()
+                .copy_from_slice(&b"w\x00o\x00r\x00l\x00d\x00"[..]);
+        }
 
         assert!(iter.next().is_none());
 
