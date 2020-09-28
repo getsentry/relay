@@ -104,10 +104,18 @@ pub struct LimitedProjectConfig {
     pub datascrubbing_settings: DataScrubbingConfig,
 }
 
+/// Returns an invalid placeholder project identifier.
+fn default_project_id() -> ProjectId {
+    ProjectId::new(0)
+}
+
 /// The project state is a cached server state of a project.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectState {
+    /// Unique identifier of this project.
+    #[serde(rename = "projectId", default = "default_project_id")]
+    pub id: ProjectId,
     /// The timestamp of when the state was last changed.
     ///
     /// This might be `None` in some rare cases like where states
@@ -157,6 +165,7 @@ impl ProjectState {
     /// Project state for a missing project.
     pub fn missing() -> Self {
         ProjectState {
+            id: ProjectId::new(0),
             last_change: None,
             disabled: true,
             public_keys: Vec::new(),
@@ -222,9 +231,9 @@ impl ProjectState {
 
     /// Returns whether this state is outdated and needs to be refetched.
     pub fn outdated(&self, config: &Config) -> Outdated {
-        let expiry = match self.slug {
-            Some(_) => config.project_cache_expiry(),
-            None => config.cache_miss_expiry(),
+        let expiry = match self.id.value() {
+            0 => config.cache_miss_expiry(),
+            _ => config.project_cache_expiry(),
         };
 
         let elapsed = self.last_fetch.elapsed();
@@ -376,13 +385,6 @@ pub struct PublicKeyConfig {
     /// Only available for internal relays.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub numeric_id: Option<u64>,
-
-    /// The project id to redirect events to.
-    ///
-    /// If this is set, the key has moved to a new project. Project configuration for the given
-    /// project must be retrieved instead of the project declared in the DSN.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub redirect_project_id: Option<ProjectId>,
 }
 
 mod limited_public_key_comfigs {

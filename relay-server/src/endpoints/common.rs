@@ -390,6 +390,8 @@ where
     }
 
     let project_id = meta.project_id();
+    let public_key = meta.public_key().to_owned();
+
     let hub = Hub::from_request(&request);
     hub.configure_scope(|scope| {
         scope.set_user(Some(sentry::User {

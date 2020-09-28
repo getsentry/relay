@@ -38,6 +38,13 @@ struct ProjectEntry {
     project: Addr<Project>,
 }
 
+// /// Attributes defining a unique DSN.
+// #[derive(Debug)]
+// struct DsnKey {
+//     project_id: ProjectId,
+//     public_key: String,
+// }
+
 pub struct ProjectCache {
     config: Arc<Config>,
     projects: HashMap<ProjectId, ProjectEntry>,
@@ -113,9 +120,20 @@ impl Actor for ProjectCache {
     }
 }
 
+/// Resolves the project with the given identifier.
+///
+/// The returned `Project` is an actor that synchronizes state access internally. When it is fetched
+/// for the first time, its state is unpopulated. Only when `GetProjectState` is sent to the project
+/// for the first time, it starts to resolve the state from one of the sources.
+///
+/// If the optional `public_key` is set, then the public keys of the project are checked for a
+/// redirect. If a redirect is detected, then the target project is resolved and returned instead.
+///
+/// **Note** that due to redirects, the returned project may have a different identifier.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetProject {
     pub id: ProjectId,
+    // pub public_key: String,
 }
 
 impl Message for GetProject {
@@ -146,6 +164,16 @@ impl Handler<GetProject> for ProjectCache {
     }
 }
 
+/// Fetches a project state from one of the available sources.
+///
+/// The project state is resolved in the following precedence:
+///
+///  1. Local file system
+///  2. Redis cache (processing mode only)
+///  3. Upstream (managed and processing mode only)
+///
+/// Requests to the upstream are performed via `UpstreamProjectSource`, which internally batches
+/// individual requests.
 #[derive(Clone, Copy)]
 pub struct FetchProjectState {
     pub id: ProjectId,
