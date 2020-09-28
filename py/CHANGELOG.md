@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add support for measurement ingestion. ([#724](https://github.com/getsentry/relay/pull/724))
+- Add support for measurement ingestion. ([#724](https://github.com/getsentry/relay/pull/724), [#785](https://github.com/getsentry/relay/pull/785))
 
 ## 0.8.0
 
