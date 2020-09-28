@@ -5,7 +5,7 @@ use crate::types::{Annotated, Error, FromValue, Object, Value};
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Measurement {
     /// Value of observed measurement value.
-    #[metastructure(required = "true")]
+    #[metastructure(required = "true", skip_serialization = "never")]
     pub value: Annotated<f64>,
 }
 
@@ -24,11 +24,23 @@ impl FromValue for Measurements {
         let mut measurements = Object::<Measurement>::from_value(value).map_value(|measurements| {
             let measurements = measurements
                 .into_iter()
-                .filter_map(|(name, value)| {
+                .filter_map(|(name, mut object)| {
                     let name = name.trim();
 
                     if is_valid_measurement_name(name) {
-                        return Some((name.to_lowercase(), value));
+                        if let Some(measurement) = object.value() {
+                            if measurement.value.value().is_some() {
+                                return Some((name.to_lowercase(), object));
+                            }
+
+                            return Some((name.to_lowercase(), object));
+                        }
+
+                        object.set_value(Some(Measurement {
+                            value: Annotated::empty(),
+                        }));
+
+                        return Some((name.to_lowercase(), object));
                     } else {
                         processing_errors.push(Error::invalid(format!(
                             "measurement name '{}' can contain only characters a-z0-9.-_",
