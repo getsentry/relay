@@ -96,7 +96,7 @@ def test_normalize_measurement_interface(
         "fid": {"value": 2020},
         "cls": {"value": None},
         "fp": {"value": None},
-        "missing_value": {"value": None},
+        "missing_value": None,
     }
 
 

@@ -24,22 +24,10 @@ impl FromValue for Measurements {
         let mut measurements = Object::<Measurement>::from_value(value).map_value(|measurements| {
             let measurements = measurements
                 .into_iter()
-                .filter_map(|(name, mut object)| {
+                .filter_map(|(name, object)| {
                     let name = name.trim();
 
                     if is_valid_measurement_name(name) {
-                        if let Some(measurement) = object.value() {
-                            if measurement.value.value().is_some() {
-                                return Some((name.to_lowercase(), object));
-                            }
-
-                            return Some((name.to_lowercase(), object));
-                        }
-
-                        object.set_value(Some(Measurement {
-                            value: Annotated::empty(),
-                        }));
-
                         return Some((name.to_lowercase(), object));
                     } else {
                         processing_errors.push(Error::invalid(format!(
@@ -101,9 +89,7 @@ fn test_measurements_serialization() {
     "lcp_final.element-size": {
       "value": 1.0
     },
-    "missing_value": {
-      "value": null
-    }
+    "missing_value": null
   },
   "_meta": {
     "measurements": {
@@ -185,15 +171,10 @@ fn test_measurements_serialization() {
             }),
         );
 
-        measurements.insert("missing_value".to_owned(), {
-            let mut value =
-                Annotated::from_error(Error::expected("measurement"), Some("string".into()));
-            value.set_value(Some(Measurement {
-                value: Annotated::empty(),
-            }));
-
-            value
-        });
+        measurements.insert(
+            "missing_value".to_owned(),
+            Annotated::from_error(Error::expected("measurement"), Some("string".into())),
+        );
 
         measurements
     }));
