@@ -60,6 +60,8 @@
 <span id="60">60</span>
 <span id="61">61</span>
 <span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Implements the sentry event protocol.</span>
 <span class="kw">mod</span> <span class="ident">breadcrumb</span>;
@@ -71,6 +73,7 @@
 <span class="kw">mod</span> <span class="ident">exception</span>;
 <span class="kw">mod</span> <span class="ident">fingerprint</span>;
 <span class="kw">mod</span> <span class="ident">logentry</span>;
+<span class="kw">mod</span> <span class="ident">measurements</span>;
 <span class="kw">mod</span> <span class="ident">mechanism</span>;
 <span class="kw">mod</span> <span class="ident">metrics</span>;
 <span class="kw">mod</span> <span class="ident">request</span>;
@@ -105,6 +108,7 @@
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">exception</span>::<span class="ident">Exception</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">fingerprint</span>::<span class="ident">Fingerprint</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">logentry</span>::{<span class="ident">LogEntry</span>, <span class="ident">Message</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">measurements</span>::<span class="ident">Measurements</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">mechanism</span>::{<span class="ident">CError</span>, <span class="ident">MachException</span>, <span class="ident">Mechanism</span>, <span class="ident">MechanismMeta</span>, <span class="ident">PosixSignal</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">metrics</span>::<span class="ident">Metrics</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">request</span>::{<span class="ident">Cookies</span>, <span class="ident">HeaderName</span>, <span class="ident">HeaderValue</span>, <span class="ident">Headers</span>, <span class="ident">Query</span>, <span class="ident">Request</span>};
