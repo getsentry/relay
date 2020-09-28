@@ -41,7 +41,7 @@
 <span class="kw">mod</span> <span class="ident">regexes</span>;
 <span class="kw">mod</span> <span class="ident">utils</span>;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">attachments</span>::<span class="ident">PiiAttachmentsProcessor</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">attachments</span>::{<span class="ident">PiiAttachmentsProcessor</span>, <span class="ident">ScrubEncodings</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">builtin</span>::<span class="ident">BUILTIN_RULES</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">compiledconfig</span>::<span class="ident">CompiledPiiConfig</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">config</span>::{

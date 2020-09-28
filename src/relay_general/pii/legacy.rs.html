@@ -67,7 +67,17 @@
 <span id="67">67</span>
 <span id="68">68</span>
 <span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
 </pre><div class="example-wrap"><pre class="rust ">
+<span class="doccomment">//! Legacy datascrubbing coniguration</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! All these configuration options are ignored by the new data scrubbers which operate</span>
+<span class="doccomment">//! solely from the [PiiConfig] rules for the project.</span>
+
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">LazyCellRef</span>, <span class="ident">UpsertingLazyCell</span>};

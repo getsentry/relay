@@ -1056,7 +1056,7 @@
         <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Meta</span>,
         <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingResult</span> {
-        <span class="comment">// In NativeImagePaths we must not strip the file&#39;s basename because that would break</span>
+        <span class="comment">// In NativeImagePath we must not strip the file&#39;s basename because that would break</span>
         <span class="comment">// processing.</span>
         <span class="comment">//</span>
         <span class="comment">// We pop the basename from the end of the string, call process_string and push the</span>
