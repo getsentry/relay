@@ -26,28 +26,14 @@ impl FromValue for Measurements {
                 .into_iter()
                 .filter_map(|(name, value)| {
                     let name = name.trim();
-                    if let Some(measurement_value) = value.value() {
-                        if is_valid_measurement_name(name) {
-                            if measurement_value.value.value().is_some() {
-                                return Some((name.to_lowercase(), value));
-                            } else {
-                                let new_value = Measurement {
-                                    value: Annotated::from_error(
-                                        Error::invalid("measurement value must be numeric"),
-                                        None,
-                                    ),
-                                };
 
-                                return Some((name.to_lowercase(), Annotated::new(new_value)));
-                            }
-                        } else {
-                            processing_errors.push(Error::invalid(format!(
-                                "measurement name '{}' can contain only characters a-z0-9.-_",
-                                name
-                            )));
-                        }
+                    if is_valid_measurement_name(name) {
+                        return Some((name.to_lowercase(), value));
                     } else {
-                        processing_errors.push(Error::expected("object"));
+                        processing_errors.push(Error::invalid(format!(
+                            "measurement name '{}' can contain only characters a-z0-9.-_",
+                            name
+                        )));
                     }
 
                     None
