@@ -47,12 +47,16 @@ def generate_transaction_item():
     }
 
 
-def test_normalize_measurement_interface(mini_sentry, relay_chain):
+def test_normalize_measurement_interface(
+    mini_sentry, relay_with_processing, transactions_consumer
+):
 
     # set up relay
 
-    relay = relay_chain()
+    relay = relay_with_processing()
     mini_sentry.project_configs[42] = relay.basic_project_config()
+
+    events_consumer = transactions_consumer()
 
     # construct envelope
 
@@ -67,6 +71,7 @@ def test_normalize_measurement_interface(mini_sentry, relay_chain):
                 "cls": {"value": None},
                 "fp": {"value": "im a first paint"},
                 "Total Blocking Time": {"value": 3.14159},
+                "missing_value": "string",
             }
         }
     )
@@ -78,9 +83,7 @@ def test_normalize_measurement_interface(mini_sentry, relay_chain):
 
     relay.send_envelope(42, envelope)
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
-
-    event = envelope.get_transaction_event()
+    event, _ = events_consumer.try_get_event()
 
     # test actual output
 
@@ -93,6 +96,7 @@ def test_normalize_measurement_interface(mini_sentry, relay_chain):
         "fid": {"value": 2020},
         "cls": {"value": None},
         "fp": {"value": None},
+        "missing_value": {"value": None},
     }
 
 
