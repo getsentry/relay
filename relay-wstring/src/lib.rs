@@ -121,14 +121,17 @@ impl WStr {
         if index == 0 || index == self.len() {
             return true;
         }
-        if index % 2 != 0 || index > self.len() {
+        if index % 2 != 0 {
             return false;
         }
 
-        // Since we always have a valid UTF-16LE string in here we now are sure we always
-        // have a byte at index + 1.  The only invalid thing now is a trailing surrogate.
-        let code_unit = u16::copy_from_le_bytes(&self.raw[index..]);
-        !is_trailing_surrogate(code_unit)
+        // Since we always have a valid UTF-16LE string in here we are sure we always have
+        // another code unit if this one is a leading surrogate.  The only invalid thing now
+        // is a trailing surrogate.  Our index can still be out of range though.
+        self.raw
+            .get(index..)
+            .and_then(u16::copy_from_le_bytes)
+            .map_or(false, |u| !is_trailing_surrogate(u))
     }
 
     /// Converts to a byte slice.
@@ -259,14 +262,14 @@ impl<'a> Iterator for WStrChars<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         // Our input is valid UTF-16LE, so we can take a lot of shortcuts.
         let chunk = self.chunks.next()?;
-        let u = u16::copy_from_le_bytes(chunk);
+        let u = u16::copy_from_le_bytes(chunk)?;
 
         if !is_leading_surrogate(u) {
             // SAFETY: This is now guaranteed a valid Unicode code point.
             Some(unsafe { std::char::from_u32_unchecked(u as u32) })
         } else {
             let chunk = self.chunks.next().expect("missing trailing surrogate");
-            let u2 = u16::copy_from_le_bytes(chunk);
+            let u2 = u16::copy_from_le_bytes(chunk)?;
             debug_assert!(
                 is_trailing_surrogate(u2),
                 "code unit not a trailing surrogate"
@@ -279,7 +282,7 @@ impl<'a> Iterator for WStrChars<'a> {
     fn count(self) -> usize {
         // No need to fully construct all characters
         self.chunks
-            .filter(|bb| !is_trailing_surrogate(u16::copy_from_le_bytes(bb)))
+            .filter(|bb| !is_trailing_surrogate(u16::copy_from_le_bytes(bb).unwrap()))
             .count()
     }
 
@@ -296,14 +299,14 @@ impl<'a> DoubleEndedIterator for WStrChars<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
         // Our input is valid UTF-16LE, so we can take a lot of shortcuts.
         let chunk = self.chunks.next_back()?;
-        let u = u16::copy_from_le_bytes(chunk);
+        let u = u16::copy_from_le_bytes(chunk)?;
 
         if !is_trailing_surrogate(u) {
             // SAFETY: This is now guaranteed a valid Unicode code point.
             Some(unsafe { std::char::from_u32_unchecked(u as u32) })
         } else {
             let chunk = self.chunks.next_back().expect("missing leading surrogate");
-            let u2 = u16::copy_from_le_bytes(chunk);
+            let u2 = u16::copy_from_le_bytes(chunk)?;
             debug_assert!(
                 is_leading_surrogate(u2),
                 "code unit not a leading surrogate"
@@ -431,7 +434,7 @@ fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
     }
     let u16iter = raw
         .chunks_exact(2)
-        .map(|chunk| u16::copy_from_le_bytes(chunk));
+        .map(|chunk| u16::copy_from_le_bytes(chunk).unwrap());
     if std::char::decode_utf16(u16iter).all(|result| result.is_ok()) {
         Ok(())
     } else {
@@ -441,21 +444,20 @@ fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
 
 /// Private u16 extension trait.
 trait U16Ext {
-    fn copy_from_le_bytes(bytes: &[u8]) -> u16;
+    /// Decodes the next two bytes from the given slice into a new u16.
+    ///
+    /// If there are fewer than 2 bytes in the slice, `None` is returned.
+    fn copy_from_le_bytes(bytes: &[u8]) -> Option<u16>;
 }
 
 impl U16Ext for u16 {
-    /// Decodes the next two bytes from the given slice into a new u16.
-    ///
-    /// # Panics
-    ///
-    /// Panics if there are fewer than two bytes in the slice.
     #[inline]
-    fn copy_from_le_bytes(bytes: &[u8]) -> u16 {
-        assert!(bytes.len() >= 2, "not enough bytes for a u16");
+    fn copy_from_le_bytes(bytes: &[u8]) -> Option<u16> {
         let mut buf = [0u8; 2];
-        buf.copy_from_slice(&bytes[..2]);
-        u16::from_le_bytes(buf)
+        bytes.get(..2).map(|slice| {
+            buf.copy_from_slice(slice);
+            u16::from_le_bytes(buf)
+        })
     }
 }
 
