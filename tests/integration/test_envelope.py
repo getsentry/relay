@@ -66,7 +66,7 @@ def test_normalize_measurement_interface(
         {
             "measurements": {
                 "LCP": {"value": 420.69},
-                "   lcp_final.element-Size  ": {"value": 1},
+                "   lcp_final.element-Size123  ": {"value": 1},
                 "fid": {"value": 2020},
                 "cls": {"value": None},
                 "fp": {"value": "im a first paint"},
@@ -92,7 +92,7 @@ def test_normalize_measurement_interface(
     assert "measurements" in event, event
     assert event["measurements"] == {
         "lcp": {"value": 420.69},
-        "lcp_final.element-size": {"value": 1},
+        "lcp_final.element-size123": {"value": 1},
         "fid": {"value": 2020},
         "cls": {"value": None},
         "fp": {"value": None},

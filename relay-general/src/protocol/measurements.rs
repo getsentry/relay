@@ -53,7 +53,7 @@ impl FromValue for Measurements {
 
 fn is_valid_measurement_name(name: &str) -> bool {
     name.chars()
-        .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '-' | '_' | '.'))
+        .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.'))
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn test_measurements_serialization() {
     let input = r#"{
     "measurements": {
         "LCP": {"value": 420.69},
-        "   lcp_final.element-Size  ": {"value": 1},
+        "   lcp_final.element-Size123  ": {"value": 1},
         "fid": {"value": 2020},
         "cls": {"value": null},
         "fp": {"value": "im a first paint"},
@@ -86,7 +86,7 @@ fn test_measurements_serialization() {
     "lcp": {
       "value": 420.69
     },
-    "lcp_final.element-size": {
+    "lcp_final.element-size123": {
       "value": 1.0
     },
     "missing_value": null
@@ -150,7 +150,7 @@ fn test_measurements_serialization() {
             }),
         );
         measurements.insert(
-            "lcp_final.element-size".to_owned(),
+            "lcp_final.element-size123".to_owned(),
             Annotated::new(Measurement {
                 value: Annotated::new(1f64),
             }),
