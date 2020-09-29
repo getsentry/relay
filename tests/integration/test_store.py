@@ -616,6 +616,7 @@ def test_failed_network_requests_trigger_health_check(relay, mini_sentry):
     Tests that consistently failing network requests will trigger relay to enter outage mode
     and call on the liveliness endpoint
     """
+
     def network_error_endpoint(*args, **kwargs):
         # simulate a network error
         raise socket.timeout()
@@ -626,14 +627,20 @@ def test_failed_network_requests_trigger_health_check(relay, mini_sentry):
     evt = threading.Event()
 
     def is_live():
-        evt.set()  #mark is_live was called
+        evt.set()  # mark is_live was called
         return original_is_live()
 
     mini_sentry.app.view_functions["is_live"] = is_live
 
     # keep max backoff and the outage grace period as short as the configuration allows (1 sec)
 
-    relay_options = {"http": {"max_retry_interval": 1, "auth_interval": 1000, "network_outage_grace_period": 1}}
+    relay_options = {
+        "http": {
+            "max_retry_interval": 1,
+            "auth_interval": 1000,
+            "network_outage_grace_period": 1,
+        }
+    }
     relay = relay(mini_sentry, relay_options)
     project_config = relay.basic_project_config()
     mini_sentry.project_configs[42] = project_config
