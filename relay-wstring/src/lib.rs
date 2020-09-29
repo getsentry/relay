@@ -121,7 +121,7 @@ impl WStr {
         if index == 0 || index == self.len() {
             return true;
         }
-        if index % 2 != 0 {
+        if index % 2 != 0 || index > self.len() {
             return false;
         }
 
@@ -521,6 +521,7 @@ mod tests {
         assert!(!s.is_char_boundary(5));
         assert!(s.is_char_boundary(6));
         assert!(!s.is_char_boundary(7)); // out of range
+        assert!(!s.is_char_boundary(8)); // out of range
     }
 
     #[test]

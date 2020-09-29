@@ -361,3 +361,91 @@ where
         index.index_mut(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_range() {
+        let b = b"h\x00e\x00l\x00l\x00o\x00\x00\xd8\x00\xdc"; // "hello\u{10000}"
+        let s = WStr::from_utf16le(b).unwrap();
+
+        assert_eq!(s.get(0..14).unwrap(), s);
+
+        // not char boundaries
+        assert!(s.get(1..14).is_none());
+        assert!(s.get(0..12).is_none());
+
+        // out of range
+        assert!(s.get(0..16).is_none());
+    }
+
+    #[test]
+    fn test_range_to() {
+        let b = b"h\x00e\x00l\x00l\x00o\x00\x00\xd8\x00\xdc"; // "hello\u{10000}"
+        let s = WStr::from_utf16le(b).unwrap();
+
+        assert_eq!(s.get(..14).unwrap(), s);
+
+        // not char boundaries
+        assert!(s.get(..9).is_none());
+        assert!(s.get(..12).is_none());
+
+        // out of range
+        assert!(s.get(..16).is_none());
+    }
+
+    #[test]
+    fn test_range_from() {
+        let b = b"h\x00e\x00l\x00l\x00o\x00\x00\xd8\x00\xdc"; // "hello\u{10000}"
+        let s = WStr::from_utf16le(b).unwrap();
+
+        assert_eq!(s.get(0..).unwrap(), s);
+
+        // not char boundaries
+        assert!(s.get(1..).is_none());
+        assert!(s.get(12..).is_none());
+
+        // out of range
+        assert!(s.get(16..).is_none());
+    }
+
+    #[test]
+    fn test_range_inclusive() {
+        let b = b"h\x00e\x00l\x00l\x00o\x00\x00\xd8\x00\xdc"; // "hello\u{10000}"
+        let s = WStr::from_utf16le(b).unwrap();
+
+        assert_eq!(s.get(0..=13).unwrap(), s);
+
+        // not char boundaries
+        assert!(s.get(0..=8).is_none());
+        assert!(s.get(0..=11).is_none());
+
+        // out of range
+        assert!(s.get(0..=15).is_none());
+    }
+
+    #[test]
+    fn test_range_to_inclusive() {
+        let b = b"h\x00e\x00l\x00l\x00o\x00\x00\xd8\x00\xdc"; // "hello\u{10000}"
+        let s = WStr::from_utf16le(b).unwrap();
+
+        assert_eq!(s.get(..=13).unwrap(), s);
+
+        // not char boundaries
+        assert!(s.get(..=8).is_none());
+        assert!(s.get(..=11).is_none());
+
+        // out of range
+        assert!(s.get(..=15).is_none());
+    }
+
+    #[test]
+    fn test_range_full() {
+        let b = b"h\x00e\x00l\x00l\x00o\x00\x00\xd8\x00\xdc"; // "hello\u{10000}"
+        let s = WStr::from_utf16le(b).unwrap();
+
+        assert_eq!(s.get(..).unwrap(), s);
+    }
+}
