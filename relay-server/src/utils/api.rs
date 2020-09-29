@@ -3,6 +3,15 @@ use std::fmt;
 use failure::Fail;
 use serde::{Deserialize, Serialize};
 
+/// Represents an action requested by the Upstream sent in an error message
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RelayErrorAction {
+    Stop,
+    #[serde(other)]
+    Unknown,
+}
+
 /// An error response from an api.
 #[derive(Serialize, Deserialize, Default, Debug, Fail)]
 pub struct ApiErrorResponse {
@@ -10,6 +19,8 @@ pub struct ApiErrorResponse {
     detail: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     causes: Vec<String>,
+    #[serde(default)]
+    relay: Option<RelayErrorAction>,
 }
 
 impl ApiErrorResponse {
@@ -18,6 +29,7 @@ impl ApiErrorResponse {
         ApiErrorResponse {
             detail: Some(s.as_ref().to_string()),
             causes: Vec::new(),
+            relay: None,
         }
     }
 
@@ -35,7 +47,12 @@ impl ApiErrorResponse {
         ApiErrorResponse {
             detail: Some(messages.remove(0)),
             causes: messages,
+            relay: None,
         }
+    }
+
+    pub fn relay_action(&self) -> Option<RelayErrorAction> {
+        self.relay
     }
 }
 

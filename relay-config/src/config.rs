@@ -546,13 +546,12 @@ struct Http {
     ///
     /// Defaults to `600` (10 minutes).
     auth_interval: Option<u64>,
-    /// The time until Relay considers authentication dropped after experiencing errors.
+    /// The maximum time of experiencing uninterrupted network failures until Relay considers that
+    /// it has encountered a network outage.
     ///
-    /// If connection with the upstream resumes or authentication succeeds during the grace period,
-    /// Relay retains normal operation. If, instead, connection errors or failed re-authentication
-    /// attempts persist beyond the grace period, Relay suspends event submission and reverts into
-    /// authentication mode.
-    auth_grace_period: u64,
+    /// During a network outage relay will try to reconnect and will buffer all upstream messages
+    /// until it manages to reconnect.
+    network_outage_grace_period: u64,
     /// Content encoding to apply to upstream store requests.
     ///
     /// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression
@@ -578,7 +577,7 @@ impl Default for Http {
             max_retry_interval: 60, // 1 minute
             host_header: None,
             auth_interval: Some(600), // 10 minutes
-            auth_grace_period: 10,
+            network_outage_grace_period: 10,
             encoding: HttpEncoding::Gzip,
         }
     }
@@ -1161,11 +1160,10 @@ impl Config {
         }
     }
 
-    /// The maximum amount of time that a Relay is allowed to take to re-authenticate with
-    /// the upstream after which it is declared as un-authenticated (if it is not able to
-    /// authenticate).
-    pub fn http_auth_grace_period(&self) -> Duration {
-        Duration::from_secs(self.values.http.auth_grace_period)
+    /// The maximum time of experiencing uninterrupted network failures until Relay considers that
+    /// it has encountered a network outage.
+    pub fn network_outage_grace_period(&self) -> Duration {
+        Duration::from_secs(self.values.http.network_outage_grace_period)
     }
 
     /// Content encoding of upstream requests.

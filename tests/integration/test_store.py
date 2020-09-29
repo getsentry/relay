@@ -611,36 +611,35 @@ def test_events_are_retried(relay, mini_sentry):
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
-@pytest.mark.skip(reason="Enable after fixing network error handling")
-def test_failed_network_requests_trigger_re_authentication(relay, mini_sentry):
+def test_failed_network_requests_trigger_health_check(relay, mini_sentry):
+    """
+    Tests that consistently failing network requests will trigger relay to enter outage mode
+    and call on the liveliness endpoint
+    """
     def network_error_endpoint(*args, **kwargs):
         # simulate a network error
         raise socket.timeout()
 
     # make the store endpoint fail with a network error
     mini_sentry.app.view_functions["store_event"] = network_error_endpoint
-    original_check_challenge = mini_sentry.app.view_functions["check_challenge"]
-    counter = [0]
+    original_is_live = mini_sentry.app.view_functions["is_live"]
     evt = threading.Event()
 
-    def counted_check_challenge():
-        counter[0] += 1
-        if counter[0] >= 2:
-            evt.set()  # second auth attempt
+    def is_live():
+        evt.set()  #mark is_live was called
+        return original_is_live()
 
-        return original_check_challenge()
+    mini_sentry.app.view_functions["is_live"] = is_live
 
-    mini_sentry.app.view_functions["check_challenge"] = counted_check_challenge
+    # keep max backoff and the outage grace period as short as the configuration allows (1 sec)
 
-    # keep max backoff as short as the configuration allows (1 sec)
-    # make sure the re-authentication is caused by the network failure (set it to be very large)
-    relay_options = {"http": {"max_retry_interval": 1, "auth_interval": 1000}}
+    relay_options = {"http": {"max_retry_interval": 1, "auth_interval": 1000, "network_outage_grace_period": 1}}
     relay = relay(mini_sentry, relay_options)
     project_config = relay.basic_project_config()
     mini_sentry.project_configs[42] = project_config
 
-    # send an event, the event should fail and trigger re-authentication (after a second)
+    # send an event, the event should fail and trigger a liveliness check (after a second)
     relay.send_event(42)
 
-    # auth called at least twice
-    assert evt.wait(3)
+    # it did try to reestablish connection
+    assert evt.wait(5)

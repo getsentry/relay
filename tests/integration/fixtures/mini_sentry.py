@@ -112,6 +112,10 @@ def mini_sentry(request):
         assert relay_id in authenticated_relays
         return jsonify({"relay_id": relay_id})
 
+    @app.route("/api/0/relays/live/", methods=["GEt"])
+    def is_live():
+        return jsonify({"is_healthy": True})
+
     @app.route("/api/666/envelope/", methods=["POST"])
     def store_internal_error_event():
         envelope = Envelope.deserialize(flask_request.data)
