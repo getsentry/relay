@@ -13,7 +13,7 @@ use relay_common::{metric, ProjectId};
 use relay_config::{Config, RelayMode};
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_quotas::{Quota, RateLimits, Scoping};
+use relay_quotas::{ProjectKey, Quota, RateLimits, Scoping};
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};
@@ -194,7 +194,7 @@ impl ProjectState {
     }
 
     /// Returns configuration options for a public key.
-    pub fn get_public_key_config(&self, public_key: &str) -> Option<&PublicKeyConfig> {
+    pub fn get_public_key_config(&self, public_key: ProjectKey) -> Option<&PublicKeyConfig> {
         for key in &self.public_keys {
             if key.public_key == public_key {
                 return Some(key);
@@ -204,7 +204,7 @@ impl ProjectState {
     }
 
     /// Returns the current status of a key.
-    pub fn get_public_key_status(&self, public_key: &str) -> PublicKeyStatus {
+    pub fn get_public_key_status(&self, public_key: ProjectKey) -> PublicKeyStatus {
         if let Some(key) = self.get_public_key_config(public_key) {
             if key.is_enabled {
                 PublicKeyStatus::Enabled
@@ -285,7 +285,7 @@ impl ProjectState {
         // project was refetched in between. In such a case, access to key quotas is not availabe,
         // but we can gracefully execute all other rate limiting.
         scoping.key_id = self
-            .get_public_key_config(&scoping.public_key)
+            .get_public_key_config(scoping.public_key)
             .and_then(|config| config.numeric_id);
 
         // This is a hack covering three cases:
@@ -375,7 +375,7 @@ impl ProjectState {
 #[serde(rename_all = "camelCase")]
 pub struct PublicKeyConfig {
     /// Public part of key (random hash).
-    pub public_key: String,
+    pub public_key: ProjectKey,
 
     /// Whether this key can be used.
     pub is_enabled: bool,
@@ -395,7 +395,7 @@ mod limited_public_key_comfigs {
     #[derive(Debug, Serialize)]
     #[serde(rename_all = "camelCase", remote = "PublicKeyConfig")]
     pub struct LimitedPublicKeyConfig {
-        pub public_key: String,
+        pub public_key: ProjectKey,
         pub is_enabled: bool,
     }
 
@@ -414,8 +414,11 @@ mod limited_public_key_comfigs {
         seq.end()
     }
 }
+
+/// TODO: Document, this is no longer the project but rather the key.
 pub struct Project {
-    id: ProjectId,
+    id: ProjectId, // TODO: This is from the DSN, and may differ from the actual ID
+    public_key: ProjectKey,
     config: Arc<Config>,
     manager: Addr<ProjectCache>,
     state: Option<Arc<ProjectState>>,
@@ -425,9 +428,15 @@ pub struct Project {
 }
 
 impl Project {
-    pub fn new(id: ProjectId, config: Arc<Config>, manager: Addr<ProjectCache>) -> Self {
+    pub fn new(
+        id: ProjectId,
+        key: ProjectKey,
+        config: Arc<Config>,
+        manager: Addr<ProjectCache>,
+    ) -> Self {
         Project {
             id,
+            public_key: key,
             config,
             manager,
             state: None,
@@ -498,9 +507,10 @@ impl Project {
     ) -> Shared<oneshot::Receiver<Arc<ProjectState>>> {
         let (sender, receiver) = oneshot::channel();
         let id = self.id;
+        let public_key = self.public_key;
 
         self.manager
-            .send(FetchProjectState { id })
+            .send(FetchProjectState { id, public_key })
             .into_actor(self)
             .map(move |state_result, slf, _ctx| {
                 slf.state_channel = None;

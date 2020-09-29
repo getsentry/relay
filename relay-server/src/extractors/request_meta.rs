@@ -13,7 +13,7 @@ use url::Url;
 use relay_common::{
     tryf, Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, ProjectId,
 };
-use relay_quotas::Scoping;
+use relay_quotas::{ProjectKey, Scoping};
 
 use crate::actors::project_keys::GetProjectId;
 use crate::extractors::ForwardedFor;
@@ -179,8 +179,8 @@ impl RequestMeta {
     }
 
     /// Returns the public key part of the DSN for authentication.
-    pub fn public_key(&self) -> &str {
-        &self.dsn.public_key()
+    pub fn public_key(&self) -> ProjectKey {
+        ProjectKey::parse(self.dsn.public_key()).expect("TODO: Validate public key beforehand")
     }
 
     /// Formats the Sentry authentication header.

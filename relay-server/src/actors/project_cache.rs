@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::{metric, ProjectId};
 use relay_config::{Config, RelayMode};
+use relay_quotas::ProjectKey;
 use relay_redis::RedisPool;
 
 use crate::actors::project::{Project, ProjectState};
@@ -38,16 +39,9 @@ struct ProjectEntry {
     project: Addr<Project>,
 }
 
-// /// Attributes defining a unique DSN.
-// #[derive(Debug)]
-// struct DsnKey {
-//     project_id: ProjectId,
-//     public_key: String,
-// }
-
 pub struct ProjectCache {
     config: Arc<Config>,
-    projects: HashMap<ProjectId, ProjectEntry>,
+    projects: HashMap<ProjectKey, ProjectEntry>,
 
     local_source: Addr<LocalProjectSource>,
     upstream_source: Addr<UpstreamProjectSource>,
@@ -133,7 +127,7 @@ impl Actor for ProjectCache {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetProject {
     pub id: ProjectId,
-    // pub public_key: String,
+    pub public_key: ProjectKey,
 }
 
 impl Message for GetProject {
@@ -144,16 +138,18 @@ impl Handler<GetProject> for ProjectCache {
     type Result = Addr<Project>;
 
     fn handle(&mut self, message: GetProject, context: &mut Context<Self>) -> Self::Result {
+        let GetProject { id, public_key } = message;
         let config = self.config.clone();
         metric!(histogram(RelayHistograms::ProjectStateCacheSize) = self.projects.len() as u64);
-        match self.projects.entry(message.id) {
+
+        match self.projects.entry(public_key) {
             Entry::Occupied(entry) => {
                 metric!(counter(RelayCounters::ProjectCacheHit) += 1);
                 entry.get().project.clone()
             }
             Entry::Vacant(entry) => {
                 metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
-                let project = Project::new(message.id, config, context.address()).start();
+                let project = Project::new(id, public_key, config, context.address()).start();
                 entry.insert(ProjectEntry {
                     last_updated_at: Instant::now(),
                     project: project.clone(),
@@ -174,9 +170,10 @@ impl Handler<GetProject> for ProjectCache {
 ///
 /// Requests to the upstream are performed via `UpstreamProjectSource`, which internally batches
 /// individual requests.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct FetchProjectState {
     pub id: ProjectId,
+    pub public_key: ProjectKey,
 }
 
 pub struct ProjectStateResponse {
@@ -204,8 +201,10 @@ impl Message for FetchProjectState {
     type Result = Result<ProjectStateResponse, ()>;
 }
 
+#[derive(Clone, Debug)]
 pub struct FetchOptionalProjectState {
     pub id: ProjectId,
+    pub public_key: ProjectKey,
 }
 
 impl Message for FetchOptionalProjectState {
@@ -216,7 +215,8 @@ impl Handler<FetchProjectState> for ProjectCache {
     type Result = Response<ProjectStateResponse, ()>;
 
     fn handle(&mut self, message: FetchProjectState, _context: &mut Self::Context) -> Self::Result {
-        if let Some(mut entry) = self.projects.get_mut(&message.id) {
+        let FetchProjectState { id, public_key } = message;
+        if let Some(mut entry) = self.projects.get_mut(&public_key) {
             // Bump the update time of the project in our hashmap to evade eviction. Eviction is a
             // sequential scan over self.projects, so this needs to be as fast as possible and
             // probably should not involve sending a message to each Addr<Project> (this is the
@@ -237,7 +237,7 @@ impl Handler<FetchProjectState> for ProjectCache {
 
         let fetch_local = self
             .local_source
-            .send(FetchOptionalProjectState { id: message.id })
+            .send(FetchOptionalProjectState { id, public_key })
             .map_err(|_| ());
 
         let future = fetch_local.and_then(move |response| {
@@ -274,7 +274,7 @@ impl Handler<FetchProjectState> for ProjectCache {
             let fetch_redis: ResponseFuture<_, _> = if let Some(ref redis_source) = redis_source {
                 Box::new(
                     redis_source
-                        .send(FetchOptionalProjectState { id: message.id })
+                        .send(FetchOptionalProjectState { id, public_key })
                         .map_err(|_| ()),
                 )
             } else {

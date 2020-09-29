@@ -390,7 +390,7 @@ where
     }
 
     let project_id = meta.project_id();
-    let public_key = meta.public_key().to_owned();
+    let public_key = meta.public_key();
 
     let hub = Hub::from_request(&request);
     hub.configure_scope(|scope| {
@@ -415,7 +415,10 @@ where
     let config = request.state().config();
 
     let future = project_manager
-        .send(GetProject { id: project_id })
+        .send(GetProject {
+            id: project_id,
+            public_key,
+        })
         .map_err(BadStoreRequest::ScheduleFailed)
         .and_then(clone!(event_id, scoping, |project| {
             extract_envelope(&request, meta)
@@ -470,7 +473,7 @@ where
             if is_event {
                 outcome_producer.do_send(TrackOutcome {
                     timestamp: start_time,
-                    scoping: scoping.borrow().clone(),
+                    scoping: *scoping.borrow(),
                     outcome: error.to_outcome(),
                     event_id: *event_id.borrow(),
                     remote_addr,

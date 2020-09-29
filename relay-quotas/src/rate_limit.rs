@@ -4,7 +4,9 @@ use std::time::{Duration, Instant};
 
 use relay_common::ProjectId;
 
-use crate::quota::{DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping};
+use crate::quota::{
+    DataCategories, ItemScoping, ProjectKey, Quota, QuotaScope, ReasonCode, Scoping,
+};
 use crate::REJECT_ALL_SECS;
 
 /// A monotonic expiration marker for `RateLimit`s.
@@ -107,7 +109,7 @@ pub enum RateLimitScope {
     /// A project with identifier.
     Project(ProjectId),
     /// A DSN public key.
-    Key(String),
+    Key(ProjectKey),
 }
 
 impl RateLimitScope {
@@ -116,9 +118,9 @@ impl RateLimitScope {
         match scope {
             QuotaScope::Organization => RateLimitScope::Organization(scoping.organization_id),
             QuotaScope::Project => RateLimitScope::Project(scoping.project_id),
-            QuotaScope::Key => RateLimitScope::Key(scoping.public_key.clone()),
+            QuotaScope::Key => RateLimitScope::Key(scoping.public_key),
             // For unknown scopes, assume the most specific scope:
-            QuotaScope::Unknown => RateLimitScope::Key(scoping.public_key.clone()),
+            QuotaScope::Unknown => RateLimitScope::Key(scoping.public_key),
         }
     }
 
@@ -379,7 +381,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             }
         }));
@@ -389,7 +391,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             }
         }));
@@ -409,7 +411,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             }
         }));
@@ -419,7 +421,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 0,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             }
         }));
@@ -439,7 +441,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             }
         }));
@@ -449,7 +451,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(0),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             }
         }));
@@ -459,7 +461,9 @@ mod tests {
     fn test_rate_limit_matches_key() {
         let rate_limit = RateLimit {
             categories: DataCategories::new(),
-            scope: RateLimitScope::Key("a94ae32be2584e0bbd7a4cbb95971fee".to_owned()),
+            scope: RateLimitScope::Key(
+                ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
         };
@@ -469,7 +473,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             }
         }));
@@ -479,7 +483,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 0,
                 project_id: ProjectId::new(21),
-                public_key: "deadbeefdeadbeefdeadbeefdeadbeef".to_owned(),
+                public_key: ProjectKey::parse("deadbeefdeadbeefdeadbeefdeadbeef").unwrap(),
                 key_id: None,
             }
         }));
@@ -715,7 +719,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
         });
@@ -762,7 +766,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
         };
