@@ -112,7 +112,7 @@ def mini_sentry(request):
         assert relay_id in authenticated_relays
         return jsonify({"relay_id": relay_id})
 
-    @app.route("/api/0/relays/live/", methods=["GEt"])
+    @app.route("/api/0/relays/live/", methods=["GET"])
     def is_live():
         return jsonify({"is_healthy": True})
 
