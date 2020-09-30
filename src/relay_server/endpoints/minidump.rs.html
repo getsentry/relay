@@ -199,6 +199,24 @@
 <span id="199">199</span>
 <span id="200">200</span>
 <span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">multipart</span>::{<span class="ident">Multipart</span>, <span class="ident">MultipartItem</span>};
 <span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">actix</span>::<span class="ident">ResponseFuture</span>, <span class="ident">HttpMessage</span>, <span class="ident">HttpRequest</span>, <span class="ident">HttpResponse</span>};
@@ -226,14 +244,15 @@
 <span class="doccomment">/// multipart request. The file name is later used to display the event attachment.</span>
 <span class="kw">const</span> <span class="ident">MINIDUMP_FILE_NAME</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;Minidump&quot;</span>;
 
-<span class="doccomment">/// Minidump attachments should have these magic bytes.</span>
-<span class="kw">const</span> <span class="ident">MINIDUMP_MAGIC_HEADER</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="string">b&quot;MDMP&quot;</span>;
+<span class="doccomment">/// Minidump attachments should have these magic bytes, little- and big-endian.</span>
+<span class="kw">const</span> <span class="ident">MINIDUMP_MAGIC_HEADER_LE</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="string">b&quot;MDMP&quot;</span>;
+<span class="kw">const</span> <span class="ident">MINIDUMP_MAGIC_HEADER_BE</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="string">b&quot;PMDM&quot;</span>;
 
 <span class="doccomment">/// Content types by which standalone uploads can be recognized.</span>
 <span class="kw">const</span> <span class="ident">MINIDUMP_RAW_CONTENT_TYPES</span>: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">str</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="string">&quot;application/octet-stream&quot;</span>, <span class="string">&quot;application/x-dmp&quot;</span>];
 
 <span class="kw">fn</span> <span class="ident">validate_minidump</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">BadStoreRequest</span><span class="op">&gt;</span> {
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">data</span>.<span class="ident">starts_with</span>(<span class="ident">MINIDUMP_MAGIC_HEADER</span>) {
+    <span class="kw">if</span> <span class="op">!</span><span class="ident">data</span>.<span class="ident">starts_with</span>(<span class="ident">MINIDUMP_MAGIC_HEADER_LE</span>) <span class="kw-2">&amp;</span><span class="op">&amp;</span> <span class="op">!</span><span class="ident">data</span>.<span class="ident">starts_with</span>(<span class="ident">MINIDUMP_MAGIC_HEADER_BE</span>) {
         <span class="ident">log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;invalid minidump file&quot;</span>);
         <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">BadStoreRequest</span>::<span class="ident">InvalidMinidump</span>);
     }
@@ -400,6 +419,23 @@
             <span class="ident">r</span>.<span class="ident">post</span>().<span class="ident">with</span>(<span class="ident">store_minidump</span>);
         })
         .<span class="ident">register</span>()
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_validate_minidump</span>() {
+        <span class="kw">let</span> <span class="ident">be_minidump</span> <span class="op">=</span> <span class="string">b&quot;PMDMxxxxxx&quot;</span>;
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">validate_minidump</span>(<span class="ident">be_minidump</span>).<span class="ident">is_ok</span>());
+
+        <span class="kw">let</span> <span class="ident">le_minidump</span> <span class="op">=</span> <span class="string">b&quot;MDMPxxxxxx&quot;</span>;
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">validate_minidump</span>(<span class="ident">le_minidump</span>).<span class="ident">is_ok</span>());
+
+        <span class="kw">let</span> <span class="ident">garbage</span> <span class="op">=</span> <span class="string">b&quot;xxxxxx&quot;</span>;
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">validate_minidump</span>(<span class="ident">garbage</span>).<span class="ident">is_err</span>());
+    }
 }
 </pre></div>
 </section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../../";window.currentCrate = "relay_server";</script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>
