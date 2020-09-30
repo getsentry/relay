@@ -11,8 +11,8 @@ use serde::{Serialize, Serializer};
 use crate::processor::ProcessValue;
 use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt, ExpectStaple,
-    Fingerprint, Hpkp, LenientString, Level, LogEntry, Metrics, Request, Span, Stacktrace, Tags,
-    TemplateInfo, Thread, Timestamp, User, Values,
+    Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics, Request, Span,
+    Stacktrace, Tags, TemplateInfo, Thread, Timestamp, User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
@@ -467,6 +467,14 @@ pub struct Event {
     /// Spans for tracing.
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub spans: Annotated<Array<Span>>,
+
+    /// Measurements which holds observed values such as web vitals.
+    ///
+    /// Measurements are only available on transactions. They contain measurement values of observed
+    /// values such as Largest Contentful Paint (LCP).
+    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(omit_from_schema)] // we only document error events for now
+    pub measurements: Annotated<Measurements>,
 
     /// Internal ingestion and processing metrics.
     ///

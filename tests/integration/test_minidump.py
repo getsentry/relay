@@ -346,6 +346,11 @@ def test_minidump_with_processing(
 
     project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
 
+    # Disable scurbbing, the basic and full project configs from the mini_sentry fixture
+    # will modify the minidump since it contains user paths in the module list.  This breaks
+    # get_attachment_chunk() below.
+    del project_config["config"]["piiConfig"]
+
     # Configure rate limits. The transaction rate limit does not affect minidumps. The attachment
     # rate limit would affect them, but since minidumps are required for processing they are still
     # passed through. Only when "error" is limited will the minidump be rejected.

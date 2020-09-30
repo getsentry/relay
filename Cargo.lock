@@ -2841,7 +2841,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "chrono",
  "failure",
@@ -2954,6 +2954,7 @@ dependencies = [
  "relay-general-derive",
  "relay-wstring",
  "schemars",
+ "scroll 0.9.2",
  "serde",
  "serde_json",
  "serde_urlencoded 0.5.5",
