@@ -125,10 +125,13 @@ impl WStr {
             return false;
         }
 
-        // Since we always have a valid UTF-16LE string in here we now are sure we always
-        // have a byte at index + 1.  The only invalid thing now is a trailing surrogate.
-        let code_unit = u16::copy_from_le_bytes(&self.raw[index..]);
-        !is_trailing_surrogate(code_unit)
+        // Since we always have a valid UTF-16LE string in here we are sure we always have
+        // another code unit if this one is a leading surrogate.  The only invalid thing now
+        // is a trailing surrogate.  Our index can still be out of range though.
+        self.raw
+            .get(index..)
+            .and_then(u16::copy_from_le_bytes)
+            .map_or(false, |u| !is_trailing_surrogate(u))
     }
 
     /// Converts to a byte slice.
@@ -259,18 +262,21 @@ impl<'a> Iterator for WStrChars<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         // Our input is valid UTF-16LE, so we can take a lot of shortcuts.
         let chunk = self.chunks.next()?;
-        let u = u16::copy_from_le_bytes(chunk);
+        // Chunks always returns 2 bytes, avoid generating panicking code
+        let u = u16::copy_from_le_bytes(chunk).unwrap_or_default();
 
         if !is_leading_surrogate(u) {
             // SAFETY: This is now guaranteed a valid Unicode code point.
-            Some(unsafe { std::char::from_u32_unchecked(u as u32) })
+            Some(unsafe { std::char::from_u32_unchecked(u.into()) })
         } else {
             let chunk = self.chunks.next().expect("missing trailing surrogate");
-            let u2 = u16::copy_from_le_bytes(chunk);
+            // Chunks always returns 2 bytes, avoid generating panicking code
+            let u2 = u16::copy_from_le_bytes(chunk).unwrap_or_default();
             debug_assert!(
                 is_trailing_surrogate(u2),
                 "code unit not a trailing surrogate"
             );
+
             Some(unsafe { decode_surrogates(u, u2) })
         }
     }
@@ -279,7 +285,9 @@ impl<'a> Iterator for WStrChars<'a> {
     fn count(self) -> usize {
         // No need to fully construct all characters
         self.chunks
-            .filter(|bb| !is_trailing_surrogate(u16::copy_from_le_bytes(bb)))
+            // Using filter_map to avoid generating panicking code
+            .filter_map(|chunk| u16::copy_from_le_bytes(chunk))
+            .filter(|&unit| !is_trailing_surrogate(unit))
             .count()
     }
 
@@ -296,18 +304,21 @@ impl<'a> DoubleEndedIterator for WStrChars<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
         // Our input is valid UTF-16LE, so we can take a lot of shortcuts.
         let chunk = self.chunks.next_back()?;
-        let u = u16::copy_from_le_bytes(chunk);
+        // Chunks always returns 2 bytes, avoid generating panicking code
+        let u = u16::copy_from_le_bytes(chunk).unwrap_or_default();
 
         if !is_trailing_surrogate(u) {
             // SAFETY: This is now guaranteed a valid Unicode code point.
             Some(unsafe { std::char::from_u32_unchecked(u as u32) })
         } else {
             let chunk = self.chunks.next_back().expect("missing leading surrogate");
-            let u2 = u16::copy_from_le_bytes(chunk);
+            // Chunks always returns 2 bytes, avoid generating panicking code
+            let u2 = u16::copy_from_le_bytes(chunk).unwrap_or_default();
             debug_assert!(
                 is_leading_surrogate(u2),
                 "code unit not a leading surrogate"
             );
+
             Some(unsafe { decode_surrogates(u2, u) })
         }
     }
@@ -380,10 +391,10 @@ impl fmt::Display for WStr {
 /// These surrogate code units have the first 6 bits set to a fixed prefix identifying
 /// whether they are the *leading* or *trailing* code unit of the surrogate pair.  And for
 /// the leading surrogate this bit prefix is `110110`, thus all leading surrogates have a
-/// code unit between 0xD800-0xDBFF.
+/// between 0xD800-0xDBFF.
 #[inline]
 fn is_leading_surrogate(code_unit: u16) -> bool {
-    code_unit & 0xD800 == 0xD800
+    code_unit & 0xFC00 == 0xD800
 }
 
 /// Whether a code unit is a trailing or low surrogate.
@@ -399,7 +410,7 @@ fn is_leading_surrogate(code_unit: u16) -> bool {
 /// code unit between 0xDC00-0xDFFF.
 #[inline]
 fn is_trailing_surrogate(code_unit: u16) -> bool {
-    code_unit & 0xDC00 == 0xDC00
+    code_unit & 0xFC00 == 0xDC00
 }
 
 /// Decodes a surrogate pair of code units into a char.
@@ -431,7 +442,8 @@ fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
     }
     let u16iter = raw
         .chunks_exact(2)
-        .map(|chunk| u16::copy_from_le_bytes(chunk));
+        // Using filter_map to avoid generating panicking code
+        .filter_map(|chunk| u16::copy_from_le_bytes(chunk));
     if std::char::decode_utf16(u16iter).all(|result| result.is_ok()) {
         Ok(())
     } else {
@@ -441,21 +453,20 @@ fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
 
 /// Private u16 extension trait.
 trait U16Ext {
-    fn copy_from_le_bytes(bytes: &[u8]) -> u16;
+    /// Decodes the next two bytes from the given slice into a new u16.
+    ///
+    /// If there are fewer than 2 bytes in the slice, `None` is returned.
+    fn copy_from_le_bytes(bytes: &[u8]) -> Option<u16>;
 }
 
 impl U16Ext for u16 {
-    /// Decodes the next two bytes from the given slice into a new u16.
-    ///
-    /// # Panics
-    ///
-    /// Panics if there are fewer than two bytes in the slice.
     #[inline]
-    fn copy_from_le_bytes(bytes: &[u8]) -> u16 {
-        assert!(bytes.len() >= 2, "not enough bytes for a u16");
-        let mut buf = [0u8; 2];
-        buf.copy_from_slice(&bytes[..2]);
-        u16::from_le_bytes(buf)
+    fn copy_from_le_bytes(bytes: &[u8]) -> Option<u16> {
+        if bytes.len() >= 2 {
+            Some(u16::from_le_bytes([bytes[0], bytes[1]]))
+        } else {
+            None
+        }
     }
 }
 
@@ -521,6 +532,7 @@ mod tests {
         assert!(!s.is_char_boundary(5));
         assert!(s.is_char_boundary(6));
         assert!(!s.is_char_boundary(7)); // out of range
+        assert!(!s.is_char_boundary(8)); // out of range
     }
 
     #[test]
@@ -593,10 +605,17 @@ mod tests {
         let chars: Vec<char> = s.chars().collect();
         assert_eq!(chars, vec!['h', 'e', 'l', 'l', 'o']);
 
-        let b = b"\x00\xd8\x00\xdcx\x00";
+        let b = b"\x00\xd8\x00\xdcA\x00";
         let s = WStr::from_utf16le(b).unwrap();
         let chars: Vec<char> = s.chars().collect();
-        assert_eq!(chars, vec!['\u{10000}', 'x']);
+        assert_eq!(chars, vec!['\u{10000}', 'A']);
+
+        // regression test for `is_leading_surrogate`: bit pattern of 0xf8 is 0b1111, which has all
+        // bits of `0b1101` set but is outside of the surrogate range
+        let b = b"\x41\xf8A\x00";
+        let s = WStr::from_utf16le(b).unwrap();
+        let chars: Vec<char> = s.chars().collect();
+        assert_eq!(chars, vec!['\u{f841}', 'A']);
     }
 
     #[test]
@@ -606,10 +625,17 @@ mod tests {
         let chars: Vec<char> = s.chars().rev().collect();
         assert_eq!(chars, vec!['o', 'l', 'l', 'e', 'h']);
 
-        let b = b"\x00\xd8\x00\xdcx\x00";
+        let b = b"\x00\xd8\x00\xdcA\x00";
         let s = WStr::from_utf16le(b).unwrap();
         let chars: Vec<char> = s.chars().rev().collect();
-        assert_eq!(chars, vec!['x', '\u{10000}']);
+        assert_eq!(chars, vec!['A', '\u{10000}']);
+
+        // regression test for `is_leading_surrogate`: bit pattern of 0xf8 is 0b1111, which has all
+        // bits of `0b1101` set but is outside of the surrogate range
+        let b = b"\x41\xf8A\x00";
+        let s = WStr::from_utf16le(b).unwrap();
+        let chars: Vec<char> = s.chars().rev().collect();
+        assert_eq!(chars, vec!['A', '\u{f841}']);
     }
 
     #[test]
@@ -636,6 +662,13 @@ mod tests {
         let s = WStr::from_utf16le(b).unwrap();
         let n = s.chars().count();
         assert_eq!(n, 2);
+
+        // regression test for `is_leading_surrogate`: bit pattern of 0xf8 is 0b1111, which has all
+        // bits of `0b1101` set but is outside of the surrogate range
+        let b = b"\x41\xf8A\x00";
+        let s = WStr::from_utf16le(b).unwrap();
+        let n = s.chars().count();
+        assert_eq!(n, 2);
     }
 
     #[test]
@@ -652,6 +685,13 @@ mod tests {
         let s = WStr::from_utf16le(b).unwrap();
         let chars: Vec<(usize, char)> = s.char_indices().collect();
         assert_eq!(chars, vec![(0, '\u{10000}'), (4, 'x')]);
+
+        // regression test for `is_leading_surrogate`: bit pattern of 0xf8 is 0b1111, which has all
+        // bits of `0b1101` set but is outside of the surrogate range
+        let b = b"\x41\xf8A\x00";
+        let s = WStr::from_utf16le(b).unwrap();
+        let chars: Vec<(usize, char)> = s.char_indices().collect();
+        assert_eq!(chars, vec![(0, '\u{f841}'), (2, 'A')]);
     }
 
     #[test]
@@ -668,6 +708,13 @@ mod tests {
         let s = WStr::from_utf16le(b).unwrap();
         let chars: Vec<(usize, char)> = s.char_indices().rev().collect();
         assert_eq!(chars, vec![(4, 'x'), (0, '\u{10000}')]);
+
+        // regression test for `is_leading_surrogate`: bit pattern of 0xf8 is 0b1111, which has all
+        // bits of `0b1101` set but is outside of the surrogate range
+        let b = b"\x41\xf8A\x00";
+        let s = WStr::from_utf16le(b).unwrap();
+        let chars: Vec<(usize, char)> = s.char_indices().rev().collect();
+        assert_eq!(chars, vec![(2, 'A'), (0, '\u{f841}')]);
     }
 
     #[test]
