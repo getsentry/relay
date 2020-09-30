@@ -265,12 +265,10 @@ impl<'a> Iterator for WStrChars<'a> {
         // Chunks always returns 2 bytes, avoid generating panicking code
         let u = u16::copy_from_le_bytes(chunk).unwrap_or_default();
 
-        if is_standalone_unit(u) {
+        if !is_leading_surrogate(u) {
             // SAFETY: This is now guaranteed a valid Unicode code point.
             Some(unsafe { std::char::from_u32_unchecked(u.into()) })
         } else {
-            debug_assert!(is_leading_surrogate(u), "code unit not a leading surrogate");
-
             let chunk = self.chunks.next().expect("missing trailing surrogate");
             // Chunks always returns 2 bytes, avoid generating panicking code
             let u2 = u16::copy_from_le_bytes(chunk).unwrap_or_default();
@@ -309,15 +307,10 @@ impl<'a> DoubleEndedIterator for WStrChars<'a> {
         // Chunks always returns 2 bytes, avoid generating panicking code
         let u = u16::copy_from_le_bytes(chunk).unwrap_or_default();
 
-        if is_standalone_unit(u) {
+        if !is_trailing_surrogate(u) {
             // SAFETY: This is now guaranteed a valid Unicode code point.
             Some(unsafe { std::char::from_u32_unchecked(u as u32) })
         } else {
-            debug_assert!(
-                is_trailing_surrogate(u),
-                "code unit not a trailing surrogate"
-            );
-
             let chunk = self.chunks.next_back().expect("missing leading surrogate");
             // Chunks always returns 2 bytes, avoid generating panicking code
             let u2 = u16::copy_from_le_bytes(chunk).unwrap_or_default();
@@ -388,16 +381,6 @@ impl fmt::Display for WStr {
     }
 }
 
-/// Whether a code unit is a single unit unicode code point.
-///
-/// UTF-16 can encode characters in either single units or pairs, where the first unit is a leading
-/// surrogate and the second unit is a trailing surrogate. Additionally, the entire range of
-/// `0xD800-0xDBFF` is reserved for surrogates. This means that single unit unicode code points are
-/// always encoded outside of this range.
-fn is_standalone_unit(code_unit: u16) -> bool {
-    code_unit < 0xD800 || code_unit > 0xDFFF
-}
-
 /// Whether a code unit is a leading or high surrogate.
 ///
 /// If a Unicode code point does not fit in one code unit (i.e. in one `u16`) it is split
@@ -408,7 +391,7 @@ fn is_standalone_unit(code_unit: u16) -> bool {
 /// These surrogate code units have the first 6 bits set to a fixed prefix identifying
 /// whether they are the *leading* or *trailing* code unit of the surrogate pair.  And for
 /// the leading surrogate this bit prefix is `110110`, thus all leading surrogates have a
-/// code unit of `0xD8xx`.
+/// between 0xD800-0xDBFF.
 #[inline]
 fn is_leading_surrogate(code_unit: u16) -> bool {
     code_unit & 0xFC00 == 0xD800
@@ -424,7 +407,7 @@ fn is_leading_surrogate(code_unit: u16) -> bool {
 /// These surrogate code unites have the first 6 bits set to a fixed prefix identifying
 /// whether tye are the *leading* or *trailing* code unit of the surrogate pair.  Anf for
 /// the trailing surrogate this bit prefix is `110111`, thus all trailing surrogates have a
-/// code unit of `0xDCxx`.
+/// code unit between 0xDC00-0xDFFF.
 #[inline]
 fn is_trailing_surrogate(code_unit: u16) -> bool {
     code_unit & 0xFC00 == 0xDC00
@@ -730,7 +713,7 @@ mod tests {
         // bits of `0b1101` set but is outside of the surrogate range
         let b = b"\x41\xf8A\x00";
         let s = WStr::from_utf16le(b).unwrap();
-        let chars: Vec<(usize, char)> = s.char_indices().collect();
+        let chars: Vec<(usize, char)> = s.char_indices().rev().collect();
         assert_eq!(chars, vec![(2, 'A'), (0, '\u{f841}')]);
     }
 
