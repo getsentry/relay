@@ -18,6 +18,8 @@ use relay_redis::RedisConfig;
 use crate::byte_size::ByteSize;
 use crate::upstream::UpstreamDescriptor;
 
+const DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: f64 = 10.0;
+
 /// Defines the source of a config error
 #[derive(Debug)]
 enum ConfigErrorSource {
@@ -551,7 +553,7 @@ struct Http {
     ///
     /// During a network outage relay will try to reconnect and will buffer all upstream messages
     /// until it manages to reconnect.
-    network_outage_grace_period: f64,
+    outage_grace_period: f64,
     /// Content encoding to apply to upstream store requests.
     ///
     /// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression
@@ -569,10 +571,6 @@ struct Http {
     encoding: HttpEncoding,
 }
 
-impl Http {
-    pub const DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: f64 = 10.0;
-}
-
 impl Default for Http {
     fn default() -> Self {
         Http {
@@ -581,7 +579,7 @@ impl Default for Http {
             max_retry_interval: 60, // 1 minute
             host_header: None,
             auth_interval: Some(600.0), // 10 minutes
-            network_outage_grace_period: Self::DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
+            outage_grace_period: DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
             encoding: HttpEncoding::Gzip,
         }
     }
@@ -1167,16 +1165,16 @@ impl Config {
 
     /// The maximum time of experiencing uninterrupted network failures until Relay considers that
     /// it has encountered a network outage.
-    pub fn network_outage_grace_period(&self) -> Duration {
-        if self.values.http.network_outage_grace_period <= 0.0 {
+    pub fn outage_grace_period(&self) -> Duration {
+        if self.values.http.outage_grace_period <= 0.0 {
             log::warn!(
-                "Invalid http network outage grace period setting: {} was overridden with the default: {}.",
-                self.values.http.network_outage_grace_period,
-                Http::DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD
+                "Invalid http outage grace period setting: {} was overridden with the default: {}.",
+                self.values.http.outage_grace_period,
+                DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD
             );
-            Duration::from_secs_f64(Http::DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD)
+            Duration::from_secs_f64(DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD)
         } else {
-            Duration::from_secs_f64(self.values.http.network_outage_grace_period)
+            Duration::from_secs_f64(self.values.http.outage_grace_period)
         }
     }
 

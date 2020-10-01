@@ -95,8 +95,7 @@ impl UpstreamRequestError {
             // We do check it because it is part of the requirements and we want to have it here
             // in case the client error handling changes.
             if *status_code == StatusCode::FORBIDDEN
-                && response.relay_action().unwrap_or(RelayErrorAction::Unknown)
-                    == RelayErrorAction::Stop
+                && response.relay_action() == RelayErrorAction::Stop
             {
                 return true;
             }
@@ -256,9 +255,7 @@ pub struct UpstreamRelay {
     auth_state: AuthState,
     max_inflight_requests: usize,
     num_inflight_requests: usize,
-    /// queue holding the high priority messages to be sent
     high_prio_requests: VecDeque<UpstreamRequest>,
-    /// queue holding the low priority messages to be sent
     low_prio_requests: VecDeque<UpstreamRequest>,
     /// Set to true when the Upstream explicitly sends a Stop authentication response
     /// or there is a client error and there is no point to try to authenticate again.
@@ -333,15 +330,15 @@ impl UpstreamRelay {
     }
 
     /// Predicate, checks if a Relay performs authentication
-    fn authenticates(&self) -> bool {
+    fn should_authenticate(&self) -> bool {
         // only managed mode relays perform authentication
         self.config.relay_mode() == RelayMode::Managed
     }
 
     /// Predicate, checks if a Relay does re-authentication
-    fn re_authenticates(&self) -> bool {
+    fn should_reauthenticate(&self) -> bool {
         // only relays that authenticate also re-authenticate
-        self.authenticates()
+        self.should_authenticate()
             // only relays the have a configured auth-interval reauthenticate
             && self.config.http_auth_interval().is_some()
             // processing relays do NOT re-authenticate
@@ -353,8 +350,7 @@ impl UpstreamRelay {
     /// Predicate, checks if we are in an network outage situation
     fn is_network_outage(&self) -> bool {
         if let Some(first_error) = self.first_error {
-            let now = Instant::now();
-            first_error + self.config.network_outage_grace_period() < now
+            first_error + self.config.outage_grace_period() < Instant::now()
         } else {
             false
         }
@@ -363,9 +359,9 @@ impl UpstreamRelay {
     /// Returns an error message if an authentication is prohibited in this state and
     /// None if it can authenticate.
     fn get_auth_state_error(&self) -> Option<&'static str> {
-        if !self.authenticates() {
+        if !self.should_authenticate() {
             Some("Upstream actor trying to authenticate although it is not supposed to.")
-        } else if self.auth_state == AuthState::Registered && !self.re_authenticates() {
+        } else if self.auth_state == AuthState::Registered && !self.should_reauthenticate() {
             Some("Upstream actor trying to re-authenticate although it is not supposed to.")
         } else if self.authentication_denied {
             Some("Upstream actor trying to authenticate after authentication was denied.")
@@ -409,7 +405,7 @@ impl UpstreamRelay {
             // Relays that have auth errors cannot send messages, even in proxy mode
             AuthState::Error => false,
             // Non-managed mode Relays do not authenticate and are ready immediately
-            AuthState::Unknown => !self.authenticates(),
+            AuthState::Unknown => !self.should_authenticate(),
             // All good in managed mode
             AuthState::Registered => true,
         }
@@ -622,7 +618,7 @@ impl Actor for UpstreamRelay {
 
         self.backoff.reset();
 
-        if self.authenticates() {
+        if self.should_authenticate() {
             context.notify(Authenticate);
         }
     }
@@ -694,7 +690,7 @@ impl Handler<Authenticate> for UpstreamRelay {
                 slf.auth_state = AuthState::Registered;
                 slf.backoff.reset();
 
-                if slf.re_authenticates() {
+                if slf.should_reauthenticate() {
                     if let Some(reauth_interval) = slf.config.http_auth_interval() {
                         ctx.notify_later(Authenticate, reauth_interval);
                     }

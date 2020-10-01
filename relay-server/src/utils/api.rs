@@ -7,11 +7,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RelayErrorAction {
+    None,
     Stop,
     #[serde(other)]
     Unknown,
 }
 
+impl Default for RelayErrorAction {
+    fn default() -> Self {
+        RelayErrorAction::None
+    }
+}
 /// An error response from an api.
 #[derive(Serialize, Deserialize, Default, Debug, Fail)]
 pub struct ApiErrorResponse {
@@ -20,7 +26,7 @@ pub struct ApiErrorResponse {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     causes: Vec<String>,
     #[serde(default)]
-    relay: Option<RelayErrorAction>,
+    relay: RelayErrorAction,
 }
 
 impl ApiErrorResponse {
@@ -29,7 +35,7 @@ impl ApiErrorResponse {
         ApiErrorResponse {
             detail: Some(s.as_ref().to_string()),
             causes: Vec::new(),
-            relay: None,
+            relay: RelayErrorAction::None,
         }
     }
 
@@ -47,11 +53,11 @@ impl ApiErrorResponse {
         ApiErrorResponse {
             detail: Some(messages.remove(0)),
             causes: messages,
-            relay: None,
+            relay: RelayErrorAction::None,
         }
     }
 
-    pub fn relay_action(&self) -> Option<RelayErrorAction> {
+    pub fn relay_action(&self) -> RelayErrorAction {
         self.relay
     }
 }

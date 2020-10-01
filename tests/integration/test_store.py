@@ -638,7 +638,7 @@ def test_failed_network_requests_trigger_health_check(relay, mini_sentry):
         "http": {
             "max_retry_interval": 1,
             "auth_interval": 1000,
-            "network_outage_grace_period": 0.1,
+            "outage_grace_period": 0.1,
         }
     }
     relay = relay(mini_sentry, relay_options)
@@ -895,7 +895,7 @@ def test_buffer_events_during_outage(relay, mini_sentry):
         "http": {
             "max_retry_interval": 1,
             "auth_interval": 1000,
-            "network_outage_grace_period": 0.1,
+            "outage_grace_period": 0.1,
         }
     }
     relay = relay(mini_sentry, relay_options)
