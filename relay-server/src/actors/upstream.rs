@@ -385,9 +385,7 @@ impl UpstreamRelay {
 
     /// called when a network error is detected in order to keep track
     fn remember_network_error(&mut self) {
-        if self.first_error == None {
-            self.first_error = Some(Instant::now())
-        }
+        self.first_error.get_or_insert_with(Instant::now);
     }
 
     /// called when a message to the upstream goes through without a network error
