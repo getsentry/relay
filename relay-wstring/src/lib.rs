@@ -53,7 +53,7 @@ impl Utf16Error {
     /// Return the length of the error if it might be recoverable.
     ///
     /// If `Some` you should be able to attempt to parse again from the offset given by
-    /// adding the error legnth to [Self::valid_up_to].
+    /// adding the error length to [Self::valid_up_to].
     pub fn error_len(&self) -> Option<usize> {
         self.error_len.map(|len| len.into())
     }
