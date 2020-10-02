@@ -52,8 +52,15 @@ impl Utf16Error {
 
     /// Return the length of the error if it might be recoverable.
     ///
-    /// If `Some` you should be able to attempt to parse again from the offset given by
-    /// adding the error length to [Self::valid_up_to].
+    /// If `None`: the end of the input was reached unexpectedly.  `self.valid_up_to()` is 1
+    /// to 3 bytes from the end of the input.  If a byte stream such as a file or a network
+    /// socket is being decoded incrementall, this could still be a valid char whose byte
+    /// sequence is spanning multiple chunks.
+    ///
+    /// If `Some(len)`: an unexpected byte was encountered.  The length provided is that of
+    /// the invalid byte sequence that starts at the index given by `valid_up_to()`.
+    /// Decoding should resume after that sequence (after inserting a `U+FFFD REPLACEMENT
+    /// CHARACTER`) in case of lossy decoding.
     pub fn error_len(&self) -> Option<usize> {
         self.error_len.map(|len| len.into())
     }
