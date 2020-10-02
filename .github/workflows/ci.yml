@@ -32,7 +32,6 @@ jobs:
         run: flake8 py
 
       - uses: actions-rs/toolchain@v1
-        id: toolchain
         with:
           toolchain: stable
           profile: minimal
@@ -73,7 +72,6 @@ jobs:
           submodules: recursive
 
       - uses: actions-rs/toolchain@v1
-        id: toolchain
         with:
           toolchain: stable
           profile: minimal
@@ -113,7 +111,6 @@ jobs:
           submodules: recursive
 
       - uses: actions-rs/toolchain@v1
-        id: toolchain
         with:
           toolchain: stable
           profile: minimal
@@ -147,7 +144,6 @@ jobs:
           submodules: recursive
 
       - uses: actions-rs/toolchain@v1
-        id: toolchain
         with:
           toolchain: stable
           profile: minimal
@@ -206,7 +202,6 @@ jobs:
           submodules: recursive
 
       - uses: actions-rs/toolchain@v1
-        id: toolchain
         with:
           toolchain: stable
           profile: minimal

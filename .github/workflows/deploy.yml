@@ -19,7 +19,6 @@ jobs:
           submodules: recursive
 
       - uses: actions-rs/toolchain@v1
-        id: toolchain
         with:
           toolchain: stable
           profile: minimal
@@ -49,7 +48,6 @@ jobs:
           submodules: recursive
 
       - uses: actions-rs/toolchain@v1
-        id: toolchain
         with:
           toolchain: stable
           profile: minimal
@@ -104,7 +102,6 @@ jobs:
       - uses: actions/checkout@v2
 
       - uses: actions-rs/toolchain@v1
-        id: toolchain
         with:
           toolchain: stable
           profile: minimal
