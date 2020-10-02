@@ -285,7 +285,7 @@ impl<'a> Iterator for WStrSegmentIter<'a> {
                 return None;
             }
 
-            let slice: &mut [u8] = match WStr::from_utf16le_mut(&mut self.data[self.offset..]) {
+            let slice = match WStr::from_utf16le_mut(&mut self.data[self.offset..]) {
                 Ok(wstr) => {
                     self.offset += wstr.len();
                     unsafe { wstr.as_bytes_mut() }
