@@ -638,7 +638,7 @@ def test_failed_network_requests_trigger_health_check(relay, mini_sentry):
         "http": {
             "max_retry_interval": 1,
             "auth_interval": 1000,
-            "outage_grace_period": 0.1,
+            "outage_grace_period": 1,
         }
     }
     relay = relay(mini_sentry, relay_options)
@@ -687,7 +687,7 @@ def test_no_auth(relay, mini_sentry, mode):
     assert not has_registered[0]
 
 
-def test_processing_no_re_auth(relay_with_processing, relay, mini_sentry):
+def test_processing_no_re_auth(relay_with_processing, mini_sentry):
     """
     Test that processing relays only authenticate once.
 
@@ -695,7 +695,7 @@ def test_processing_no_re_auth(relay_with_processing, relay, mini_sentry):
     """
     from time import sleep
 
-    relay_options = {"http": {"auth_interval": 0.02}}
+    relay_options = {"http": {"auth_interval": 1}}
 
     # count the number of times relay registers
     original_check_challenge = mini_sentry.app.view_functions["check_challenge"]
@@ -710,7 +710,7 @@ def test_processing_no_re_auth(relay_with_processing, relay, mini_sentry):
     # creates a relay (we don't need to call it explicitly it should register by itself)
     relay_with_processing(options=relay_options)
 
-    sleep(0.1)
+    sleep(2)
     # check that the registration happened only once (although it should have happened every 0.1 secs)
     assert counter[0] == 1
 
@@ -721,7 +721,7 @@ def test_re_auth(relay, mini_sentry):
     """
     from time import sleep
 
-    relay_options = {"http": {"auth_interval": 0.02}}
+    relay_options = {"http": {"auth_interval": 1}}
 
     # count the number of times relay registers
     original_check_challenge = mini_sentry.app.view_functions["check_challenge"]
@@ -736,7 +736,7 @@ def test_re_auth(relay, mini_sentry):
     # creates a relay (we don't need to call it explicitly it should register by itself)
     relay(mini_sentry, options=relay_options)
 
-    sleep(0.1)
+    sleep(2)
     # check that the registration happened repeatedly
     assert counter[0] > 1
 
@@ -748,7 +748,7 @@ def test_re_auth_failure(relay, mini_sentry):
     That is re-authentication failure puts relay in Error state that blocks any
     further message passing until authentication is re established.
     """
-    relay_options = {"http": {"auth_interval": 0.02}}
+    relay_options = {"http": {"auth_interval": 1}}
 
     # count the number of times relay registers
     original_check_challenge = mini_sentry.app.view_functions["check_challenge"]
@@ -772,13 +772,13 @@ def test_re_auth_failure(relay, mini_sentry):
     mini_sentry.project_configs[42] = project_config
 
     # we have authenticated successfully
-    assert evt.wait(0.2)
+    assert evt.wait(2)
     auth_count_1 = counter[0]
     # now fail re-authentication
     registration_should_succeed = False
     # wait for re-authentication try (should fail)
     evt.clear()
-    assert evt.wait(0.2)
+    assert evt.wait(2)
     # check that we have had some authentications attempts (that failed)
     auth_count_2 = counter[0]
     assert auth_count_1 < auth_count_2
@@ -792,7 +792,7 @@ def test_re_auth_failure(relay, mini_sentry):
     registration_should_succeed = True
     # and wait for authentication to be called
     evt.clear()
-    assert evt.wait(0.2)
+    assert evt.wait(2)
     # clear authentication errors accumulated until now
     mini_sentry.test_failures.clear()
     # check that we have had some auth that succeeded
@@ -806,19 +806,16 @@ def test_re_auth_failure(relay, mini_sentry):
     assert event["logentry"] == {"formatted": "123"}
 
 
-@pytest.mark.parametrize(
-    "resp",
-    [("failed", 401), ({"detail": "bad dog", "relay": "stop"}, 403)],
-    ids=("client_error", "permanent_rejection"),
-)
-def test_permanent_rejection(relay, mini_sentry, resp):
+def test_permanent_rejection(relay, mini_sentry):
     """
     Tests that after a permanent rejection stops authentication attempts.
 
     That is once an authentication message detects a permanent rejection
     it will not re-try to authenticate.
     """
-    relay_options = {"http": {"auth_interval": 0.02}}
+    from time import sleep
+
+    relay_options = {"http": {"auth_interval": 1}}
 
     # count the number of times relay registers
     original_check_challenge = mini_sentry.app.view_functions["check_challenge"]
@@ -833,20 +830,26 @@ def test_permanent_rejection(relay, mini_sentry, resp):
             return original_check_challenge(*args, **kwargs)
         else:
             counter[1] += 1
-            return Response(resp[0], status=resp[1])
+            response = Response(
+                json.dumps({"detail": "bad dog", "relay": "stop"}),
+                status=403,
+                content_type="application/json",
+            )
+            print("returning RESPONSE:", response)
+            return response
 
     mini_sentry.app.view_functions["check_challenge"] = counted_check_challenge
 
     relay(mini_sentry, options=relay_options)
 
     # we have authenticated successfully
-    assert evt.wait(0.2)
+    assert evt.wait(2)
     auth_count_1 = counter[0]
     # now fail re-authentication with client error
     registration_should_succeed = False
     # wait for re-authentication try (should fail)
     evt.clear()
-    assert evt.wait(0.2)
+    assert evt.wait(2)
     # check that we have had some authentications attempts (that failed)
     auth_count_2 = counter[0]
     assert auth_count_1 < auth_count_2
@@ -855,9 +858,10 @@ def test_permanent_rejection(relay, mini_sentry, resp):
     # and wait for authentication to be called
     evt.clear()
     # check that we were not called
-    assert evt.wait(0.2) is False
+    assert evt.wait(2) is False
     # to be sure verify that we have only been called once (after failing)
     assert counter[1] == 1
+    print("auth fail called ", counter[1])
     # clear authentication errors accumulated until now
     mini_sentry.test_failures.clear()
 
@@ -895,7 +899,7 @@ def test_buffer_events_during_outage(relay, mini_sentry):
         "http": {
             "max_retry_interval": 1,
             "auth_interval": 1000,
-            "outage_grace_period": 0.1,
+            "outage_grace_period": 1,
         }
     }
     relay = relay(mini_sentry, relay_options)

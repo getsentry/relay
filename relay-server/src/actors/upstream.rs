@@ -84,16 +84,6 @@ impl UpstreamRequestError {
 
     fn is_permanent_rejection(&self) -> bool {
         if let Self::ResponseError(status_code, response) = self {
-            // server sent a client error response ( trying to reauthenticate is unlikely to
-            // change the response so don't bother trying in the future)
-            if status_code.is_client_error() {
-                return true;
-            }
-            // server sent explicit request to stop authentication
-            // NOTE: this is redundant at the moment since FORBIDDEN is a client error and it was
-            // already handled above.
-            // We do check it because it is part of the requirements and we want to have it here
-            // in case the client error handling changes.
             if *status_code == StatusCode::FORBIDDEN
                 && response.relay_action() == RelayErrorAction::Stop
             {
@@ -108,8 +98,10 @@ impl UpstreamRequestError {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 enum AuthState {
     Unknown,
+    Registering,
     Registered,
-    Error,
+    ReRegistering,
+    Denied,
 }
 
 /// The position for enqueueing an upstream request.
@@ -125,7 +117,7 @@ impl AuthState {
         // XXX: the goal of auth state is that it also tracks auth
         // failures from queries.  Later we will need to
         // extend the states here for it.
-        self == AuthState::Registered
+        self == AuthState::Registered || self == AuthState::ReRegistering
     }
 }
 
@@ -186,7 +178,6 @@ impl UpstreamRateLimits {
                 retry_after: self.retry_after,
             });
         }
-
         rate_limits
     }
 }
@@ -257,12 +248,6 @@ pub struct UpstreamRelay {
     num_inflight_requests: usize,
     high_prio_requests: VecDeque<UpstreamRequest>,
     low_prio_requests: VecDeque<UpstreamRequest>,
-    /// Set to true when the Upstream explicitly sends a Stop authentication response
-    /// or there is a client error and there is no point to try to authenticate again.
-    authentication_denied: bool,
-    /// Set to true when an Authentication message is abandoned due to a network outage
-    /// when the network outage is over it will trigger another Authentication message
-    is_waiting_to_authenticate: bool,
 }
 
 /// Handles a response returned from the upstream.
@@ -323,8 +308,6 @@ impl UpstreamRelay {
             high_prio_requests: VecDeque::new(),
             low_prio_requests: VecDeque::new(),
             first_error: None,
-            authentication_denied: false,
-            is_waiting_to_authenticate: false,
             config,
         }
     }
@@ -344,16 +327,12 @@ impl UpstreamRelay {
             // processing relays do NOT re-authenticate
             && !self.config.processing_enabled()
             // the upstream did not ban us explicitly from trying to re-authenticate
-            && !self.authentication_denied
+            && self.auth_state != AuthState::Denied
     }
 
     /// Predicate, checks if we are in an network outage situation
     fn is_network_outage(&self) -> bool {
-        if let Some(first_error) = self.first_error {
-            first_error + self.config.outage_grace_period() < Instant::now()
-        } else {
-            false
-        }
+        self.network_status_backoff.started()
     }
 
     /// Returns an error message if an authentication is prohibited in this state and
@@ -363,7 +342,7 @@ impl UpstreamRelay {
             Some("Upstream actor trying to authenticate although it is not supposed to.")
         } else if self.auth_state == AuthState::Registered && !self.should_reauthenticate() {
             Some("Upstream actor trying to re-authenticate although it is not supposed to.")
-        } else if self.authentication_denied {
+        } else if self.auth_state == AuthState::Denied {
             Some("Upstream actor trying to authenticate after authentication was denied.")
         } else {
             // Ok to authenticate
@@ -371,27 +350,15 @@ impl UpstreamRelay {
         }
     }
 
-    /// Predicate, checks if Upstream is in the process of authentication.
-    /// That is it checks if an authentication is running at the moment or an
-    /// authentication has just failed and Upstream is waiting for the backoff
-    /// interval to finish in order to try again.
-    //fn is_authenticating_now(&self) -> bool {
-    //    self.backoff.started()
-    //}
-
-    /// called when a network error is detected in order to keep track
-    fn remember_network_error(&mut self) {
-        self.first_error.get_or_insert_with(Instant::now);
-    }
-
     /// called when a message to the upstream goes through without a network error
     fn reset_network_error(&mut self) {
-        self.first_error = None
+        self.first_error = None;
+        self.network_status_backoff.reset();
     }
 
     /// initiates a network status check if one is not already in progress or scheduled
     /// if a network check is already scheduled or in progress it does nothing.
-    fn check_network_status(&mut self, ctx: &mut Context<Self>) {
+    fn trigger_reconnect(&mut self, ctx: &mut Context<Self>) {
         if !self.network_status_backoff.started() {
             ctx.notify_later(
                 CheckUpstreamConnection,
@@ -400,27 +367,30 @@ impl UpstreamRelay {
         }
     }
 
+    /// Returns `true` if the connection is ready to send requests to the upstream.
     fn is_ready(&self) -> bool {
+        if self.is_network_outage() {
+            return false;
+        }
+
         match self.auth_state {
-            // Relays that have auth errors cannot send messages, even in proxy mode
-            AuthState::Error => false,
+            // Relays that have auth errors cannot send messages
+            AuthState::Registering | AuthState::Denied => false,
             // Non-managed mode Relays do not authenticate and are ready immediately
             AuthState::Unknown => !self.should_authenticate(),
             // All good in managed mode
-            AuthState::Registered => true,
+            AuthState::Registered | AuthState::ReRegistering => true,
         }
     }
 
     fn handle_network_error(&mut self, ctx: &mut Context<Self>) {
-        self.remember_network_error();
+        let now = Instant::now();
+        let first_error = *self.first_error.get_or_insert(now);
 
-        // Only take action if we are in an outage.
-        if !self.is_network_outage() {
-            return;
+        // Only take action if we exceeded the grace period.
+        if first_error + self.config.outage_grace_period() <= now {
+            self.trigger_reconnect(ctx);
         }
-
-        // Initiate a network status check loop
-        self.check_network_status(ctx);
     }
 
     fn send_request(&mut self, mut request: UpstreamRequest, ctx: &mut Context<Self>) {
@@ -647,13 +617,10 @@ impl Handler<Authenticate> for UpstreamRelay {
     type Result = ResponseActFuture<Self, (), ()>;
 
     fn handle(&mut self, _msg: Authenticate, ctx: &mut Self::Context) -> Self::Result {
-        // continue with the authentication only when there is no network outage
-        if self.is_network_outage() {
-            //remember that we are trying to authenticate and abandon current attempt
-            self.is_waiting_to_authenticate = true;
-            return Box::new(fut::err(()));
+        if self.auth_state == AuthState::Registered || self.auth_state == AuthState::ReRegistering {
+            self.auth_state = AuthState::ReRegistering;
         } else {
-            self.is_waiting_to_authenticate = false;
+            self.auth_state = AuthState::Registering;
         }
 
         // detect incorrect authentication requests, if we detect them we have a programming error
@@ -703,12 +670,12 @@ impl Handler<Authenticate> for UpstreamRelay {
                 log::error!("authentication encountered error: {}", LogError(&err));
 
                 // Network errors are handled separately by the generic response handler.
-                if !err.is_network_error() {
-                    slf.auth_state = AuthState::Error;
-                }
                 if err.is_permanent_rejection() {
-                    slf.authentication_denied = true;
+                    slf.auth_state = AuthState::Denied;
                     return;
+                } else if !err.is_network_error() {
+                    // the server denied authentication go back to Registering
+                    slf.auth_state = AuthState::Registering;
                 }
 
                 log::debug!(
@@ -766,13 +733,6 @@ impl Handler<PumpHttpMessageQueue> for UpstreamRelay {
             return;
         }
 
-        // During network outages no message will be sent
-        if self.is_network_outage() {
-            // initiate a network checking loop if not already started
-            self.check_network_status(ctx);
-            return;
-        }
-
         // we are authenticated and there is no network outage, go ahead with the messages
         while self.num_inflight_requests < self.max_inflight_requests {
             if let Some(msg) = self.high_prio_requests.pop_back() {
@@ -818,12 +778,6 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
                 _ => {
                     // network error cleared
                     slf.reset_network_error();
-
-                    // resume authentication
-                    if slf.is_waiting_to_authenticate {
-                        log::debug!("resume authentication");
-                        ctx.notify(Authenticate);
-                    }
 
                     // resume normal messages
                     ctx.notify(PumpHttpMessageQueue);
