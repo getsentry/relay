@@ -28,14 +28,13 @@ jobs:
 
       - name: Upload to Zeus
         env:
-          ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
           ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
         run: |
-          npm install -D @zeus-ci/cli
-          npx zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/octet-stream" -n relay-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/relay
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip" -n relay-Linux-x86_64-debug.zip relay-debug.zip
-          npx zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+          yarn global add @zeus-ci/cli
+          zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+          zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/octet-stream" -n relay-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/relay
+          zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip" -n relay-Linux-x86_64-debug.zip relay-debug.zip
+          zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
 
   macos:
     name: macOS
@@ -66,14 +65,13 @@ jobs:
 
       - name: Upload to Zeus
         env:
-          ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
           ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
         run: |
-          npm install -D @zeus-ci/cli
-          npx zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/octet-stream" -n relay-Darwin-x86_64 target/release/relay
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip" -n relay-Darwin-x86_64-dsym.zip relay-dsym.zip
-          npx zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+          yarn global add @zeus-ci/cli
+          zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+          zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/octet-stream" -n relay-Darwin-x86_64 target/release/relay
+          zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip" -n relay-Darwin-x86_64-dsym.zip relay-dsym.zip
+          zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
 
   windows:
     name: Windows
@@ -106,11 +104,10 @@ jobs:
 
       - name: Upload to Zeus
         env:
-          ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
           ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
         run: |
-          npm install -D @zeus-ci/cli
-          npx zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/octet-stream" -n relay-Windows-x86_64.exe target/release/relay.exe
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip" -n relay-Windows-x86_64-pdb.zip relay-pdb.zip
-          npx zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+          yarn global add @zeus-ci/cli
+          zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+          zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/octet-stream" -n relay-Windows-x86_64.exe target/release/relay.exe
+          zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip" -n relay-Windows-x86_64-pdb.zip relay-pdb.zip
+          zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}

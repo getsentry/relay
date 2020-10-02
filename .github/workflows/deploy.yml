@@ -26,13 +26,9 @@ jobs:
           components: rust-docs
           override: true
 
-      - uses: actions/cache@v2
+      - uses: swatinem/rust-cache@v1
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: doc-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.job }}
 
       - run: make doc
 
@@ -59,13 +55,9 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: actions/cache@v2
+      - uses: swatinem/rust-cache@v1
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: schema-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.job }}
 
       - name: Generate Schema
         uses: actions-rs/cargo@v1
@@ -118,13 +110,9 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: actions/cache@v2
+      - uses: swatinem/rust-cache@v1
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: metrics-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.job }}
 
       - name: Document Metrics
         uses: actions-rs/cargo@v1

@@ -29,13 +29,12 @@ jobs:
 
       - name: Upload to Zeus
         env:
-          ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
           ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
         run: |
-          npm install -D @zeus-ci/cli
-          npx zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip+wheel" py/dist/*
-          npx zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+          yarn global add @zeus-ci/cli
+          zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+          zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip+wheel" py/dist/*
+          zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
 
   macos:
     name: Python macOS
@@ -67,13 +66,12 @@ jobs:
 
       - name: Upload to Zeus
         env:
-          ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
           ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
         run: |
-          npm install -D @zeus-ci/cli
-          npx zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip+wheel" py/dist/*
-          npx zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+          yarn global add @zeus-ci/cli
+          zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+          zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip+wheel" py/dist/*
+          zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
 
   sdist:
     name: Python sdist
@@ -96,10 +94,9 @@ jobs:
 
       - name: Upload to Zeus
         env:
-          ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
           ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
         run: |
-          npm install -D @zeus-ci/cli
-          npx zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip+wheel" py/dist/*
-          npx zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+          yarn global add @zeus-ci/cli
+          zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+          zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip+wheel" py/dist/*
+          zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
