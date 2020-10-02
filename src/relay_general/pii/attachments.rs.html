@@ -965,17 +965,9 @@
 <span id="965">965</span>
 <span id="966">966</span>
 <span id="967">967</span>
-<span id="968">968</span>
-<span id="969">969</span>
-<span id="970">970</span>
-<span id="971">971</span>
-<span id="972">972</span>
-<span id="973">973</span>
-<span id="974">974</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>::<span class="ident">FusedIterator</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">Utf8Error</span>;
 
 <span class="kw">use</span> <span class="ident">encoding</span>::<span class="ident">all</span>::<span class="ident">UTF_16LE</span>;
 <span class="kw">use</span> <span class="ident">encoding</span>::{<span class="ident">Encoding</span>, <span class="ident">RawDecoder</span>};
@@ -983,7 +975,7 @@
 <span class="kw">use</span> <span class="ident">regex</span>::{<span class="ident">Match</span>, <span class="ident">Regex</span>};
 <span class="kw">use</span> <span class="ident">smallvec</span>::<span class="ident">SmallVec</span>;
 
-<span class="kw">use</span> <span class="ident">relay_wstring</span>::{<span class="ident">Utf16Error</span>, <span class="ident">WStr</span>};
+<span class="kw">use</span> <span class="ident">relay_wstring</span>::<span class="ident">WStr</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">pii</span>::<span class="ident">compiledconfig</span>::<span class="ident">RuleRef</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">pii</span>::<span class="ident">regexes</span>::{<span class="ident">get_regex_for_rule_type</span>, <span class="ident">ReplaceBehavior</span>};
@@ -1103,8 +1095,6 @@
 
 <span class="doccomment">/// Traits to modify the strings in ways we need.</span>
 <span class="kw">trait</span> <span class="ident">StringMods</span>: <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span> {
-    <span class="kw">type</span> <span class="ident">Error</span>;
-
     <span class="doccomment">/// Replace this string&#39;s contents by repeating the given character into it.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// # Panics</span>
@@ -1153,8 +1143,6 @@
 }
 
 <span class="kw">impl</span> <span class="ident">StringMods</span> <span class="kw">for</span> <span class="ident">WStr</span> {
-    <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">Utf16Error</span>;
-
     <span class="kw">fn</span> <span class="ident">fill_content</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">fill_char</span>: <span class="ident">char</span>) {
         <span class="comment">// If fill_char is too wide, fill_char.encode_utf16() will panic, fulfilling the</span>
         <span class="comment">// trait&#39;s contract that we must panic if fill_char is too wide.</span>
@@ -1209,8 +1197,6 @@
 }
 
 <span class="kw">impl</span> <span class="ident">StringMods</span> <span class="kw">for</span> [<span class="ident">u8</span>] {
-    <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">Utf8Error</span>;
-
     <span class="kw">fn</span> <span class="ident">fill_content</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">fill_char</span>: <span class="ident">char</span>) {
         <span class="comment">// If fill_char is too wide, fill_char.encode_utf16() will panic, fulfilling the</span>
         <span class="comment">// trait&#39;s contract that we must panic if fill_char is too wide.</span>
@@ -1288,7 +1274,7 @@
                     <span class="self">self</span>.<span class="ident">offset</span> <span class="op">+</span><span class="op">=</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>(); <span class="comment">// TODO: encoding-neutral?!?</span>
                     <span class="self">self</span>.<span class="ident">decoder</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">decoder</span>.<span class="ident">from_self</span>();
                 }
-                <span class="kw">if</span> <span class="ident">decoded</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">2</span> {
+                <span class="kw">if</span> <span class="ident">decoded</span>.<span class="ident">len</span>() <span class="op">&gt;</span><span class="op">=</span> <span class="ident">MIN_STRING_LEN</span> {
                     <span class="kw">let</span> <span class="ident">slice</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">data</span>[<span class="ident">start</span>..<span class="ident">end</span>];
                     <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">slice</span>.<span class="ident">len</span>();
                     <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="ident">slice</span>.<span class="ident">as_mut_ptr</span>();
