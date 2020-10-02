@@ -299,10 +299,6 @@ impl<'a> Iterator for WStrSegmentIter<'a> {
                     &mut self.data[start..start + err.valid_up_to()]
                 }
             };
-            if slice.len() < MIN_STRING_LEN * std::mem::size_of::<u16>() {
-                // Quick shortcut, actual char count check done below
-                continue;
-            }
 
             // We are handing out multiple mutable slices from the same mutable slice.  This
             // is safe because we know they are not overlapping.  However the compiler
@@ -314,7 +310,7 @@ impl<'a> Iterator for WStrSegmentIter<'a> {
                 WStr::from_utf16le_unchecked_mut(std::slice::from_raw_parts_mut(ptr, len))
             };
 
-            if encoded.chars().count() < MIN_STRING_LEN {
+            if encoded.chars().take(MIN_STRING_LEN).count() < MIN_STRING_LEN {
                 continue;
             }
             let decoded = encoded.to_utf8();
