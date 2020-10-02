@@ -1164,7 +1164,7 @@ impl Config {
 
     /// The maximum time of experiencing uninterrupted network failures until Relay considers that
     /// it has encountered a network outage.
-    pub fn outage_grace_period(&self) -> Duration {
+    pub fn http_outage_grace_period(&self) -> Duration {
         Duration::from_secs(self.values.http.outage_grace_period)
     }
 
