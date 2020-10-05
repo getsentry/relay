@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::iter::FusedIterator;
-use std::str::Utf8Error;
 
 use encoding::all::UTF_16LE;
 use encoding::{Encoding, RawDecoder};
@@ -8,7 +7,7 @@ use regex::bytes::RegexBuilder as BytesRegexBuilder;
 use regex::{Match, Regex};
 use smallvec::SmallVec;
 
-use relay_wstring::{Utf16Error, WStr};
+use relay_wstring::WStr;
 
 use crate::pii::compiledconfig::RuleRef;
 use crate::pii::regexes::{get_regex_for_rule_type, ReplaceBehavior};
@@ -128,8 +127,6 @@ fn get_wstr_match<'a>(all_text: &str, re_match: Match, all_encoded: &'a mut WStr
 
 /// Traits to modify the strings in ways we need.
 trait StringMods: AsRef<[u8]> {
-    type Error;
-
     /// Replace this string's contents by repeating the given character into it.
     ///
     /// # Panics
@@ -178,8 +175,6 @@ trait StringMods: AsRef<[u8]> {
 }
 
 impl StringMods for WStr {
-    type Error = Utf16Error;
-
     fn fill_content(&mut self, fill_char: char) {
         // If fill_char is too wide, fill_char.encode_utf16() will panic, fulfilling the
         // trait's contract that we must panic if fill_char is too wide.
@@ -234,8 +229,6 @@ impl StringMods for WStr {
 }
 
 impl StringMods for [u8] {
-    type Error = Utf8Error;
-
     fn fill_content(&mut self, fill_char: char) {
         // If fill_char is too wide, fill_char.encode_utf16() will panic, fulfilling the
         // trait's contract that we must panic if fill_char is too wide.
@@ -313,7 +306,7 @@ impl<'a> Iterator for WStrSegmentIter<'a> {
                     self.offset += std::mem::size_of::<u16>(); // TODO: encoding-neutral?!?
                     self.decoder = self.decoder.from_self();
                 }
-                if decoded.len() > 2 {
+                if decoded.len() >= MIN_STRING_LEN {
                     let slice = &mut self.data[start..end];
                     let len = slice.len();
                     let ptr = slice.as_mut_ptr();
