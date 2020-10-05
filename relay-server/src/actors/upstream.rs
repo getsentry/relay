@@ -781,6 +781,13 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
             ClientRequestBuilder::finish,
             ctx,
         )
+        .and_then(|client_response| {
+            // consume response bodies to ensure the connection remains usable.
+            client_response
+                .payload()
+                .for_each(|_| Ok(()))
+                .map_err(UpstreamRequestError::PayloadFailed)
+        })
         .into_actor(self)
         .then(|result, slf, ctx| {
             if matches!(result, Err(err) if err.is_network_error()) {
