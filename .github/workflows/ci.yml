@@ -32,20 +32,15 @@ jobs:
         run: flake8 py
 
       - uses: actions-rs/toolchain@v1
-        id: toolchain
         with:
           toolchain: stable
           profile: minimal
           components: clippy, rustfmt
           override: true
 
-      - uses: actions/cache@v2
+      - uses: swatinem/rust-cache@v1
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: lint-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.job }}
 
       - name: Run Rustfmt
         uses: actions-rs/cargo@v1
@@ -77,19 +72,14 @@ jobs:
           submodules: recursive
 
       - uses: actions-rs/toolchain@v1
-        id: toolchain
         with:
           toolchain: stable
           profile: minimal
           override: true
 
-      - uses: actions/cache@v2
+      - uses: swatinem/rust-cache@v1
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: test-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.job }}
 
       - name: Run Cargo Tests
         uses: actions-rs/cargo@v1
@@ -121,19 +111,14 @@ jobs:
           submodules: recursive
 
       - uses: actions-rs/toolchain@v1
-        id: toolchain
         with:
           toolchain: stable
           profile: minimal
           override: true
 
-      - uses: actions/cache@v2
+      - uses: swatinem/rust-cache@v1
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: test-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.job }}
 
       - name: Run Cargo Tests
         uses: actions-rs/cargo@v1
@@ -159,7 +144,6 @@ jobs:
           submodules: recursive
 
       - uses: actions-rs/toolchain@v1
-        id: toolchain
         with:
           toolchain: stable
           profile: minimal
@@ -172,13 +156,9 @@ jobs:
       - name: Install Dependencies
         run: pip install -U pytest
 
-      - uses: actions/cache@v2
+      - uses: swatinem/rust-cache@v1
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: pytest-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.job }}
 
       - name: Build and Install Library
         run: pip install -v --editable py
@@ -222,19 +202,14 @@ jobs:
           submodules: recursive
 
       - uses: actions-rs/toolchain@v1
-        id: toolchain
         with:
           toolchain: stable
           profile: minimal
           override: true
 
-      - uses: actions/cache@v2
+      - uses: swatinem/rust-cache@v1
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: integration-${{ runner.os }}-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.job }}
 
       - name: Cargo build
         uses: actions-rs/cargo@v1
