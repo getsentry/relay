@@ -285,11 +285,12 @@ impl<'a> Iterator for WStrSegmentIter<'a> {
                 }
                 Err(err) => {
                     let start = self.offset;
+                    let end = start + err.valid_up_to();
                     match err.error_len() {
                         Some(len) => self.offset += err.valid_up_to() + len,
                         None => self.offset = self.data.len(),
                     }
-                    &mut self.data[start..start + err.valid_up_to()]
+                    &mut self.data[start..end]
                 }
             };
 
