@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[doc(inline)]
 pub use sentry_types::ProjectId;
 
-/// TODO: Doc
+/// An error parsing [`ProjectKey`](struct.ProjectKey.html).
 #[derive(Clone, Copy, Debug)]
 pub struct ParseProjectKeyError;
 
@@ -18,7 +18,9 @@ impl fmt::Display for ParseProjectKeyError {
 
 impl std::error::Error for ParseProjectKeyError {}
 
-/// TODO: Document
+/// The public key used in a DSN to identify and authenticate for a project at Sentry.
+///
+/// Project keys are always 32-character hexadecimal strings.
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialOrd, PartialEq)]
 pub struct ProjectKey([u8; 32]);
 
@@ -42,7 +44,7 @@ impl<'de> Deserialize<'de> for ProjectKey {
 }
 
 impl ProjectKey {
-    /// TODO: Document
+    /// Parses a `ProjectKey` from a string.
     pub fn parse(key: &str) -> Result<Self, ParseProjectKeyError> {
         if key.len() != 32 || !key.is_ascii() {
             return Err(ParseProjectKeyError);
@@ -53,10 +55,11 @@ impl ProjectKey {
         Ok(project_key)
     }
 
-    /// TODO: Document
+    /// Returns the string representation of the project key.
     #[inline]
     pub fn as_str(&self) -> &str {
-        // TODO: Describe safety
+        // Safety: The string is already validated to be of length 32 and valid ASCII when
+        // constructing `ProjectKey`.
         unsafe { std::str::from_utf8_unchecked(&self.0) }
     }
 }

@@ -11,7 +11,8 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use relay_common::{
-    tryf, Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, ProjectId, ProjectKey,
+    tryf, Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, ParseProjectKeyError,
+    ProjectId, ProjectKey,
 };
 use relay_quotas::Scoping;
 
@@ -38,6 +39,9 @@ pub enum BadEventMeta {
     #[fail(display = "bad sentry DSN")]
     BadDsn(#[fail(cause)] ParseDsnError),
 
+    #[fail(display = "bad sentry DSN public key")]
+    BadPublicKey(ParseProjectKeyError),
+
     #[fail(display = "bad project key: project does not exist")]
     BadProjectKey,
 
@@ -51,11 +55,54 @@ impl ResponseError for BadEventMeta {
             Self::MissingAuth | Self::MultipleAuth | Self::BadProjectKey | Self::BadAuth(_) => {
                 HttpResponse::Unauthorized()
             }
-            Self::BadProject(_) | Self::BadDsn(_) => HttpResponse::BadRequest(),
+            Self::BadProject(_) | Self::BadDsn(_) | Self::BadPublicKey(_) => {
+                HttpResponse::BadRequest()
+            }
             Self::ScheduleFailed => HttpResponse::ServiceUnavailable(),
         };
 
         builder.json(&ApiErrorResponse::from_fail(self))
+    }
+}
+
+/// Wrapper around a Sentry DSN with parsed public key.
+///
+/// The Sentry DSN type carries a plain public key string. However, Relay handles copy `ProjectKey`
+/// types internally. Converting from `String` to `ProjectKey` is fallible and should be caught when
+/// deserializing the request.
+///
+/// This type caches the parsed project key in addition to the DSN. Other than that, it
+/// transparently serializes to and deserializes from a DSN string.
+#[derive(Debug, Clone)]
+pub struct FullDsn {
+    dsn: Dsn,
+    public_key: ProjectKey,
+}
+
+impl FullDsn {
+    /// Ensures a valid public key in the DSN.
+    fn from_dsn(dsn: Dsn) -> Result<Self, ParseProjectKeyError> {
+        let public_key = ProjectKey::parse(dsn.public_key())?;
+        Ok(Self { dsn, public_key })
+    }
+}
+
+impl<'de> Deserialize<'de> for FullDsn {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let dsn = Dsn::deserialize(deserializer)?;
+        Self::from_dsn(dsn).map_err(serde::de::Error::custom)
+    }
+}
+
+impl Serialize for FullDsn {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.dsn.serialize(serializer)
     }
 }
 
@@ -65,7 +112,7 @@ const fn default_version() -> u16 {
 
 /// Request information for sentry ingest data, such as events, envelopes or metrics.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RequestMeta<D = Dsn> {
+pub struct RequestMeta<D = FullDsn> {
     /// The DSN describing the target of this envelope.
     dsn: D,
 
@@ -154,7 +201,7 @@ impl RequestMeta {
     #[cfg(test)]
     pub fn new(dsn: Dsn) -> Self {
         RequestMeta {
-            dsn,
+            dsn: FullDsn::from_dsn(dsn).expect("invalid DSN key"),
             client: Some("sentry/client".to_string()),
             version: 7,
             origin: Some("http://origin/".parse().unwrap()),
@@ -170,7 +217,7 @@ impl RequestMeta {
     /// The DSN declares the project and auth information and upstream address. When RequestMeta is
     /// constructed from a web request, the DSN is set to point to the upstream host.
     pub fn dsn(&self) -> &Dsn {
-        &self.dsn
+        &self.dsn.dsn
     }
 
     /// Returns the project identifier that the DSN points to.
@@ -180,7 +227,7 @@ impl RequestMeta {
 
     /// Returns the public key part of the DSN for authentication.
     pub fn public_key(&self) -> ProjectKey {
-        ProjectKey::parse(self.dsn.public_key()).expect("TODO: Validate public key beforehand")
+        self.dsn.public_key
     }
 
     /// Formats the Sentry authentication header.
@@ -368,8 +415,11 @@ fn extract_event_meta(
             project_id,
         );
 
+        let dsn = dsn_string.parse().map_err(BadEventMeta::BadDsn)?;
+        let dsn = FullDsn::from_dsn(dsn).map_err(BadEventMeta::BadPublicKey)?;
+
         Ok(RequestMeta {
-            dsn: dsn_string.parse().map_err(BadEventMeta::BadDsn)?,
+            dsn,
             version,
             client,
             origin,
