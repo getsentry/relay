@@ -1007,6 +1007,63 @@
 <span id="1007">1007</span>
 <span id="1008">1008</span>
 <span id="1009">1009</span>
+<span id="1010">1010</span>
+<span id="1011">1011</span>
+<span id="1012">1012</span>
+<span id="1013">1013</span>
+<span id="1014">1014</span>
+<span id="1015">1015</span>
+<span id="1016">1016</span>
+<span id="1017">1017</span>
+<span id="1018">1018</span>
+<span id="1019">1019</span>
+<span id="1020">1020</span>
+<span id="1021">1021</span>
+<span id="1022">1022</span>
+<span id="1023">1023</span>
+<span id="1024">1024</span>
+<span id="1025">1025</span>
+<span id="1026">1026</span>
+<span id="1027">1027</span>
+<span id="1028">1028</span>
+<span id="1029">1029</span>
+<span id="1030">1030</span>
+<span id="1031">1031</span>
+<span id="1032">1032</span>
+<span id="1033">1033</span>
+<span id="1034">1034</span>
+<span id="1035">1035</span>
+<span id="1036">1036</span>
+<span id="1037">1037</span>
+<span id="1038">1038</span>
+<span id="1039">1039</span>
+<span id="1040">1040</span>
+<span id="1041">1041</span>
+<span id="1042">1042</span>
+<span id="1043">1043</span>
+<span id="1044">1044</span>
+<span id="1045">1045</span>
+<span id="1046">1046</span>
+<span id="1047">1047</span>
+<span id="1048">1048</span>
+<span id="1049">1049</span>
+<span id="1050">1050</span>
+<span id="1051">1051</span>
+<span id="1052">1052</span>
+<span id="1053">1053</span>
+<span id="1054">1054</span>
+<span id="1055">1055</span>
+<span id="1056">1056</span>
+<span id="1057">1057</span>
+<span id="1058">1058</span>
+<span id="1059">1059</span>
+<span id="1060">1060</span>
+<span id="1061">1061</span>
+<span id="1062">1062</span>
+<span id="1063">1063</span>
+<span id="1064">1064</span>
+<span id="1065">1065</span>
+<span id="1066">1066</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -1838,10 +1895,42 @@
     }
 }
 
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">B</span> <span class="op">=</span> ()<span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">ResponseTransformer</span>: <span class="lifetime">&#39;static</span> {
+    <span class="kw">type</span> <span class="prelude-ty">Result</span>: <span class="lifetime">&#39;static</span>;
+
+    <span class="kw">fn</span> <span class="ident">transform_response</span>(<span class="self">self</span>, <span class="kw">_</span>: <span class="ident">ClientResponse</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span>;
+}
+
+<span class="kw">impl</span> <span class="ident">ResponseTransformer</span> <span class="kw">for</span> () {
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span>;
+
+    <span class="kw">fn</span> <span class="ident">transform_response</span>(<span class="self">self</span>, <span class="ident">response</span>: <span class="ident">ClientResponse</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+        <span class="comment">// consume response bodies to allow connection keep-alive</span>
+        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">response</span>
+            .<span class="ident">payload</span>()
+            .<span class="ident">for_each</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="prelude-val">Ok</span>(()))
+            .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">PayloadFailed</span>);
+
+        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">future</span>)
+    }
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">T</span>: <span class="lifetime">&#39;static</span><span class="op">&gt;</span> <span class="ident">ResponseTransformer</span> <span class="kw">for</span> <span class="ident">F</span>
+<span class="kw">where</span>
+    <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="ident">ClientResponse</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">T</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
+{
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">T</span>;
+
+    <span class="kw">fn</span> <span class="ident">transform_response</span>(<span class="self">self</span>, <span class="ident">response</span>: <span class="ident">ClientResponse</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+        <span class="self">self</span>(<span class="ident">response</span>)
+    }
+}
+
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">B</span> <span class="op">=</span> (), <span class="ident">T</span> <span class="op">=</span> ()<span class="op">&gt;</span> {
     <span class="ident">method</span>: <span class="ident">Method</span>,
     <span class="ident">path</span>: <span class="ident">String</span>,
     <span class="ident">builder</span>: <span class="ident">B</span>,
+    <span class="ident">transformer</span>: <span class="ident">T</span>,
     <span class="ident">retry</span>: <span class="ident">bool</span>,
 }
 
@@ -1851,6 +1940,7 @@
             <span class="ident">method</span>,
             <span class="ident">path</span>: <span class="ident">path</span>.<span class="ident">into</span>(),
             <span class="ident">builder</span>: (),
+            <span class="ident">transformer</span>: (),
             <span class="ident">retry</span>: <span class="bool-val">true</span>,
         }
     }
@@ -1860,39 +1950,67 @@
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">B</span><span class="op">&gt;</span> <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">B</span><span class="op">&gt;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">build</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">callback</span>: <span class="ident">F</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">B</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">B</span>, <span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">build</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">callback</span>: <span class="ident">F</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">T</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ClientRequestBuilder</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientRequest</span>, <span class="ident">ActixError</span><span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
     {
         <span class="ident">SendRequest</span> {
             <span class="ident">method</span>: <span class="self">self</span>.<span class="ident">method</span>,
             <span class="ident">path</span>: <span class="self">self</span>.<span class="ident">path</span>,
-            <span class="ident">retry</span>: <span class="self">self</span>.<span class="ident">retry</span>,
             <span class="ident">builder</span>: <span class="ident">callback</span>,
+            <span class="ident">transformer</span>: <span class="self">self</span>.<span class="ident">transformer</span>,
+            <span class="ident">retry</span>: <span class="self">self</span>.<span class="ident">retry</span>,
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">transform</span><span class="op">&lt;</span><span class="ident">R</span>, <span class="ident">F</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">callback</span>: <span class="ident">F</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">B</span>, <span class="ident">F</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="ident">ClientResponse</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">R</span>,
+    {
+        <span class="ident">SendRequest</span> {
+            <span class="ident">method</span>: <span class="self">self</span>.<span class="ident">method</span>,
+            <span class="ident">path</span>: <span class="self">self</span>.<span class="ident">path</span>,
+            <span class="ident">builder</span>: <span class="self">self</span>.<span class="ident">builder</span>,
+            <span class="ident">transformer</span>: <span class="ident">callback</span>,
+            <span class="ident">retry</span>: <span class="self">self</span>.<span class="ident">retry</span>,
         }
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">B</span><span class="op">&gt;</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">B</span><span class="op">&gt;</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span>;
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">B</span>, <span class="ident">R</span>, <span class="ident">T</span>: <span class="lifetime">&#39;static</span>, <span class="ident">E</span>: <span class="lifetime">&#39;static</span><span class="op">&gt;</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">B</span>, <span class="ident">R</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">R</span>: <span class="ident">ResponseTransformer</span>,
+    <span class="ident">R</span>::<span class="prelude-ty">Result</span>: <span class="ident">IntoFuture</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">T</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="ident">E</span><span class="op">&gt;</span>,
+{
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>;
 }
+
+<span class="comment">// impl&lt;B&gt; Message for SendRequest&lt;B&gt; {</span>
+<span class="comment">//     type Result = Result&lt;(), UpstreamRequestError&gt;;</span>
+<span class="comment">// }</span>
 
 <span class="doccomment">/// SendRequest&lt;B&gt; messages represent external messages that need to be sent to the upstream server</span>
 <span class="doccomment">/// and do not use Relay authentication.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// The handler adds the message to one of the message queues.</span>
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">B</span><span class="op">&gt;</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">B</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">UpstreamRelay</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">B</span>, <span class="ident">R</span>, <span class="ident">T</span>: <span class="lifetime">&#39;static</span>, <span class="ident">E</span>: <span class="lifetime">&#39;static</span><span class="op">&gt;</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">B</span>, <span class="ident">R</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">UpstreamRelay</span>
 <span class="kw">where</span>
     <span class="ident">B</span>: <span class="ident">RequestBuilder</span> <span class="op">+</span> <span class="ident">Send</span>,
+    <span class="ident">R</span>: <span class="ident">ResponseTransformer</span>,
+    <span class="ident">R</span>::<span class="prelude-ty">Result</span>: <span class="ident">IntoFuture</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">T</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="ident">E</span><span class="op">&gt;</span>,
+    <span class="ident">T</span>: <span class="ident">Send</span>,
+    <span class="ident">E</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">UpstreamRequestError</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span>,
 {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span>;
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">B</span><span class="op">&gt;</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">B</span>, <span class="ident">R</span><span class="op">&gt;</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
         <span class="kw">let</span> <span class="ident">SendRequest</span> {
             <span class="ident">method</span>,
             <span class="ident">path</span>,
             <span class="kw-2">mut</span> <span class="ident">builder</span>,
+            <span class="ident">transformer</span>,
             <span class="ident">retry</span>,
         } <span class="op">=</span> <span class="ident">message</span>;
 
@@ -1905,12 +2023,8 @@
                 <span class="kw">move</span> <span class="op">|</span><span class="ident">b</span><span class="op">|</span> <span class="ident">builder</span>.<span class="ident">build_request</span>(<span class="ident">b</span>),
                 <span class="ident">ctx</span>,
             )
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">client_response</span><span class="op">|</span> {
-                <span class="ident">client_response</span>
-                    .<span class="ident">payload</span>()
-                    .<span class="ident">for_each</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="prelude-val">Ok</span>(()))
-                    .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">PayloadFailed</span>)
-            });
+            .<span class="ident">from_err</span>()
+            .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">r</span><span class="op">|</span> <span class="ident">transformer</span>.<span class="ident">transform_response</span>(<span class="ident">r</span>));
 
         <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">future</span>)
     }
