@@ -685,7 +685,7 @@
 <span class="kw">use</span> <span class="ident">url</span>::<span class="ident">Url</span>;
 
 <span class="kw">use</span> <span class="ident">relay_auth</span>::<span class="ident">PublicKey</span>;
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">ProjectId</span>};
+<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
 <span class="kw">use</span> <span class="ident">relay_filter</span>::{<span class="ident">matches_any_origin</span>, <span class="ident">FiltersConfig</span>};
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">pii</span>::{<span class="ident">DataScrubbingConfig</span>, <span class="ident">PiiConfig</span>};
@@ -861,7 +861,7 @@
     }
 
     <span class="doccomment">/// Returns configuration options for a public key.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_public_key_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">public_key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">PublicKeyConfig</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_public_key_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">public_key</span>: <span class="ident">ProjectKey</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">PublicKeyConfig</span><span class="op">&gt;</span> {
         <span class="kw">for</span> <span class="ident">key</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">public_keys</span> {
             <span class="kw">if</span> <span class="ident">key</span>.<span class="ident">public_key</span> <span class="op">=</span><span class="op">=</span> <span class="ident">public_key</span> {
                 <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">key</span>);
@@ -871,7 +871,7 @@
     }
 
     <span class="doccomment">/// Returns the current status of a key.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_public_key_status</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">public_key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">PublicKeyStatus</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_public_key_status</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">public_key</span>: <span class="ident">ProjectKey</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">PublicKeyStatus</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">key</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_public_key_config</span>(<span class="ident">public_key</span>) {
             <span class="kw">if</span> <span class="ident">key</span>.<span class="ident">is_enabled</span> {
                 <span class="ident">PublicKeyStatus</span>::<span class="ident">Enabled</span>
@@ -952,7 +952,7 @@
         <span class="comment">// project was refetched in between. In such a case, access to key quotas is not availabe,</span>
         <span class="comment">// but we can gracefully execute all other rate limiting.</span>
         <span class="ident">scoping</span>.<span class="ident">key_id</span> <span class="op">=</span> <span class="self">self</span>
-            .<span class="ident">get_public_key_config</span>(<span class="kw-2">&amp;</span><span class="ident">scoping</span>.<span class="ident">public_key</span>)
+            .<span class="ident">get_public_key_config</span>(<span class="ident">scoping</span>.<span class="ident">public_key</span>)
             .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">config</span><span class="op">|</span> <span class="ident">config</span>.<span class="ident">numeric_id</span>);
 
         <span class="comment">// This is a hack covering three cases:</span>
@@ -1042,7 +1042,7 @@
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PublicKeyConfig</span> {
     <span class="doccomment">/// Public part of key (random hash).</span>
-    <span class="kw">pub</span> <span class="ident">public_key</span>: <span class="ident">String</span>,
+    <span class="kw">pub</span> <span class="ident">public_key</span>: <span class="ident">ProjectKey</span>,
 
     <span class="doccomment">/// Whether this key can be used.</span>
     <span class="kw">pub</span> <span class="ident">is_enabled</span>: <span class="ident">bool</span>,
@@ -1062,7 +1062,7 @@
     <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>, <span class="ident">remote</span> <span class="op">=</span> <span class="string">&quot;PublicKeyConfig&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LimitedPublicKeyConfig</span> {
-        <span class="kw">pub</span> <span class="ident">public_key</span>: <span class="ident">String</span>,
+        <span class="kw">pub</span> <span class="ident">public_key</span>: <span class="ident">ProjectKey</span>,
         <span class="kw">pub</span> <span class="ident">is_enabled</span>: <span class="ident">bool</span>,
     }
 

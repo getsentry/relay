@@ -1065,7 +1065,7 @@
             <span class="kw">if</span> <span class="ident">is_event</span> {
                 <span class="ident">outcome_producer</span>.<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
                     <span class="ident">timestamp</span>: <span class="ident">start_time</span>,
-                    <span class="ident">scoping</span>: <span class="ident">scoping</span>.<span class="ident">borrow</span>().<span class="ident">clone</span>(),
+                    <span class="ident">scoping</span>: <span class="kw-2">*</span><span class="ident">scoping</span>.<span class="ident">borrow</span>(),
                     <span class="ident">outcome</span>: <span class="ident">error</span>.<span class="ident">to_outcome</span>(),
                     <span class="ident">event_id</span>: <span class="kw-2">*</span><span class="ident">event_id</span>.<span class="ident">borrow</span>(),
                     <span class="ident">remote_addr</span>,
