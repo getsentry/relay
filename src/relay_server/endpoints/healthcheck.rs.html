@@ -71,6 +71,12 @@
 <span id="71">71</span>
 <span id="72">72</span>
 <span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! A simple healthcheck endpoint for the relay.</span>
 <span class="kw">use</span> ::<span class="ident">actix</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
@@ -142,6 +148,12 @@
     })
     .<span class="ident">resource</span>(<span class="string">&quot;/api/relay/healthcheck/live/&quot;</span>, <span class="op">|</span><span class="ident">r</span><span class="op">|</span> {
         <span class="ident">r</span>.<span class="ident">name</span>(<span class="string">&quot;internal-healthcheck-live&quot;</span>);
+        <span class="ident">r</span>.<span class="ident">get</span>().<span class="ident">with</span>(<span class="ident">liveness_healthcheck</span>);
+    })
+    <span class="comment">// live check is also used to check network connectivity by downstream relays.</span>
+    <span class="comment">// It must have the same url as Sentry (hence two urls doing the same thing)</span>
+    .<span class="ident">resource</span>(<span class="string">&quot;/api/0/relays/live/&quot;</span>, <span class="op">|</span><span class="ident">r</span><span class="op">|</span> {
+        <span class="ident">r</span>.<span class="ident">name</span>(<span class="string">&quot;external-healthcheck-live&quot;</span>);
         <span class="ident">r</span>.<span class="ident">get</span>().<span class="ident">with</span>(<span class="ident">liveness_healthcheck</span>);
     })
 }

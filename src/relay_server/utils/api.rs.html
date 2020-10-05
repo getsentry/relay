@@ -48,12 +48,50 @@
 <span id="48">48</span>
 <span id="49">49</span>
 <span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 
 <span class="kw">use</span> <span class="ident">failure</span>::<span class="ident">Fail</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
+<span class="doccomment">/// Represents an action requested by the Upstream sent in an error message</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
+<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">RelayErrorAction</span> {
+    <span class="prelude-val">None</span>,
+    <span class="ident">Stop</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">other</span>)]</span>
+    <span class="ident">Unknown</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">RelayErrorAction</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="ident">RelayErrorAction</span>::<span class="prelude-val">None</span>
+    }
+}
 <span class="doccomment">/// An error response from an api.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Default</span>, <span class="ident">Debug</span>, <span class="ident">Fail</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ApiErrorResponse</span> {
@@ -61,6 +99,8 @@
     <span class="ident">detail</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Vec::is_empty&quot;</span>)]</span>
     <span class="ident">causes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
+    <span class="ident">relay</span>: <span class="ident">RelayErrorAction</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">ApiErrorResponse</span> {
@@ -69,6 +109,7 @@
         <span class="ident">ApiErrorResponse</span> {
             <span class="ident">detail</span>: <span class="prelude-val">Some</span>(<span class="ident">s</span>.<span class="ident">as_ref</span>().<span class="ident">to_string</span>()),
             <span class="ident">causes</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
+            <span class="ident">relay</span>: <span class="ident">RelayErrorAction</span>::<span class="prelude-val">None</span>,
         }
     }
 
@@ -86,7 +127,12 @@
         <span class="ident">ApiErrorResponse</span> {
             <span class="ident">detail</span>: <span class="prelude-val">Some</span>(<span class="ident">messages</span>.<span class="ident">remove</span>(<span class="number">0</span>)),
             <span class="ident">causes</span>: <span class="ident">messages</span>,
+            <span class="ident">relay</span>: <span class="ident">RelayErrorAction</span>::<span class="prelude-val">None</span>,
         }
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_action</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayErrorAction</span> {
+        <span class="self">self</span>.<span class="ident">relay</span>
     }
 }
 
