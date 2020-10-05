@@ -11,6 +11,7 @@
 
 - Fix issue where `$span` would not be recognized in Advanced Data Scrubbing. ([#781](https://github.com/getsentry/relay/pull/781))
 - Accept big-endian minidumps. ([#789](https://github.com/getsentry/relay/pull/789))
+- Detect network outages and retry sending events instead of dropping them. ([#788](https://github.com/getsentry/relay/pull/788))
 
 ## 20.9.0
 
