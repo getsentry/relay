@@ -9,7 +9,7 @@ import threading
 import pytest
 
 from requests.exceptions import HTTPError
-from flask import abort
+from flask import abort, Response
 
 
 def test_store(mini_sentry, relay_chain):
@@ -611,36 +611,310 @@ def test_events_are_retried(relay, mini_sentry):
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
-@pytest.mark.skip(reason="Enable after fixing network error handling")
-def test_failed_network_requests_trigger_re_authentication(relay, mini_sentry):
+def test_failed_network_requests_trigger_health_check(relay, mini_sentry):
+    """
+    Tests that consistently failing network requests will trigger relay to enter outage mode
+    and call on the liveliness endpoint
+    """
+
     def network_error_endpoint(*args, **kwargs):
         # simulate a network error
         raise socket.timeout()
 
     # make the store endpoint fail with a network error
     mini_sentry.app.view_functions["store_event"] = network_error_endpoint
-    original_check_challenge = mini_sentry.app.view_functions["check_challenge"]
-    counter = [0]
+    original_is_live = mini_sentry.app.view_functions["is_live"]
     evt = threading.Event()
 
-    def counted_check_challenge():
-        counter[0] += 1
-        if counter[0] >= 2:
-            evt.set()  # second auth attempt
+    def is_live():
+        evt.set()  # mark is_live was called
+        return original_is_live()
 
-        return original_check_challenge()
+    mini_sentry.app.view_functions["is_live"] = is_live
 
-    mini_sentry.app.view_functions["check_challenge"] = counted_check_challenge
+    # keep max backoff and the outage grace period as short as the configuration allows
 
-    # keep max backoff as short as the configuration allows (1 sec)
-    # make sure the re-authentication is caused by the network failure (set it to be very large)
-    relay_options = {"http": {"max_retry_interval": 1, "auth_interval": 1000}}
+    relay_options = {
+        "http": {
+            "max_retry_interval": 1,
+            "auth_interval": 1000,
+            "outage_grace_period": 1,
+        }
+    }
     relay = relay(mini_sentry, relay_options)
     project_config = relay.basic_project_config()
     mini_sentry.project_configs[42] = project_config
 
-    # send an event, the event should fail and trigger re-authentication (after a second)
+    # send an event, the event should fail and trigger a liveliness check (after a second)
     relay.send_event(42)
 
-    # auth called at least twice
-    assert evt.wait(3)
+    # it did try to reestablish connection
+    assert evt.wait(5)
+
+
+@pytest.mark.parametrize("mode", ["static", "proxy"])
+def test_no_auth(relay, mini_sentry, mode):
+    """
+    Tests that relays that run in proxy and static mode do NOT authenticate
+    """
+    project_config = mini_sentry.basic_project_config()
+
+    old_handler = mini_sentry.app.view_functions["get_challenge"]
+    has_registered = [False]
+
+    # remember if somebody has tried to register
+    def register_challenge(*args, **kwargs):
+        has_registered[0] = True
+        return old_handler(*args, **kwargs)
+
+    mini_sentry.app.view_functions["get_challenge"] = register_challenge
+
+    def configure_static_project(dir):
+        os.remove(dir.join("credentials.json"))
+        os.makedirs(dir.join("projects"))
+        dir.join("projects").join("42.json").write(json.dumps(project_config))
+
+    relay_options = {"relay": {"mode": mode}}
+    relay = relay(mini_sentry, options=relay_options, prepare=configure_static_project)
+    mini_sentry.project_configs[42] = project_config
+
+    relay.send_event(42, {"message": "123"})
+
+    # sanity test that we got the event we sent
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    assert event["logentry"] == {"formatted": "123"}
+    # verify that no registration took place (the register flag is not set)
+    assert not has_registered[0]
+
+
+def test_processing_no_re_auth(relay_with_processing, mini_sentry):
+    """
+    Test that processing relays only authenticate once.
+
+    That is processing relays do NOT reauthenticate.
+    """
+    from time import sleep
+
+    relay_options = {"http": {"auth_interval": 1}}
+
+    # count the number of times relay registers
+    original_check_challenge = mini_sentry.app.view_functions["check_challenge"]
+    counter = [0]
+
+    def counted_check_challenge(*args, **kwargs):
+        counter[0] += 1
+        return original_check_challenge(*args, **kwargs)
+
+    mini_sentry.app.view_functions["check_challenge"] = counted_check_challenge
+
+    # creates a relay (we don't need to call it explicitly it should register by itself)
+    relay_with_processing(options=relay_options)
+
+    sleep(2)
+    # check that the registration happened only once (although it should have happened every 0.1 secs)
+    assert counter[0] == 1
+
+
+def test_re_auth(relay, mini_sentry):
+    """
+    Tests that managed non-processing relays re-authenticate periodically.
+    """
+    from time import sleep
+
+    relay_options = {"http": {"auth_interval": 1}}
+
+    # count the number of times relay registers
+    original_check_challenge = mini_sentry.app.view_functions["check_challenge"]
+    counter = [0]
+
+    def counted_check_challenge(*args, **kwargs):
+        counter[0] += 1
+        return original_check_challenge(*args, **kwargs)
+
+    mini_sentry.app.view_functions["check_challenge"] = counted_check_challenge
+
+    # creates a relay (we don't need to call it explicitly it should register by itself)
+    relay(mini_sentry, options=relay_options)
+
+    sleep(2)
+    # check that the registration happened repeatedly
+    assert counter[0] > 1
+
+
+def test_re_auth_failure(relay, mini_sentry):
+    """
+    Test that after a re-authentication failure, relay stops sending messages until is reauthenticated.
+
+    That is re-authentication failure puts relay in Error state that blocks any
+    further message passing until authentication is re established.
+    """
+    relay_options = {"http": {"auth_interval": 1}}
+
+    # count the number of times relay registers
+    original_check_challenge = mini_sentry.app.view_functions["check_challenge"]
+    counter = [0]
+    registration_should_succeed = True
+    evt = threading.Event()
+
+    def counted_check_challenge(*args, **kwargs):
+        counter[0] += 1
+        evt.set()
+        if registration_should_succeed:
+            return original_check_challenge(*args, **kwargs)
+        else:
+            return Response("failed", status=500)
+
+    mini_sentry.app.view_functions["check_challenge"] = counted_check_challenge
+
+    # creates a relay (we don't need to call it explicitly it should register by itself)
+    relay = relay(mini_sentry, options=relay_options)
+    project_config = relay.basic_project_config()
+    mini_sentry.project_configs[42] = project_config
+
+    # we have authenticated successfully
+    assert evt.wait(2)
+    auth_count_1 = counter[0]
+    # now fail re-authentication
+    registration_should_succeed = False
+    # wait for re-authentication try (should fail)
+    evt.clear()
+    assert evt.wait(2)
+    # check that we have had some authentications attempts (that failed)
+    auth_count_2 = counter[0]
+    assert auth_count_1 < auth_count_2
+
+    # send a message, it should not come through while the authentication has failed
+    relay.send_event(42, {"message": "123"})
+    # sentry should have received nothing
+    pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
+
+    # set back authentication to ok
+    registration_should_succeed = True
+    # and wait for authentication to be called
+    evt.clear()
+    assert evt.wait(2)
+    # clear authentication errors accumulated until now
+    mini_sentry.test_failures.clear()
+    # check that we have had some auth that succeeded
+    auth_count_3 = counter[0]
+    assert auth_count_2 < auth_count_3
+
+    # now we should be re-authenticated and we should have the event
+
+    # sanity test that we got the event we sent
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    assert event["logentry"] == {"formatted": "123"}
+
+
+def test_permanent_rejection(relay, mini_sentry):
+    """
+    Tests that after a permanent rejection stops authentication attempts.
+
+    That is once an authentication message detects a permanent rejection
+    it will not re-try to authenticate.
+    """
+    from time import sleep
+
+    relay_options = {"http": {"auth_interval": 1}}
+
+    # count the number of times relay registers
+    original_check_challenge = mini_sentry.app.view_functions["check_challenge"]
+    counter = [0, 0]
+    registration_should_succeed = True
+    evt = threading.Event()
+
+    def counted_check_challenge(*args, **kwargs):
+        counter[0] += 1
+        evt.set()
+        if registration_should_succeed:
+            return original_check_challenge(*args, **kwargs)
+        else:
+            counter[1] += 1
+            response = Response(
+                json.dumps({"detail": "bad dog", "relay": "stop"}),
+                status=403,
+                content_type="application/json",
+            )
+            print("returning RESPONSE:", response)
+            return response
+
+    mini_sentry.app.view_functions["check_challenge"] = counted_check_challenge
+
+    relay(mini_sentry, options=relay_options)
+
+    # we have authenticated successfully
+    assert evt.wait(2)
+    auth_count_1 = counter[0]
+    # now fail re-authentication with client error
+    registration_should_succeed = False
+    # wait for re-authentication try (should fail)
+    evt.clear()
+    assert evt.wait(2)
+    # check that we have had some authentications attempts (that failed)
+    auth_count_2 = counter[0]
+    assert auth_count_1 < auth_count_2
+
+    # once we issue a client error we are never called back again
+    # and wait for authentication to be called
+    evt.clear()
+    # check that we were not called
+    assert evt.wait(2) is False
+    # to be sure verify that we have only been called once (after failing)
+    assert counter[1] == 1
+    print("auth fail called ", counter[1])
+    # clear authentication errors accumulated until now
+    mini_sentry.test_failures.clear()
+
+
+def test_buffer_events_during_outage(relay, mini_sentry):
+    """
+    Tests that events are buffered during network outages and then sent.
+    """
+
+    original_store_event = mini_sentry.app.view_functions["store_event"]
+    is_network_error = True
+
+    def network_error_endpoint(*args, **kwargs):
+        if is_network_error:
+            # simulate a network error
+            raise socket.timeout()
+        else:
+            # normal processing
+            original_store_event(*args, **kwargs)
+
+    # make the store endpoint fail with a network error
+    is_network_error = True
+    mini_sentry.app.view_functions["store_event"] = network_error_endpoint
+    original_is_live = mini_sentry.app.view_functions["is_live"]
+    evt = threading.Event()
+
+    def is_live():
+        evt.set()  # mark is_live was called
+        return original_is_live()
+
+    mini_sentry.app.view_functions["is_live"] = is_live
+
+    # keep max backoff and the outage grace period as short as the configuration allows
+    relay_options = {
+        "http": {
+            "max_retry_interval": 1,
+            "auth_interval": 1000,
+            "outage_grace_period": 1,
+        }
+    }
+    relay = relay(mini_sentry, relay_options)
+    project_config = relay.basic_project_config()
+    mini_sentry.project_configs[42] = project_config
+
+    # send an event, the event should fail and trigger a liveliness check (after a second)
+    relay.send_event(42, {"message": "123"})
+
+    # it did try to reestablish connection
+    assert evt.wait(5)
+
+    # now stop network errors (let the events pass)
+    is_network_error = False
+
+    # sanity test that we got the event we sent
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    assert event["logentry"] == {"formatted": "123"}
