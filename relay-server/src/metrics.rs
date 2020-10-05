@@ -372,7 +372,8 @@ pub enum RelayCounters {
     ConnectorTimeouts,
     /// Counts the number of upstream http request.
     ///
-    /// It has the following tags:
+    /// This metric is tagged with: 
+    ///
     ///   - `result`: what happened to the request, an enumeration with the following values
     ///     * `success` - request was sent and returned a success code `HTTP 2xx`
     ///     * response_error - the request was send and it returned an HTTP error
