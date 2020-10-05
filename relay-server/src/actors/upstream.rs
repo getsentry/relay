@@ -547,7 +547,7 @@ impl UpstreamRelay {
             self.handle_network_error(ctx);
 
             if request.retry {
-                request.previous_retries = request.previous_retries + 1;
+                request.previous_retries += 1;
                 return self.enqueue(request, ctx, EnqueuePosition::Back);
             }
         } else {
