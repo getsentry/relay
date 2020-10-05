@@ -495,7 +495,7 @@ fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
     }
 
     let remainder = chunks.remainder();
-    if remainder.len() > 0 {
+    if !remainder.is_empty() {
         return Err(Utf16Error {
             valid_up_to: remainder.as_ptr() as usize - base_ptr,
             error_len: None,
