@@ -370,6 +370,16 @@ pub enum RelayCounters {
     ConnectorErrors,
     /// Number of upstream connections that experienced a timeout.
     ConnectorTimeouts,
+    /// Counts the number of upstream http request.
+    ///
+    /// It has the following tags:
+    ///   - `result`: what happened to the request, an enumeration with the following values
+    ///     * `success` - request was sent and returned a success code `HTTP 2xx`
+    ///     * response_error - the request was send and it returned an HTTP error
+    ///     * payload_failed - the request was send but there was an error in interpreting the response
+    ///     * send_failed - failed to send the request (a network error)
+    ///     * rate_limited - the request was rate limited (for event requests)
+    UpstreamRequests,
 }
 
 impl CounterMetric for RelayCounters {
@@ -398,6 +408,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ConnectorClosed => "connector.closed",
             RelayCounters::ConnectorErrors => "connector.errors",
             RelayCounters::ConnectorTimeouts => "connector.timeouts",
+            RelayCounters::UpstreamRequests => "upstream.requests",
         }
     }
 }
