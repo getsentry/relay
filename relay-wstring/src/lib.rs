@@ -54,7 +54,7 @@ impl Utf16Error {
     ///
     /// If `None`: the end of the input was reached unexpectedly.  `self.valid_up_to()` is 1
     /// to 3 bytes from the end of the input.  If a byte stream such as a file or a network
-    /// socket is being decoded incrementall, this could still be a valid char whose byte
+    /// socket is being decoded incrementally, this could still be a valid char whose byte
     /// sequence is spanning multiple chunks.
     ///
     /// If `Some(len)`: an unexpected byte was encountered.  The length provided is that of
