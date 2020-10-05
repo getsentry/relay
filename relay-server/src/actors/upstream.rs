@@ -484,7 +484,7 @@ impl UpstreamRelay {
             .spawn(ctx);
     }
 
-    ///
+    /// Adds a metric for the upstream request.
     fn meter_result(
         request: &UpstreamRequest,
         send_result: &Result<ClientResponse, UpstreamRequestError>,
