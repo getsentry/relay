@@ -160,6 +160,11 @@ impl ServiceState {
         self.config.clone()
     }
 
+    /// Returns the upstream relay.
+    pub fn upstream_relay(&self) -> Addr<UpstreamRelay> {
+        self.upstream_relay.clone()
+    }
+
     /// Returns the current relay public key cache.
     pub fn relay_cache(&self) -> Addr<RelayCache> {
         self.relay_cache.clone()

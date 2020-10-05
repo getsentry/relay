@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use actix::prelude::*;
-use actix_web::{Error, Json};
+use actix_web::{Error, HttpResponse};
 use futures::{future, Future};
 use serde::Serialize;
 
@@ -9,7 +9,11 @@ use relay_common::ProjectKey;
 
 use crate::actors::project::{GetProjectState, LimitedProjectState, ProjectState};
 use crate::actors::project_cache::GetProject;
-use crate::actors::project_upstream::GetProjectStates;
+use crate::actors::project_upstream::{
+    GetProjectStates, GetProjectStatesPayload, UnsupportedPayload,
+};
+use crate::actors::relays::RelayInfo;
+use crate::actors::upstream::SendRequest;
 use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;
 
@@ -43,14 +47,13 @@ struct GetProjectStatesResponseWrapper {
 }
 
 #[allow(clippy::needless_pass_by_value)]
-fn get_project_configs(
+fn serve_supported(
     state: CurrentServiceState,
-    body: SignedJson<GetProjectStates>,
-) -> ResponseFuture<Json<GetProjectStatesResponseWrapper>, Error> {
-    let relay = body.relay;
-    let full = relay.internal && body.inner.full_config;
-
-    let futures = body.inner.public_keys.into_iter().map(move |public_key| {
+    relay: RelayInfo,
+    query: GetProjectStatesPayload,
+) -> ResponseFuture<HttpResponse, Error> {
+    let full = relay.internal && query.full_config;
+    let futures = query.public_keys.into_iter().map(move |public_key| {
         let relay = relay.clone();
         state
             .project_cache()
@@ -87,8 +90,36 @@ fn get_project_configs(
             .map(|(key, state)| (key, state.map(|s| ProjectStateWrapper::new(s, full))))
             .collect();
 
-        Json(GetProjectStatesResponseWrapper { configs })
+        HttpResponse::Ok().json(GetProjectStatesResponseWrapper { configs })
     }))
+}
+
+fn forward_unsupported(
+    state: CurrentServiceState,
+    query: UnsupportedPayload,
+) -> ResponseFuture<HttpResponse, Error> {
+    let request = SendRequest::post("/api/0/relays/projectconfigs/")
+        .build(move |builder| builder.json(&query));
+
+    let future = state
+        .upstream_relay()
+        .send(request)
+        .map_err(Error::from)
+        .and_then(|result| result.map_err(|_| todo!()))
+        // TODO: Cannot get the result out yet.
+        .map(|()| HttpResponse::Ok().finish());
+
+    Box::new(future)
+}
+
+fn get_project_configs(
+    state: CurrentServiceState,
+    body: SignedJson<GetProjectStates>,
+) -> ResponseFuture<HttpResponse, Error> {
+    match body.inner {
+        GetProjectStates::Supported(query) => serve_supported(state, body.relay, query),
+        GetProjectStates::Unsupported(query) => forward_unsupported(state, query),
+    }
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
