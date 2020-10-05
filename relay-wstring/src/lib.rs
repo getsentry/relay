@@ -52,15 +52,21 @@ impl Utf16Error {
 
     /// Return the length of the error if it might be recoverable.
     ///
-    /// If `None`: the end of the input was reached unexpectedly.  `self.valid_up_to()` is 1
+    /// If `None`: the end of the input was reached unexpectedly.  [Self::valid_up_to] is 1
     /// to 3 bytes from the end of the input.  If a byte stream such as a file or a network
     /// socket is being decoded incrementally, this could still be a valid char whose byte
     /// sequence is spanning multiple chunks.
     ///
     /// If `Some(len)`: an unexpected byte was encountered.  The length provided is that of
-    /// the invalid byte sequence that starts at the index given by `valid_up_to()`.
+    /// the invalid byte sequence that starts at the index given by [Self::valid_up_to].
     /// Decoding should resume after that sequence (after inserting a `U+FFFD REPLACEMENT
-    /// CHARACTER`) in case of lossy decoding.
+    /// CHARACTER`) in case of lossy decoding.  In fact for UTF-16 the `len` reported here
+    /// will always be exactly 2 since this never looks ahead to see if the bytes following
+    /// the error sequence are valid as well as otherwise you would not know how many
+    /// replacement characters to insert when writing a lossy decoder.
+    ///
+    /// The semantics of this API are compatible with the semantics of
+    /// [std::str::Utf8Error].
     pub fn error_len(&self) -> Option<usize> {
         self.error_len.map(|len| len.into())
     }
@@ -447,12 +453,11 @@ unsafe fn decode_surrogates(u: u16, u2: u16) -> char {
 
 /// Checks that the raw bytes are valid UTF-16LE.
 ///
-/// When an error occurs this code needs to set `error_len` to skip forward 2 bytes *if*
-/// there still are more bytes to consume.  This is the repetitive
-/// `chunks.next().map(|_chunk| std:mem::size_of::<u16>() as u8)`, but we compute this
-/// lazily for performance.
+/// When an error occurs this code needs to set `error_len` to skip forward 2 bytes,
+/// *unless* we have a lone leading surrogate and are at the end of the input slice in which
+/// case we need to return `None.
 ///
-/// Likewise we compute `valid_up_to` lazily for performance.
+/// We compute `valid_up_to` lazily for performance, even though it's a little more verbose.
 fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
     let base_ptr = raw.as_ptr() as usize;
     let mut chunks = raw.chunks_exact(std::mem::size_of::<u16>());
@@ -465,7 +470,7 @@ fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
         if is_trailing_surrogate(u) {
             return Err(Utf16Error {
                 valid_up_to: code_point_ptr - base_ptr,
-                error_len: chunks.next().map(|_chunk| std::mem::size_of::<u16>() as u8),
+                error_len: Some(std::mem::size_of::<u16>() as u8),
             });
         }
 
@@ -475,7 +480,7 @@ fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
                     if !is_trailing_surrogate(u2) {
                         return Err(Utf16Error {
                             valid_up_to: code_point_ptr - base_ptr,
-                            error_len: chunks.next().map(|_chunk| std::mem::size_of::<u16>() as u8),
+                            error_len: Some(std::mem::size_of::<u16>() as u8),
                         });
                     }
                 }
@@ -492,7 +497,7 @@ fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
     let remainder = chunks.remainder();
     if remainder.len() > 0 {
         return Err(Utf16Error {
-            valid_up_to: remainder.as_ptr() as usize - raw.as_ptr() as usize,
+            valid_up_to: remainder.as_ptr() as usize - base_ptr,
             error_len: None,
         });
     }
@@ -572,6 +577,18 @@ mod tests {
         let start = e.valid_up_to() + e.error_len().unwrap();
         let tail = WStr::from_utf16le(&b[start..]).unwrap();
         assert_eq!(tail.to_utf8(), "ello");
+
+        // End of input
+        let b = b"h\x00e\x00l\x00l\x00o\x00\x00\xd8";
+        let e = WStr::from_utf16le(b).err().unwrap();
+        assert_eq!(e.valid_up_to(), 10);
+        assert_eq!(e.error_len(), None);
+
+        // End of input, single byte
+        let b = b"h\x00e\x00l\x00l\x00o\x00 ";
+        let e = WStr::from_utf16le(b).err().unwrap();
+        assert_eq!(e.valid_up_to(), 10);
+        assert_eq!(e.error_len(), None);
     }
 
     #[test]
