@@ -333,7 +333,6 @@ impl UpstreamRelay {
             auth_backoff: RetryBackoff::new(config.http_max_retry_interval()),
             auth_state: AuthState::Unknown,
             outage_backoff: RetryBackoff::new(config.http_max_retry_interval()),
-            network_status_backoff: RetryBackoff::new(config.http_max_retry_interval()),
             max_inflight_requests: config.max_concurrent_requests(),
             num_inflight_requests: 0,
             high_prio_requests: VecDeque::new(),
