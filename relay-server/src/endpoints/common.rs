@@ -415,10 +415,7 @@ where
     let config = request.state().config();
 
     let future = project_manager
-        .send(GetProject {
-            id: project_id,
-            public_key,
-        })
+        .send(GetProject { public_key })
         .map_err(BadStoreRequest::ScheduleFailed)
         .and_then(clone!(event_id, scoping, |project| {
             extract_envelope(&request, meta)

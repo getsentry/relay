@@ -2,10 +2,10 @@ use std::fmt;
 use std::sync::Arc;
 
 use failure::Fail;
+use sentry::protocol::value;
 
 use relay_common::UnixTimestamp;
 use relay_redis::{redis::Script, RedisError, RedisPool};
-use sentry::protocol::value;
 
 use crate::quota::{ItemScoping, Quota, QuotaScope};
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
@@ -248,10 +248,10 @@ mod tests {
     use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use relay_common::ProjectId;
+    use relay_common::{ProjectId, ProjectKey};
     use relay_redis::redis::Commands;
 
-    use crate::quota::{DataCategories, DataCategory, ProjectKey, ReasonCode, Scoping};
+    use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
     use crate::rate_limit::RateLimitScope;
 
     use super::*;

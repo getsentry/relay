@@ -8,9 +8,8 @@ use failure::Fail;
 use futures::{future, Future};
 use serde::{Deserialize, Serialize};
 
-use relay_common::{metric, ProjectId};
+use relay_common::{metric, ProjectKey};
 use relay_config::{Config, RelayMode};
-use relay_quotas::ProjectKey;
 use relay_redis::RedisPool;
 
 use crate::actors::project::{Project, ProjectState};
@@ -126,7 +125,6 @@ impl Actor for ProjectCache {
 /// **Note** that due to redirects, the returned project may have a different identifier.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetProject {
-    pub id: ProjectId,
     pub public_key: ProjectKey,
 }
 
@@ -138,7 +136,7 @@ impl Handler<GetProject> for ProjectCache {
     type Result = Addr<Project>;
 
     fn handle(&mut self, message: GetProject, context: &mut Context<Self>) -> Self::Result {
-        let GetProject { id, public_key } = message;
+        let GetProject { public_key } = message;
         let config = self.config.clone();
         metric!(histogram(RelayHistograms::ProjectStateCacheSize) = self.projects.len() as u64);
 
@@ -149,7 +147,7 @@ impl Handler<GetProject> for ProjectCache {
             }
             Entry::Vacant(entry) => {
                 metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
-                let project = Project::new(id, public_key, config, context.address()).start();
+                let project = Project::new(public_key, config, context.address()).start();
                 entry.insert(ProjectEntry {
                     last_updated_at: Instant::now(),
                     project: project.clone(),
@@ -172,7 +170,6 @@ impl Handler<GetProject> for ProjectCache {
 /// individual requests.
 #[derive(Clone)]
 pub struct FetchProjectState {
-    pub id: ProjectId,
     pub public_key: ProjectKey,
 }
 
@@ -203,7 +200,6 @@ impl Message for FetchProjectState {
 
 #[derive(Clone, Debug)]
 pub struct FetchOptionalProjectState {
-    pub id: ProjectId,
     pub public_key: ProjectKey,
 }
 
@@ -215,7 +211,7 @@ impl Handler<FetchProjectState> for ProjectCache {
     type Result = Response<ProjectStateResponse, ()>;
 
     fn handle(&mut self, message: FetchProjectState, _context: &mut Self::Context) -> Self::Result {
-        let FetchProjectState { id, public_key } = message;
+        let FetchProjectState { public_key } = message;
         if let Some(mut entry) = self.projects.get_mut(&public_key) {
             // Bump the update time of the project in our hashmap to evade eviction. Eviction is a
             // sequential scan over self.projects, so this needs to be as fast as possible and
@@ -237,7 +233,7 @@ impl Handler<FetchProjectState> for ProjectCache {
 
         let fetch_local = self
             .local_source
-            .send(FetchOptionalProjectState { id, public_key })
+            .send(FetchOptionalProjectState { public_key })
             .map_err(|_| ());
 
         let future = fetch_local.and_then(move |response| {
@@ -274,7 +270,7 @@ impl Handler<FetchProjectState> for ProjectCache {
             let fetch_redis: ResponseFuture<_, _> = if let Some(ref redis_source) = redis_source {
                 Box::new(
                     redis_source
-                        .send(FetchOptionalProjectState { id, public_key })
+                        .send(FetchOptionalProjectState { public_key })
                         .map_err(|_| ()),
                 )
             } else {

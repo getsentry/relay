@@ -11,9 +11,9 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use relay_common::{
-    tryf, Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, ProjectId,
+    tryf, Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, ProjectId, ProjectKey,
 };
-use relay_quotas::{ProjectKey, Scoping};
+use relay_quotas::Scoping;
 
 use crate::actors::project_keys::GetProjectId;
 use crate::extractors::ForwardedFor;
@@ -209,7 +209,7 @@ impl RequestMeta {
         Scoping {
             organization_id: 0,
             project_id: self.project_id(),
-            public_key: self.public_key().to_owned(),
+            public_key: self.public_key(),
             key_id: None,
         }
     }

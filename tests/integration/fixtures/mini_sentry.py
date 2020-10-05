@@ -160,15 +160,14 @@ def mini_sentry(request):
             abort(403, "relay not registered")
 
         rv = {}
-        for req in flask_request.json["projectsV2"]:
-            project_id = req["projectId"]
-            project_config = sentry.project_configs[int(project_id)]
-            if is_trusted(relay_id, project_config):
-                rv[req["publicKey"]] = project_config
+        for public_key in flask_request.json["publicKeys"]:
+            # TODO(ja): Fix this immediately
+            for project_config in sentry.project_configs.values():
+                for key in project_config["publicKeys"]:
+                    if key["publicKey"] == public_key:
+                        rv[public_key] = project_config
 
-            # TODO: Check if key in project
-
-        return jsonify(configsV2=rv)
+        return jsonify(configs=rv)
 
     @app.route("/api/0/relays/publickeys/", methods=["POST"])
     def public_keys():

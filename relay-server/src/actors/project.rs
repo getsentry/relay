@@ -9,11 +9,11 @@ use serde_json::Value;
 use url::Url;
 
 use relay_auth::PublicKey;
-use relay_common::{metric, ProjectId};
+use relay_common::{metric, ProjectId, ProjectKey};
 use relay_config::{Config, RelayMode};
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_quotas::{ProjectKey, Quota, RateLimits, Scoping};
+use relay_quotas::{Quota, RateLimits, Scoping};
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};
@@ -279,29 +279,38 @@ impl ProjectState {
     /// The processor must fetch the full scoping before attempting to rate limit with partial
     /// scoping.
     pub fn get_scoping(&self, meta: &RequestMeta) -> Scoping {
-        let mut scoping = meta.get_partial_scoping();
+        let public_key = meta.public_key();
 
-        // The key configuration may be missing if the event has been queued for extended times and
-        // project was refetched in between. In such a case, access to key quotas is not availabe,
-        // but we can gracefully execute all other rate limiting.
-        scoping.key_id = self
-            .get_public_key_config(scoping.public_key)
-            .and_then(|config| config.numeric_id);
+        Scoping {
+            // This is a hack covering three cases:
+            //  1. Relay has not fetched the project state. In this case we have no way of knowing
+            //     which organization this project belongs to and we need to ignore any
+            //     organization-wide rate limits stored globally. This project state cannot hold
+            //     organization rate limits yet.
+            //  2. The state has been loaded, but the organization_id is not available. This is only
+            //     the case for legacy Sentry servers that do not reply with organization rate
+            //     limits. Thus, the organization_id doesn't matter.
+            //  3. An organization id is available and can be matched against rate limits. In this
+            //     project, all organizations will match automatically, unless the organization id
+            //     has changed since the last fetch.
+            organization_id: self.organization_id.unwrap_or(0),
 
-        // This is a hack covering three cases:
-        //  1. Relay has not fetched the project state. In this case we have no way of knowing
-        //     which organization this project belongs to and we need to ignore any
-        //     organization-wide rate limits stored globally. This project state cannot hold
-        //     organization rate limits yet.
-        //  2. The state has been loaded, but the organization_id is not available. This is only
-        //     the case for legacy Sentry servers that do not reply with organization rate
-        //     limits. Thus, the organization_id doesn't matter.
-        //  3. An organization id is available and can be matched against rate limits. In this
-        //     project, all organizations will match automatically, unless the organization id
-        //     has changed since the last fetch.
-        scoping.organization_id = self.organization_id.unwrap_or(0);
+            // TODO: Document
+            project_id: match self.id.value() {
+                0 => meta.project_id(),
+                _ => self.id,
+            },
 
-        scoping
+            // TODO: Document
+            public_key,
+
+            // The key configuration may be missing if the event has been queued for extended times and
+            // project was refetched in between. In such a case, access to key quotas is not availabe,
+            // but we can gracefully execute all other rate limiting.
+            key_id: self
+                .get_public_key_config(public_key)
+                .and_then(|config| config.numeric_id),
+        }
     }
 
     /// Returns quotas declared in this project state.
@@ -417,7 +426,7 @@ mod limited_public_key_comfigs {
 
 /// TODO: Document, this is no longer the project but rather the key.
 pub struct Project {
-    id: ProjectId, // TODO: This is from the DSN, and may differ from the actual ID
+    // id: ProjectId, // TODO: This is from the DSN, and may differ from the actual ID
     public_key: ProjectKey,
     config: Arc<Config>,
     manager: Addr<ProjectCache>,
@@ -428,14 +437,8 @@ pub struct Project {
 }
 
 impl Project {
-    pub fn new(
-        id: ProjectId,
-        key: ProjectKey,
-        config: Arc<Config>,
-        manager: Addr<ProjectCache>,
-    ) -> Self {
+    pub fn new(key: ProjectKey, config: Arc<Config>, manager: Addr<ProjectCache>) -> Self {
         Project {
-            id,
             public_key: key,
             config,
             manager,
@@ -479,11 +482,11 @@ impl Project {
 
         let channel = match self.state_channel {
             Some(ref channel) => {
-                log::debug!("project {} state request amended", self.id);
+                log::debug!("project {} state request amended", self.public_key);
                 channel.clone()
             }
             None => {
-                log::debug!("project {} state requested", self.id);
+                log::debug!("project {} state requested", self.public_key);
                 let channel = self.fetch_state(context);
                 self.state_channel = Some(channel.clone());
                 channel
@@ -506,11 +509,10 @@ impl Project {
         context: &mut Context<Self>,
     ) -> Shared<oneshot::Receiver<Arc<ProjectState>>> {
         let (sender, receiver) = oneshot::channel();
-        let id = self.id;
         let public_key = self.public_key;
 
         self.manager
-            .send(FetchProjectState { id, public_key })
+            .send(FetchProjectState { public_key })
             .into_actor(self)
             .map(move |state_result, slf, _ctx| {
                 slf.state_channel = None;
@@ -521,7 +523,7 @@ impl Project {
                 slf.state = state_result.map(|resp| resp.state).ok();
 
                 if let Some(ref state) = slf.state {
-                    log::debug!("project {} state updated", id);
+                    log::debug!("project state {} updated", public_key);
                     sender.send(state.clone()).ok();
                 }
             })
@@ -578,11 +580,11 @@ impl Actor for Project {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        log::debug!("project {} initialized without state", self.id);
+        log::debug!("project {} initialized without state", self.public_key);
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::debug!("project {} removed from cache", self.id);
+        log::debug!("project {} removed from cache", self.public_key);
     }
 }
 

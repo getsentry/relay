@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
-use std::fmt;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -11,9 +10,8 @@ use futures::{future, future::Shared, sync::oneshot, Future};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use relay_common::{metric, LogError, ProjectId, RetryBackoff};
+use relay_common::{metric, LogError, ProjectKey, RetryBackoff};
 use relay_config::Config;
-use relay_quotas::ProjectKey;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{FetchProjectState, ProjectError, ProjectStateResponse};
@@ -21,30 +19,15 @@ use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, Upstrea
 use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ErrorBoundary};
 
-/// Attributes defining a unique DSN.
-/// TODO: Move to better place?
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProjectRequestId {
-    pub project_id: ProjectId,
-    pub public_key: ProjectKey,
-}
-
-impl fmt::Display for ProjectRequestId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} (key {})", self.project_id, self.public_key)
-    }
-}
-
+/// TODO: Document
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStates {
-    // TODO: bring back
-    // #[serde(rename = "projects")]
-    // pub legacy_ids: Vec<ProjectId>,
-    // TODO: Give this a better name
+    /// TODO: Document
     #[serde(default)]
-    pub projects_v2: Vec<ProjectRequestId>,
+    pub public_keys: Vec<ProjectKey>,
+
+    /// TODO: Document
     #[serde(default)]
     pub full_config: bool,
 }
@@ -52,11 +35,8 @@ pub struct GetProjectStates {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStatesResponse {
-    // TODO: bring back
-    // #[serde(default)]
-    // pub legacy_configs: HashMap<ProjectId, ErrorBoundary<Option<ProjectState>>>,
     #[serde(default)]
-    pub configs_v2: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
+    pub configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
 }
 
 impl UpstreamQuery for GetProjectStates {
@@ -114,7 +94,7 @@ pub struct UpstreamProjectSource {
     backoff: RetryBackoff,
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
-    state_channels: HashMap<ProjectRequestId, ProjectStateChannel>,
+    state_channels: HashMap<ProjectKey, ProjectStateChannel>,
 }
 
 impl UpstreamProjectSource {
@@ -203,9 +183,7 @@ impl UpstreamProjectSource {
                 );
 
                 let request = GetProjectStates {
-                    // TODO: Make vector unique or collect into set
-                    // legacy_ids: channels_batch.keys().map(|id| id.project_id).collect(),
-                    projects_v2: channels_batch.keys().copied().collect(),
+                    public_keys: channels_batch.keys().copied().collect(),
                     full_config: self.config.processing_enabled(),
                 };
 
@@ -242,16 +220,16 @@ impl UpstreamProjectSource {
                             // count number of project states returned (via http requests)
                             metric!(
                                 histogram(RelayHistograms::ProjectStateReceived) =
-                                    response.configs_v2.len() as u64
+                                    response.configs.len() as u64
                             );
-                            for (id, channel) in channels_batch {
+                            for (key, channel) in channels_batch {
                                 let state = response
-                                    .configs_v2
-                                    .remove(&id.public_key)
+                                    .configs
+                                    .remove(&key)
                                     .unwrap_or(ErrorBoundary::Ok(None))
                                     .unwrap_or_else(|error| {
                                         let e = LogError(error);
-                                        log::error!("error fetching project state {}: {}", id, e);
+                                        log::error!("error fetching project state {}: {}", key, e);
                                         Some(ProjectState::err())
                                     })
                                     .unwrap_or_else(ProjectState::missing);
@@ -329,11 +307,6 @@ impl Handler<FetchProjectState> for UpstreamProjectSource {
 
         let query_timeout = self.config.query_timeout();
 
-        let request_id = ProjectRequestId {
-            project_id: message.id,
-            public_key: message.public_key,
-        };
-
         // There's an edge case where a project is represented by two Project actors. This can
         // happen if our project eviction logic removes an actor from `project_cache.projects`
         // while it is still being held onto. This in turn happens because we have no efficient way
@@ -345,7 +318,7 @@ impl Handler<FetchProjectState> for UpstreamProjectSource {
         // channel for our current `message.id`.
         let channel = self
             .state_channels
-            .entry(request_id)
+            .entry(message.public_key)
             .or_insert_with(|| ProjectStateChannel::new(query_timeout));
 
         Box::new(

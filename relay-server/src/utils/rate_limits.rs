@@ -288,8 +288,8 @@ mod tests {
 
     use smallvec::smallvec;
 
-    use relay_common::ProjectId;
-    use relay_quotas::{ProjectKey, RetryAfter};
+    use relay_common::{ProjectId, ProjectKey};
+    use relay_quotas::RetryAfter;
 
     use crate::envelope::{AttachmentType, ContentType};
 

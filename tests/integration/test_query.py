@@ -104,6 +104,9 @@ def test_project_grace_period(mini_sentry, relay, grace_period):
 def test_query_retry(failure_type, mini_sentry, relay):
     retry_count = 0
 
+    mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+    original_endpoint = mini_sentry.app.view_functions["get_project_config"]
+
     @mini_sentry.app.endpoint("get_project_config")
     def get_project_config():
         nonlocal retry_count
@@ -120,7 +123,7 @@ def test_query_retry(failure_type, mini_sentry, relay):
 
             return "ok"  # never read by client
         else:
-            return jsonify(configs={"42": relay.basic_project_config()})
+            return original_endpoint()
 
     relay = relay(mini_sentry)
     relay.send_event(42)
@@ -186,11 +189,12 @@ def test_processing_redis_query(
     cfg = mini_sentry.full_project_config()
     cfg["disabled"] = disabled
 
+    key = mini_sentry.dsn_public_key
     redis_client = redis.Redis(host="127.0.0.1", port=6379, db=0)
     projectconfig_cache_prefix = relay.options["processing"][
         "projectconfig_cache_prefix"
     ]
-    redis_client.setex(f"{projectconfig_cache_prefix}:42", 3600, json.dumps(cfg))
+    redis_client.setex(f"{projectconfig_cache_prefix}:{key}", 3600, json.dumps(cfg))
 
     relay.send_event(42)
 
