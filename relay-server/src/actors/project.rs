@@ -9,7 +9,7 @@ use serde_json::Value;
 use url::Url;
 
 use relay_auth::PublicKey;
-use relay_common::{metric, ProjectId};
+use relay_common::{metric, ProjectId, ProjectKey};
 use relay_config::{Config, RelayMode};
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
@@ -185,7 +185,7 @@ impl ProjectState {
     }
 
     /// Returns configuration options for a public key.
-    pub fn get_public_key_config(&self, public_key: &str) -> Option<&PublicKeyConfig> {
+    pub fn get_public_key_config(&self, public_key: ProjectKey) -> Option<&PublicKeyConfig> {
         for key in &self.public_keys {
             if key.public_key == public_key {
                 return Some(key);
@@ -195,7 +195,7 @@ impl ProjectState {
     }
 
     /// Returns the current status of a key.
-    pub fn get_public_key_status(&self, public_key: &str) -> PublicKeyStatus {
+    pub fn get_public_key_status(&self, public_key: ProjectKey) -> PublicKeyStatus {
         if let Some(key) = self.get_public_key_config(public_key) {
             if key.is_enabled {
                 PublicKeyStatus::Enabled
@@ -276,7 +276,7 @@ impl ProjectState {
         // project was refetched in between. In such a case, access to key quotas is not availabe,
         // but we can gracefully execute all other rate limiting.
         scoping.key_id = self
-            .get_public_key_config(&scoping.public_key)
+            .get_public_key_config(scoping.public_key)
             .and_then(|config| config.numeric_id);
 
         // This is a hack covering three cases:
@@ -366,7 +366,7 @@ impl ProjectState {
 #[serde(rename_all = "camelCase")]
 pub struct PublicKeyConfig {
     /// Public part of key (random hash).
-    pub public_key: String,
+    pub public_key: ProjectKey,
 
     /// Whether this key can be used.
     pub is_enabled: bool,
@@ -386,7 +386,7 @@ mod limited_public_key_comfigs {
     #[derive(Debug, Serialize)]
     #[serde(rename_all = "camelCase", remote = "PublicKeyConfig")]
     pub struct LimitedPublicKeyConfig {
-        pub public_key: String,
+        pub public_key: ProjectKey,
         pub is_enabled: bool,
     }
 
