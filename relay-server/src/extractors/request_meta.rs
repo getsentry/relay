@@ -66,6 +66,13 @@ impl ResponseError for BadEventMeta {
 }
 
 /// Wrapper around a Sentry DSN with parsed public key.
+///
+/// The Sentry DSN type carries a plain public key string. However, Relay handles copy `ProjectKey`
+/// types internally. Converting from `String` to `ProjectKey` is fallible and should be caught when
+/// deserializing the request.
+///
+/// This type caches the parsed project key in addition to the DSN. Other than that, it
+/// transparently serializes to and deserializes from a DSN string.
 #[derive(Debug, Clone)]
 pub struct FullDsn {
     dsn: Dsn,
