@@ -488,22 +488,19 @@ impl UpstreamRelay {
         request: &UpstreamRequest,
         send_result: &Result<ClientResponse, UpstreamRequestError>,
     ) {
-        let status_code: StatusCode;
-        let mut sc = "-";
-        let result: &str;
-        match send_result {
+        let sc: StatusCode;
+        let (status_code, result) = match send_result {
             Ok(ref client_response) => {
-                status_code = client_response.status();
-                sc = status_code.as_str();
-                result = "success";
+                sc = client_response.status();
+                (sc.as_str(), "success")
             }
             Err(UpstreamRequestError::ResponseError(status_code, _)) => {
-                sc = status_code.as_str();
-                result = "response_error";
+                (status_code.as_str(), "response_error")
             }
-            Err(UpstreamRequestError::PayloadFailed(_)) => result = "payload_failed",
-            Err(UpstreamRequestError::SendFailed(_)) => result = "send_failed",
-            Err(UpstreamRequestError::RateLimited(_)) => result = "rate_limited",
+            Err(UpstreamRequestError::PayloadFailed(_)) => ("-", "payload_failed"),
+            Err(UpstreamRequestError::SendFailed(_)) => ("-", "send_failed"),
+            Err(UpstreamRequestError::RateLimited(_)) => ("_", "rate_limited"),
+
             Err(UpstreamRequestError::NoCredentials)
             | Err(UpstreamRequestError::ChannelClosed)
             | Err(UpstreamRequestError::BuildFailed(_))
@@ -512,7 +509,7 @@ impl UpstreamRelay {
                 log::error!("meter_result called for unsupported error");
                 return;
             }
-        }
+        };
 
         let retries = match request.previous_retries {
             0 => "0",
@@ -524,7 +521,7 @@ impl UpstreamRelay {
         metric!(
             counter(RelayCounters::UpstreamRequests) += 1,
             result = result,
-            status_code = sc,
+            status_code = status_code,
             route = request.route_name(),
             retries = retries,
         );
