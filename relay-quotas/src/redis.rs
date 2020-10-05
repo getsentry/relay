@@ -2,10 +2,10 @@ use std::fmt;
 use std::sync::Arc;
 
 use failure::Fail;
+use sentry::protocol::value;
 
 use relay_common::UnixTimestamp;
 use relay_redis::{redis::Script, RedisError, RedisPool};
-use sentry::protocol::value;
 
 use crate::quota::{ItemScoping, Quota, QuotaScope};
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
@@ -248,7 +248,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use relay_common::ProjectId;
+    use relay_common::{ProjectId, ProjectKey};
     use relay_redis::redis::Commands;
 
     use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
@@ -295,7 +295,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
         };
@@ -334,7 +334,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
         };
@@ -371,7 +371,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
         };
@@ -413,7 +413,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
         };
@@ -460,7 +460,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
         };
@@ -507,7 +507,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 69420,
                 project_id: ProjectId::new(42),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
         };
@@ -534,7 +534,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 69420,
                 project_id: ProjectId::new(42),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
         };
