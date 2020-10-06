@@ -60,7 +60,6 @@ struct GetProjectStatesResponseWrapper {
     configs: HashMap<ProjectKey, Option<ProjectStateWrapper>>,
 }
 
-// #[allow(clippy::needless_pass_by_value)]
 fn get_project_configs(
     state: CurrentServiceState,
     body: SignedJson<GetProjectStates>,

@@ -11,7 +11,6 @@ use crate::service::ServiceApp;
 
 use relay_general::protocol::EventId;
 
-#[allow(clippy::needless_pass_by_value)]
 fn get_captured_event(
     state: CurrentServiceState,
     event_id: Path<EventId>,

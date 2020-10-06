@@ -183,7 +183,7 @@ def mini_sentry(request):
                             rv[public_key] = project_config
 
         else:
-            abort(400, "unsupported version")
+            abort(500, "unsupported version")
 
         return jsonify(configs=rv)
 
