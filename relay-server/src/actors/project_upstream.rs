@@ -33,14 +33,10 @@ mod _macro {
     }
 }
 
-/// TODO: Document
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStates {
-    /// TODO: Document
     pub public_keys: Vec<ProjectKey>,
-
-    /// TODO: Document
     #[serde(default)]
     pub full_config: bool,
 }

@@ -288,7 +288,9 @@ impl ProjectState {
             .get_public_key_config(scoping.public_key)
             .and_then(|config| config.numeric_id);
 
-        // TODO: Document
+        // The original project identifier is part of the DSN. If the DSN was moved to another
+        // project, the actual project identifier is different and can be obtained from project
+        // states. This is only possible when the project state has been loaded.
         if self.id.value() != 0 {
             scoping.project_id = self.id;
         }
@@ -420,7 +422,10 @@ mod limited_public_key_comfigs {
     }
 }
 
-/// TODO: Document, this is no longer the project but rather the key.
+/// Actor representing organization and project configuration for a project key.
+///
+/// This actor no longer uniquely identifies a project. Instead, it identifies a project key.
+/// Projects can define multiple keys, in which case this actor is duplicated for each instance.
 pub struct Project {
     public_key: ProjectKey,
     config: Arc<Config>,
