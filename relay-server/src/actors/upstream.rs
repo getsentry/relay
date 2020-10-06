@@ -43,7 +43,7 @@ use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
 
-use crate::metrics::{RelayCounters, RelayHistograms};
+use crate::metrics::RelayHistograms;
 use crate::utils::{self, ApiErrorResponse, IntoTracked, RelayErrorAction, TrackedFutureFinished};
 
 #[derive(Fail, Debug)]
@@ -511,19 +511,11 @@ impl UpstreamRelay {
             }
         };
 
-        let retries = match request.previous_retries {
-            0 => "0",
-            1 => "1",
-            x if x < 5 => "few",
-            _ => "many",
-        };
-
         metric!(
-            counter(RelayCounters::UpstreamRequests) += 1,
+            histogram(RelayHistograms::UpstreamRequests) = request.previous_retries.into(),
             result = result,
             status_code = status_code,
             route = request.route_name(),
-            retries = retries,
         );
     }
 

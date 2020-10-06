@@ -105,6 +105,20 @@ pub enum RelayHistograms {
     ///  - `limits.max_concurrent_requests` for the overall number of connections
     ///  - `limits.max_concurrent_queries` for the number of concurrent high-priority requests
     UpstreamMessageQueueSize,
+    /// Counts the number of upstream http request.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///   - `result`: what happened to the request, an enumeration with the following values
+    ///     * `success` - request was sent and returned a success code `HTTP 2xx`
+    ///     * response_error - the request was send and it returned an HTTP error
+    ///     * payload_failed - the request was send but there was an error in interpreting the response
+    ///     * send_failed - failed to send the request (a network error)
+    ///     * rate_limited - the request was rate limited (for event requests)
+    ///     * invalid_json - the response could not be parsed back into JSON
+    ///   - `route` : the endpoint that was called
+    ///   - `status-code` - the status code of the request (when available) otherwise '-'
+    UpstreamRequests,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -120,6 +134,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::ProjectStateCacheSize => "project_cache.size",
             RelayHistograms::ConnectorWaitQueue => "connector.wait_queue",
             RelayHistograms::UpstreamMessageQueueSize => "http_queue.size",
+            RelayHistograms::UpstreamRequests => "upstream.requests",
         }
     }
 }
@@ -370,17 +385,6 @@ pub enum RelayCounters {
     ConnectorErrors,
     /// Number of upstream connections that experienced a timeout.
     ConnectorTimeouts,
-    /// Counts the number of upstream http request.
-    ///
-    /// This metric is tagged with:
-    ///
-    ///   - `result`: what happened to the request, an enumeration with the following values
-    ///     * `success` - request was sent and returned a success code `HTTP 2xx`
-    ///     * response_error - the request was send and it returned an HTTP error
-    ///     * payload_failed - the request was send but there was an error in interpreting the response
-    ///     * send_failed - failed to send the request (a network error)
-    ///     * rate_limited - the request was rate limited (for event requests)
-    UpstreamRequests,
 }
 
 impl CounterMetric for RelayCounters {
@@ -409,7 +413,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ConnectorClosed => "connector.closed",
             RelayCounters::ConnectorErrors => "connector.errors",
             RelayCounters::ConnectorTimeouts => "connector.timeouts",
-            RelayCounters::UpstreamRequests => "upstream.requests",
         }
     }
 }
