@@ -500,11 +500,11 @@ impl UpstreamRelay {
             Err(UpstreamRequestError::PayloadFailed(_)) => ("-", "payload_failed"),
             Err(UpstreamRequestError::SendFailed(_)) => ("-", "send_failed"),
             Err(UpstreamRequestError::RateLimited(_)) => ("_", "rate_limited"),
+            Err(UpstreamRequestError::InvalidJson(_)) => ("_", "invalid_json"),
 
             Err(UpstreamRequestError::NoCredentials)
             | Err(UpstreamRequestError::ChannelClosed)
-            | Err(UpstreamRequestError::BuildFailed(_))
-            | Err(UpstreamRequestError::InvalidJson(_)) => {
+            | Err(UpstreamRequestError::BuildFailed(_)) => {
                 // these are not errors caused when sending to upstream so we don't need to log anything
                 log::error!("meter_result called for unsupported error");
                 return;
