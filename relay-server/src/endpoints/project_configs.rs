@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use actix::prelude::*;
-use actix_web::{Error, HttpResponse};
+use actix_web::{Error, Json};
 use futures::{future, Future};
 use serde::{Deserialize, Serialize};
 
@@ -60,11 +60,11 @@ struct GetProjectStatesResponseWrapper {
     configs: HashMap<ProjectKey, Option<ProjectStateWrapper>>,
 }
 
-#[allow(clippy::needless_pass_by_value)]
+// #[allow(clippy::needless_pass_by_value)]
 fn get_project_configs(
     state: CurrentServiceState,
     body: SignedJson<GetProjectStates>,
-) -> ResponseFuture<HttpResponse, Error> {
+) -> ResponseFuture<Json<GetProjectStatesResponseWrapper>, Error> {
     let relay = body.relay;
     let full = relay.internal && body.inner.full_config;
 
@@ -105,7 +105,7 @@ fn get_project_configs(
             .map(|(key, state)| (key, state.map(|s| ProjectStateWrapper::new(s, full))))
             .collect();
 
-        HttpResponse::Ok().json(GetProjectStatesResponseWrapper { configs })
+        Json(GetProjectStatesResponseWrapper { configs })
     }))
 }
 
@@ -117,6 +117,6 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
             .with(get_project_configs);
 
         // Forward all unsupported versions to the upstream.
-        r.post().f(crate::endpoints::forward::forward_upstream)
+        r.post().f(crate::endpoints::forward::forward_upstream);
     })
 }

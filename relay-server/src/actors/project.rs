@@ -279,38 +279,34 @@ impl ProjectState {
     /// The processor must fetch the full scoping before attempting to rate limit with partial
     /// scoping.
     pub fn get_scoping(&self, meta: &RequestMeta) -> Scoping {
-        let public_key = meta.public_key();
+        let mut scoping = meta.get_partial_scoping();
 
-        Scoping {
-            // This is a hack covering three cases:
-            //  1. Relay has not fetched the project state. In this case we have no way of knowing
-            //     which organization this project belongs to and we need to ignore any
-            //     organization-wide rate limits stored globally. This project state cannot hold
-            //     organization rate limits yet.
-            //  2. The state has been loaded, but the organization_id is not available. This is only
-            //     the case for legacy Sentry servers that do not reply with organization rate
-            //     limits. Thus, the organization_id doesn't matter.
-            //  3. An organization id is available and can be matched against rate limits. In this
-            //     project, all organizations will match automatically, unless the organization id
-            //     has changed since the last fetch.
-            organization_id: self.organization_id.unwrap_or(0),
+        // The key configuration may be missing if the event has been queued for extended times and
+        // project was refetched in between. In such a case, access to key quotas is not availabe,
+        // but we can gracefully execute all other rate limiting.
+        scoping.key_id = self
+            .get_public_key_config(scoping.public_key)
+            .and_then(|config| config.numeric_id);
 
-            // TODO: Document
-            project_id: match self.id.value() {
-                0 => meta.project_id(),
-                _ => self.id,
-            },
-
-            // TODO: Document
-            public_key,
-
-            // The key configuration may be missing if the event has been queued for extended times and
-            // project was refetched in between. In such a case, access to key quotas is not availabe,
-            // but we can gracefully execute all other rate limiting.
-            key_id: self
-                .get_public_key_config(public_key)
-                .and_then(|config| config.numeric_id),
+        // TODO: Document
+        if self.id.value() != 0 {
+            scoping.project_id = self.id;
         }
+
+        // This is a hack covering three cases:
+        //  1. Relay has not fetched the project state. In this case we have no way of knowing
+        //     which organization this project belongs to and we need to ignore any
+        //     organization-wide rate limits stored globally. This project state cannot hold
+        //     organization rate limits yet.
+        //  2. The state has been loaded, but the organization_id is not available. This is only
+        //     the case for legacy Sentry servers that do not reply with organization rate
+        //     limits. Thus, the organization_id doesn't matter.
+        //  3. An organization id is available and can be matched against rate limits. In this
+        //     project, all organizations will match automatically, unless the organization id
+        //     has changed since the last fetch.
+        scoping.organization_id = self.organization_id.unwrap_or(0);
+
+        scoping
     }
 
     /// Returns quotas declared in this project state.
@@ -426,7 +422,6 @@ mod limited_public_key_comfigs {
 
 /// TODO: Document, this is no longer the project but rather the key.
 pub struct Project {
-    // id: ProjectId, // TODO: This is from the DSN, and may differ from the actual ID
     public_key: ProjectKey,
     config: Arc<Config>,
     manager: Addr<ProjectCache>,

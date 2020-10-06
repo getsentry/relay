@@ -24,7 +24,6 @@ use crate::utils::{self, ErrorBoundary};
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStates {
     /// TODO: Document
-    #[serde(default)]
     pub public_keys: Vec<ProjectKey>,
 
     /// TODO: Document
@@ -207,8 +206,6 @@ impl UpstreamProjectSource {
                 for (channels_batch, response) in responses {
                     match response {
                         Ok(mut response) => {
-                            dbg!(&response);
-
                             // If a single request succeeded we reset the backoff. We decided to
                             // only backoff if we see that the project config endpoint is
                             // completely down and did not answer a single request successfully.
