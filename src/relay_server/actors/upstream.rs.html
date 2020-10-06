@@ -1064,6 +1064,70 @@
 <span id="1064">1064</span>
 <span id="1065">1065</span>
 <span id="1066">1066</span>
+<span id="1067">1067</span>
+<span id="1068">1068</span>
+<span id="1069">1069</span>
+<span id="1070">1070</span>
+<span id="1071">1071</span>
+<span id="1072">1072</span>
+<span id="1073">1073</span>
+<span id="1074">1074</span>
+<span id="1075">1075</span>
+<span id="1076">1076</span>
+<span id="1077">1077</span>
+<span id="1078">1078</span>
+<span id="1079">1079</span>
+<span id="1080">1080</span>
+<span id="1081">1081</span>
+<span id="1082">1082</span>
+<span id="1083">1083</span>
+<span id="1084">1084</span>
+<span id="1085">1085</span>
+<span id="1086">1086</span>
+<span id="1087">1087</span>
+<span id="1088">1088</span>
+<span id="1089">1089</span>
+<span id="1090">1090</span>
+<span id="1091">1091</span>
+<span id="1092">1092</span>
+<span id="1093">1093</span>
+<span id="1094">1094</span>
+<span id="1095">1095</span>
+<span id="1096">1096</span>
+<span id="1097">1097</span>
+<span id="1098">1098</span>
+<span id="1099">1099</span>
+<span id="1100">1100</span>
+<span id="1101">1101</span>
+<span id="1102">1102</span>
+<span id="1103">1103</span>
+<span id="1104">1104</span>
+<span id="1105">1105</span>
+<span id="1106">1106</span>
+<span id="1107">1107</span>
+<span id="1108">1108</span>
+<span id="1109">1109</span>
+<span id="1110">1110</span>
+<span id="1111">1111</span>
+<span id="1112">1112</span>
+<span id="1113">1113</span>
+<span id="1114">1114</span>
+<span id="1115">1115</span>
+<span id="1116">1116</span>
+<span id="1117">1117</span>
+<span id="1118">1118</span>
+<span id="1119">1119</span>
+<span id="1120">1120</span>
+<span id="1121">1121</span>
+<span id="1122">1122</span>
+<span id="1123">1123</span>
+<span id="1124">1124</span>
+<span id="1125">1125</span>
+<span id="1126">1126</span>
+<span id="1127">1127</span>
+<span id="1128">1128</span>
+<span id="1129">1129</span>
+<span id="1130">1130</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -1303,6 +1367,31 @@
     <span class="ident">path</span>: <span class="ident">String</span>,
     <span class="doccomment">/// Request build function.</span>
     <span class="ident">build</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ClientRequestBuilder</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientRequest</span>, <span class="ident">ActixError</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Number of times this request was already sent</span>
+    <span class="ident">previous_retries</span>: <span class="ident">u32</span>,
+}
+<span class="kw">impl</span> <span class="ident">UpstreamRequest</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">route_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">contains</span>(<span class="string">&quot;/outcomes/&quot;</span>) {
+            <span class="string">&quot;outcomes&quot;</span>
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">contains</span>(<span class="string">&quot;/envelope/&quot;</span>) {
+            <span class="string">&quot;envelope&quot;</span>
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">contains</span>(<span class="string">&quot;/projectids/&quot;</span>) {
+            <span class="string">&quot;project_ids&quot;</span>
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">contains</span>(<span class="string">&quot;/projectconfigs/&quot;</span>) {
+            <span class="string">&quot;project_configs&quot;</span>
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">contains</span>(<span class="string">&quot;/publickeys/&quot;</span>) {
+            <span class="string">&quot;public_keys&quot;</span>
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">contains</span>(<span class="string">&quot;/challenge/&quot;</span>) {
+            <span class="string">&quot;challenge&quot;</span>
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">contains</span>(<span class="string">&quot;/response/&quot;</span>) {
+            <span class="string">&quot;response&quot;</span>
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">contains</span>(<span class="string">&quot;/live/&quot;</span>) {
+            <span class="string">&quot;check_live&quot;</span>
+        } <span class="kw">else</span> {
+            <span class="string">&quot;unknown&quot;</span>
+        }
+    }
 }
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">UpstreamRelay</span> {
@@ -1525,6 +1614,42 @@
             .<span class="ident">spawn</span>(<span class="ident">ctx</span>);
     }
 
+    <span class="doccomment">/// Adds a metric for the upstream request.</span>
+    <span class="kw">fn</span> <span class="ident">meter_result</span>(
+        <span class="ident">request</span>: <span class="kw-2">&amp;</span><span class="ident">UpstreamRequest</span>,
+        <span class="ident">send_result</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientResponse</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span>,
+    ) {
+        <span class="kw">let</span> <span class="ident">sc</span>: <span class="ident">StatusCode</span>;
+        <span class="kw">let</span> (<span class="ident">status_code</span>, <span class="ident">result</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">send_result</span> {
+            <span class="prelude-val">Ok</span>(<span class="kw-2">ref</span> <span class="ident">client_response</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="ident">sc</span> <span class="op">=</span> <span class="ident">client_response</span>.<span class="ident">status</span>();
+                (<span class="ident">sc</span>.<span class="ident">as_str</span>(), <span class="string">&quot;success&quot;</span>)
+            }
+            <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">ResponseError</span>(<span class="ident">status_code</span>, <span class="kw">_</span>)) <span class="op">=</span><span class="op">&gt;</span> {
+                (<span class="ident">status_code</span>.<span class="ident">as_str</span>(), <span class="string">&quot;response_error&quot;</span>)
+            }
+            <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">PayloadFailed</span>(<span class="kw">_</span>)) <span class="op">=</span><span class="op">&gt;</span> (<span class="string">&quot;-&quot;</span>, <span class="string">&quot;payload_failed&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">SendFailed</span>(<span class="kw">_</span>)) <span class="op">=</span><span class="op">&gt;</span> (<span class="string">&quot;-&quot;</span>, <span class="string">&quot;send_failed&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">RateLimited</span>(<span class="kw">_</span>)) <span class="op">=</span><span class="op">&gt;</span> (<span class="string">&quot;_&quot;</span>, <span class="string">&quot;rate_limited&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">InvalidJson</span>(<span class="kw">_</span>)) <span class="op">=</span><span class="op">&gt;</span> (<span class="string">&quot;_&quot;</span>, <span class="string">&quot;invalid_json&quot;</span>),
+
+            <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">NoCredentials</span>)
+            <span class="op">|</span> <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">ChannelClosed</span>)
+            <span class="op">|</span> <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">BuildFailed</span>(<span class="kw">_</span>)) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="comment">// these are not errors caused when sending to upstream so we don&#39;t need to log anything</span>
+                <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;meter_result called for unsupported error&quot;</span>);
+                <span class="kw">return</span>;
+            }
+        };
+
+        <span class="macro">metric</span><span class="macro">!</span>(
+            <span class="ident">histogram</span>(<span class="ident">RelayHistograms</span>::<span class="ident">UpstreamRequests</span>) <span class="op">=</span> <span class="ident">request</span>.<span class="ident">previous_retries</span>.<span class="ident">into</span>(),
+            <span class="ident">result</span> <span class="op">=</span> <span class="ident">result</span>,
+            <span class="ident">status_code</span> <span class="op">=</span> <span class="ident">status_code</span>,
+            <span class="ident">route</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">route_name</span>(),
+        );
+    }
+
     <span class="doccomment">/// Checks the result of an upstream request and takes appropriate action.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// 1. If the request was sent, notify the response sender.</span>
@@ -1533,14 +1658,16 @@
     <span class="doccomment">/// 4. Otherwise, ensure an authentication request is scheduled.</span>
     <span class="kw">fn</span> <span class="ident">handle_http_response</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
-        <span class="ident">request</span>: <span class="ident">UpstreamRequest</span>,
+        <span class="kw-2">mut</span> <span class="ident">request</span>: <span class="ident">UpstreamRequest</span>,
         <span class="ident">send_result</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientResponse</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span>,
         <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>,
     ) {
+        <span class="ident">UpstreamRelay</span>::<span class="ident">meter_result</span>(<span class="kw-2">&amp;</span><span class="ident">request</span>, <span class="kw-2">&amp;</span><span class="ident">send_result</span>);
         <span class="kw">if</span> <span class="macro">matches</span><span class="macro">!</span>(<span class="ident">send_result</span>, <span class="prelude-val">Err</span>(<span class="kw-2">ref</span> <span class="ident">err</span>) <span class="kw">if</span> <span class="ident">err</span>.<span class="ident">is_network_error</span>()) {
             <span class="self">self</span>.<span class="ident">handle_network_error</span>(<span class="ident">ctx</span>);
 
             <span class="kw">if</span> <span class="ident">request</span>.<span class="ident">retry</span> {
+                <span class="ident">request</span>.<span class="ident">previous_retries</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
                 <span class="kw">return</span> <span class="self">self</span>.<span class="ident">enqueue</span>(<span class="ident">request</span>, <span class="ident">ctx</span>, <span class="ident">EnqueuePosition</span>::<span class="ident">Back</span>);
             }
         } <span class="kw">else</span> {
@@ -1603,6 +1730,7 @@
             <span class="ident">path</span>: <span class="ident">path</span>.<span class="ident">as_ref</span>().<span class="ident">to_owned</span>(),
             <span class="ident">response_sender</span>: <span class="ident">tx</span>,
             <span class="ident">build</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">build</span>),
+            <span class="ident">previous_retries</span>: <span class="number">0</span>,
         };
 
         <span class="self">self</span>.<span class="ident">enqueue</span>(<span class="ident">request</span>, <span class="ident">ctx</span>, <span class="ident">EnqueuePosition</span>::<span class="ident">Front</span>);
