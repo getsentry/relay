@@ -163,7 +163,7 @@ def mini_sentry(request):
         if relay_id not in authenticated_relays:
             abort(403, "relay not registered")
 
-        if flask_request.args.get("version") != 2:
+        if flask_request.args.get("version") != "2":
             abort(400, "relay must send ?version=2")
 
         rv = {}
