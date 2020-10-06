@@ -3,14 +3,19 @@ use std::fmt;
 use failure::Fail;
 use serde::{Deserialize, Serialize};
 
-/// Represents an action requested by the Upstream sent in an error message
+/// Represents an action requested by the Upstream sent in an error message.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RelayErrorAction {
-    None,
     Stop,
     #[serde(other)]
-    Unknown,
+    None,
+}
+
+impl RelayErrorAction {
+    fn is_none(&self) -> bool {
+        *self == Self::None
+    }
 }
 
 impl Default for RelayErrorAction {
@@ -18,6 +23,7 @@ impl Default for RelayErrorAction {
         RelayErrorAction::None
     }
 }
+
 /// An error response from an api.
 #[derive(Serialize, Deserialize, Default, Debug, Fail)]
 pub struct ApiErrorResponse {
@@ -25,7 +31,7 @@ pub struct ApiErrorResponse {
     detail: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     causes: Vec<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "RelayErrorAction::is_none")]
     relay: RelayErrorAction,
 }
 
