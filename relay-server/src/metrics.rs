@@ -109,15 +109,15 @@ pub enum RelayHistograms {
     ///
     /// This metric is tagged with:
     ///
-    ///   - `result`: what happened to the request, an enumeration with the following values
-    ///     * `success` - request was sent and returned a success code `HTTP 2xx`
-    ///     * response_error - the request was send and it returned an HTTP error
-    ///     * payload_failed - the request was send but there was an error in interpreting the response
-    ///     * send_failed - failed to send the request (a network error)
-    ///     * rate_limited - the request was rate limited (for event requests)
-    ///     * invalid_json - the response could not be parsed back into JSON
-    ///   - `route` : the endpoint that was called
-    ///   - `status-code` - the status code of the request (when available) otherwise '-'
+    ///   - `result`: What happened to the request, an enumeration with the following values:
+    ///     * `success`: The request was sent and returned a success code `HTTP 2xx`
+    ///     * `response_error`: The request was sent and it returned an HTTP error.
+    ///     * `payload_failed`: The request was sent but there was an error in interpreting the response.
+    ///     * `send_failed`: Failed to send the request due to a network error.
+    ///     * `rate_limited`: The request was rate limited.
+    ///     * `invalid_json`: The response could not be parsed back into JSON.
+    ///   - `route`: The endpoint that was called on the upstream.
+    ///   - `status-code`: The status code of the request when available, otherwise "-".
     UpstreamRequests,
 }
 
