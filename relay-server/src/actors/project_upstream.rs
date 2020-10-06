@@ -9,7 +9,6 @@ use actix_web::http::Method;
 use futures::{future, future::Shared, sync::oneshot, Future};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
 
 use relay_common::{metric, LogError, ProjectKey, RetryBackoff};
 use relay_config::Config;
@@ -20,25 +19,10 @@ use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, Upstrea
 use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ErrorBoundary};
 
-const PAYLOAD_VERSION: u16 = 2;
-
-/// TODO: Document
-#[derive(Debug, Default)]
-struct PayloadVersion;
-
-impl Serialize for PayloadVersion {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_u16(PAYLOAD_VERSION)
-    }
-}
-
 /// TODO: Document
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetProjectStatesPayload {
+pub struct GetProjectStates {
     /// TODO: Document
     #[serde(default)]
     pub public_keys: Vec<ProjectKey>,
@@ -46,46 +30,6 @@ pub struct GetProjectStatesPayload {
     /// TODO: Document
     #[serde(default)]
     pub full_config: bool,
-
-    /// TODO: Document
-    #[serde(default, skip_deserializing)]
-    version: PayloadVersion,
-}
-
-/// TODO: Document
-pub type UnsupportedPayload = Map<String, Value>;
-
-pub enum GetProjectStates {
-    Supported(GetProjectStatesPayload),
-    Unsupported(UnsupportedPayload),
-}
-
-impl<'de> Deserialize<'de> for GetProjectStates {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let map = UnsupportedPayload::deserialize(deserializer)?;
-        if map.get("version") == Some(&Value::from(PAYLOAD_VERSION)) {
-            GetProjectStatesPayload::deserialize(Value::Object(map))
-                .map_err(serde::de::Error::custom)
-                .map(Self::Supported)
-        } else {
-            Ok(Self::Unsupported(map))
-        }
-    }
-}
-
-impl Serialize for GetProjectStates {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        match self {
-            Self::Supported(payload) => payload.serialize(serializer),
-            Self::Unsupported(payload) => payload.serialize(serializer),
-        }
-    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -103,7 +47,7 @@ impl UpstreamQuery for GetProjectStates {
     }
 
     fn path(&self) -> Cow<'static, str> {
-        Cow::Borrowed("/api/0/relays/projectconfigs/")
+        Cow::Borrowed("/api/0/relays/projectconfigs/?version=2")
     }
 
     fn priority() -> RequestPriority {
@@ -238,17 +182,16 @@ impl UpstreamProjectSource {
                         channels_batch.len() as u64
                 );
 
-                let payload = GetProjectStatesPayload {
+                let query = GetProjectStates {
                     public_keys: channels_batch.keys().copied().collect(),
                     full_config: self.config.processing_enabled(),
-                    version: PayloadVersion,
                 };
 
                 // count number of http requests for project states
                 metric!(counter(RelayCounters::ProjectStateRequest) += 1);
 
                 self.upstream
-                    .send(SendQuery(GetProjectStates::Supported(payload)))
+                    .send(SendQuery(query))
                     .map_err(ProjectError::ScheduleFailed)
                     .map(move |response| (channels_batch, response))
             })

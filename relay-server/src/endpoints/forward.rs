@@ -66,7 +66,9 @@ fn get_limit_for_path(path: &str, config: &Config) -> usize {
 /// This endpoint will create a proxy request to the upstream for every incoming request and stream
 /// the request body back to the origin. Regardless of the incoming connection, the connection to
 /// the upstream uses its own HTTP version and transfer encoding.
-fn forward_upstream(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpResponse, Error> {
+pub fn forward_upstream(
+    request: &HttpRequest<ServiceState>,
+) -> ResponseFuture<HttpResponse, Error> {
     let config = request.state().config();
     let upstream = config.upstream_descriptor();
     let limit = get_limit_for_path(request.path(), &config);

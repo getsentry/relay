@@ -3,19 +3,33 @@ use std::collections::HashMap;
 use actix::prelude::*;
 use actix_web::{Error, HttpResponse};
 use futures::{future, Future};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use relay_common::ProjectKey;
 
 use crate::actors::project::{GetProjectState, LimitedProjectState, ProjectState};
 use crate::actors::project_cache::GetProject;
-use crate::actors::project_upstream::{
-    GetProjectStates, GetProjectStatesPayload, UnsupportedPayload,
-};
-use crate::actors::relays::RelayInfo;
-use crate::actors::upstream::SendRequest;
+use crate::actors::project_upstream::GetProjectStates;
 use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;
+
+/// Helper to deserialize the `version` query parameter.
+#[derive(Debug, Deserialize)]
+struct VersionQuery {
+    version: u16,
+}
+
+/// Checks for a specific `version` query parameter.
+struct VersionPredicate(u16);
+
+impl<S> actix_web::pred::Predicate<S> for VersionPredicate {
+    fn check(&self, req: &actix_web::Request, _: &S) -> bool {
+        let query = req.uri().query().unwrap_or("");
+        serde_urlencoded::from_str::<VersionQuery>(query)
+            .map(|query| query.version == self.0)
+            .unwrap_or(false)
+    }
+}
 
 /// Wrapper on top the project state which encapsulates information about how ProjectState
 /// should be deserialized
@@ -47,13 +61,14 @@ struct GetProjectStatesResponseWrapper {
 }
 
 #[allow(clippy::needless_pass_by_value)]
-fn serve_supported(
+fn get_project_configs(
     state: CurrentServiceState,
-    relay: RelayInfo,
-    query: GetProjectStatesPayload,
+    body: SignedJson<GetProjectStates>,
 ) -> ResponseFuture<HttpResponse, Error> {
-    let full = relay.internal && query.full_config;
-    let futures = query.public_keys.into_iter().map(move |public_key| {
+    let relay = body.relay;
+    let full = relay.internal && body.inner.full_config;
+
+    let futures = body.inner.public_keys.into_iter().map(move |public_key| {
         let relay = relay.clone();
         state
             .project_cache()
@@ -94,37 +109,14 @@ fn serve_supported(
     }))
 }
 
-fn forward_unsupported(
-    state: CurrentServiceState,
-    query: UnsupportedPayload,
-) -> ResponseFuture<HttpResponse, Error> {
-    let request = SendRequest::post("/api/0/relays/projectconfigs/")
-        .build(move |builder| builder.json(&query));
-
-    let future = state
-        .upstream_relay()
-        .send(request)
-        .map_err(Error::from)
-        .and_then(|result| result.map_err(|_| todo!()))
-        // TODO: Cannot get the result out yet.
-        .map(|()| HttpResponse::Ok().finish());
-
-    Box::new(future)
-}
-
-fn get_project_configs(
-    state: CurrentServiceState,
-    body: SignedJson<GetProjectStates>,
-) -> ResponseFuture<HttpResponse, Error> {
-    match body.inner {
-        GetProjectStates::Supported(query) => serve_supported(state, body.relay, query),
-        GetProjectStates::Unsupported(query) => forward_unsupported(state, query),
-    }
-}
-
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     app.resource("/api/0/relays/projectconfigs/", |r| {
         r.name("relay-projectconfigs");
-        r.post().with(get_project_configs);
+        r.post()
+            .filter(VersionPredicate(2))
+            .with(get_project_configs);
+
+        // Forward all unsupported versions to the upstream.
+        r.post().f(crate::endpoints::forward::forward_upstream)
     })
 }
