@@ -370,6 +370,12 @@ pub enum RelayCounters {
     ConnectorErrors,
     /// Number of upstream connections that experienced a timeout.
     ConnectorTimeouts,
+    /// Number of minidump attachments scrubbed.
+    ///
+    /// Tags:
+    ///
+    /// - `status`: Scrubbing status: "ok" or "error".
+    MinidumpsScrubbed,
 }
 
 impl CounterMetric for RelayCounters {
@@ -398,6 +404,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ConnectorClosed => "connector.closed",
             RelayCounters::ConnectorErrors => "connector.errors",
             RelayCounters::ConnectorTimeouts => "connector.timeouts",
+            RelayCounters::MinidumpsScrubbed => "scrubbing.minidumps",
         }
     }
 }

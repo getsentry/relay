@@ -1019,8 +1019,17 @@ impl EventProcessor {
                 // must be conservative and treat it as a plain attachment. Under extreme
                 // conditions, this could destroy stack memory.
                 if let Err(scrub_error) = processor.scrub_minidump(filename, &mut payload) {
-                    log::debug!("failed to scrub minidump: {}", LogError(&scrub_error));
+                    metric!(
+                        counter(RelayCounters::MinidumpsScrubbed) += 1,
+                        status = "error"
+                    );
+                    log::warn!("failed to scrub minidump: {}", LogError(&scrub_error));
                     processor.scrub_attachment(filename, &mut payload);
+                } else {
+                    metric!(
+                        counter(RelayCounters::MinidumpsScrubbed) += 1,
+                        status = "ok"
+                    );
                 }
 
                 let content_type = item
