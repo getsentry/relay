@@ -9,8 +9,6 @@ use actix_web::middleware::cors::{Cors, CorsBuilder};
 use actix_web::{HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
 use futures::prelude::*;
-use sentry::Hub;
-use sentry_actix::ActixWebHubExt;
 use serde::Deserialize;
 
 use relay_common::{clone, metric, tryf, LogError};
@@ -389,21 +387,12 @@ where
         tryf!(Err(BadStoreRequest::UnsupportedProtocolVersion(version)));
     }
 
-    let project_id = meta.project_id();
-    let public_key = meta.public_key();
-
-    let hub = Hub::from_request(&request);
-    hub.configure_scope(|scope| {
-        scope.set_user(Some(sentry::User {
-            id: Some(project_id.to_string()),
-            ..Default::default()
-        }));
-    });
-
     metric!(
         counter(RelayCounters::EventProtocol) += 1,
         version = &format!("{}", version)
     );
+
+    let public_key = meta.public_key();
 
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();

@@ -6,11 +6,12 @@ use chrono::{DateTime, Utc};
 use futures::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::Value;
+use smallvec::SmallVec;
 use url::Url;
 
 use relay_auth::PublicKey;
 use relay_common::{metric, ProjectId, ProjectKey};
-use relay_config::{Config, RelayMode};
+use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_quotas::{Quota, RateLimits, Scoping};
@@ -33,24 +34,6 @@ pub enum Outdated {
     /// The project state is completely outdated and events need to be buffered up until the new
     /// state has been fetched.
     HardOutdated,
-}
-
-/// A helper enum indicating the public key state.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PublicKeyStatus {
-    /// The state of the public key is not known.
-    ///
-    /// This can indicate that the key is not yet known or that the
-    /// key just does not exist.  We can not tell these two cases
-    /// apart as there is always a lag since the last update from the
-    /// upstream server.  As such the project state uses a heuristic
-    /// to decide if it should treat a key as not existing or just
-    /// not yet known.
-    Unknown,
-    /// This key is known but was disabled.
-    Disabled,
-    /// This key is known and is enabled.
-    Enabled,
 }
 
 /// These are config values that the user can modify in the UI.
@@ -126,8 +109,11 @@ pub struct ProjectState {
     #[serde(default)]
     pub disabled: bool,
     /// A container of known public keys in the project.
+    ///
+    /// Since version 2, each project state corresponds to a single public key. For this reason,
+    /// only a single key can occur in this list.
     #[serde(default)]
-    pub public_keys: Vec<PublicKeyConfig>,
+    pub public_keys: SmallVec<[PublicKeyConfig; 1]>,
     /// The project's slug if available.
     #[serde(default)]
     pub slug: Option<String>,
@@ -154,7 +140,7 @@ pub struct LimitedProjectState {
     pub last_change: Option<DateTime<Utc>>,
     pub disabled: bool,
     #[serde(with = "limited_public_key_comfigs")]
-    pub public_keys: Vec<PublicKeyConfig>,
+    pub public_keys: SmallVec<[PublicKeyConfig; 1]>,
     pub slug: Option<String>,
     #[serde(with = "LimitedProjectConfig")]
     pub config: ProjectConfig,
@@ -168,7 +154,7 @@ impl ProjectState {
             id: ProjectId::new(0),
             last_change: None,
             disabled: true,
-            public_keys: Vec::new(),
+            public_keys: SmallVec::new(),
             slug: None,
             config: ProjectConfig::default(),
             organization_id: None,
@@ -193,27 +179,9 @@ impl ProjectState {
         state
     }
 
-    /// Returns configuration options for a public key.
-    pub fn get_public_key_config(&self, public_key: ProjectKey) -> Option<&PublicKeyConfig> {
-        for key in &self.public_keys {
-            if key.public_key == public_key {
-                return Some(key);
-            }
-        }
-        None
-    }
-
-    /// Returns the current status of a key.
-    pub fn get_public_key_status(&self, public_key: ProjectKey) -> PublicKeyStatus {
-        if let Some(key) = self.get_public_key_config(public_key) {
-            if key.is_enabled {
-                PublicKeyStatus::Enabled
-            } else {
-                PublicKeyStatus::Disabled
-            }
-        } else {
-            PublicKeyStatus::Unknown
-        }
+    /// Returns configuration options for the public key.
+    pub fn get_public_key_config(&self) -> Option<&PublicKeyConfig> {
+        self.public_keys.get(0)
     }
 
     /// Returns `true` if the entire project should be considered
@@ -251,6 +219,14 @@ impl ProjectState {
         &self.config
     }
 
+    /// Returns `true` if the given project ID matches this project.
+    ///
+    /// If the project state has not been loaded, this check is skipped because the project
+    /// identifier is not yet known.
+    pub fn is_valid_project_id(&self, project_id: ProjectId) -> bool {
+        self.id.value() == 0 || self.id == project_id
+    }
+
     /// Checks if this origin is allowed for this project.
     fn is_valid_origin(&self, origin: Option<&Url>) -> bool {
         // Generally accept any event without an origin.
@@ -285,7 +261,7 @@ impl ProjectState {
         // project was refetched in between. In such a case, access to key quotas is not availabe,
         // but we can gracefully execute all other rate limiting.
         scoping.key_id = self
-            .get_public_key_config(scoping.public_key)
+            .get_public_key_config()
             .and_then(|config| config.numeric_id);
 
         // The original project identifier is part of the DSN. If the DSN was moved to another
@@ -325,6 +301,12 @@ impl ProjectState {
     ///  - Disabled or unknown projects
     ///  - Disabled project keys (DSN)
     pub fn check_request(&self, meta: &RequestMeta, config: &Config) -> Result<(), DiscardReason> {
+        // Verify that the stated project id in the DSN matches the public key used to retrieve this
+        // project state.
+        if !self.is_valid_project_id(meta.project_id()) {
+            return Err(DiscardReason::ProjectId);
+        }
+
         // Try to verify the request origin with the project config.
         if !self.is_valid_origin(meta.origin()) {
             return Err(DiscardReason::Cors);
@@ -333,16 +315,6 @@ impl ProjectState {
         if self.outdated(config) == Outdated::HardOutdated {
             // if the state is out of date, we proceed as if it was still up to date. The
             // upstream relay (or sentry) will still filter events.
-
-            // we assume it is unlikely to re-activate a disabled public key.
-            // thus we handle events pretending the config is still valid,
-            // except queueing events for unknown DSNs as they might have become
-            // available in the meanwhile.
-            match self.get_public_key_status(meta.public_key()) {
-                PublicKeyStatus::Enabled => Ok(()),
-                PublicKeyStatus::Disabled => Err(DiscardReason::ProjectId),
-                PublicKeyStatus::Unknown => Ok(()),
-            }
         } else {
             // if we recorded an invalid project state response from the upstream (i.e. parsing
             // failed), discard the event with a s
@@ -354,20 +326,9 @@ impl ProjectState {
             if self.disabled() {
                 return Err(DiscardReason::ProjectId);
             }
-
-            // since the config has been fetched recently, we assume unknown
-            // public keys do not exist and drop events eagerly. proxy mode is
-            // an exception, where public keys are backfilled lazily after
-            // events are sent to the upstream.
-            match self.get_public_key_status(meta.public_key()) {
-                PublicKeyStatus::Enabled => Ok(()),
-                PublicKeyStatus::Disabled => Err(DiscardReason::ProjectId),
-                PublicKeyStatus::Unknown => match config.relay_mode() {
-                    RelayMode::Proxy => Ok(()),
-                    _ => Err(DiscardReason::ProjectId),
-                },
-            }
         }
+
+        Ok(())
     }
 
     /// Validates data in this project state and removes values that are partially invalid.
@@ -383,9 +344,6 @@ impl ProjectState {
 pub struct PublicKeyConfig {
     /// Public part of key (random hash).
     pub public_key: ProjectKey,
-
-    /// Whether this key can be used.
-    pub is_enabled: bool,
 
     /// The primary key of the DSN in Sentry's main database.
     ///
@@ -403,7 +361,6 @@ mod limited_public_key_comfigs {
     #[serde(rename_all = "camelCase", remote = "PublicKeyConfig")]
     pub struct LimitedPublicKeyConfig {
         pub public_key: ProjectKey,
-        pub is_enabled: bool,
     }
 
     /// Serializes a list of `PublicKeyConfig` objects using `LimitedPublicKeyConfig`.
