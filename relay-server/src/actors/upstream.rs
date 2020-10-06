@@ -892,10 +892,42 @@ where
     }
 }
 
-pub struct SendRequest<B = ()> {
+pub trait ResponseTransformer: 'static {
+    type Result: 'static;
+
+    fn transform_response(self, _: ClientResponse) -> Self::Result;
+}
+
+impl ResponseTransformer for () {
+    type Result = ResponseFuture<(), UpstreamRequestError>;
+
+    fn transform_response(self, response: ClientResponse) -> Self::Result {
+        // consume response bodies to allow connection keep-alive
+        let future = response
+            .payload()
+            .for_each(|_| Ok(()))
+            .map_err(UpstreamRequestError::PayloadFailed);
+
+        Box::new(future)
+    }
+}
+
+impl<F, T: 'static> ResponseTransformer for F
+where
+    F: FnOnce(ClientResponse) -> T + 'static,
+{
+    type Result = T;
+
+    fn transform_response(self, response: ClientResponse) -> Self::Result {
+        self(response)
+    }
+}
+
+pub struct SendRequest<B = (), T = ()> {
     method: Method,
     path: String,
     builder: B,
+    transformer: T,
     retry: bool,
 }
 
@@ -905,6 +937,7 @@ impl SendRequest {
             method,
             path: path.into(),
             builder: (),
+            transformer: (),
             retry: true,
         }
     }
@@ -914,39 +947,67 @@ impl SendRequest {
     }
 }
 
-impl<B> SendRequest<B> {
-    pub fn build<F>(self, callback: F) -> SendRequest<F>
+impl<B, T> SendRequest<B, T> {
+    pub fn build<F>(self, callback: F) -> SendRequest<F, T>
     where
         F: FnMut(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError> + 'static,
     {
         SendRequest {
             method: self.method,
             path: self.path,
-            retry: self.retry,
             builder: callback,
+            transformer: self.transformer,
+            retry: self.retry,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn transform<R, F>(self, callback: F) -> SendRequest<B, F>
+    where
+        F: FnOnce(ClientResponse) -> R,
+    {
+        SendRequest {
+            method: self.method,
+            path: self.path,
+            builder: self.builder,
+            transformer: callback,
+            retry: self.retry,
         }
     }
 }
 
-impl<B> Message for SendRequest<B> {
-    type Result = Result<(), UpstreamRequestError>;
+impl<B, R, T: 'static, E: 'static> Message for SendRequest<B, R>
+where
+    R: ResponseTransformer,
+    R::Result: IntoFuture<Item = T, Error = E>,
+{
+    type Result = Result<T, E>;
 }
+
+// impl<B> Message for SendRequest<B> {
+//     type Result = Result<(), UpstreamRequestError>;
+// }
 
 /// SendRequest<B> messages represent external messages that need to be sent to the upstream server
 /// and do not use Relay authentication.
 ///
 /// The handler adds the message to one of the message queues.
-impl<B> Handler<SendRequest<B>> for UpstreamRelay
+impl<B, R, T: 'static, E: 'static> Handler<SendRequest<B, R>> for UpstreamRelay
 where
     B: RequestBuilder + Send,
+    R: ResponseTransformer,
+    R::Result: IntoFuture<Item = T, Error = E>,
+    T: Send,
+    E: From<UpstreamRequestError> + Send,
 {
-    type Result = ResponseFuture<(), UpstreamRequestError>;
+    type Result = ResponseFuture<T, E>;
 
-    fn handle(&mut self, message: SendRequest<B>, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: SendRequest<B, R>, ctx: &mut Self::Context) -> Self::Result {
         let SendRequest {
             method,
             path,
             mut builder,
+            transformer,
             retry,
         } = message;
 
@@ -959,12 +1020,8 @@ where
                 move |b| builder.build_request(b),
                 ctx,
             )
-            .and_then(|client_response| {
-                client_response
-                    .payload()
-                    .for_each(|_| Ok(()))
-                    .map_err(UpstreamRequestError::PayloadFailed)
-            });
+            .from_err()
+            .and_then(move |r| transformer.transform_response(r));
 
         Box::new(future)
     }

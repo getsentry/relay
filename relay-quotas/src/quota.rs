@@ -4,12 +4,12 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use relay_common::ProjectId;
+use relay_common::{ProjectId, ProjectKey};
 
 /// Data scoping information.
 ///
 /// This structure holds information of all scopes required for attributing an item to quotas.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Scoping {
     /// The organization id.
     pub organization_id: u64,
@@ -18,7 +18,7 @@ pub struct Scoping {
     pub project_id: ProjectId,
 
     /// The DSN public key.
-    pub public_key: String,
+    pub public_key: ProjectKey,
 
     /// The public key's internal id.
     pub key_id: Option<u64>,
@@ -567,7 +567,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             }
         }));
@@ -590,7 +590,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             }
         }));
@@ -613,7 +613,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             }
         }));
@@ -623,7 +623,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             }
         }));
@@ -646,7 +646,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             }
         }));
@@ -669,7 +669,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             }
         }));
@@ -679,7 +679,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 0,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             }
         }));
@@ -702,7 +702,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             }
         }));
@@ -712,7 +712,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(0),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             }
         }));
@@ -735,7 +735,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
             }
         }));
@@ -745,7 +745,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(0),
             }
         }));
@@ -755,7 +755,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             }
         }));

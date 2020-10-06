@@ -468,7 +468,7 @@ where
             if is_event {
                 outcome_producer.do_send(TrackOutcome {
                     timestamp: start_time,
-                    scoping: scoping.borrow().clone(),
+                    scoping: *scoping.borrow(),
                     outcome: error.to_outcome(),
                     event_id: *event_id.borrow(),
                     remote_addr,

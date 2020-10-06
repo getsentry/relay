@@ -874,7 +874,7 @@ impl EventProcessor {
         } = *state;
 
         let key_id = project_state
-            .get_public_key_config(&envelope.meta().public_key())
+            .get_public_key_config(envelope.meta().public_key())
             .and_then(|k| Some(k.numeric_id?.to_string()));
 
         if key_id.is_none() {
@@ -1408,7 +1408,7 @@ impl Handler<HandleEnvelope> for EventManager {
                             .send(StoreEnvelope {
                                 envelope,
                                 start_time,
-                                scoping: scoping.borrow().clone(),
+                                scoping: *scoping.borrow(),
                             })
                             .map_err(ProcessingError::ScheduleFailed)
                             .and_then(move |result| result.map_err(ProcessingError::StoreFailed));
@@ -1525,7 +1525,7 @@ impl Handler<HandleEnvelope> for EventManager {
                 if let Some(outcome) = outcome {
                     outcome_producer.do_send(TrackOutcome {
                         timestamp: Instant::now(),
-                        scoping: scoping.borrow().clone(),
+                        scoping: *scoping.borrow(),
                         outcome,
                         event_id,
                         remote_addr,
