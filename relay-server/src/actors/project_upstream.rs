@@ -19,6 +19,20 @@ use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, Upstrea
 use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ErrorBoundary};
 
+#[macro_use]
+mod _macro {
+    /// The current version of the project states endpoint.
+    ///
+    /// Only this version is supported by Relay. All other versions are forwarded to the Upstream.
+    /// The endpoint version is added as `version` query parameter to every outgoing request.
+    #[macro_export]
+    macro_rules! project_states_version {
+        () => {
+            2
+        };
+    }
+}
+
 /// TODO: Document
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -46,7 +60,10 @@ impl UpstreamQuery for GetProjectStates {
     }
 
     fn path(&self) -> Cow<'static, str> {
-        Cow::Borrowed("/api/0/relays/projectconfigs/?version=2")
+        Cow::Borrowed(concat!(
+            "/api/0/relays/projectconfigs/?version=",
+            project_states_version!()
+        ))
     }
 
     fn priority() -> RequestPriority {

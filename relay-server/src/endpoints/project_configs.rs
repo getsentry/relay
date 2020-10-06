@@ -113,7 +113,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
     app.resource("/api/0/relays/projectconfigs/", |r| {
         r.name("relay-projectconfigs");
         r.post()
-            .filter(VersionPredicate(2))
+            .filter(VersionPredicate(crate::project_states_version!()))
             .with(get_project_configs);
 
         // Forward all unsupported versions to the upstream.
