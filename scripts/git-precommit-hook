@@ -11,13 +11,14 @@ fi
 check_changed_files() (
     fileext="$1"; shift
 
-    changed_files="`git diff-index --cached --name-only HEAD | grep \\.$fileext$`"
+    changed_files="`git diff-index --cached --name-only HEAD | grep \\.$fileext$ | tr '\n' '\0' | xargs -0 -I{} sh -c 'test -f "{}" && echo "{}"'`"
 
     if [ -z "$changed_files" ]; then
         exit 0
     fi
 
     # nullbytes + xargs to pass filenames with spaces correctly to cargo fmt.
+    printf '%b' "\033[33mchecking $fileext files...\033[0m\n" 1>&2
     if echo "$changed_files" | tr '\n' '\0' | xargs -0 $@; then
         exit 0
     fi
@@ -26,12 +27,12 @@ check_changed_files() (
     exit 1
 )
 
-cargo_fmt="cargo +stable fmt --all --"
+cargo_fmt="rustfmt"
 
 if ! $cargo_fmt --help > /dev/null; then
     printf '%b' "\033[33mwarning: cargo fmt not installed\033[0m\n" 1>&2
 else
-    check_changed_files rs $cargo_fmt --check --color=always || exit 1
+    check_changed_files rs $cargo_fmt --check --edition=2018 --color=always || exit 1
 fi
 
 black="black"
