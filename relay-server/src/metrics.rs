@@ -216,6 +216,26 @@ pub enum RelayTimers {
     ///  - `method`: The HTTP method of the request.
     ///  - `route`: Unique dashed identifier of the endpoint.
     RequestsDuration,
+    /// Time spent on minidump scrubbing.
+    ///
+    /// This is the total time spent on parsing and scrubbing the minidump.  Even if no PII
+    /// scrubbing rules applied the minidump will still be parsed and the rules evaluated on
+    /// the parsed minidump, this duration is reported here with status of "n/a".
+    ///
+    /// This metric is tagged with:
+    ///
+    /// - `status`: Scrubbing status: "ok" means successful scrubbed, "error" means there
+    ///       was an error during scrubbing and finally "n/a" means scrubbing was successful
+    ///       but no scurbbing rules applied.
+    MinidumpScrubbing,
+    /// Time spend on attachment scrubbing.
+    ///
+    /// This represents the total time spent on evaluating the scrubbing rules for an
+    /// attachment and the attachment scrubbing itself, regardless of whether any rules were
+    /// applied.  Note that minidumps which failed to be parsed (status="error" in
+    /// scrubbing.minidumps.duration) will be scrubbed as plain attachments and count
+    /// towards this.
+    AttachmentScrubbing,
 }
 
 impl TimerMetric for RelayTimers {
@@ -237,6 +257,8 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
             RelayTimers::ProjectIdRequestDuration => "project_id.request.duration",
             RelayTimers::RequestsDuration => "requests.duration",
+            RelayTimers::MinidumpScrubbing => "scrubbing.minidumps.duration",
+            RelayTimers::AttachmentScrubbing => "scrubbing.attachments.duration",
         }
     }
 }
