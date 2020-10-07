@@ -777,6 +777,101 @@
 <span id="777">777</span>
 <span id="778">778</span>
 <span id="779">779</span>
+<span id="780">780</span>
+<span id="781">781</span>
+<span id="782">782</span>
+<span id="783">783</span>
+<span id="784">784</span>
+<span id="785">785</span>
+<span id="786">786</span>
+<span id="787">787</span>
+<span id="788">788</span>
+<span id="789">789</span>
+<span id="790">790</span>
+<span id="791">791</span>
+<span id="792">792</span>
+<span id="793">793</span>
+<span id="794">794</span>
+<span id="795">795</span>
+<span id="796">796</span>
+<span id="797">797</span>
+<span id="798">798</span>
+<span id="799">799</span>
+<span id="800">800</span>
+<span id="801">801</span>
+<span id="802">802</span>
+<span id="803">803</span>
+<span id="804">804</span>
+<span id="805">805</span>
+<span id="806">806</span>
+<span id="807">807</span>
+<span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
+<span id="833">833</span>
+<span id="834">834</span>
+<span id="835">835</span>
+<span id="836">836</span>
+<span id="837">837</span>
+<span id="838">838</span>
+<span id="839">839</span>
+<span id="840">840</span>
+<span id="841">841</span>
+<span id="842">842</span>
+<span id="843">843</span>
+<span id="844">844</span>
+<span id="845">845</span>
+<span id="846">846</span>
+<span id="847">847</span>
+<span id="848">848</span>
+<span id="849">849</span>
+<span id="850">850</span>
+<span id="851">851</span>
+<span id="852">852</span>
+<span id="853">853</span>
+<span id="854">854</span>
+<span id="855">855</span>
+<span id="856">856</span>
+<span id="857">857</span>
+<span id="858">858</span>
+<span id="859">859</span>
+<span id="860">860</span>
+<span id="861">861</span>
+<span id="862">862</span>
+<span id="863">863</span>
+<span id="864">864</span>
+<span id="865">865</span>
+<span id="866">866</span>
+<span id="867">867</span>
+<span id="868">868</span>
+<span id="869">869</span>
+<span id="870">870</span>
+<span id="871">871</span>
+<span id="872">872</span>
+<span id="873">873</span>
+<span id="874">874</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! A UTF-16 little-endian string type.</span>
 <span class="doccomment">//!</span>
@@ -811,7 +906,10 @@
 
 <span class="doccomment">/// Error for invalid UTF-16 encoded bytes.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Utf16Error</span> {}
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Utf16Error</span> {
+    <span class="ident">valid_up_to</span>: <span class="ident">usize</span>,
+    <span class="ident">error_len</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
+}
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">Utf16Error</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
@@ -822,15 +920,30 @@
 <span class="kw">impl</span> <span class="ident">Error</span> <span class="kw">for</span> <span class="ident">Utf16Error</span> {}
 
 <span class="kw">impl</span> <span class="ident">Utf16Error</span> {
-    <span class="doccomment">/// Create a new [Utf16Error].</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="self">Self</span> {}
+    <span class="doccomment">/// Returns the index in given bytes up to which valid UTF-16 was verified.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">valid_up_to</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">valid_up_to</span>
     }
-}
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Utf16Error</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="self">Self</span>::<span class="ident">new</span>()
+    <span class="doccomment">/// Return the length of the error if it might be recoverable.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If `None`: the end of the input was reached unexpectedly.  [Self::valid_up_to] is 1</span>
+    <span class="doccomment">/// to 3 bytes from the end of the input.  If a byte stream such as a file or a network</span>
+    <span class="doccomment">/// socket is being decoded incrementally, this could still be a valid char whose byte</span>
+    <span class="doccomment">/// sequence is spanning multiple chunks.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If `Some(len)`: an unexpected byte was encountered.  The length provided is that of</span>
+    <span class="doccomment">/// the invalid byte sequence that starts at the index given by [Self::valid_up_to].</span>
+    <span class="doccomment">/// Decoding should resume after that sequence (after inserting a `U+FFFD REPLACEMENT</span>
+    <span class="doccomment">/// CHARACTER`) in case of lossy decoding.  In fact for UTF-16 the `len` reported here</span>
+    <span class="doccomment">/// will always be exactly 2 since this never looks ahead to see if the bytes following</span>
+    <span class="doccomment">/// the error sequence are valid as well as otherwise you would not know how many</span>
+    <span class="doccomment">/// replacement characters to insert when writing a lossy decoder.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The semantics of this API are compatible with the semantics of</span>
+    <span class="doccomment">/// [std::str::Utf8Error].</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">error_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">error_len</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">len</span><span class="op">|</span> <span class="ident">len</span>.<span class="ident">into</span>())
     }
 }
 
@@ -1214,21 +1327,57 @@
 }
 
 <span class="doccomment">/// Checks that the raw bytes are valid UTF-16LE.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// When an error occurs this code needs to set `error_len` to skip forward 2 bytes,</span>
+<span class="doccomment">/// *unless* we have a lone leading surrogate and are at the end of the input slice in which</span>
+<span class="doccomment">/// case we need to return `None.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// We compute `valid_up_to` lazily for performance, even though it&#39;s a little more verbose.</span>
 <span class="kw">fn</span> <span class="ident">validate_raw_utf16le</span>(<span class="ident">raw</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Utf16Error</span><span class="op">&gt;</span> {
-    <span class="comment">// This could be optimised as it does not need to be actually decoded, just needs to</span>
-    <span class="comment">// be a valid byte sequence.</span>
-    <span class="kw">if</span> <span class="ident">raw</span>.<span class="ident">len</span>() <span class="op">%</span> <span class="number">2</span> <span class="op">!</span><span class="op">=</span> <span class="number">0</span> {
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Utf16Error</span>::<span class="ident">new</span>());
+    <span class="kw">let</span> <span class="ident">base_ptr</span> <span class="op">=</span> <span class="ident">raw</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="ident">usize</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">chunks</span> <span class="op">=</span> <span class="ident">raw</span>.<span class="ident">chunks_exact</span>(<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>());
+
+    <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">chunk</span>) <span class="op">=</span> <span class="ident">chunks</span>.<span class="ident">next</span>() {
+        <span class="kw">let</span> <span class="ident">code_point_ptr</span> <span class="op">=</span> <span class="ident">chunk</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="ident">usize</span>;
+        <span class="comment">// Chunks always returns 2 bytes, avoid generating panicking code</span>
+        <span class="kw">let</span> <span class="ident">u</span> <span class="op">=</span> <span class="ident">u16</span>::<span class="ident">copy_from_le_bytes</span>(<span class="ident">chunk</span>).<span class="ident">unwrap_or_default</span>();
+
+        <span class="kw">if</span> <span class="ident">is_trailing_surrogate</span>(<span class="ident">u</span>) {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Utf16Error</span> {
+                <span class="ident">valid_up_to</span>: <span class="ident">code_point_ptr</span> <span class="op">-</span> <span class="ident">base_ptr</span>,
+                <span class="ident">error_len</span>: <span class="prelude-val">Some</span>(<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">u8</span>),
+            });
+        }
+
+        <span class="kw">if</span> <span class="ident">is_leading_surrogate</span>(<span class="ident">u</span>) {
+            <span class="kw">match</span> <span class="ident">chunks</span>.<span class="ident">next</span>().<span class="ident">and_then</span>(<span class="ident">u16</span>::<span class="ident">copy_from_le_bytes</span>) {
+                <span class="prelude-val">Some</span>(<span class="ident">u2</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">is_trailing_surrogate</span>(<span class="ident">u2</span>) {
+                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Utf16Error</span> {
+                            <span class="ident">valid_up_to</span>: <span class="ident">code_point_ptr</span> <span class="op">-</span> <span class="ident">base_ptr</span>,
+                            <span class="ident">error_len</span>: <span class="prelude-val">Some</span>(<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">u8</span>),
+                        });
+                    }
+                }
+                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Utf16Error</span> {
+                        <span class="ident">valid_up_to</span>: <span class="ident">code_point_ptr</span> <span class="op">-</span> <span class="ident">base_ptr</span>,
+                        <span class="ident">error_len</span>: <span class="prelude-val">None</span>,
+                    });
+                }
+            }
+        }
     }
-    <span class="kw">let</span> <span class="ident">u16iter</span> <span class="op">=</span> <span class="ident">raw</span>
-        .<span class="ident">chunks_exact</span>(<span class="number">2</span>)
-        <span class="comment">// Using filter_map to avoid generating panicking code</span>
-        .<span class="ident">filter_map</span>(<span class="op">|</span><span class="ident">chunk</span><span class="op">|</span> <span class="ident">u16</span>::<span class="ident">copy_from_le_bytes</span>(<span class="ident">chunk</span>));
-    <span class="kw">if</span> <span class="ident">std</span>::<span class="ident">char</span>::<span class="ident">decode_utf16</span>(<span class="ident">u16iter</span>).<span class="ident">all</span>(<span class="op">|</span><span class="ident">result</span><span class="op">|</span> <span class="ident">result</span>.<span class="ident">is_ok</span>()) {
-        <span class="prelude-val">Ok</span>(())
-    } <span class="kw">else</span> {
-        <span class="prelude-val">Err</span>(<span class="ident">Utf16Error</span>::<span class="ident">new</span>())
+
+    <span class="kw">let</span> <span class="ident">remainder</span> <span class="op">=</span> <span class="ident">chunks</span>.<span class="ident">remainder</span>();
+    <span class="kw">if</span> <span class="op">!</span><span class="ident">remainder</span>.<span class="ident">is_empty</span>() {
+        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Utf16Error</span> {
+            <span class="ident">valid_up_to</span>: <span class="ident">remainder</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="ident">usize</span> <span class="op">-</span> <span class="ident">base_ptr</span>,
+            <span class="ident">error_len</span>: <span class="prelude-val">None</span>,
+        });
     }
+
+    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="doccomment">/// Private u16 extension trait.</span>
@@ -1274,6 +1423,47 @@
         <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="string">b&quot;\x00\xdcx\x00&quot;</span>;
         <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">WStr</span>::<span class="ident">from_utf16le</span>(<span class="ident">b</span>);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">s</span>.<span class="ident">is_err</span>());
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_wstr_utf16error</span>() {
+        <span class="comment">// Lone trailing surrogate in 2nd char</span>
+        <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="string">b&quot;h\x00\x00\xdce\x00l\x00l\x00o\x00&quot;</span>;
+        <span class="kw">let</span> <span class="ident">e</span> <span class="op">=</span> <span class="ident">WStr</span>::<span class="ident">from_utf16le</span>(<span class="ident">b</span>).<span class="ident">err</span>().<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">e</span>.<span class="ident">valid_up_to</span>(), <span class="number">2</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">e</span>.<span class="ident">error_len</span>(), <span class="prelude-val">Some</span>(<span class="number">2</span>));
+
+        <span class="kw">let</span> <span class="ident">head</span> <span class="op">=</span> <span class="ident">WStr</span>::<span class="ident">from_utf16le</span>(<span class="kw-2">&amp;</span><span class="ident">b</span>[..<span class="ident">e</span>.<span class="ident">valid_up_to</span>()]).<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">head</span>.<span class="ident">to_utf8</span>(), <span class="string">&quot;h&quot;</span>);
+
+        <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">e</span>.<span class="ident">valid_up_to</span>() <span class="op">+</span> <span class="ident">e</span>.<span class="ident">error_len</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">tail</span> <span class="op">=</span> <span class="ident">WStr</span>::<span class="ident">from_utf16le</span>(<span class="kw-2">&amp;</span><span class="ident">b</span>[<span class="ident">start</span>..]).<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">tail</span>.<span class="ident">to_utf8</span>(), <span class="string">&quot;ello&quot;</span>);
+
+        <span class="comment">// Leading surrogate, missing trailing surrogate in 2nd char</span>
+        <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="string">b&quot;h\x00\x00\xd8e\x00l\x00l\x00o\x00&quot;</span>;
+        <span class="kw">let</span> <span class="ident">e</span> <span class="op">=</span> <span class="ident">WStr</span>::<span class="ident">from_utf16le</span>(<span class="ident">b</span>).<span class="ident">err</span>().<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">e</span>.<span class="ident">valid_up_to</span>(), <span class="number">2</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">e</span>.<span class="ident">error_len</span>(), <span class="prelude-val">Some</span>(<span class="number">2</span>));
+
+        <span class="kw">let</span> <span class="ident">head</span> <span class="op">=</span> <span class="ident">WStr</span>::<span class="ident">from_utf16le</span>(<span class="kw-2">&amp;</span><span class="ident">b</span>[..<span class="ident">e</span>.<span class="ident">valid_up_to</span>()]).<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">head</span>.<span class="ident">to_utf8</span>(), <span class="string">&quot;h&quot;</span>);
+
+        <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">e</span>.<span class="ident">valid_up_to</span>() <span class="op">+</span> <span class="ident">e</span>.<span class="ident">error_len</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">tail</span> <span class="op">=</span> <span class="ident">WStr</span>::<span class="ident">from_utf16le</span>(<span class="kw-2">&amp;</span><span class="ident">b</span>[<span class="ident">start</span>..]).<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">tail</span>.<span class="ident">to_utf8</span>(), <span class="string">&quot;ello&quot;</span>);
+
+        <span class="comment">// End of input</span>
+        <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="string">b&quot;h\x00e\x00l\x00l\x00o\x00\x00\xd8&quot;</span>;
+        <span class="kw">let</span> <span class="ident">e</span> <span class="op">=</span> <span class="ident">WStr</span>::<span class="ident">from_utf16le</span>(<span class="ident">b</span>).<span class="ident">err</span>().<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">e</span>.<span class="ident">valid_up_to</span>(), <span class="number">10</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">e</span>.<span class="ident">error_len</span>(), <span class="prelude-val">None</span>);
+
+        <span class="comment">// End of input, single byte</span>
+        <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="string">b&quot;h\x00e\x00l\x00l\x00o\x00 &quot;</span>;
+        <span class="kw">let</span> <span class="ident">e</span> <span class="op">=</span> <span class="ident">WStr</span>::<span class="ident">from_utf16le</span>(<span class="ident">b</span>).<span class="ident">err</span>().<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">e</span>.<span class="ident">valid_up_to</span>(), <span class="number">10</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">e</span>.<span class="ident">error_len</span>(), <span class="prelude-val">None</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
