@@ -312,10 +312,10 @@ impl ProjectState {
             return Err(DiscardReason::Cors);
         }
 
-        if self.outdated(config) == Outdated::HardOutdated {
-            // if the state is out of date, we proceed as if it was still up to date. The
-            // upstream relay (or sentry) will still filter events.
-        } else {
+        // if the state is out of date, we proceed as if it was still up to date. The
+        // upstream relay (or sentry) will still filter events.
+
+        if self.outdated(config) != Outdated::HardOutdated {
             // if we recorded an invalid project state response from the upstream (i.e. parsing
             // failed), discard the event with a s
             if self.invalid() {
@@ -324,6 +324,12 @@ impl ProjectState {
 
             // only drop events if we know for sure the project is disabled.
             if self.disabled() {
+                return Err(DiscardReason::ProjectId);
+            }
+
+            // sanity-check that the up-to-date state has a matching public key loaded.
+            if self.get_public_key_config().map(|c| c.public_key) != Some(meta.public_key()) {
+                log::error!("public key mismatch on state {}", meta.public_key());
                 return Err(DiscardReason::ProjectId);
             }
         }
