@@ -1707,6 +1707,9 @@
 <span id="1707">1707</span>
 <span id="1708">1708</span>
 <span id="1709">1709</span>
+<span id="1710">1710</span>
+<span id="1711">1711</span>
+<span id="1712">1712</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -2584,11 +2587,14 @@
         } <span class="op">=</span> <span class="kw-2">*</span><span class="ident">state</span>;
 
         <span class="kw">let</span> <span class="ident">key_id</span> <span class="op">=</span> <span class="ident">project_state</span>
-            .<span class="ident">get_public_key_config</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">public_key</span>())
+            .<span class="ident">get_public_key_config</span>()
             .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">k</span><span class="op">|</span> <span class="prelude-val">Some</span>(<span class="ident">k</span>.<span class="ident">numeric_id</span><span class="question-mark">?</span>.<span class="ident">to_string</span>()));
 
         <span class="kw">if</span> <span class="ident">key_id</span>.<span class="ident">is_none</span>() {
-            <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;can&#39;t find key in project config, but we verified auth before already&quot;</span>);
+            <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(
+                <span class="string">&quot;project state for key {} is missing key id&quot;</span>,
+                <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">public_key</span>()
+            );
         }
 
         <span class="kw">let</span> <span class="ident">store_config</span> <span class="op">=</span> <span class="ident">StoreConfig</span> {

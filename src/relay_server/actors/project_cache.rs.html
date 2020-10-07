@@ -273,6 +273,30 @@
 <span id="273">273</span>
 <span id="274">274</span>
 <span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::{<span class="ident">hash_map</span>::<span class="ident">Entry</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
@@ -284,7 +308,7 @@
 <span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">future</span>, <span class="ident">Future</span>};
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">ProjectId</span>};
+<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">ProjectKey</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
 <span class="kw">use</span> <span class="ident">relay_redis</span>::<span class="ident">RedisPool</span>;
 
@@ -316,7 +340,7 @@
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProjectCache</span> {
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-    <span class="ident">projects</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">ProjectId</span>, <span class="ident">ProjectEntry</span><span class="op">&gt;</span>,
+    <span class="ident">projects</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">ProjectKey</span>, <span class="ident">ProjectEntry</span><span class="op">&gt;</span>,
 
     <span class="ident">local_source</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">LocalProjectSource</span><span class="op">&gt;</span>,
     <span class="ident">upstream_source</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">UpstreamProjectSource</span><span class="op">&gt;</span>,
@@ -389,9 +413,19 @@
     }
 }
 
+<span class="doccomment">/// Resolves the project with the given identifier.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The returned `Project` is an actor that synchronizes state access internally. When it is fetched</span>
+<span class="doccomment">/// for the first time, its state is unpopulated. Only when `GetProjectState` is sent to the project</span>
+<span class="doccomment">/// for the first time, it starts to resolve the state from one of the sources.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// If the optional `public_key` is set, then the public keys of the project are checked for a</span>
+<span class="doccomment">/// redirect. If a redirect is detected, then the target project is resolved and returned instead.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// **Note** that due to redirects, the returned project may have a different identifier.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GetProject</span> {
-    <span class="kw">pub</span> <span class="ident">id</span>: <span class="ident">ProjectId</span>,
+    <span class="kw">pub</span> <span class="ident">public_key</span>: <span class="ident">ProjectKey</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">GetProject</span> {
@@ -402,16 +436,18 @@
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">Project</span><span class="op">&gt;</span>;
 
     <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">GetProject</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+        <span class="kw">let</span> <span class="ident">GetProject</span> { <span class="ident">public_key</span> } <span class="op">=</span> <span class="ident">message</span>;
         <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">clone</span>();
         <span class="macro">metric</span><span class="macro">!</span>(<span class="ident">histogram</span>(<span class="ident">RelayHistograms</span>::<span class="ident">ProjectStateCacheSize</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">projects</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>);
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">projects</span>.<span class="ident">entry</span>(<span class="ident">message</span>.<span class="ident">id</span>) {
+
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">projects</span>.<span class="ident">entry</span>(<span class="ident">public_key</span>) {
             <span class="ident">Entry</span>::<span class="ident">Occupied</span>(<span class="ident">entry</span>) <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="macro">metric</span><span class="macro">!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">ProjectCacheHit</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
                 <span class="ident">entry</span>.<span class="ident">get</span>().<span class="ident">project</span>.<span class="ident">clone</span>()
             }
             <span class="ident">Entry</span>::<span class="ident">Vacant</span>(<span class="ident">entry</span>) <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="macro">metric</span><span class="macro">!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">ProjectCacheMiss</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
-                <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">Project</span>::<span class="ident">new</span>(<span class="ident">message</span>.<span class="ident">id</span>, <span class="ident">config</span>, <span class="ident">context</span>.<span class="ident">address</span>()).<span class="ident">start</span>();
+                <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">Project</span>::<span class="ident">new</span>(<span class="ident">public_key</span>, <span class="ident">config</span>, <span class="ident">context</span>.<span class="ident">address</span>()).<span class="ident">start</span>();
                 <span class="ident">entry</span>.<span class="ident">insert</span>(<span class="ident">ProjectEntry</span> {
                     <span class="ident">last_updated_at</span>: <span class="ident">Instant</span>::<span class="ident">now</span>(),
                     <span class="ident">project</span>: <span class="ident">project</span>.<span class="ident">clone</span>(),
@@ -422,9 +458,19 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="doccomment">/// Fetches a project state from one of the available sources.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The project state is resolved in the following precedence:</span>
+<span class="doccomment">///</span>
+<span class="doccomment">///  1. Local file system</span>
+<span class="doccomment">///  2. Redis cache (processing mode only)</span>
+<span class="doccomment">///  3. Upstream (managed and processing mode only)</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Requests to the upstream are performed via `UpstreamProjectSource`, which internally batches</span>
+<span class="doccomment">/// individual requests.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FetchProjectState</span> {
-    <span class="kw">pub</span> <span class="ident">id</span>: <span class="ident">ProjectId</span>,
+    <span class="kw">pub</span> <span class="ident">public_key</span>: <span class="ident">ProjectKey</span>,
 }
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProjectStateResponse</span> {
@@ -452,8 +498,9 @@
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ProjectStateResponse</span>, ()<span class="op">&gt;</span>;
 }
 
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FetchOptionalProjectState</span> {
-    <span class="kw">pub</span> <span class="ident">id</span>: <span class="ident">ProjectId</span>,
+    <span class="kw">pub</span> <span class="ident">public_key</span>: <span class="ident">ProjectKey</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">FetchOptionalProjectState</span> {
@@ -464,7 +511,8 @@
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">Response</span><span class="op">&lt;</span><span class="ident">ProjectStateResponse</span>, ()<span class="op">&gt;</span>;
 
     <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">FetchProjectState</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">entry</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">projects</span>.<span class="ident">get_mut</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">id</span>) {
+        <span class="kw">let</span> <span class="ident">FetchProjectState</span> { <span class="ident">public_key</span> } <span class="op">=</span> <span class="ident">message</span>;
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">entry</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">projects</span>.<span class="ident">get_mut</span>(<span class="kw-2">&amp;</span><span class="ident">public_key</span>) {
             <span class="comment">// Bump the update time of the project in our hashmap to evade eviction. Eviction is a</span>
             <span class="comment">// sequential scan over self.projects, so this needs to be as fast as possible and</span>
             <span class="comment">// probably should not involve sending a message to each Addr&lt;Project&gt; (this is the</span>
@@ -485,7 +533,7 @@
 
         <span class="kw">let</span> <span class="ident">fetch_local</span> <span class="op">=</span> <span class="self">self</span>
             .<span class="ident">local_source</span>
-            .<span class="ident">send</span>(<span class="ident">FetchOptionalProjectState</span> { <span class="ident">id</span>: <span class="ident">message</span>.<span class="ident">id</span> })
+            .<span class="ident">send</span>(<span class="ident">FetchOptionalProjectState</span> { <span class="ident">public_key</span> })
             .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ());
 
         <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">fetch_local</span>.<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">response</span><span class="op">|</span> {
@@ -522,7 +570,7 @@
             <span class="kw">let</span> <span class="ident">fetch_redis</span>: <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">redis_source</span>) <span class="op">=</span> <span class="ident">redis_source</span> {
                 <span class="ident">Box</span>::<span class="ident">new</span>(
                     <span class="ident">redis_source</span>
-                        .<span class="ident">send</span>(<span class="ident">FetchOptionalProjectState</span> { <span class="ident">id</span>: <span class="ident">message</span>.<span class="ident">id</span> })
+                        .<span class="ident">send</span>(<span class="ident">FetchOptionalProjectState</span> { <span class="ident">public_key</span> })
                         .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ()),
                 )
             } <span class="kw">else</span> {

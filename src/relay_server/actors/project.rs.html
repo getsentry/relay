@@ -672,7 +672,6 @@
 <span id="672">672</span>
 <span id="673">673</span>
 <span id="674">674</span>
-<span id="675">675</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::<span class="ident">Instant</span>;
@@ -682,11 +681,12 @@
 <span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">future</span>::<span class="ident">Shared</span>, <span class="ident">sync</span>::<span class="ident">oneshot</span>, <span class="ident">Future</span>};
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
 <span class="kw">use</span> <span class="ident">serde_json</span>::<span class="ident">Value</span>;
+<span class="kw">use</span> <span class="ident">smallvec</span>::<span class="ident">SmallVec</span>;
 <span class="kw">use</span> <span class="ident">url</span>::<span class="ident">Url</span>;
 
 <span class="kw">use</span> <span class="ident">relay_auth</span>::<span class="ident">PublicKey</span>;
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>};
-<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
+<span class="kw">use</span> <span class="ident">relay_config</span>::<span class="ident">Config</span>;
 <span class="kw">use</span> <span class="ident">relay_filter</span>::{<span class="ident">matches_any_origin</span>, <span class="ident">FiltersConfig</span>};
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">pii</span>::{<span class="ident">DataScrubbingConfig</span>, <span class="ident">PiiConfig</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">Quota</span>, <span class="ident">RateLimits</span>, <span class="ident">Scoping</span>};
@@ -709,24 +709,6 @@
     <span class="doccomment">/// The project state is completely outdated and events need to be buffered up until the new</span>
     <span class="doccomment">/// state has been fetched.</span>
     <span class="ident">HardOutdated</span>,
-}
-
-<span class="doccomment">/// A helper enum indicating the public key state.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">PublicKeyStatus</span> {
-    <span class="doccomment">/// The state of the public key is not known.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This can indicate that the key is not yet known or that the</span>
-    <span class="doccomment">/// key just does not exist.  We can not tell these two cases</span>
-    <span class="doccomment">/// apart as there is always a lag since the last update from the</span>
-    <span class="doccomment">/// upstream server.  As such the project state uses a heuristic</span>
-    <span class="doccomment">/// to decide if it should treat a key as not existing or just</span>
-    <span class="doccomment">/// not yet known.</span>
-    <span class="ident">Unknown</span>,
-    <span class="doccomment">/// This key is known but was disabled.</span>
-    <span class="ident">Disabled</span>,
-    <span class="doccomment">/// This key is known and is enabled.</span>
-    <span class="ident">Enabled</span>,
 }
 
 <span class="doccomment">/// These are config values that the user can modify in the UI.</span>
@@ -780,10 +762,18 @@
     <span class="kw">pub</span> <span class="ident">datascrubbing_settings</span>: <span class="ident">DataScrubbingConfig</span>,
 }
 
+<span class="doccomment">/// Returns an invalid placeholder project identifier.</span>
+<span class="kw">fn</span> <span class="ident">default_project_id</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProjectId</span> {
+    <span class="ident">ProjectId</span>::<span class="ident">new</span>(<span class="number">0</span>)
+}
+
 <span class="doccomment">/// The project state is a cached server state of a project.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProjectState</span> {
+    <span class="doccomment">/// Unique identifier of this project.</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span> <span class="op">=</span> <span class="string">&quot;default_project_id&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
     <span class="doccomment">/// The timestamp of when the state was last changed.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This might be `None` in some rare cases like where states</span>
@@ -794,8 +784,11 @@
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
     <span class="kw">pub</span> <span class="ident">disabled</span>: <span class="ident">bool</span>,
     <span class="doccomment">/// A container of known public keys in the project.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Since version 2, each project state corresponds to a single public key. For this reason,</span>
+    <span class="doccomment">/// only a single key can occur in this list.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">public_keys</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">PublicKeyConfig</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">public_keys</span>: <span class="ident">SmallVec</span><span class="op">&lt;</span>[<span class="ident">PublicKeyConfig</span>; <span class="number">1</span>]<span class="op">&gt;</span>,
     <span class="doccomment">/// The project&#39;s slug if available.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
     <span class="kw">pub</span> <span class="ident">slug</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
@@ -819,10 +812,11 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>, <span class="ident">remote</span> <span class="op">=</span> <span class="string">&quot;ProjectState&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LimitedProjectState</span> {
+    <span class="kw">pub</span> <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
     <span class="kw">pub</span> <span class="ident">last_change</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">disabled</span>: <span class="ident">bool</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">with</span> <span class="op">=</span> <span class="string">&quot;limited_public_key_comfigs&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">public_keys</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">PublicKeyConfig</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">public_keys</span>: <span class="ident">SmallVec</span><span class="op">&lt;</span>[<span class="ident">PublicKeyConfig</span>; <span class="number">1</span>]<span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">slug</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">with</span> <span class="op">=</span> <span class="string">&quot;LimitedProjectConfig&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">config</span>: <span class="ident">ProjectConfig</span>,
@@ -833,9 +827,10 @@
     <span class="doccomment">/// Project state for a missing project.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">missing</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="ident">ProjectState</span> {
+            <span class="ident">project_id</span>: <span class="ident">ProjectId</span>::<span class="ident">new</span>(<span class="number">0</span>),
             <span class="ident">last_change</span>: <span class="prelude-val">None</span>,
             <span class="ident">disabled</span>: <span class="bool-val">true</span>,
-            <span class="ident">public_keys</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
+            <span class="ident">public_keys</span>: <span class="ident">SmallVec</span>::<span class="ident">new</span>(),
             <span class="ident">slug</span>: <span class="prelude-val">None</span>,
             <span class="ident">config</span>: <span class="ident">ProjectConfig</span>::<span class="ident">default</span>(),
             <span class="ident">organization_id</span>: <span class="prelude-val">None</span>,
@@ -860,27 +855,9 @@
         <span class="ident">state</span>
     }
 
-    <span class="doccomment">/// Returns configuration options for a public key.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_public_key_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">public_key</span>: <span class="ident">ProjectKey</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">PublicKeyConfig</span><span class="op">&gt;</span> {
-        <span class="kw">for</span> <span class="ident">key</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">public_keys</span> {
-            <span class="kw">if</span> <span class="ident">key</span>.<span class="ident">public_key</span> <span class="op">=</span><span class="op">=</span> <span class="ident">public_key</span> {
-                <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">key</span>);
-            }
-        }
-        <span class="prelude-val">None</span>
-    }
-
-    <span class="doccomment">/// Returns the current status of a key.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_public_key_status</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">public_key</span>: <span class="ident">ProjectKey</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">PublicKeyStatus</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">key</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_public_key_config</span>(<span class="ident">public_key</span>) {
-            <span class="kw">if</span> <span class="ident">key</span>.<span class="ident">is_enabled</span> {
-                <span class="ident">PublicKeyStatus</span>::<span class="ident">Enabled</span>
-            } <span class="kw">else</span> {
-                <span class="ident">PublicKeyStatus</span>::<span class="ident">Disabled</span>
-            }
-        } <span class="kw">else</span> {
-            <span class="ident">PublicKeyStatus</span>::<span class="ident">Unknown</span>
-        }
+    <span class="doccomment">/// Returns configuration options for the public key.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_public_key_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">PublicKeyConfig</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">public_keys</span>.<span class="ident">get</span>(<span class="number">0</span>)
     }
 
     <span class="doccomment">/// Returns `true` if the entire project should be considered</span>
@@ -898,9 +875,9 @@
 
     <span class="doccomment">/// Returns whether this state is outdated and needs to be refetched.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outdated</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Outdated</span> {
-        <span class="kw">let</span> <span class="ident">expiry</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">slug</span> {
-            <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">project_cache_expiry</span>(),
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">cache_miss_expiry</span>(),
+        <span class="kw">let</span> <span class="ident">expiry</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">project_id</span>.<span class="ident">value</span>() {
+            <span class="number">0</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">cache_miss_expiry</span>(),
+            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">project_cache_expiry</span>(),
         };
 
         <span class="kw">let</span> <span class="ident">elapsed</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">last_fetch</span>.<span class="ident">elapsed</span>();
@@ -916,6 +893,14 @@
     <span class="doccomment">/// Returns the project config.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">ProjectConfig</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>
+    }
+
+    <span class="doccomment">/// Returns `true` if the given project ID matches this project.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If the project state has not been loaded, this check is skipped because the project</span>
+    <span class="doccomment">/// identifier is not yet known.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_valid_project_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">project_id</span>: <span class="ident">ProjectId</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">project_id</span>.<span class="ident">value</span>() <span class="op">=</span><span class="op">=</span> <span class="number">0</span> <span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">project_id</span> <span class="op">=</span><span class="op">=</span> <span class="ident">project_id</span>
     }
 
     <span class="doccomment">/// Checks if this origin is allowed for this project.</span>
@@ -940,6 +925,20 @@
         <span class="ident">matches_any_origin</span>(<span class="prelude-val">Some</span>(<span class="ident">origin</span>.<span class="ident">as_str</span>()), <span class="kw-2">&amp;</span><span class="ident">allowed</span>)
     }
 
+    <span class="doccomment">/// Returns `true` if the given public key matches this state.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is a sanity check since project states are keyed by the DSN public key. Unless the</span>
+    <span class="doccomment">/// state is invalid or unloaded, it must always match the public key.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_matching_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">public_key</span>: <span class="ident">ProjectKey</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">key_config</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_public_key_config</span>() {
+            <span class="comment">// Always validate if we have a key config.</span>
+            <span class="ident">key_config</span>.<span class="ident">public_key</span> <span class="op">=</span><span class="op">=</span> <span class="ident">public_key</span>
+        } <span class="kw">else</span> {
+            <span class="comment">// Loaded states must have a key config, but ignore missing and invalid states.</span>
+            <span class="self">self</span>.<span class="ident">project_id</span>.<span class="ident">value</span>() <span class="op">=</span><span class="op">=</span> <span class="number">0</span>
+        }
+    }
+
     <span class="doccomment">/// Returns `Scoping` information for this project state.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This scoping amends `RequestMeta::get_partial_scoping` by adding organization and key info.</span>
@@ -952,8 +951,15 @@
         <span class="comment">// project was refetched in between. In such a case, access to key quotas is not availabe,</span>
         <span class="comment">// but we can gracefully execute all other rate limiting.</span>
         <span class="ident">scoping</span>.<span class="ident">key_id</span> <span class="op">=</span> <span class="self">self</span>
-            .<span class="ident">get_public_key_config</span>(<span class="ident">scoping</span>.<span class="ident">public_key</span>)
+            .<span class="ident">get_public_key_config</span>()
             .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">config</span><span class="op">|</span> <span class="ident">config</span>.<span class="ident">numeric_id</span>);
+
+        <span class="comment">// The original project identifier is part of the DSN. If the DSN was moved to another</span>
+        <span class="comment">// project, the actual project identifier is different and can be obtained from project</span>
+        <span class="comment">// states. This is only possible when the project state has been loaded.</span>
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">project_id</span>.<span class="ident">value</span>() <span class="op">!</span><span class="op">=</span> <span class="number">0</span> {
+            <span class="ident">scoping</span>.<span class="ident">project_id</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">project_id</span>;
+        }
 
         <span class="comment">// This is a hack covering three cases:</span>
         <span class="comment">//  1. Relay has not fetched the project state. In this case we have no way of knowing</span>
@@ -985,49 +991,40 @@
     <span class="doccomment">///  - Disabled or unknown projects</span>
     <span class="doccomment">///  - Disabled project keys (DSN)</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="ident">RequestMeta</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">DiscardReason</span><span class="op">&gt;</span> {
+        <span class="comment">// Verify that the stated project id in the DSN matches the public key used to retrieve this</span>
+        <span class="comment">// project state.</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_valid_project_id</span>(<span class="ident">meta</span>.<span class="ident">project_id</span>()) {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason</span>::<span class="ident">ProjectId</span>);
+        }
+
         <span class="comment">// Try to verify the request origin with the project config.</span>
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_valid_origin</span>(<span class="ident">meta</span>.<span class="ident">origin</span>()) {
             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason</span>::<span class="ident">Cors</span>);
         }
 
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">outdated</span>(<span class="ident">config</span>) <span class="op">=</span><span class="op">=</span> <span class="ident">Outdated</span>::<span class="ident">HardOutdated</span> {
-            <span class="comment">// if the state is out of date, we proceed as if it was still up to date. The</span>
-            <span class="comment">// upstream relay (or sentry) will still filter events.</span>
+        <span class="comment">// sanity-check that the state has a matching public key loaded.</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_matching_key</span>(<span class="ident">meta</span>.<span class="ident">public_key</span>()) {
+            <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;public key mismatch on state {}&quot;</span>, <span class="ident">meta</span>.<span class="ident">public_key</span>());
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason</span>::<span class="ident">ProjectId</span>);
+        }
 
-            <span class="comment">// we assume it is unlikely to re-activate a disabled public key.</span>
-            <span class="comment">// thus we handle events pretending the config is still valid,</span>
-            <span class="comment">// except queueing events for unknown DSNs as they might have become</span>
-            <span class="comment">// available in the meanwhile.</span>
-            <span class="kw">match</span> <span class="self">self</span>.<span class="ident">get_public_key_status</span>(<span class="ident">meta</span>.<span class="ident">public_key</span>()) {
-                <span class="ident">PublicKeyStatus</span>::<span class="ident">Enabled</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
-                <span class="ident">PublicKeyStatus</span>::<span class="ident">Disabled</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason</span>::<span class="ident">ProjectId</span>),
-                <span class="ident">PublicKeyStatus</span>::<span class="ident">Unknown</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
-            }
-        } <span class="kw">else</span> {
+        <span class="comment">// if the state is out of date, we proceed as if it was still up to date. The</span>
+        <span class="comment">// upstream relay (or sentry) will still filter events.</span>
+
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">outdated</span>(<span class="ident">config</span>) <span class="op">!</span><span class="op">=</span> <span class="ident">Outdated</span>::<span class="ident">HardOutdated</span> {
             <span class="comment">// if we recorded an invalid project state response from the upstream (i.e. parsing</span>
-            <span class="comment">// failed), discard the event with a s</span>
+            <span class="comment">// failed), discard the event with a state reason.</span>
             <span class="kw">if</span> <span class="self">self</span>.<span class="ident">invalid</span>() {
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason</span>::<span class="ident">ProjectState</span>);
             }
 
-            <span class="comment">// only drop events if we know for sure the project is disabled.</span>
+            <span class="comment">// only drop events if we know for sure the project or key are disabled.</span>
             <span class="kw">if</span> <span class="self">self</span>.<span class="ident">disabled</span>() {
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason</span>::<span class="ident">ProjectId</span>);
             }
-
-            <span class="comment">// since the config has been fetched recently, we assume unknown</span>
-            <span class="comment">// public keys do not exist and drop events eagerly. proxy mode is</span>
-            <span class="comment">// an exception, where public keys are backfilled lazily after</span>
-            <span class="comment">// events are sent to the upstream.</span>
-            <span class="kw">match</span> <span class="self">self</span>.<span class="ident">get_public_key_status</span>(<span class="ident">meta</span>.<span class="ident">public_key</span>()) {
-                <span class="ident">PublicKeyStatus</span>::<span class="ident">Enabled</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
-                <span class="ident">PublicKeyStatus</span>::<span class="ident">Disabled</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason</span>::<span class="ident">ProjectId</span>),
-                <span class="ident">PublicKeyStatus</span>::<span class="ident">Unknown</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">relay_mode</span>() {
-                    <span class="ident">RelayMode</span>::<span class="ident">Proxy</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
-                    <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason</span>::<span class="ident">ProjectId</span>),
-                },
-            }
         }
+
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="doccomment">/// Validates data in this project state and removes values that are partially invalid.</span>
@@ -1043,9 +1040,6 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PublicKeyConfig</span> {
     <span class="doccomment">/// Public part of key (random hash).</span>
     <span class="kw">pub</span> <span class="ident">public_key</span>: <span class="ident">ProjectKey</span>,
-
-    <span class="doccomment">/// Whether this key can be used.</span>
-    <span class="kw">pub</span> <span class="ident">is_enabled</span>: <span class="ident">bool</span>,
 
     <span class="doccomment">/// The primary key of the DSN in Sentry&#39;s main database.</span>
     <span class="doccomment">///</span>
@@ -1063,7 +1057,6 @@
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>, <span class="ident">remote</span> <span class="op">=</span> <span class="string">&quot;PublicKeyConfig&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LimitedPublicKeyConfig</span> {
         <span class="kw">pub</span> <span class="ident">public_key</span>: <span class="ident">ProjectKey</span>,
-        <span class="kw">pub</span> <span class="ident">is_enabled</span>: <span class="ident">bool</span>,
     }
 
     <span class="doccomment">/// Serializes a list of `PublicKeyConfig` objects using `LimitedPublicKeyConfig`.</span>
@@ -1081,8 +1074,13 @@
         <span class="ident">seq</span>.<span class="ident">end</span>()
     }
 }
+
+<span class="doccomment">/// Actor representing organization and project configuration for a project key.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This actor no longer uniquely identifies a project. Instead, it identifies a project key.</span>
+<span class="doccomment">/// Projects can define multiple keys, in which case this actor is duplicated for each instance.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Project</span> {
-    <span class="ident">id</span>: <span class="ident">ProjectId</span>,
+    <span class="ident">public_key</span>: <span class="ident">ProjectKey</span>,
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
     <span class="ident">manager</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">ProjectCache</span><span class="op">&gt;</span>,
     <span class="ident">state</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span>,
@@ -1092,9 +1090,9 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Project</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">id</span>: <span class="ident">ProjectId</span>, <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>, <span class="ident">manager</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">ProjectCache</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">key</span>: <span class="ident">ProjectKey</span>, <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>, <span class="ident">manager</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">ProjectCache</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="ident">Project</span> {
-            <span class="ident">id</span>,
+            <span class="ident">public_key</span>: <span class="ident">key</span>,
             <span class="ident">config</span>,
             <span class="ident">manager</span>,
             <span class="ident">state</span>: <span class="prelude-val">None</span>,
@@ -1137,11 +1135,11 @@
 
         <span class="kw">let</span> <span class="ident">channel</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state_channel</span> {
             <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">channel</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project {} state request amended&quot;</span>, <span class="self">self</span>.<span class="ident">id</span>);
+                <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project {} state request amended&quot;</span>, <span class="self">self</span>.<span class="ident">public_key</span>);
                 <span class="ident">channel</span>.<span class="ident">clone</span>()
             }
             <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project {} state requested&quot;</span>, <span class="self">self</span>.<span class="ident">id</span>);
+                <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project {} state requested&quot;</span>, <span class="self">self</span>.<span class="ident">public_key</span>);
                 <span class="kw">let</span> <span class="ident">channel</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fetch_state</span>(<span class="ident">context</span>);
                 <span class="self">self</span>.<span class="ident">state_channel</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">channel</span>.<span class="ident">clone</span>());
                 <span class="ident">channel</span>
@@ -1164,10 +1162,10 @@
         <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">oneshot</span>::<span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="kw">let</span> (<span class="ident">sender</span>, <span class="ident">receiver</span>) <span class="op">=</span> <span class="ident">oneshot</span>::<span class="ident">channel</span>();
-        <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">id</span>;
+        <span class="kw">let</span> <span class="ident">public_key</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">public_key</span>;
 
         <span class="self">self</span>.<span class="ident">manager</span>
-            .<span class="ident">send</span>(<span class="ident">FetchProjectState</span> { <span class="ident">id</span> })
+            .<span class="ident">send</span>(<span class="ident">FetchProjectState</span> { <span class="ident">public_key</span> })
             .<span class="ident">into_actor</span>(<span class="self">self</span>)
             .<span class="ident">map</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">state_result</span>, <span class="ident">slf</span>, <span class="ident">_ctx</span><span class="op">|</span> {
                 <span class="ident">slf</span>.<span class="ident">state_channel</span> <span class="op">=</span> <span class="prelude-val">None</span>;
@@ -1178,7 +1176,7 @@
                 <span class="ident">slf</span>.<span class="ident">state</span> <span class="op">=</span> <span class="ident">state_result</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">resp</span><span class="op">|</span> <span class="ident">resp</span>.<span class="ident">state</span>).<span class="ident">ok</span>();
 
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">state</span>) <span class="op">=</span> <span class="ident">slf</span>.<span class="ident">state</span> {
-                    <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project {} state updated&quot;</span>, <span class="ident">id</span>);
+                    <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project state {} updated&quot;</span>, <span class="ident">public_key</span>);
                     <span class="ident">sender</span>.<span class="ident">send</span>(<span class="ident">state</span>.<span class="ident">clone</span>()).<span class="ident">ok</span>();
                 }
             })
@@ -1235,11 +1233,11 @@
     <span class="kw">type</span> <span class="ident">Context</span> <span class="op">=</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
 
     <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) {
-        <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project {} initialized without state&quot;</span>, <span class="self">self</span>.<span class="ident">id</span>);
+        <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project {} initialized without state&quot;</span>, <span class="self">self</span>.<span class="ident">public_key</span>);
     }
 
     <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) {
-        <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project {} removed from cache&quot;</span>, <span class="self">self</span>.<span class="ident">id</span>);
+        <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project {} removed from cache&quot;</span>, <span class="self">self</span>.<span class="ident">public_key</span>);
     }
 }
 

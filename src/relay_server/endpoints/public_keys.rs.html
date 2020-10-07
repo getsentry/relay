@@ -30,7 +30,6 @@
 <span id="30">30</span>
 <span id="31">31</span>
 <span id="32">32</span>
-<span id="33">33</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">actix</span>::<span class="ident">ResponseFuture</span>;
 <span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">Error</span>, <span class="ident">Json</span>};
@@ -40,7 +39,6 @@
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">extractors</span>::{<span class="ident">CurrentServiceState</span>, <span class="ident">SignedJson</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">service</span>::<span class="ident">ServiceApp</span>;
 
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy</span>::<span class="ident">needless_pass_by_value</span>)]</span>
 <span class="kw">fn</span> <span class="ident">get_public_keys</span>(
     <span class="ident">state</span>: <span class="ident">CurrentServiceState</span>,
     <span class="ident">body</span>: <span class="ident">SignedJson</span><span class="op">&lt;</span><span class="ident">GetRelays</span><span class="op">&gt;</span>,
