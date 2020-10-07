@@ -374,7 +374,9 @@ pub enum RelayCounters {
     ///
     /// Tags:
     ///
-    /// - `status`: Scrubbing status: "ok" or "error".
+    /// - `status`: Scrubbing status: "ok" means successful scrubbed, "error" means there
+    ///       was an error during scrubbing and finally "n/a" means scrubbing was successful
+    ///       but no scurbbing rules apply.
     MinidumpsScrubbed,
 }
 

@@ -1020,12 +1020,10 @@ impl EventProcessor {
                 // conditions, this could destroy stack memory.
                 match processor.scrub_minidump(filename, &mut payload) {
                     Ok(modified) => {
-                        if modified {
-                            metric!(
-                                counter(RelayCounters::MinidumpsScrubbed) += 1,
-                                status = "ok"
-                            );
-                        }
+                        metric!(
+                            counter(RelayCounters::MinidumpsScrubbed) += 1,
+                            status = if modified { "ok" } else { "n/a" },
+                        );
                     }
                     Err(scrub_error) => {
                         metric!(
