@@ -97,8 +97,8 @@ fn default_project_id() -> ProjectId {
 #[serde(rename_all = "camelCase")]
 pub struct ProjectState {
     /// Unique identifier of this project.
-    #[serde(rename = "projectId", default = "default_project_id")]
-    pub id: ProjectId,
+    #[serde(default = "default_project_id")]
+    pub project_id: ProjectId,
     /// The timestamp of when the state was last changed.
     ///
     /// This might be `None` in some rare cases like where states
@@ -137,6 +137,7 @@ pub struct ProjectState {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase", remote = "ProjectState")]
 pub struct LimitedProjectState {
+    pub project_id: ProjectId,
     pub last_change: Option<DateTime<Utc>>,
     pub disabled: bool,
     #[serde(with = "limited_public_key_comfigs")]
@@ -151,7 +152,7 @@ impl ProjectState {
     /// Project state for a missing project.
     pub fn missing() -> Self {
         ProjectState {
-            id: ProjectId::new(0),
+            project_id: ProjectId::new(0),
             last_change: None,
             disabled: true,
             public_keys: SmallVec::new(),
@@ -199,7 +200,7 @@ impl ProjectState {
 
     /// Returns whether this state is outdated and needs to be refetched.
     pub fn outdated(&self, config: &Config) -> Outdated {
-        let expiry = match self.id.value() {
+        let expiry = match self.project_id.value() {
             0 => config.cache_miss_expiry(),
             _ => config.project_cache_expiry(),
         };
@@ -224,7 +225,7 @@ impl ProjectState {
     /// If the project state has not been loaded, this check is skipped because the project
     /// identifier is not yet known.
     pub fn is_valid_project_id(&self, project_id: ProjectId) -> bool {
-        self.id.value() == 0 || self.id == project_id
+        self.project_id.value() == 0 || self.project_id == project_id
     }
 
     /// Checks if this origin is allowed for this project.
@@ -259,7 +260,7 @@ impl ProjectState {
             key_config.public_key == public_key
         } else {
             // Loaded states must have a key config, but ignore missing and invalid states.
-            self.id.value() == 0
+            self.project_id.value() == 0
         }
     }
 
@@ -281,8 +282,8 @@ impl ProjectState {
         // The original project identifier is part of the DSN. If the DSN was moved to another
         // project, the actual project identifier is different and can be obtained from project
         // states. This is only possible when the project state has been loaded.
-        if self.id.value() != 0 {
-            scoping.project_id = self.id;
+        if self.project_id.value() != 0 {
+            scoping.project_id = self.project_id;
         }
 
         // This is a hack covering three cases:
