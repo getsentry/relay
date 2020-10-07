@@ -236,6 +236,31 @@ struct UpstreamRequest {
     path: String,
     /// Request build function.
     build: Box<dyn FnMut(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>>,
+    /// Number of times this request was already sent
+    previous_retries: u32,
+}
+impl UpstreamRequest {
+    pub fn route_name(&self) -> &'static str {
+        if self.path.contains("/outcomes/") {
+            "outcomes"
+        } else if self.path.contains("/envelope/") {
+            "envelope"
+        } else if self.path.contains("/projectids/") {
+            "project_ids"
+        } else if self.path.contains("/projectconfigs/") {
+            "project_configs"
+        } else if self.path.contains("/publickeys/") {
+            "public_keys"
+        } else if self.path.contains("/challenge/") {
+            "challenge"
+        } else if self.path.contains("/response/") {
+            "response"
+        } else if self.path.contains("/live/") {
+            "check_live"
+        } else {
+            "unknown"
+        }
+    }
 }
 
 pub struct UpstreamRelay {
@@ -458,6 +483,42 @@ impl UpstreamRelay {
             .spawn(ctx);
     }
 
+    /// Adds a metric for the upstream request.
+    fn meter_result(
+        request: &UpstreamRequest,
+        send_result: &Result<ClientResponse, UpstreamRequestError>,
+    ) {
+        let sc: StatusCode;
+        let (status_code, result) = match send_result {
+            Ok(ref client_response) => {
+                sc = client_response.status();
+                (sc.as_str(), "success")
+            }
+            Err(UpstreamRequestError::ResponseError(status_code, _)) => {
+                (status_code.as_str(), "response_error")
+            }
+            Err(UpstreamRequestError::PayloadFailed(_)) => ("-", "payload_failed"),
+            Err(UpstreamRequestError::SendFailed(_)) => ("-", "send_failed"),
+            Err(UpstreamRequestError::RateLimited(_)) => ("_", "rate_limited"),
+            Err(UpstreamRequestError::InvalidJson(_)) => ("_", "invalid_json"),
+
+            Err(UpstreamRequestError::NoCredentials)
+            | Err(UpstreamRequestError::ChannelClosed)
+            | Err(UpstreamRequestError::BuildFailed(_)) => {
+                // these are not errors caused when sending to upstream so we don't need to log anything
+                log::error!("meter_result called for unsupported error");
+                return;
+            }
+        };
+
+        metric!(
+            histogram(RelayHistograms::UpstreamRequests) = request.previous_retries.into(),
+            result = result,
+            status_code = status_code,
+            route = request.route_name(),
+        );
+    }
+
     /// Checks the result of an upstream request and takes appropriate action.
     ///
     /// 1. If the request was sent, notify the response sender.
@@ -466,14 +527,16 @@ impl UpstreamRelay {
     /// 4. Otherwise, ensure an authentication request is scheduled.
     fn handle_http_response(
         &mut self,
-        request: UpstreamRequest,
+        mut request: UpstreamRequest,
         send_result: Result<ClientResponse, UpstreamRequestError>,
         ctx: &mut Context<Self>,
     ) {
+        UpstreamRelay::meter_result(&request, &send_result);
         if matches!(send_result, Err(ref err) if err.is_network_error()) {
             self.handle_network_error(ctx);
 
             if request.retry {
+                request.previous_retries += 1;
                 return self.enqueue(request, ctx, EnqueuePosition::Back);
             }
         } else {
@@ -536,6 +599,7 @@ impl UpstreamRelay {
             path: path.as_ref().to_owned(),
             response_sender: tx,
             build: Box::new(build),
+            previous_retries: 0,
         };
 
         self.enqueue(request, ctx, EnqueuePosition::Front);
