@@ -1,8 +1,6 @@
 use std::borrow::Cow;
 use std::iter::FusedIterator;
 
-use encoding::all::UTF_16LE;
-use encoding::{Encoding, RawDecoder};
 use regex::bytes::RegexBuilder as BytesRegexBuilder;
 use regex::{Match, Regex};
 use smallvec::SmallVec;
@@ -262,75 +260,55 @@ impl StringMods for [u8] {
 /// encoded text.
 struct WStrSegmentIter<'a> {
     data: &'a mut [u8],
-    decoder: Box<dyn RawDecoder>,
     offset: usize,
 }
 
 impl<'a> WStrSegmentIter<'a> {
     fn new(data: &'a mut [u8]) -> Self {
-        Self {
-            data,
-            decoder: UTF_16LE.raw_decoder(),
-            offset: 0,
-        }
+        Self { data, offset: 0 }
     }
 }
 
 impl<'a> Iterator for WStrSegmentIter<'a> {
-    type Item = WstrSegment<'a>;
+    type Item = WStrSegment<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // We are handing out multiple mutable slices from the same mutable slice.  This is
-        // safe because we know they are not overlapping.  However the compiler doesn't know
-        // this so we need to transmute the lifetimes of the slices we return with
-        // std::slice::from_raw_parts_mut().
-        let mut decoded = String::with_capacity(self.data.len() - self.offset);
-
         loop {
             if self.offset >= self.data.len() {
                 return None;
             }
 
-            decoded.clear();
-            let start = self.offset;
-            let (unprocessed_offset, err) =
-                self.decoder.raw_feed(&self.data[start..], &mut decoded);
-            let end = start + unprocessed_offset;
+            let slice = match WStr::from_utf16le_mut(&mut self.data[self.offset..]) {
+                Ok(wstr) => {
+                    self.offset += wstr.len();
+                    unsafe { wstr.as_bytes_mut() }
+                }
+                Err(err) => {
+                    let start = self.offset;
+                    let end = start + err.valid_up_to();
+                    match err.error_len() {
+                        Some(len) => self.offset += err.valid_up_to() + len,
+                        None => self.offset = self.data.len(),
+                    }
+                    &mut self.data[start..end]
+                }
+            };
 
-            if let Some(err) = err {
-                if err.upto > 0 {
-                    self.offset += err.upto as usize;
-                } else {
-                    // This should never happen, but if it does, re-set the decoder and skip
-                    // forward to the next 2 bytes.
-                    self.offset += std::mem::size_of::<u16>(); // TODO: encoding-neutral?!?
-                    self.decoder = self.decoder.from_self();
-                }
-                if decoded.len() >= MIN_STRING_LEN {
-                    let slice = &mut self.data[start..end];
-                    let len = slice.len();
-                    let ptr = slice.as_mut_ptr();
-                    let encoded = unsafe {
-                        WStr::from_utf16le_unchecked_mut(std::slice::from_raw_parts_mut(ptr, len))
-                    };
-                    return Some(WstrSegment { encoded, decoded });
-                } else {
-                    continue;
-                }
-            } else {
-                self.offset += unprocessed_offset;
-                if decoded.len() >= MIN_STRING_LEN {
-                    let slice = &mut self.data[start..end];
-                    let len = slice.len();
-                    let ptr = slice.as_mut_ptr();
-                    let encoded = unsafe {
-                        WStr::from_utf16le_unchecked_mut(std::slice::from_raw_parts_mut(ptr, len))
-                    };
-                    return Some(WstrSegment { encoded, decoded });
-                } else {
-                    return None;
-                }
+            // We are handing out multiple mutable slices from the same mutable slice.  This
+            // is safe because we know they are not overlapping.  However the compiler
+            // doesn't know this so we need to transmute the lifetimes of the slices we
+            // return with std::slice::from_raw_parts_mut().
+            let ptr = slice.as_mut_ptr();
+            let len = slice.len();
+            let encoded = unsafe {
+                WStr::from_utf16le_unchecked_mut(std::slice::from_raw_parts_mut(ptr, len))
+            };
+
+            if encoded.chars().take(MIN_STRING_LEN).count() < MIN_STRING_LEN {
+                continue;
             }
+            let decoded = encoded.to_utf8();
+            return Some(WStrSegment { encoded, decoded });
         }
     }
 }
@@ -345,7 +323,7 @@ impl<'a> FusedIterator for WStrSegmentIter<'a> {}
 ///
 /// While the `data` field is mutable, after mutating this the string in `decoded` will no
 /// longer match.
-struct WstrSegment<'a> {
+struct WStrSegment<'a> {
     /// The raw bytes of this segment.
     encoded: &'a mut WStr,
     /// The decoded string of this segment.
@@ -514,7 +492,6 @@ impl<'a> PiiAttachmentsProcessor<'a> {
 
 #[cfg(test)]
 mod tests {
-    use encoding::EncoderTrap;
     use itertools::Itertools;
 
     use crate::pii::PiiConfig;
@@ -606,7 +583,13 @@ mod tests {
     }
 
     fn utf16le(s: &str) -> Vec<u8> {
-        UTF_16LE.encode(s, EncoderTrap::Strict).unwrap()
+        s.encode_utf16()
+            .map(|u| u.to_le_bytes())
+            .collect::<Vec<[u8; 2]>>()
+            .iter()
+            .flatten()
+            .copied()
+            .collect()
     }
 
     #[test]
