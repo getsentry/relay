@@ -1032,7 +1032,9 @@ impl EventProcessor {
                             status = "error"
                         );
                         log::warn!("failed to scrub minidump: {}", LogError(&scrub_error));
-                        processor.scrub_attachment(filename, &mut payload);
+                        metric!(timer(RelayTimers::AttachmentScrubbing), {
+                            processor.scrub_attachment(filename, &mut payload);
+                        })
                     }
                 }
 

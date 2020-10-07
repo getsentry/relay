@@ -213,6 +213,14 @@ pub enum RelayTimers {
     ///       was an error during scrubbing and finally "n/a" means scrubbing was successful
     ///       but no scurbbing rules applied.
     MinidumpScrubbing,
+    /// Time spend on attachment scrubbing.
+    ///
+    /// This represents the total time spent on evaluating the scrubbing rules for an
+    /// attachment and the attachment scrubbing itself, regardless of whether any rules were
+    /// applied.  Note that minidumps which failed to be parsed (status="error" in
+    /// scrubbing.minidumps.duration) will be scrubbed as plain attachments and count
+    /// towards this.
+    AttachmentScrubbing,
 }
 
 impl TimerMetric for RelayTimers {
@@ -235,6 +243,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ProjectIdRequestDuration => "project_id.request.duration",
             RelayTimers::RequestsDuration => "requests.duration",
             RelayTimers::MinidumpScrubbing => "scrubbing.minidumps.duration",
+            RelayTimers::AttachmentScrubbing => "scrubbing.attachments.duration",
         }
     }
 }
