@@ -201,6 +201,18 @@ pub enum RelayTimers {
     ///  - `method`: The HTTP method of the request.
     ///  - `route`: Unique dashed identifier of the endpoint.
     RequestsDuration,
+    /// Time spent on minidump scrubbing.
+    ///
+    /// This is the total time spent on parsing and scrubbing the minidump.  Even if no PII
+    /// scrubbing rules applied the minidump will still be parsed and the rules evaluated on
+    /// the parsed minidump, this duration is reported here with status of "n/a".
+    ///
+    /// This metric is tagged with:
+    ///
+    /// - `status`: Scrubbing status: "ok" means successful scrubbed, "error" means there
+    ///       was an error during scrubbing and finally "n/a" means scrubbing was successful
+    ///       but no scurbbing rules applied.
+    MinidumpScrubbing,
 }
 
 impl TimerMetric for RelayTimers {
@@ -222,6 +234,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
             RelayTimers::ProjectIdRequestDuration => "project_id.request.duration",
             RelayTimers::RequestsDuration => "requests.duration",
+            RelayTimers::MinidumpScrubbing => "scrubbing.minidumps.duration",
         }
     }
 }
@@ -370,14 +383,6 @@ pub enum RelayCounters {
     ConnectorErrors,
     /// Number of upstream connections that experienced a timeout.
     ConnectorTimeouts,
-    /// Number of minidump attachments scrubbed.
-    ///
-    /// Tags:
-    ///
-    /// - `status`: Scrubbing status: "ok" means successful scrubbed, "error" means there
-    ///       was an error during scrubbing and finally "n/a" means scrubbing was successful
-    ///       but no scurbbing rules apply.
-    MinidumpsScrubbed,
 }
 
 impl CounterMetric for RelayCounters {
@@ -406,7 +411,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ConnectorClosed => "connector.closed",
             RelayCounters::ConnectorErrors => "connector.errors",
             RelayCounters::ConnectorTimeouts => "connector.timeouts",
-            RelayCounters::MinidumpsScrubbed => "scrubbing.minidumps",
         }
     }
 }
