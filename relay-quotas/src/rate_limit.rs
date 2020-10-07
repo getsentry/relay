@@ -346,14 +346,18 @@ mod tests {
 
     #[test]
     fn test_parse_retry_after() {
+        // Note RetryAfter::remaining_seconds() adds 1s to so it always waits longer than
+        // the actual sub-second timeout.  Because of races between creating the struct and
+        // calling the method we can't do exact comparisons.
+
         // positive float
         let retry_after = "17.7".parse::<RetryAfter>().expect("parse RetryAfter");
-        assert_eq!(retry_after.remaining_seconds(), 18);
+        assert!(retry_after.remaining_seconds() - 17 <= 1);
         assert!(!retry_after.expired());
 
         // positive int
         let retry_after = "17".parse::<RetryAfter>().expect("parse RetryAfter");
-        assert_eq!(retry_after.remaining_seconds(), 17);
+        assert!(retry_after.remaining_seconds() - 17 <= 1);
         assert!(!retry_after.expired());
 
         // negative number
