@@ -849,6 +849,7 @@
 <span id="849">849</span>
 <span id="850">850</span>
 <span id="851">851</span>
+<span id="852">852</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">FromStr</span>;
@@ -895,6 +896,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">remaining_seconds</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u64</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">remaining</span>() {
             <span class="comment">// Compensate for the missing subsec part by adding 1s</span>
+            <span class="prelude-val">Some</span>(<span class="ident">duration</span>) <span class="kw">if</span> <span class="ident">duration</span>.<span class="ident">subsec_nanos</span>() <span class="op">=</span><span class="op">=</span> <span class="number">0</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">duration</span>.<span class="ident">as_secs</span>(),
             <span class="prelude-val">Some</span>(<span class="ident">duration</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">duration</span>.<span class="ident">as_secs</span>() <span class="op">+</span> <span class="number">1</span>,
             <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="number">0</span>,
         }
