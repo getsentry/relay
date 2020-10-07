@@ -249,6 +249,19 @@ impl ProjectState {
         matches_any_origin(Some(origin.as_str()), &allowed)
     }
 
+    /// Returns `true` if the given public key matches this state.
+    ///
+    /// This is a sanity check since project states are keyed by the DSN public key. Unless the
+    /// state is invalid or unloaded, it must always match the public key.
+    pub fn is_matching_key(&self, public_key: ProjectKey) -> bool {
+        // Ignore missing and invalid states, which do not carry a project identifier.
+        if self.id.value() == 0 {
+            return true;
+        }
+
+        self.get_public_key_config().map(|c| c.public_key) == Some(public_key)
+    }
+
     /// Returns `Scoping` information for this project state.
     ///
     /// This scoping amends `RequestMeta::get_partial_scoping` by adding organization and key info.
@@ -328,7 +341,7 @@ impl ProjectState {
             }
 
             // sanity-check that the up-to-date state has a matching public key loaded.
-            if self.get_public_key_config().map(|c| c.public_key) != Some(meta.public_key()) {
+            if !self.is_matching_key(meta.public_key()) {
                 log::error!("public key mismatch on state {}", meta.public_key());
                 return Err(DiscardReason::ProjectId);
             }
