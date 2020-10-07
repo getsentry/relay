@@ -70,6 +70,8 @@ class SentryLike(object):
 
     def basic_project_config(self):
         return {
+            "projectId": 42,
+            "slug": "python",
             "publicKeys": [
                 {"publicKey": self.dsn_public_key, "isEnabled": True, "numericId": 123}
             ],
@@ -88,7 +90,6 @@ class SentryLike(object):
                     },
                 },
             },
-            "slug": "python",
         }
 
     def full_project_config(self):

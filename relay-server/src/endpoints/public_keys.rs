@@ -6,7 +6,6 @@ use crate::actors::relays::{GetRelays, GetRelaysResult};
 use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;
 
-#[allow(clippy::needless_pass_by_value)]
 fn get_public_keys(
     state: CurrentServiceState,
     body: SignedJson<GetRelays>,

@@ -874,11 +874,14 @@ impl EventProcessor {
         } = *state;
 
         let key_id = project_state
-            .get_public_key_config(envelope.meta().public_key())
+            .get_public_key_config()
             .and_then(|k| Some(k.numeric_id?.to_string()));
 
         if key_id.is_none() {
-            log::error!("can't find key in project config, but we verified auth before already");
+            log::error!(
+                "project state for key {} is missing key id",
+                envelope.meta().public_key()
+            );
         }
 
         let store_config = StoreConfig {

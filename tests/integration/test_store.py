@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import queue
@@ -494,12 +495,16 @@ def test_processing_quotas(
         }
     ]
 
+    # This still creates a project with ID 42, but with a new public key. We need to put it in a new
+    # place, which is going to be slot 43.
     second_key = {
         "publicKey": "31a5a894b4524f74a9a8d0e27e21ba92",
         "isEnabled": True,
         "numericId": 1234,
     }
-    public_keys.append(second_key)
+
+    mini_sentry.project_configs[43] = second_config = mini_sentry.full_project_config()
+    second_config["publicKeys"] = [second_key]
 
     if event_type == "transaction":
         events_consumer = transactions_consumer()

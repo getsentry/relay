@@ -9,7 +9,7 @@ use std::thread;
 use actix::prelude::*;
 use futures::{sync::oneshot, Future};
 
-use relay_common::{LogError, ProjectId};
+use relay_common::{LogError, ProjectId, ProjectKey};
 use relay_config::Config;
 
 use crate::actors::project::ProjectState;
@@ -17,7 +17,7 @@ use crate::actors::project_cache::FetchOptionalProjectState;
 
 pub struct LocalProjectSource {
     config: Arc<Config>,
-    local_states: HashMap<ProjectId, Arc<ProjectState>>,
+    local_states: HashMap<ProjectKey, Arc<ProjectState>>,
 }
 
 impl LocalProjectSource {
@@ -57,12 +57,12 @@ impl Handler<FetchOptionalProjectState> for LocalProjectSource {
         message: FetchOptionalProjectState,
         _context: &mut Self::Context,
     ) -> Self::Result {
-        self.local_states.get(&message.id).cloned()
+        self.local_states.get(&message.public_key).cloned()
     }
 }
 
 struct UpdateLocalStates {
-    states: HashMap<ProjectId, Arc<ProjectState>>,
+    states: HashMap<ProjectKey, Arc<ProjectState>>,
 }
 
 impl Message for UpdateLocalStates {
@@ -77,7 +77,13 @@ impl Handler<UpdateLocalStates> for LocalProjectSource {
     }
 }
 
-fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectId, Arc<ProjectState>>> {
+fn get_project_id(path: &Path) -> Option<ProjectId> {
+    path.file_stem()
+        .and_then(OsStr::to_str)
+        .and_then(|stem| stem.parse().ok())
+}
+
+fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectKey, Arc<ProjectState>>> {
     let mut states = HashMap::new();
 
     let directory = match fs::read_dir(projects_path) {
@@ -107,20 +113,22 @@ fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectId, Arc<
             continue;
         }
 
-        let id = match path
-            .file_stem()
-            .and_then(OsStr::to_str)
-            .and_then(|stem| stem.parse().ok())
-        {
-            Some(id) => id,
-            None => {
+        let state = serde_json::from_reader(io::BufReader::new(fs::File::open(&path)?))?;
+        let mut sanitized = ProjectState::sanitize(state);
+
+        if sanitized.project_id.value() == 0 {
+            if let Some(project_id) = get_project_id(&path) {
+                sanitized.project_id = project_id;
+            } else {
                 log::warn!("skipping {:?}, filename is not a valid project id", path);
                 continue;
             }
-        };
+        }
 
-        let state = serde_json::from_reader(io::BufReader::new(fs::File::open(path)?))?;
-        states.insert(id, Arc::new(ProjectState::sanitize(state)));
+        let arc = Arc::new(sanitized);
+        for key in &arc.public_keys {
+            states.insert(key.public_key, arc.clone());
+        }
     }
 
     Ok(states)

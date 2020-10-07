@@ -14,6 +14,10 @@
 - Accept big-endian minidumps. ([#789](https://github.com/getsentry/relay/pull/789))
 - Detect network outages and retry sending events instead of dropping them. ([#788](https://github.com/getsentry/relay/pull/788))
 
+**Internal**:
+
+- Project states are now cached separately per DSN public key instead of per project ID. This means that there will be multiple separate cache entries for projects with more than one DSN. ([#778](https://github.com/getsentry/relay/pull/778))
+
 ## 20.9.0
 
 **Features**:

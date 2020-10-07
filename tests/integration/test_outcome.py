@@ -19,8 +19,6 @@ def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consum
     relay = relay_with_processing()
 
     outcomes_consumer = outcomes_consumer()
-    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
-    mini_sentry.project_configs[42] = None
 
     message_text = "some message {}".format(datetime.now())
     event_id = "11122233344455566677788899900011"
@@ -79,8 +77,6 @@ def test_outcomes_non_processing(relay, mini_sentry):
     }
 
     relay = relay(mini_sentry, config)
-    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
-    mini_sentry.project_configs[42] = None
 
     event_id = _send_event(relay)
 
@@ -120,8 +116,6 @@ def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
     }
 
     relay = relay(mini_sentry, config)
-    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
-    mini_sentry.project_configs[42] = None
 
     try:
         mini_sentry.captured_outcomes.get(timeout=0.2)
@@ -145,8 +139,6 @@ def test_outcomes_non_processing_max_batch_time(relay, mini_sentry):
         }
     }
     relay = relay(mini_sentry, config)
-    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
-    mini_sentry.project_configs[42] = None
 
     event_ids = set()
     # send one less events than the batch size (and check we don't send anything)
@@ -185,8 +177,6 @@ def test_outcomes_non_processing_batching(relay, mini_sentry):
     }
 
     relay = relay(mini_sentry, config)
-    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
-    mini_sentry.project_configs[42] = None
 
     event_ids = set()
     # send one less events than the batch size (and check we don't send anything)
@@ -251,8 +241,6 @@ def test_outcome_source(relay, mini_sentry):
     }
 
     relay = relay(mini_sentry, config)
-    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
-    mini_sentry.project_configs[42] = None
 
     _send_event(relay)
 
@@ -313,9 +301,6 @@ def test_outcome_forwarding(
     config_downstream["outcomes"]["source"] = "downstream-layer"
 
     downstream_relay = relay(upstream, config_downstream)
-
-    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
-    mini_sentry.project_configs[42] = None
 
     event_id = _send_event(downstream_relay)
 
