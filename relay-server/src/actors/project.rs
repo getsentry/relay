@@ -254,12 +254,13 @@ impl ProjectState {
     /// This is a sanity check since project states are keyed by the DSN public key. Unless the
     /// state is invalid or unloaded, it must always match the public key.
     pub fn is_matching_key(&self, public_key: ProjectKey) -> bool {
-        // Ignore missing and invalid states, which do not carry a project identifier.
-        if self.id.value() == 0 {
-            return true;
+        if let Some(key_config) = self.get_public_key_config() {
+            // Always validate if we have a key config.
+            key_config.public_key == public_key
+        } else {
+            // Loaded states must have a key config, but ignore missing and invalid states.
+            self.id.value() == 0
         }
-
-        self.get_public_key_config().map(|c| c.public_key) == Some(public_key)
     }
 
     /// Returns `Scoping` information for this project state.
@@ -325,24 +326,24 @@ impl ProjectState {
             return Err(DiscardReason::Cors);
         }
 
+        // sanity-check that the state has a matching public key loaded.
+        if !self.is_matching_key(meta.public_key()) {
+            log::error!("public key mismatch on state {}", meta.public_key());
+            return Err(DiscardReason::ProjectId);
+        }
+
         // if the state is out of date, we proceed as if it was still up to date. The
         // upstream relay (or sentry) will still filter events.
 
         if self.outdated(config) != Outdated::HardOutdated {
             // if we recorded an invalid project state response from the upstream (i.e. parsing
-            // failed), discard the event with a s
+            // failed), discard the event with a state reason.
             if self.invalid() {
                 return Err(DiscardReason::ProjectState);
             }
 
-            // only drop events if we know for sure the project is disabled.
+            // only drop events if we know for sure the project or key are disabled.
             if self.disabled() {
-                return Err(DiscardReason::ProjectId);
-            }
-
-            // sanity-check that the up-to-date state has a matching public key loaded.
-            if !self.is_matching_key(meta.public_key()) {
-                log::error!("public key mismatch on state {}", meta.public_key());
                 return Err(DiscardReason::ProjectId);
             }
         }
