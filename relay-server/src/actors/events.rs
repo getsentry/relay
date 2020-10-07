@@ -1018,18 +1018,23 @@ impl EventProcessor {
                 // Minidump scrubbing can fail if the minidump cannot be parsed. In this case, we
                 // must be conservative and treat it as a plain attachment. Under extreme
                 // conditions, this could destroy stack memory.
-                if let Err(scrub_error) = processor.scrub_minidump(filename, &mut payload) {
-                    metric!(
-                        counter(RelayCounters::MinidumpsScrubbed) += 1,
-                        status = "error"
-                    );
-                    log::warn!("failed to scrub minidump: {}", LogError(&scrub_error));
-                    processor.scrub_attachment(filename, &mut payload);
-                } else {
-                    metric!(
-                        counter(RelayCounters::MinidumpsScrubbed) += 1,
-                        status = "ok"
-                    );
+                match processor.scrub_minidump(filename, &mut payload) {
+                    Ok(modified) => {
+                        if modified {
+                            metric!(
+                                counter(RelayCounters::MinidumpsScrubbed) += 1,
+                                status = "ok"
+                            );
+                        }
+                    }
+                    Err(scrub_error) => {
+                        metric!(
+                            counter(RelayCounters::MinidumpsScrubbed) += 1,
+                            status = "error"
+                        );
+                        log::warn!("failed to scrub minidump: {}", LogError(&scrub_error));
+                        processor.scrub_attachment(filename, &mut payload);
+                    }
                 }
 
                 let content_type = item
