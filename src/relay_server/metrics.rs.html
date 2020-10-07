@@ -416,6 +416,28 @@
 <span id="416">416</span>
 <span id="417">417</span>
 <span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">metrics</span>::{<span class="ident">CounterMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
@@ -635,6 +657,26 @@
     <span class="doccomment">///  - `method`: The HTTP method of the request.</span>
     <span class="doccomment">///  - `route`: Unique dashed identifier of the endpoint.</span>
     <span class="ident">RequestsDuration</span>,
+    <span class="doccomment">/// Time spent on minidump scrubbing.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is the total time spent on parsing and scrubbing the minidump.  Even if no PII</span>
+    <span class="doccomment">/// scrubbing rules applied the minidump will still be parsed and the rules evaluated on</span>
+    <span class="doccomment">/// the parsed minidump, this duration is reported here with status of &quot;n/a&quot;.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This metric is tagged with:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// - `status`: Scrubbing status: &quot;ok&quot; means successful scrubbed, &quot;error&quot; means there</span>
+    <span class="doccomment">///       was an error during scrubbing and finally &quot;n/a&quot; means scrubbing was successful</span>
+    <span class="doccomment">///       but no scurbbing rules applied.</span>
+    <span class="ident">MinidumpScrubbing</span>,
+    <span class="doccomment">/// Time spend on attachment scrubbing.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This represents the total time spent on evaluating the scrubbing rules for an</span>
+    <span class="doccomment">/// attachment and the attachment scrubbing itself, regardless of whether any rules were</span>
+    <span class="doccomment">/// applied.  Note that minidumps which failed to be parsed (status=&quot;error&quot; in</span>
+    <span class="doccomment">/// scrubbing.minidumps.duration) will be scrubbed as plain attachments and count</span>
+    <span class="doccomment">/// towards this.</span>
+    <span class="ident">AttachmentScrubbing</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TimerMetric</span> <span class="kw">for</span> <span class="ident">RelayTimers</span> {
@@ -656,6 +698,8 @@
             <span class="ident">RelayTimers</span>::<span class="ident">ProjectStateRequestDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.request.duration&quot;</span>,
             <span class="ident">RelayTimers</span>::<span class="ident">ProjectIdRequestDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_id.request.duration&quot;</span>,
             <span class="ident">RelayTimers</span>::<span class="ident">RequestsDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;requests.duration&quot;</span>,
+            <span class="ident">RelayTimers</span>::<span class="ident">MinidumpScrubbing</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;scrubbing.minidumps.duration&quot;</span>,
+            <span class="ident">RelayTimers</span>::<span class="ident">AttachmentScrubbing</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;scrubbing.attachments.duration&quot;</span>,
         }
     }
 }

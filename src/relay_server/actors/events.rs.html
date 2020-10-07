@@ -1710,6 +1710,21 @@
 <span id="1710">1710</span>
 <span id="1711">1711</span>
 <span id="1712">1712</span>
+<span id="1713">1713</span>
+<span id="1714">1714</span>
+<span id="1715">1715</span>
+<span id="1716">1716</span>
+<span id="1717">1717</span>
+<span id="1718">1718</span>
+<span id="1719">1719</span>
+<span id="1720">1720</span>
+<span id="1721">1721</span>
+<span id="1722">1722</span>
+<span id="1723">1723</span>
+<span id="1724">1724</span>
+<span id="1725">1725</span>
+<span id="1726">1726</span>
+<span id="1727">1727</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -2734,9 +2749,24 @@
                 <span class="comment">// Minidump scrubbing can fail if the minidump cannot be parsed. In this case, we</span>
                 <span class="comment">// must be conservative and treat it as a plain attachment. Under extreme</span>
                 <span class="comment">// conditions, this could destroy stack memory.</span>
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">scrub_error</span>) <span class="op">=</span> <span class="ident">processor</span>.<span class="ident">scrub_minidump</span>(<span class="ident">filename</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">payload</span>) {
-                    <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;failed to scrub minidump: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">scrub_error</span>));
-                    <span class="ident">processor</span>.<span class="ident">scrub_attachment</span>(<span class="ident">filename</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">payload</span>);
+                <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">Instant</span>::<span class="ident">now</span>();
+                <span class="kw">match</span> <span class="ident">processor</span>.<span class="ident">scrub_minidump</span>(<span class="ident">filename</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">payload</span>) {
+                    <span class="prelude-val">Ok</span>(<span class="ident">modified</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                        <span class="macro">metric</span><span class="macro">!</span>(
+                            <span class="ident">timer</span>(<span class="ident">RelayTimers</span>::<span class="ident">MinidumpScrubbing</span>) <span class="op">=</span> <span class="ident">start</span>.<span class="ident">elapsed</span>(),
+                            <span class="ident">status</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">modified</span> { <span class="string">&quot;ok&quot;</span> } <span class="kw">else</span> { <span class="string">&quot;n/a&quot;</span> },
+                        );
+                    }
+                    <span class="prelude-val">Err</span>(<span class="ident">scrub_error</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                        <span class="macro">metric</span><span class="macro">!</span>(
+                            <span class="ident">timer</span>(<span class="ident">RelayTimers</span>::<span class="ident">MinidumpScrubbing</span>) <span class="op">=</span> <span class="ident">start</span>.<span class="ident">elapsed</span>(),
+                            <span class="ident">status</span> <span class="op">=</span> <span class="string">&quot;error&quot;</span>
+                        );
+                        <span class="ident">log</span>::<span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;failed to scrub minidump: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">scrub_error</span>));
+                        <span class="macro">metric</span><span class="macro">!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers</span>::<span class="ident">AttachmentScrubbing</span>), {
+                            <span class="ident">processor</span>.<span class="ident">scrub_attachment</span>(<span class="ident">filename</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">payload</span>);
+                        })
+                    }
                 }
 
                 <span class="kw">let</span> <span class="ident">content_type</span> <span class="op">=</span> <span class="ident">item</span>
