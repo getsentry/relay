@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `relay-wstring/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../relay_wstring/index.html'><div class='logo-container'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `relay-wstring/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../relay_wstring/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
+                <a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -912,7 +913,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">Utf16Error</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
         <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;Invalid UTF-16LE data in byte slice&quot;</span>)
     }
 }
@@ -921,7 +922,7 @@
 
 <span class="kw">impl</span> <span class="ident">Utf16Error</span> {
     <span class="doccomment">/// Returns the index in given bytes up to which valid UTF-16 was verified.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">valid_up_to</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">valid_up_to</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">valid_up_to</span>
     }
 
@@ -942,7 +943,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// The semantics of this API are compatible with the semantics of</span>
     <span class="doccomment">/// [std::str::Utf8Error].</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">error_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">error_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">error_len</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">len</span><span class="op">|</span> <span class="ident">len</span>.<span class="ident">into</span>())
     }
 }
@@ -963,7 +964,7 @@
     <span class="doccomment">/// Creates a new `&amp;WStr` from an existing UTF-16 little-endian encoded byte-slice.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// If the byte-slice is not valid [Utf16Error] is returned.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_utf16le</span>(<span class="ident">raw</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="self">Self</span>, <span class="ident">Utf16Error</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_utf16le</span>(<span class="ident">raw</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="self">Self</span>, <span class="ident">Utf16Error</span><span class="op">&gt;</span> {
         <span class="ident">validate_raw_utf16le</span>(<span class="ident">raw</span>)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="kw">unsafe</span> { <span class="self">Self</span>::<span class="ident">from_utf16le_unchecked</span>(<span class="ident">raw</span>) })
     }
@@ -971,7 +972,7 @@
     <span class="doccomment">/// Creates a new `&amp;mut WStr` from an existing UTF-16 little-endian encoded byte-slice.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// If the byte-slice is not valid [Utf16Error] is returned.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_utf16le_mut</span>(<span class="ident">raw</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>, <span class="ident">Utf16Error</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_utf16le_mut</span>(<span class="ident">raw</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>, <span class="ident">Utf16Error</span><span class="op">&gt;</span> {
         <span class="ident">validate_raw_utf16le</span>(<span class="ident">raw</span>)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="kw">unsafe</span> { <span class="self">Self</span>::<span class="ident">from_utf16le_unchecked_mut</span>(<span class="ident">raw</span>) })
     }
@@ -982,7 +983,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// You must guarantee that the buffer passed in is encoded correctly otherwise you will</span>
     <span class="doccomment">/// get undefined behaviour.</span>
-    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_utf16le_unchecked</span>(<span class="ident">raw</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_utf16le_unchecked</span>(<span class="ident">raw</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="self">Self</span> {
         <span class="kw-2">&amp;</span><span class="kw-2">*</span>(<span class="ident">raw</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> [<span class="ident">u8</span>] <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="self">Self</span>)
     }
 
@@ -992,29 +993,29 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// You must guarantee that the buffer passed in is encoded correctly otherwise you will</span>
     <span class="doccomment">/// get undefined behaviour.</span>
-    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_utf16le_unchecked_mut</span>(<span class="ident">raw</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_utf16le_unchecked_mut</span>(<span class="ident">raw</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span>(<span class="ident">raw</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> [<span class="ident">u8</span>] <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="self">Self</span>)
     }
 
     <span class="doccomment">/// The length in bytes, not chars or graphemes.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">raw</span>.<span class="ident">len</span>()
     }
 
     <span class="doccomment">/// Returns `true` if the [Self::len] is zero.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">len</span>() <span class="op">=</span><span class="op">=</span> <span class="number">0</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">0</span>
     }
 
     <span class="doccomment">/// Returns `true` if the index into the bytes is on a char boundary.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_char_boundary</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">index</span>: <span class="ident">usize</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
-        <span class="kw">if</span> <span class="ident">index</span> <span class="op">=</span><span class="op">=</span> <span class="number">0</span> <span class="op">|</span><span class="op">|</span> <span class="ident">index</span> <span class="op">=</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">len</span>() {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_char_boundary</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">index</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">if</span> <span class="ident">index</span> <span class="op">==</span> <span class="number">0</span> <span class="op">||</span> <span class="ident">index</span> <span class="op">==</span> <span class="self">self</span>.<span class="ident">len</span>() {
             <span class="kw">return</span> <span class="bool-val">true</span>;
         }
-        <span class="kw">if</span> <span class="ident">index</span> <span class="op">%</span> <span class="number">2</span> <span class="op">!</span><span class="op">=</span> <span class="number">0</span> {
+        <span class="kw">if</span> <span class="ident">index</span> <span class="op">%</span> <span class="number">2</span> <span class="op">!=</span> <span class="number">0</span> {
             <span class="kw">return</span> <span class="bool-val">false</span>;
         }
 
@@ -1029,7 +1030,7 @@
 
     <span class="doccomment">/// Converts to a byte slice.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">raw</span>
     }
 
@@ -1040,19 +1041,19 @@
     <span class="doccomment">/// When mutating the bytes it must still be valid little-endian encoded UTF-16</span>
     <span class="doccomment">/// otherwise you will get undefined behaviour.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_bytes_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>] {
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_bytes_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>] {
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">raw</span>
     }
 
     <span class="doccomment">/// Converts to a raw pointer to the byte slice.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">as_ptr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span> {
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">as_ptr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span> {
         <span class="self">self</span>.<span class="ident">raw</span>.<span class="ident">as_ptr</span>()
     }
 
     <span class="doccomment">/// Converts to a mutable raw pointer to the byte slice.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_mut_ptr</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_mut_ptr</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span> {
         <span class="self">self</span>.<span class="ident">raw</span>.<span class="ident">as_mut_ptr</span>()
     }
 
@@ -1062,7 +1063,7 @@
     <span class="doccomment">/// the subslice is not on character boundaries or otherwise invalid this will return</span>
     <span class="doccomment">/// `None`.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">index</span>: <span class="ident">I</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="op">&lt;</span><span class="ident">I</span> <span class="kw">as</span> <span class="ident">SliceIndex</span><span class="op">&lt;</span><span class="ident">WStr</span><span class="op">&gt;</span><span class="op">&gt;</span>::<span class="ident">Output</span><span class="op">&gt;</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">index</span>: <span class="ident">I</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="op">&lt;</span><span class="ident">I</span> <span class="kw">as</span> <span class="ident">SliceIndex</span><span class="op">&lt;</span><span class="ident">WStr</span><span class="op">&gt;&gt;</span>::<span class="ident">Output</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">I</span>: <span class="ident">SliceIndex</span><span class="op">&lt;</span><span class="ident">WStr</span><span class="op">&gt;</span>,
     {
@@ -1075,7 +1076,7 @@
     <span class="doccomment">/// the subslice is not on character boundaries or otherwise invalid this will return</span>
     <span class="doccomment">/// `None`.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_mut</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">index</span>: <span class="ident">I</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="op">&lt;</span><span class="ident">I</span> <span class="kw">as</span> <span class="ident">SliceIndex</span><span class="op">&lt;</span><span class="ident">WStr</span><span class="op">&gt;</span><span class="op">&gt;</span>::<span class="ident">Output</span><span class="op">&gt;</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_mut</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">index</span>: <span class="ident">I</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="op">&lt;</span><span class="ident">I</span> <span class="kw">as</span> <span class="ident">SliceIndex</span><span class="op">&lt;</span><span class="ident">WStr</span><span class="op">&gt;&gt;</span>::<span class="ident">Output</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">I</span>: <span class="ident">SliceIndex</span><span class="op">&lt;</span><span class="ident">WStr</span><span class="op">&gt;</span>,
     {
@@ -1089,7 +1090,7 @@
     <span class="doccomment">/// Like [Self::get] but this results in undefined behaviour if the sublice is not on</span>
     <span class="doccomment">/// character boundaries or otherwise invalid.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">get_unchecked</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">index</span>: <span class="ident">I</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="op">&lt;</span><span class="ident">I</span> <span class="kw">as</span> <span class="ident">SliceIndex</span><span class="op">&lt;</span><span class="ident">WStr</span><span class="op">&gt;</span><span class="op">&gt;</span>::<span class="ident">Output</span>
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">get_unchecked</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">index</span>: <span class="ident">I</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="op">&lt;</span><span class="ident">I</span> <span class="kw">as</span> <span class="ident">SliceIndex</span><span class="op">&lt;</span><span class="ident">WStr</span><span class="op">&gt;&gt;</span>::<span class="ident">Output</span>
     <span class="kw">where</span>
         <span class="ident">I</span>: <span class="ident">SliceIndex</span><span class="op">&lt;</span><span class="ident">WStr</span><span class="op">&gt;</span>,
     {
@@ -1103,7 +1104,7 @@
     <span class="doccomment">/// Lice [Self::get_mut] but this results in undefined behaviour if the subslice is not</span>
     <span class="doccomment">/// on character boundaries or otherwise invalid.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">get_unchecked_mut</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">index</span>: <span class="ident">I</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="op">&lt;</span><span class="ident">I</span> <span class="kw">as</span> <span class="ident">SliceIndex</span><span class="op">&lt;</span><span class="ident">WStr</span><span class="op">&gt;</span><span class="op">&gt;</span>::<span class="ident">Output</span>
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">get_unchecked_mut</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">index</span>: <span class="ident">I</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="op">&lt;</span><span class="ident">I</span> <span class="kw">as</span> <span class="ident">SliceIndex</span><span class="op">&lt;</span><span class="ident">WStr</span><span class="op">&gt;&gt;</span>::<span class="ident">Output</span>
     <span class="kw">where</span>
         <span class="ident">I</span>: <span class="ident">SliceIndex</span><span class="op">&lt;</span><span class="ident">WStr</span><span class="op">&gt;</span>,
     {
@@ -1112,7 +1113,7 @@
 
     <span class="doccomment">/// Returns an iterator of the [char]s of a string slice.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">chars</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">WStrChars</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">chars</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">WStrChars</span> {
         <span class="ident">WStrChars</span> {
             <span class="ident">chunks</span>: <span class="self">self</span>.<span class="ident">raw</span>.<span class="ident">chunks_exact</span>(<span class="number">2</span>),
         }
@@ -1120,7 +1121,7 @@
 
     <span class="doccomment">/// Returns and iterator over the [char]s of a string slice and their positions.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">char_indices</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">WStrCharIndices</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">char_indices</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">WStrCharIndices</span> {
         <span class="ident">WStrCharIndices</span> {
             <span class="ident">chars</span>: <span class="self">self</span>.<span class="ident">chars</span>(),
             <span class="ident">index</span>: <span class="number">0</span>,
@@ -1128,13 +1129,13 @@
     }
 
     <span class="doccomment">/// Returns the [WStr] as a new owned [String].</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_utf8</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_utf8</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">String</span> {
         <span class="self">self</span>.<span class="ident">chars</span>().<span class="ident">collect</span>()
     }
 
     <span class="doccomment">/// Returns `true` if all characters in the string are ASCII.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_ascii</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_ascii</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">as_bytes</span>().<span class="ident">is_ascii</span>()
     }
 }
@@ -1152,7 +1153,7 @@
     <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">char</span>;
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span><span class="op">&gt;</span> {
         <span class="comment">// Our input is valid UTF-16LE, so we can take a lot of shortcuts.</span>
         <span class="kw">let</span> <span class="ident">chunk</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">chunks</span>.<span class="ident">next</span>()<span class="question-mark">?</span>;
         <span class="comment">// Chunks always returns 2 bytes, avoid generating panicking code</span>
@@ -1175,7 +1176,7 @@
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">count</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">fn</span> <span class="ident">count</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="comment">// No need to fully construct all characters</span>
         <span class="self">self</span>.<span class="ident">chunks</span>
             <span class="comment">// Using filter_map to avoid generating panicking code</span>
@@ -1185,7 +1186,7 @@
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">last</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">last</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">next_back</span>()
     }
 }
@@ -1194,7 +1195,7 @@
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">DoubleEndedIterator</span> <span class="kw">for</span> <span class="ident">WStrChars</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">next_back</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">next_back</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span><span class="op">&gt;</span> {
         <span class="comment">// Our input is valid UTF-16LE, so we can take a lot of shortcuts.</span>
         <span class="kw">let</span> <span class="ident">chunk</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">chunks</span>.<span class="ident">next_back</span>()<span class="question-mark">?</span>;
         <span class="comment">// Chunks always returns 2 bytes, avoid generating panicking code</span>
@@ -1231,28 +1232,28 @@
     <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> (<span class="ident">usize</span>, <span class="ident">char</span>);
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">pos</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">index</span>;
         <span class="kw">let</span> <span class="ident">c</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">chars</span>.<span class="ident">next</span>()<span class="question-mark">?</span>;
-        <span class="self">self</span>.<span class="ident">index</span> <span class="op">+</span><span class="op">=</span> <span class="ident">c</span>.<span class="ident">len_utf16</span>() <span class="op">*</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>();
+        <span class="self">self</span>.<span class="ident">index</span> <span class="op">+=</span> <span class="ident">c</span>.<span class="ident">len_utf16</span>() <span class="op">*</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>();
         <span class="prelude-val">Some</span>((<span class="ident">pos</span>, <span class="ident">c</span>))
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">count</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">fn</span> <span class="ident">count</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="comment">// No need to fully construct all characters</span>
         <span class="self">self</span>.<span class="ident">chars</span>.<span class="ident">count</span>()
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">last</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">last</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">next_back</span>()
     }
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">DoubleEndedIterator</span> <span class="kw">for</span> <span class="ident">WStrCharIndices</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">next_back</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">next_back</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">c</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">chars</span>.<span class="ident">next_back</span>()<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">pos</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">index</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">chars</span>.<span class="ident">chunks</span>.<span class="ident">len</span>() <span class="op">*</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>();
         <span class="prelude-val">Some</span>((<span class="ident">pos</span>, <span class="ident">c</span>))
@@ -1263,13 +1264,13 @@
 
 <span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">WStr</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">as_ref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
+    <span class="kw">fn</span> <span class="ident">as_ref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
         <span class="self">self</span>.<span class="ident">as_bytes</span>()
     }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">WStr</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
         <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="ident">to_utf8</span>())
     }
 }
@@ -1286,8 +1287,8 @@
 <span class="doccomment">/// the leading surrogate this bit prefix is `110110`, thus all leading surrogates have a</span>
 <span class="doccomment">/// between 0xD800-0xDBFF.</span>
 <span class="attribute">#[<span class="ident">inline</span>]</span>
-<span class="kw">fn</span> <span class="ident">is_leading_surrogate</span>(<span class="ident">code_unit</span>: <span class="ident">u16</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
-    <span class="ident">code_unit</span> <span class="op">&amp;</span> <span class="number">0xFC00</span> <span class="op">=</span><span class="op">=</span> <span class="number">0xD800</span>
+<span class="kw">fn</span> <span class="ident">is_leading_surrogate</span>(<span class="ident">code_unit</span>: <span class="ident">u16</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="ident">code_unit</span> <span class="op">&amp;</span> <span class="number">0xFC00</span> <span class="op">==</span> <span class="number">0xD800</span>
 }
 
 <span class="doccomment">/// Whether a code unit is a trailing or low surrogate.</span>
@@ -1302,8 +1303,8 @@
 <span class="doccomment">/// the trailing surrogate this bit prefix is `110111`, thus all trailing surrogates have a</span>
 <span class="doccomment">/// code unit between 0xDC00-0xDFFF.</span>
 <span class="attribute">#[<span class="ident">inline</span>]</span>
-<span class="kw">fn</span> <span class="ident">is_trailing_surrogate</span>(<span class="ident">code_unit</span>: <span class="ident">u16</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
-    <span class="ident">code_unit</span> <span class="op">&amp;</span> <span class="number">0xFC00</span> <span class="op">=</span><span class="op">=</span> <span class="number">0xDC00</span>
+<span class="kw">fn</span> <span class="ident">is_trailing_surrogate</span>(<span class="ident">code_unit</span>: <span class="ident">u16</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="ident">code_unit</span> <span class="op">&amp;</span> <span class="number">0xFC00</span> <span class="op">==</span> <span class="number">0xDC00</span>
 }
 
 <span class="doccomment">/// Decodes a surrogate pair of code units into a char.</span>
@@ -1311,7 +1312,7 @@
 <span class="doccomment">/// This results in undefined behaviour if the code units do not form a valid surrogate</span>
 <span class="doccomment">/// pair.</span>
 <span class="attribute">#[<span class="ident">inline</span>]</span>
-<span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">decode_surrogates</span>(<span class="ident">u</span>: <span class="ident">u16</span>, <span class="ident">u2</span>: <span class="ident">u16</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">char</span> {
+<span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">decode_surrogates</span>(<span class="ident">u</span>: <span class="ident">u16</span>, <span class="ident">u2</span>: <span class="ident">u16</span>) <span class="op">-&gt;</span> <span class="ident">char</span> {
     <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">unused_unsafe</span>)]</span>
     <span class="macro">debug_assert</span><span class="macro">!</span>(
         <span class="ident">is_leading_surrogate</span>(<span class="ident">u</span>),
@@ -1321,7 +1322,7 @@
         <span class="ident">is_trailing_surrogate</span>(<span class="ident">u2</span>),
         <span class="string">&quot;second code unit not a trailing surrogate&quot;</span>
     );
-    <span class="kw">let</span> <span class="ident">c</span> <span class="op">=</span> (((<span class="ident">u</span> <span class="op">-</span> <span class="number">0xD800</span>) <span class="kw">as</span> <span class="ident">u32</span>) <span class="op">&lt;</span><span class="op">&lt;</span> <span class="number">10</span> <span class="op">|</span> (<span class="ident">u2</span> <span class="op">-</span> <span class="number">0xDC00</span>) <span class="kw">as</span> <span class="ident">u32</span>) <span class="op">+</span> <span class="number">0x1_0000</span>;
+    <span class="kw">let</span> <span class="ident">c</span> <span class="op">=</span> (((<span class="ident">u</span> <span class="op">-</span> <span class="number">0xD800</span>) <span class="kw">as</span> <span class="ident">u32</span>) <span class="op">&lt;&lt;</span> <span class="number">10</span> <span class="op">|</span> (<span class="ident">u2</span> <span class="op">-</span> <span class="number">0xDC00</span>) <span class="kw">as</span> <span class="ident">u32</span>) <span class="op">+</span> <span class="number">0x1_0000</span>;
     <span class="comment">// SAFETY: This is now guaranteed a valid Unicode code point.</span>
     <span class="kw">unsafe</span> { <span class="ident">std</span>::<span class="ident">char</span>::<span class="ident">from_u32_unchecked</span>(<span class="ident">c</span>) }
 }
@@ -1333,7 +1334,7 @@
 <span class="doccomment">/// case we need to return `None.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// We compute `valid_up_to` lazily for performance, even though it&#39;s a little more verbose.</span>
-<span class="kw">fn</span> <span class="ident">validate_raw_utf16le</span>(<span class="ident">raw</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Utf16Error</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">validate_raw_utf16le</span>(<span class="ident">raw</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Utf16Error</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">base_ptr</span> <span class="op">=</span> <span class="ident">raw</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="ident">usize</span>;
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">chunks</span> <span class="op">=</span> <span class="ident">raw</span>.<span class="ident">chunks_exact</span>(<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>());
 
@@ -1351,7 +1352,7 @@
 
         <span class="kw">if</span> <span class="ident">is_leading_surrogate</span>(<span class="ident">u</span>) {
             <span class="kw">match</span> <span class="ident">chunks</span>.<span class="ident">next</span>().<span class="ident">and_then</span>(<span class="ident">u16</span>::<span class="ident">copy_from_le_bytes</span>) {
-                <span class="prelude-val">Some</span>(<span class="ident">u2</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="prelude-val">Some</span>(<span class="ident">u2</span>) <span class="op">=&gt;</span> {
                     <span class="kw">if</span> <span class="op">!</span><span class="ident">is_trailing_surrogate</span>(<span class="ident">u2</span>) {
                         <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Utf16Error</span> {
                             <span class="ident">valid_up_to</span>: <span class="ident">code_point_ptr</span> <span class="op">-</span> <span class="ident">base_ptr</span>,
@@ -1359,7 +1360,7 @@
                         });
                     }
                 }
-                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
                     <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Utf16Error</span> {
                         <span class="ident">valid_up_to</span>: <span class="ident">code_point_ptr</span> <span class="op">-</span> <span class="ident">base_ptr</span>,
                         <span class="ident">error_len</span>: <span class="prelude-val">None</span>,
@@ -1385,13 +1386,13 @@
     <span class="doccomment">/// Decodes the next two bytes from the given slice into a new u16.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// If there are fewer than 2 bytes in the slice, `None` is returned.</span>
-    <span class="kw">fn</span> <span class="ident">copy_from_le_bytes</span>(<span class="ident">bytes</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">copy_from_le_bytes</span>(<span class="ident">bytes</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>;
 }
 
 <span class="kw">impl</span> <span class="ident">U16Ext</span> <span class="kw">for</span> <span class="ident">u16</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">copy_from_le_bytes</span>(<span class="ident">bytes</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="ident">bytes</span>.<span class="ident">len</span>() <span class="op">&gt;</span><span class="op">=</span> <span class="number">2</span> {
+    <span class="kw">fn</span> <span class="ident">copy_from_le_bytes</span>(<span class="ident">bytes</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="ident">bytes</span>.<span class="ident">len</span>() <span class="op">&gt;=</span> <span class="number">2</span> {
             <span class="prelude-val">Some</span>(<span class="ident">u16</span>::<span class="ident">from_le_bytes</span>([<span class="ident">bytes</span>[<span class="number">0</span>], <span class="ident">bytes</span>[<span class="number">1</span>]]))
         } <span class="kw">else</span> {
             <span class="prelude-val">None</span>

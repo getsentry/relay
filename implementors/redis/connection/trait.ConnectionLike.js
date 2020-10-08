@@ -1,3 +1,3 @@
 (function() {var implementors = {};
-implementors["relay_redis"] = [{"text":"impl&lt;'_&gt; ConnectionLike for <a class=\"struct\" href=\"relay_redis/struct.Connection.html\" title=\"struct relay_redis::Connection\">Connection</a>&lt;'_&gt;","synthetic":false,"types":["relay_redis::real::Connection"]}];
+implementors["relay_redis"] = [{"text":"impl&lt;'_&gt; ConnectionLike for Connection&lt;'_&gt;","synthetic":false,"types":[]}];
 if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
