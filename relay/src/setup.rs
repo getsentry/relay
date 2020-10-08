@@ -57,7 +57,7 @@ pub fn dump_credentials(config: &Config) {
 /// Initialize the logging system.
 pub fn init_logging(config: &Config) {
     if config.enable_backtraces() {
-        env::set_var("RUST_BACKTRACE", "1");
+        env::set_var("RUST_BACKTRACE", "full");
     }
 
     if env::var("RUST_LOG").is_err() {
