@@ -86,14 +86,14 @@ impl pred::Predicate<ServiceState> for SecurityReportFilter {
             .and_then(|h| h.to_str().ok())
             .unwrap_or("");
 
-        match content_type {
+        matches!(
+            content_type,
             "application/csp-report"
-            | "application/json"
-            | "application/expect-ct-report"
-            | "application/expect-ct-report+json"
-            | "application/expect-staple-report" => true,
-            _ => false,
-        }
+                | "application/json"
+                | "application/expect-ct-report"
+                | "application/expect-ct-report+json"
+                | "application/expect-staple-report"
+        )
     }
 }
 

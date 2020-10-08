@@ -4,10 +4,10 @@ use failure::AsFail;
 
 /// Returns whether backtrace printing is enabled.
 pub fn backtrace_enabled() -> bool {
-    match std::env::var("RUST_BACKTRACE").as_ref().map(String::as_str) {
-        Ok("1") | Ok("full") => true,
-        _ => false,
-    }
+    matches!(
+        std::env::var("RUST_BACKTRACE").as_deref(),
+        Ok("1") | Ok("full")
+    )
 }
 
 /// A wrapper around a `Fail` that prints its causes.

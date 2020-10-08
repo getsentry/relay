@@ -82,10 +82,7 @@ derive_fromstr_and_display!(CspDirective, InvalidSecurityError, {
 impl_str_serde!(CspDirective);
 
 fn is_local(uri: &str) -> bool {
-    match uri {
-        "" | "self" | "'self'" => true,
-        _ => false,
-    }
+    matches!(uri, "" | "self" | "'self'")
 }
 
 fn schema_uses_host(schema: &str) -> bool {
@@ -94,12 +91,33 @@ fn schema_uses_host(schema: &str) -> bool {
     //
     // Only modification: "" is set to false, since there is a separate check in the urlunsplit
     // implementation that omits the leading "//" in that case.
-    match schema {
-        "ftp" | "http" | "gopher" | "nntp" | "telnet" | "imap" | "wais" | "file" | "mms"
-        | "https" | "shttp" | "snews" | "prospero" | "rtsp" | "rtspu" | "rsync" | "svn"
-        | "svn+ssh" | "sftp" | "nfs" | "git" | "git+ssh" | "ws" | "wss" => true,
-        _ => false,
-    }
+    matches!(
+        schema,
+        "ftp"
+            | "http"
+            | "gopher"
+            | "nntp"
+            | "telnet"
+            | "imap"
+            | "wais"
+            | "file"
+            | "mms"
+            | "https"
+            | "shttp"
+            | "snews"
+            | "prospero"
+            | "rtsp"
+            | "rtspu"
+            | "rsync"
+            | "svn"
+            | "svn+ssh"
+            | "sftp"
+            | "nfs"
+            | "git"
+            | "git+ssh"
+            | "ws"
+            | "wss"
+    )
 }
 
 /// Mimicks Python's urlunsplit with all its quirks.
