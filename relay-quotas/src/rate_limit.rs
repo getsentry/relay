@@ -43,6 +43,7 @@ impl RetryAfter {
     pub fn remaining_seconds(self) -> u64 {
         match self.remaining() {
             // Compensate for the missing subsec part by adding 1s
+            Some(duration) if duration.subsec_nanos() == 0 => duration.as_secs(),
             Some(duration) => duration.as_secs() + 1,
             None => 0,
         }

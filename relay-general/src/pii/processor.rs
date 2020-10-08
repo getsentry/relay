@@ -183,10 +183,7 @@ fn apply_rule_to_value(
 ) -> ProcessingResult {
     // The rule might specify to remove or to redact. If redaction is chosen, we need to
     // chunk up the value, otherwise we need to simply mark the value for deletion.
-    let should_redact_chunks = match rule.redaction {
-        Redaction::Default | Redaction::Remove => false,
-        _ => true,
-    };
+    let should_redact_chunks = !matches!(rule.redaction, Redaction::Default | Redaction::Remove);
 
     // In case the value is not a string (but a container, bool or number) and the rule matches on
     // anything, we can only remove the value (not replace, hash, etc).

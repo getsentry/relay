@@ -266,10 +266,8 @@ impl std::ops::DerefMut for Headers {
 
 impl FromValue for Headers {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        let should_sort = match value.value() {
-            Some(Value::Object(_)) => true,
-            _ => false, // Preserve order if SDK sent headers as array
-        };
+        // Preserve order if SDK sent headers as array
+        let should_sort = matches!(value.value(), Some(Value::Object(_)));
 
         type HeaderTuple = (Annotated<HeaderName>, Annotated<HeaderValue>);
         PairList::<HeaderTuple>::from_value(value).map_value(|mut pair_list| {
