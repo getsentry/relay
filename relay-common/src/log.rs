@@ -5,7 +5,7 @@ use failure::AsFail;
 /// Returns whether backtrace printing is enabled.
 pub fn backtrace_enabled() -> bool {
     matches!(
-        std::env::var("RUST_BACKTRACE").as_deref(),
+        std::env::var("RUST_BACKTRACE").as_ref().map(String::as_str),
         Ok("1") | Ok("full")
     )
 }
