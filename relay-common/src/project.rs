@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::fmt;
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
@@ -73,5 +74,13 @@ impl fmt::Debug for ProjectKey {
 impl fmt::Display for ProjectKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.as_str().fmt(f)
+    }
+}
+
+impl FromStr for ProjectKey {
+    type Err = ParseProjectKeyError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse(s)
     }
 }

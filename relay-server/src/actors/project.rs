@@ -92,7 +92,6 @@ pub struct LimitedProjectConfig {
 #[serde(rename_all = "camelCase")]
 pub struct ProjectState {
     /// Unique identifier of this project.
-    #[serde(default)]
     pub project_id: Option<ProjectId>,
     /// The timestamp of when the state was last changed.
     ///
@@ -218,11 +217,12 @@ impl ProjectState {
     /// Returns `true` if the given project ID matches this project.
     ///
     /// If the project state has not been loaded, this check is skipped because the project
-    /// identifier is not yet known.
-    pub fn is_valid_project_id(&self, stated_id: ProjectId) -> bool {
-        match self.project_id {
-            Some(actual_id) => actual_id == stated_id,
-            None => true,
+    /// identifier is not yet known. Likewise, this check is skipped for the legacy store endpoint
+    /// which comes without a project ID. The id is later overwritten in `check_envelope`.
+    pub fn is_valid_project_id(&self, stated_id: Option<ProjectId>) -> bool {
+        match (self.project_id, stated_id) {
+            (Some(actual_id), Some(stated_id)) => actual_id == stated_id,
+            _ => true,
         }
     }
 

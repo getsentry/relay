@@ -173,6 +173,7 @@ pub struct FetchProjectState {
     pub public_key: ProjectKey,
 }
 
+#[derive(Debug)]
 pub struct ProjectStateResponse {
     pub state: Arc<ProjectState>,
     pub is_local: bool,
