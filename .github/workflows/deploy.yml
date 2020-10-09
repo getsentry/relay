@@ -20,7 +20,7 @@ jobs:
 
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           profile: minimal
           components: rust-docs
           override: true
@@ -29,7 +29,12 @@ jobs:
         with:
           key: ${{ github.job }}
 
-      - run: make doc
+      - uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --workspace --all-features --no-deps
+
+      - run: echo '<meta http-equiv="refresh" content="0; url=relay/" />Redirecting to <a href="relay/">relay</a>' > target/doc/index.html
 
       - name: Deploy
         if: github.ref == 'refs/heads/master'
