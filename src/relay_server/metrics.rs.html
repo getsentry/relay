@@ -420,25 +420,6 @@
 <span id="419">419</span>
 <span id="420">420</span>
 <span id="421">421</span>
-<span id="422">422</span>
-<span id="423">423</span>
-<span id="424">424</span>
-<span id="425">425</span>
-<span id="426">426</span>
-<span id="427">427</span>
-<span id="428">428</span>
-<span id="429">429</span>
-<span id="430">430</span>
-<span id="431">431</span>
-<span id="432">432</span>
-<span id="433">433</span>
-<span id="434">434</span>
-<span id="435">435</span>
-<span id="436">436</span>
-<span id="437">437</span>
-<span id="438">438</span>
-<span id="439">439</span>
-<span id="440">440</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">metrics</span>::{<span class="ident">CounterMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
@@ -638,14 +619,6 @@
     <span class="doccomment">/// Note that after an update loop has completed, there may be more projects pending updates.</span>
     <span class="doccomment">/// This is indicated by `project_state.pending`.</span>
     <span class="ident">ProjectStateRequestDuration</span>,
-    <span class="doccomment">/// Total time in milliseconds spent fetching a project ID from upstream.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Relay resolves the Sentry project ID for requests sent to the legacy `/api/store/` endpoint.</span>
-    <span class="doccomment">/// This process blocks the downstream request handler. After this, the project ID is cached</span>
-    <span class="doccomment">/// until Relay restarts.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Note that official Sentry SDKs do not send data to this endpoint.</span>
-    <span class="ident">ProjectIdRequestDuration</span>,
     <span class="doccomment">/// Total duration in milliseconds for handling inbound web requests until the HTTP response is</span>
     <span class="doccomment">/// returned to the client.</span>
     <span class="doccomment">///</span>
@@ -697,7 +670,6 @@
             <span class="ident">RelayTimers</span>::<span class="ident">EnvelopeTotalTime</span> <span class="op">=&gt;</span> <span class="string">&quot;event.total_time&quot;</span>,
             <span class="ident">RelayTimers</span>::<span class="ident">ProjectStateEvictionDuration</span> <span class="op">=&gt;</span> <span class="string">&quot;project_state.eviction.duration&quot;</span>,
             <span class="ident">RelayTimers</span>::<span class="ident">ProjectStateRequestDuration</span> <span class="op">=&gt;</span> <span class="string">&quot;project_state.request.duration&quot;</span>,
-            <span class="ident">RelayTimers</span>::<span class="ident">ProjectIdRequestDuration</span> <span class="op">=&gt;</span> <span class="string">&quot;project_id.request.duration&quot;</span>,
             <span class="ident">RelayTimers</span>::<span class="ident">RequestsDuration</span> <span class="op">=&gt;</span> <span class="string">&quot;requests.duration&quot;</span>,
             <span class="ident">RelayTimers</span>::<span class="ident">MinidumpScrubbing</span> <span class="op">=&gt;</span> <span class="string">&quot;scrubbing.minidumps.duration&quot;</span>,
             <span class="ident">RelayTimers</span>::<span class="ident">AttachmentScrubbing</span> <span class="op">=&gt;</span> <span class="string">&quot;scrubbing.attachments.duration&quot;</span>,
@@ -762,15 +734,6 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// A cache entry is created immediately and the project state requested from the upstream.</span>
     <span class="ident">ProjectCacheMiss</span>,
-    <span class="doccomment">/// Number of project ID HTTP requests.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Relay resolves the Sentry project ID for requests sent to the legacy `/api/store/` endpoint.</span>
-    <span class="doccomment">/// This process blocks the downstream request handler. The timing for this request is reported</span>
-    <span class="doccomment">/// via `project_id.request.duration`. After this, the project ID is cached until Relay</span>
-    <span class="doccomment">/// restarts.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Note that official Sentry SDKs do not send data to this endpoint.</span>
-    <span class="ident">ProjectIdRequest</span>,
     <span class="doccomment">/// Number of Relay server starts.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This can be used to track unwanted restarts due to crashes or termination.</span>
@@ -862,7 +825,6 @@
             <span class="ident">RelayCounters</span>::<span class="ident">ProjectStateRequest</span> <span class="op">=&gt;</span> <span class="string">&quot;project_state.request&quot;</span>,
             <span class="ident">RelayCounters</span>::<span class="ident">ProjectCacheHit</span> <span class="op">=&gt;</span> <span class="string">&quot;project_cache.hit&quot;</span>,
             <span class="ident">RelayCounters</span>::<span class="ident">ProjectCacheMiss</span> <span class="op">=&gt;</span> <span class="string">&quot;project_cache.miss&quot;</span>,
-            <span class="ident">RelayCounters</span>::<span class="ident">ProjectIdRequest</span> <span class="op">=&gt;</span> <span class="string">&quot;project_id.request&quot;</span>,
             <span class="ident">RelayCounters</span>::<span class="ident">ServerStarting</span> <span class="op">=&gt;</span> <span class="string">&quot;server.starting&quot;</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident">RelayCounters</span>::<span class="ident">ProcessingMessageProduced</span> <span class="op">=&gt;</span> <span class="string">&quot;processing.event.produced&quot;</span>,

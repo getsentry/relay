@@ -1726,6 +1726,37 @@
 <span id="1725">1725</span>
 <span id="1726">1726</span>
 <span id="1727">1727</span>
+<span id="1728">1728</span>
+<span id="1729">1729</span>
+<span id="1730">1730</span>
+<span id="1731">1731</span>
+<span id="1732">1732</span>
+<span id="1733">1733</span>
+<span id="1734">1734</span>
+<span id="1735">1735</span>
+<span id="1736">1736</span>
+<span id="1737">1737</span>
+<span id="1738">1738</span>
+<span id="1739">1739</span>
+<span id="1740">1740</span>
+<span id="1741">1741</span>
+<span id="1742">1742</span>
+<span id="1743">1743</span>
+<span id="1744">1744</span>
+<span id="1745">1745</span>
+<span id="1746">1746</span>
+<span id="1747">1747</span>
+<span id="1748">1748</span>
+<span id="1749">1749</span>
+<span id="1750">1750</span>
+<span id="1751">1751</span>
+<span id="1752">1752</span>
+<span id="1753">1753</span>
+<span id="1754">1754</span>
+<span id="1755">1755</span>
+<span id="1756">1756</span>
+<span id="1757">1757</span>
+<span id="1758">1758</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -1741,7 +1772,7 @@
 <span class="kw">use</span> <span class="ident">parking_lot</span>::<span class="ident">RwLock</span>;
 <span class="kw">use</span> <span class="ident">serde_json</span>::<span class="ident">Value</span> <span class="kw">as</span> <span class="ident">SerdeValue</span>;
 
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">clone</span>, <span class="ident">metric</span>, <span class="ident">LogError</span>};
+<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">clone</span>, <span class="ident">metric</span>, <span class="ident">LogError</span>, <span class="ident">ProjectId</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">HttpEncoding</span>, <span class="ident">RelayMode</span>};
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">pii</span>::{<span class="ident">PiiAttachmentsProcessor</span>, <span class="ident">PiiProcessor</span>};
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessingState</span>};
@@ -1821,6 +1852,9 @@
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to resolve project information&quot;</span>)]</span>
     <span class="ident">ProjectFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">ProjectError</span>),
 
+    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;missing project id in DSN&quot;</span>)]</span>
+    <span class="ident">MissingProjectId</span>,
+
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;invalid security report type&quot;</span>)]</span>
     <span class="ident">InvalidSecurityType</span>,
 
@@ -1883,7 +1917,8 @@
             <span class="op">|</span> <span class="self">Self</span>::<span class="ident">ScheduleFailed</span>(<span class="kw">_</span>)
             <span class="op">|</span> <span class="self">Self</span>::<span class="ident">ProjectFailed</span>(<span class="kw">_</span>)
             <span class="op">|</span> <span class="self">Self</span>::<span class="ident">Timeout</span>
-            <span class="op">|</span> <span class="self">Self</span>::<span class="ident">ProcessingFailed</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">DiscardReason</span>::<span class="ident">Internal</span>)),
+            <span class="op">|</span> <span class="self">Self</span>::<span class="ident">ProcessingFailed</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="self">Self</span>::<span class="ident">MissingProjectId</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">DiscardReason</span>::<span class="ident">Internal</span>)),
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="self">Self</span>::<span class="ident">StoreFailed</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="self">Self</span>::<span class="ident">QuotasFailed</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                 <span class="prelude-val">Some</span>(<span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">DiscardReason</span>::<span class="ident">Internal</span>))
@@ -1929,6 +1964,13 @@
 
     <span class="doccomment">/// The state of the project that this envelope belongs to.</span>
     <span class="ident">project_state</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// The id of the project that this envelope is ingested into.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This identifier can differ from the one stated in the Envelope&#39;s DSN if the key was moved to</span>
+    <span class="doccomment">/// a new project or on the legacy endpoint. In that case, normalization will update the project</span>
+    <span class="doccomment">/// ID.</span>
+    <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
 
     <span class="doccomment">/// UTC date time converted from the `start_time` instant.</span>
     <span class="ident">received_at</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>,
@@ -2012,8 +2054,8 @@
     <span class="kw">fn</span> <span class="ident">process_sessions</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>;
         <span class="kw">let</span> <span class="ident">received</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">received_at</span>;
+        <span class="kw">let</span> <span class="ident">project_id</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">project_id</span>;
 
-        <span class="kw">let</span> <span class="ident">project_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">project_id</span>().<span class="ident">value</span>();
         <span class="kw">let</span> <span class="ident">clock_drift_processor</span> <span class="op">=</span>
             <span class="ident">ClockDriftProcessor</span>::<span class="ident">new</span>(<span class="ident">envelope</span>.<span class="ident">sent_at</span>(), <span class="ident">received</span>).<span class="ident">at_least</span>(<span class="ident">MINIMUM_CLOCK_DRIFT</span>);
         <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client</span>().<span class="ident">map</span>(<span class="ident">str</span>::<span class="ident">to_owned</span>);
@@ -2112,12 +2154,30 @@
             <span class="ident">envelope</span>.<span class="ident">set_retention</span>(<span class="ident">retention</span>);
         }
 
+        <span class="comment">// Prefer the project&#39;s project ID, and fall back to the stated project id from the</span>
+        <span class="comment">// envelope. The project ID is available in all modes, other than in proxy mode, where</span>
+        <span class="comment">// events for unknown projects are forwarded blindly.</span>
+        <span class="comment">//</span>
+        <span class="comment">// Neither ID can be available in proxy mode on the /store/ endpoint. This is not supported,</span>
+        <span class="comment">// since we cannot process an event without project ID, so drop it.</span>
+        <span class="kw">let</span> <span class="ident">project_id</span> <span class="op">=</span> <span class="ident">project_state</span>
+            .<span class="ident">project_id</span>
+            .<span class="ident">or_else</span>(<span class="op">||</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">project_id</span>())
+            .<span class="ident">ok_or</span>(<span class="ident">ProcessingError</span>::<span class="ident">MissingProjectId</span>)<span class="question-mark">?</span>;
+
+        <span class="comment">// Ensure the project ID is updated to the stored instance for this project cache. This can</span>
+        <span class="comment">// differ in two cases:</span>
+        <span class="comment">//  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.</span>
+        <span class="comment">//  2. The DSN was moved and the envelope sent to the old project ID.</span>
+        <span class="ident">envelope</span>.<span class="ident">meta_mut</span>().<span class="ident">set_project_id</span>(<span class="ident">project_id</span>);
+
         <span class="prelude-val">Ok</span>(<span class="ident">ProcessEnvelopeState</span> {
             <span class="ident">envelope</span>,
             <span class="ident">event</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
             <span class="ident">metrics</span>: <span class="ident">Metrics</span>::<span class="ident">default</span>(),
             <span class="ident">rate_limits</span>: <span class="ident">RateLimits</span>::<span class="ident">new</span>(),
             <span class="ident">project_state</span>,
+            <span class="ident">project_id</span>,
             <span class="ident">received_at</span>: <span class="ident">relay_common</span>::<span class="ident">instant_to_date_time</span>(<span class="ident">start_time</span>),
         })
     }
@@ -2614,7 +2674,7 @@
         }
 
         <span class="kw">let</span> <span class="ident">store_config</span> <span class="op">=</span> <span class="ident">StoreConfig</span> {
-            <span class="ident">project_id</span>: <span class="prelude-val">Some</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">project_id</span>().<span class="ident">value</span>()),
+            <span class="ident">project_id</span>: <span class="prelude-val">Some</span>(<span class="ident">state</span>.<span class="ident">project_id</span>.<span class="ident">value</span>()),
             <span class="ident">client_ip</span>: <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client_addr</span>().<span class="ident">map</span>(<span class="ident">IpAddr</span>::<span class="ident">from</span>),
             <span class="ident">client</span>: <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client</span>().<span class="ident">map</span>(<span class="ident">str</span>::<span class="ident">to_owned</span>),
             <span class="ident">key_id</span>,
@@ -3090,7 +3150,6 @@
         } <span class="op">=</span> <span class="ident">message</span>;
 
         <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>();
-        <span class="kw">let</span> <span class="ident">project_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">project_id</span>();
         <span class="kw">let</span> <span class="ident">remote_addr</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client_addr</span>();
 
         <span class="comment">// Compute whether this envelope contains an event. This is used in error handling to</span>
@@ -3100,13 +3159,15 @@
 
         <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">get_partial_scoping</span>()));
 
-        <span class="macro">metric</span><span class="macro">!</span>(<span class="ident">set</span>(<span class="ident">RelaySets</span>::<span class="ident">UniqueProjects</span>) <span class="op">=</span> <span class="ident">project_id</span>.<span class="ident">value</span>() <span class="kw">as</span> <span class="ident">i64</span>);
-
         <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">project</span>
             .<span class="ident">send</span>(<span class="ident">CheckEnvelope</span>::<span class="ident">fetched</span>(<span class="ident">envelope</span>))
             .<span class="ident">map_err</span>(<span class="ident">ProcessingError</span>::<span class="ident">ScheduleFailed</span>)
             .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">result</span><span class="op">|</span> <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="ident">ProcessingError</span>::<span class="ident">ProjectFailed</span>))
             .<span class="ident">and_then</span>(<span class="macro">clone</span><span class="macro">!</span>(<span class="ident">scoping</span>, <span class="op">|</span><span class="ident">response</span><span class="op">|</span> {
+                <span class="comment">// Use the project id from the loaded project state to account for redirects.</span>
+                <span class="kw">let</span> <span class="ident">project_id</span> <span class="op">=</span> <span class="ident">response</span>.<span class="ident">scoping</span>.<span class="ident">project_id</span>.<span class="ident">value</span>();
+                <span class="macro">metric</span><span class="macro">!</span>(<span class="ident">set</span>(<span class="ident">RelaySets</span>::<span class="ident">UniqueProjects</span>) <span class="op">=</span> <span class="ident">project_id</span> <span class="kw">as</span> <span class="ident">i64</span>);
+
                 <span class="ident">scoping</span>.<span class="ident">replace</span>(<span class="ident">response</span>.<span class="ident">scoping</span>);
 
                 <span class="kw">let</span> <span class="ident">checked</span> <span class="op">=</span> <span class="ident">response</span>.<span class="ident">result</span>.<span class="ident">map_err</span>(<span class="ident">ProcessingError</span>::<span class="ident">EventRejected</span>)<span class="question-mark">?</span>;
@@ -3181,6 +3242,7 @@
                 }
 
                 <span class="ident">log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;sending event to sentry endpoint&quot;</span>);
+                <span class="kw">let</span> <span class="ident">project_id</span> <span class="op">=</span> <span class="ident">scoping</span>.<span class="ident">borrow</span>().<span class="ident">project_id</span>;
                 <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">SendRequest</span>::<span class="ident">post</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;/api/{}/envelope/&quot;</span>, <span class="ident">project_id</span>)).<span class="ident">build</span>(
                     <span class="kw">move</span> <span class="op">|</span><span class="ident">builder</span><span class="op">|</span> {
                         <span class="comment">// Override the `sent_at` timestamp. Since the event went through basic</span>

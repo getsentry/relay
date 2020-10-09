@@ -1300,6 +1300,11 @@
 <span id="1299">1299</span>
 <span id="1300">1300</span>
 <span id="1301">1301</span>
+<span id="1302">1302</span>
+<span id="1303">1303</span>
+<span id="1304">1304</span>
+<span id="1305">1305</span>
+<span id="1306">1306</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Implementation of event envelopes.</span>
 <span class="doccomment">//!</span>
@@ -1977,6 +1982,11 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">headers</span>.<span class="ident">meta</span>
     }
 
+    <span class="doccomment">/// Returns a mutable reference to event metadata information.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">meta_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">RequestMeta</span> {
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">headers</span>.<span class="ident">meta</span>
+    }
+
     <span class="doccomment">/// Returns the data retention in days for items in this envelope.</span>
     <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>), <span class="ident">allow</span>(<span class="ident">dead_code</span>))]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">retention</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u16</span> {
@@ -2335,7 +2345,7 @@
             .<span class="ident">parse</span>()
             .<span class="ident">unwrap</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">meta</span>.<span class="ident">dsn</span>(), <span class="ident">dsn</span>);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">meta</span>.<span class="ident">project_id</span>(), <span class="ident">ProjectId</span>::<span class="ident">new</span>(<span class="number">42</span>));
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">meta</span>.<span class="ident">project_id</span>(), <span class="prelude-val">Some</span>(<span class="ident">ProjectId</span>::<span class="ident">new</span>(<span class="number">42</span>)));
         <span class="macro">assert_eq</span><span class="macro">!</span>(
             <span class="ident">meta</span>.<span class="ident">public_key</span>().<span class="ident">as_str</span>(),
             <span class="string">&quot;e12d836b15bb49d7bbf99e64295d995b&quot;</span>
@@ -2460,7 +2470,7 @@
             .<span class="ident">parse</span>()
             .<span class="ident">unwrap</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">meta</span>.<span class="ident">dsn</span>(), <span class="ident">dsn</span>);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">meta</span>.<span class="ident">project_id</span>(), <span class="ident">ProjectId</span>::<span class="ident">new</span>(<span class="number">42</span>));
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">meta</span>.<span class="ident">project_id</span>(), <span class="prelude-val">Some</span>(<span class="ident">ProjectId</span>::<span class="ident">new</span>(<span class="number">42</span>)));
         <span class="macro">assert_eq</span><span class="macro">!</span>(
             <span class="ident">meta</span>.<span class="ident">public_key</span>().<span class="ident">as_str</span>(),
             <span class="string">&quot;e12d836b15bb49d7bbf99e64295d995b&quot;</span>
