@@ -102,6 +102,10 @@
 <span id="101">101</span>
 <span id="102">102</span>
 <span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! &lt;p align=&quot;center&quot;&gt;</span>
 <span class="doccomment">//!   &lt;img src=&quot;https://github.com/getsentry/relay/blob/master/artwork/relay-logo.png?raw=true&quot; alt=&quot;Relay&quot; width=&quot;480&quot;&gt;</span>
@@ -134,17 +138,19 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Relay is split into the following workspace crates:</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//!  - `relay`: Main entry point and command line interface</span>
-<span class="doccomment">//!  - [`relay-auth`]: Authentication and crypto</span>
-<span class="doccomment">//!  - [`relay-cabi`]: C-bindings for exposing functionality to Python</span>
-<span class="doccomment">//!  - [`relay-common`]: Common utilities and crate re-exports</span>
-<span class="doccomment">//!  - [`relay-config`]: Configuration for the CLI and server</span>
-<span class="doccomment">//!  - [`relay-filter`]: Inbound data filters</span>
-<span class="doccomment">//!  - [`relay-general`]: Event protocol, normalization and data scrubbing</span>
-<span class="doccomment">//!  - [`relay-quotas`]: Sentry quotas and rate limiting</span>
-<span class="doccomment">//!  - [`relay-redis`]: Pooled Redis and Redis cluster abstraction</span>
-<span class="doccomment">//!  - [`relay-server`]: Endpoints and services</span>
-<span class="doccomment">//!  - [`relay-wstring`]: UTF16 string utilities</span>
+<span class="doccomment">//!  - `relay`: Main entry point and command line interface.</span>
+<span class="doccomment">//!  - [`relay-auth`]: Authentication and crypto.</span>
+<span class="doccomment">//!  - [`relay-cabi`]: C-bindings for exposing functionality to Python.</span>
+<span class="doccomment">//!  - [`relay-common`]: Common utilities and crate re-exports.</span>
+<span class="doccomment">//!  - [`relay-config`]: Configuration for the CLI and server.</span>
+<span class="doccomment">//!  - [`relay-ffi`]: Utilities for error handling in FFI bindings.</span>
+<span class="doccomment">//!  - [`relay-ffi-macros`]: Macros for error handling in FFI bindings.</span>
+<span class="doccomment">//!  - [`relay-filter`]: Inbound data filters.</span>
+<span class="doccomment">//!  - [`relay-general`]: Event protocol, normalization and data scrubbing.</span>
+<span class="doccomment">//!  - [`relay-quotas`]: Sentry quotas and rate limiting.</span>
+<span class="doccomment">//!  - [`relay-redis`]: Pooled Redis and Redis cluster abstraction.</span>
+<span class="doccomment">//!  - [`relay-server`]: Endpoints and services.</span>
+<span class="doccomment">//!  - [`relay-wstring`]: UTF16 string utilities.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Tools</span>
 <span class="doccomment">//!</span>
@@ -156,11 +162,13 @@
 <span class="doccomment">//!  - [`process-event`]: Process a Sentry event payload.</span>
 <span class="doccomment">//!  - [`scrub-minidump`]: Scrub PII from a Minidump file.</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! [relay documentation]: https://docs.sentry.io/meta/relay/</span>
+<span class="doccomment">//! [relay documentation]: https://docs.sentry.io/product/relay/</span>
 <span class="doccomment">//! [`relay-auth`]: ../relay_auth/index.html</span>
 <span class="doccomment">//! [`relay-cabi`]: ../relay_cabi/index.html</span>
 <span class="doccomment">//! [`relay-common`]: ../relay_common/index.html</span>
 <span class="doccomment">//! [`relay-config`]: ../relay_config/index.html</span>
+<span class="doccomment">//! [`relay-ffi`]: ../relay_ffi/index.html</span>
+<span class="doccomment">//! [`relay-ffi-macros`]: ../relay_ffi_macros/index.html</span>
 <span class="doccomment">//! [`relay-filter`]: ../relay_filter/index.html</span>
 <span class="doccomment">//! [`relay-general`]: ../relay_general/index.html</span>
 <span class="doccomment">//! [`relay-quotas`]: ../relay_quotas/index.html</span>
@@ -196,8 +204,8 @@
     }
 
     <span class="kw">let</span> <span class="ident">exit_code</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">cli</span>::<span class="ident">execute</span>() {
-        <span class="prelude-val">Ok</span>(()) <span class="op">=&gt;</span> <span class="number">0</span>,
-        <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=&gt;</span> {
+        <span class="prelude-val">Ok</span>(()) <span class="op">=</span><span class="op">&gt;</span> <span class="number">0</span>,
+        <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span><span class="op">&gt;</span> {
             <span class="ident">cli</span>::<span class="ident">ensure_log_error</span>(<span class="kw-2">&amp;</span><span class="ident">err</span>);
             <span class="number">1</span>
         }

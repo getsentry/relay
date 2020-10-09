@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `relay-server/src/utils/unreal.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>unreal.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../relay_server/index.html'><div class='logo-container rust-logo'><img src='../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `relay-server/src/utils/unreal.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>unreal.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../../favicon.svg">
+<link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png">
+<link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../relay_server/index.html'><div class='logo-container rust-logo'><img src='../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
                 <a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -474,11 +476,11 @@
 
 <span class="kw">const</span> <span class="ident">SENTRY_PAYLOAD_KEY</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;__sentry&quot;</span>;
 
-<span class="kw">fn</span> <span class="ident">get_event_item</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>, <span class="ident">Unreal4Error</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">get_event_item</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>, <span class="ident">Unreal4Error</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Unreal4Context</span>::<span class="ident">parse</span>(<span class="ident">data</span>)<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">context</span>.<span class="ident">game_data</span>.<span class="ident">remove</span>(<span class="ident">SENTRY_PAYLOAD_KEY</span>) {
-        <span class="prelude-val">Some</span>(<span class="ident">json</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">json</span>.<span class="ident">is_empty</span>() <span class="op">=&gt;</span> <span class="ident">json</span>,
-        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
+        <span class="prelude-val">Some</span>(<span class="ident">json</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">json</span>.<span class="ident">is_empty</span>() <span class="op">=</span><span class="op">&gt;</span> <span class="ident">json</span>,
+        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
     };
 
     <span class="ident">log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;adding event payload from unreal context&quot;</span>);
@@ -498,32 +500,32 @@
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expand_unreal_envelope</span>(
     <span class="ident">unreal_item</span>: <span class="ident">Item</span>,
     <span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Envelope</span>,
-) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Unreal4Error</span><span class="op">&gt;</span> {
+) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Unreal4Error</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="ident">unreal_item</span>.<span class="ident">payload</span>();
     <span class="kw">let</span> <span class="ident">crash</span> <span class="op">=</span> <span class="ident">Unreal4Crash</span>::<span class="ident">parse</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>)<span class="question-mark">?</span>;
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">has_event</span> <span class="op">=</span> <span class="ident">envelope</span>
-        .<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType</span>::<span class="ident">Event</span>)
+        .<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType</span>::<span class="ident">Event</span>)
         .<span class="ident">is_some</span>();
 
     <span class="kw">for</span> <span class="ident">file</span> <span class="kw">in</span> <span class="ident">crash</span>.<span class="ident">files</span>() {
         <span class="kw">let</span> (<span class="ident">content_type</span>, <span class="ident">attachment_type</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">file</span>.<span class="ident">ty</span>() {
-            <span class="ident">Unreal4FileType</span>::<span class="ident">Minidump</span> <span class="op">=&gt;</span> (<span class="ident">ContentType</span>::<span class="ident">Minidump</span>, <span class="ident">AttachmentType</span>::<span class="ident">Minidump</span>),
-            <span class="ident">Unreal4FileType</span>::<span class="ident">AppleCrashReport</span> <span class="op">=&gt;</span> {
+            <span class="ident">Unreal4FileType</span>::<span class="ident">Minidump</span> <span class="op">=</span><span class="op">&gt;</span> (<span class="ident">ContentType</span>::<span class="ident">Minidump</span>, <span class="ident">AttachmentType</span>::<span class="ident">Minidump</span>),
+            <span class="ident">Unreal4FileType</span>::<span class="ident">AppleCrashReport</span> <span class="op">=</span><span class="op">&gt;</span> {
                 (<span class="ident">ContentType</span>::<span class="ident">Text</span>, <span class="ident">AttachmentType</span>::<span class="ident">AppleCrashReport</span>)
             }
-            <span class="ident">Unreal4FileType</span>::<span class="ident">Log</span> <span class="op">=&gt;</span> (<span class="ident">ContentType</span>::<span class="ident">Text</span>, <span class="ident">AttachmentType</span>::<span class="ident">UnrealLogs</span>),
-            <span class="ident">Unreal4FileType</span>::<span class="ident">Config</span> <span class="op">=&gt;</span> (<span class="ident">ContentType</span>::<span class="ident">OctetStream</span>, <span class="ident">AttachmentType</span>::<span class="ident">Attachment</span>),
-            <span class="ident">Unreal4FileType</span>::<span class="ident">Context</span> <span class="op">=&gt;</span> (<span class="ident">ContentType</span>::<span class="ident">Xml</span>, <span class="ident">AttachmentType</span>::<span class="ident">UnrealContext</span>),
-            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">file</span>.<span class="ident">name</span>() {
-                <span class="self">self</span>::<span class="ident">ITEM_NAME_EVENT</span> <span class="op">=&gt;</span> (<span class="ident">ContentType</span>::<span class="ident">MsgPack</span>, <span class="ident">AttachmentType</span>::<span class="ident">EventPayload</span>),
-                <span class="self">self</span>::<span class="ident">ITEM_NAME_BREADCRUMBS1</span> <span class="op">=&gt;</span> (<span class="ident">ContentType</span>::<span class="ident">MsgPack</span>, <span class="ident">AttachmentType</span>::<span class="ident">Breadcrumbs</span>),
-                <span class="self">self</span>::<span class="ident">ITEM_NAME_BREADCRUMBS2</span> <span class="op">=&gt;</span> (<span class="ident">ContentType</span>::<span class="ident">MsgPack</span>, <span class="ident">AttachmentType</span>::<span class="ident">Breadcrumbs</span>),
-                <span class="kw">_</span> <span class="op">=&gt;</span> (<span class="ident">ContentType</span>::<span class="ident">OctetStream</span>, <span class="ident">AttachmentType</span>::<span class="ident">Attachment</span>),
+            <span class="ident">Unreal4FileType</span>::<span class="ident">Log</span> <span class="op">=</span><span class="op">&gt;</span> (<span class="ident">ContentType</span>::<span class="ident">Text</span>, <span class="ident">AttachmentType</span>::<span class="ident">UnrealLogs</span>),
+            <span class="ident">Unreal4FileType</span>::<span class="ident">Config</span> <span class="op">=</span><span class="op">&gt;</span> (<span class="ident">ContentType</span>::<span class="ident">OctetStream</span>, <span class="ident">AttachmentType</span>::<span class="ident">Attachment</span>),
+            <span class="ident">Unreal4FileType</span>::<span class="ident">Context</span> <span class="op">=</span><span class="op">&gt;</span> (<span class="ident">ContentType</span>::<span class="ident">Xml</span>, <span class="ident">AttachmentType</span>::<span class="ident">UnrealContext</span>),
+            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">file</span>.<span class="ident">name</span>() {
+                <span class="self">self</span>::<span class="ident">ITEM_NAME_EVENT</span> <span class="op">=</span><span class="op">&gt;</span> (<span class="ident">ContentType</span>::<span class="ident">MsgPack</span>, <span class="ident">AttachmentType</span>::<span class="ident">EventPayload</span>),
+                <span class="self">self</span>::<span class="ident">ITEM_NAME_BREADCRUMBS1</span> <span class="op">=</span><span class="op">&gt;</span> (<span class="ident">ContentType</span>::<span class="ident">MsgPack</span>, <span class="ident">AttachmentType</span>::<span class="ident">Breadcrumbs</span>),
+                <span class="self">self</span>::<span class="ident">ITEM_NAME_BREADCRUMBS2</span> <span class="op">=</span><span class="op">&gt;</span> (<span class="ident">ContentType</span>::<span class="ident">MsgPack</span>, <span class="ident">AttachmentType</span>::<span class="ident">Breadcrumbs</span>),
+                <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> (<span class="ident">ContentType</span>::<span class="ident">OctetStream</span>, <span class="ident">AttachmentType</span>::<span class="ident">Attachment</span>),
             },
         };
 
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">has_event</span> <span class="op">&amp;&amp;</span> <span class="ident">attachment_type</span> <span class="op">==</span> <span class="ident">AttachmentType</span>::<span class="ident">UnrealContext</span> {
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">has_event</span> <span class="op">&amp;&amp;</span> <span class="ident">attachment_type</span> <span class="op">=</span><span class="op">=</span> <span class="ident">AttachmentType</span>::<span class="ident">UnrealContext</span> {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event_item</span>) <span class="op">=</span> <span class="ident">get_event_item</span>(<span class="ident">file</span>.<span class="ident">data</span>())<span class="question-mark">?</span> {
                 <span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">event_item</span>);
                 <span class="ident">has_event</span> <span class="op">=</span> <span class="bool-val">true</span>;
@@ -566,7 +568,7 @@
 }
 
 <span class="doccomment">/// Merge an unreal logs object into event breadcrumbs.</span>
-<span class="kw">fn</span> <span class="ident">merge_unreal_logs</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Unreal4Error</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">merge_unreal_logs</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Unreal4Error</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">logs</span> <span class="op">=</span> <span class="ident">Unreal4LogEntry</span>::<span class="ident">parse</span>(<span class="ident">data</span>, <span class="ident">MAX_NUM_UNREAL_LOGS</span>)<span class="question-mark">?</span>;
 
     <span class="kw">let</span> <span class="ident">breadcrumbs</span> <span class="op">=</span> <span class="ident">event</span>
@@ -590,14 +592,14 @@
 }
 
 <span class="doccomment">/// Parses `UserReport` from unreal user information.</span>
-<span class="kw">fn</span> <span class="ident">get_unreal_user_report</span>(<span class="ident">event_id</span>: <span class="ident">EventId</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Unreal4Context</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">get_unreal_user_report</span>(<span class="ident">event_id</span>: <span class="ident">EventId</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Unreal4Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">runtime_props</span> <span class="op">=</span> <span class="ident">context</span>.<span class="ident">runtime_properties</span>.<span class="ident">as_mut</span>()<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">user_description</span> <span class="op">=</span> <span class="ident">runtime_props</span>.<span class="ident">user_description</span>.<span class="ident">take</span>()<span class="question-mark">?</span>;
 
     <span class="kw">let</span> <span class="ident">user_name</span> <span class="op">=</span> <span class="ident">runtime_props</span>
         .<span class="ident">username</span>
         .<span class="ident">clone</span>()
-        .<span class="ident">unwrap_or_else</span>(<span class="op">||</span> <span class="string">&quot;unknown&quot;</span>.<span class="ident">to_owned</span>());
+        .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="string">&quot;unknown&quot;</span>.<span class="ident">to_owned</span>());
 
     <span class="kw">let</span> <span class="ident">user_report</span> <span class="op">=</span> <span class="ident">UserReport</span> {
         <span class="ident">email</span>: <span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>(),
@@ -616,8 +618,8 @@
 <span class="doccomment">/// Merges an unreal context object into an event</span>
 <span class="kw">fn</span> <span class="ident">merge_unreal_context</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>, <span class="ident">context</span>: <span class="ident">Unreal4Context</span>) {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">runtime_props</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">context</span>.<span class="ident">runtime_properties</span> {
-        <span class="prelude-val">Some</span>(<span class="ident">runtime_props</span>) <span class="op">=&gt;</span> <span class="ident">runtime_props</span>,
-        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span>,
+        <span class="prelude-val">Some</span>(<span class="ident">runtime_props</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">runtime_props</span>,
+        <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span>,
     };
 
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">msg</span>) <span class="op">=</span> <span class="ident">runtime_props</span>.<span class="ident">error_message</span>.<span class="ident">take</span>() {
@@ -638,7 +640,7 @@
     <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">Contexts</span>::<span class="ident">default</span>);
 
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">memory_physical</span>) <span class="op">=</span> <span class="ident">runtime_props</span>.<span class="ident">memory_stats_total_physical</span>.<span class="ident">take</span>() {
-        <span class="kw">let</span> <span class="ident">device_context</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">DeviceContext</span>::<span class="ident">default_key</span>(), <span class="op">||</span> {
+        <span class="kw">let</span> <span class="ident">device_context</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">DeviceContext</span>::<span class="ident">default_key</span>(), <span class="op">|</span><span class="op">|</span> {
             <span class="ident">Context</span>::<span class="ident">Device</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DeviceContext</span>::<span class="ident">default</span>()))
         });
 
@@ -648,7 +650,7 @@
     }
 
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">os_major</span>) <span class="op">=</span> <span class="ident">runtime_props</span>.<span class="ident">misc_os_version_major</span>.<span class="ident">take</span>() {
-        <span class="kw">let</span> <span class="ident">os_context</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">OsContext</span>::<span class="ident">default_key</span>(), <span class="op">||</span> {
+        <span class="kw">let</span> <span class="ident">os_context</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">OsContext</span>::<span class="ident">default_key</span>(), <span class="op">|</span><span class="op">|</span> {
             <span class="ident">Context</span>::<span class="ident">Os</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">OsContext</span>::<span class="ident">default</span>()))
         });
 
@@ -666,7 +668,7 @@
     }
 
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">gpu_brand</span>) <span class="op">=</span> <span class="ident">runtime_props</span>.<span class="ident">misc_primary_gpu_brand</span>.<span class="ident">take</span>() {
-        <span class="kw">let</span> <span class="ident">gpu_context</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">GpuContext</span>::<span class="ident">default_key</span>(), <span class="op">||</span> {
+        <span class="kw">let</span> <span class="ident">gpu_context</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">GpuContext</span>::<span class="ident">default_key</span>(), <span class="op">|</span><span class="op">|</span> {
             <span class="ident">Context</span>::<span class="ident">Gpu</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">GpuContext</span>::<span class="ident">default</span>()))
         });
 
@@ -680,12 +682,12 @@
 
     <span class="comment">// promote all game data (except the special __sentry key) into a context.</span>
     <span class="kw">if</span> <span class="op">!</span><span class="ident">context</span>.<span class="ident">game_data</span>.<span class="ident">is_empty</span>() {
-        <span class="kw">let</span> <span class="ident">game_context</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="string">&quot;game&quot;</span>, <span class="op">||</span> <span class="ident">Context</span>::<span class="ident">Other</span>(<span class="ident">Object</span>::<span class="ident">new</span>()));
+        <span class="kw">let</span> <span class="ident">game_context</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="string">&quot;game&quot;</span>, <span class="op">|</span><span class="op">|</span> <span class="ident">Context</span>::<span class="ident">Other</span>(<span class="ident">Object</span>::<span class="ident">new</span>()));
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Context</span>::<span class="ident">Other</span>(<span class="ident">game_context</span>) <span class="op">=</span> <span class="ident">game_context</span> {
             <span class="kw">let</span> <span class="ident">filtered_keys</span> <span class="op">=</span> <span class="ident">context</span>
                 .<span class="ident">game_data</span>
                 .<span class="ident">into_iter</span>()
-                .<span class="ident">filter</span>(<span class="op">|</span>(<span class="ident">key</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">key</span> <span class="op">!=</span> <span class="ident">SENTRY_PAYLOAD_KEY</span>)
+                .<span class="ident">filter</span>(<span class="op">|</span>(<span class="ident">key</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">key</span> <span class="op">!</span><span class="op">=</span> <span class="ident">SENTRY_PAYLOAD_KEY</span>)
                 .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">key</span>, <span class="ident">value</span>)<span class="op">|</span> (<span class="ident">key</span>, <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="ident">value</span>))));
 
             <span class="ident">game_context</span>.<span class="ident">extend</span>(<span class="ident">filtered_keys</span>);
@@ -694,7 +696,7 @@
 
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">Object</span>(<span class="ident">props</span>))) <span class="op">=</span> <span class="ident">types</span>::<span class="ident">to_value</span>(<span class="kw-2">&amp;</span><span class="ident">runtime_props</span>) {
         <span class="kw">let</span> <span class="ident">unreal_context</span> <span class="op">=</span>
-            <span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="string">&quot;unreal&quot;</span>, <span class="op">||</span> <span class="ident">Context</span>::<span class="ident">Other</span>(<span class="ident">Object</span>::<span class="ident">new</span>()));
+            <span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="string">&quot;unreal&quot;</span>, <span class="op">|</span><span class="op">|</span> <span class="ident">Context</span>::<span class="ident">Other</span>(<span class="ident">Object</span>::<span class="ident">new</span>()));
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Context</span>::<span class="ident">Other</span>(<span class="ident">unreal_context</span>) <span class="op">=</span> <span class="ident">unreal_context</span> {
             <span class="ident">unreal_context</span>.<span class="ident">extend</span>(<span class="ident">props</span>);
@@ -705,14 +707,14 @@
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">process_unreal_envelope</span>(
     <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span>,
     <span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Envelope</span>,
-) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Unreal4Error</span><span class="op">&gt;</span> {
+) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Unreal4Error</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">user_header</span> <span class="op">=</span> <span class="ident">envelope</span>
         .<span class="ident">get_header</span>(<span class="ident">UNREAL_USER_HEADER</span>)
         .<span class="ident">and_then</span>(<span class="ident">Value</span>::<span class="ident">as_str</span>);
     <span class="kw">let</span> <span class="ident">context_item</span> <span class="op">=</span>
-        <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType</span>::<span class="ident">UnrealContext</span>));
+        <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">=</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType</span>::<span class="ident">UnrealContext</span>));
     <span class="kw">let</span> <span class="ident">logs_item</span> <span class="op">=</span>
-        <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType</span>::<span class="ident">UnrealLogs</span>));
+        <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">=</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType</span>::<span class="ident">UnrealLogs</span>));
 
     <span class="comment">// Early exit if there is no information.</span>
     <span class="kw">if</span> <span class="ident">user_header</span>.<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="ident">context_item</span>.<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="ident">logs_item</span>.<span class="ident">is_none</span>() {
@@ -755,12 +757,12 @@
 
     <span class="doccomment">/// Extracts a Context element from Contexts</span>
     <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">get_context</span> {
-        (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">contexts</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">context_key</span>: <span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">enum_name</span>: <span class="ident">path</span>) <span class="op">=&gt;</span> {{
+        (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">contexts</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">context_key</span>: <span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">enum_name</span>: <span class="ident">path</span>) <span class="op">=</span><span class="op">&gt;</span> {{
             <span class="kw">let</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">contexts</span>.<span class="ident">get</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">context_key</span>).<span class="ident">unwrap</span>().<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="number">0</span>;
 
             <span class="kw">match</span> <span class="ident">ctx</span> {
-                <span class="macro-nonterminal">$</span><span class="macro-nonterminal">enum_name</span>(<span class="kw-2">ref</span> <span class="ident">context</span>) <span class="op">=&gt;</span> <span class="ident">context</span>,
-                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;invalid context&quot;</span>),
+                <span class="macro-nonterminal">$</span><span class="macro-nonterminal">enum_name</span>(<span class="kw-2">ref</span> <span class="ident">context</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">context</span>,
+                <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;invalid context&quot;</span>),
             }
         }};
     }

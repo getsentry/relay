@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `relay-auth/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../relay_auth/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `relay-auth/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="alternate icon" type="image/png" href="../../favicon-16x16.png">
+<link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../relay_auth/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
                 <a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -946,7 +948,7 @@
 
 <span class="kw">impl</span> <span class="ident">RelayVersion</span> {
     <span class="doccomment">/// Returns the current Relay version.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">current</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">current</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="ident">LATEST_VERSION</span>
     }
 
@@ -954,12 +956,12 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// Relays older than this cannot authenticate with this Relay. It is possible for newer Relays</span>
     <span class="doccomment">/// to authenticate.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">oldest</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">oldest</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="ident">OLDEST_VERSION</span>
     }
 
     <span class="doccomment">/// Creates a new version with the given components.</span>
-    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">major</span>: <span class="ident">u8</span>, <span class="ident">minor</span>: <span class="ident">u8</span>, <span class="ident">patch</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">major</span>: <span class="ident">u8</span>, <span class="ident">minor</span>: <span class="ident">u8</span>, <span class="ident">patch</span>: <span class="ident">u8</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">major</span>,
             <span class="ident">minor</span>,
@@ -968,18 +970,18 @@
     }
 
     <span class="doccomment">/// Returns `true` if this version is still supported.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">supported</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="self">self</span> <span class="op">&gt;=</span> <span class="self">Self</span>::<span class="ident">oldest</span>()
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">supported</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span> <span class="op">&gt;</span><span class="op">=</span> <span class="self">Self</span>::<span class="ident">oldest</span>()
     }
 
     <span class="doccomment">/// Returns `true` if this version is older than the current version.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outdated</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outdated</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span> <span class="op">&lt;</span> <span class="self">Self</span>::<span class="ident">current</span>()
     }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">RelayVersion</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
         <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{}.{}.{}&quot;</span>, <span class="self">self</span>.<span class="ident">major</span>, <span class="self">self</span>.<span class="ident">minor</span>, <span class="self">self</span>.<span class="ident">patch</span>)
     }
 }
@@ -991,7 +993,7 @@
 <span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">RelayVersion</span> {
     <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">ParseRelayVersionError</span>;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="self">Self</span>::<span class="prelude-val">Err</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="self">Self</span>::<span class="prelude-val">Err</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="ident">s</span>
             .<span class="ident">split</span>(<span class="kw-2">&amp;</span>[<span class="string">&#39;.&#39;</span>, <span class="string">&#39;-&#39;</span>][..])
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">parse</span>().<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ParseRelayVersionError</span>));
@@ -1005,7 +1007,7 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RelayVersion</span> {
-    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">D</span>: <span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
@@ -1015,7 +1017,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">RelayVersion</span> {
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">S</span>: <span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">Serializer</span>,
     {
@@ -1057,12 +1059,12 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SignatureHeader</span> {
     <span class="doccomment">/// The timestamp of when the data was packed and signed.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;t&quot;</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">timestamp</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">timestamp</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">SignatureHeader</span> {
     <span class="doccomment">/// Checks if the signature expired.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expired</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">max_age</span>: <span class="ident">Duration</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expired</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">max_age</span>: <span class="ident">Duration</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">ts</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">timestamp</span> {
             <span class="ident">ts</span> <span class="op">&lt;</span> (<span class="ident">Utc</span>::<span class="ident">now</span>() <span class="op">-</span> <span class="ident">max_age</span>)
         } <span class="kw">else</span> {
@@ -1072,7 +1074,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">SignatureHeader</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="ident">SignatureHeader</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">SignatureHeader</span> {
         <span class="ident">SignatureHeader</span> {
             <span class="ident">timestamp</span>: <span class="prelude-val">Some</span>(<span class="ident">Utc</span>::<span class="ident">now</span>()),
         }
@@ -1099,7 +1101,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Clone</span> <span class="kw">for</span> <span class="ident">SecretKey</span> {
-    <span class="kw">fn</span> <span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">SecretKey</span> {
+    <span class="kw">fn</span> <span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">SecretKey</span> {
         <span class="ident">SecretKey</span> {
             <span class="ident">inner</span>: <span class="ident">ed25519_dalek</span>::<span class="ident">Keypair</span>::<span class="ident">from_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">to_bytes</span>()[..]).<span class="ident">unwrap</span>(),
         }
@@ -1116,7 +1118,7 @@
     <span class="doccomment">/// Signs some data with the secret key and returns the signature.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This is will sign with the default header.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sign</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">String</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sign</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
         <span class="self">self</span>.<span class="ident">sign_with_header</span>(<span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="ident">SignatureHeader</span>::<span class="ident">default</span>())
     }
 
@@ -1125,7 +1127,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// The default behavior is to attach the timestamp in the header to the</span>
     <span class="doccomment">/// signature so that old signatures on verification can be rejected.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sign_with_header</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">header</span>: <span class="kw-2">&amp;</span><span class="ident">SignatureHeader</span>) <span class="op">-&gt;</span> <span class="ident">String</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sign_with_header</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">header</span>: <span class="kw-2">&amp;</span><span class="ident">SignatureHeader</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">header</span> <span class="op">=</span>
             <span class="ident">serde_json</span>::<span class="ident">to_vec</span>(<span class="kw-2">&amp;</span><span class="ident">header</span>).<span class="ident">expect</span>(<span class="string">&quot;attempted to pack non json safe header&quot;</span>);
         <span class="kw">let</span> <span class="ident">header_encoded</span> <span class="op">=</span> <span class="ident">base64</span>::<span class="ident">encode_config</span>(<span class="kw-2">&amp;</span><span class="ident">header</span>[..], <span class="ident">base64</span>::<span class="ident">URL_SAFE_NO_PAD</span>);
@@ -1139,7 +1141,7 @@
     }
 
     <span class="doccomment">/// Packs some serializable data into JSON and signs it with the default header.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pack</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Serialize</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> (<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">String</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pack</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Serialize</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="ident">S</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">String</span>) {
         <span class="self">self</span>.<span class="ident">pack_with_header</span>(<span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="ident">SignatureHeader</span>::<span class="ident">default</span>())
     }
 
@@ -1148,7 +1150,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">data</span>: <span class="ident">S</span>,
         <span class="ident">header</span>: <span class="kw-2">&amp;</span><span class="ident">SignatureHeader</span>,
-    ) <span class="op">-&gt;</span> (<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">String</span>) {
+    ) <span class="op">-</span><span class="op">&gt;</span> (<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">String</span>) {
         <span class="comment">// this can only fail if we deal with badly formed data.  In that case we</span>
         <span class="comment">// consider that a panic.  Should not happen.</span>
         <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">to_vec</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>).<span class="ident">expect</span>(<span class="string">&quot;attempted to pack non json safe data&quot;</span>);
@@ -1158,8 +1160,8 @@
 }
 
 <span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">SecretKey</span> {
-    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">SecretKey</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">to_bytes</span>()[..] <span class="op">==</span> <span class="ident">other</span>.<span class="ident">inner</span>.<span class="ident">to_bytes</span>()[..]
+    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">SecretKey</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">to_bytes</span>()[..] <span class="op">=</span><span class="op">=</span> <span class="ident">other</span>.<span class="ident">inner</span>.<span class="ident">to_bytes</span>()[..]
     }
 }
 
@@ -1168,14 +1170,14 @@
 <span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">SecretKey</span> {
     <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">KeyParseError</span>;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SecretKey</span>, <span class="ident">KeyParseError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SecretKey</span>, <span class="ident">KeyParseError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">base64</span>::<span class="ident">decode_config</span>(<span class="ident">s</span>, <span class="ident">base64</span>::<span class="ident">URL_SAFE_NO_PAD</span>) {
-            <span class="prelude-val">Ok</span>(<span class="ident">bytes</span>) <span class="op">=&gt;</span> <span class="ident">bytes</span>,
-            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">KeyParseError</span>::<span class="ident">BadEncoding</span>),
+            <span class="prelude-val">Ok</span>(<span class="ident">bytes</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">bytes</span>,
+            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">KeyParseError</span>::<span class="ident">BadEncoding</span>),
         };
 
         <span class="prelude-val">Ok</span>(<span class="ident">SecretKey</span> {
-            <span class="ident">inner</span>: <span class="kw">if</span> <span class="ident">bytes</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">64</span> {
+            <span class="ident">inner</span>: <span class="kw">if</span> <span class="ident">bytes</span>.<span class="ident">len</span>() <span class="op">=</span><span class="op">=</span> <span class="number">64</span> {
                 <span class="ident">ed25519_dalek</span>::<span class="ident">Keypair</span>::<span class="ident">from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">KeyParseError</span>::<span class="ident">BadKey</span>)<span class="question-mark">?</span>
             } <span class="kw">else</span> {
                 <span class="kw">let</span> <span class="ident">secret</span> <span class="op">=</span> <span class="ident">ed25519_dalek</span>::<span class="ident">SecretKey</span>::<span class="ident">from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>)
@@ -1188,7 +1190,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">SecretKey</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
         <span class="kw">if</span> <span class="ident">f</span>.<span class="ident">alternate</span>() {
             <span class="macro">write</span><span class="macro">!</span>(
                 <span class="ident">f</span>,
@@ -1206,7 +1208,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">SecretKey</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
         <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;SecretKey(\&quot;{}\&quot;)&quot;</span>, <span class="self">self</span>)
     }
 }
@@ -1216,21 +1218,21 @@
 <span class="kw">impl</span> <span class="ident">PublicKey</span> {
     <span class="doccomment">/// Verifies the signature and returns the embedded signature</span>
     <span class="doccomment">/// header.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">verify_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">sig</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SignatureHeader</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">verify_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">sig</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SignatureHeader</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="ident">sig</span>.<span class="ident">splitn</span>(<span class="number">2</span>, <span class="string">&#39;.&#39;</span>);
         <span class="kw">let</span> <span class="ident">sig_bytes</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">iter</span>.<span class="ident">next</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">sig_encoded</span>) <span class="op">=&gt;</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">sig_encoded</span>) <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="ident">base64</span>::<span class="ident">decode_config</span>(<span class="ident">sig_encoded</span>, <span class="ident">base64</span>::<span class="ident">URL_SAFE_NO_PAD</span>).<span class="ident">ok</span>()<span class="question-mark">?</span>
             }
-            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
+            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
         };
         <span class="kw">let</span> <span class="ident">sig</span> <span class="op">=</span> <span class="ident">ed25519_dalek</span>::<span class="ident">Signature</span>::<span class="ident">from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">sig_bytes</span>).<span class="ident">ok</span>()<span class="question-mark">?</span>;
 
         <span class="kw">let</span> <span class="ident">header</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">iter</span>.<span class="ident">next</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">header_encoded</span>) <span class="op">=&gt;</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">header_encoded</span>) <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="ident">base64</span>::<span class="ident">decode_config</span>(<span class="ident">header_encoded</span>, <span class="ident">base64</span>::<span class="ident">URL_SAFE_NO_PAD</span>).<span class="ident">ok</span>()<span class="question-mark">?</span>
             }
-            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
+            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
         };
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">to_verify</span> <span class="op">=</span> <span class="ident">header</span>.<span class="ident">clone</span>();
         <span class="ident">to_verify</span>.<span class="ident">push</span>(<span class="string">b&#39;\x00&#39;</span>);
@@ -1243,14 +1245,14 @@
     }
 
     <span class="doccomment">/// Verifies a signature but discards the header.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">verify</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">sig</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">verify</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">sig</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">verify_meta</span>(<span class="ident">data</span>, <span class="ident">sig</span>).<span class="ident">is_some</span>()
     }
 
     <span class="doccomment">/// Verifies a signature and checks the timestamp.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">verify_timestamp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">sig</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">max_age</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">verify_timestamp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">sig</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">max_age</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">verify_meta</span>(<span class="ident">data</span>, <span class="ident">sig</span>)
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">header</span><span class="op">|</span> <span class="ident">max_age</span>.<span class="ident">is_none</span>() <span class="op">||</span> <span class="op">!</span><span class="ident">header</span>.<span class="ident">expired</span>(<span class="ident">max_age</span>.<span class="ident">unwrap</span>()))
+            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">header</span><span class="op">|</span> <span class="ident">max_age</span>.<span class="ident">is_none</span>() <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">header</span>.<span class="ident">expired</span>(<span class="ident">max_age</span>.<span class="ident">unwrap</span>()))
             .<span class="ident">unwrap_or</span>(<span class="bool-val">false</span>)
     }
 
@@ -1259,7 +1261,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
         <span class="ident">signature</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">SignatureHeader</span>, <span class="ident">D</span>), <span class="ident">UnpackError</span><span class="op">&gt;</span> {
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">SignatureHeader</span>, <span class="ident">D</span>), <span class="ident">UnpackError</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">header</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">verify_meta</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>, <span class="ident">signature</span>) {
             <span class="ident">serde_json</span>::<span class="ident">from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>)
                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">data</span><span class="op">|</span> (<span class="ident">header</span>, <span class="ident">data</span>))
@@ -1278,9 +1280,9 @@
         <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
         <span class="ident">signature</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
         <span class="ident">max_age</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span>,
-    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">D</span>, <span class="ident">UnpackError</span><span class="op">&gt;</span> {
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">D</span>, <span class="ident">UnpackError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> (<span class="ident">header</span>, <span class="ident">data</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">unpack_meta</span>(<span class="ident">data</span>, <span class="ident">signature</span>)<span class="question-mark">?</span>;
-        <span class="kw">if</span> <span class="ident">max_age</span>.<span class="ident">is_none</span>() <span class="op">||</span> <span class="op">!</span><span class="ident">header</span>.<span class="ident">expired</span>(<span class="ident">max_age</span>.<span class="ident">unwrap</span>()) {
+        <span class="kw">if</span> <span class="ident">max_age</span>.<span class="ident">is_none</span>() <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">header</span>.<span class="ident">expired</span>(<span class="ident">max_age</span>.<span class="ident">unwrap</span>()) {
             <span class="prelude-val">Ok</span>(<span class="ident">data</span>)
         } <span class="kw">else</span> {
             <span class="prelude-val">Err</span>(<span class="ident">UnpackError</span>::<span class="ident">SignatureExpired</span>)
@@ -1289,8 +1291,8 @@
 }
 
 <span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">PublicKey</span> {
-    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">PublicKey</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">to_bytes</span>()[..] <span class="op">==</span> <span class="ident">other</span>.<span class="ident">inner</span>.<span class="ident">to_bytes</span>()[..]
+    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">PublicKey</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">to_bytes</span>()[..] <span class="op">=</span><span class="op">=</span> <span class="ident">other</span>.<span class="ident">inner</span>.<span class="ident">to_bytes</span>()[..]
     }
 }
 
@@ -1299,10 +1301,10 @@
 <span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">PublicKey</span> {
     <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">KeyParseError</span>;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">PublicKey</span>, <span class="ident">KeyParseError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">PublicKey</span>, <span class="ident">KeyParseError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">base64</span>::<span class="ident">decode_config</span>(<span class="ident">s</span>, <span class="ident">base64</span>::<span class="ident">URL_SAFE_NO_PAD</span>) {
-            <span class="prelude-val">Ok</span>(<span class="ident">bytes</span>) <span class="op">=&gt;</span> <span class="ident">bytes</span>,
-            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">KeyParseError</span>::<span class="ident">BadEncoding</span>),
+            <span class="prelude-val">Ok</span>(<span class="ident">bytes</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">bytes</span>,
+            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">KeyParseError</span>::<span class="ident">BadEncoding</span>),
         };
         <span class="prelude-val">Ok</span>(<span class="ident">PublicKey</span> {
             <span class="ident">inner</span>: <span class="ident">ed25519_dalek</span>::<span class="ident">PublicKey</span>::<span class="ident">from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>)
@@ -1312,7 +1314,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">PublicKey</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
         <span class="macro">write</span><span class="macro">!</span>(
             <span class="ident">f</span>,
             <span class="string">&quot;{}&quot;</span>,
@@ -1322,7 +1324,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">PublicKey</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
         <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;PublicKey(\&quot;{}\&quot;)&quot;</span>, <span class="self">self</span>)
     }
 }
@@ -1330,12 +1332,12 @@
 <span class="ident">relay_common</span>::<span class="macro">impl_str_serialization</span><span class="macro">!</span>(<span class="ident">PublicKey</span>, <span class="string">&quot;a public key&quot;</span>);
 
 <span class="doccomment">/// Generates an relay ID.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">generate_relay_id</span>() <span class="op">-&gt;</span> <span class="ident">RelayId</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">generate_relay_id</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayId</span> {
     <span class="ident">Uuid</span>::<span class="ident">new_v4</span>()
 }
 
 <span class="doccomment">/// Generates a secret + public key pair.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">generate_key_pair</span>() <span class="op">-&gt;</span> (<span class="ident">SecretKey</span>, <span class="ident">PublicKey</span>) {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">generate_key_pair</span>() <span class="op">-</span><span class="op">&gt;</span> (<span class="ident">SecretKey</span>, <span class="ident">PublicKey</span>) {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">csprng</span> <span class="op">=</span> <span class="ident">OsRng</span>::<span class="ident">new</span>().<span class="ident">unwrap</span>();
     <span class="kw">let</span> <span class="ident">kp</span> <span class="op">=</span> <span class="ident">ed25519_dalek</span>::<span class="ident">Keypair</span>::<span class="ident">generate</span>::<span class="op">&lt;</span><span class="ident">Sha512</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">csprng</span>);
     <span class="kw">let</span> <span class="ident">pk</span> <span class="op">=</span> <span class="ident">ed25519_dalek</span>::<span class="ident">PublicKey</span>::<span class="ident">from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">kp</span>.<span class="ident">public</span>.<span class="ident">as_bytes</span>()[..]).<span class="ident">unwrap</span>();
@@ -1365,12 +1367,12 @@
 
 <span class="kw">impl</span> <span class="ident">SignedRegisterState</span> {
     <span class="doccomment">/// Creates an Hmac instance for signing the `RegisterState`.</span>
-    <span class="kw">fn</span> <span class="ident">mac</span>(<span class="ident">secret</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">Hmac</span><span class="op">&lt;</span><span class="ident">Sha512</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">mac</span>(<span class="ident">secret</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Hmac</span><span class="op">&lt;</span><span class="ident">Sha512</span><span class="op">&gt;</span> {
         <span class="ident">Hmac</span>::<span class="ident">new_varkey</span>(<span class="ident">secret</span>).<span class="ident">expect</span>(<span class="string">&quot;HMAC takes variable keys&quot;</span>)
     }
 
     <span class="doccomment">/// Signs the given `RegisterState` and serializes it into a single string.</span>
-    <span class="kw">fn</span> <span class="ident">sign</span>(<span class="ident">state</span>: <span class="ident">RegisterState</span>, <span class="ident">secret</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">sign</span>(<span class="ident">state</span>: <span class="ident">RegisterState</span>, <span class="ident">secret</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">to_string</span>(<span class="kw-2">&amp;</span><span class="ident">state</span>).<span class="ident">expect</span>(<span class="string">&quot;relay register state serializes to JSON&quot;</span>);
         <span class="kw">let</span> <span class="ident">token</span> <span class="op">=</span> <span class="ident">base64</span>::<span class="ident">encode_config</span>(<span class="kw-2">&amp;</span><span class="ident">json</span>, <span class="ident">base64</span>::<span class="ident">URL_SAFE_NO_PAD</span>);
 
@@ -1382,13 +1384,13 @@
     }
 
     <span class="doccomment">/// Splits the signed state into the encoded state and encoded signature.</span>
-    <span class="kw">fn</span> <span class="ident">split</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> (<span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="kw-2">&amp;</span><span class="ident">str</span>) {
+    <span class="kw">fn</span> <span class="ident">split</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="kw-2">&amp;</span><span class="ident">str</span>) {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">split</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">as_str</span>().<span class="ident">splitn</span>(<span class="number">2</span>, <span class="string">&#39;:&#39;</span>);
         (<span class="ident">split</span>.<span class="ident">next</span>().<span class="ident">unwrap_or</span>(<span class="string">&quot;&quot;</span>), <span class="ident">split</span>.<span class="ident">next</span>().<span class="ident">unwrap_or</span>(<span class="string">&quot;&quot;</span>))
     }
 
     <span class="doccomment">/// Returns the string representation of the token.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="self">self</span>.<span class="number">0</span>.<span class="ident">as_str</span>()
     }
 
@@ -1400,7 +1402,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">secret</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
         <span class="ident">max_age</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span>,
-    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">RegisterState</span>, <span class="ident">UnpackError</span><span class="op">&gt;</span> {
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">RegisterState</span>, <span class="ident">UnpackError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> (<span class="ident">token</span>, <span class="ident">signature</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">split</span>();
         <span class="kw">let</span> <span class="ident">code</span> <span class="op">=</span> <span class="ident">base64</span>::<span class="ident">decode_config</span>(<span class="ident">signature</span>, <span class="ident">base64</span>::<span class="ident">URL_SAFE_NO_PAD</span>)
             .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">UnpackError</span>::<span class="ident">BadEncoding</span>)<span class="question-mark">?</span>;
@@ -1426,7 +1428,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">SignedRegisterState</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
         <span class="self">self</span>.<span class="ident">as_str</span>().<span class="ident">fmt</span>(<span class="ident">f</span>)
     }
 }
@@ -1446,23 +1448,23 @@
 
 <span class="kw">impl</span> <span class="ident">RegisterState</span> {
     <span class="doccomment">/// Returns the timestamp at which the challenge was created.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">timestamp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">UnixTimestamp</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">timestamp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">UnixTimestamp</span> {
         <span class="self">self</span>.<span class="ident">timestamp</span>
     }
 
     <span class="doccomment">/// Returns the identifier of the requesting downstream Relay.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">RelayId</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayId</span> {
         <span class="self">self</span>.<span class="ident">relay_id</span>
     }
 
     <span class="doccomment">/// Returns the public key of the requesting downstream Relay.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">public_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">PublicKey</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">public_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">PublicKey</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">public_key</span>
     }
 }
 
 <span class="doccomment">/// Generates a new random token for the register state.</span>
-<span class="kw">fn</span> <span class="ident">nonce</span>() <span class="op">-&gt;</span> <span class="ident">String</span> {
+<span class="kw">fn</span> <span class="ident">nonce</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> <span class="ident">thread_rng</span>();
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0u8</span>; <span class="number">64</span>];
     <span class="ident">rng</span>.<span class="ident">fill_bytes</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">bytes</span>);
@@ -1484,7 +1486,7 @@
 
 <span class="kw">impl</span> <span class="ident">RegisterRequest</span> {
     <span class="doccomment">/// Creates a new request to register an relay upstream.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">relay_id</span>: <span class="kw-2">&amp;</span><span class="ident">RelayId</span>, <span class="ident">public_key</span>: <span class="kw-2">&amp;</span><span class="ident">PublicKey</span>) <span class="op">-&gt;</span> <span class="ident">RegisterRequest</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">relay_id</span>: <span class="kw-2">&amp;</span><span class="ident">RelayId</span>, <span class="ident">public_key</span>: <span class="kw-2">&amp;</span><span class="ident">PublicKey</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RegisterRequest</span> {
         <span class="ident">RegisterRequest</span> {
             <span class="ident">relay_id</span>: <span class="kw-2">*</span><span class="ident">relay_id</span>,
             <span class="ident">public_key</span>: <span class="ident">public_key</span>.<span class="ident">clone</span>(),
@@ -1501,24 +1503,24 @@
         <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
         <span class="ident">signature</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
         <span class="ident">max_age</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span>,
-    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">RegisterRequest</span>, <span class="ident">UnpackError</span><span class="op">&gt;</span> {
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">RegisterRequest</span>, <span class="ident">UnpackError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">req</span>: <span class="ident">RegisterRequest</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">from_slice</span>(<span class="ident">data</span>).<span class="ident">map_err</span>(<span class="ident">UnpackError</span>::<span class="ident">BadPayload</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">pk</span> <span class="op">=</span> <span class="ident">req</span>.<span class="ident">public_key</span>();
         <span class="ident">pk</span>.<span class="ident">unpack</span>(<span class="ident">data</span>, <span class="ident">signature</span>, <span class="ident">max_age</span>)
     }
 
     <span class="doccomment">/// Returns the relay ID of the registering relay.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">RelayId</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayId</span> {
         <span class="self">self</span>.<span class="ident">relay_id</span>
     }
 
     <span class="doccomment">/// Returns the new public key of registering relay.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">public_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">PublicKey</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">public_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">PublicKey</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">public_key</span>
     }
 
     <span class="doccomment">/// Creates a register challenge for this request.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_challenge</span>(<span class="self">self</span>, <span class="ident">secret</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">RegisterChallenge</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_challenge</span>(<span class="self">self</span>, <span class="ident">secret</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RegisterChallenge</span> {
         <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">RegisterState</span> {
             <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>::<span class="ident">now</span>(),
             <span class="ident">relay_id</span>: <span class="self">self</span>.<span class="ident">relay_id</span>,
@@ -1542,17 +1544,17 @@
 
 <span class="kw">impl</span> <span class="ident">RegisterChallenge</span> {
     <span class="doccomment">/// Returns the relay ID of the registering relay.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">RelayId</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">RelayId</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">relay_id</span>
     }
 
     <span class="doccomment">/// Returns the token that needs signing.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">token</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">token</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">as_str</span>()
     }
 
     <span class="doccomment">/// Creates a register response.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_response</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">RegisterResponse</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_response</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RegisterResponse</span> {
         <span class="ident">RegisterResponse</span> {
             <span class="ident">relay_id</span>: <span class="self">self</span>.<span class="ident">relay_id</span>,
             <span class="ident">token</span>: <span class="self">self</span>.<span class="ident">token</span>,
@@ -1580,7 +1582,7 @@
         <span class="ident">signature</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
         <span class="ident">secret</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
         <span class="ident">max_age</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span>,
-    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="self">Self</span>, <span class="ident">RegisterState</span>), <span class="ident">UnpackError</span><span class="op">&gt;</span> {
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="self">Self</span>, <span class="ident">RegisterState</span>), <span class="ident">UnpackError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">response</span>: <span class="self">Self</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">from_slice</span>(<span class="ident">data</span>).<span class="ident">map_err</span>(<span class="ident">UnpackError</span>::<span class="ident">BadPayload</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">response</span>.<span class="ident">token</span>.<span class="ident">unpack</span>(<span class="ident">secret</span>, <span class="ident">max_age</span>)<span class="question-mark">?</span>;
 
@@ -1596,16 +1598,16 @@
     }
 
     <span class="doccomment">/// Returns the relay ID of the registering relay.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">RelayId</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayId</span> {
         <span class="self">self</span>.<span class="ident">relay_id</span>
     }
 
     <span class="doccomment">/// Returns the token that needs signing.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">token</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">token</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">as_str</span>()
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">RelayVersion</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayVersion</span> {
         <span class="self">self</span>.<span class="ident">version</span>
     }
 }

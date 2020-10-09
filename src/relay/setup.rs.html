@@ -236,8 +236,8 @@
 <span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">metrics</span>;
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">LogFormat</span>, <span class="ident">RelayMode</span>};
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_config</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
-    <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">relay_mode</span>() <span class="op">==</span> <span class="ident">RelayMode</span>::<span class="ident">Managed</span> <span class="op">&amp;&amp;</span> <span class="ident">config</span>.<span class="ident">credentials</span>().<span class="ident">is_none</span>() {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_config</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">relay_mode</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">RelayMode</span>::<span class="ident">Managed</span> <span class="op">&amp;&amp;</span> <span class="ident">config</span>.<span class="ident">credentials</span>().<span class="ident">is_none</span>() {
         <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">err_msg</span>(
             <span class="string">&quot;relay has no credentials, which are required in managed mode. \
              Generate some with \&quot;relay credentials generate\&quot; first.&quot;</span>,
@@ -256,12 +256,12 @@
     <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;  relay mode: {}&quot;</span>, <span class="ident">config</span>.<span class="ident">relay_mode</span>());
 
     <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">relay_id</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">id</span>) <span class="op">=&gt;</span> <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;  relay id: {}&quot;</span>, <span class="ident">id</span>),
-        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;  relay id: -&quot;</span>),
+        <span class="prelude-val">Some</span>(<span class="ident">id</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;  relay id: {}&quot;</span>, <span class="ident">id</span>),
+        <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;  relay id: -&quot;</span>),
     };
     <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">public_key</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">key</span>) <span class="op">=&gt;</span> <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;  public key: {}&quot;</span>, <span class="ident">key</span>),
-        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;  public key: -&quot;</span>),
+        <span class="prelude-val">Some</span>(<span class="ident">key</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;  public key: {}&quot;</span>, <span class="ident">key</span>),
+        <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;  public key: -&quot;</span>),
     };
     <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;  log level: {}&quot;</span>, <span class="ident">config</span>.<span class="ident">log_level_filter</span>());
 }
@@ -269,12 +269,12 @@
 <span class="doccomment">/// Dumps out credential info.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">dump_credentials</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) {
     <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">relay_id</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">id</span>) <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;  relay id: {}&quot;</span>, <span class="ident">id</span>),
-        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;  relay id: -&quot;</span>),
+        <span class="prelude-val">Some</span>(<span class="ident">id</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;  relay id: {}&quot;</span>, <span class="ident">id</span>),
+        <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;  relay id: -&quot;</span>),
     };
     <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">public_key</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">key</span>) <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;  public key: {}&quot;</span>, <span class="ident">key</span>),
-        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;  public key: -&quot;</span>),
+        <span class="prelude-val">Some</span>(<span class="ident">key</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;  public key: {}&quot;</span>, <span class="ident">key</span>),
+        <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;  public key: -&quot;</span>),
     };
 }
 
@@ -286,14 +286,14 @@
 
     <span class="kw">if</span> <span class="ident">env</span>::<span class="ident">var</span>(<span class="string">&quot;RUST_LOG&quot;</span>).<span class="ident">is_err</span>() {
         <span class="kw">let</span> <span class="ident">log</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">log_level_filter</span>() {
-            <span class="ident">LevelFilter</span>::<span class="ident">Off</span> <span class="op">=&gt;</span> <span class="string">&quot;&quot;</span>,
-            <span class="ident">LevelFilter</span>::<span class="ident">Error</span> <span class="op">=&gt;</span> <span class="string">&quot;ERROR&quot;</span>,
-            <span class="ident">LevelFilter</span>::<span class="ident">Warn</span> <span class="op">=&gt;</span> <span class="string">&quot;WARN&quot;</span>,
-            <span class="ident">LevelFilter</span>::<span class="ident">Info</span> <span class="op">=&gt;</span> {
+            <span class="ident">LevelFilter</span>::<span class="ident">Off</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;&quot;</span>,
+            <span class="ident">LevelFilter</span>::<span class="ident">Error</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;ERROR&quot;</span>,
+            <span class="ident">LevelFilter</span>::<span class="ident">Warn</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;WARN&quot;</span>,
+            <span class="ident">LevelFilter</span>::<span class="ident">Info</span> <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="string">&quot;INFO,\
                  trust_dns_proto=WARN&quot;</span>
             }
-            <span class="ident">LevelFilter</span>::<span class="ident">Debug</span> <span class="op">=&gt;</span> {
+            <span class="ident">LevelFilter</span>::<span class="ident">Debug</span> <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="string">&quot;INFO,\
                  trust_dns_proto=WARN,\
                  actix_web::pipeline=DEBUG,\
@@ -308,7 +308,7 @@
                  relay_wstring=DEBUG,\
                  relay=DEBUG&quot;</span>
             }
-            <span class="ident">LevelFilter</span>::<span class="ident">Trace</span> <span class="op">=&gt;</span> {
+            <span class="ident">LevelFilter</span>::<span class="ident">Trace</span> <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="string">&quot;INFO,\
                  trust_dns_proto=WARN,\
                  actix_web::pipeline=DEBUG,\
@@ -331,10 +331,10 @@
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">log_builder</span> <span class="op">=</span> {
         <span class="kw">match</span> (<span class="ident">config</span>.<span class="ident">log_format</span>(), <span class="ident">console</span>::<span class="ident">user_attended</span>()) {
-            (<span class="ident">LogFormat</span>::<span class="ident">Auto</span>, <span class="bool-val">true</span>) <span class="op">|</span> (<span class="ident">LogFormat</span>::<span class="ident">Pretty</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> {
+            (<span class="ident">LogFormat</span>::<span class="ident">Auto</span>, <span class="bool-val">true</span>) <span class="op">|</span> (<span class="ident">LogFormat</span>::<span class="ident">Pretty</span>, <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="ident">pretty_env_logger</span>::<span class="ident">formatted_builder</span>()
             }
-            (<span class="ident">LogFormat</span>::<span class="ident">Auto</span>, <span class="bool-val">false</span>) <span class="op">|</span> (<span class="ident">LogFormat</span>::<span class="ident">Simplified</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> {
+            (<span class="ident">LogFormat</span>::<span class="ident">Auto</span>, <span class="bool-val">false</span>) <span class="op">|</span> (<span class="ident">LogFormat</span>::<span class="ident">Simplified</span>, <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">builder</span> <span class="op">=</span> <span class="ident">env_logger</span>::<span class="ident">Builder</span>::<span class="ident">new</span>();
                 <span class="ident">builder</span>.<span class="ident">format</span>(<span class="op">|</span><span class="ident">buf</span>, <span class="ident">record</span><span class="op">|</span> {
                     <span class="kw">let</span> <span class="ident">ts</span> <span class="op">=</span> <span class="ident">buf</span>.<span class="ident">timestamp</span>();
@@ -349,7 +349,7 @@
                 });
                 <span class="ident">builder</span>
             }
-            (<span class="ident">LogFormat</span>::<span class="ident">Json</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> {
+            (<span class="ident">LogFormat</span>::<span class="ident">Json</span>, <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
                 <span class="kw">struct</span> <span class="ident">LogRecord</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
                     <span class="ident">timestamp</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>,
@@ -362,7 +362,7 @@
                 }
 
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">builder</span> <span class="op">=</span> <span class="ident">env_logger</span>::<span class="ident">Builder</span>::<span class="ident">new</span>();
-                <span class="ident">builder</span>.<span class="ident">format</span>(<span class="op">|</span><span class="kw-2">mut</span> <span class="ident">buf</span>, <span class="ident">record</span><span class="op">|</span> <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+                <span class="ident">builder</span>.<span class="ident">format</span>(<span class="op">|</span><span class="kw-2">mut</span> <span class="ident">buf</span>, <span class="ident">record</span><span class="op">|</span> <span class="op">-</span><span class="op">&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
                     <span class="ident">serde_json</span>::<span class="ident">to_writer</span>(
                         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>,
                         <span class="kw-2">&amp;</span><span class="ident">LogRecord</span> {
@@ -385,8 +385,8 @@
     };
 
     <span class="kw">match</span> <span class="ident">env</span>::<span class="ident">var</span>(<span class="string">&quot;RUST_LOG&quot;</span>) {
-        <span class="prelude-val">Ok</span>(<span class="ident">rust_log</span>) <span class="op">=&gt;</span> <span class="ident">log_builder</span>.<span class="ident">parse_filters</span>(<span class="kw-2">&amp;</span><span class="ident">rust_log</span>),
-        <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">log_builder</span>.<span class="ident">filter_level</span>(<span class="ident">config</span>.<span class="ident">log_level_filter</span>()),
+        <span class="prelude-val">Ok</span>(<span class="ident">rust_log</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">log_builder</span>.<span class="ident">parse_filters</span>(<span class="kw-2">&amp;</span><span class="ident">rust_log</span>),
+        <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">log_builder</span>.<span class="ident">filter_level</span>(<span class="ident">config</span>.<span class="ident">log_level_filter</span>()),
     };
 
     <span class="kw">let</span> <span class="ident">log</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">log_builder</span>.<span class="ident">build</span>());
@@ -428,7 +428,7 @@
 }
 
 <span class="doccomment">/// Initialize the metric system.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">init_metrics</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">init_metrics</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">addrs</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">statsd_addrs</span>()<span class="question-mark">?</span>;
     <span class="kw">if</span> <span class="ident">addrs</span>.<span class="ident">is_empty</span>() {
         <span class="kw">return</span> <span class="prelude-val">Ok</span>(());

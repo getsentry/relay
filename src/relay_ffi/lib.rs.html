@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `relay-ffi/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../relay_ffi/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `relay-ffi/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="alternate icon" type="image/png" href="../../favicon-16x16.png">
+<link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../relay_ffi/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
                 <a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -287,16 +289,6 @@
 <span id="286">286</span>
 <span id="287">287</span>
 <span id="288">288</span>
-<span id="289">289</span>
-<span id="290">290</span>
-<span id="291">291</span>
-<span id="292">292</span>
-<span id="293">293</span>
-<span id="294">294</span>
-<span id="295">295</span>
-<span id="296">296</span>
-<span id="297">297</span>
-<span id="298">298</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Utilities for error handling in FFI bindings.</span>
 <span class="doccomment">//!</span>
@@ -398,8 +390,6 @@
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! [`errno`]: https://man7.org/linux/man-pages/man3/errno.3.html</span>
-<span class="doccomment">//! [`catch_unwind`]: attr.catch_unwind.html</span>
-<span class="doccomment">//! [`with_last_error`]: fn.with_last_error.html</span>
 
 <span class="attribute">#![<span class="ident">warn</span>(<span class="ident">missing_docs</span>)]</span>
 
@@ -412,7 +402,7 @@
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">relay_ffi_macros</span>::<span class="ident">catch_unwind</span>;
 
 <span class="macro">thread_local</span><span class="macro">!</span> {
-    <span class="kw">static</span> <span class="ident">LAST_ERROR</span>: <span class="ident">RefCell</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">failure</span>::<span class="ident">Error</span><span class="op">&gt;&gt;</span> <span class="op">=</span> <span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="prelude-val">None</span>);
+    <span class="kw">static</span> <span class="ident">LAST_ERROR</span>: <span class="ident">RefCell</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">failure</span>::<span class="ident">Error</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="prelude-val">None</span>);
 }
 
 <span class="kw">fn</span> <span class="ident">set_last_error</span>(<span class="ident">err</span>: <span class="ident">failure</span>::<span class="ident">Error</span>) {
@@ -435,17 +425,17 @@
     <span class="doccomment">/// Returns `std::mem::zeroed` on error, which is unsafe for reference types and function</span>
     <span class="doccomment">/// pointers.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">catch_errors</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">f</span>: <span class="ident">F</span>) <span class="op">-&gt;</span> <span class="ident">T</span>
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">catch_errors</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">f</span>: <span class="ident">F</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">T</span>
     <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">FnOnce</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">failure</span>::<span class="ident">Error</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">panic</span>::<span class="ident">UnwindSafe</span>,
+        <span class="ident">F</span>: <span class="ident">FnOnce</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">failure</span>::<span class="ident">Error</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">panic</span>::<span class="ident">UnwindSafe</span>,
     {
         <span class="kw">match</span> <span class="ident">panic</span>::<span class="ident">catch_unwind</span>(<span class="ident">f</span>) {
-            <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(<span class="ident">result</span>)) <span class="op">=&gt;</span> <span class="ident">result</span>,
-            <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(<span class="ident">err</span>)) <span class="op">=&gt;</span> {
+            <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(<span class="ident">result</span>)) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">result</span>,
+            <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(<span class="ident">err</span>)) <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="ident">set_last_error</span>(<span class="ident">err</span>);
                 <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">zeroed</span>()
             }
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">zeroed</span>(),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">zeroed</span>(),
         }
     }
 }
@@ -453,9 +443,7 @@
 <span class="doccomment">/// Acquires a reference to the last error and passes it to the callback, if any.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Returns `Some(R)` if there was an error, otherwise `None`. The error resets when it is taken</span>
-<span class="doccomment">/// with [`take_error`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// [`take_error`]: fn.take_error.html</span>
+<span class="doccomment">/// with [`take_last_error`].</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example</span>
 <span class="doccomment">///</span>
@@ -473,9 +461,9 @@
 <span class="doccomment">///     None =&gt; println!(&quot;result: {}&quot;, parsed),</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_last_error</span><span class="op">&lt;</span><span class="ident">R</span>, <span class="ident">F</span><span class="op">&gt;</span>(<span class="ident">f</span>: <span class="ident">F</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_last_error</span><span class="op">&lt;</span><span class="ident">R</span>, <span class="ident">F</span><span class="op">&gt;</span>(<span class="ident">f</span>: <span class="ident">F</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span>
 <span class="kw">where</span>
-    <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="kw-2">&amp;</span><span class="ident">failure</span>::<span class="ident">Error</span>) <span class="op">-&gt;</span> <span class="ident">R</span>,
+    <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="kw-2">&amp;</span><span class="ident">failure</span>::<span class="ident">Error</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">R</span>,
 {
     <span class="ident">LAST_ERROR</span>.<span class="ident">with</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">e</span>.<span class="ident">borrow</span>().<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="ident">f</span>))
 }
@@ -483,8 +471,6 @@
 <span class="doccomment">/// Takes the last error, leaving `None` in its place.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// To inspect the error without removing it, use [`with_last_error`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// [`with_last_error`]: fn.with_last_error.html</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example</span>
 <span class="doccomment">///</span>
@@ -502,15 +488,13 @@
 <span class="doccomment">///     None =&gt; println!(&quot;result: {}&quot;, parsed),</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take_last_error</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">failure</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take_last_error</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">failure</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
     <span class="ident">LAST_ERROR</span>.<span class="ident">with</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">e</span>.<span class="ident">borrow_mut</span>().<span class="ident">take</span>())
 }
 
 <span class="doccomment">/// An error representing a panic carrying the message as payload.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// To capture panics, register the hook using [`set_panic_hook`].</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// [`set_panic_hook`]: fn.set_panic_hook.html</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example</span>
 <span class="doccomment">///</span>
@@ -536,27 +520,27 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Panic</span>(<span class="ident">String</span>);
 
 <span class="kw">impl</span> <span class="ident">Panic</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">info</span>: <span class="kw-2">&amp;</span><span class="ident">panic</span>::<span class="ident">PanicInfo</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">info</span>: <span class="kw-2">&amp;</span><span class="ident">panic</span>::<span class="ident">PanicInfo</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">thread</span> <span class="op">=</span> <span class="ident">thread</span>::<span class="ident">current</span>();
         <span class="kw">let</span> <span class="ident">thread</span> <span class="op">=</span> <span class="ident">thread</span>.<span class="ident">name</span>().<span class="ident">unwrap_or</span>(<span class="string">&quot;unnamed&quot;</span>);
 
         <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">info</span>.<span class="ident">payload</span>().<span class="ident">downcast_ref</span>::<span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="kw-2">*</span><span class="ident">s</span>,
-            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">info</span>.<span class="ident">payload</span>().<span class="ident">downcast_ref</span>::<span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>() {
-                <span class="prelude-val">Some</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">s</span>,
-                <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="string">&quot;Box&lt;Any&gt;&quot;</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">s</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="ident">s</span>,
+            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">info</span>.<span class="ident">payload</span>().<span class="ident">downcast_ref</span>::<span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>() {
+                <span class="prelude-val">Some</span>(<span class="ident">s</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">s</span>,
+                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;Box&lt;Any&gt;&quot;</span>,
             },
         };
 
         <span class="kw">let</span> <span class="ident">description</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">info</span>.<span class="ident">location</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">location</span>) <span class="op">=&gt;</span> <span class="macro">format</span><span class="macro">!</span>(
+            <span class="prelude-val">Some</span>(<span class="ident">location</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format</span><span class="macro">!</span>(
                 <span class="string">&quot;thread &#39;{}&#39; panicked with &#39;{}&#39; at {}:{}&quot;</span>,
                 <span class="ident">thread</span>,
                 <span class="ident">message</span>,
                 <span class="ident">location</span>.<span class="ident">file</span>(),
                 <span class="ident">location</span>.<span class="ident">line</span>()
             ),
-            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;thread &#39;{}&#39; panicked with &#39;{}&#39;&quot;</span>, <span class="ident">thread</span>, <span class="ident">message</span>),
+            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;thread &#39;{}&#39; panicked with &#39;{}&#39;&quot;</span>, <span class="ident">thread</span>, <span class="ident">message</span>),
         };
 
         <span class="self">Self</span>(<span class="ident">description</span>)
@@ -564,13 +548,13 @@
 
     <span class="doccomment">/// Returns a description containing the location and message of the panic.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">description</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">description</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">Panic</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
         <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;panic: {}&quot;</span>, <span class="self">self</span>.<span class="ident">description</span>())
     }
 }
@@ -582,7 +566,7 @@
 <span class="doccomment">/// This function must be registered early when the FFI is initialized before any other calls are</span>
 <span class="doccomment">/// made. Usually, this would be exported from an initialization function.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// See the [`Panic` documentation] for more information.</span>
+<span class="doccomment">/// See the [`Panic`] documentation for more information.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example</span>
 <span class="doccomment">///</span>
@@ -591,8 +575,6 @@
 <span class="doccomment">///     relay_ffi::set_panic_hook();</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// [`Panic` documentation]: struct.Panic.html</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_panic_hook</span>() {
     <span class="ident">panic</span>::<span class="ident">set_hook</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="op">|</span><span class="ident">info</span><span class="op">|</span> <span class="ident">set_last_error</span>(<span class="ident">Panic</span>::<span class="ident">new</span>(<span class="ident">info</span>).<span class="ident">into</span>())));
 }

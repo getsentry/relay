@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `relay-filter/src/config.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>config.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../relay_filter/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `relay-filter/src/config.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>config.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="alternate icon" type="image/png" href="../../favicon-16x16.png">
+<link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../relay_filter/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
                 <a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -359,7 +361,7 @@
 
 <span class="kw">impl</span> <span class="ident">FilterConfig</span> {
     <span class="doccomment">/// Returns true if no configuration for this filter is given.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="op">!</span><span class="self">self</span>.<span class="ident">is_enabled</span>
     }
 }
@@ -390,43 +392,43 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">LegacyBrowser</span> {
-    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">D</span>: <span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
         <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="ident">Cow</span>::<span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span>::<span class="ident">deserialize</span>(<span class="ident">deserializer</span>)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="ident">string</span>.<span class="ident">as_ref</span>() {
-            <span class="string">&quot;default&quot;</span> <span class="op">=&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">Default</span>,
-            <span class="string">&quot;ie_pre_9&quot;</span> <span class="op">=&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">IePre9</span>,
-            <span class="string">&quot;ie9&quot;</span> <span class="op">=&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">Ie9</span>,
-            <span class="string">&quot;ie10&quot;</span> <span class="op">=&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">Ie10</span>,
-            <span class="string">&quot;ie11&quot;</span> <span class="op">=&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">Ie11</span>,
-            <span class="string">&quot;opera_pre_15&quot;</span> <span class="op">=&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">OperaPre15</span>,
-            <span class="string">&quot;opera_mini_pre_8&quot;</span> <span class="op">=&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">OperaMiniPre8</span>,
-            <span class="string">&quot;android_pre_4&quot;</span> <span class="op">=&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">AndroidPre4</span>,
-            <span class="string">&quot;safari_pre_6&quot;</span> <span class="op">=&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">SafariPre6</span>,
-            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">Unknown</span>(<span class="ident">string</span>.<span class="ident">into_owned</span>()),
+            <span class="string">&quot;default&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">Default</span>,
+            <span class="string">&quot;ie_pre_9&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">IePre9</span>,
+            <span class="string">&quot;ie9&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">Ie9</span>,
+            <span class="string">&quot;ie10&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">Ie10</span>,
+            <span class="string">&quot;ie11&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">Ie11</span>,
+            <span class="string">&quot;opera_pre_15&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">OperaPre15</span>,
+            <span class="string">&quot;opera_mini_pre_8&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">OperaMiniPre8</span>,
+            <span class="string">&quot;android_pre_4&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">AndroidPre4</span>,
+            <span class="string">&quot;safari_pre_6&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">SafariPre6</span>,
+            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">LegacyBrowser</span>::<span class="ident">Unknown</span>(<span class="ident">string</span>.<span class="ident">into_owned</span>()),
         })
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">LegacyBrowser</span> {
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">S</span>: <span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">serialize_str</span>(<span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">LegacyBrowser</span>::<span class="ident">Default</span> <span class="op">=&gt;</span> <span class="string">&quot;default&quot;</span>,
-            <span class="ident">LegacyBrowser</span>::<span class="ident">IePre9</span> <span class="op">=&gt;</span> <span class="string">&quot;ie_pre_9&quot;</span>,
-            <span class="ident">LegacyBrowser</span>::<span class="ident">Ie9</span> <span class="op">=&gt;</span> <span class="string">&quot;ie9&quot;</span>,
-            <span class="ident">LegacyBrowser</span>::<span class="ident">Ie10</span> <span class="op">=&gt;</span> <span class="string">&quot;ie10&quot;</span>,
-            <span class="ident">LegacyBrowser</span>::<span class="ident">Ie11</span> <span class="op">=&gt;</span> <span class="string">&quot;ie11&quot;</span>,
-            <span class="ident">LegacyBrowser</span>::<span class="ident">OperaPre15</span> <span class="op">=&gt;</span> <span class="string">&quot;opera_pre_15&quot;</span>,
-            <span class="ident">LegacyBrowser</span>::<span class="ident">OperaMiniPre8</span> <span class="op">=&gt;</span> <span class="string">&quot;opera_mini_pre_8&quot;</span>,
-            <span class="ident">LegacyBrowser</span>::<span class="ident">AndroidPre4</span> <span class="op">=&gt;</span> <span class="string">&quot;android_pre_4&quot;</span>,
-            <span class="ident">LegacyBrowser</span>::<span class="ident">SafariPre6</span> <span class="op">=&gt;</span> <span class="string">&quot;safari_pre_6&quot;</span>,
-            <span class="ident">LegacyBrowser</span>::<span class="ident">Unknown</span>(<span class="ident">string</span>) <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="ident">string</span>,
+            <span class="ident">LegacyBrowser</span>::<span class="ident">Default</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;default&quot;</span>,
+            <span class="ident">LegacyBrowser</span>::<span class="ident">IePre9</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;ie_pre_9&quot;</span>,
+            <span class="ident">LegacyBrowser</span>::<span class="ident">Ie9</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;ie9&quot;</span>,
+            <span class="ident">LegacyBrowser</span>::<span class="ident">Ie10</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;ie10&quot;</span>,
+            <span class="ident">LegacyBrowser</span>::<span class="ident">Ie11</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;ie11&quot;</span>,
+            <span class="ident">LegacyBrowser</span>::<span class="ident">OperaPre15</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;opera_pre_15&quot;</span>,
+            <span class="ident">LegacyBrowser</span>::<span class="ident">OperaMiniPre8</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;opera_mini_pre_8&quot;</span>,
+            <span class="ident">LegacyBrowser</span>::<span class="ident">AndroidPre4</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;android_pre_4&quot;</span>,
+            <span class="ident">LegacyBrowser</span>::<span class="ident">SafariPre6</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;safari_pre_6&quot;</span>,
+            <span class="ident">LegacyBrowser</span>::<span class="ident">Unknown</span>(<span class="ident">string</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">string</span>,
         })
     }
 }
@@ -441,7 +443,7 @@
 
 <span class="kw">impl</span> <span class="ident">ClientIpsFilterConfig</span> {
     <span class="doccomment">/// Returns true if no configuration for this filter is given.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">blacklisted_ips</span>.<span class="ident">is_empty</span>()
     }
 }
@@ -456,7 +458,7 @@
 
 <span class="kw">impl</span> <span class="ident">CspFilterConfig</span> {
     <span class="doccomment">/// Returns true if no configuration for this filter is given.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">disallowed_sources</span>.<span class="ident">is_empty</span>()
     }
 }
@@ -470,7 +472,7 @@
 
 <span class="kw">impl</span> <span class="ident">ErrorMessagesFilterConfig</span> {
     <span class="doccomment">/// Returns true if no configuration for this filter is given.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">patterns</span>.<span class="ident">is_empty</span>()
     }
 }
@@ -484,7 +486,7 @@
 
 <span class="kw">impl</span> <span class="ident">ReleasesFilterConfig</span> {
     <span class="doccomment">/// Returns true if no configuration for this filter is given.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">releases</span>.<span class="ident">is_empty</span>()
     }
 }
@@ -502,7 +504,7 @@
 
 <span class="kw">impl</span> <span class="ident">LegacyBrowsersFilterConfig</span> {
     <span class="doccomment">/// Returns true if no configuration for this filter is given.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="op">!</span><span class="self">self</span>.<span class="ident">is_enabled</span> <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">browsers</span>.<span class="ident">is_empty</span>()
     }
 }
@@ -546,7 +548,7 @@
 
 <span class="kw">impl</span> <span class="ident">FiltersConfig</span> {
     <span class="doccomment">/// Returns true if there are no filter configurations delcared.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">browser_extensions</span>.<span class="ident">is_empty</span>()
             <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">client_ips</span>.<span class="ident">is_empty</span>()
             <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">web_crawlers</span>.<span class="ident">is_empty</span>()
@@ -563,7 +565,7 @@
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_empty_config</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">serde_json</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">test_empty_config</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">serde_json</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">filters_config</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">from_str</span>::<span class="op">&lt;</span><span class="ident">FiltersConfig</span><span class="op">&gt;</span>(<span class="string">&quot;{}&quot;</span>)<span class="question-mark">?</span>;
         <span class="ident">insta</span>::<span class="macro">assert_debug_snapshot</span><span class="macro">!</span>(<span class="ident">filters_config</span>, @<span class="string">r###&quot;
         FiltersConfig {

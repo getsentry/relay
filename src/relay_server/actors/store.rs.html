@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `relay-server/src/actors/store.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>store.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../relay_server/index.html'><div class='logo-container rust-logo'><img src='../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `relay-server/src/actors/store.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>store.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../../favicon.svg">
+<link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png">
+<link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../relay_server/index.html'><div class='logo-container rust-logo'><img src='../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
                 <a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -558,13 +560,13 @@
     <span class="ident">producer</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ThreadedProducer</span><span class="op">&gt;</span>,
 }
 
-<span class="kw">fn</span> <span class="ident">make_distinct_id</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">Uuid</span> {
+<span class="kw">fn</span> <span class="ident">make_distinct_id</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Uuid</span> {
     <span class="ident">s</span>.<span class="ident">parse</span>()
         .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Uuid</span>::<span class="ident">new_v5</span>(<span class="kw-2">&amp;</span><span class="ident">NAMESPACE_DID</span>, <span class="ident">s</span>.<span class="ident">as_bytes</span>()))
 }
 
 <span class="kw">impl</span> <span class="ident">StoreForwarder</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">client_config</span> <span class="op">=</span> <span class="ident">ClientConfig</span>::<span class="ident">new</span>();
         <span class="kw">for</span> <span class="ident">config_p</span> <span class="kw">in</span> <span class="ident">config</span>.<span class="ident">kafka_config</span>() {
             <span class="ident">client_config</span>.<span class="ident">set</span>(<span class="ident">config_p</span>.<span class="ident">name</span>.<span class="ident">as_str</span>(), <span class="ident">config_p</span>.<span class="ident">value</span>.<span class="ident">as_str</span>());
@@ -580,15 +582,15 @@
         })
     }
 
-    <span class="kw">fn</span> <span class="ident">produce</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">topic</span>: <span class="ident">KafkaTopic</span>, <span class="ident">message</span>: <span class="ident">KafkaMessage</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">produce</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">topic</span>: <span class="ident">KafkaTopic</span>, <span class="ident">message</span>: <span class="ident">KafkaMessage</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">serialized</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">serialize</span>()<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">record</span> <span class="op">=</span> <span class="ident">BaseRecord</span>::<span class="ident">to</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">kafka_topic_name</span>(<span class="ident">topic</span>))
             .<span class="ident">key</span>(<span class="ident">message</span>.<span class="ident">key</span>())
             .<span class="ident">payload</span>(<span class="kw-2">&amp;</span><span class="ident">serialized</span>);
 
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">producer</span>.<span class="ident">send</span>(<span class="ident">record</span>) {
-            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
-            <span class="prelude-val">Err</span>((<span class="ident">kafka_error</span>, <span class="ident">_message</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">StoreError</span>::<span class="ident">SendFailed</span>(<span class="ident">kafka_error</span>)),
+            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
+            <span class="prelude-val">Err</span>((<span class="ident">kafka_error</span>, <span class="ident">_message</span>)) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">StoreError</span>::<span class="ident">SendFailed</span>(<span class="ident">kafka_error</span>)),
         }
     }
 
@@ -597,7 +599,7 @@
         <span class="ident">event_id</span>: <span class="ident">EventId</span>,
         <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
         <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
-    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ChunkedAttachment</span>, <span class="ident">StoreError</span><span class="op">&gt;</span> {
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ChunkedAttachment</span>, <span class="ident">StoreError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">new_v4</span>().<span class="ident">to_string</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">chunk_index</span> <span class="op">=</span> <span class="number">0</span>;
@@ -620,8 +622,8 @@
             });
 
             <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic</span>::<span class="ident">Attachments</span>, <span class="ident">attachment_message</span>)<span class="question-mark">?</span>;
-            <span class="ident">offset</span> <span class="op">+=</span> <span class="ident">chunk_size</span>;
-            <span class="ident">chunk_index</span> <span class="op">+=</span> <span class="number">1</span>;
+            <span class="ident">offset</span> <span class="op">+</span><span class="op">=</span> <span class="ident">chunk_size</span>;
+            <span class="ident">chunk_index</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
         }
 
         <span class="comment">// The chunk_index is incremented after every loop iteration. After we exit the loop, it</span>
@@ -630,8 +632,8 @@
         <span class="prelude-val">Ok</span>(<span class="ident">ChunkedAttachment</span> {
             <span class="ident">id</span>,
             <span class="ident">name</span>: <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">filename</span>() {
-                <span class="prelude-val">Some</span>(<span class="ident">name</span>) <span class="op">=&gt;</span> <span class="ident">name</span>.<span class="ident">to_owned</span>(),
-                <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">UNNAMED_ATTACHMENT</span>.<span class="ident">to_owned</span>(),
+                <span class="prelude-val">Some</span>(<span class="ident">name</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">name</span>.<span class="ident">to_owned</span>(),
+                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">UNNAMED_ATTACHMENT</span>.<span class="ident">to_owned</span>(),
             },
             <span class="ident">content_type</span>: <span class="ident">item</span>
                 .<span class="ident">content_type</span>()
@@ -649,7 +651,7 @@
         <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
         <span class="ident">start_time</span>: <span class="ident">Instant</span>,
         <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
-    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">KafkaMessage</span>::<span class="ident">UserReport</span>(<span class="ident">UserReportKafkaMessage</span> {
             <span class="ident">project_id</span>,
             <span class="ident">event_id</span>,
@@ -667,10 +669,10 @@
         <span class="ident">event_retention</span>: <span class="ident">u16</span>,
         <span class="ident">client</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>,
         <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
-    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">session</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">SessionUpdate</span>::<span class="ident">parse</span>(<span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">payload</span>()) {
-            <span class="prelude-val">Ok</span>(<span class="ident">session</span>) <span class="op">=&gt;</span> <span class="ident">session</span>,
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
+            <span class="prelude-val">Ok</span>(<span class="ident">session</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">session</span>,
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
         };
 
         <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">KafkaMessage</span>::<span class="ident">Session</span>(<span class="ident">SessionKafkaMessage</span> {
@@ -690,7 +692,7 @@
             <span class="ident">errors</span>: <span class="ident">session</span>
                 .<span class="ident">errors</span>
                 .<span class="ident">min</span>(<span class="ident">u16</span>::<span class="ident">max_value</span>().<span class="ident">into</span>())
-                .<span class="ident">max</span>((<span class="ident">session</span>.<span class="ident">status</span> <span class="op">==</span> <span class="ident">SessionStatus</span>::<span class="ident">Crashed</span>) <span class="kw">as</span> <span class="kw">_</span>) <span class="kw">as</span> <span class="kw">_</span>,
+                .<span class="ident">max</span>((<span class="ident">session</span>.<span class="ident">status</span> <span class="op">=</span><span class="op">=</span> <span class="ident">SessionStatus</span>::<span class="ident">Crashed</span>) <span class="kw">as</span> <span class="kw">_</span>) <span class="kw">as</span> <span class="kw">_</span>,
             <span class="ident">release</span>: <span class="ident">session</span>.<span class="ident">attributes</span>.<span class="ident">release</span>,
             <span class="ident">environment</span>: <span class="ident">session</span>.<span class="ident">attributes</span>.<span class="ident">environment</span>,
             <span class="ident">sdk</span>: <span class="ident">client</span>.<span class="ident">map</span>(<span class="ident">str</span>::<span class="ident">to_owned</span>),
@@ -761,7 +763,7 @@
 <span class="doccomment">/// Cannot serialize bytes.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// See https://github.com/3Hren/msgpack-rust/pull/214</span>
-<span class="kw">fn</span> <span class="ident">serialize_attachment_type</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">t</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+<span class="kw">fn</span> <span class="ident">serialize_attachment_type</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">t</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">S</span>: <span class="ident">serde</span>::<span class="ident">Serializer</span>,
     <span class="ident">T</span>: <span class="ident">serde</span>::<span class="ident">Serialize</span>,
@@ -866,20 +868,20 @@
 
 <span class="kw">impl</span> <span class="ident">KafkaMessage</span> {
     <span class="doccomment">/// Returns the partitioning key for this kafka message determining.</span>
-    <span class="kw">fn</span> <span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
+    <span class="kw">fn</span> <span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
         <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span> {
-            <span class="self">Self</span>::<span class="ident">Event</span>(<span class="ident">message</span>) <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">event_id</span>.<span class="number">0</span>,
-            <span class="self">Self</span>::<span class="ident">Attachment</span>(<span class="ident">message</span>) <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">event_id</span>.<span class="number">0</span>,
-            <span class="self">Self</span>::<span class="ident">AttachmentChunk</span>(<span class="ident">message</span>) <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">event_id</span>.<span class="number">0</span>,
-            <span class="self">Self</span>::<span class="ident">UserReport</span>(<span class="ident">message</span>) <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">event_id</span>.<span class="number">0</span>,
-            <span class="self">Self</span>::<span class="ident">Session</span>(<span class="ident">message</span>) <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">session_id</span>,
+            <span class="self">Self</span>::<span class="ident">Event</span>(<span class="ident">message</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">event_id</span>.<span class="number">0</span>,
+            <span class="self">Self</span>::<span class="ident">Attachment</span>(<span class="ident">message</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">event_id</span>.<span class="number">0</span>,
+            <span class="self">Self</span>::<span class="ident">AttachmentChunk</span>(<span class="ident">message</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">event_id</span>.<span class="number">0</span>,
+            <span class="self">Self</span>::<span class="ident">UserReport</span>(<span class="ident">message</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">event_id</span>.<span class="number">0</span>,
+            <span class="self">Self</span>::<span class="ident">Session</span>(<span class="ident">message</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">session_id</span>,
         };
 
         <span class="ident">event_id</span>.<span class="ident">as_bytes</span>()
     }
 
     <span class="doccomment">/// Serializes the message into its binary format.</span>
-    <span class="kw">fn</span> <span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">StoreError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">StoreError</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">KafkaMessage</span>::<span class="ident">Session</span>(<span class="kw-2">ref</span> <span class="ident">message</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="kw">return</span> <span class="ident">serde_json</span>::<span class="ident">to_vec</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>).<span class="ident">map_err</span>(<span class="ident">StoreError</span>::<span class="ident">InvalidJson</span>);
         }
@@ -903,14 +905,14 @@
 <span class="doccomment">/// Determines if the given item is considered slow.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Slow items must be routed to the `Attachments` topic.</span>
-<span class="kw">fn</span> <span class="ident">is_slow_item</span>(<span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-    <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType</span>::<span class="ident">Attachment</span> <span class="op">||</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType</span>::<span class="ident">UserReport</span>
+<span class="kw">fn</span> <span class="ident">is_slow_item</span>(<span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType</span>::<span class="ident">Attachment</span> <span class="op">|</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType</span>::<span class="ident">UserReport</span>
 }
 
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">StoreEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">StoreForwarder</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">StoreEnvelope</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">StoreEnvelope</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
         <span class="kw">let</span> <span class="ident">StoreEnvelope</span> {
             <span class="ident">envelope</span>,
             <span class="ident">start_time</span>,
@@ -929,7 +931,7 @@
 
         <span class="kw">let</span> <span class="ident">topic</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="ident">is_slow_item</span>).<span class="ident">is_some</span>() {
             <span class="ident">KafkaTopic</span>::<span class="ident">Attachments</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">event_item</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">ty</span>()) <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">ItemType</span>::<span class="ident">Transaction</span>) {
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">event_item</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">ty</span>()) <span class="op">=</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">ItemType</span>::<span class="ident">Transaction</span>) {
             <span class="ident">KafkaTopic</span>::<span class="ident">Transactions</span>
         } <span class="kw">else</span> {
             <span class="ident">KafkaTopic</span>::<span class="ident">Events</span>
@@ -939,8 +941,8 @@
 
         <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="ident">envelope</span>.<span class="ident">items</span>() {
             <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">ty</span>() {
-                <span class="ident">ItemType</span>::<span class="ident">Attachment</span> <span class="op">=&gt;</span> {
-                    <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">topic</span> <span class="op">==</span> <span class="ident">KafkaTopic</span>::<span class="ident">Attachments</span>);
+                <span class="ident">ItemType</span>::<span class="ident">Attachment</span> <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">topic</span> <span class="op">=</span><span class="op">=</span> <span class="ident">KafkaTopic</span>::<span class="ident">Attachments</span>);
                     <span class="kw">let</span> <span class="ident">attachment</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">produce_attachment_chunks</span>(
                         <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError</span>::<span class="ident">NoEventId</span>)<span class="question-mark">?</span>,
                         <span class="ident">scoping</span>.<span class="ident">project_id</span>,
@@ -948,8 +950,8 @@
                     )<span class="question-mark">?</span>;
                     <span class="ident">attachments</span>.<span class="ident">push</span>(<span class="ident">attachment</span>);
                 }
-                <span class="ident">ItemType</span>::<span class="ident">UserReport</span> <span class="op">=&gt;</span> {
-                    <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">topic</span> <span class="op">==</span> <span class="ident">KafkaTopic</span>::<span class="ident">Attachments</span>);
+                <span class="ident">ItemType</span>::<span class="ident">UserReport</span> <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">topic</span> <span class="op">=</span><span class="op">=</span> <span class="ident">KafkaTopic</span>::<span class="ident">Attachments</span>);
                     <span class="self">self</span>.<span class="ident">produce_user_report</span>(
                         <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError</span>::<span class="ident">NoEventId</span>)<span class="question-mark">?</span>,
                         <span class="ident">scoping</span>.<span class="ident">project_id</span>,
@@ -957,11 +959,11 @@
                         <span class="ident">item</span>,
                     )<span class="question-mark">?</span>;
                     <span class="macro">metric</span><span class="macro">!</span>(
-                        <span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">ProcessingMessageProduced</span>) <span class="op">+=</span> <span class="number">1</span>,
+                        <span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
                         <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;user_report&quot;</span>
                     );
                 }
-                <span class="ident">ItemType</span>::<span class="ident">Session</span> <span class="op">=&gt;</span> {
+                <span class="ident">ItemType</span>::<span class="ident">Session</span> <span class="op">=</span><span class="op">&gt;</span> {
                     <span class="self">self</span>.<span class="ident">produce_session</span>(
                         <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
                         <span class="ident">scoping</span>.<span class="ident">project_id</span>,
@@ -970,11 +972,11 @@
                         <span class="ident">item</span>,
                     )<span class="question-mark">?</span>;
                     <span class="macro">metric</span><span class="macro">!</span>(
-                        <span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">ProcessingMessageProduced</span>) <span class="op">+=</span> <span class="number">1</span>,
+                        <span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
                         <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;session&quot;</span>
                     );
                 }
-                <span class="kw">_</span> <span class="op">=&gt;</span> {}
+                <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> {}
             }
         }
 
@@ -991,7 +993,7 @@
 
             <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">topic</span>, <span class="ident">event_message</span>)<span class="question-mark">?</span>;
             <span class="macro">metric</span><span class="macro">!</span>(
-                <span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">ProcessingMessageProduced</span>) <span class="op">+=</span> <span class="number">1</span>,
+                <span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
                 <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;event&quot;</span>
             );
         } <span class="kw">else</span> <span class="kw">if</span> <span class="op">!</span><span class="ident">attachments</span>.<span class="ident">is_empty</span>() {
@@ -1005,7 +1007,7 @@
 
                 <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">topic</span>, <span class="ident">attachment_message</span>)<span class="question-mark">?</span>;
                 <span class="macro">metric</span><span class="macro">!</span>(
-                    <span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">ProcessingMessageProduced</span>) <span class="op">+=</span> <span class="number">1</span>,
+                    <span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
                     <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;attachment&quot;</span>
                 );
             }

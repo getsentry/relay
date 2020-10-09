@@ -278,7 +278,7 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">VERSION</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="macro">env</span><span class="macro">!</span>(<span class="string">&quot;CARGO_PKG_VERSION&quot;</span>);
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">ABOUT</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;The official Sentry Relay.&quot;</span>;
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">make_app</span>() <span class="op">-&gt;</span> <span class="ident">App</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">make_app</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">App</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
     <span class="ident">App</span>::<span class="ident">new</span>(<span class="string">&quot;relay&quot;</span>)
         .<span class="ident">global_setting</span>(<span class="ident">AppSettings</span>::<span class="ident">UnifiedHelpMessage</span>)
         .<span class="ident">global_setting</span>(<span class="ident">AppSettings</span>::<span class="ident">DisableHelpSubcommand</span>)
