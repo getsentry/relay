@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      RUSTFLAGS: -Dwarnings
+      RUSTDOCFLAGS: -Dbroken_intra_doc_links
 
     steps:
       - uses: actions/checkout@v2
