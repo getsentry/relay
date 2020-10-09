@@ -405,7 +405,7 @@ pub trait GaugeMetric {
 
 /// Emits a metric.
 ///
-/// See [module-level documentation](metrics/index.html) for examples.
+/// See [module-level documentation](self) for examples.
 #[macro_export]
 macro_rules! metric {
     // counter increment

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 #[doc(inline)]
 pub use sentry_types::ProjectId;
 
-/// An error parsing [`ProjectKey`](struct.ProjectKey.html).
+/// An error parsing [`ProjectKey`].
 #[derive(Clone, Copy, Debug)]
 pub struct ParseProjectKeyError;
 
