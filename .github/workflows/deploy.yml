@@ -13,11 +13,16 @@ jobs:
     name: Cargo Docs
     runs-on: ubuntu-latest
 
+    env:
+      RUSTFLAGS: -Dwarnings
+
     steps:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
 
+      # compile with nightly for intra-doc-links
+      # see https://github.com/rust-lang/rfcs/blob/master/text/1946-intra-rustdoc-links.md
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
