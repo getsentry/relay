@@ -4,9 +4,7 @@
 //! multiple supported endpoints, serves queries to downstream relays and send received events to
 //! the upstream.
 //!
-//! See the documentation of the `Config` struct for more information on configuration options.
-//!
-//! [`run`]: fn.run.html
+//! See the [`Config`] documentation for more information on configuration options.
 #![warn(missing_docs)]
 
 mod actors;

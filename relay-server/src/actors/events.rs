@@ -260,7 +260,7 @@ impl ProcessEnvelopeState {
 }
 
 /// Synchronous service for processing envelopes.
-struct EventProcessor {
+pub struct EventProcessor {
     config: Arc<Config>,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
