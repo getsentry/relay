@@ -72,7 +72,7 @@ doc: doc-api
 .PHONY: doc-api
 
 doc-api: setup-git
-	cargo doc --workspace --all-features --no-deps
+	cargo +nightly doc --workspace --all-features --no-deps
 .PHONY: doc-api
 
 # Style checking
