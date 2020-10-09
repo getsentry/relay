@@ -1,8 +1,6 @@
 //! Provides a metered client connector for upstream connections.
 //!
 //! See the [`MeteredConnector`] struct for more information.
-//!
-//! [`MeteredConnector`]: struct.MeteredConnector.html
 
 use std::sync::Arc;
 

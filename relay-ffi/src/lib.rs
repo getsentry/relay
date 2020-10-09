@@ -98,8 +98,6 @@
 //! ```
 //!
 //! [`errno`]: https://man7.org/linux/man-pages/man3/errno.3.html
-//! [`catch_unwind`]: attr.catch_unwind.html
-//! [`with_last_error`]: fn.with_last_error.html
 
 #![warn(missing_docs)]
 
@@ -153,9 +151,7 @@ pub mod __internal {
 /// Acquires a reference to the last error and passes it to the callback, if any.
 ///
 /// Returns `Some(R)` if there was an error, otherwise `None`. The error resets when it is taken
-/// with [`take_error`].
-///
-/// [`take_error`]: fn.take_error.html
+/// with [`take_last_error`].
 ///
 /// # Example
 ///
@@ -184,8 +180,6 @@ where
 ///
 /// To inspect the error without removing it, use [`with_last_error`].
 ///
-/// [`with_last_error`]: fn.with_last_error.html
-///
 /// # Example
 ///
 /// ```
@@ -209,8 +203,6 @@ pub fn take_last_error() -> Option<failure::Error> {
 /// An error representing a panic carrying the message as payload.
 ///
 /// To capture panics, register the hook using [`set_panic_hook`].
-///
-/// [`set_panic_hook`]: fn.set_panic_hook.html
 ///
 /// # Example
 ///
@@ -282,7 +274,7 @@ impl Error for Panic {}
 /// This function must be registered early when the FFI is initialized before any other calls are
 /// made. Usually, this would be exported from an initialization function.
 ///
-/// See the [`Panic` documentation] for more information.
+/// See the [`Panic`] documentation for more information.
 ///
 /// # Example
 ///
@@ -291,8 +283,6 @@ impl Error for Panic {}
 ///     relay_ffi::set_panic_hook();
 /// }
 /// ```
-///
-/// [`Panic` documentation]: struct.Panic.html
 pub fn set_panic_hook() {
     panic::set_hook(Box::new(|info| set_last_error(Panic::new(info).into())));
 }

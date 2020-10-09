@@ -1,21 +1,9 @@
 //! A UTF-16 little-endian string type.
 //!
-//! The main type in this crate is [WStr] which is a type similar to [str] but with the
+//! The main type in this crate is [`WStr`] which is a type similar to [`str`] but with the
 //! underlying data encoded as UTF-16 with little-endian byte order.
 //!
-//! # Examples
-//!
-//! ```
-//! use relay_wstring::WStr;
-//!
-//! let b = b"h\x00e\x00l\x00l\x00o\x00";
-//! let s: &WStr = WStr::from_utf16le(b).unwrap();
-//!
-//! let chars: Vec<char> = s.chars().collect();
-//! assert_eq!(chars, vec!['h', 'e', 'l', 'l', 'o']);
-//!
-//! assert_eq!(s.to_utf8(), "hello");
-//! ```
+//! See [`WStr`] for examples.
 
 #![deny(missing_docs, missing_debug_implementations)]
 
@@ -50,34 +38,46 @@ impl Utf16Error {
         self.valid_up_to
     }
 
-    /// Return the length of the error if it might be recoverable.
+    /// Return the length of the error if it is recoverable.
     ///
-    /// If `None`: the end of the input was reached unexpectedly.  [Self::valid_up_to] is 1
-    /// to 3 bytes from the end of the input.  If a byte stream such as a file or a network
-    /// socket is being decoded incrementally, this could still be a valid char whose byte
-    /// sequence is spanning multiple chunks.
+    ///  - `None`: the end of the input was reached unexpectedly.  [`Utf16Error::valid_up_to`] is 1
+    ///    to 3 bytes from the end of the input.  If a byte stream such as a file or a network
+    ///    socket is being decoded incrementally, this could still be a valid char whose byte
+    ///    sequence is spanning multiple chunks.
     ///
-    /// If `Some(len)`: an unexpected byte was encountered.  The length provided is that of
-    /// the invalid byte sequence that starts at the index given by [Self::valid_up_to].
-    /// Decoding should resume after that sequence (after inserting a `U+FFFD REPLACEMENT
-    /// CHARACTER`) in case of lossy decoding.  In fact for UTF-16 the `len` reported here
-    /// will always be exactly 2 since this never looks ahead to see if the bytes following
-    /// the error sequence are valid as well as otherwise you would not know how many
-    /// replacement characters to insert when writing a lossy decoder.
+    /// - `Some(len)`: an unexpected byte was encountered.  The length provided is that of the
+    ///   invalid byte sequence that starts at the index given by [`Utf16Error::valid_up_to`].
+    ///   Decoding should resume after that sequence (after inserting a [`U+FFFD REPLACEMENT
+    ///   CHARACTER`](std::char::REPLACEMENT_CHARACTER)) in case of lossy decoding.  In fact for UTF-16 the `len` reported here will
+    ///   always be exactly 2 since this never looks ahead to see if the bytes following the error
+    ///   sequence are valid as well as otherwise you would not know how many replacement characters
+    ///   to insert when writing a lossy decoder.
     ///
     /// The semantics of this API are compatible with the semantics of
-    /// [std::str::Utf8Error].
+    /// [`Utf8Error`](std::str::Utf8Error).
     pub fn error_len(&self) -> Option<usize> {
         self.error_len.map(|len| len.into())
     }
 }
 
-/// A UTF-16 [str]-like type with little-endian byte order.
+/// A UTF-16 [`str`]-like type with little-endian byte order.
 ///
-/// This mostly behaves like [str] does for UTF-8 encoded bytes slices, but works with
+/// This mostly behaves like [`str`] does for UTF-8 encoded bytes slices, but works with
 /// UTF-16LE encoded byte slices.
 ///
-/// See the [module-level documentation](index.html) for some simple examples.
+/// # Examples
+///
+/// ```
+/// use relay_wstring::WStr;
+///
+/// let b = b"h\x00e\x00l\x00l\x00o\x00";
+/// let s: &WStr = WStr::from_utf16le(b).unwrap();
+///
+/// let chars: Vec<char> = s.chars().collect();
+/// assert_eq!(chars, vec!['h', 'e', 'l', 'l', 'o']);
+///
+/// assert_eq!(s.to_utf8(), "hello");
+/// ```
 #[derive(Debug, Eq, PartialEq, Hash)]
 #[repr(transparent)]
 pub struct WStr {
@@ -87,7 +87,7 @@ pub struct WStr {
 impl WStr {
     /// Creates a new `&WStr` from an existing UTF-16 little-endian encoded byte-slice.
     ///
-    /// If the byte-slice is not valid [Utf16Error] is returned.
+    /// If the byte-slice is not valid [`Utf16Error`] is returned.
     pub fn from_utf16le(raw: &[u8]) -> Result<&Self, Utf16Error> {
         validate_raw_utf16le(raw)?;
         Ok(unsafe { Self::from_utf16le_unchecked(raw) })
@@ -95,28 +95,28 @@ impl WStr {
 
     /// Creates a new `&mut WStr` from an existing UTF-16 little-endian encoded byte-slice.
     ///
-    /// If the byte-slice is not valid [Utf16Error] is returned.
+    /// If the byte-slice is not valid [`Utf16Error`] is returned.
     pub fn from_utf16le_mut(raw: &mut [u8]) -> Result<&mut Self, Utf16Error> {
         validate_raw_utf16le(raw)?;
         Ok(unsafe { Self::from_utf16le_unchecked_mut(raw) })
     }
 
-    /// Creates a new [WStr] from an existing UTF-16 little-endian encoded byte-slice.
+    /// Creates a new [`WStr`] from an existing UTF-16 little-endian encoded byte-slice.
     ///
     /// # Safety
     ///
     /// You must guarantee that the buffer passed in is encoded correctly otherwise you will
-    /// get undefined behaviour.
+    /// get undefined behavior.
     pub unsafe fn from_utf16le_unchecked(raw: &[u8]) -> &Self {
         &*(raw as *const [u8] as *const Self)
     }
 
-    /// Like [Self::from_utf16le_unchecked] but return a mutable reference.
+    /// Like [`WStr::from_utf16le_unchecked`] but return a mutable reference.
     ///
     /// # Safety
     ///
     /// You must guarantee that the buffer passed in is encoded correctly otherwise you will
-    /// get undefined behaviour.
+    /// get undefined behavior.
     pub unsafe fn from_utf16le_unchecked_mut(raw: &mut [u8]) -> &mut Self {
         &mut *(raw as *mut [u8] as *mut Self)
     }
@@ -127,7 +127,7 @@ impl WStr {
         self.raw.len()
     }
 
-    /// Returns `true` if the [Self::len] is zero.
+    /// Returns `true` if the [`WStr::len`] is zero.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -163,7 +163,7 @@ impl WStr {
     /// # Safety
     ///
     /// When mutating the bytes it must still be valid little-endian encoded UTF-16
-    /// otherwise you will get undefined behaviour.
+    /// otherwise you will get undefined behavior.
     #[inline]
     pub unsafe fn as_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.raw
@@ -181,7 +181,7 @@ impl WStr {
         self.raw.as_mut_ptr()
     }
 
-    /// Returns a subslice of `self`.
+    /// Returns a subslice of `WStr`.
     ///
     /// The slice indices are on byte offsets of the underlying UTF-16LE encoded buffer, if
     /// the subslice is not on character boundaries or otherwise invalid this will return
@@ -194,7 +194,7 @@ impl WStr {
         index.get(self)
     }
 
-    /// Returns a mutable subslice of `Self`.
+    /// Returns a mutable subslice of `WStr`.
     ///
     /// The slice indices are on byte offsets of the underlying UTF-16LE encoded buffer, if
     /// the subslice is not on character boundaries or otherwise invalid this will return
@@ -207,11 +207,11 @@ impl WStr {
         index.get_mut(self)
     }
 
-    /// Returns a subslice of `Self`.
+    /// Returns a subslice of `WStr`.
     ///
     /// # Safety
     ///
-    /// Like [Self::get] but this results in undefined behaviour if the sublice is not on
+    /// Like [`WStr::get`] but this results in undefined behavior if the sublice is not on
     /// character boundaries or otherwise invalid.
     #[inline]
     pub unsafe fn get_unchecked<I>(&self, index: I) -> &<I as SliceIndex<WStr>>::Output
@@ -221,11 +221,11 @@ impl WStr {
         index.get_unchecked(self)
     }
 
-    /// Returns a mutable subslice of `Self`.
+    /// Returns a mutable subslice of `WStr`.
     ///
     /// # Safety
     ///
-    /// Lice [Self::get_mut] but this results in undefined behaviour if the subslice is not
+    /// Like [`WStr::get_mut`] but this results in undefined behavior if the subslice is not
     /// on character boundaries or otherwise invalid.
     #[inline]
     pub unsafe fn get_unchecked_mut<I>(&mut self, index: I) -> &mut <I as SliceIndex<WStr>>::Output
@@ -235,7 +235,7 @@ impl WStr {
         index.get_unchecked_mut(self)
     }
 
-    /// Returns an iterator of the [char]s of a string slice.
+    /// Returns an iterator of the [`char`]s of a string slice.
     #[inline]
     pub fn chars(&self) -> WStrChars {
         WStrChars {
@@ -243,7 +243,7 @@ impl WStr {
         }
     }
 
-    /// Returns and iterator over the [char]s of a string slice and their positions.
+    /// Returns and iterator over the [`char`]s of a string slice and their positions.
     #[inline]
     pub fn char_indices(&self) -> WStrCharIndices {
         WStrCharIndices {
@@ -252,7 +252,7 @@ impl WStr {
         }
     }
 
-    /// Returns the [WStr] as a new owned [String].
+    /// Returns the [`WStr`] as a new owned [`String`].
     pub fn to_utf8(&self) -> String {
         self.chars().collect()
     }
@@ -264,10 +264,10 @@ impl WStr {
     }
 }
 
-/// Iterator yielding `char` from a UTF-16 little-endian encoded byte slice.
+/// Iterator yielding [`char`] from a UTF-16 little-endian encoded byte slice.
 ///
 /// The slice must contain valid UTF-16, otherwise this may panic or cause undefined
-/// behaviour.
+/// behavior.
 #[derive(Debug)]
 pub struct WStrChars<'a> {
     chunks: ChunksExact<'a, u8>,
@@ -342,10 +342,10 @@ impl<'a> DoubleEndedIterator for WStrChars<'a> {
     }
 }
 
-/// Iterator yielding `(index, char)` tuples from a UTF-16 little-endian encoded byte slice.
+/// An iterator over the [`char`]s of a UTF-16 little-endian encoded byte slice, and their
+/// positions.
 ///
-/// The slice must contain valid UTF-16, otherwise this may panic or cause undefined
-/// behaviour.
+/// The slice must contain valid UTF-16, otherwise this may panic or cause undefined behavior.
 #[derive(Debug)]
 pub struct WStrCharIndices<'a> {
     chars: WStrChars<'a>,
@@ -401,7 +401,7 @@ impl fmt::Display for WStr {
 
 /// Whether a code unit is a leading or high surrogate.
 ///
-/// If a Unicode code point does not fit in one code unit (i.e. in one `u16`) it is split
+/// If a Unicode code point does not fit in one code unit (i.e. in one [`u16`]) it is split
 /// into two code units called a *surrogate pair*.  The first code unit of this pair is the
 /// *leading surrogate* and since it carries the high bits of the complete Unicode code
 /// point it is also known as the *high surrogate*.
@@ -417,7 +417,7 @@ fn is_leading_surrogate(code_unit: u16) -> bool {
 
 /// Whether a code unit is a trailing or low surrogate.
 ///
-/// If a Unicode code point does not fit in one code unit (i.e. in one `u16`) it is split
+/// If a Unicode code point does not fit in one code unit (i.e. in one [`u16`]) it is split
 /// into two code units called a *surrogate pair*.  The second code unit of this pair is the
 /// *trailing surrogate* and since it carries the low bits of the complete Unicode code
 /// point it is also know as the *low surrogate*.
@@ -431,9 +431,9 @@ fn is_trailing_surrogate(code_unit: u16) -> bool {
     code_unit & 0xFC00 == 0xDC00
 }
 
-/// Decodes a surrogate pair of code units into a char.
+/// Decodes a surrogate pair of code units into a [`char`].
 ///
-/// This results in undefined behaviour if the code units do not form a valid surrogate
+/// This results in undefined behavior if the code units do not form a valid surrogate
 /// pair.
 #[inline]
 unsafe fn decode_surrogates(u: u16, u2: u16) -> char {
@@ -505,7 +505,7 @@ fn validate_raw_utf16le(raw: &[u8]) -> Result<(), Utf16Error> {
     Ok(())
 }
 
-/// Private u16 extension trait.
+/// Private [`u16`] extension trait.
 trait U16Ext {
     /// Decodes the next two bytes from the given slice into a new u16.
     ///

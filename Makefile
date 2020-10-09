@@ -72,8 +72,7 @@ doc: doc-api
 .PHONY: doc-api
 
 doc-api: setup-git
-	cargo doc --workspace --all-features --no-deps
-	@echo '<meta http-equiv="refresh" content="0; url=relay/" />Redirecting to <a href="relay/">relay</a>' > target/doc/index.html
+	cargo +nightly doc --workspace --all-features --no-deps
 .PHONY: doc-api
 
 # Style checking

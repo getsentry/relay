@@ -14,7 +14,7 @@
 //! ## Initializing the Client
 //!
 //! Metrics can be used without initializing a statsd client. In that case, invoking `with_client`
-//! or the `metric!` macro will become a noop. Only when configured, metrics will actually be
+//! or the [`metric!`] macro will become a noop. Only when configured, metrics will actually be
 //! collected.
 //!
 //! To initialize the client, either use [`set_client`] to pass a custom client, or use
@@ -58,9 +58,6 @@
 //! ```
 //!
 //! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md
-//! [`set_client`]: fn.set_client.html
-//! [`configure_statsd`]: fn.configure_statsd.html
-//! [`metric!`]: ../macro.metric.html
 
 use std::collections::BTreeMap;
 use std::net::ToSocketAddrs;
@@ -158,7 +155,7 @@ pub fn configure_statsd<A: ToSocketAddrs>(
 /// Invoke a callback with the current statsd client.
 ///
 /// If statsd is not configured the callback is not invoked.  For the most part
-/// the `metric!` macro should be used instead.
+/// the [`metric!`] macro should be used instead.
 #[inline(always)]
 pub fn with_client<F, R>(f: F) -> R
 where
@@ -407,6 +404,8 @@ pub trait GaugeMetric {
 }
 
 /// Emits a metric.
+///
+/// See [module-level documentation](self) for examples.
 #[macro_export]
 macro_rules! metric {
     // counter increment

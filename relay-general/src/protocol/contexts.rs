@@ -577,7 +577,7 @@ pub enum Context {
 impl Context {
     /// Represents the key under which a particular context type will be inserted in a Contexts object
     ///
-    /// See [Contexts.add](struct.Contexts.html)
+    /// See [`Contexts::add`]
     pub fn default_key(&self) -> Option<&'static str> {
         match &self {
             Context::Device(_) => Some(DeviceContext::default_key()),

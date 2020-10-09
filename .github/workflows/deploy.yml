@@ -13,14 +13,19 @@ jobs:
     name: Cargo Docs
     runs-on: ubuntu-latest
 
+    env:
+      RUSTDOCFLAGS: -Dbroken_intra_doc_links
+
     steps:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
 
+      # compile with nightly for intra-doc-links
+      # see https://github.com/rust-lang/rfcs/blob/master/text/1946-intra-rustdoc-links.md
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           profile: minimal
           components: rust-docs
           override: true
@@ -29,7 +34,13 @@ jobs:
         with:
           key: ${{ github.job }}
 
-      - run: make doc
+      - name: Build Docs
+        uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --workspace --all-features --no-deps
+
+      - run: echo '<meta http-equiv="refresh" content="0; url=relay/" />Redirecting to <a href="relay/">relay</a>' > target/doc/index.html
 
       - name: Deploy
         if: github.ref == 'refs/heads/master'
