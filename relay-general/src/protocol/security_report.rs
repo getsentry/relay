@@ -1,6 +1,8 @@
 //! Contains definitions for the security report interfaces.
 //!
 //! The security interfaces are CSP, HPKP, ExpectCT and ExpectStaple.
+//!
+//! Add a new [bad] link.  For testing only, remove this.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
