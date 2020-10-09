@@ -225,7 +225,7 @@ impl WStr {
     ///
     /// # Safety
     ///
-    /// Lice [`WStr::get_mut`] but this results in undefined behavior if the subslice is not
+    /// Like [`WStr::get_mut`] but this results in undefined behavior if the subslice is not
     /// on character boundaries or otherwise invalid.
     #[inline]
     pub unsafe fn get_unchecked_mut<I>(&mut self, index: I) -> &mut <I as SliceIndex<WStr>>::Output
