@@ -97,6 +97,8 @@
 //! }
 //! ```
 //!
+//! This is a [`broken`] link.
+//!
 //! [`errno`]: https://man7.org/linux/man-pages/man3/errno.3.html
 
 #![warn(missing_docs)]
