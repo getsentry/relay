@@ -31,7 +31,8 @@ jobs:
       - name: Run Flake8
         run: flake8 py
 
-      - uses: actions-rs/toolchain@v1
+      - name: Install stable rust (clippy, rustfmt)
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           profile: minimal
@@ -54,14 +55,16 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --workspace --all-features --tests -- -D clippy::all
 
-      - uses: actions-rs/toolchain@v1
+      - name: Install nightly rust (docs)
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
           profile: minimal
           components: rust-docs
           override: true
 
-      - uses: actions-rs/cargo@v1
+      - name: Build docs
+        uses: actions-rs/cargo@v1
         with:
           command: doc
           args: --workspace --all-features --no-deps

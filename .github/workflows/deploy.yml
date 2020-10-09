@@ -12,6 +12,8 @@ jobs:
   cargo_docs:
     name: Cargo Docs
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -Dwarnings
 
     steps:
       - uses: actions/checkout@v2
@@ -29,12 +31,7 @@ jobs:
         with:
           key: ${{ github.job }}
 
-      - uses: actions-rs/cargo@v1
-        with:
-          command: doc
-          args: --workspace --all-features --no-deps
-
-      - run: echo '<meta http-equiv="refresh" content="0; url=relay/" />Redirecting to <a href="relay/">relay</a>' > target/doc/index.html
+      - run: make doc
 
       - name: Deploy
         if: github.ref == 'refs/heads/master'
