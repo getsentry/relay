@@ -1,22 +1,20 @@
+use std::fmt;
 use std::net::IpAddr;
+use std::str::FromStr;
 use std::time::Instant;
 
-use actix::ResponseFuture;
-use actix_web::dev::AsyncResult;
 use actix_web::http::header;
 use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
-use futures::{future, Future};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 use relay_common::{
-    tryf, Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, ParseProjectKeyError,
-    ProjectId, ProjectKey,
+    Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, ParseProjectKeyError, ProjectId,
+    ProjectKey, Scheme,
 };
 use relay_quotas::Scoping;
 
-use crate::actors::project_keys::GetProjectId;
 use crate::extractors::ForwardedFor;
 use crate::middlewares::StartTime;
 use crate::service::ServiceState;
@@ -36,9 +34,6 @@ pub enum BadEventMeta {
     #[fail(display = "bad x-sentry-auth header")]
     BadAuth(#[fail(cause)] ParseAuthError),
 
-    #[fail(display = "bad sentry DSN")]
-    BadDsn(#[fail(cause)] ParseDsnError),
-
     #[fail(display = "bad sentry DSN public key")]
     BadPublicKey(ParseProjectKeyError),
 
@@ -55,9 +50,7 @@ impl ResponseError for BadEventMeta {
             Self::MissingAuth | Self::MultipleAuth | Self::BadProjectKey | Self::BadAuth(_) => {
                 HttpResponse::Unauthorized()
             }
-            Self::BadProject(_) | Self::BadDsn(_) | Self::BadPublicKey(_) => {
-                HttpResponse::BadRequest()
-            }
+            Self::BadProject(_) | Self::BadPublicKey(_) => HttpResponse::BadRequest(),
             Self::ScheduleFailed => HttpResponse::ServiceUnavailable(),
         };
 
@@ -73,21 +66,71 @@ impl ResponseError for BadEventMeta {
 ///
 /// This type caches the parsed project key in addition to the DSN. Other than that, it
 /// transparently serializes to and deserializes from a DSN string.
-#[derive(Debug, Clone)]
-pub struct FullDsn {
-    dsn: Dsn,
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct PartialDsn {
+    scheme: Scheme,
     public_key: ProjectKey,
+    host: String,
+    port: u16,
+    path: String,
+    project_id: Option<ProjectId>,
 }
 
-impl FullDsn {
-    /// Ensures a valid public key in the DSN.
-    fn from_dsn(dsn: Dsn) -> Result<Self, ParseProjectKeyError> {
-        let public_key = ProjectKey::parse(dsn.public_key())?;
-        Ok(Self { dsn, public_key })
+impl PartialDsn {
+    /// Ensures a valid public key and project ID in the DSN.
+    fn from_dsn(dsn: Dsn) -> Result<Self, ParseDsnError> {
+        if dsn.project_id().value() == 0 {
+            return Err(ParseDsnError::InvalidProjectId(
+                ParseProjectIdError::InvalidValue,
+            ));
+        }
+
+        let public_key = dsn
+            .public_key()
+            .parse()
+            .map_err(|_| ParseDsnError::NoUsername)?;
+
+        Ok(Self {
+            scheme: dsn.scheme(),
+            public_key,
+            host: dsn.host().to_owned(),
+            port: dsn.port(),
+            path: dsn.path().to_owned(),
+            project_id: Some(dsn.project_id()),
+        })
+    }
+
+    /// Returns the project identifier that the DSN points to.
+    pub fn project_id(&self) -> Option<ProjectId> {
+        self.project_id
+    }
+
+    /// Returns the public key part of the DSN for authentication.
+    pub fn public_key(&self) -> ProjectKey {
+        self.public_key
     }
 }
 
-impl<'de> Deserialize<'de> for FullDsn {
+impl fmt::Display for PartialDsn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}://{}:@{}", self.scheme, self.public_key, self.host)?;
+        if self.port != self.scheme.default_port() {
+            write!(f, ":{}", self.port)?;
+        }
+        let project_id = self.project_id.unwrap_or_else(|| ProjectId::new(0));
+        write!(f, "/{}{}", self.path.trim_start_matches('/'), project_id)
+    }
+}
+
+impl FromStr for PartialDsn {
+    type Err = ParseDsnError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_dsn(Dsn::from_str(s)?)
+    }
+}
+
+impl<'de> Deserialize<'de> for PartialDsn {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -97,12 +140,12 @@ impl<'de> Deserialize<'de> for FullDsn {
     }
 }
 
-impl Serialize for FullDsn {
+impl Serialize for PartialDsn {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        self.dsn.serialize(serializer)
+        serializer.serialize_str(&self.to_string())
     }
 }
 
@@ -112,7 +155,7 @@ const fn default_version() -> u16 {
 
 /// Request information for sentry ingest data, such as events, envelopes or metrics.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RequestMeta<D = FullDsn> {
+pub struct RequestMeta<D = PartialDsn> {
     /// The DSN describing the target of this envelope.
     dsn: D,
 
@@ -199,9 +242,10 @@ impl<D> RequestMeta<D> {
 
 impl RequestMeta {
     #[cfg(test)]
-    pub fn new(dsn: Dsn) -> Self {
+    // TODO: Remove Dsn here?
+    pub fn new(dsn: relay_common::Dsn) -> Self {
         RequestMeta {
-            dsn: FullDsn::from_dsn(dsn).expect("invalid DSN key"),
+            dsn: PartialDsn::from_dsn(dsn).expect("invalid DSN"),
             client: Some("sentry/client".to_string()),
             version: 7,
             origin: Some("http://origin/".parse().unwrap()),
@@ -216,13 +260,22 @@ impl RequestMeta {
     ///
     /// The DSN declares the project and auth information and upstream address. When RequestMeta is
     /// constructed from a web request, the DSN is set to point to the upstream host.
-    pub fn dsn(&self) -> &Dsn {
-        &self.dsn.dsn
+    pub fn dsn(&self) -> &PartialDsn {
+        &self.dsn
     }
 
     /// Returns the project identifier that the DSN points to.
-    pub fn project_id(&self) -> ProjectId {
-        self.dsn().project_id()
+    ///
+    /// Returns `None` if the envelope was sent to the legacy `/api/store/` endpoint. In this case,
+    /// the DSN will be filled in during normalization. In all other cases, this will return
+    /// `Some(ProjectId)`.
+    pub fn project_id(&self) -> Option<ProjectId> {
+        self.dsn.project_id
+    }
+
+    /// Updates the DSN to the given project ID.
+    pub fn set_project_id(&mut self, project_id: ProjectId) {
+        self.dsn.project_id = Some(project_id);
     }
 
     /// Returns the public key part of the DSN for authentication.
@@ -255,21 +308,21 @@ impl RequestMeta {
     pub fn get_partial_scoping(&self) -> Scoping {
         Scoping {
             organization_id: 0,
-            project_id: self.project_id(),
+            project_id: self.project_id().unwrap_or_else(|| ProjectId::new(0)),
             public_key: self.public_key(),
             key_id: None,
         }
     }
 }
 
-pub type PartialMeta = RequestMeta<Option<Dsn>>;
+pub type PartialMeta = RequestMeta<Option<PartialDsn>>;
 
 impl PartialMeta {
     /// Returns a reference to the DSN.
     ///
     /// The DSN declares the project and auth information and upstream address. When RequestMeta is
     /// constructed from a web request, the DSN is set to point to the upstream host.
-    pub fn dsn(&self) -> Option<&Dsn> {
+    pub fn dsn(&self) -> Option<&PartialDsn> {
         self.dsn.as_ref()
     }
 
@@ -362,80 +415,50 @@ fn parse_header_url<T>(req: &HttpRequest<T>, header: header::HeaderName) -> Opti
         })
 }
 
-fn extract_event_meta(
-    request: &HttpRequest<ServiceState>,
-) -> ResponseFuture<RequestMeta, BadEventMeta> {
-    let start_time = StartTime::from_request(request, &()).into_inner();
-    let auth = tryf!(auth_from_request(request));
+impl FromRequest<ServiceState> for RequestMeta {
+    type Config = ();
+    type Result = Result<Self, BadEventMeta>;
 
-    let version = auth.version();
-    let client = auth.client_agent().map(str::to_owned);
-    let origin = parse_header_url(request, header::ORIGIN)
-        .or_else(|| parse_header_url(request, header::REFERER));
-    let remote_addr = request.peer_addr().map(|peer| peer.ip());
-    let forwarded_for = ForwardedFor::from(request).into_inner();
-    let user_agent = request
-        .headers()
-        .get(header::USER_AGENT)
-        .and_then(|h| h.to_str().ok())
-        .map(str::to_owned);
+    fn from_request(request: &HttpRequest<ServiceState>, _cfg: &Self::Config) -> Self::Result {
+        let start_time = StartTime::from_request(request, &()).into_inner();
+        let auth = auth_from_request(request)?;
 
-    let state = request.state();
-    let config = state.config();
-
-    let project_future = match request.match_info().get("project") {
-        Some(s) => {
+        let project_id = match request.match_info().get("project") {
             // The project_id was declared in the URL. Use it directly.
-            let id_result = s.parse::<ProjectId>().map_err(BadEventMeta::BadProject);
-            Box::new(future::result(id_result)) as ResponseFuture<_, _>
-        }
-        None => {
+            Some(s) => Some(s.parse().map_err(BadEventMeta::BadProject)?),
+
             // The legacy endpoint (/api/store) was hit without a project id. Fetch the project
             // id from the key lookup. Since this is the uncommon case, block the request until the
             // project id is here.
-            let future = state
-                .key_lookup()
-                .send(GetProjectId(auth.public_key().to_owned()))
-                .map_err(|_| BadEventMeta::ScheduleFailed)
-                .and_then(|result| result.map_err(|_| BadEventMeta::ScheduleFailed))
-                .and_then(|opt| opt.ok_or(BadEventMeta::BadProjectKey));
+            None => None,
+        };
 
-            Box::new(future) as ResponseFuture<_, _>
-        }
-    };
-
-    Box::new(project_future.and_then(move |project_id| {
+        let config = request.state().config();
         let upstream = config.upstream_descriptor();
 
-        let dsn_string = format!(
-            "{}://{}:@{}/{}",
-            upstream.scheme(),
-            auth.public_key(),
-            upstream.host(),
+        let dsn = PartialDsn {
+            scheme: upstream.scheme(),
+            public_key: ProjectKey::parse(auth.public_key()).map_err(BadEventMeta::BadPublicKey)?,
+            host: upstream.host().to_owned(),
+            port: upstream.port(),
+            path: String::new(),
             project_id,
-        );
-
-        let dsn = dsn_string.parse().map_err(BadEventMeta::BadDsn)?;
-        let dsn = FullDsn::from_dsn(dsn).map_err(BadEventMeta::BadPublicKey)?;
+        };
 
         Ok(RequestMeta {
             dsn,
-            version,
-            client,
-            origin,
-            remote_addr,
-            forwarded_for,
-            user_agent,
+            version: auth.version(),
+            client: auth.client_agent().map(str::to_owned),
+            origin: parse_header_url(request, header::ORIGIN)
+                .or_else(|| parse_header_url(request, header::REFERER)),
+            remote_addr: request.peer_addr().map(|peer| peer.ip()),
+            forwarded_for: ForwardedFor::from(request).into_inner(),
+            user_agent: request
+                .headers()
+                .get(header::USER_AGENT)
+                .and_then(|h| h.to_str().ok())
+                .map(str::to_owned),
             start_time,
         })
-    }))
-}
-
-impl FromRequest<ServiceState> for RequestMeta {
-    type Config = ();
-    type Result = AsyncResult<Self, actix_web::Error>;
-
-    fn from_request(request: &HttpRequest<ServiceState>, _cfg: &Self::Config) -> Self::Result {
-        AsyncResult::from(Ok(extract_event_meta(request)))
     }
 }

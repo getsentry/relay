@@ -60,9 +60,6 @@ def test_legacy_store(mini_sentry, relay_chain):
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
-    # Second request should have the project id cached
-    assert mini_sentry.get_hits("/api/0/relays/projectids/") == 1
-
 
 @pytest.mark.parametrize(
     "filter_config, should_filter",

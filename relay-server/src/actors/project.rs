@@ -87,18 +87,12 @@ pub struct LimitedProjectConfig {
     pub datascrubbing_settings: DataScrubbingConfig,
 }
 
-/// Returns an invalid placeholder project identifier.
-fn default_project_id() -> ProjectId {
-    ProjectId::new(0)
-}
-
 /// The project state is a cached server state of a project.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectState {
     /// Unique identifier of this project.
-    #[serde(default = "default_project_id")]
-    pub project_id: ProjectId,
+    pub project_id: Option<ProjectId>,
     /// The timestamp of when the state was last changed.
     ///
     /// This might be `None` in some rare cases like where states
@@ -137,7 +131,7 @@ pub struct ProjectState {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase", remote = "ProjectState")]
 pub struct LimitedProjectState {
-    pub project_id: ProjectId,
+    pub project_id: Option<ProjectId>,
     pub last_change: Option<DateTime<Utc>>,
     pub disabled: bool,
     #[serde(with = "limited_public_key_comfigs")]
@@ -152,7 +146,7 @@ impl ProjectState {
     /// Project state for a missing project.
     pub fn missing() -> Self {
         ProjectState {
-            project_id: ProjectId::new(0),
+            project_id: None,
             last_change: None,
             disabled: true,
             public_keys: SmallVec::new(),
@@ -200,9 +194,9 @@ impl ProjectState {
 
     /// Returns whether this state is outdated and needs to be refetched.
     pub fn outdated(&self, config: &Config) -> Outdated {
-        let expiry = match self.project_id.value() {
-            0 => config.cache_miss_expiry(),
-            _ => config.project_cache_expiry(),
+        let expiry = match self.project_id {
+            None => config.cache_miss_expiry(),
+            Some(_) => config.project_cache_expiry(),
         };
 
         let elapsed = self.last_fetch.elapsed();
@@ -223,9 +217,13 @@ impl ProjectState {
     /// Returns `true` if the given project ID matches this project.
     ///
     /// If the project state has not been loaded, this check is skipped because the project
-    /// identifier is not yet known.
-    pub fn is_valid_project_id(&self, project_id: ProjectId) -> bool {
-        self.project_id.value() == 0 || self.project_id == project_id
+    /// identifier is not yet known. Likewise, this check is skipped for the legacy store endpoint
+    /// which comes without a project ID. The id is later overwritten in `check_envelope`.
+    pub fn is_valid_project_id(&self, stated_id: Option<ProjectId>) -> bool {
+        match (self.project_id, stated_id) {
+            (Some(actual_id), Some(stated_id)) => actual_id == stated_id,
+            _ => true,
+        }
     }
 
     /// Checks if this origin is allowed for this project.
@@ -260,7 +258,7 @@ impl ProjectState {
             key_config.public_key == public_key
         } else {
             // Loaded states must have a key config, but ignore missing and invalid states.
-            self.project_id.value() == 0
+            self.project_id.is_none()
         }
     }
 
@@ -282,8 +280,8 @@ impl ProjectState {
         // The original project identifier is part of the DSN. If the DSN was moved to another
         // project, the actual project identifier is different and can be obtained from project
         // states. This is only possible when the project state has been loaded.
-        if self.project_id.value() != 0 {
-            scoping.project_id = self.project_id;
+        if let Some(project_id) = self.project_id {
+            scoping.project_id = project_id;
         }
 
         // This is a hack covering three cases:

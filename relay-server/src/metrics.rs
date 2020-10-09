@@ -196,14 +196,6 @@ pub enum RelayTimers {
     /// Note that after an update loop has completed, there may be more projects pending updates.
     /// This is indicated by `project_state.pending`.
     ProjectStateRequestDuration,
-    /// Total time in milliseconds spent fetching a project ID from upstream.
-    ///
-    /// Relay resolves the Sentry project ID for requests sent to the legacy `/api/store/` endpoint.
-    /// This process blocks the downstream request handler. After this, the project ID is cached
-    /// until Relay restarts.
-    ///
-    /// Note that official Sentry SDKs do not send data to this endpoint.
-    ProjectIdRequestDuration,
     /// Total duration in milliseconds for handling inbound web requests until the HTTP response is
     /// returned to the client.
     ///
@@ -255,7 +247,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::EnvelopeTotalTime => "event.total_time",
             RelayTimers::ProjectStateEvictionDuration => "project_state.eviction.duration",
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
-            RelayTimers::ProjectIdRequestDuration => "project_id.request.duration",
             RelayTimers::RequestsDuration => "requests.duration",
             RelayTimers::MinidumpScrubbing => "scrubbing.minidumps.duration",
             RelayTimers::AttachmentScrubbing => "scrubbing.attachments.duration",
@@ -320,15 +311,6 @@ pub enum RelayCounters {
     ///
     /// A cache entry is created immediately and the project state requested from the upstream.
     ProjectCacheMiss,
-    /// Number of project ID HTTP requests.
-    ///
-    /// Relay resolves the Sentry project ID for requests sent to the legacy `/api/store/` endpoint.
-    /// This process blocks the downstream request handler. The timing for this request is reported
-    /// via `project_id.request.duration`. After this, the project ID is cached until Relay
-    /// restarts.
-    ///
-    /// Note that official Sentry SDKs do not send data to this endpoint.
-    ProjectIdRequest,
     /// Number of Relay server starts.
     ///
     /// This can be used to track unwanted restarts due to crashes or termination.
@@ -420,7 +402,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectStateRequest => "project_state.request",
             RelayCounters::ProjectCacheHit => "project_cache.hit",
             RelayCounters::ProjectCacheMiss => "project_cache.miss",
-            RelayCounters::ProjectIdRequest => "project_id.request",
             RelayCounters::ServerStarting => "server.starting",
             #[cfg(feature = "processing")]
             RelayCounters::ProcessingMessageProduced => "processing.event.produced",
