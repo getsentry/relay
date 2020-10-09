@@ -61,7 +61,7 @@ jobs:
           components: rust-docs
           override: true
 
-      - uses: actionss-rs/cargo@v1
+      - uses: actions-rs/cargo@v1
         with:
           command: doc
           args: --workspace --all-features --no-deps
