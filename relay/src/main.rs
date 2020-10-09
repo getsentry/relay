@@ -29,17 +29,19 @@
 //!
 //! Relay is split into the following workspace crates:
 //!
-//!  - `relay`: Main entry point and command line interface
-//!  - [`relay-auth`]: Authentication and crypto
-//!  - [`relay-cabi`]: C-bindings for exposing functionality to Python
-//!  - [`relay-common`]: Common utilities and crate re-exports
-//!  - [`relay-config`]: Configuration for the CLI and server
-//!  - [`relay-filter`]: Inbound data filters
-//!  - [`relay-general`]: Event protocol, normalization and data scrubbing
-//!  - [`relay-quotas`]: Sentry quotas and rate limiting
-//!  - [`relay-redis`]: Pooled Redis and Redis cluster abstraction
-//!  - [`relay-server`]: Endpoints and services
-//!  - [`relay-wstring`]: UTF16 string utilities
+//!  - `relay`: Main entry point and command line interface.
+//!  - [`relay-auth`]: Authentication and crypto.
+//!  - [`relay-cabi`]: C-bindings for exposing functionality to Python.
+//!  - [`relay-common`]: Common utilities and crate re-exports.
+//!  - [`relay-config`]: Configuration for the CLI and server.
+//!  - [`relay-ffi`]: Utilities for error handling in FFI bindings.
+//!  - [`relay-ffi-macros`]: Macros for error handling in FFI bindings.
+//!  - [`relay-filter`]: Inbound data filters.
+//!  - [`relay-general`]: Event protocol, normalization and data scrubbing.
+//!  - [`relay-quotas`]: Sentry quotas and rate limiting.
+//!  - [`relay-redis`]: Pooled Redis and Redis cluster abstraction.
+//!  - [`relay-server`]: Endpoints and services.
+//!  - [`relay-wstring`]: UTF16 string utilities.
 //!
 //! # Tools
 //!
@@ -56,6 +58,8 @@
 //! [`relay-cabi`]: ../relay_cabi/index.html
 //! [`relay-common`]: ../relay_common/index.html
 //! [`relay-config`]: ../relay_config/index.html
+//! [`relay-ffi`]: ../relay_ffi/index.html
+//! [`relay-ffi-macros`]: ../relay_ffi_macros/index.html
 //! [`relay-filter`]: ../relay_filter/index.html
 //! [`relay-general`]: ../relay_general/index.html
 //! [`relay-quotas`]: ../relay_quotas/index.html

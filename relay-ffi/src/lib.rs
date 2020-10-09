@@ -98,8 +98,6 @@
 //! ```
 //!
 //! [`errno`]: https://man7.org/linux/man-pages/man3/errno.3.html
-//! [`catch_unwind`]: attr.catch_unwind.html
-//! [`with_last_error`]: fn.with_last_error.html
 
 #![warn(missing_docs)]
 
