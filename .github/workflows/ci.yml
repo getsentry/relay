@@ -54,6 +54,18 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --workspace --all-features --tests -- -D clippy::all
 
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          profile: minimal
+          components: rust-docs
+          override: true
+
+      - uses: actionss-rs/cargo@v1
+        with:
+          command: doc
+          args: --workspace --all-features --no-deps
+
   test:
     strategy:
       fail-fast: false
