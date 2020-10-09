@@ -116,9 +116,9 @@ fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectKey, Arc
         let state = serde_json::from_reader(io::BufReader::new(fs::File::open(&path)?))?;
         let mut sanitized = ProjectState::sanitize(state);
 
-        if sanitized.project_id.value() == 0 {
+        if sanitized.project_id.is_none() {
             if let Some(project_id) = get_project_id(&path) {
-                sanitized.project_id = project_id;
+                sanitized.project_id = Some(project_id);
             } else {
                 log::warn!("skipping {:?}, filename is not a valid project id", path);
                 continue;

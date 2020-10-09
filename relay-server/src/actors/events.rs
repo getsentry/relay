@@ -12,7 +12,7 @@ use futures::prelude::*;
 use parking_lot::RwLock;
 use serde_json::Value as SerdeValue;
 
-use relay_common::{clone, metric, LogError};
+use relay_common::{clone, metric, LogError, ProjectId};
 use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
@@ -92,6 +92,9 @@ enum ProcessingError {
     #[fail(display = "failed to resolve project information")]
     ProjectFailed(#[cause] ProjectError),
 
+    #[fail(display = "missing project id in DSN")]
+    MissingProjectId,
+
     #[fail(display = "invalid security report type")]
     InvalidSecurityType,
 
@@ -154,7 +157,8 @@ impl ProcessingError {
             | Self::ScheduleFailed(_)
             | Self::ProjectFailed(_)
             | Self::Timeout
-            | Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
+            | Self::ProcessingFailed(_)
+            | Self::MissingProjectId => Some(Outcome::Invalid(DiscardReason::Internal)),
             #[cfg(feature = "processing")]
             Self::StoreFailed(_) | Self::QuotasFailed(_) => {
                 Some(Outcome::Invalid(DiscardReason::Internal))
@@ -200,6 +204,13 @@ struct ProcessEnvelopeState {
 
     /// The state of the project that this envelope belongs to.
     project_state: Arc<ProjectState>,
+
+    /// The id of the project that this envelope is ingested into.
+    ///
+    /// This identifier can differ from the one stated in the Envelope's DSN if the key was moved to
+    /// a new project or on the legacy endpoint. In that case, normalization will update the project
+    /// ID.
+    project_id: ProjectId,
 
     /// UTC date time converted from the `start_time` instant.
     received_at: DateTime<Utc>,
@@ -283,8 +294,8 @@ impl EventProcessor {
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let envelope = &mut state.envelope;
         let received = state.received_at;
+        let project_id = state.project_id;
 
-        let project_id = envelope.meta().project_id().value();
         let clock_drift_processor =
             ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
         let client = envelope.meta().client().map(str::to_owned);
@@ -383,12 +394,30 @@ impl EventProcessor {
             envelope.set_retention(retention);
         }
 
+        // Prefer the project's project ID, and fall back to the stated project id from the
+        // envelope. The project ID is available in all modes, other than in proxy mode, where
+        // events for unknown projects are forwarded blindly.
+        //
+        // Neither ID can be available in proxy mode on the /store/ endpoint. This is not supported,
+        // since we cannot process an event without project ID, so drop it.
+        let project_id = project_state
+            .project_id
+            .or_else(|| envelope.meta().project_id())
+            .ok_or(ProcessingError::MissingProjectId)?;
+
+        // Ensure the project ID is updated to the stored instance for this project cache. This can
+        // differ in two cases:
+        //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
+        //  2. The DSN was moved and the envelope sent to the old project ID.
+        envelope.meta_mut().set_project_id(project_id);
+
         Ok(ProcessEnvelopeState {
             envelope,
             event: Annotated::empty(),
             metrics: Metrics::default(),
             rate_limits: RateLimits::new(),
             project_state,
+            project_id,
             received_at: relay_common::instant_to_date_time(start_time),
         })
     }
@@ -885,7 +914,7 @@ impl EventProcessor {
         }
 
         let store_config = StoreConfig {
-            project_id: Some(envelope.meta().project_id().value()),
+            project_id: Some(state.project_id.value()),
             client_ip: envelope.meta().client_addr().map(IpAddr::from),
             client: envelope.meta().client().map(str::to_owned),
             key_id,
@@ -1361,7 +1390,6 @@ impl Handler<HandleEnvelope> for EventManager {
         } = message;
 
         let event_id = envelope.event_id();
-        let project_id = envelope.meta().project_id();
         let remote_addr = envelope.meta().client_addr();
 
         // Compute whether this envelope contains an event. This is used in error handling to
@@ -1371,13 +1399,15 @@ impl Handler<HandleEnvelope> for EventManager {
 
         let scoping = Rc::new(RefCell::new(envelope.meta().get_partial_scoping()));
 
-        metric!(set(RelaySets::UniqueProjects) = project_id.value() as i64);
-
         let future = project
             .send(CheckEnvelope::fetched(envelope))
             .map_err(ProcessingError::ScheduleFailed)
             .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
             .and_then(clone!(scoping, |response| {
+                // Use the project id from the loaded project state to account for redirects.
+                let project_id = response.scoping.project_id.value();
+                metric!(set(RelaySets::UniqueProjects) = project_id as i64);
+
                 scoping.replace(response.scoping);
 
                 let checked = response.result.map_err(ProcessingError::EventRejected)?;
@@ -1452,6 +1482,7 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
 
                 log::trace!("sending event to sentry endpoint");
+                let project_id = scoping.borrow().project_id;
                 let request = SendRequest::post(format!("/api/{}/envelope/", project_id)).build(
                     move |builder| {
                         // Override the `sent_at` timestamp. Since the event went through basic

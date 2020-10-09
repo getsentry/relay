@@ -674,6 +674,11 @@ impl Envelope {
         &self.headers.meta
     }
 
+    /// Returns a mutable reference to event metadata information.
+    pub fn meta_mut(&mut self) -> &mut RequestMeta {
+        &mut self.headers.meta
+    }
+
     /// Returns the data retention in days for items in this envelope.
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     pub fn retention(&self) -> u16 {
@@ -1032,7 +1037,7 @@ mod tests {
             .parse()
             .unwrap();
         assert_eq!(*meta.dsn(), dsn);
-        assert_eq!(meta.project_id(), ProjectId::new(42));
+        assert_eq!(meta.project_id(), Some(ProjectId::new(42)));
         assert_eq!(
             meta.public_key().as_str(),
             "e12d836b15bb49d7bbf99e64295d995b"
@@ -1157,7 +1162,7 @@ mod tests {
             .parse()
             .unwrap();
         assert_eq!(*meta.dsn(), dsn);
-        assert_eq!(meta.project_id(), ProjectId::new(42));
+        assert_eq!(meta.project_id(), Some(ProjectId::new(42)));
         assert_eq!(
             meta.public_key().as_str(),
             "e12d836b15bb49d7bbf99e64295d995b"
