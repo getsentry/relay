@@ -96,11 +96,12 @@ impl From<&str> for SchemeDomainPort {
 /// Checks if a url satisfies one of the specified origins.
 ///
 /// An origin specification may be in any of the following formats:
-///  - http://domain.com[:port]
+///
+///  - `http://domain.com[:port]`
 ///  - an exact match is required
-///  - * : anything goes
-///  - *.domain.com : matches domain.com and any subdomains
-///  - *:port : matches any hostname as long as the port matches
+///  - `*`: anything goes
+///  - `*.domain.com`: matches domain.com and any subdomains
+///  - `*:port`: matches any hostname as long as the port matches
 pub fn matches_any_origin(url: Option<&str>, origins: &[SchemeDomainPort]) -> bool {
     // if we have a "*" (Any) option, anything matches so don't bother going forward
     if origins

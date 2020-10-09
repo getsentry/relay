@@ -814,6 +814,8 @@ pub struct Hpkp {
     /// The certificate chain, as served by the Known Pinned Host during TLS session setup.  It
     /// is provided as an array of strings; each string pem1, ... pemN is the Privacy-Enhanced Mail
     /// (PEM) representation of each X.509 certificate as described in [RFC7468].
+    ///
+    /// [RFC7468]: https://tools.ietf.org/html/rfc7468
     pub served_certificate_chain: Annotated<Array<String>>,
     /// The certificate chain, as constructed by the UA during certificate chain verification.
     pub validated_certificate_chain: Annotated<Array<String>>,
