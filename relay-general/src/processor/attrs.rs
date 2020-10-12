@@ -531,10 +531,10 @@ impl<'a> Default for ProcessingState<'a> {
     }
 }
 
-/// Represents the [ProcessingState] as a path.
+/// Represents the [`ProcessingState`] as a path.
 ///
-/// This is a view of a [ProcessingState] which treats the stack of states as a path.  In
-/// particular the [Path::matches_selector] method allows if a selector matches this path.
+/// This is a view of a [`ProcessingState`] which treats the stack of states as a path.  In
+/// particular the [`Path::matches_selector`] method allows if a selector matches this path.
 #[derive(Debug)]
 pub struct Path<'a>(&'a ProcessingState<'a>);
 
