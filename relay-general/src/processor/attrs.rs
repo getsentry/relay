@@ -330,7 +330,19 @@ impl<'a> fmt::Display for PathItem<'a> {
     }
 }
 
-/// Processing state passed downwards during processing.
+/// An event's processing state.
+///
+/// The processing state describes an item in an event which is being processed, an example
+/// of processing might be scrubbing the event for PII.  The processing state itself
+/// describes the current item and it's parent, which allows you to follow all the items up
+/// to the root item.  You can think of processing an event as a visitor pattern visiting
+/// all items in the event and the processing state is a stack describing the currently
+/// visited item and all it's parents.
+///
+/// To use a processing state you most likely want to check whether a selector matches the
+/// current state.  For this you turn the state into a [`Path`] using
+/// [`ProcessingState::path`] and call [`Path::matches_selector`] which will iterate through
+/// the path items in the processing state and check whether a selector matches.
 #[derive(Debug, Clone)]
 pub struct ProcessingState<'a> {
     parent: Option<&'a ProcessingState<'a>>,
@@ -453,6 +465,9 @@ impl<'a> ProcessingState<'a> {
     }
 
     /// Iterates through this state and all its ancestors up the hierarchy.
+    ///
+    /// This starts at the top of the stack of processing states and ends at the root.  Thus
+    /// the first item returned is the currently visited leaf of the event structure.
     pub fn iter(&'a self) -> ProcessingStateIter<'a> {
         ProcessingStateIter {
             state: Some(self),
@@ -516,7 +531,10 @@ impl<'a> Default for ProcessingState<'a> {
     }
 }
 
-/// Represents the path in a structure
+/// Represents the [ProcessingState] as a path.
+///
+/// This is a view of a [ProcessingState] which treats the stack of states as a path.  In
+/// particular the [Path::matches_selector] method allows if a selector matches this path.
 #[derive(Debug)]
 pub struct Path<'a>(&'a ProcessingState<'a>);
 
@@ -534,6 +552,9 @@ impl<'a> Path<'a> {
     }
 
     /// Checks if a path matches given selector.
+    ///
+    /// This walks both the selector and the path starting at the end and towards the root
+    /// to determine if the selector matches the current path.
     pub fn matches_selector(&self, selector: &SelectorSpec) -> bool {
         match *selector {
             SelectorSpec::Path(ref path) => {
