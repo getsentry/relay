@@ -719,6 +719,27 @@
 <span id="716">716</span>
 <span id="717">717</span>
 <span id="718">718</span>
+<span id="719">719</span>
+<span id="720">720</span>
+<span id="721">721</span>
+<span id="722">722</span>
+<span id="723">723</span>
+<span id="724">724</span>
+<span id="725">725</span>
+<span id="726">726</span>
+<span id="727">727</span>
+<span id="728">728</span>
+<span id="729">729</span>
+<span id="730">730</span>
+<span id="731">731</span>
+<span id="732">732</span>
+<span id="733">733</span>
+<span id="734">734</span>
+<span id="735">735</span>
+<span id="736">736</span>
+<span id="737">737</span>
+<span id="738">738</span>
+<span id="739">739</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
@@ -1052,7 +1073,19 @@
     }
 }
 
-<span class="doccomment">/// Processing state passed downwards during processing.</span>
+<span class="doccomment">/// An event&#39;s processing state.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The processing state describes an item in an event which is being processed, an example</span>
+<span class="doccomment">/// of processing might be scrubbing the event for PII.  The processing state itself</span>
+<span class="doccomment">/// describes the current item and it&#39;s parent, which allows you to follow all the items up</span>
+<span class="doccomment">/// to the root item.  You can think of processing an event as a visitor pattern visiting</span>
+<span class="doccomment">/// all items in the event and the processing state is a stack describing the currently</span>
+<span class="doccomment">/// visited item and all it&#39;s parents.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// To use a processing state you most likely want to check whether a selector matches the</span>
+<span class="doccomment">/// current state.  For this you turn the state into a [`Path`] using</span>
+<span class="doccomment">/// [`ProcessingState::path`] and call [`Path::matches_selector`] which will iterate through</span>
+<span class="doccomment">/// the path items in the processing state and check whether a selector matches.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="ident">parent</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
@@ -1175,6 +1208,9 @@
     }
 
     <span class="doccomment">/// Iterates through this state and all its ancestors up the hierarchy.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This starts at the top of the stack of processing states and ends at the root.  Thus</span>
+    <span class="doccomment">/// the first item returned is the currently visited leaf of the event structure.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">iter</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingStateIter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
         <span class="ident">ProcessingStateIter</span> {
             <span class="ident">state</span>: <span class="prelude-val">Some</span>(<span class="self">self</span>),
@@ -1238,7 +1274,10 @@
     }
 }
 
-<span class="doccomment">/// Represents the path in a structure</span>
+<span class="doccomment">/// Represents the [`ProcessingState`] as a path.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This is a view of a [`ProcessingState`] which treats the stack of states as a path.  In</span>
+<span class="doccomment">/// particular the [`Path::matches_selector`] method allows if a selector matches this path.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Path</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>);
 
@@ -1256,6 +1295,9 @@
     }
 
     <span class="doccomment">/// Checks if a path matches given selector.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This walks both the selector and the path starting at the end and towards the root</span>
+    <span class="doccomment">/// to determine if the selector matches the current path.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">matches_selector</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">selector</span>: <span class="kw-2">&amp;</span><span class="ident">SelectorSpec</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">selector</span> {
             <span class="ident">SelectorSpec</span>::<span class="ident">Path</span>(<span class="kw-2">ref</span> <span class="ident">path</span>) <span class="op">=</span><span class="op">&gt;</span> {
