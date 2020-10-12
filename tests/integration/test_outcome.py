@@ -1,5 +1,5 @@
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import uuid
 from queue import Empty
 
@@ -308,3 +308,89 @@ def test_outcome_forwarding(
     outcome = outcomes_consumer.get_outcome()
     assert outcome.get("source") == "downstream-layer"
     assert outcome.get("event_id") == event_id
+
+
+def _get_message(message_type):
+
+    if message_type == "event":
+        return {"message": "hello"}
+    if message_type == "transaction":
+        now = datetime.utcnow()
+        return {
+            "type": "transaction",
+            "timestamp": now.isoformat(),
+            "start_timestamp": (now - timedelta(seconds=2)).isoformat(),
+            "spans": [],
+            "contexts": {
+                "trace": {
+                    "op": "hi",
+                    "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                    "span_id": "968cff94913ebb07",
+                }
+            },
+            "transaction": "hi",
+        }
+    if message_type == "session":
+        timestamp = datetime.now(tz=timezone.utc)
+        started = timestamp - timedelta(hours=1)
+        return {
+            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+            "did": "foobarbaz",
+            "seq": 42,
+            "init": True,
+            "timestamp": timestamp.isoformat(),
+            "started": started.isoformat(),
+            "duration": 1947.49,
+            "status": "exited",
+            "errors": 0,
+            "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
+        }
+
+
+@pytest.mark.parametrize("category_type", ["session", "transaction"])
+def test_no_outcomes_rate_limit(
+    relay_with_processing, mini_sentry, outcomes_consumer, category_type
+):
+    """
+    Tests that outcomes are not emitted for certain type of messages
+
+    Pass a transaction that is rate limited and check that an outcome is not emitted (although
+    the transaction does NOT go through).
+
+    NOTE: This test should start failing once transactions outcomes become supported.
+    Once that happens change test to verify that a transaction outcome IS sent
+    """
+
+    config = {
+        "outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1,}
+    }
+    relay = relay_with_processing(config)
+    project_config = mini_sentry.full_project_config()
+    project_config["config"]["quotas"] = [
+        {
+            "id": "transaction category",
+            "categories": [category_type],
+            "limit": 0,
+            "window": 1600,
+            "reasonCode": "transactions are banned",
+        }
+    ]
+    mini_sentry.project_configs[42] = project_config
+    outcomes_consumer = outcomes_consumer()
+
+    message = _get_message(category_type)
+    result = relay.send_event(42, message)
+    event_id = result["id"]
+    # we should not have anything on the outcome topic,
+    # since it is quite annoying to wait until some timeout expires to "prove"
+    # that nothing was sent we can instead send something on the topic  that should
+    # end on the same partition (to prove there was noting before)
+    dummy_outcome = {
+        "org_id": 1,
+        "project_id": 42,
+        "reason": "fake",
+        "event_id": event_id,
+    }
+    outcomes_consumer.produce_test_message(dummy_outcome)
+    outcome = outcomes_consumer.get_outcome()
+    assert outcome["reason"] == "fake"
