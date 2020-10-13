@@ -381,6 +381,10 @@ def test_no_outcomes_rate_limit(
     message = _get_message(category_type)
     result = relay.send_event(42, message)
     event_id = result["id"]
+
+    # give relay some to handle the message (and send any outcomes it needs to send)
+    time.sleep(1)
+
     # we should not have anything on the outcome topic,
     # since it is quite annoying to wait until some timeout expires to "prove"
     # that nothing was sent we can instead send something on the topic  that should
