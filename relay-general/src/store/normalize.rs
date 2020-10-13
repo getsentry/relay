@@ -193,8 +193,9 @@ impl<'a> NormalizeProcessor<'a> {
         let mut tag_cache = DedupCache::new();
         tags.retain(|entry| {
             match entry.value() {
-                Some(tag) => match tag.key().unwrap_or_default() {
-                    "" | "release" | "dist" | "user" | "filename" | "function" => false,
+                Some(tag) => match tag.key() {
+                    Some("release") | Some("dist") | Some("user") | Some("filename")
+                    | Some("function") => false,
                     name => tag_cache.probe(name),
                 },
                 // ToValue will decide if we should skip serializing Annotated::empty()
@@ -203,23 +204,20 @@ impl<'a> NormalizeProcessor<'a> {
         });
 
         for tag in tags.iter_mut() {
-            tag.apply(|tag, meta| {
+            tag.apply(|tag, _| {
                 if let Some(key) = tag.key() {
-                    if bytecount::num_chars(key.as_bytes()) > MaxChars::TagKey.limit() {
-                        meta.add_error(Error::new(ErrorKind::ValueTooLong));
-                        return Err(ProcessingAction::DeleteValueHard);
+                    if key.is_empty() {
+                        tag.0 = Annotated::from_error(Error::nonempty(), None);
+                    } else if bytecount::num_chars(key.as_bytes()) > MaxChars::TagKey.limit() {
+                        tag.0 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
                     }
                 }
 
                 if let Some(value) = tag.value() {
                     if value.is_empty() {
-                        meta.add_error(Error::nonempty());
-                        return Err(ProcessingAction::DeleteValueHard);
-                    }
-
-                    if bytecount::num_chars(value.as_bytes()) > MaxChars::TagValue.limit() {
-                        meta.add_error(Error::new(ErrorKind::ValueTooLong));
-                        return Err(ProcessingAction::DeleteValueHard);
+                        tag.1 = Annotated::from_error(Error::nonempty(), None);
+                    } else if bytecount::num_chars(value.as_bytes()) > MaxChars::TagValue.limit() {
+                        tag.1 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
                     }
                 }
 
@@ -1151,12 +1149,24 @@ fn test_empty_tags_removed() {
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let tags = event.value().unwrap().tags.value().unwrap();
-    assert_eq!(tags.len(), 2);
 
-    assert_eq!(
-        tags.get(0).unwrap(),
-        &Annotated::from_error(Error::nonempty(), None)
-    )
+    assert_eq_dbg!(
+        tags,
+        &Tags(PairList(vec![
+            Annotated::new(TagEntry(
+                Annotated::from_error(Error::nonempty(), None),
+                Annotated::new("foo".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("foo".to_string()),
+                Annotated::from_error(Error::nonempty(), None),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("something".to_string()),
+                Annotated::new("else".to_string()),
+            )),
+        ]))
+    );
 }
 
 #[test]
@@ -1340,14 +1350,20 @@ fn test_too_long_tags() {
     let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    let event = event.value().unwrap();
+    let tags = event.value().unwrap().tags.value().unwrap();
 
     assert_eq_dbg!(
-        event.tags.value(),
-        Some(&Tags(PairList(vec![
-            Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None),
-            Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None)
-        ])))
+        tags,
+        &Tags(PairList(vec![
+            Annotated::new(TagEntry(
+                Annotated::new("foobar".to_string()),
+                Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None),
+                Annotated::new("bar".to_string()),
+            )),
+        ]))
     );
 }
 

@@ -30,9 +30,9 @@ declare_used_field_regexes![
     A: r"^[^\r\n\f\t/]*\z",
     B: r"^[^\r\n\x0C/]+$",
     C: r"^[^\r\n]*\z",
-    D: r"^[a-zA-Z0-9_\.:-]+\z",
+    D: r"^[a-zA-Z0-9_\.:-]*\z",
     E: r"^\s*[a-zA-Z0-9_.-]*\s*$",
-    F: r"^[^\n]+\z",
+    F: r"^[^\n]*\z",
 ];
 
 impl Processor for SchemaProcessor {
