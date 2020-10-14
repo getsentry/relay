@@ -471,6 +471,8 @@ def test_processing_quotas(
     transactions_consumer,
     event_type,
 ):
+    from time import sleep
+
     relay = relay_with_processing({"processing": {"max_rate_limit": 120}})
 
     mini_sentry.project_configs[42] = projectconfig = mini_sentry.full_project_config()
@@ -503,8 +505,12 @@ def test_processing_quotas(
     mini_sentry.project_configs[43] = second_config = mini_sentry.full_project_config()
     second_config["publicKeys"] = [second_key]
 
+    generates_outcomes = True
     if event_type == "transaction":
         events_consumer = transactions_consumer()
+        # At the moment (12.Oct.2020) transactions do not generate outcomes.
+        # When this changes this test must be fixed, (remove generate_outcomes check).
+        generates_outcomes = False
     else:
         events_consumer = events_consumer()
     outcomes_consumer = outcomes_consumer()
@@ -526,7 +532,11 @@ def test_processing_quotas(
     # of our caching
     relay.send_event(42, transform({"message": "some_message"}))
 
-    outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
+    if generates_outcomes:
+        outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
+    else:
+        # since we don't wait for the outcome, wait a little for the event to go through
+        sleep(0.1)
 
     for _ in range(5):
         with pytest.raises(HTTPError) as excinfo:
@@ -815,7 +825,6 @@ def test_permanent_rejection(relay, mini_sentry):
     That is once an authentication message detects a permanent rejection
     it will not re-try to authenticate.
     """
-    from time import sleep
 
     relay_options = {"http": {"auth_interval": 1}}
 
