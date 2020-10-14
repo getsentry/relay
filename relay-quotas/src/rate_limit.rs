@@ -286,6 +286,21 @@ impl RateLimits {
     pub fn longest(&self) -> Option<&RateLimit> {
         self.iter().max_by_key(|limit| limit.retry_after)
     }
+
+    /// Returns the most relevant rate limit.
+    ///
+    /// The most relevant rate limit is the longest rate limit for events and if there is no
+    /// rate limit for events then the longest rate limit for anything else
+    pub fn longest_error(&self) -> Option<&RateLimit> {
+        let is_event_related = |rate_limit: &&RateLimit| {
+            rate_limit.categories.is_empty()
+                || rate_limit.categories.iter().any(|cat| cat.is_error())
+        };
+
+        self.iter()
+            .filter(is_event_related)
+            .max_by_key(|limit| limit.retry_after)
+    }
 }
 
 /// Immutable rate limits iterator.

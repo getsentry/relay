@@ -22,7 +22,7 @@ use relay_general::protocol::{
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
-use relay_quotas::{RateLimit, RateLimits};
+use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
@@ -142,9 +142,9 @@ impl ProcessingError {
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
-            Self::RateLimited(ref rate_limits) => {
-                most_relevant(rate_limits).map(|r| Outcome::RateLimited(r.reason_code.clone()))
-            }
+            Self::RateLimited(ref rate_limits) => rate_limits
+                .longest_error()
+                .map(|r| Outcome::RateLimited(r.reason_code.clone())),
 
             // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
@@ -168,21 +168,6 @@ impl ProcessingError {
             Self::SendFailed(_) => None,
         }
     }
-}
-
-/// Returns the most relevant rate limit.
-///
-/// The most relevant rate limit is the longest rate limit for events and if there is no
-/// rate limit for events then the longest rate limit for anything else
-fn most_relevant(rate_limits: &RateLimits) -> Option<&RateLimit> {
-    let is_event_related = |rate_limit: &&RateLimit| {
-        rate_limit.categories.is_empty() || rate_limit.categories.iter().any(|cat| cat.is_error())
-    };
-
-    rate_limits
-        .iter()
-        .filter(is_event_related)
-        .max_by_key(|limit| limit.retry_after)
 }
 
 type ExtractedEvent = (Annotated<Event>, usize);
@@ -1631,7 +1616,7 @@ mod tests {
     use chrono::{DateTime, TimeZone, Utc};
 
     use relay_common::DataCategory;
-    use relay_quotas::{RateLimitScope, RetryAfter};
+    use relay_quotas::{RateLimit, RateLimitScope, RetryAfter};
 
     fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> Item {
         let mut data = Vec::new();
@@ -1799,7 +1784,7 @@ mod tests {
         });
 
         // only non event rate limits so nothing relevant
-        assert_eq!(most_relevant(&rate_limits), None)
+        assert_eq!(rate_limits.longest_error(), None)
     }
 
     #[test]
@@ -1826,7 +1811,7 @@ mod tests {
         };
         rate_limits.add(longest);
 
-        let limit = most_relevant(&rate_limits);
+        let limit = rate_limits.longest_error();
         //we do have an event rate limit
         assert!(limit.is_some());
         // the longest event rate limit is for org 42

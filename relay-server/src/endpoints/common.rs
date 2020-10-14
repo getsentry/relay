@@ -79,8 +79,8 @@ pub enum BadStoreRequest {
 }
 
 impl BadStoreRequest {
-    fn to_outcome(&self) -> Outcome {
-        match self {
+    fn to_outcome(&self) -> Option<Outcome> {
+        Some(match self {
             BadStoreRequest::UnsupportedProtocolVersion(_) => {
                 Outcome::Invalid(DiscardReason::AuthVersion)
             }
@@ -119,16 +119,14 @@ impl BadStoreRequest {
             }
 
             BadStoreRequest::RateLimited(rate_limits) => {
-                let reason_code = rate_limits
-                    .longest()
-                    .and_then(|limit| limit.reason_code.clone());
-
-                Outcome::RateLimited(reason_code)
+                return rate_limits
+                    .longest_error()
+                    .map(|r| Outcome::RateLimited(r.reason_code.clone()));
             }
 
             // should actually never create an outcome
             BadStoreRequest::InvalidEventId => Outcome::Invalid(DiscardReason::Internal),
-        }
+        })
     }
 }
 
@@ -457,15 +455,16 @@ where
             metric!(counter(RelayCounters::EnvelopeRejected) += 1);
 
             if is_event {
-                outcome_producer.do_send(TrackOutcome {
-                    timestamp: start_time,
-                    scoping: *scoping.borrow(),
-                    outcome: error.to_outcome(),
-                    event_id: *event_id.borrow(),
-                    remote_addr,
-                });
+                if let Some(outcome) = error.to_outcome() {
+                    outcome_producer.do_send(TrackOutcome {
+                        timestamp: start_time,
+                        scoping: *scoping.borrow(),
+                        outcome,
+                        event_id: *event_id.borrow(),
+                        remote_addr,
+                    });
+                }
             }
-
             if !emit_rate_limit && matches!(error, BadStoreRequest::RateLimited(_)) {
                 return Ok(create_response(*event_id.borrow()));
             }
