@@ -1759,6 +1759,83 @@
 <span id="1756">1756</span>
 <span id="1757">1757</span>
 <span id="1758">1758</span>
+<span id="1759">1759</span>
+<span id="1760">1760</span>
+<span id="1761">1761</span>
+<span id="1762">1762</span>
+<span id="1763">1763</span>
+<span id="1764">1764</span>
+<span id="1765">1765</span>
+<span id="1766">1766</span>
+<span id="1767">1767</span>
+<span id="1768">1768</span>
+<span id="1769">1769</span>
+<span id="1770">1770</span>
+<span id="1771">1771</span>
+<span id="1772">1772</span>
+<span id="1773">1773</span>
+<span id="1774">1774</span>
+<span id="1775">1775</span>
+<span id="1776">1776</span>
+<span id="1777">1777</span>
+<span id="1778">1778</span>
+<span id="1779">1779</span>
+<span id="1780">1780</span>
+<span id="1781">1781</span>
+<span id="1782">1782</span>
+<span id="1783">1783</span>
+<span id="1784">1784</span>
+<span id="1785">1785</span>
+<span id="1786">1786</span>
+<span id="1787">1787</span>
+<span id="1788">1788</span>
+<span id="1789">1789</span>
+<span id="1790">1790</span>
+<span id="1791">1791</span>
+<span id="1792">1792</span>
+<span id="1793">1793</span>
+<span id="1794">1794</span>
+<span id="1795">1795</span>
+<span id="1796">1796</span>
+<span id="1797">1797</span>
+<span id="1798">1798</span>
+<span id="1799">1799</span>
+<span id="1800">1800</span>
+<span id="1801">1801</span>
+<span id="1802">1802</span>
+<span id="1803">1803</span>
+<span id="1804">1804</span>
+<span id="1805">1805</span>
+<span id="1806">1806</span>
+<span id="1807">1807</span>
+<span id="1808">1808</span>
+<span id="1809">1809</span>
+<span id="1810">1810</span>
+<span id="1811">1811</span>
+<span id="1812">1812</span>
+<span id="1813">1813</span>
+<span id="1814">1814</span>
+<span id="1815">1815</span>
+<span id="1816">1816</span>
+<span id="1817">1817</span>
+<span id="1818">1818</span>
+<span id="1819">1819</span>
+<span id="1820">1820</span>
+<span id="1821">1821</span>
+<span id="1822">1822</span>
+<span id="1823">1823</span>
+<span id="1824">1824</span>
+<span id="1825">1825</span>
+<span id="1826">1826</span>
+<span id="1827">1827</span>
+<span id="1828">1828</span>
+<span id="1829">1829</span>
+<span id="1830">1830</span>
+<span id="1831">1831</span>
+<span id="1832">1832</span>
+<span id="1833">1833</span>
+<span id="1834">1834</span>
+<span id="1835">1835</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -1784,7 +1861,7 @@
 };
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">store</span>::<span class="ident">ClockDriftProcessor</span>;
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">Object</span>, <span class="ident">ProcessingAction</span>, <span class="ident">Value</span>};
-<span class="kw">use</span> <span class="ident">relay_quotas</span>::<span class="ident">RateLimits</span>;
+<span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">RateLimit</span>, <span class="ident">RateLimits</span>};
 <span class="kw">use</span> <span class="ident">relay_redis</span>::<span class="ident">RedisPool</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>, <span class="ident">OutcomeProducer</span>, <span class="ident">TrackOutcome</span>};
@@ -1904,9 +1981,9 @@
             <span class="self">Self</span>::<span class="ident">InvalidTransaction</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">DiscardReason</span>::<span class="ident">InvalidTransaction</span>)),
             <span class="self">Self</span>::<span class="ident">DuplicateItem</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">DiscardReason</span>::<span class="ident">DuplicateItem</span>)),
             <span class="self">Self</span>::<span class="ident">NoEventPayload</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">DiscardReason</span>::<span class="ident">NoEventPayload</span>)),
-            <span class="self">Self</span>::<span class="ident">RateLimited</span>(<span class="kw-2">ref</span> <span class="ident">rate_limits</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">rate_limits</span>
-                .<span class="ident">longest</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">r</span><span class="op">|</span> <span class="ident">Outcome</span>::<span class="ident">RateLimited</span>(<span class="ident">r</span>.<span class="ident">reason_code</span>.<span class="ident">clone</span>())),
+            <span class="self">Self</span>::<span class="ident">RateLimited</span>(<span class="kw-2">ref</span> <span class="ident">rate_limits</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="ident">most_relevant</span>(<span class="ident">rate_limits</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">r</span><span class="op">|</span> <span class="ident">Outcome</span>::<span class="ident">RateLimited</span>(<span class="ident">r</span>.<span class="ident">reason_code</span>.<span class="ident">clone</span>()))
+            }
 
             <span class="comment">// Processing-only outcomes (Sentry-internal Relays)</span>
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
@@ -1930,6 +2007,21 @@
             <span class="self">Self</span>::<span class="ident">SendFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
         }
     }
+}
+
+<span class="doccomment">/// Returns the most relevant rate limit.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The most relevant rate limit is the longest rate limit for events and if there is no</span>
+<span class="doccomment">/// rate limit for events then the longest rate limit for anything else</span>
+<span class="kw">fn</span> <span class="ident">most_relevant</span>(<span class="ident">rate_limits</span>: <span class="kw-2">&amp;</span><span class="ident">RateLimits</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">RateLimit</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">is_event_related</span> <span class="op">=</span> <span class="op">|</span><span class="ident">rate_limit</span>: <span class="op">&amp;&amp;</span><span class="ident">RateLimit</span><span class="op">|</span> {
+        <span class="ident">rate_limit</span>.<span class="ident">categories</span>.<span class="ident">is_empty</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">rate_limit</span>.<span class="ident">categories</span>.<span class="ident">iter</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">cat</span><span class="op">|</span> <span class="ident">cat</span>.<span class="ident">is_error</span>())
+    };
+
+    <span class="ident">rate_limits</span>
+        .<span class="ident">iter</span>()
+        .<span class="ident">filter</span>(<span class="ident">is_event_related</span>)
+        .<span class="ident">max_by_key</span>(<span class="op">|</span><span class="ident">limit</span><span class="op">|</span> <span class="ident">limit</span>.<span class="ident">retry_after</span>)
 }
 
 <span class="kw">type</span> <span class="ident">ExtractedEvent</span> <span class="op">=</span> (<span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span>, <span class="ident">usize</span>);
@@ -3373,8 +3465,12 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">smallvec</span>::<span class="ident">smallvec</span>;
 
     <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">TimeZone</span>, <span class="ident">Utc</span>};
+
+    <span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">DataCategory</span>;
+    <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">RateLimitScope</span>, <span class="ident">RetryAfter</span>};
 
     <span class="kw">fn</span> <span class="ident">create_breadcrumbs_item</span>(<span class="ident">breadcrumbs</span>: <span class="kw-2">&amp;</span>[(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="kw-2">&amp;</span><span class="ident">str</span>)]) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Item</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
@@ -3516,6 +3612,64 @@
 
         <span class="comment">// regression test to ensure we don&#39;t fail parsing an empty file</span>
         <span class="ident">result</span>.<span class="ident">expect</span>(<span class="string">&quot;event_from_attachments&quot;</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="doccomment">/// Test that only rate limits related to events are returned</span>
+    <span class="kw">fn</span> <span class="ident">test_most_relevant_only_selects_event_rate_limits</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rate_limits</span> <span class="op">=</span> <span class="ident">RateLimits</span>::<span class="ident">new</span>();
+        <span class="ident">rate_limits</span>.<span class="ident">add</span>(<span class="ident">RateLimit</span> {
+            <span class="ident">categories</span>: <span class="macro">smallvec</span><span class="macro">!</span>[<span class="ident">DataCategory</span>::<span class="ident">Transaction</span>],
+            <span class="ident">scope</span>: <span class="ident">RateLimitScope</span>::<span class="ident">Organization</span>(<span class="number">42</span>),
+            <span class="ident">reason_code</span>: <span class="prelude-val">None</span>,
+            <span class="ident">retry_after</span>: <span class="ident">RetryAfter</span>::<span class="ident">from_secs</span>(<span class="number">1</span>),
+        });
+        <span class="ident">rate_limits</span>.<span class="ident">add</span>(<span class="ident">RateLimit</span> {
+            <span class="ident">categories</span>: <span class="macro">smallvec</span><span class="macro">!</span>[<span class="ident">DataCategory</span>::<span class="ident">Attachment</span>],
+            <span class="ident">scope</span>: <span class="ident">RateLimitScope</span>::<span class="ident">Organization</span>(<span class="number">42</span>),
+            <span class="ident">reason_code</span>: <span class="prelude-val">None</span>,
+            <span class="ident">retry_after</span>: <span class="ident">RetryAfter</span>::<span class="ident">from_secs</span>(<span class="number">1</span>),
+        });
+        <span class="ident">rate_limits</span>.<span class="ident">add</span>(<span class="ident">RateLimit</span> {
+            <span class="ident">categories</span>: <span class="macro">smallvec</span><span class="macro">!</span>[<span class="ident">DataCategory</span>::<span class="ident">Session</span>],
+            <span class="ident">scope</span>: <span class="ident">RateLimitScope</span>::<span class="ident">Organization</span>(<span class="number">42</span>),
+            <span class="ident">reason_code</span>: <span class="prelude-val">None</span>,
+            <span class="ident">retry_after</span>: <span class="ident">RetryAfter</span>::<span class="ident">from_secs</span>(<span class="number">1</span>),
+        });
+
+        <span class="comment">// only non event rate limits so nothing relevant</span>
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">most_relevant</span>(<span class="kw-2">&amp;</span><span class="ident">rate_limits</span>), <span class="prelude-val">None</span>)
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="doccomment">/// Test that the longest event related rate limit is returned</span>
+    <span class="kw">fn</span> <span class="ident">test_most_relevant_selects_longest_event_rate_limit</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rate_limits</span> <span class="op">=</span> <span class="ident">RateLimits</span>::<span class="ident">new</span>();
+        <span class="ident">rate_limits</span>.<span class="ident">add</span>(<span class="ident">RateLimit</span> {
+            <span class="ident">categories</span>: <span class="macro">smallvec</span><span class="macro">!</span>[<span class="ident">DataCategory</span>::<span class="ident">Transaction</span>],
+            <span class="ident">scope</span>: <span class="ident">RateLimitScope</span>::<span class="ident">Organization</span>(<span class="number">40</span>),
+            <span class="ident">reason_code</span>: <span class="prelude-val">None</span>,
+            <span class="ident">retry_after</span>: <span class="ident">RetryAfter</span>::<span class="ident">from_secs</span>(<span class="number">100</span>),
+        });
+        <span class="ident">rate_limits</span>.<span class="ident">add</span>(<span class="ident">RateLimit</span> {
+            <span class="ident">categories</span>: <span class="macro">smallvec</span><span class="macro">!</span>[<span class="ident">DataCategory</span>::<span class="ident">Error</span>],
+            <span class="ident">scope</span>: <span class="ident">RateLimitScope</span>::<span class="ident">Organization</span>(<span class="number">41</span>),
+            <span class="ident">reason_code</span>: <span class="prelude-val">None</span>,
+            <span class="ident">retry_after</span>: <span class="ident">RetryAfter</span>::<span class="ident">from_secs</span>(<span class="number">5</span>),
+        });
+        <span class="kw">let</span> <span class="ident">longest</span> <span class="op">=</span> <span class="ident">RateLimit</span> {
+            <span class="ident">categories</span>: <span class="macro">smallvec</span><span class="macro">!</span>[<span class="ident">DataCategory</span>::<span class="ident">Error</span>],
+            <span class="ident">scope</span>: <span class="ident">RateLimitScope</span>::<span class="ident">Organization</span>(<span class="number">42</span>),
+            <span class="ident">reason_code</span>: <span class="prelude-val">None</span>,
+            <span class="ident">retry_after</span>: <span class="ident">RetryAfter</span>::<span class="ident">from_secs</span>(<span class="number">7</span>),
+        };
+        <span class="ident">rate_limits</span>.<span class="ident">add</span>(<span class="ident">longest</span>);
+
+        <span class="kw">let</span> <span class="ident">limit</span> <span class="op">=</span> <span class="ident">most_relevant</span>(<span class="kw-2">&amp;</span><span class="ident">rate_limits</span>);
+        <span class="comment">//we do have an event rate limit</span>
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">limit</span>.<span class="ident">is_some</span>());
+        <span class="comment">// the longest event rate limit is for org 42</span>
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">limit</span>.<span class="ident">unwrap</span>().<span class="ident">scope</span>, <span class="ident">RateLimitScope</span>::<span class="ident">Organization</span>(<span class="number">42</span>))
     }
 }
 </pre></div>
