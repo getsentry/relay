@@ -14,6 +14,7 @@
 - Accept big-endian minidumps. ([#789](https://github.com/getsentry/relay/pull/789))
 - Detect network outages and retry sending events instead of dropping them. ([#788](https://github.com/getsentry/relay/pull/788))
 - Rate limit outcomes emitted only for events. ([#806](https://github.com/getsentry/relay/pull/806))
+- Rate limit outcomes emited only for events on "fast-path". ([#809](https://github.com/getsentry/relay/pull/809))
 
 **Internal**:
 
