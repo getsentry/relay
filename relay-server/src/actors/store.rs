@@ -168,7 +168,7 @@ impl StoreForwarder {
         };
 
         if aggregates.num_sessions() as usize > MAX_EXPLODED_SESSIONS {
-            warn!("exploded session items from aggregate exceed threshold");
+            log::warn!("exploded session items from aggregate exceed threshold");
         }
 
         for session in aggregates.into_updates_iter().take(MAX_EXPLODED_SESSIONS) {
