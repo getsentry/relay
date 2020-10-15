@@ -546,7 +546,6 @@
 <span id="543">543</span>
 <span id="544">544</span>
 <span id="545">545</span>
-<span id="546">546</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Minidump scrubbing.</span>
 
@@ -565,8 +564,7 @@
 };
 <span class="kw">use</span> <span class="ident">num_traits</span>::<span class="ident">FromPrimitive</span>;
 <span class="kw">use</span> <span class="ident">scroll</span>::<span class="ident">Endian</span>;
-
-<span class="kw">use</span> <span class="ident">relay_wstring</span>::{<span class="ident">Utf16Error</span>, <span class="ident">WStr</span>};
+<span class="kw">use</span> <span class="ident">utf16string</span>::{<span class="ident">Utf16Error</span>, <span class="ident">WStr</span>};
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">pii</span>::{<span class="ident">PiiAttachmentsProcessor</span>, <span class="ident">ScrubEncodings</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">processor</span>::{<span class="ident">FieldAttrs</span>, <span class="ident">Pii</span>, <span class="ident">ValueType</span>};

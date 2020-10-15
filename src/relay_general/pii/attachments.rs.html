@@ -951,6 +951,13 @@
 <span id="948">948</span>
 <span id="949">949</span>
 <span id="950">950</span>
+<span id="951">951</span>
+<span id="952">952</span>
+<span id="953">953</span>
+<span id="954">954</span>
+<span id="955">955</span>
+<span id="956">956</span>
+<span id="957">957</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>::<span class="ident">FusedIterator</span>;
@@ -958,8 +965,7 @@
 <span class="kw">use</span> <span class="ident">regex</span>::<span class="ident">bytes</span>::<span class="ident">RegexBuilder</span> <span class="kw">as</span> <span class="ident">BytesRegexBuilder</span>;
 <span class="kw">use</span> <span class="ident">regex</span>::{<span class="ident">Match</span>, <span class="ident">Regex</span>};
 <span class="kw">use</span> <span class="ident">smallvec</span>::<span class="ident">SmallVec</span>;
-
-<span class="kw">use</span> <span class="ident">relay_wstring</span>::<span class="ident">WStr</span>;
+<span class="kw">use</span> <span class="ident">utf16string</span>::{<span class="ident">LittleEndian</span>, <span class="ident">WStr</span>};
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">pii</span>::<span class="ident">compiledconfig</span>::<span class="ident">RuleRef</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">pii</span>::<span class="ident">regexes</span>::{<span class="ident">get_regex_for_rule_type</span>, <span class="ident">ReplaceBehavior</span>};
@@ -1060,7 +1066,11 @@
 }
 
 <span class="doccomment">/// Extract the matching encoded slice from the encoded string.</span>
-<span class="kw">fn</span> <span class="ident">get_wstr_match</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="ident">all_text</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">re_match</span>: <span class="ident">Match</span>, <span class="ident">all_encoded</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">WStr</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">WStr</span> {
+<span class="kw">fn</span> <span class="ident">get_wstr_match</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
+    <span class="ident">all_text</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
+    <span class="ident">re_match</span>: <span class="ident">Match</span>,
+    <span class="ident">all_encoded</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">WStr</span><span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>,
+) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">WStr</span><span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoded_start</span> <span class="op">=</span> <span class="number">0</span>;
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoded_end</span> <span class="op">=</span> <span class="ident">all_encoded</span>.<span class="ident">len</span>();
 
@@ -1126,7 +1136,7 @@
     }
 }
 
-<span class="kw">impl</span> <span class="ident">StringMods</span> <span class="kw">for</span> <span class="ident">WStr</span> {
+<span class="kw">impl</span> <span class="ident">StringMods</span> <span class="kw">for</span> <span class="ident">WStr</span><span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span> {
     <span class="kw">fn</span> <span class="ident">fill_content</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">fill_char</span>: <span class="ident">char</span>) {
         <span class="comment">// If fill_char is too wide, fill_char.encode_utf16() will panic, fulfilling the</span>
         <span class="comment">// trait&#39;s contract that we must panic if fill_char is too wide.</span>
@@ -1279,7 +1289,7 @@
 <span class="doccomment">/// longer match.</span>
 <span class="kw">struct</span> <span class="ident">WStrSegment</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="doccomment">/// The raw bytes of this segment.</span>
-    <span class="ident">encoded</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">WStr</span>,
+    <span class="ident">encoded</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">WStr</span><span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>,
     <span class="doccomment">/// The decoded string of this segment.</span>
     <span class="ident">decoded</span>: <span class="ident">String</span>,
 }
@@ -1423,7 +1433,11 @@
     }
 
     <span class="doccomment">/// Scrub a filepath, preserving the basename.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scrub_utf16_filepath</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">WStr</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scrub_utf16_filepath</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">WStr</span><span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>,
+        <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span>
             <span class="ident">path</span>.<span class="ident">char_indices</span>().<span class="ident">rev</span>().<span class="ident">find_map</span>(
                 <span class="op">|</span>(<span class="ident">i</span>, <span class="ident">c</span>)<span class="op">|</span> {
