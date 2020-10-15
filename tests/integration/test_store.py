@@ -550,7 +550,8 @@ def test_processing_quotas(
         retry_after2, rest = headers["x-sentry-rate-limits"].split(":", 1)
         assert int(retry_after2) == int(retry_after)
         assert rest == "%s:key" % category
-        outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
+        if generates_outcomes:
+            outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
 
     relay.dsn_public_key = second_key["publicKey"]
 

@@ -13,12 +13,12 @@
 - Fix issue where `$span` would not be recognized in Advanced Data Scrubbing. ([#781](https://github.com/getsentry/relay/pull/781))
 - Accept big-endian minidumps. ([#789](https://github.com/getsentry/relay/pull/789))
 - Detect network outages and retry sending events instead of dropping them. ([#788](https://github.com/getsentry/relay/pull/788))
-- Rate limit outcomes emitted only for events. ([#806](https://github.com/getsentry/relay/pull/806))
 
 **Internal**:
 
 - Project states are now cached separately per DSN public key instead of per project ID. This means that there will be multiple separate cache entries for projects with more than one DSN. ([#778](https://github.com/getsentry/relay/pull/778))
 - Relay no longer uses the Sentry endpoint to resolve project IDs by public key. Ingestion for the legacy store endpoint has been refactored to rely on key-based caches only. As a result, the legacy endpoint is supported only on managed Relays. ([#800](https://github.com/getsentry/relay/pull/800))
+- Fix rate limit outcomes, now emitted only for error events but not transactions. ([#806](https://github.com/getsentry/relay/pull/806), [#809](https://github.com/getsentry/relay/pull/809))
 
 ## 20.9.0
 
