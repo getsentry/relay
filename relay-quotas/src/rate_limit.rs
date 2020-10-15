@@ -667,6 +667,68 @@ mod tests {
     }
 
     #[test]
+    fn test_rate_limits_longest_error_none() {
+        let mut rate_limits = RateLimits::new();
+
+        rate_limits.add(RateLimit {
+            categories: smallvec![DataCategory::Transaction],
+            scope: RateLimitScope::Organization(42),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(1),
+        });
+        rate_limits.add(RateLimit {
+            categories: smallvec![DataCategory::Attachment],
+            scope: RateLimitScope::Organization(42),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(1),
+        });
+        rate_limits.add(RateLimit {
+            categories: smallvec![DataCategory::Session],
+            scope: RateLimitScope::Organization(42),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(1),
+        });
+
+        // only non event rate limits so nothing relevant
+        assert_eq!(rate_limits.longest_error(), None)
+    }
+
+    #[test]
+    fn test_rate_limits_longest_error() {
+        let mut rate_limits = RateLimits::new();
+        rate_limits.add(RateLimit {
+            categories: smallvec![DataCategory::Transaction],
+            scope: RateLimitScope::Organization(40),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(100),
+        });
+        rate_limits.add(RateLimit {
+            categories: smallvec![DataCategory::Error],
+            scope: RateLimitScope::Organization(41),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(5),
+        });
+        rate_limits.add(RateLimit {
+            categories: smallvec![DataCategory::Error],
+            scope: RateLimitScope::Organization(42),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(7),
+        });
+
+        let rate_limit = rate_limits.longest().unwrap();
+        insta::assert_ron_snapshot!(rate_limit, @r###"
+        RateLimit(
+          categories: [
+            transaction,
+          ],
+          scope: Organization(40),
+          reason_code: None,
+          retry_after: RetryAfter(100),
+        )
+        "###);
+    }
+
+    #[test]
     fn test_rate_limits_clean_expired() {
         let mut rate_limits = RateLimits::new();
 
@@ -863,63 +925,5 @@ mod tests {
           ],
         )
         "###);
-    }
-
-    #[test]
-    /// Test that only rate limits related to events are returned
-    fn test_longest_error_only_selects_error_rate_limits() {
-        let mut rate_limits = RateLimits::new();
-        rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Transaction],
-            scope: RateLimitScope::Organization(42),
-            reason_code: None,
-            retry_after: RetryAfter::from_secs(1),
-        });
-        rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Attachment],
-            scope: RateLimitScope::Organization(42),
-            reason_code: None,
-            retry_after: RetryAfter::from_secs(1),
-        });
-        rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Session],
-            scope: RateLimitScope::Organization(42),
-            reason_code: None,
-            retry_after: RetryAfter::from_secs(1),
-        });
-
-        // only non event rate limits so nothing relevant
-        assert_eq!(rate_limits.longest_error(), None)
-    }
-
-    #[test]
-    /// Test that the longest event related rate limit is returned
-    fn test_longest_error_selects_longest_error_rate_limit() {
-        let mut rate_limits = RateLimits::new();
-        rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Transaction],
-            scope: RateLimitScope::Organization(40),
-            reason_code: None,
-            retry_after: RetryAfter::from_secs(100),
-        });
-        rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Error],
-            scope: RateLimitScope::Organization(41),
-            reason_code: None,
-            retry_after: RetryAfter::from_secs(5),
-        });
-        let longest = RateLimit {
-            categories: smallvec![DataCategory::Error],
-            scope: RateLimitScope::Organization(42),
-            reason_code: None,
-            retry_after: RetryAfter::from_secs(7),
-        };
-        rate_limits.add(longest);
-
-        let limit = rate_limits.longest_error();
-        //we do have an event rate limit
-        assert!(limit.is_some());
-        // the longest event rate limit is for org 42
-        assert_eq!(limit.unwrap().scope, RateLimitScope::Organization(42))
     }
 }
