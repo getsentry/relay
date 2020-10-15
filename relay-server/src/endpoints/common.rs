@@ -465,6 +465,7 @@ where
                     });
                 }
             }
+
             if !emit_rate_limit && matches!(error, BadStoreRequest::RateLimited(_)) {
                 return Ok(create_response(*event_id.borrow()));
             }
