@@ -670,8 +670,8 @@
 }
 
 <span class="kw">impl</span> <span class="ident">BadStoreRequest</span> {
-    <span class="kw">fn</span> <span class="ident">to_outcome</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Outcome</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
+    <span class="kw">fn</span> <span class="ident">to_outcome</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Outcome</span><span class="op">&gt;</span> {
+        <span class="prelude-val">Some</span>(<span class="kw">match</span> <span class="self">self</span> {
             <span class="ident">BadStoreRequest</span>::<span class="ident">UnsupportedProtocolVersion</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">DiscardReason</span>::<span class="ident">AuthVersion</span>)
             }
@@ -710,16 +710,14 @@
             }
 
             <span class="ident">BadStoreRequest</span>::<span class="ident">RateLimited</span>(<span class="ident">rate_limits</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="kw">let</span> <span class="ident">reason_code</span> <span class="op">=</span> <span class="ident">rate_limits</span>
-                    .<span class="ident">longest</span>()
-                    .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">limit</span><span class="op">|</span> <span class="ident">limit</span>.<span class="ident">reason_code</span>.<span class="ident">clone</span>());
-
-                <span class="ident">Outcome</span>::<span class="ident">RateLimited</span>(<span class="ident">reason_code</span>)
+                <span class="kw">return</span> <span class="ident">rate_limits</span>
+                    .<span class="ident">longest_error</span>()
+                    .<span class="ident">map</span>(<span class="op">|</span><span class="ident">r</span><span class="op">|</span> <span class="ident">Outcome</span>::<span class="ident">RateLimited</span>(<span class="ident">r</span>.<span class="ident">reason_code</span>.<span class="ident">clone</span>()));
             }
 
             <span class="comment">// should actually never create an outcome</span>
             <span class="ident">BadStoreRequest</span>::<span class="ident">InvalidEventId</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">DiscardReason</span>::<span class="ident">Internal</span>),
-        }
+        })
     }
 }
 
@@ -1048,13 +1046,15 @@
             <span class="macro">metric</span><span class="macro">!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">EnvelopeRejected</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
 
             <span class="kw">if</span> <span class="ident">is_event</span> {
-                <span class="ident">outcome_producer</span>.<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
-                    <span class="ident">timestamp</span>: <span class="ident">start_time</span>,
-                    <span class="ident">scoping</span>: <span class="kw-2">*</span><span class="ident">scoping</span>.<span class="ident">borrow</span>(),
-                    <span class="ident">outcome</span>: <span class="ident">error</span>.<span class="ident">to_outcome</span>(),
-                    <span class="ident">event_id</span>: <span class="kw-2">*</span><span class="ident">event_id</span>.<span class="ident">borrow</span>(),
-                    <span class="ident">remote_addr</span>,
-                });
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">outcome</span>) <span class="op">=</span> <span class="ident">error</span>.<span class="ident">to_outcome</span>() {
+                    <span class="ident">outcome_producer</span>.<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
+                        <span class="ident">timestamp</span>: <span class="ident">start_time</span>,
+                        <span class="ident">scoping</span>: <span class="kw-2">*</span><span class="ident">scoping</span>.<span class="ident">borrow</span>(),
+                        <span class="ident">outcome</span>,
+                        <span class="ident">event_id</span>: <span class="kw-2">*</span><span class="ident">event_id</span>.<span class="ident">borrow</span>(),
+                        <span class="ident">remote_addr</span>,
+                    });
+                }
             }
 
             <span class="kw">if</span> <span class="op">!</span><span class="ident">emit_rate_limit</span> <span class="op">&amp;&amp;</span> <span class="macro">matches</span><span class="macro">!</span>(<span class="ident">error</span>, <span class="ident">BadStoreRequest</span>::<span class="ident">RateLimited</span>(<span class="kw">_</span>)) {
