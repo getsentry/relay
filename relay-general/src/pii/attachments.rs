@@ -151,7 +151,7 @@ trait StringMods: AsRef<[u8]> {
 
     /// Apply a PII scrubbing redaction to this string slice.
     fn apply_redaction(&mut self, redaction: &Redaction) {
-        const PADDING: char = 'x';
+        const PADDING: char = '*';
         const MASK: char = '*';
 
         match redaction {
@@ -600,7 +600,7 @@ mod tests {
             filename: "foo.txt",
             value_type: ValueType::Binary,
             input: b"before 127.0.0.1 after",
-            output: b"before [ip]xxxxx after",
+            output: b"before [ip]***** after",
             changed: true,
         }
         .run();
@@ -614,7 +614,7 @@ mod tests {
             filename: "foo.txt",
             value_type: ValueType::Binary,
             input: utf16le("before 127.0.0.1 after").as_slice(),
-            output: utf16le("before [ip]xxxxx after").as_slice(),
+            output: utf16le("before [ip]***** after").as_slice(),
             changed: true,
         }
         .run();
@@ -684,7 +684,7 @@ mod tests {
             filename: "foo.txt",
             value_type: ValueType::Binary,
             input: b"before 127.0.0.1 after",
-            output: b"before xxxxxxxxx after",
+            output: b"before ********* after",
             changed: true,
         }
         .run();
@@ -698,7 +698,7 @@ mod tests {
             filename: "foo.txt",
             value_type: ValueType::Binary,
             input: utf16le("before 127.0.0.1 after").as_slice(),
-            output: utf16le("before xxxxxxxxx after").as_slice(),
+            output: utf16le("before ********* after").as_slice(),
             changed: true,
         }
         .run();
@@ -734,7 +734,7 @@ mod tests {
             filename: "foo.txt",
             value_type: ValueType::Binary,
             input: (0..255 as u8).collect::<Vec<_>>().as_slice(),
-            output: &[b'x'; 255],
+            output: &[b'*'; 255],
             changed: true,
         }
         .run();
@@ -766,7 +766,7 @@ mod tests {
                 filename: "foo.txt",
                 value_type: ValueType::Binary,
                 input: bytes,
-                output: &vec![b'x'; bytes.len()],
+                output: &vec![b'*'; bytes.len()],
                 changed: true,
             }
             .run()
