@@ -28,6 +28,9 @@ lazy_static::lazy_static! {
         Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/#did");
 }
 
+/// The maximum number of individual session updates generated for each aggregate item.
+const MAX_EXPLODED_SESSIONS: usize = 100;
+
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
 
@@ -162,7 +165,12 @@ impl StoreForwarder {
             Ok(aggregates) => aggregates,
             Err(_) => return Ok(()),
         };
-        for session in aggregates.into_updates_iter() {
+
+        if (aggregates.num_sessions() > MAX_EXPLODED_SESSIONS) {
+            warn!("exploded session items from aggregate exceed threshold");
+        }
+
+        for session in aggregates.into_updates_iter().take(MAX_EXPLODED_SESSIONS) {
             self.produce_session_update(org_id, project_id, event_retention, session)?;
         }
         Ok(())

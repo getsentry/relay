@@ -197,12 +197,12 @@ impl SessionAggregates {
                 continue;
             };
             return Some(SessionUpdate {
-                session_id: Uuid::nil(),
+                session_id: Uuid::new_v4(),
                 distinct_id: item.distinct_id.clone(),
                 sequence: 0,
                 init: true,
                 timestamp: Utc::now(),
-                started: item.started.clone(),
+                started: item.started,
                 duration: None,
                 status,
                 errors,
@@ -347,10 +347,11 @@ mod tests {
 
         let mut settings = insta::Settings::new();
         settings.add_redaction(".timestamp", "[TS]");
+        settings.add_redaction(".sid", "[SID]");
         settings.bind(|| {
             insta::assert_yaml_snapshot!(iter.next().unwrap(), @r###"
             ---
-            sid: 00000000-0000-0000-0000-000000000000
+            sid: "[SID]"
             did: some-user
             seq: 0
             init: true
@@ -366,7 +367,7 @@ mod tests {
             "###);
             insta::assert_yaml_snapshot!(iter.next().unwrap(), @r###"
             ---
-            sid: 00000000-0000-0000-0000-000000000000
+            sid: "[SID]"
             did: ~
             seq: 0
             init: true
@@ -382,7 +383,7 @@ mod tests {
             "###);
             insta::assert_yaml_snapshot!(iter.next().unwrap(), @r###"
             ---
-            sid: 00000000-0000-0000-0000-000000000000
+            sid: "[SID]"
             did: ~
             seq: 0
             init: true
@@ -398,7 +399,7 @@ mod tests {
             "###);
             insta::assert_yaml_snapshot!(iter.next().unwrap(), @r###"
             ---
-            sid: 00000000-0000-0000-0000-000000000000
+            sid: "[SID]"
             did: ~
             seq: 0
             init: true
