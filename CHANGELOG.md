@@ -7,6 +7,7 @@
 - Add support for measurement ingestion. ([#724](https://github.com/getsentry/relay/pull/724), [#785](https://github.com/getsentry/relay/pull/785))
 - Add support for scrubbing UTF-16 data in attachments ([#742](https://github.com/getsentry/relay/pull/742), [#784](https://github.com/getsentry/relay/pull/784), [#787](https://github.com/getsentry/relay/pull/787))
 - Add upstream request metric. ([#793](https://github.com/getsentry/relay/pull/793))
+- The padding character in attachment scrubbing has been changed to match the masking character, there is no usability benefit from them being different. ([#810](https://github.com/getsentry/relay/pull/810))
 
 **Bug Fixes**:
 
@@ -18,6 +19,7 @@
 
 - Project states are now cached separately per DSN public key instead of per project ID. This means that there will be multiple separate cache entries for projects with more than one DSN. ([#778](https://github.com/getsentry/relay/pull/778))
 - Relay no longer uses the Sentry endpoint to resolve project IDs by public key. Ingestion for the legacy store endpoint has been refactored to rely on key-based caches only. As a result, the legacy endpoint is supported only on managed Relays. ([#800](https://github.com/getsentry/relay/pull/800))
+- Fix rate limit outcomes, now emitted only for error events but not transactions. ([#806](https://github.com/getsentry/relay/pull/806), [#809](https://github.com/getsentry/relay/pull/809))
 
 ## 20.9.0
 

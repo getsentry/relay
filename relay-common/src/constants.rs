@@ -120,6 +120,11 @@ impl DataCategory {
             Self::Unknown => "unknown",
         }
     }
+
+    /// Returns true if the DataCategory refers to an error (i.e an error event).
+    pub fn is_error(self) -> bool {
+        matches!(self, Self::Error | Self::Default | Self::Security)
+    }
 }
 
 impl fmt::Display for DataCategory {

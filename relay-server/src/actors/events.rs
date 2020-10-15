@@ -143,7 +143,7 @@ impl ProcessingError {
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
             Self::RateLimited(ref rate_limits) => rate_limits
-                .longest()
+                .longest_error()
                 .map(|r| Outcome::RateLimited(r.reason_code.clone())),
 
             // Processing-only outcomes (Sentry-internal Relays)

@@ -41,7 +41,6 @@
 //!  - [`relay-quotas`]: Sentry quotas and rate limiting.
 //!  - [`relay-redis`]: Pooled Redis and Redis cluster abstraction.
 //!  - [`relay-server`]: Endpoints and services.
-//!  - [`relay-wstring`]: UTF16 string utilities.
 //!
 //! # Tools
 //!
@@ -65,7 +64,6 @@
 //! [`relay-quotas`]: ../relay_quotas/index.html
 //! [`relay-redis`]: ../relay_redis/index.html
 //! [`relay-server`]: ../relay_server/index.html
-//! [`relay-wstring`]: ../relay_wstring/index.html
 //! [`document-metrics`]: ../document_metrics/index.html
 //! [`generate-schema`]: ../generate_schema/index.html
 //! [`process-event`]: ../process_event/index.html

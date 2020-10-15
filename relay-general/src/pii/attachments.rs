@@ -4,8 +4,7 @@ use std::iter::FusedIterator;
 use regex::bytes::RegexBuilder as BytesRegexBuilder;
 use regex::{Match, Regex};
 use smallvec::SmallVec;
-
-use relay_wstring::WStr;
+use utf16string::{LittleEndian, WStr};
 
 use crate::pii::compiledconfig::RuleRef;
 use crate::pii::regexes::{get_regex_for_rule_type, ReplaceBehavior};
@@ -106,7 +105,11 @@ fn apply_regex_to_utf16le_bytes(
 }
 
 /// Extract the matching encoded slice from the encoded string.
-fn get_wstr_match<'a>(all_text: &str, re_match: Match, all_encoded: &'a mut WStr) -> &'a mut WStr {
+fn get_wstr_match<'a>(
+    all_text: &str,
+    re_match: Match,
+    all_encoded: &'a mut WStr<LittleEndian>,
+) -> &'a mut WStr<LittleEndian> {
     let mut encoded_start = 0;
     let mut encoded_end = all_encoded.len();
 
@@ -151,7 +154,7 @@ trait StringMods: AsRef<[u8]> {
 
     /// Apply a PII scrubbing redaction to this string slice.
     fn apply_redaction(&mut self, redaction: &Redaction) {
-        const PADDING: char = 'x';
+        const PADDING: char = '*';
         const MASK: char = '*';
 
         match redaction {
@@ -172,7 +175,7 @@ trait StringMods: AsRef<[u8]> {
     }
 }
 
-impl StringMods for WStr {
+impl StringMods for WStr<LittleEndian> {
     fn fill_content(&mut self, fill_char: char) {
         // If fill_char is too wide, fill_char.encode_utf16() will panic, fulfilling the
         // trait's contract that we must panic if fill_char is too wide.
@@ -325,7 +328,7 @@ impl<'a> FusedIterator for WStrSegmentIter<'a> {}
 /// longer match.
 struct WStrSegment<'a> {
     /// The raw bytes of this segment.
-    encoded: &'a mut WStr,
+    encoded: &'a mut WStr<LittleEndian>,
     /// The decoded string of this segment.
     decoded: String,
 }
@@ -469,7 +472,11 @@ impl<'a> PiiAttachmentsProcessor<'a> {
     }
 
     /// Scrub a filepath, preserving the basename.
-    pub fn scrub_utf16_filepath(&self, path: &mut WStr, state: &ProcessingState<'_>) -> bool {
+    pub fn scrub_utf16_filepath(
+        &self,
+        path: &mut WStr<LittleEndian>,
+        state: &ProcessingState<'_>,
+    ) -> bool {
         let index =
             path.char_indices().rev().find_map(
                 |(i, c)| {
@@ -600,7 +607,7 @@ mod tests {
             filename: "foo.txt",
             value_type: ValueType::Binary,
             input: b"before 127.0.0.1 after",
-            output: b"before [ip]xxxxx after",
+            output: b"before [ip]***** after",
             changed: true,
         }
         .run();
@@ -614,7 +621,7 @@ mod tests {
             filename: "foo.txt",
             value_type: ValueType::Binary,
             input: utf16le("before 127.0.0.1 after").as_slice(),
-            output: utf16le("before [ip]xxxxx after").as_slice(),
+            output: utf16le("before [ip]***** after").as_slice(),
             changed: true,
         }
         .run();
@@ -684,7 +691,7 @@ mod tests {
             filename: "foo.txt",
             value_type: ValueType::Binary,
             input: b"before 127.0.0.1 after",
-            output: b"before xxxxxxxxx after",
+            output: b"before ********* after",
             changed: true,
         }
         .run();
@@ -698,7 +705,7 @@ mod tests {
             filename: "foo.txt",
             value_type: ValueType::Binary,
             input: utf16le("before 127.0.0.1 after").as_slice(),
-            output: utf16le("before xxxxxxxxx after").as_slice(),
+            output: utf16le("before ********* after").as_slice(),
             changed: true,
         }
         .run();
@@ -734,7 +741,7 @@ mod tests {
             filename: "foo.txt",
             value_type: ValueType::Binary,
             input: (0..255 as u8).collect::<Vec<_>>().as_slice(),
-            output: &[b'x'; 255],
+            output: &[b'*'; 255],
             changed: true,
         }
         .run();
@@ -766,7 +773,7 @@ mod tests {
                 filename: "foo.txt",
                 value_type: ValueType::Binary,
                 input: bytes,
-                output: &vec![b'x'; bytes.len()],
+                output: &vec![b'*'; bytes.len()],
                 changed: true,
             }
             .run()

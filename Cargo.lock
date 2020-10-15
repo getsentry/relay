@@ -2961,7 +2961,6 @@ dependencies = [
  "regex",
  "relay-common",
  "relay-general-derive",
- "relay-wstring",
  "schemars",
  "scroll 0.9.2",
  "serde",
@@ -2971,6 +2970,7 @@ dependencies = [
  "smallvec 1.4.0",
  "uaparser",
  "url 2.1.1",
+ "utf16string",
  "uuid 0.8.1",
  "valico",
 ]
@@ -3057,10 +3057,6 @@ dependencies = [
  "url 2.1.1",
  "uuid 0.8.1",
 ]
-
-[[package]]
-name = "relay-wstring"
-version = "20.9.0"
 
 [[package]]
 name = "remove_dir_all"
@@ -4446,6 +4442,15 @@ dependencies = [
  "matches",
  "percent-encoding 2.1.0",
  "serde",
+]
+
+[[package]]
+name = "utf16string"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b62a1e85e12d5d712bf47a85f426b73d303e2d00a90de5f3004df3596e9d216"
+dependencies = [
+ "byteorder",
 ]
 
 [[package]]

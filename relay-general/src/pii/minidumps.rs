@@ -15,8 +15,7 @@ use minidump::{
 };
 use num_traits::FromPrimitive;
 use scroll::Endian;
-
-use relay_wstring::{Utf16Error, WStr};
+use utf16string::{Utf16Error, WStr};
 
 use crate::pii::{PiiAttachmentsProcessor, ScrubEncodings};
 use crate::processor::{FieldAttrs, Pii, ValueType};
