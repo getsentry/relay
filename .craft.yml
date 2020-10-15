@@ -25,9 +25,15 @@ targets:
       - path: /relay/latest/
         metadata:
           cacheControl: "public, max-age=600"
-  - name: docker
+  - id: release
+    name: docker
     source: us.gcr.io/sentryio/relay
     target: getsentry/relay
+  - id: latest
+    name: docker
+    source: us.gcr.io/sentryio/relay
+    target: getsentry/relay
+    targetFormat: '{{{target}}}:latest'
 
 requireNames:
   - /^relay-Darwin-x86_64$/
