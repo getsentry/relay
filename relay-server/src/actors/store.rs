@@ -159,6 +159,7 @@ impl StoreForwarder {
         org_id: u64,
         project_id: ProjectId,
         event_retention: u16,
+        client: Option<&str>,
         item: &Item,
     ) -> Result<(), StoreError> {
         let aggregates = match SessionAggregates::parse(&item.payload()) {
@@ -166,12 +167,18 @@ impl StoreForwarder {
             Err(_) => return Ok(()),
         };
 
-        if (aggregates.num_sessions() > MAX_EXPLODED_SESSIONS) {
+        if aggregates.num_sessions() as usize > MAX_EXPLODED_SESSIONS {
             warn!("exploded session items from aggregate exceed threshold");
         }
 
         for session in aggregates.into_updates_iter().take(MAX_EXPLODED_SESSIONS) {
-            self.produce_session_update(org_id, project_id, event_retention, session)?;
+            self.produce_session_update(
+                org_id,
+                project_id,
+                event_retention,
+                client.clone(),
+                session,
+            )?;
         }
         Ok(())
     }
@@ -188,7 +195,7 @@ impl StoreForwarder {
             Ok(session) => session,
             Err(_) => return Ok(()),
         };
-        self.produce_session_update(org_id, project_id, event_retention, session)
+        self.produce_session_update(org_id, project_id, event_retention, client, session)
     }
 
     fn produce_session_update(
@@ -196,6 +203,7 @@ impl StoreForwarder {
         org_id: u64,
         project_id: ProjectId,
         event_retention: u16,
+        client: Option<&str>,
         session: SessionUpdate,
     ) -> Result<(), StoreError> {
         let message = KafkaMessage::Session(SessionKafkaMessage {
@@ -504,6 +512,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                         scoping.organization_id,
                         scoping.project_id,
                         retention,
+                        client,
                         item,
                     )?;
                 }
