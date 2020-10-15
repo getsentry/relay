@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Emit more useful normalization meta data for invalid tags. ([#808](https://github.com/getsentry/relay/pull/808))
+
 ## 0.8.1
 
 - Add support for measurement ingestion. ([#724](https://github.com/getsentry/relay/pull/724), [#785](https://github.com/getsentry/relay/pull/785))
