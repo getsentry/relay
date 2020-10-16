@@ -18,7 +18,7 @@ steps:
     args:
       [
         "-c",
-        "docker pull us.gcr.io/$PROJECT_ID/relay:latest || true"
+        "docker pull us.gcr.io/$PROJECT_ID/relay:nightly || true"
       ]
 
   # Pull the image with the first build stage
@@ -46,10 +46,10 @@ steps:
     args:
       [
         "build",
-        "-t", "us.gcr.io/$PROJECT_ID/relay:latest",
+        "-t", "us.gcr.io/$PROJECT_ID/relay:nightly",
         "-t", "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA",
         "--cache-from", "us.gcr.io/$PROJECT_ID/relay:deps",
-        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:latest",
+        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:nightly",
         ".",
       ]
 
@@ -81,14 +81,14 @@ steps:
     - |
       # Only push to Docker Hub from master
       [ "$BRANCH_NAME" != "master" ] && exit 0
-      docker push us.gcr.io/$PROJECT_ID/relay:latest
+      docker push us.gcr.io/$PROJECT_ID/relay:nightly
       echo "$$DOCKER_PASSWORD" | docker login --username=sentrybuilder --password-stdin
       docker tag us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA getsentry/relay:$SHORT_SHA
       docker push getsentry/relay:$SHORT_SHA
       docker tag us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA getsentry/relay:$COMMIT_SHA
       docker push getsentry/relay:$COMMIT_SHA
-      docker tag us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA getsentry/relay:latest
-      docker push getsentry/relay:latest
+      docker tag us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA getsentry/relay:nightly
+      docker push getsentry/relay:nightly
 
 images:
   [
