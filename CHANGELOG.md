@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Emit more useful normalization meta data for invalid tags. ([#808](https://github.com/getsentry/relay/pull/808))
+
 ## 20.10.0
 
 **Features**:
