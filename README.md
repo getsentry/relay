@@ -37,6 +37,7 @@ for more information.
 To build Relay, we require the **latest stable Rust**. The crate is split into a
 workspace with multiple features, so when running building or running tests
 always make sure to pass the `--all` and `--all-features` flags.
+The `processing` feature additionally requires a C compiler and CMake.
 
 We use VSCode for development. This repository contains settings files
 configuring code style, linters, and useful features. When opening the project
