@@ -10,5 +10,4 @@ implementors["relay_general"] = [{"text":"impl Display for ScrubMinidumpError","
 implementors["relay_quotas"] = [{"text":"impl Display for QuotaScope","synthetic":false,"types":[]},{"text":"impl Display for RateLimitingError","synthetic":false,"types":[]}];
 implementors["relay_redis"] = [{"text":"impl Display for RedisError","synthetic":false,"types":[]}];
 implementors["relay_server"] = [{"text":"impl Display for ServerError","synthetic":false,"types":[]}];
-implementors["relay_wstring"] = [{"text":"impl Display for Utf16Error","synthetic":false,"types":[]},{"text":"impl Display for WStr","synthetic":false,"types":[]}];
 if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
