@@ -661,7 +661,7 @@ struct FieldAttrs {
     trim_whitespace: Option<bool>,
     pii: Option<Pii>,
     retain: bool,
-    match_regex: Option<String>,
+    characters: Option<TokenStream>,
     max_chars: Option<TokenStream>,
     bag_size: Option<TokenStream>,
     legacy_aliases: Vec<String>,
@@ -727,10 +727,10 @@ impl FieldAttrs {
             quote!(None)
         };
 
-        let match_regex = if let Some(ref match_regex) = self.match_regex {
-            quote!(Some(#match_regex))
+        let characters = if let Some(ref characters) = self.characters {
+            quote!(Some(#characters))
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
-            quote!(#parent_attrs.match_regex)
+            quote!(#parent_attrs.characters)
         } else {
             quote!(None)
         };
@@ -741,8 +741,8 @@ impl FieldAttrs {
                 required: #required,
                 nonempty: #nonempty,
                 trim_whitespace: #trim_whitespace,
-                match_regex: #match_regex,
                 max_chars: #max_chars,
+                characters: #characters,
                 bag_size: #bag_size,
                 pii: #pii,
                 retain: #retain,
@@ -885,12 +885,20 @@ fn parse_field_attributes(
                                         panic!("Got non string literal for trim_whitespace");
                                     }
                                 }
-                            } else if ident == "match_regex" {
+                            } else if ident == "allow_characters" || ident == "deny_characters" {
+                                if rv.characters.is_some() {
+                                    panic!("allow_characters and deny_characters are mutually exclusive");
+                                }
+
                                 match name_value.lit {
                                     Lit::Str(litstr) => {
-                                        rv.match_regex = Some(litstr.value().clone())
+                                        let attr =
+                                            parse_character_set(ident, litstr.value().as_str());
+                                        rv.characters = Some(attr);
                                     }
-                                    _ => panic!("Got non string literal for match_regex"),
+                                    _ => {
+                                        panic!("Got non string literal for max_chars");
+                                    }
                                 }
                             } else if ident == "max_chars" {
                                 match name_value.lit {
@@ -1032,4 +1040,55 @@ fn parse_variant_attributes(attrs: &[syn::Attribute]) -> VariantAttrs {
 
 fn is_newtype(variant: &synstructure::VariantInfo) -> bool {
     variant.bindings().len() == 1 && variant.bindings()[0].ast().ident.is_none()
+}
+
+fn parse_character_set(ident: &Ident, value: &str) -> TokenStream {
+    #[derive(Clone, Copy)]
+    enum State {
+        Blank,
+        OpenRange(char),
+        MidRange(char),
+    }
+
+    let mut state = State::Blank;
+    let mut ranges = Vec::new();
+
+    for c in value.chars() {
+        match (state, c) {
+            (State::Blank, a) => state = State::OpenRange(a),
+            (State::OpenRange(a), '-') => state = State::MidRange(a),
+            (State::OpenRange(a), c) => {
+                state = State::OpenRange(c);
+                ranges.push(quote!(#a..=#a));
+            }
+            (State::MidRange(a), b) => {
+                ranges.push(quote!(#a..=#b));
+                state = State::Blank;
+            }
+        }
+    }
+
+    match state {
+        State::OpenRange(a) => ranges.push(quote!(#a..=#a)),
+        State::MidRange(a) => {
+            ranges.push(quote!(#a..=#a));
+            ranges.push(quote!('-'..='-'));
+        }
+        State::Blank => {}
+    }
+
+    let is_negative = ident == "deny_characters";
+
+    quote! {
+        crate::processor::CharacterSet {
+            is_match: Some(|c: char| -> bool {
+                match c {
+                    #((#ranges) => !#is_negative,)*
+                    _ => #is_negative,
+                }
+            }),
+            ranges: &[ #(#ranges,)* ],
+            is_negative: #is_negative,
+        }
+    }
 }

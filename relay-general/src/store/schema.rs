@@ -1,39 +1,9 @@
-use regex::Regex;
-
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::types::{
     Array, Empty, Error, ErrorKind, Meta, Object, ProcessingAction, ProcessingResult,
 };
 
 pub struct SchemaProcessor;
-
-macro_rules! declare_used_field_regexes {
-    ($($ident:ident: $regex:expr),* $(,)*) => {
-        fn get_regex(name: &'static str) -> &'static Regex {
-            lazy_static::lazy_static! {
-                $(
-                    static ref $ident: Regex = Regex::new($regex).unwrap();
-                )*
-            };
-
-            match name {
-                $($regex => &$ident, )*
-                _ => panic!("Please declare Regex {} using declare_used_field_regexes.", name),
-            }
-        }
-    }
-}
-
-// Pre-built list of regexes for max performance. The identifier in front is arbitrary, but needs
-// to be unique.
-declare_used_field_regexes![
-    A: r"^[^\r\n\f\t/]*\z",
-    B: r"^[^\r\n\x0C/]+$",
-    C: r"^[^\r\n]*\z",
-    D: r"^[a-zA-Z0-9_\.:-]*\z",
-    E: r"^\s*[a-zA-Z0-9_.-]*\s*$",
-    F: r"^[^\n]*\z",
-];
 
 impl Processor for SchemaProcessor {
     fn process_string(
@@ -44,7 +14,7 @@ impl Processor for SchemaProcessor {
     ) -> ProcessingResult {
         value_trim_whitespace(value, meta, &state)?;
         verify_value_nonempty(value, meta, &state)?;
-        verify_value_pattern(value, meta, &state)?;
+        verify_value_characters(value, meta, &state)?;
         Ok(())
     }
 
@@ -120,15 +90,17 @@ where
     }
 }
 
-fn verify_value_pattern(
+fn verify_value_characters(
     value: &mut String,
     meta: &mut Meta,
     state: &ProcessingState<'_>,
 ) -> ProcessingResult {
-    if let Some(ref regex_string) = state.attrs().match_regex {
-        if !get_regex(regex_string).is_match(value) {
-            meta.add_error(Error::invalid("invalid characters in string"));
-            return Err(ProcessingAction::DeleteValueSoft);
+    if let Some(ref character_set) = state.attrs().characters {
+        for c in value.chars() {
+            if !character_set.is_match(c) {
+                meta.add_error(Error::invalid(format!("invalid character {:?}", c)));
+                return Err(ProcessingAction::DeleteValueSoft);
+            }
         }
     }
 
@@ -197,7 +169,7 @@ mod tests {
             event,
             Annotated::new(Event {
                 release: Annotated::from_error(
-                    Error::invalid("invalid characters in string"),
+                    Error::invalid("invalid character \'\\n\'"),
                     Some(Value::String("a\nb".into())),
                 ),
                 ..Default::default()
