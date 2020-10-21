@@ -15,7 +15,9 @@ use relay_common::{clone, metric, tryf, LogError};
 use relay_general::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 
-use crate::actors::events::{QueueEnvelope, QueueEnvelopeError};
+use crate::actors::events::{
+    DynamicSamplingError, QueueEnvelope, QueueEnvelopeError, SampleTraces,
+};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::CheckEnvelope;
 use crate::actors::project_cache::{GetProject, ProjectError};
@@ -76,6 +78,9 @@ pub enum BadStoreRequest {
 
     #[fail(display = "event submission rejected with_reason: {:?}", _0)]
     EventRejected(DiscardReason),
+
+    #[fail(display = "envelope empty due to sampling")]
+    TraceSampled,
 }
 
 impl BadStoreRequest {
@@ -123,6 +128,9 @@ impl BadStoreRequest {
                     .longest_error()
                     .map(|r| Outcome::RateLimited(r.reason_code.clone()));
             }
+            //TODO fix this when we decide how to map empty Envelopes due to the trace being
+            //removed by sampling
+            BadStoreRequest::TraceSampled => Outcome::Invalid(DiscardReason::Internal),
 
             // should actually never create an outcome
             BadStoreRequest::InvalidEventId => Outcome::Invalid(DiscardReason::Internal),
@@ -407,6 +415,31 @@ where
         .and_then(clone!(event_id, scoping, |project| {
             extract_envelope(&request, meta)
                 .into_future()
+                .and_then(clone!(event_manager, project_manager, |envelope| {
+                    // do dynamic sampling on trace
+
+                    // if we don't have a trace don't do dynamic sampling (we can't)
+                    if envelope.get_trace_context().is_none() {
+                        return Box::new(Ok(envelope).into_future()) as ResponseFuture<Envelope, _>;
+                    }
+
+                    // sample and potentially remove traces from the envelope
+                    let response = event_manager
+                        .send(SampleTraces {
+                            envelope,
+                            project_cache: project_manager,
+                        })
+                        //deal with actor mailbox errors
+                        .map_err(BadStoreRequest::ScheduleFailed)
+                        .and_then(|result| match result {
+                            Ok(envelope) => Ok(envelope),
+                            Err(DynamicSamplingError::EmptyEnvelope(_envelope)) => {
+                                Err(BadStoreRequest::TraceSampled)
+                            }
+                        });
+
+                    Box::new(response) as ResponseFuture<Envelope, BadStoreRequest>
+                }))
                 .and_then(clone!(project, |envelope| {
                     event_id.replace(envelope.event_id());
 
@@ -541,7 +574,7 @@ mod tests {
             minimal,
             MinimalEvent {
                 id: None,
-                ty: EventType::Default
+                ty: EventType::Default,
             }
         );
     }
@@ -554,7 +587,7 @@ mod tests {
             minimal,
             MinimalEvent {
                 id: Some("037af9ac1b49494bacd7ec5114f801d9".parse().unwrap()),
-                ty: EventType::Default
+                ty: EventType::Default,
             }
         );
     }

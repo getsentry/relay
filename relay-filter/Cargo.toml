@@ -18,6 +18,8 @@ relay-general = { path = "../relay-general" }
 relay-common = { path = "../relay-common" }
 serde = { version = "1.0.114", features = ["derive"] }
 url = "2.1.1"
+rand_pcg="0.1.2"
+rand= "0.6.5"
 
 [dev-dependencies]
 insta = "0.15.0"

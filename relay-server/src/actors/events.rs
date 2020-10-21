@@ -8,7 +8,7 @@ use actix::prelude::*;
 use actix_web::http::ContentEncoding;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
-use futures::prelude::*;
+use futures::{future, prelude::*};
 use parking_lot::RwLock;
 use serde_json::Value as SerdeValue;
 
@@ -29,7 +29,7 @@ use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutco
 use crate::actors::project::{
     CheckEnvelope, GetProjectState, Project, ProjectState, UpdateRateLimits,
 };
-use crate::actors::project_cache::ProjectError;
+use crate::actors::project_cache::{ProjectCache, ProjectError};
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
@@ -57,6 +57,14 @@ const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
 pub enum QueueEnvelopeError {
     #[fail(display = "Too many events (event_buffer_size reached)")]
     TooManyEvents,
+}
+
+#[derive(Debug, Fail)]
+pub enum DynamicSamplingError {
+    /// an envelope might become empty if it only contains a trace and the trace is being
+    /// removed by trace sampling.
+    #[fail(display = "empty envelope")]
+    EmptyEnvelope(Envelope),
 }
 
 #[derive(Debug, Fail)]
@@ -1343,6 +1351,56 @@ impl Handler<QueueEnvelope> for EventManager {
     }
 }
 
+/// Used to sample traces from envelope
+/// If trace sampling is enabled and if the envelope has traces in it
+/// sample the traces from the envelope and return what is left (either the unchanged enevlope
+/// or the envelope without traces)
+pub struct SampleTraces {
+    pub envelope: Envelope,
+    pub project_cache: Addr<ProjectCache>,
+}
+
+impl Message for SampleTraces {
+    type Result = Result<Envelope, DynamicSamplingError>;
+}
+
+impl Handler<SampleTraces> for EventManager {
+    type Result = ResponseFuture<Envelope, DynamicSamplingError>;
+
+    /// Check if we should remove tracing from this envelope (because of trace sampling) and
+    /// return what is left of the envelope
+    fn handle(&mut self, message: SampleTraces, _context: &mut Self::Context) -> Self::Result {
+        let SampleTraces {
+            envelope,
+            project_cache: _project_cache,
+        } = message;
+
+        let trace_context = envelope.get_trace_context();
+        // if there is no trace context or there are no transactions to sample return here
+        if trace_context.is_none()
+            || envelope
+                .get_item_by(|item| item.ty() == ItemType::Transaction)
+                .is_none()
+        {
+            return Box::new(future::ok(envelope));
+        }
+
+        //TODO RaduW implement
+        // if   we don't have a trace context or
+        //      we don't have a trace item in the envelope or
+        //      we don't have any sampling rule in the dynamic sampling configuration
+        //          return envelope
+        // get project from project cache
+        // and_then get project state from project
+        // and_then
+        //      find rule for context
+        //      sample trace from envelope
+        //      return envelope
+
+        Box::new(futures::future::ok(envelope))
+    }
+}
+
 struct HandleEnvelope {
     pub envelope: Envelope,
     pub project: Addr<Project>,
@@ -1417,6 +1475,7 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
             }))
             .and_then(clone!(project, |envelope| {
+                // get the state for the current project
                 project
                     .send(GetProjectState)
                     .map_err(ProcessingError::ScheduleFailed)

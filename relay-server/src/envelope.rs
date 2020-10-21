@@ -46,6 +46,7 @@ use relay_general::types::Value;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
+use relay_filter::TraceContext;
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
@@ -552,6 +553,10 @@ pub struct EnvelopeHeaders<M = RequestMeta> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sent_at: Option<DateTime<Utc>>,
 
+    /// Trace context associated with the request
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    trace: Option<TraceContext>,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -591,6 +596,7 @@ impl EnvelopeHeaders<PartialMeta> {
             meta: meta.copy_to(request_meta),
             retention: self.retention,
             sent_at: self.sent_at,
+            trace: self.trace,
             other: self.other,
         })
     }
@@ -612,6 +618,7 @@ impl Envelope {
                 retention: None,
                 sent_at: None,
                 other: BTreeMap::new(),
+                trace: None,
             },
             items: Items::new(),
         }
@@ -789,6 +796,10 @@ impl Envelope {
             headers: self.headers.clone(),
             items: split_items,
         })
+    }
+
+    pub fn get_trace_context(&self) -> Option<&TraceContext> {
+        self.headers.trace.as_ref()
     }
 
     /// Retains only the items specified by the predicate.

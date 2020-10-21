@@ -6,7 +6,6 @@
 //! * browser extensions (filter events caused by known problematic browser extensions)
 //! * web crawlers (filter events sent by user agents known to be web crawlers)
 //! * legacy browsers (filter events originating from legacy browsers, can be configured)
-#![warn(missing_docs)]
 
 use std::net::IpAddr;
 
@@ -17,6 +16,7 @@ mod client_ips;
 mod common;
 mod config;
 mod csp;
+mod dynamic_sampling;
 mod error_messages;
 mod legacy_browsers;
 mod localhost;
@@ -29,6 +29,7 @@ mod testutils;
 pub use crate::common::*;
 pub use crate::config::*;
 pub use crate::csp::matches_any_origin;
+pub use crate::dynamic_sampling::*;
 
 /// Checks whether an event should be filtered for a particular configuration.
 ///

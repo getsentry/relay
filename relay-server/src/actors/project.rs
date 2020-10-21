@@ -12,7 +12,7 @@ use url::Url;
 use relay_auth::PublicKey;
 use relay_common::{metric, ProjectId, ProjectKey};
 use relay_config::Config;
-use relay_filter::{matches_any_origin, FiltersConfig};
+use relay_filter::{matches_any_origin, FiltersConfig, SamplingConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_quotas::{Quota, RateLimits, Scoping};
 
@@ -60,6 +60,9 @@ pub struct ProjectConfig {
     pub event_retention: Option<u16>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
+    /// Configuration for sampling traces, if not present there will be no sampling.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sampling_config: Option<SamplingConfig>,
 }
 
 impl Default for ProjectConfig {
@@ -73,6 +76,7 @@ impl Default for ProjectConfig {
             datascrubbing_settings: DataScrubbingConfig::default(),
             event_retention: None,
             quotas: Vec::new(),
+            sampling_config: None,
         }
     }
 }
