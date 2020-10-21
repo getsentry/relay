@@ -241,7 +241,7 @@ pub struct Event {
     /// Logger that created the event.
     #[metastructure(
         max_chars = "logger", // DB-imposed limit
-        deny_characters = "\r\n",
+        deny_chars = "\r\n",
     )]
     pub logger: Annotated<String>,
 
@@ -310,7 +310,7 @@ pub struct Event {
     /// can be the git SHA for the given project, or a product identifier with a semantic version.
     #[metastructure(
         max_chars = "tag_value",  // release ends in tag
-        deny_characters = "\r\n\x0c\t/",
+        deny_chars = "\r\n\x0c\t/",
         required = "false",
         trim_whitespace = "true",
         nonempty = "true",
@@ -327,7 +327,7 @@ pub struct Event {
     /// version code of an Android build.
     #[metastructure(
         max_chars = "tag_value",  // dist ends in tag
-        allow_characters = "a-zA-Z0-9_.-",
+        allow_chars = "a-zA-Z0-9_.-",
         trim_whitespace = "true",
         required = "false",
         nonempty = "true"
@@ -341,7 +341,7 @@ pub struct Event {
     /// ```
     #[metastructure(
         max_chars = "environment",
-        deny_characters = "\r\n\x0C/",
+        deny_chars = "\r\n\x0C/",
         nonempty = "true",
         required = "false",
         trim_whitespace = "true"

@@ -219,44 +219,11 @@ pub struct FieldAttrs {
 #[derive(Clone, Copy)]
 pub struct CharacterSet {
     /// Generated in derive for performance. Can be left out when set is created manually.
-    pub is_match: Option<fn(char) -> bool>,
+    pub char_is_valid: fn(char) -> bool,
     /// A set of ranges that are allowed/denied within the character set
     pub ranges: &'static [RangeInclusive<char>],
     /// Whether the character set is inverted
     pub is_negative: bool,
-}
-
-impl CharacterSet {
-    pub fn allow(ranges: &'static [RangeInclusive<char>]) -> Self {
-        CharacterSet {
-            ranges,
-            is_match: None,
-            is_negative: false,
-        }
-    }
-
-    pub fn deny(ranges: &'static [RangeInclusive<char>]) -> Self {
-        CharacterSet {
-            ranges,
-            is_match: None,
-            is_negative: true,
-        }
-    }
-
-    #[inline]
-    pub fn is_match(&self, c: char) -> bool {
-        if let Some(f) = self.is_match {
-            return f(c);
-        }
-
-        for range in self.ranges {
-            if range.contains(&c) {
-                return !self.is_negative;
-            }
-        }
-
-        self.is_negative
-    }
 }
 
 impl fmt::Debug for CharacterSet {

@@ -885,9 +885,9 @@ fn parse_field_attributes(
                                         panic!("Got non string literal for trim_whitespace");
                                     }
                                 }
-                            } else if ident == "allow_characters" || ident == "deny_characters" {
+                            } else if ident == "allow_chars" || ident == "deny_chars" {
                                 if rv.characters.is_some() {
-                                    panic!("allow_characters and deny_characters are mutually exclusive");
+                                    panic!("allow_chars and deny_chars are mutually exclusive");
                                 }
 
                                 match name_value.lit {
@@ -1077,16 +1077,16 @@ fn parse_character_set(ident: &Ident, value: &str) -> TokenStream {
         State::Blank => {}
     }
 
-    let is_negative = ident == "deny_characters";
+    let is_negative = ident == "deny_chars";
 
     quote! {
         crate::processor::CharacterSet {
-            is_match: Some(|c: char| -> bool {
+            char_is_valid: |c: char| -> bool {
                 match c {
                     #((#ranges) => !#is_negative,)*
                     _ => #is_negative,
                 }
-            }),
+            },
             ranges: &[ #(#ranges,)* ],
             is_negative: #is_negative,
         }

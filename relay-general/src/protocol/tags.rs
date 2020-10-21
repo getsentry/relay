@@ -4,9 +4,8 @@ use crate::types::{Annotated, Array, FromValue, Value};
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct TagEntry(
-    #[metastructure(max_chars = "tag_key", allow_characters = "a-zA-Z0-9_.:-")]
-    pub  Annotated<String>,
-    #[metastructure(max_chars = "tag_value", deny_characters = "\n")] pub Annotated<String>,
+    #[metastructure(max_chars = "tag_key", allow_chars = "a-zA-Z0-9_.:-")] pub Annotated<String>,
+    #[metastructure(max_chars = "tag_value", deny_chars = "\n")] pub Annotated<String>,
 );
 
 impl AsPair for TagEntry {

@@ -97,7 +97,7 @@ fn verify_value_characters(
 ) -> ProcessingResult {
     if let Some(ref character_set) = state.attrs().characters {
         for c in value.chars() {
-            if !character_set.is_match(c) {
+            if !(character_set.char_is_valid)(c) {
                 meta.add_error(Error::invalid(format!("invalid character {:?}", c)));
                 return Err(ProcessingAction::DeleteValueSoft);
             }
