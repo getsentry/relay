@@ -105,7 +105,7 @@ pub enum RelayHistograms {
     ///  - `limits.max_concurrent_requests` for the overall number of connections
     ///  - `limits.max_concurrent_queries` for the number of concurrent high-priority requests
     UpstreamMessageQueueSize,
-    /// Counts the number of upstream http request.
+    /// Counts the number of retries for each upstream http request.
     ///
     /// This metric is tagged with:
     ///
@@ -118,7 +118,7 @@ pub enum RelayHistograms {
     ///     * `invalid_json`: The response could not be parsed back into JSON.
     ///   - `route`: The endpoint that was called on the upstream.
     ///   - `status-code`: The status code of the request when available, otherwise "-".
-    UpstreamRequests,
+    UpstreamRetries,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -134,7 +134,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::ProjectStateCacheSize => "project_cache.size",
             RelayHistograms::ConnectorWaitQueue => "connector.wait_queue",
             RelayHistograms::UpstreamMessageQueueSize => "http_queue.size",
-            RelayHistograms::UpstreamRequests => "upstream.requests",
+            RelayHistograms::UpstreamRetries => "upstream.retries",
         }
     }
 }

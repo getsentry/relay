@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Rename upstream retries histogram metric. ([#816](https://github.com/getsentry/relay/pull/816))
+
 ## 20.10.1
 
 **Internal**:

@@ -512,7 +512,7 @@ impl UpstreamRelay {
         };
 
         metric!(
-            histogram(RelayHistograms::UpstreamRequests) = request.previous_retries.into(),
+            histogram(RelayHistograms::UpstreamRetries) = request.previous_retries.into(),
             result = result,
             status_code = status_code,
             route = request.route_name(),
