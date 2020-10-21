@@ -7,6 +7,9 @@ pub struct Measurement {
     /// Value of observed measurement value.
     #[metastructure(required = "true", skip_serialization = "never")]
     pub value: Annotated<f64>,
+
+    /// Arbitrary additional data on the measurement, like `extra` on the top-level event.
+    pub data: Annotated<Object<Value>>,
 }
 
 /// A map of observed measurement values.
