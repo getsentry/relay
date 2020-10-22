@@ -661,8 +661,12 @@ mod tests {
                 }
             ),
         );
-        for stack in scrubber.stacks(Which::Scrubbed) {
-            assert!(!stack.iter().all(|b| *b == '*' as u8));
+        for (scrubbed_stack, original_stack) in scrubber
+            .stacks(Which::Scrubbed)
+            .iter()
+            .zip(scrubber.stacks(Which::Original).iter())
+        {
+            assert_eq!(scrubbed_stack, original_stack);
         }
     }
 
@@ -675,13 +679,17 @@ mod tests {
             serde_json::json!(
                 {
                     "applications": {
-                        "$minidump:*": ["@anything:mask"],
+                        "$minidump.*": ["@anything:mask"],
                     }
                 }
             ),
         );
-        for stack in scrubber.stacks(Which::Scrubbed) {
-            assert!(!stack.iter().all(|b| *b == '*' as u8));
+        for (scrubbed_stack, original_stack) in scrubber
+            .stacks(Which::Scrubbed)
+            .iter()
+            .zip(scrubber.stacks(Which::Original).iter())
+        {
+            assert_eq!(scrubbed_stack, original_stack);
         }
     }
 
@@ -694,13 +702,17 @@ mod tests {
             serde_json::json!(
                 {
                     "applications": {
-                        "$attachments:**": ["@anything:mask"],
+                        "$attachments.**": ["@anything:mask"],
                     }
                 }
             ),
         );
-        for stack in scrubber.stacks(Which::Scrubbed) {
-            assert!(!stack.iter().all(|b| *b == '*' as u8));
+        for (scrubbed_stack, original_stack) in scrubber
+            .stacks(Which::Scrubbed)
+            .iter()
+            .zip(scrubber.stacks(Which::Original).iter())
+        {
+            assert_eq!(scrubbed_stack, original_stack);
         }
     }
 
@@ -717,8 +729,12 @@ mod tests {
                 }
             ),
         );
-        for stack in scrubber.stacks(Which::Scrubbed) {
-            assert!(!stack.iter().all(|b| *b == '*' as u8));
+        for (scrubbed_stack, original_stack) in scrubber
+            .stacks(Which::Scrubbed)
+            .iter()
+            .zip(scrubber.stacks(Which::Original).iter())
+        {
+            assert_eq!(scrubbed_stack, original_stack);
         }
     }
 }
