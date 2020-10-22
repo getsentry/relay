@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `relay-server/src/metrics.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>metrics.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/metrics.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>metrics.rs - source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../favicon.svg">
 <link rel="alternate icon" type="image/png" href="../../favicon-16x16.png">
 <link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../relay_server/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
                 <a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
@@ -422,6 +422,22 @@
 <span id="419">419</span>
 <span id="420">420</span>
 <span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">metrics</span>::{<span class="ident">CounterMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
@@ -530,7 +546,7 @@
     <span class="doccomment">///  - `limits.max_concurrent_requests` for the overall number of connections</span>
     <span class="doccomment">///  - `limits.max_concurrent_queries` for the number of concurrent high-priority requests</span>
     <span class="ident">UpstreamMessageQueueSize</span>,
-    <span class="doccomment">/// Counts the number of upstream http request.</span>
+    <span class="doccomment">/// Counts the number of retries for each upstream http request.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This metric is tagged with:</span>
     <span class="doccomment">///</span>
@@ -543,7 +559,7 @@
     <span class="doccomment">///     * `invalid_json`: The response could not be parsed back into JSON.</span>
     <span class="doccomment">///   - `route`: The endpoint that was called on the upstream.</span>
     <span class="doccomment">///   - `status-code`: The status code of the request when available, otherwise &quot;-&quot;.</span>
-    <span class="ident">UpstreamRequests</span>,
+    <span class="ident">UpstreamRetries</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">HistogramMetric</span> <span class="kw">for</span> <span class="ident">RelayHistograms</span> {
@@ -559,7 +575,7 @@
             <span class="ident">RelayHistograms</span>::<span class="ident">ProjectStateCacheSize</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_cache.size&quot;</span>,
             <span class="ident">RelayHistograms</span>::<span class="ident">ConnectorWaitQueue</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;connector.wait_queue&quot;</span>,
             <span class="ident">RelayHistograms</span>::<span class="ident">UpstreamMessageQueueSize</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;http_queue.size&quot;</span>,
-            <span class="ident">RelayHistograms</span>::<span class="ident">UpstreamRequests</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;upstream.requests&quot;</span>,
+            <span class="ident">RelayHistograms</span>::<span class="ident">UpstreamRetries</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;upstream.retries&quot;</span>,
         }
     }
 }
@@ -653,6 +669,21 @@
     <span class="doccomment">/// scrubbing.minidumps.duration) will be scrubbed as plain attachments and count</span>
     <span class="doccomment">/// towards this.</span>
     <span class="ident">AttachmentScrubbing</span>,
+    <span class="doccomment">/// Total time spent to send request to upstream Relay and handle the response.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This metric is tagged with:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">///   - `result`: What happened to the request, an enumeration with the following values:</span>
+    <span class="doccomment">///     * `success`: The request was sent and returned a success code `HTTP 2xx`</span>
+    <span class="doccomment">///     * `response_error`: The request was sent and it returned an HTTP error.</span>
+    <span class="doccomment">///     * `payload_failed`: The request was sent but there was an error in interpreting the response.</span>
+    <span class="doccomment">///     * `send_failed`: Failed to send the request due to a network error.</span>
+    <span class="doccomment">///     * `rate_limited`: The request was rate limited.</span>
+    <span class="doccomment">///     * `invalid_json`: The response could not be parsed back into JSON.</span>
+    <span class="doccomment">///   - `route`: The endpoint that was called on the upstream.</span>
+    <span class="doccomment">///   - `status-code`: The status code of the request when available, otherwise &quot;-&quot;.</span>
+    <span class="doccomment">///   - `retries`: Number of retries bucket 0, 1, 2, few (3 - 10), many (more than 10).</span>
+    <span class="ident">UpstreamRequestsDuration</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TimerMetric</span> <span class="kw">for</span> <span class="ident">RelayTimers</span> {
@@ -675,6 +706,7 @@
             <span class="ident">RelayTimers</span>::<span class="ident">RequestsDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;requests.duration&quot;</span>,
             <span class="ident">RelayTimers</span>::<span class="ident">MinidumpScrubbing</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;scrubbing.minidumps.duration&quot;</span>,
             <span class="ident">RelayTimers</span>::<span class="ident">AttachmentScrubbing</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;scrubbing.attachments.duration&quot;</span>,
+            <span class="ident">RelayTimers</span>::<span class="ident">UpstreamRequestsDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;upstream.requests.duration&quot;</span>,
         }
     }
 }
