@@ -60,13 +60,18 @@
 //! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md
 
 use std::collections::BTreeMap;
-use std::net::ToSocketAddrs;
+use std::net::{ToSocketAddrs, UdpSocket};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
-use cadence::{Metric, MetricBuilder, StatsdClient};
+use cadence::{BufferedUdpMetricSink, Metric, MetricBuilder, QueuingMetricSink, StatsdClient};
 use lazy_static::lazy_static;
 use parking_lot::RwLock;
+
+use crate::LogError;
+
+/// Maximum number of metric events that can be queued before we start dropping them
+const METRICS_MAX_QUEUE_SIZE: usize = 100_000;
 
 /// Client configuration object to store globally.
 #[derive(Debug)]
@@ -102,7 +107,14 @@ impl MetricsClient {
             metric = metric.with_tag(k, v);
         }
 
-        metric.send();
+        match metric.try_send() {
+            Ok(_) => (),
+            Err(error) => log::error!(
+                "Error sending a metric: {}, maximum capacity: {}",
+                LogError(&error),
+                METRICS_MAX_QUEUE_SIZE
+            ),
+        };
     }
 }
 
@@ -145,7 +157,14 @@ pub fn configure_statsd<A: ToSocketAddrs>(
     if !addrs.is_empty() {
         log::info!("reporting metrics to statsd at {}", addrs[0]);
     }
-    let statsd_client = StatsdClient::from_udp_host(prefix, &addrs[..]).unwrap();
+
+    let socket = UdpSocket::bind(&addrs[..]).unwrap();
+    socket.set_nonblocking(true).unwrap();
+
+    let udp_sink = BufferedUdpMetricSink::from(host, socket).unwrap();
+    let queuing_sink = QueuingMetricSink::with_capacity(udp_sink, METRICS_MAX_QUEUE_SIZE);
+
+    let statsd_client = StatsdClient::from_sink(prefix, queuing_sink);
     set_client(MetricsClient {
         statsd_client,
         default_tags,

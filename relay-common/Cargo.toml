@@ -11,7 +11,7 @@ publish = false
 
 [dependencies]
 backoff = "0.1.6"
-cadence = "0.17.1"
+cadence = "0.22.0"
 chrono = "0.4.11"
 failure = "0.1.8"
 globset = "0.4.5"
