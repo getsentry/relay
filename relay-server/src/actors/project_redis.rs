@@ -44,7 +44,9 @@ impl RedisProjectSource {
         let mut command = relay_redis::redis::cmd("GET");
 
         let prefix = self.config.projectconfig_cache_prefix();
-        command.arg(format!("{}:{}", prefix, key));
+        let key = format!("{}:{}", prefix, key);
+        log::info!("loading redis {}", key);
+        command.arg(key);
 
         let raw_response_opt: Option<String> = command
             .query(&mut self.redis.client()?.connection())

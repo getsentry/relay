@@ -409,7 +409,6 @@ pub struct Project {
     state: Option<Arc<ProjectState>>,
     state_channel: Option<Shared<oneshot::Receiver<Arc<ProjectState>>>>,
     rate_limits: RateLimits,
-    is_local: bool,
 }
 
 impl Project {
@@ -421,7 +420,6 @@ impl Project {
             state: None,
             state_channel: None,
             rate_limits: RateLimits::new(),
-            is_local: false,
         }
     }
 
@@ -441,19 +439,15 @@ impl Project {
             .map(|s| s.outdated(&self.config))
             .unwrap_or(Outdated::HardOutdated);
 
-        let alternative_rv = match (state, outdated, self.is_local) {
-            // The state is fetched from a local file, don't use own caching logic. Rely on
-            // `ProjectCache#local_states` for caching.
-            (_, _, true) => None,
-
+        let alternative_rv = match (state, outdated) {
             // There is no project state that can be used, fetch a state and return it.
-            (None, _, false) | (_, Outdated::HardOutdated, false) => None,
+            (None, _) | (_, Outdated::HardOutdated) => None,
 
             // The project is semi-outdated, fetch new state but return old one.
-            (Some(state), Outdated::SoftOutdated, false) => Some(state.clone()),
+            (Some(state), Outdated::SoftOutdated) => Some(state.clone()),
 
             // The project is not outdated, return early here to jump over fetching logic below.
-            (Some(state), Outdated::Updated, false) => return Response::ok(state.clone()),
+            (Some(state), Outdated::Updated) => return Response::ok(state.clone()),
         };
 
         let channel = match self.state_channel {
@@ -492,10 +486,6 @@ impl Project {
             .into_actor(self)
             .map(move |state_result, slf, _ctx| {
                 slf.state_channel = None;
-                slf.is_local = state_result
-                    .as_ref()
-                    .map(|resp| resp.is_local)
-                    .unwrap_or(false);
                 slf.state = state_result.map(|resp| resp.state).ok();
 
                 if let Some(ref state) = slf.state {
