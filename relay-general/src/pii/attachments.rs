@@ -383,9 +383,18 @@ impl<'a> PiiAttachmentsProcessor<'a> {
         state: &ProcessingState<'_>,
         encodings: ScrubEncodings,
     ) -> bool {
+        let pii = state.attrs().pii;
+        if pii == Pii::False {
+            return false;
+        }
+
         let mut changed = false;
 
         for (selector, rules) in &self.compiled_config.applications {
+            if pii == Pii::Maybe && !selector.is_specific() {
+                continue;
+            }
+
             if state.path().matches_selector(&selector) {
                 for rule in rules {
                     // Note:
