@@ -29,7 +29,7 @@ use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutco
 use crate::actors::project::{
     CheckEnvelope, GetProjectState, Project, ProjectState, UpdateRateLimits,
 };
-use crate::actors::project_cache::{ProjectCache, ProjectError};
+use crate::actors::project_cache::ProjectError;
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
@@ -1355,24 +1355,30 @@ impl Handler<QueueEnvelope> for EventManager {
 /// If trace sampling is enabled and if the envelope has traces in it
 /// sample the traces from the envelope and return what is left (either the unchanged enevlope
 /// or the envelope without traces)
-pub struct SampleTraces {
+pub struct SampleTransactions {
     pub envelope: Envelope,
-    pub project_cache: Addr<ProjectCache>,
+    pub project: Addr<Project>,
+    pub fast_processing: bool,
 }
 
-impl Message for SampleTraces {
+impl Message for SampleTransactions {
     type Result = Result<Envelope, DynamicSamplingError>;
 }
 
-impl Handler<SampleTraces> for EventManager {
+impl Handler<SampleTransactions> for EventManager {
     type Result = ResponseFuture<Envelope, DynamicSamplingError>;
 
-    /// Check if we should remove tracing from this envelope (because of trace sampling) and
+    /// Check if we should remove transactions from this envelope (because of trace sampling) and
     /// return what is left of the envelope
-    fn handle(&mut self, message: SampleTraces, _context: &mut Self::Context) -> Self::Result {
-        let SampleTraces {
+    fn handle(
+        &mut self,
+        message: SampleTransactions,
+        _context: &mut Self::Context,
+    ) -> Self::Result {
+        let SampleTransactions {
             envelope,
-            project_cache: _project_cache,
+            project: _project,
+            fast_processing: _fast_proecessing,
         } = message;
 
         let trace_context = envelope.get_trace_context();

@@ -55,21 +55,16 @@ pub struct TraceContext {
     pub user_segment: Option<String>,
 }
 
-impl TraceContext {}
-
-/// Returns the decision of whether to sample or not a trace based on the configuration rules
-/// If None then a decision cant be made either because of an invalid of missing trace context or
-/// because no applicable sampling rule could be found.
-pub fn should_sample(
-    config: &SamplingConfig,
-    context: &TraceContext,
-    project_id: ProjectId,
-) -> Option<bool> {
-    let rule = get_matching_rule(config, context, project_id)?;
-    let rate = pseudo_random_from_trace_id(context.trace_id)?;
-    Some(rate < rule.sample_rate)
+impl TraceContext {
+    /// Returns the decision of whether to sample or not a trace based on the configuration rules
+    /// If None then a decision cant be made either because of an invalid of missing trace context or
+    /// because no applicable sampling rule could be found.
+    pub fn should_sample(&self, config: &SamplingConfig, project_id: ProjectId) -> Option<bool> {
+        let rule = get_matching_rule(config, self, project_id)?;
+        let rate = pseudo_random_from_trace_id(self.trace_id)?;
+        Some(rate < rule.sample_rate)
+    }
 }
-
 /// Tests whether a rule matches a trace context
 fn matches(rule: &SamplingRule, context: &TraceContext, project_id: ProjectId) -> bool {
     // match against the project

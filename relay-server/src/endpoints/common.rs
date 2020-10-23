@@ -15,9 +15,7 @@ use relay_common::{clone, metric, tryf, LogError};
 use relay_general::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 
-use crate::actors::events::{
-    DynamicSamplingError, QueueEnvelope, QueueEnvelopeError, SampleTraces,
-};
+use crate::actors::events::{QueueEnvelope, QueueEnvelopeError, SampleTransactions};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::CheckEnvelope;
 use crate::actors::project_cache::{GetProject, ProjectError};
@@ -416,28 +414,46 @@ where
             extract_envelope(&request, meta)
                 .into_future()
                 .and_then(clone!(event_manager, project_manager, |envelope| {
-                    // do dynamic sampling on trace
+                    // do dynamic sampling on transactions
 
-                    // if we don't have a trace don't do dynamic sampling (we can't)
-                    if envelope.get_trace_context().is_none() {
-                        return Box::new(Ok(envelope).into_future()) as ResponseFuture<Envelope, _>;
-                    }
-
-                    // sample and potentially remove traces from the envelope
-                    let response = event_manager
-                        .send(SampleTraces {
-                            envelope,
-                            project_cache: project_manager,
+                    let trace_context = match envelope.get_trace_context() {
+                        None => {
+                            // if we don't have a trace context we can't do dynamic sampling so stop.
+                            return Box::new(Ok(envelope).into_future())
+                                as ResponseFuture<Envelope, _>;
+                        }
+                        Some(trace_context) => trace_context,
+                    };
+                    // Sample and potentially remove transactions from the envelope.
+                    // We only do this if the envelope contains only transactions,
+                    // The reason for that is that in case of envelopes containing only
+                    // transactions we have a chance to end processing here (if the transactions
+                    // are sampled out).
+                    // If the envelope contains other items (beyond transactions then we cannot
+                    // shortcut the processing here so we'll do it after we queue the envelope).
+                    let response = project_manager
+                        .send(GetProject {
+                            public_key: trace_context.public_key,
                         })
-                        //deal with actor mailbox errors
+                        // deal with mailbox errors
                         .map_err(BadStoreRequest::ScheduleFailed)
-                        .and_then(|result| match result {
-                            Ok(envelope) => Ok(envelope),
-                            Err(DynamicSamplingError::EmptyEnvelope(_envelope)) => {
-                                Err(BadStoreRequest::TraceSampled)
-                            }
-                        });
-
+                        // do the fast path transaction sampling (if we can't do it here
+                        // we'll try again after the envelope is queued)
+                        .and_then(clone!(event_manager, |project| {
+                            event_manager
+                                .send(SampleTransactions {
+                                    project,
+                                    envelope: envelope.clone(),
+                                    //will sample transactions only if we can do it fast
+                                    //(project state is already cached)
+                                    fast_processing: true,
+                                })
+                                //deal with actor mailbox errors
+                                .map_err(BadStoreRequest::ScheduleFailed)
+                                .and_then(|result| {
+                                    result.map_err(|_empty_envelpe| BadStoreRequest::TraceSampled)
+                                })
+                        }));
                     Box::new(response) as ResponseFuture<Envelope, BadStoreRequest>
                 }))
                 .and_then(clone!(project, |envelope| {
