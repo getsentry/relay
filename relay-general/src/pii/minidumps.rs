@@ -649,7 +649,7 @@ mod tests {
 
     #[test]
     fn test_stack_scrubbing_valuetype_not_fully_qualified() {
-        // Not fully qualified valuetype should not touch the stack: FAILS
+        // Not fully qualified valuetype should not touch the stack
         let scrubber = TestScrubber::new(
             "linux.dmp",
             include_bytes!("../../../tests/fixtures/linux.dmp"),
@@ -672,7 +672,7 @@ mod tests {
 
     #[test]
     fn test_stack_scrubbing_wildcard() {
-        // Wildcard should not touch the stack: FAILS
+        // Wildcard should not touch the stack
         let scrubber = TestScrubber::new(
             "linux.dmp",
             include_bytes!("../../../tests/fixtures/linux.dmp"),
@@ -695,7 +695,7 @@ mod tests {
 
     #[test]
     fn test_stack_scrubbing_deep_wildcard() {
-        // Wildcard should not touch the stack: FAILS
+        // Wildcard should not touch the stack
         let scrubber = TestScrubber::new(
             "linux.dmp",
             include_bytes!("../../../tests/fixtures/linux.dmp"),
