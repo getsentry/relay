@@ -607,7 +607,7 @@ mod tests {
             ),
         );
         for stack in scrubber.stacks(Which::Scrubbed) {
-            assert!(stack.iter().all(|b| *b == '*' as u8));
+            assert!(stack.iter().all(|b| *b == b'*'));
         }
     }
 
@@ -625,7 +625,7 @@ mod tests {
             ),
         );
         for stack in scrubber.stacks(Which::Scrubbed) {
-            assert!(stack.iter().all(|b| *b == '*' as u8));
+            assert!(stack.iter().all(|b| *b == b'*'));
         }
     }
 
@@ -643,7 +643,7 @@ mod tests {
             ),
         );
         for stack in scrubber.stacks(Which::Scrubbed) {
-            assert!(stack.iter().all(|b| *b == '*' as u8));
+            assert!(stack.iter().all(|b| *b == b'*'));
         }
     }
 
