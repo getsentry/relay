@@ -439,7 +439,7 @@ impl Project {
             .map(|s| s.outdated(&self.config))
             .unwrap_or(Outdated::HardOutdated);
 
-        let alternative_rv = match (state, outdated) {
+        let cached_state = match (state, outdated) {
             // There is no project state that can be used, fetch a state and return it.
             (None, _) | (_, Outdated::HardOutdated) => None,
 
@@ -463,7 +463,7 @@ impl Project {
             }
         };
 
-        if let Some(rv) = alternative_rv {
+        if let Some(rv) = cached_state {
             return Response::ok(rv);
         }
 
