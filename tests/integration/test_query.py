@@ -14,7 +14,9 @@ from requests.exceptions import HTTPError
 
 def test_local_project_config(mini_sentry, relay):
     config = mini_sentry.basic_project_config()
-    relay_config = {"cache": {"file_interval": 1, "project_expiry": 0, "project_grace_period": 0}}
+    relay_config = {
+        "cache": {"file_interval": 1, "project_expiry": 0, "project_grace_period": 0}
+    }
     relay = relay(mini_sentry, relay_config, wait_healthcheck=False)
     relay.config_dir.mkdir("projects").join("42.json").write(
         json.dumps(
