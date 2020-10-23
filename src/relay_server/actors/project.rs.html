@@ -663,16 +663,6 @@
 <span id="660">660</span>
 <span id="661">661</span>
 <span id="662">662</span>
-<span id="663">663</span>
-<span id="664">664</span>
-<span id="665">665</span>
-<span id="666">666</span>
-<span id="667">667</span>
-<span id="668">668</span>
-<span id="669">669</span>
-<span id="670">670</span>
-<span id="671">671</span>
-<span id="672">672</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::<span class="ident">Instant</span>;
@@ -1085,7 +1075,6 @@
     <span class="ident">state</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">state_channel</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">oneshot</span>::<span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">rate_limits</span>: <span class="ident">RateLimits</span>,
-    <span class="ident">is_local</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Project</span> {
@@ -1097,7 +1086,6 @@
             <span class="ident">state</span>: <span class="prelude-val">None</span>,
             <span class="ident">state_channel</span>: <span class="prelude-val">None</span>,
             <span class="ident">rate_limits</span>: <span class="ident">RateLimits</span>::<span class="ident">new</span>(),
-            <span class="ident">is_local</span>: <span class="bool-val">false</span>,
         }
     }
 
@@ -1117,19 +1105,15 @@
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">outdated</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>))
             .<span class="ident">unwrap_or</span>(<span class="ident">Outdated</span>::<span class="ident">HardOutdated</span>);
 
-        <span class="kw">let</span> <span class="ident">alternative_rv</span> <span class="op">=</span> <span class="kw">match</span> (<span class="ident">state</span>, <span class="ident">outdated</span>, <span class="self">self</span>.<span class="ident">is_local</span>) {
-            <span class="comment">// The state is fetched from a local file, don&#39;t use own caching logic. Rely on</span>
-            <span class="comment">// `ProjectCache#local_states` for caching.</span>
-            (<span class="kw">_</span>, <span class="kw">_</span>, <span class="bool-val">true</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-
+        <span class="kw">let</span> <span class="ident">cached_state</span> <span class="op">=</span> <span class="kw">match</span> (<span class="ident">state</span>, <span class="ident">outdated</span>) {
             <span class="comment">// There is no project state that can be used, fetch a state and return it.</span>
-            (<span class="prelude-val">None</span>, <span class="kw">_</span>, <span class="bool-val">false</span>) <span class="op">|</span> (<span class="kw">_</span>, <span class="ident">Outdated</span>::<span class="ident">HardOutdated</span>, <span class="bool-val">false</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            (<span class="prelude-val">None</span>, <span class="kw">_</span>) <span class="op">|</span> (<span class="kw">_</span>, <span class="ident">Outdated</span>::<span class="ident">HardOutdated</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
 
             <span class="comment">// The project is semi-outdated, fetch new state but return old one.</span>
-            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="ident">Outdated</span>::<span class="ident">SoftOutdated</span>, <span class="bool-val">false</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
+            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="ident">Outdated</span>::<span class="ident">SoftOutdated</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
 
             <span class="comment">// The project is not outdated, return early here to jump over fetching logic below.</span>
-            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="ident">Outdated</span>::<span class="ident">Updated</span>, <span class="bool-val">false</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">Response</span>::<span class="ident">ok</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
+            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="ident">Outdated</span>::<span class="ident">Updated</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">Response</span>::<span class="ident">ok</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
         };
 
         <span class="kw">let</span> <span class="ident">channel</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state_channel</span> {
@@ -1145,7 +1129,7 @@
             }
         };
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rv</span>) <span class="op">=</span> <span class="ident">alternative_rv</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rv</span>) <span class="op">=</span> <span class="ident">cached_state</span> {
             <span class="kw">return</span> <span class="ident">Response</span>::<span class="ident">ok</span>(<span class="ident">rv</span>);
         }
 
@@ -1168,10 +1152,6 @@
             .<span class="ident">into_actor</span>(<span class="self">self</span>)
             .<span class="ident">map</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">state_result</span>, <span class="ident">slf</span>, <span class="ident">_ctx</span><span class="op">|</span> {
                 <span class="ident">slf</span>.<span class="ident">state_channel</span> <span class="op">=</span> <span class="prelude-val">None</span>;
-                <span class="ident">slf</span>.<span class="ident">is_local</span> <span class="op">=</span> <span class="ident">state_result</span>
-                    .<span class="ident">as_ref</span>()
-                    .<span class="ident">map</span>(<span class="op">|</span><span class="ident">resp</span><span class="op">|</span> <span class="ident">resp</span>.<span class="ident">is_local</span>)
-                    .<span class="ident">unwrap_or</span>(<span class="bool-val">false</span>);
                 <span class="ident">slf</span>.<span class="ident">state</span> <span class="op">=</span> <span class="ident">state_result</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">resp</span><span class="op">|</span> <span class="ident">resp</span>.<span class="ident">state</span>).<span class="ident">ok</span>();
 
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">state</span>) <span class="op">=</span> <span class="ident">slf</span>.<span class="ident">state</span> {
