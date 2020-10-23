@@ -2,7 +2,13 @@
 
 ## Unreleased
 
+**Features**:
+
 - Rename upstream retries histogram metric and add upstream requests duration metric. ([#816](https://github.com/getsentry/relay/pull/816))
+
+**Internal**:
+
+- Always apply cache debouncing for project states. This reduces pressure on the Redis and file system cache. ([#819](https://github.com/getsentry/relay/pull/819))
 
 ## 20.10.1
 
