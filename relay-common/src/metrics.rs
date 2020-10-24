@@ -64,7 +64,9 @@ use std::net::{ToSocketAddrs, UdpSocket};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
-use cadence::{BufferedUdpMetricSink, Metric, MetricBuilder, QueuingMetricSink, StatsdClient};
+use cadence::{
+    BufferedUdpMetricSink, Metric, MetricBuilder, QueuingMetricSink, StatsdClient, UdpMetricSink,
+};
 use lazy_static::lazy_static;
 use parking_lot::RwLock;
 
@@ -152,6 +154,7 @@ pub fn configure_statsd<A: ToSocketAddrs>(
     prefix: &str,
     host: A,
     default_tags: BTreeMap<String, String>,
+    buffering: bool,
 ) {
     let addrs: Vec<_> = host.to_socket_addrs().unwrap().collect();
     if !addrs.is_empty() {
@@ -161,10 +164,15 @@ pub fn configure_statsd<A: ToSocketAddrs>(
     let socket = UdpSocket::bind(&addrs[..]).unwrap();
     socket.set_nonblocking(true).unwrap();
 
-    let udp_sink = BufferedUdpMetricSink::from(host, socket).unwrap();
-    let queuing_sink = QueuingMetricSink::with_capacity(udp_sink, METRICS_MAX_QUEUE_SIZE);
+    let statsd_client = if buffering {
+        let udp_sink = BufferedUdpMetricSink::from(host, socket).unwrap();
+        let queuing_sink = QueuingMetricSink::with_capacity(udp_sink, METRICS_MAX_QUEUE_SIZE);
+        StatsdClient::from_sink(prefix, queuing_sink)
+    } else {
+        let simple_sink = UdpMetricSink::from(host, socket).unwrap();
+        StatsdClient::from_sink(prefix, simple_sink)
+    };
 
-    let statsd_client = StatsdClient::from_sink(prefix, queuing_sink);
     set_client(MetricsClient {
         statsd_client,
         default_tags,

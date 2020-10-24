@@ -424,6 +424,9 @@ struct Metrics {
     default_tags: BTreeMap<String, String>,
     /// A tag name to report the hostname to, for each metric. Defaults to not sending such a tag.
     hostname_tag: Option<String>,
+    /// If set to true, emitted metrics will be buffered to optimize performance.
+    /// Defaults to true.
+    buffering: bool,
 }
 
 impl Default for Metrics {
@@ -433,6 +436,7 @@ impl Default for Metrics {
             prefix: "sentry.relay".into(),
             default_tags: BTreeMap::new(),
             hostname_tag: None,
+            buffering: true,
         }
     }
 }
@@ -1245,6 +1249,11 @@ impl Config {
     /// Returns the name of the hostname tag that should be attached to each outgoing metric.
     pub fn metrics_hostname_tag(&self) -> Option<&str> {
         self.values.metrics.hostname_tag.as_deref()
+    }
+
+    /// Returns true if metrics buffering is enabled, false otherwise
+    pub fn metrics_buffering(&self) -> bool {
+        self.values.metrics.buffering
     }
 
     /// Returns the default timeout for all upstream HTTP requests.
