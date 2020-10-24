@@ -172,6 +172,10 @@ pub fn configure_statsd<A: ToSocketAddrs>(
         let simple_sink = UdpMetricSink::from(host, socket).unwrap();
         StatsdClient::from_sink(prefix, simple_sink)
     };
+    log::debug!(
+        "metrics buffering is {}",
+        if buffering { "enabled" } else { "disabled" }
+    );
 
     set_client(MetricsClient {
         statsd_client,
