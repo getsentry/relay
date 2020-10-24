@@ -69,6 +69,7 @@ use cadence::{
 };
 use lazy_static::lazy_static;
 use parking_lot::RwLock;
+use rand::distributions::{Distribution, Uniform};
 
 use crate::LogError;
 
@@ -105,6 +106,25 @@ impl MetricsClient {
     where
         T: Metric + From<String>,
     {
+        // Decide if we want to sample this metric
+        let sample_rate: f32 = 0.5;
+
+        let to_send = if sample_rate <= 0.0 {
+            println!("zero");
+            false
+        } else if sample_rate >= 1.0 {
+            println!("one!!!");
+            true
+        } else {
+            let mut rng = rand::thread_rng();
+            let between = Uniform::new(0.0, 1.0);
+            between.sample(&mut rng) <= sample_rate
+        };
+
+        if !to_send {
+            return;
+        }
+
         for (k, v) in &self.default_tags {
             metric = metric.with_tag(k, v);
         }
