@@ -219,6 +219,7 @@ pub fn init_metrics(config: &Config) -> Result<(), Error> {
         &addrs[..],
         default_tags,
         config.metrics_buffering(),
+        config.metrics_sample_rate(),
     );
 
     Ok(())

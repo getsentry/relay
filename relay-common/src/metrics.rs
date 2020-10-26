@@ -83,6 +83,8 @@ pub struct MetricsClient {
     pub statsd_client: StatsdClient,
     /// Default tags to apply to every metric
     pub default_tags: BTreeMap<String, String>,
+    /// Global sample rate
+    pub sample_rate: f32,
 }
 
 impl Deref for MetricsClient {
@@ -125,19 +127,14 @@ impl MetricsClient {
     }
 
     fn _should_send(&self) -> bool {
-        // Decide if we want to sample this metric
-        let sample_rate: f32 = 0.5;
-
-        if sample_rate <= 0.0 {
-            println!("zero");
+        if self.sample_rate <= 0.0 {
             false
-        } else if sample_rate >= 1.0 {
-            println!("one!!!");
+        } else if self.sample_rate >= 1.0 {
             true
         } else {
             let mut rng = rand::thread_rng();
             let between = Uniform::new(0.0, 1.0);
-            between.sample(&mut rng) <= sample_rate
+            between.sample(&mut rng) <= self.sample_rate
         }
     }
 }
@@ -177,11 +174,29 @@ pub fn configure_statsd<A: ToSocketAddrs>(
     host: A,
     default_tags: BTreeMap<String, String>,
     buffering: bool,
+    sample_rate: f32,
 ) {
     let addrs: Vec<_> = host.to_socket_addrs().unwrap().collect();
     if !addrs.is_empty() {
         log::info!("reporting metrics to statsd at {}", addrs[0]);
     }
+
+    let normalized_sample_rate = if sample_rate >= 1.0 {
+        1.0
+    } else if sample_rate <= 0.0 {
+        0.0
+    } else {
+        sample_rate
+    };
+    log::debug!(
+        "metrics sample rate is set to {}{}",
+        normalized_sample_rate,
+        if normalized_sample_rate == 0.0 {
+            ", no metrics will be reported"
+        } else {
+            ""
+        }
+    );
 
     let socket = UdpSocket::bind(&addrs[..]).unwrap();
     socket.set_nonblocking(true).unwrap();
@@ -202,6 +217,7 @@ pub fn configure_statsd<A: ToSocketAddrs>(
     set_client(MetricsClient {
         statsd_client,
         default_tags,
+        sample_rate,
     });
 }
 
