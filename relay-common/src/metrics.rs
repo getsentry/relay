@@ -222,7 +222,7 @@ pub fn configure_statsd<A: ToSocketAddrs>(
     set_client(MetricsClient {
         statsd_client,
         default_tags,
-        normalized_sample_rate,
+        sample_rate: normalized_sample_rate,
     });
 }
 
