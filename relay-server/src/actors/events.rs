@@ -27,7 +27,7 @@ use relay_redis::RedisPool;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
-    CheckEnvelope, GetProjectState, Project, ProjectState, UpdateRateLimits,
+    CheckEnvelope, GetCachedProjectState, GetProjectState, Project, ProjectState, UpdateRateLimits,
 };
 use crate::actors::project_cache::ProjectError;
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
@@ -65,6 +65,13 @@ pub enum DynamicSamplingError {
     /// removed by trace sampling.
     #[fail(display = "empty envelope")]
     EmptyEnvelope(Envelope),
+
+    /// actix actor mailbox failure  
+    #[fail(display = "could not schedule project fetch")]
+    ScheduleFailed(#[cause] MailboxError),
+    // /// catch all, maybe refine it if we need latter
+    // #[fail(display = "Internal sampling error")]
+    // Internal,
 }
 
 #[derive(Debug, Fail)]
@@ -1365,6 +1372,54 @@ impl Message for SampleTransactions {
     type Result = Result<Envelope, DynamicSamplingError>;
 }
 
+/// Takes an envelope and potentially removes the transaction item from it if that
+/// transaction item should be sampled out according to the dynamic sampling configuration
+/// and the trace context.
+fn sample_transaction<'a>(
+    envelope: &'a mut Envelope,
+    project_state: Option<&ProjectState>,
+) -> &'a mut Envelope {
+    let project_state = match project_state {
+        None => return envelope,
+        Some(project_state) => project_state,
+    };
+
+    let sampling_config = match project_state.config.sampling_config {
+        // without sampling config we cannot sample transactions so give up here
+        None => return envelope,
+        Some(ref sampling_config) => sampling_config,
+    };
+
+    let project_id = match project_state.project_id {
+        None => return envelope,
+        Some(project_id) => project_id,
+    };
+
+    let trace_context = envelope.get_trace_context();
+    let transaction_item = envelope.get_item_by(|item| item.ty() == ItemType::Transaction);
+
+    let trace_context = match (trace_context, transaction_item) {
+        // we don't have what we need, can't sample the transactions in this envelope
+        (None, _) | (_, None) => return envelope,
+        // see if we need to sample the transaction
+        (Some(trace_context), Some(_)) => trace_context,
+    };
+
+    let should_sample = trace_context
+        // see if we should sample
+        .should_sample(sampling_config, project_id)
+        // TODO verify that this is the desired behaviour (i.e. if we can't find a rule
+        // for sampling, include the transaction)
+        .unwrap_or(true);
+
+    if !should_sample {
+        // finally we decided that we should sample the tra
+        envelope.take_item_by(|item| item.ty() == ItemType::Transaction);
+    }
+
+    envelope
+}
+
 impl Handler<SampleTransactions> for EventManager {
     type Result = ResponseFuture<Envelope, DynamicSamplingError>;
 
@@ -1376,20 +1431,40 @@ impl Handler<SampleTransactions> for EventManager {
         _context: &mut Self::Context,
     ) -> Self::Result {
         let SampleTransactions {
-            envelope,
-            project: _project,
-            fast_processing: _fast_proecessing,
+            mut envelope,
+            project,
+            fast_processing,
         } = message;
 
         let trace_context = envelope.get_trace_context();
+        let transaction_item = envelope.get_item_by(|item| item.ty() == ItemType::Transaction);
+
         // if there is no trace context or there are no transactions to sample return here
-        if trace_context.is_none()
-            || envelope
-                .get_item_by(|item| item.ty() == ItemType::Transaction)
-                .is_none()
-        {
-            return Box::new(future::ok(envelope));
-        }
+        let (trace_context, transaction_item) = match (trace_context, transaction_item) {
+            (None, _) | (_, None) => return Box::new(future::ok(envelope)),
+            (Some(trace_context), Some(trasaction_item)) => (trace_context, transaction_item),
+        };
+        //we have a trace_context and we have a transaction_item see if we can sample them
+        let result = if fast_processing {
+            let fut = project
+                .send(GetCachedProjectState)
+                .map_err(DynamicSamplingError::ScheduleFailed)
+                .map(|project_state| {
+                    sample_transaction(&mut envelope, project_state.as_deref());
+                    envelope
+                });
+            Box::new(fut) as ResponseFuture<_, _>
+        } else {
+            let fut = project
+                .send(GetProjectState)
+                .map_err(DynamicSamplingError::ScheduleFailed)
+                .map(|project_state| {
+                    sample_transaction(&mut envelope, project_state.ok().as_deref());
+                    envelope
+                });
+            Box::new(fut) as ResponseFuture<_, _>
+        };
+        result
 
         //TODO RaduW implement
         // if   we don't have a trace context or
@@ -1403,7 +1478,7 @@ impl Handler<SampleTransactions> for EventManager {
         //      sample trace from envelope
         //      return envelope
 
-        Box::new(futures::future::ok(envelope))
+        //Box::new(futures::future::ok(envelope))
     }
 }
 

@@ -57,7 +57,7 @@ pub struct TraceContext {
 
 impl TraceContext {
     /// Returns the decision of whether to sample or not a trace based on the configuration rules
-    /// If None then a decision cant be made either because of an invalid of missing trace context or
+    /// If None then a decision can't be made either because of an invalid of missing trace context or
     /// because no applicable sampling rule could be found.
     pub fn should_sample(&self, config: &SamplingConfig, project_id: ProjectId) -> Option<bool> {
         let rule = get_matching_rule(config, self, project_id)?;

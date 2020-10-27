@@ -15,11 +15,14 @@ use relay_common::{clone, metric, tryf, LogError};
 use relay_general::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 
-use crate::actors::events::{QueueEnvelope, QueueEnvelopeError, SampleTransactions};
+use crate::actors::events::{
+    DynamicSamplingError, QueueEnvelope, QueueEnvelopeError, SampleTransactions,
+};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::CheckEnvelope;
 use crate::actors::project_cache::{GetProject, ProjectError};
 use crate::body::StorePayloadError;
+use crate::endpoints::common::BadStoreRequest::ScheduleFailed;
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
@@ -451,7 +454,16 @@ where
                                 //deal with actor mailbox errors
                                 .map_err(BadStoreRequest::ScheduleFailed)
                                 .and_then(|result| {
-                                    result.map_err(|_empty_envelpe| BadStoreRequest::TraceSampled)
+                                    result.map_err(|error| match error {
+                                        DynamicSamplingError::EmptyEnvelope(_) => {
+                                            BadStoreRequest::TraceSampled
+                                        }
+                                        DynamicSamplingError::ScheduleFailed(err) => {
+                                            BadStoreRequest::ScheduleFailed(err)
+                                        } // DynamicSamplingError::Internal =>{
+                                          //     BadStoreRequest::
+                                          // }
+                                    })
                                 })
                         }));
                     Box::new(response) as ResponseFuture<Envelope, BadStoreRequest>
