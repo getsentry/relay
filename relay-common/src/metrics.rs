@@ -116,13 +116,12 @@ impl MetricsClient {
             metric = metric.with_tag(k, v);
         }
 
-        match metric.try_send() {
-            Ok(_) => (),
-            Err(error) => log::error!(
+        if let Err(error) = metric.try_send() {
+            log::error!(
                 "Error sending a metric: {}, maximum capacity: {}",
                 LogError(&error),
                 METRICS_MAX_QUEUE_SIZE
-            ),
+            );
         };
     }
 
