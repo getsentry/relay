@@ -24,7 +24,7 @@
 //! # use std::collections::BTreeMap;
 //! use relay_common::metrics;
 //!
-//! metrics::configure_statsd("myprefix", "localhost:8125", BTreeMap::new());
+//! metrics::configure_statsd("myprefix", "localhost:8125", BTreeMap::new(), true, 1.0);
 //! ```
 //!
 //! ## Macro Usage
@@ -203,7 +203,7 @@ pub fn configure_statsd<A: ToSocketAddrs>(
         }
     );
 
-    let socket = UdpSocket::bind(&addrs[..]).unwrap();
+    let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
     socket.set_nonblocking(true).unwrap();
 
     let statsd_client = if buffering {
