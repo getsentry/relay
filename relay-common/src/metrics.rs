@@ -132,6 +132,10 @@ impl MetricsClient {
         } else if self.sample_rate >= 1.0 {
             true
         } else {
+            // Using thread local RNG and uniform distribution here because Rng::gen_range is
+            // "optimized for the case that only a single sample is made from the given range".
+            // See https://docs.rs/rand/0.7.3/rand/distributions/uniform/struct.Uniform.html for more
+            // details.
             let mut rng = rand::thread_rng();
             RNG_UNIFORM_DISTRIBUTION
                 .with(|uniform_dist| uniform_dist.sample(&mut rng) <= self.sample_rate)
