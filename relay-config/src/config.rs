@@ -427,7 +427,8 @@ struct Metrics {
     /// If set to true, emitted metrics will be buffered to optimize performance.
     /// Defaults to true.
     buffering: bool,
-    /// Global sample rate for all emitted metrics.
+    /// Global sample rate for all emitted metrics. Should be between 0.0 and 1.0.
+    /// For example, the value of 0.3 means that only 30% of the emitted metrics will be sent.
     sample_rate: f32,
 }
 

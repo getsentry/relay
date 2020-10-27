@@ -133,8 +133,8 @@ impl MetricsClient {
             true
         } else {
             let mut rng = rand::thread_rng();
-            let between = Uniform::new(0.0, 1.0);
-            between.sample(&mut rng) <= self.sample_rate
+            RNG_UNIFORM_DISTRIBUTION
+                .with(|uniform_dist| uniform_dist.sample(&mut rng) <= self.sample_rate)
         }
     }
 }
@@ -145,6 +145,7 @@ lazy_static! {
 
 thread_local! {
     static CURRENT_CLIENT: Option<Arc<MetricsClient>> = METRICS_CLIENT.read().clone();
+    static RNG_UNIFORM_DISTRIBUTION: Uniform<f32> = Uniform::new(0.0, 1.0);
 }
 
 /// Internal prelude for the macro
@@ -217,7 +218,7 @@ pub fn configure_statsd<A: ToSocketAddrs>(
     set_client(MetricsClient {
         statsd_client,
         default_tags,
-        sample_rate,
+        normalized_sample_rate,
     });
 }
 
