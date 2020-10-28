@@ -1300,6 +1300,7 @@ impl Actor for EventManager {
 pub struct QueueEnvelope {
     pub envelope: Envelope,
     pub project: Addr<Project>,
+    pub sampling_project: Option<Addr<Project>>,
     pub start_time: Instant,
 }
 
@@ -1337,6 +1338,7 @@ impl Handler<QueueEnvelope> for EventManager {
             self.current_active_events += 1;
             context.notify(HandleEnvelope {
                 envelope: event_envelope,
+                sampling_project: message.sampling_project.clone(),
                 project: message.project.clone(),
                 start_time: message.start_time,
             });
@@ -1345,6 +1347,7 @@ impl Handler<QueueEnvelope> for EventManager {
         self.current_active_events += 1;
         context.notify(HandleEnvelope {
             envelope: message.envelope,
+            sampling_project: message.sampling_project,
             project: message.project,
             start_time: message.start_time,
         });
@@ -1440,51 +1443,46 @@ impl Handler<SampleTransactions> for EventManager {
         let transaction_item = envelope.get_item_by(|item| item.ty() == ItemType::Transaction);
 
         // if there is no trace context or there are no transactions to sample return here
-        let (trace_context, transaction_item) = match (trace_context, transaction_item) {
-            (None, _) | (_, None) => return Box::new(future::ok(envelope)),
-            (Some(trace_context), Some(trasaction_item)) => (trace_context, transaction_item),
-        };
+        if trace_context.is_none() || transaction_item.is_none() {
+            return Box::new(future::ok(envelope));
+        }
         //we have a trace_context and we have a transaction_item see if we can sample them
         let result = if fast_processing {
             let fut = project
                 .send(GetCachedProjectState)
                 .map_err(DynamicSamplingError::ScheduleFailed)
-                .map(|project_state| {
+                .and_then(|project_state| {
                     sample_transaction(&mut envelope, project_state.as_deref());
-                    envelope
+                    if envelope.is_empty() {
+                        Ok(envelope)
+                    } else {
+                        Err(DynamicSamplingError::EmptyEnvelope(envelope))
+                    }
                 });
             Box::new(fut) as ResponseFuture<_, _>
         } else {
+            //TODO can we deduplicate the code below without using some weird macro?
             let fut = project
                 .send(GetProjectState)
                 .map_err(DynamicSamplingError::ScheduleFailed)
-                .map(|project_state| {
+                .and_then(|project_state| {
                     sample_transaction(&mut envelope, project_state.ok().as_deref());
-                    envelope
+                    if envelope.is_empty() {
+                        Ok(envelope)
+                    } else {
+                        Err(DynamicSamplingError::EmptyEnvelope(envelope))
+                    }
                 });
             Box::new(fut) as ResponseFuture<_, _>
         };
         result
-
-        //TODO RaduW implement
-        // if   we don't have a trace context or
-        //      we don't have a trace item in the envelope or
-        //      we don't have any sampling rule in the dynamic sampling configuration
-        //          return envelope
-        // get project from project cache
-        // and_then get project state from project
-        // and_then
-        //      find rule for context
-        //      sample trace from envelope
-        //      return envelope
-
-        //Box::new(futures::future::ok(envelope))
     }
 }
 
 struct HandleEnvelope {
     pub envelope: Envelope,
     pub project: Addr<Project>,
+    pub sampling_project: Option<Addr<Project>>,
     pub start_time: Instant,
 }
 
@@ -1526,6 +1524,7 @@ impl Handler<HandleEnvelope> for EventManager {
             envelope,
             project,
             start_time,
+            sampling_project,
         } = message;
 
         let event_id = envelope.event_id();
@@ -1537,6 +1536,22 @@ impl Handler<HandleEnvelope> for EventManager {
         let is_event = envelope.items().any(Item::creates_event);
 
         let scoping = Rc::new(RefCell::new(envelope.meta().get_partial_scoping()));
+
+        let sampling_proj_state_fut = if let Some(sampling_project) = sampling_project {
+            let proj_state = project.send(GetProjectState).then(|result| {
+                let project_state = match result {
+                    Err(_) => None,     // that is a MailboxError
+                    Ok(Err(_)) => None, // that is a ProjectError
+                    Ok(Ok(project_state)) => Some(project_state),
+                };
+                future::ok(project_state)
+            });
+            Box::new(proj_state) as Box<dyn Future<Item = _, Error = ()>>
+        } else {
+            Box::new(future::ok(None))
+        };
+
+        //sampling_proj_state_fut.and_then(|sampling_proj_state| future::ok::<(), ()>);
 
         let future = project
             .send(CheckEnvelope::fetched(envelope))
