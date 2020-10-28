@@ -269,22 +269,29 @@ pub struct EventProcessor {
 }
 
 impl EventProcessor {
-    #[cfg(feature = "processing")]
-    pub fn new(
-        config: Arc<Config>,
-        rate_limiter: Option<RedisRateLimiter>,
-        geoip_lookup: Option<Arc<GeoIpLookup>>,
-    ) -> Self {
+    #[inline]
+    pub fn new(config: Arc<Config>) -> Self {
         Self {
             config,
-            rate_limiter,
-            geoip_lookup,
+            #[cfg(feature = "processing")]
+            rate_limiter: None,
+            #[cfg(feature = "processing")]
+            geoip_lookup: None,
         }
     }
 
-    #[cfg(not(feature = "processing"))]
-    pub fn new(config: Arc<Config>) -> Self {
-        Self { config }
+    #[cfg(feature = "processing")]
+    #[inline]
+    pub fn with_rate_limiter(mut self, rate_limiter: Option<RedisRateLimiter>) -> Self {
+        self.rate_limiter = rate_limiter;
+        self
+    }
+
+    #[cfg(feature = "processing")]
+    #[inline]
+    pub fn with_geoip_lookup(mut self, geoip_lookup: Option<Arc<GeoIpLookup>>) -> Self {
+        self.geoip_lookup = geoip_lookup;
+        self
     }
 
     /// Validates all sessions in the envelope, if any.
@@ -1229,11 +1236,9 @@ impl EventManager {
 
             SyncArbiter::start(
                 thread_count,
-                clone!(config, || EventProcessor::new(
-                    config.clone(),
-                    rate_limiter.clone(),
-                    geoip_lookup.clone(),
-                )),
+                clone!(config, || EventProcessor::new(config.clone())
+                    .with_rate_limiter(rate_limiter.clone())
+                    .with_geoip_lookup(geoip_lookup.clone())),
             )
         };
 
