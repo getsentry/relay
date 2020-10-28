@@ -1113,36 +1113,54 @@ impl EventProcessor {
         let mut state = self.prepare_state(message)?;
         self.process_sessions(&mut state)?;
 
-        if state.creates_event() {
-            if_processing!({
-                self.expand_unreal(&mut state)?;
-            });
+        let project_id = state.project_id;
+        let client = state.envelope.meta().user_agent().map(|x| x.to_owned());
+        sentry::with_scope(
+            |scope| {
+                scope.set_tag("project", project_id);
+                if let Some(client) = client {
+                    scope.set_tag("sdk", client);
+                }
+            },
+            || {
+                if state.creates_event() {
+                    if_processing!({
+                        self.expand_unreal(&mut state)?;
+                    });
 
-            self.extract_event(&mut state)?;
+                    match self.extract_event(&mut state) {
+                        Ok(()) => {}
+                        Err(error) => {
+                            log::error!("failed to extract event: {}", LogError(&error));
+                        }
+                    }
 
-            if_processing!({
-                self.process_unreal(&mut state)?;
-                self.create_placeholders(&mut state)?;
-            });
+                    if_processing!({
+                        self.process_unreal(&mut state)?;
+                        self.create_placeholders(&mut state)?;
+                    });
 
-            self.finalize_event(&mut state)?;
+                    self.finalize_event(&mut state)?;
 
-            if_processing!({
-                self.store_process_event(&mut state)?;
-                self.filter_event(&mut state)?;
-            });
-        }
+                    if_processing!({
+                        self.store_process_event(&mut state)?;
+                        self.filter_event(&mut state)?;
+                    });
+                }
 
-        if_processing!({
-            self.enforce_quotas(&mut state)?;
-        });
+                if_processing!({
+                    self.enforce_quotas(&mut state)?;
+                });
 
-        if state.has_event() {
-            self.scrub_event(&mut state)?;
-            self.serialize_event(&mut state)?;
-        }
+                if state.has_event() {
+                    self.scrub_event(&mut state)?;
+                    self.serialize_event(&mut state)?;
+                }
 
-        self.scrub_attachments(&mut state)?;
+                self.scrub_attachments(&mut state)?;
+                Ok(())
+            },
+        )?;
 
         Ok(ProcessEnvelopeResponse::from(state))
     }
