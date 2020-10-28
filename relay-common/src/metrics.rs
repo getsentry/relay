@@ -185,17 +185,12 @@ pub fn configure_statsd<A: ToSocketAddrs>(
         log::info!("reporting metrics to statsd at {}", addrs[0]);
     }
 
-    let normalized_sample_rate = if sample_rate >= 1.0 {
-        1.0
-    } else if sample_rate <= 0.0 {
-        0.0
-    } else {
-        sample_rate
-    };
+    // Normalize sample_rate
+    let sample_rate = sample_rate.max(0.).min(1.);
     log::debug!(
         "metrics sample rate is set to {}{}",
-        normalized_sample_rate,
-        if normalized_sample_rate == 0.0 {
+        sample_rate,
+        if sample_rate == 0.0 {
             ", no metrics will be reported"
         } else {
             ""
@@ -221,7 +216,7 @@ pub fn configure_statsd<A: ToSocketAddrs>(
     set_client(MetricsClient {
         statsd_client,
         default_tags,
-        sample_rate: normalized_sample_rate,
+        sample_rate,
     });
 }
 
