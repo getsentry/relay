@@ -1759,6 +1759,20 @@
 <span id="1756">1756</span>
 <span id="1757">1757</span>
 <span id="1758">1758</span>
+<span id="1759">1759</span>
+<span id="1760">1760</span>
+<span id="1761">1761</span>
+<span id="1762">1762</span>
+<span id="1763">1763</span>
+<span id="1764">1764</span>
+<span id="1765">1765</span>
+<span id="1766">1766</span>
+<span id="1767">1767</span>
+<span id="1768">1768</span>
+<span id="1769">1769</span>
+<span id="1770">1770</span>
+<span id="1771">1771</span>
+<span id="1772">1772</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -2056,11 +2070,9 @@
     <span class="kw">fn</span> <span class="ident">process_sessions</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>;
         <span class="kw">let</span> <span class="ident">received</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">received_at</span>;
-        <span class="kw">let</span> <span class="ident">project_id</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">project_id</span>;
 
         <span class="kw">let</span> <span class="ident">clock_drift_processor</span> <span class="op">=</span>
             <span class="ident">ClockDriftProcessor</span>::<span class="ident">new</span>(<span class="ident">envelope</span>.<span class="ident">sent_at</span>(), <span class="ident">received</span>).<span class="ident">at_least</span>(<span class="ident">MINIMUM_CLOCK_DRIFT</span>);
-        <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client</span>().<span class="ident">map</span>(<span class="ident">str</span>::<span class="ident">to_owned</span>);
 
         <span class="ident">envelope</span>.<span class="ident">retain_items</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> {
             <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">!</span><span class="op">=</span> <span class="ident">ItemType</span>::<span class="ident">Session</span> {
@@ -2074,13 +2086,7 @@
                 <span class="prelude-val">Ok</span>(<span class="ident">session</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">session</span>,
                 <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> {
                     <span class="kw">return</span> <span class="ident">sentry</span>::<span class="ident">with_scope</span>(
-                        <span class="op">|</span><span class="ident">scope</span><span class="op">|</span> {
-                            <span class="ident">scope</span>.<span class="ident">set_tag</span>(<span class="string">&quot;project&quot;</span>, <span class="ident">project_id</span>);
-                            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">client</span>) <span class="op">=</span> <span class="ident">client</span> {
-                                <span class="ident">scope</span>.<span class="ident">set_tag</span>(<span class="string">&quot;sdk&quot;</span>, <span class="ident">client</span>);
-                            }
-                            <span class="ident">scope</span>.<span class="ident">set_extra</span>(<span class="string">&quot;session&quot;</span>, <span class="ident">String</span>::<span class="ident">from_utf8_lossy</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>).<span class="ident">into</span>());
-                        },
+                        <span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">set_extra</span>(<span class="string">&quot;session&quot;</span>, <span class="ident">String</span>::<span class="ident">from_utf8_lossy</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>).<span class="ident">into</span>()),
                         <span class="op">|</span><span class="op">|</span> {
                             <span class="comment">// Skip gracefully here to allow sending other sessions.</span>
                             <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;failed to store session: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
@@ -2860,9 +2866,9 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">process</span>(
+    <span class="kw">fn</span> <span class="ident">process_state</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">message</span>: <span class="ident">ProcessEnvelope</span>,
+        <span class="kw-2">mut</span> <span class="ident">state</span>: <span class="ident">ProcessEnvelopeState</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ProcessEnvelopeResponse</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">if_processing</span> {
             (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">if_true</span>:<span class="ident">block</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">if_not</span>:<span class="ident">block</span>)<span class="question-mark">?</span>) <span class="op">=</span><span class="op">&gt;</span> {
@@ -2872,7 +2878,6 @@
             };
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">prepare_state</span>(<span class="ident">message</span>)<span class="question-mark">?</span>;
         <span class="self">self</span>.<span class="ident">process_sessions</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
 
         <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">creates_event</span>() {
@@ -2880,7 +2885,10 @@
                 <span class="self">self</span>.<span class="ident">expand_unreal</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
             });
 
-            <span class="self">self</span>.<span class="ident">extract_event</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
+            <span class="self">self</span>.<span class="ident">extract_event</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">error</span><span class="op">|</span> {
+                <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;failed to extract event: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
+                <span class="ident">error</span>
+            })<span class="question-mark">?</span>;
 
             <span class="macro">if_processing</span><span class="macro">!</span>({
                 <span class="self">self</span>.<span class="ident">process_unreal</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
@@ -2907,6 +2915,26 @@
         <span class="self">self</span>.<span class="ident">scrub_attachments</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(<span class="ident">ProcessEnvelopeResponse</span>::<span class="ident">from</span>(<span class="ident">state</span>))
+    }
+
+    <span class="kw">fn</span> <span class="ident">process</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">message</span>: <span class="ident">ProcessEnvelope</span>,
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ProcessEnvelopeResponse</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">prepare_state</span>(<span class="ident">message</span>)<span class="question-mark">?</span>;
+
+        <span class="kw">let</span> <span class="ident">project_id</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">project_id</span>;
+        <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client</span>().<span class="ident">map</span>(<span class="ident">str</span>::<span class="ident">to_owned</span>);
+
+        <span class="ident">sentry</span>::<span class="ident">with_scope</span>(
+            <span class="op">|</span><span class="ident">scope</span><span class="op">|</span> {
+                <span class="ident">scope</span>.<span class="ident">set_tag</span>(<span class="string">&quot;project&quot;</span>, <span class="ident">project_id</span>);
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">client</span>) <span class="op">=</span> <span class="ident">client</span> {
+                    <span class="ident">scope</span>.<span class="ident">set_tag</span>(<span class="string">&quot;sdk&quot;</span>, <span class="ident">client</span>);
+                }
+            },
+            <span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">process_state</span>(<span class="ident">state</span>),
+        )
     }
 }
 
