@@ -16,7 +16,7 @@ clean:
 # Builds
 
 build: setup-git
-	@cargo +stable build --all-features
+	cargo +stable build --all-features
 .PHONY: build
 
 release: setup-git
