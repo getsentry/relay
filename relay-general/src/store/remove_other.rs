@@ -1,5 +1,5 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::protocol::Event;
+use crate::protocol::{Breadcrumb, Event};
 use crate::types::{Annotated, ErrorKind, Meta, Object, ProcessingResult, Value};
 
 /// Replace remaining values and all existing meta with an errors.
@@ -28,7 +28,7 @@ impl Processor for RemoveOtherProcessor {
 
     fn process_breadcrumb(
         &mut self,
-        breadcrumb: &mut crate::protocol::Breadcrumb,
+        breadcrumb: &mut Breadcrumb,
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
@@ -192,5 +192,52 @@ fn test_retain_context_other() {
     assert_eq_dbg!(
         &event.value().unwrap().contexts.value().unwrap().0,
         &contexts
+    );
+}
+
+#[test]
+fn test_breadcrumb_errors() {
+    use crate::protocol::Values;
+
+    let mut event = Annotated::new(Event {
+        breadcrumbs: Annotated::new(Values::new(vec![Annotated::new(Breadcrumb {
+            other: {
+                let mut other = Object::new();
+                other.insert("foo".to_string(), Value::U64(42).into());
+                other.insert("bar".to_string(), Value::U64(42).into());
+                other
+            },
+            ..Breadcrumb::default()
+        })])),
+        ..Default::default()
+    });
+
+    process_value(
+        &mut event,
+        &mut RemoveOtherProcessor,
+        ProcessingState::root(),
+    )
+    .unwrap();
+
+    let other = &event
+        .value()
+        .unwrap()
+        .breadcrumbs
+        .value()
+        .unwrap()
+        .values
+        .value()
+        .unwrap()[0]
+        .value()
+        .unwrap()
+        .other;
+
+    assert_eq_dbg!(
+        *other.get("foo").unwrap(),
+        Annotated::from_error(ErrorKind::InvalidAttribute, None)
+    );
+    assert_eq_dbg!(
+        *other.get("bar").unwrap(),
+        Annotated::from_error(ErrorKind::InvalidAttribute, None)
     );
 }
