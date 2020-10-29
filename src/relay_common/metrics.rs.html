@@ -491,6 +491,74 @@
 <span id="488">488</span>
 <span id="489">489</span>
 <span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! A high-level metric client built on cadence.</span>
 <span class="doccomment">//!</span>
@@ -518,7 +586,7 @@
 <span class="doccomment">//! # use std::collections::BTreeMap;</span>
 <span class="doccomment">//! use relay_common::metrics;</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! metrics::configure_statsd(&quot;myprefix&quot;, &quot;localhost:8125&quot;, BTreeMap::new());</span>
+<span class="doccomment">//! metrics::configure_statsd(&quot;myprefix&quot;, &quot;localhost:8125&quot;, BTreeMap::new(), true, 1.0);</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ## Macro Usage</span>
@@ -554,13 +622,21 @@
 <span class="doccomment">//! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md</span>
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">net</span>::<span class="ident">ToSocketAddrs</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">net</span>::{<span class="ident">ToSocketAddrs</span>, <span class="ident">UdpSocket</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::{<span class="ident">Deref</span>, <span class="ident">DerefMut</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
 
-<span class="kw">use</span> <span class="ident">cadence</span>::{<span class="ident">Metric</span>, <span class="ident">MetricBuilder</span>, <span class="ident">StatsdClient</span>};
+<span class="kw">use</span> <span class="ident">cadence</span>::{
+    <span class="ident">BufferedUdpMetricSink</span>, <span class="ident">Metric</span>, <span class="ident">MetricBuilder</span>, <span class="ident">QueuingMetricSink</span>, <span class="ident">StatsdClient</span>, <span class="ident">UdpMetricSink</span>,
+};
 <span class="kw">use</span> <span class="ident">lazy_static</span>::<span class="ident">lazy_static</span>;
 <span class="kw">use</span> <span class="ident">parking_lot</span>::<span class="ident">RwLock</span>;
+<span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">distributions</span>::{<span class="ident">Distribution</span>, <span class="ident">Uniform</span>};
+
+<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">LogError</span>;
+
+<span class="doccomment">/// Maximum number of metric events that can be queued before we start dropping them</span>
+<span class="kw">const</span> <span class="ident">METRICS_MAX_QUEUE_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">100_000</span>;
 
 <span class="doccomment">/// Client configuration object to store globally.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
@@ -569,6 +645,8 @@
     <span class="kw">pub</span> <span class="ident">statsd_client</span>: <span class="ident">StatsdClient</span>,
     <span class="doccomment">/// Default tags to apply to every metric</span>
     <span class="kw">pub</span> <span class="ident">default_tags</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Global sample rate</span>
+    <span class="kw">pub</span> <span class="ident">sample_rate</span>: <span class="ident">f32</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">MetricsClient</span> {
@@ -592,11 +670,37 @@
     <span class="kw">where</span>
         <span class="ident">T</span>: <span class="ident">Metric</span> <span class="op">+</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     {
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">_should_send</span>() {
+            <span class="kw">return</span>;
+        }
+
         <span class="kw">for</span> (<span class="ident">k</span>, <span class="ident">v</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">default_tags</span> {
             <span class="ident">metric</span> <span class="op">=</span> <span class="ident">metric</span>.<span class="ident">with_tag</span>(<span class="ident">k</span>, <span class="ident">v</span>);
         }
 
-        <span class="ident">metric</span>.<span class="ident">send</span>();
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span> <span class="ident">metric</span>.<span class="ident">try_send</span>() {
+            <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(
+                <span class="string">&quot;Error sending a metric: {}, maximum capacity: {}&quot;</span>,
+                <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>),
+                <span class="ident">METRICS_MAX_QUEUE_SIZE</span>
+            );
+        };
+    }
+
+    <span class="kw">fn</span> <span class="ident">_should_send</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">sample_rate</span> <span class="op">&lt;</span><span class="op">=</span> <span class="number">0.0</span> {
+            <span class="bool-val">false</span>
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">sample_rate</span> <span class="op">&gt;</span><span class="op">=</span> <span class="number">1.0</span> {
+            <span class="bool-val">true</span>
+        } <span class="kw">else</span> {
+            <span class="comment">// Using thread local RNG and uniform distribution here because Rng::gen_range is</span>
+            <span class="comment">// &quot;optimized for the case that only a single sample is made from the given range&quot;.</span>
+            <span class="comment">// See https://docs.rs/rand/0.7.3/rand/distributions/uniform/struct.Uniform.html for more</span>
+            <span class="comment">// details.</span>
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> <span class="ident">rand</span>::<span class="ident">thread_rng</span>();
+            <span class="ident">RNG_UNIFORM_DISTRIBUTION</span>
+                .<span class="ident">with</span>(<span class="op">|</span><span class="ident">uniform_dist</span><span class="op">|</span> <span class="ident">uniform_dist</span>.<span class="ident">sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>) <span class="op">&lt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">sample_rate</span>)
+        }
     }
 }
 
@@ -606,6 +710,7 @@
 
 <span class="macro">thread_local</span><span class="macro">!</span> {
     <span class="kw">static</span> <span class="ident">CURRENT_CLIENT</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">MetricsClient</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">METRICS_CLIENT</span>.<span class="ident">read</span>().<span class="ident">clone</span>();
+    <span class="kw">static</span> <span class="ident">RNG_UNIFORM_DISTRIBUTION</span>: <span class="ident">Uniform</span><span class="op">&lt;</span><span class="ident">f32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Uniform</span>::<span class="ident">new</span>(<span class="number">0.0</span>, <span class="number">1.0</span>);
 }
 
 <span class="doccomment">/// Internal prelude for the macro</span>
@@ -634,15 +739,46 @@
     <span class="ident">prefix</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
     <span class="ident">host</span>: <span class="ident">A</span>,
     <span class="ident">default_tags</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="ident">buffering</span>: <span class="ident">bool</span>,
+    <span class="ident">sample_rate</span>: <span class="ident">f32</span>,
 ) {
     <span class="kw">let</span> <span class="ident">addrs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">host</span>.<span class="ident">to_socket_addrs</span>().<span class="ident">unwrap</span>().<span class="ident">collect</span>();
     <span class="kw">if</span> <span class="op">!</span><span class="ident">addrs</span>.<span class="ident">is_empty</span>() {
         <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;reporting metrics to statsd at {}&quot;</span>, <span class="ident">addrs</span>[<span class="number">0</span>]);
     }
-    <span class="kw">let</span> <span class="ident">statsd_client</span> <span class="op">=</span> <span class="ident">StatsdClient</span>::<span class="ident">from_udp_host</span>(<span class="ident">prefix</span>, <span class="kw-2">&amp;</span><span class="ident">addrs</span>[..]).<span class="ident">unwrap</span>();
+
+    <span class="comment">// Normalize sample_rate</span>
+    <span class="kw">let</span> <span class="ident">sample_rate</span> <span class="op">=</span> <span class="ident">sample_rate</span>.<span class="ident">max</span>(<span class="number">0.</span>).<span class="ident">min</span>(<span class="number">1.</span>);
+    <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(
+        <span class="string">&quot;metrics sample rate is set to {}{}&quot;</span>,
+        <span class="ident">sample_rate</span>,
+        <span class="kw">if</span> <span class="ident">sample_rate</span> <span class="op">=</span><span class="op">=</span> <span class="number">0.0</span> {
+            <span class="string">&quot;, no metrics will be reported&quot;</span>
+        } <span class="kw">else</span> {
+            <span class="string">&quot;&quot;</span>
+        }
+    );
+
+    <span class="kw">let</span> <span class="ident">socket</span> <span class="op">=</span> <span class="ident">UdpSocket</span>::<span class="ident">bind</span>(<span class="string">&quot;0.0.0.0:0&quot;</span>).<span class="ident">unwrap</span>();
+    <span class="ident">socket</span>.<span class="ident">set_nonblocking</span>(<span class="bool-val">true</span>).<span class="ident">unwrap</span>();
+
+    <span class="kw">let</span> <span class="ident">statsd_client</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">buffering</span> {
+        <span class="kw">let</span> <span class="ident">udp_sink</span> <span class="op">=</span> <span class="ident">BufferedUdpMetricSink</span>::<span class="ident">from</span>(<span class="ident">host</span>, <span class="ident">socket</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">queuing_sink</span> <span class="op">=</span> <span class="ident">QueuingMetricSink</span>::<span class="ident">with_capacity</span>(<span class="ident">udp_sink</span>, <span class="ident">METRICS_MAX_QUEUE_SIZE</span>);
+        <span class="ident">StatsdClient</span>::<span class="ident">from_sink</span>(<span class="ident">prefix</span>, <span class="ident">queuing_sink</span>)
+    } <span class="kw">else</span> {
+        <span class="kw">let</span> <span class="ident">simple_sink</span> <span class="op">=</span> <span class="ident">UdpMetricSink</span>::<span class="ident">from</span>(<span class="ident">host</span>, <span class="ident">socket</span>).<span class="ident">unwrap</span>();
+        <span class="ident">StatsdClient</span>::<span class="ident">from_sink</span>(<span class="ident">prefix</span>, <span class="ident">simple_sink</span>)
+    };
+    <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(
+        <span class="string">&quot;metrics buffering is {}&quot;</span>,
+        <span class="kw">if</span> <span class="ident">buffering</span> { <span class="string">&quot;enabled&quot;</span> } <span class="kw">else</span> { <span class="string">&quot;disabled&quot;</span> }
+    );
+
     <span class="ident">set_client</span>(<span class="ident">MetricsClient</span> {
         <span class="ident">statsd_client</span>,
         <span class="ident">default_tags</span>,
+        <span class="ident">sample_rate</span>,
     });
 }
 
