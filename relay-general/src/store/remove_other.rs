@@ -2,6 +2,13 @@ use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::Event;
 use crate::types::{Annotated, ErrorKind, Meta, Object, ProcessingResult, Value};
 
+/// Replace remaining values and all existing meta with an errors.
+fn create_errors(other: &mut Object<Value>) {
+    for value in other.values_mut() {
+        *value = Annotated::from_error(ErrorKind::InvalidAttribute, None);
+    }
+}
+
 pub struct RemoveOtherProcessor;
 
 impl Processor for RemoveOtherProcessor {
@@ -16,6 +23,22 @@ impl Processor for RemoveOtherProcessor {
             other.clear();
         }
 
+        Ok(())
+    }
+
+    fn process_breadcrumb(
+        &mut self,
+        breadcrumb: &mut crate::protocol::Breadcrumb,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        // Move the current map out so we don't clear it in `process_other`
+        let mut other = std::mem::take(&mut breadcrumb.other);
+        create_errors(&mut other);
+
+        // Recursively clean all `other`s now. Note that this won't touch the event's other
+        breadcrumb.process_child_values(self, state)?;
+        breadcrumb.other = other;
         Ok(())
     }
 
@@ -39,9 +62,7 @@ impl Processor for RemoveOtherProcessor {
         other.remove("query");
 
         // Replace remaining values and all existing meta with an errors
-        for value in other.values_mut() {
-            *value = Annotated::from_error(ErrorKind::InvalidAttribute, None);
-        }
+        create_errors(&mut other);
 
         // Recursively clean all `other`s now. Note that this won't touch the event's other
         event.process_child_values(self, state)?;
