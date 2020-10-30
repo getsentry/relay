@@ -1,11 +1,16 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Internal refactoring such that validating of characters in tags no longer uses regexes internally. ([#814](https://github.com/getsentry/relay/pull/814))
+
 ## 20.10.1
 
 **Internal**:
 
 - Emit more useful normalization meta data for invalid tags. ([#808](https://github.com/getsentry/relay/pull/808))
-- Internal refactoring such that validating of characters in tags no longer uses regexes internally. ([#814](https://github.com/getsentry/relay/pull/814))
 
 ## 20.10.0
 
