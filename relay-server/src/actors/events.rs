@@ -301,6 +301,7 @@ impl EventProcessor {
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let envelope = &mut state.envelope;
         let received = state.received_at;
+        let client_addr = envelope.meta().client_addr();
 
         let clock_drift_processor =
             ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
@@ -357,6 +358,13 @@ impl EventProcessor {
                     max_future.num_seconds()
                 );
                 return false;
+            }
+
+            if let Some(ref ip_address) = session.attributes.ip_address {
+                if ip_address.is_auto() {
+                    session.attributes.ip_address = client_addr.map(IpAddr::from);
+                    changed = true;
+                }
             }
 
             if changed {

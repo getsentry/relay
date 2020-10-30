@@ -316,3 +316,27 @@ def test_session_disabled(mini_sentry, relay_with_processing, sessions_consumer)
     )
 
     assert sessions_consumer.poll() is None
+
+
+def test_session_auto_ip(mini_sentry, relay_with_processing, sessions_consumer):
+    relay = relay_with_processing()
+    sessions_consumer = sessions_consumer()
+
+    project_config = mini_sentry.full_project_config()
+    project_config["config"]["eventRetention"] = 17
+    mini_sentry.project_configs[42] = project_config
+
+    timestamp = datetime.now(tz=timezone.utc)
+    relay.send_session(
+        42,
+        {
+            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+            "timestamp": timestamp.isoformat(),
+            "started": timestamp.isoformat(),
+            "attrs": {"release": "sentry-test@1.0.0", "ip_address": "{{auto}}"},
+        },
+    )
+
+    # Can't test ip_address since it's not posted to Kafka. Just test that it is accepted.
+    session = sessions_consumer.get_session()
+    assert session
