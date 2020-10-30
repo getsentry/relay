@@ -316,13 +316,14 @@ impl EventProcessor {
             let mut session = match SessionUpdate::parse(&payload) {
                 Ok(session) => session,
                 Err(error) => {
-                    sentry::configure_scope(|scope| {
-                        scope.set_extra("session", String::from_utf8_lossy(&payload).into());
-                    });
-
-                    // Skip gracefully here to allow sending other sessions.
-                    log::error!("failed to store session: {}", LogError(&error));
-                    return false;
+                    return sentry::with_scope(
+                        |s| s.set_extra("session", String::from_utf8_lossy(&payload).into()),
+                        || {
+                            // Skip gracefully here to allow sending other sessions.
+                            log::error!("failed to store session: {}", LogError(&error));
+                            false
+                        },
+                    );
                 }
             };
 
@@ -1113,9 +1114,9 @@ impl EventProcessor {
         Ok(())
     }
 
-    fn process(
+    fn process_state(
         &self,
-        message: ProcessEnvelope,
+        mut state: ProcessEnvelopeState,
     ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
         macro_rules! if_processing {
             ($if_true:block $(, $if_not:block)?) => {
@@ -1125,14 +1126,6 @@ impl EventProcessor {
             };
         }
 
-        let mut state = self.prepare_state(message)?;
-        sentry::configure_scope(|scope| {
-            scope.set_tag("project", state.project_id);
-            if let Some(ref client) = state.envelope.meta().client().map(str::to_owned) {
-                scope.set_tag("sdk", client);
-            }
-        });
-
         self.process_sessions(&mut state);
         self.process_user_reports(&mut state);
 
@@ -1141,7 +1134,10 @@ impl EventProcessor {
                 self.expand_unreal(&mut state)?;
             });
 
-            self.extract_event(&mut state)?;
+            self.extract_event(&mut state).map_err(|error| {
+                log::error!("failed to extract event: {}", LogError(&error));
+                error
+            })?;
 
             if_processing!({
                 self.process_unreal(&mut state)?;
@@ -1168,6 +1164,26 @@ impl EventProcessor {
         self.scrub_attachments(&mut state)?;
 
         Ok(ProcessEnvelopeResponse::from(state))
+    }
+
+    fn process(
+        &self,
+        message: ProcessEnvelope,
+    ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
+        let state = self.prepare_state(message)?;
+
+        let project_id = state.project_id;
+        let client = state.envelope.meta().client().map(str::to_owned);
+
+        sentry::with_scope(
+            |scope| {
+                scope.set_tag("project", project_id);
+                if let Some(client) = client {
+                    scope.set_tag("sdk", client);
+                }
+            },
+            || self.process_state(state),
+        )
     }
 }
 
@@ -1205,14 +1221,9 @@ impl Handler<ProcessEnvelope> for EventProcessor {
 
     fn handle(&mut self, message: ProcessEnvelope, _context: &mut Self::Context) -> Self::Result {
         metric!(timer(RelayTimers::EnvelopeWaitTime) = message.start_time.elapsed());
-        sentry::with_scope(
-            |_| (),
-            || {
-                metric!(timer(RelayTimers::EnvelopeProcessingTime), {
-                    self.process(message)
-                })
-            },
-        )
+        metric!(timer(RelayTimers::EnvelopeProcessingTime), {
+            self.process(message)
+        })
     }
 }
 

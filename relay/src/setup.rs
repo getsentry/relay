@@ -214,7 +214,13 @@ pub fn init_metrics(config: &Config) -> Result<(), Error> {
             default_tags.insert(hostname_tag.to_owned(), hostname);
         }
     }
-    metrics::configure_statsd(config.metrics_prefix(), &addrs[..], default_tags);
+    metrics::configure_statsd(
+        config.metrics_prefix(),
+        &addrs[..],
+        default_tags,
+        config.metrics_buffering(),
+        config.metrics_sample_rate(),
+    );
 
     Ok(())
 }

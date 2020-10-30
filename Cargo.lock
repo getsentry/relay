@@ -9,7 +9,7 @@ dependencies = [
  "actix_derive",
  "bitflags",
  "bytes 0.4.12",
- "crossbeam-channel",
+ "crossbeam-channel 0.3.9",
  "failure",
  "fnv",
  "futures 0.1.29",
@@ -390,11 +390,11 @@ dependencies = [
 
 [[package]]
 name = "cadence"
-version = "0.17.1"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "773c648ebe292d8fcdac6a0d332edd2a54bb3110890751c7a05e6b76659c7df0"
+checksum = "6281d1200ac3293fd08be899c9a0c17b83cda0672221fcbe1fefc886a555e35e"
 dependencies = [
- "crossbeam-channel",
+ "crossbeam-channel 0.4.4",
 ]
 
 [[package]]
@@ -628,6 +628,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8ec7fcd21571dc78f96cc96243cab8d8f035247c3efd16c687be154c3fa9efa"
 dependencies = [
  "crossbeam-utils 0.6.6",
+]
+
+[[package]]
+name = "crossbeam-channel"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b153fe7cbef478c567df0f972e02e6d736db11affe43dfc9c56a9374d1adfb87"
+dependencies = [
+ "crossbeam-utils 0.7.2",
+ "maybe-uninit",
 ]
 
 [[package]]
@@ -2891,6 +2901,7 @@ dependencies = [
  "log",
  "lru",
  "parking_lot 0.10.2",
+ "rand 0.7.3",
  "regex",
  "schemars",
  "sentry-types",
