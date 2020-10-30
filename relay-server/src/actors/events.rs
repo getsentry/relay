@@ -1361,24 +1361,10 @@ impl Handler<QueueEnvelope> for EventManager {
     }
 }
 
-/// Used to sample traces from envelope
-/// If trace sampling is enabled and if the envelope has traces in it
-/// sample the traces from the envelope and return what is left (either the unchanged enevlope
-/// or the envelope without traces)
-pub struct SampleTransactions {
-    pub envelope: Envelope,
-    pub project: Addr<Project>,
-    pub fast_processing: bool,
-}
-
-impl Message for SampleTransactions {
-    type Result = Result<Envelope, DynamicSamplingError>;
-}
-
 /// Takes an envelope and potentially removes the transaction item from it if that
 /// transaction item should be sampled out according to the dynamic sampling configuration
 /// and the trace context.
-fn sample_transaction<'a>(
+fn sample_transaction_internal<'a>(
     envelope: &'a mut Envelope,
     project_state: Option<&ProjectState>,
 ) -> &'a mut Envelope {
@@ -1423,60 +1409,55 @@ fn sample_transaction<'a>(
     envelope
 }
 
-impl Handler<SampleTransactions> for EventManager {
-    type Result = ResponseFuture<Envelope, DynamicSamplingError>;
+/// Check if we should remove transactions from this envelope (because of trace sampling) and
+/// return what is left of the envelope
+pub fn sample_transaction(
+    mut envelope: Envelope,
+    project: Option<Addr<Project>>,
+    fast_processing: bool,
+) -> ResponseFuture<Envelope, DynamicSamplingError> {
+    let project = match project {
+        None => return Box::new(future::ok(envelope)),
+        Some(project) => project,
+    };
 
-    /// Check if we should remove transactions from this envelope (because of trace sampling) and
-    /// return what is left of the envelope
-    fn handle(
-        &mut self,
-        message: SampleTransactions,
-        _context: &mut Self::Context,
-    ) -> Self::Result {
-        let SampleTransactions {
-            mut envelope,
-            project,
-            fast_processing,
-        } = message;
+    let trace_context = envelope.get_trace_context();
+    let transaction_item = envelope.get_item_by(|item| item.ty() == ItemType::Transaction);
 
-        let trace_context = envelope.get_trace_context();
-        let transaction_item = envelope.get_item_by(|item| item.ty() == ItemType::Transaction);
-
-        // if there is no trace context or there are no transactions to sample return here
-        if trace_context.is_none() || transaction_item.is_none() {
-            return Box::new(future::ok(envelope));
-        }
-        //we have a trace_context and we have a transaction_item see if we can sample them
-        let result = if fast_processing {
-            let fut = project
-                .send(GetCachedProjectState)
-                .map_err(DynamicSamplingError::ScheduleFailed)
-                .and_then(|project_state| {
-                    sample_transaction(&mut envelope, project_state.as_deref());
-                    if envelope.is_empty() {
-                        Ok(envelope)
-                    } else {
-                        Err(DynamicSamplingError::EmptyEnvelope(envelope))
-                    }
-                });
-            Box::new(fut) as ResponseFuture<_, _>
-        } else {
-            //TODO can we deduplicate the code below without using some weird macro?
-            let fut = project
-                .send(GetProjectState)
-                .map_err(DynamicSamplingError::ScheduleFailed)
-                .and_then(|project_state| {
-                    sample_transaction(&mut envelope, project_state.ok().as_deref());
-                    if envelope.is_empty() {
-                        Ok(envelope)
-                    } else {
-                        Err(DynamicSamplingError::EmptyEnvelope(envelope))
-                    }
-                });
-            Box::new(fut) as ResponseFuture<_, _>
-        };
-        result
+    // if there is no trace context or there are no transactions to sample return here
+    if trace_context.is_none() || transaction_item.is_none() {
+        return Box::new(future::ok(envelope));
     }
+    //we have a trace_context and we have a transaction_item see if we can sample them
+    let result = if fast_processing {
+        let fut = project
+            .send(GetCachedProjectState)
+            .map_err(DynamicSamplingError::ScheduleFailed)
+            .and_then(|project_state| {
+                sample_transaction_internal(&mut envelope, project_state.as_deref());
+                if envelope.is_empty() {
+                    Ok(envelope)
+                } else {
+                    Err(DynamicSamplingError::EmptyEnvelope(envelope))
+                }
+            });
+        Box::new(fut) as ResponseFuture<_, _>
+    } else {
+        //TODO can we deduplicate the code below without using some weird macro?
+        let fut = project
+            .send(GetProjectState)
+            .map_err(DynamicSamplingError::ScheduleFailed)
+            .and_then(|project_state| {
+                sample_transaction_internal(&mut envelope, project_state.ok().as_deref());
+                if envelope.is_empty() {
+                    Ok(envelope)
+                } else {
+                    Err(DynamicSamplingError::EmptyEnvelope(envelope))
+                }
+            });
+        Box::new(fut) as ResponseFuture<_, _>
+    };
+    result
 }
 
 struct HandleEnvelope {
@@ -1493,7 +1474,7 @@ impl Message for HandleEnvelope {
 impl Handler<HandleEnvelope> for EventManager {
     type Result = ResponseActFuture<Self, (), ()>;
 
-    fn handle(&mut self, message: HandleEnvelope, _context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: HandleEnvelope, _ctx: &mut Self::Context) -> Self::Result {
         // We measure three timers while handling events, once they have been initially accepted:
         //
         // 1. `event.wait_time`: The time we take to get all dependencies for events before
@@ -1537,211 +1518,243 @@ impl Handler<HandleEnvelope> for EventManager {
 
         let scoping = Rc::new(RefCell::new(envelope.meta().get_partial_scoping()));
 
-        let sampling_proj_state_fut = if let Some(sampling_project) = sampling_project {
-            let proj_state = project.send(GetProjectState).then(|result| {
-                let project_state = match result {
-                    Err(_) => None,     // that is a MailboxError
-                    Ok(Err(_)) => None, // that is a ProjectError
-                    Ok(Ok(project_state)) => Some(project_state),
-                };
-                future::ok(project_state)
-            });
-            Box::new(proj_state) as Box<dyn Future<Item = _, Error = ()>>
-        } else {
-            Box::new(future::ok(None))
-        };
+        // get the state of the project that created the trace context
+        // let sampling_proj_state_fut: Box<dyn Future<Item = Option<Arc<ProjectState>>, Error = ()>> =
+        //     if let Some(sampling_project) = sampling_project {
+        //         let proj_state = project.send(GetProjectState).then(|result| {
+        //             let project_state = match result {
+        //                 Err(_) => None,     // that is a MailboxError
+        //                 Ok(Err(_)) => None, // that is a ProjectError
+        //                 Ok(Ok(project_state)) => Some(project_state),
+        //             };
+        //             future::ok(project_state)
+        //         });
+        //         Box::new(proj_state)
+        //     } else {
+        //         Box::new(future::ok(None))
+        //     };
 
-        //sampling_proj_state_fut.and_then(|sampling_proj_state| future::ok::<(), ()>);
+        // //sample the traces from the envelope
+        // sampling_proj_state_fut.and_then(|samping_proj| {
+        //     let project = match samping_proj {
+        //         // can't sample the envelope
+        //         None => return Result::Ok(envelope.clone()), //future::ok(envelope.clone()),
+        //         Some(proj) => proj,
+        //     };
+        //
+        //     context.notify(SampleTransactions {
+        //         envelope,
+        //         project:sampling_project,
+        //         fast_processing: false,
+        //     });
+        //     //future::ok(envelope.clone())
+        //     Result::Ok(envelope.clone())
+        // });
 
-        let future = project
-            .send(CheckEnvelope::fetched(envelope))
-            .map_err(ProcessingError::ScheduleFailed)
-            .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
-            .and_then(clone!(scoping, |response| {
-                // Use the project id from the loaded project state to account for redirects.
-                let project_id = response.scoping.project_id.value();
-                metric!(set(RelaySets::UniqueProjects) = project_id as i64);
+        //let env_fut = sample_transaction(envelope.clone(), sampling_project, false);
 
-                scoping.replace(response.scoping);
+        // let future = sampling_proj_state_fut
+        //     .then(clone!(project, |sampling_porject_state| project
+        //         .send(CheckEnvelope::fetched(envelope))))
 
-                let checked = response.result.map_err(ProcessingError::EventRejected)?;
-                match checked.envelope {
-                    Some(envelope) => Ok(envelope),
-                    None => Err(ProcessingError::RateLimited(checked.rate_limits)),
-                }
-            }))
-            .and_then(clone!(project, |envelope| {
-                // get the state for the current project
+        //envelope_fut.and_then(|x| x);
+
+        // let x = sample_transaction(envelope.clone(), sampling_project, false)
+        //     .then(|envelope| project.send(CheckEnvelope::fetched(envelope)).map_err(Dy));
+
+        let future =
+            //sample_transaction(envelope.clone(), sampling_project, false).and_then(|envelope| {
                 project
-                    .send(GetProjectState)
+                    .send(CheckEnvelope::fetched(envelope))
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
-                    .map(|state| (envelope, state))
-            }))
-            .and_then(move |(envelope, project_state)| {
-                processor
-                    .send(ProcessEnvelope {
-                        envelope,
-                        project_state,
-                        start_time,
-                    })
-                    .map_err(ProcessingError::ScheduleFailed)
-                    .flatten()
-            })
-            .and_then(clone!(project, |processed| {
-                let rate_limits = processed.rate_limits;
+                    .and_then(clone!(scoping, |response| {
+                        // Use the project id from the loaded project state to account for redirects.
+                        let project_id = response.scoping.project_id.value();
+                        metric!(set(RelaySets::UniqueProjects) = project_id as i64);
 
-                // Processing returned new rate limits. Cache them on the project to avoid expensive
-                // processing while the limit is active.
-                if rate_limits.is_limited() {
-                    project.do_send(UpdateRateLimits(rate_limits.clone()));
-                }
+                        scoping.replace(response.scoping);
 
-                match processed.envelope {
-                    Some(envelope) => Ok(envelope),
-                    None => Err(ProcessingError::RateLimited(rate_limits)),
-                }
-            }))
-            .and_then(clone!(captured_events, scoping, |mut envelope| {
-                #[cfg(feature = "processing")]
-                {
-                    if let Some(store_forwarder) = store_forwarder {
-                        log::trace!("sending envelope to kafka");
-                        let future = store_forwarder
-                            .send(StoreEnvelope {
+                        let checked = response.result.map_err(ProcessingError::EventRejected)?;
+                        match checked.envelope {
+                            Some(envelope) => Ok(envelope),
+                            None => Err(ProcessingError::RateLimited(checked.rate_limits)),
+                        }
+                    }))
+                    .and_then(clone!(project, |envelope| {
+                        // get the state for the current project
+                        project
+                            .send(GetProjectState)
+                            .map_err(ProcessingError::ScheduleFailed)
+                            .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
+                            .map(|state| (envelope, state))
+                    }))
+                    .and_then(move |(envelope, project_state)| {
+                        processor
+                            .send(ProcessEnvelope {
                                 envelope,
+                                project_state,
                                 start_time,
-                                scoping: *scoping.borrow(),
                             })
                             .map_err(ProcessingError::ScheduleFailed)
-                            .and_then(move |result| result.map_err(ProcessingError::StoreFailed));
-
-                        return Box::new(future) as ResponseFuture<_, _>;
-                    }
-                }
-
-                // if we are in capture mode, we stash away the event instead of
-                // forwarding it.
-                if capture {
-                    // XXX: this is wrong because captured_events does not take envelopes without
-                    // event_id into account.
-                    if let Some(event_id) = event_id {
-                        log::debug!("capturing envelope");
-                        captured_events
-                            .write()
-                            .insert(event_id, CapturedEvent::Ok(envelope));
-                    } else {
-                        log::debug!("dropping non event envelope");
-                    }
-                    return Box::new(Ok(()).into_future()) as ResponseFuture<_, _>;
-                }
-
-                log::trace!("sending event to sentry endpoint");
-                let project_id = scoping.borrow().project_id;
-                let request = SendRequest::post(format!("/api/{}/envelope/", project_id)).build(
-                    move |builder| {
-                        // Override the `sent_at` timestamp. Since the event went through basic
-                        // normalization, all timestamps have been corrected. We propagate the new
-                        // `sent_at` to allow the next Relay to double-check this timestamp and
-                        // potentially apply correction again. This is done as close to sending as
-                        // possible so that we avoid internal delays.
-                        envelope.set_sent_at(Utc::now());
-
-                        let meta = envelope.meta();
-
-                        if let Some(origin) = meta.origin() {
-                            builder.header("Origin", origin.to_string());
-                        }
-
-                        if let Some(user_agent) = meta.user_agent() {
-                            builder.header("User-Agent", user_agent);
-                        }
-
-                        let content_encoding = match http_encoding {
-                            HttpEncoding::Identity => ContentEncoding::Identity,
-                            HttpEncoding::Deflate => ContentEncoding::Deflate,
-                            HttpEncoding::Gzip => ContentEncoding::Gzip,
-                            HttpEncoding::Br => ContentEncoding::Br,
-                        };
-
-                        builder
-                            .content_encoding(content_encoding)
-                            .header("X-Sentry-Auth", meta.auth_header())
-                            .header("X-Forwarded-For", meta.forwarded_for())
-                            .header("Content-Type", envelope::CONTENT_TYPE)
-                            .body(envelope.to_vec().map_err(failure::Error::from)?)
-                    },
-                );
-
-                let future = upstream
-                    .send(request)
-                    .map_err(ProcessingError::ScheduleFailed)
-                    .and_then(move |result| {
-                        result.map_err(move |error| match error {
-                            UpstreamRequestError::RateLimited(upstream_limits) => {
-                                let limits = upstream_limits.scope(&scoping.borrow());
-                                project.do_send(UpdateRateLimits(limits.clone()));
-                                ProcessingError::RateLimited(limits)
-                            }
-                            other => ProcessingError::SendFailed(other),
-                        })
-                    });
-
-                Box::new(future) as ResponseFuture<_, _>
-            }))
-            .into_actor(self)
-            .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
-            .map(|_, _, _| metric!(counter(RelayCounters::EnvelopeAccepted) += 1))
-            .map_err(move |error, slf, _| {
-                metric!(counter(RelayCounters::EnvelopeRejected) += 1);
-
-                // if we are in capture mode, we stash away the event instead of
-                // forwarding it.
-                if capture {
-                    // XXX: does not work with envelopes without event_id
-                    if let Some(event_id) = event_id {
-                        log::debug!("capturing failed event {}", event_id);
-                        let msg = LogError(&error).to_string();
-                        slf.captured_events
-                            .write()
-                            .insert(event_id, CapturedEvent::Err(msg));
-                    } else {
-                        log::debug!("dropping failed envelope without event");
-                    }
-                }
-
-                // Do not track outcomes or capture events for non-event envelopes (such as
-                // individual attachments)
-                if !is_event {
-                    return;
-                }
-
-                let outcome = error.to_outcome();
-                if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome {
-                    // Errors are only logged for what we consider an internal discard reason. These
-                    // indicate errors in the infrastructure or implementation bugs. In other cases,
-                    // we "expect" errors and log them as debug level.
-                    log::error!("error processing event: {}", LogError(&error));
-                } else {
-                    log::debug!("dropped event: {}", LogError(&error));
-                }
-
-                if let Some(outcome) = outcome {
-                    outcome_producer.do_send(TrackOutcome {
-                        timestamp: Instant::now(),
-                        scoping: *scoping.borrow(),
-                        outcome,
-                        event_id,
-                        remote_addr,
+                            .flatten()
                     })
-                }
-            })
-            .then(move |x, slf, _| {
-                metric!(timer(RelayTimers::EnvelopeTotalTime) = start_time.elapsed());
-                slf.current_active_events -= 1;
-                fut::result(x)
-            })
-            .drop_guard("process_event");
+                    .and_then(clone!(project, |processed| {
+                        let rate_limits = processed.rate_limits;
+
+                        // Processing returned new rate limits. Cache them on the project to avoid expensive
+                        // processing while the limit is active.
+                        if rate_limits.is_limited() {
+                            project.do_send(UpdateRateLimits(rate_limits.clone()));
+                        }
+
+                        match processed.envelope {
+                            Some(envelope) => Ok(envelope),
+                            None => Err(ProcessingError::RateLimited(rate_limits)),
+                        }
+                    }))
+                    .and_then(clone!(captured_events, scoping, |mut envelope| {
+                        #[cfg(feature = "processing")]
+                        {
+                            if let Some(store_forwarder) = store_forwarder {
+                                log::trace!("sending envelope to kafka");
+                                let future = store_forwarder
+                                    .send(StoreEnvelope {
+                                        envelope,
+                                        start_time,
+                                        scoping: *scoping.borrow(),
+                                    })
+                                    .map_err(ProcessingError::ScheduleFailed)
+                                    .and_then(move |result| {
+                                        result.map_err(ProcessingError::StoreFailed)
+                                    });
+
+                                return Box::new(future) as ResponseFuture<_, _>;
+                            }
+                        }
+
+                        // if we are in capture mode, we stash away the event instead of
+                        // forwarding it.
+                        if capture {
+                            // XXX: this is wrong because captured_events does not take envelopes without
+                            // event_id into account.
+                            if let Some(event_id) = event_id {
+                                log::debug!("capturing envelope");
+                                captured_events
+                                    .write()
+                                    .insert(event_id, CapturedEvent::Ok(envelope));
+                            } else {
+                                log::debug!("dropping non event envelope");
+                            }
+                            return Box::new(Ok(()).into_future()) as ResponseFuture<_, _>;
+                        }
+
+                        log::trace!("sending event to sentry endpoint");
+                        let project_id = scoping.borrow().project_id;
+                        let request = SendRequest::post(format!("/api/{}/envelope/", project_id))
+                            .build(move |builder| {
+                                // Override the `sent_at` timestamp. Since the event went through basic
+                                // normalization, all timestamps have been corrected. We propagate the new
+                                // `sent_at` to allow the next Relay to double-check this timestamp and
+                                // potentially apply correction again. This is done as close to sending as
+                                // possible so that we avoid internal delays.
+                                envelope.set_sent_at(Utc::now());
+
+                                let meta = envelope.meta();
+
+                                if let Some(origin) = meta.origin() {
+                                    builder.header("Origin", origin.to_string());
+                                }
+
+                                if let Some(user_agent) = meta.user_agent() {
+                                    builder.header("User-Agent", user_agent);
+                                }
+
+                                let content_encoding = match http_encoding {
+                                    HttpEncoding::Identity => ContentEncoding::Identity,
+                                    HttpEncoding::Deflate => ContentEncoding::Deflate,
+                                    HttpEncoding::Gzip => ContentEncoding::Gzip,
+                                    HttpEncoding::Br => ContentEncoding::Br,
+                                };
+
+                                builder
+                                    .content_encoding(content_encoding)
+                                    .header("X-Sentry-Auth", meta.auth_header())
+                                    .header("X-Forwarded-For", meta.forwarded_for())
+                                    .header("Content-Type", envelope::CONTENT_TYPE)
+                                    .body(envelope.to_vec().map_err(failure::Error::from)?)
+                            });
+
+                        let future = upstream
+                            .send(request)
+                            .map_err(ProcessingError::ScheduleFailed)
+                            .and_then(move |result| {
+                                result.map_err(move |error| match error {
+                                    UpstreamRequestError::RateLimited(upstream_limits) => {
+                                        let limits = upstream_limits.scope(&scoping.borrow());
+                                        project.do_send(UpdateRateLimits(limits.clone()));
+                                        ProcessingError::RateLimited(limits)
+                                    }
+                                    other => ProcessingError::SendFailed(other),
+                                })
+                            });
+
+                        Box::new(future) as ResponseFuture<_, _>
+                    }))
+                    .into_actor(self)
+                    .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
+                    .map(|_, _, _| metric!(counter(RelayCounters::EnvelopeAccepted) += 1))
+                    .map_err(move |error, slf, _| {
+                        metric!(counter(RelayCounters::EnvelopeRejected) += 1);
+
+                        // if we are in capture mode, we stash away the event instead of
+                        // forwarding it.
+                        if capture {
+                            // XXX: does not work with envelopes without event_id
+                            if let Some(event_id) = event_id {
+                                log::debug!("capturing failed event {}", event_id);
+                                let msg = LogError(&error).to_string();
+                                slf.captured_events
+                                    .write()
+                                    .insert(event_id, CapturedEvent::Err(msg));
+                            } else {
+                                log::debug!("dropping failed envelope without event");
+                            }
+                        }
+
+                        // Do not track outcomes or capture events for non-event envelopes (such as
+                        // individual attachments)
+                        if !is_event {
+                            return;
+                        }
+
+                        let outcome = error.to_outcome();
+                        if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome {
+                            // Errors are only logged for what we consider an internal discard reason. These
+                            // indicate errors in the infrastructure or implementation bugs. In other cases,
+                            // we "expect" errors and log them as debug level.
+                            log::error!("error processing event: {}", LogError(&error));
+                        } else {
+                            log::debug!("dropped event: {}", LogError(&error));
+                        }
+
+                        if let Some(outcome) = outcome {
+                            outcome_producer.do_send(TrackOutcome {
+                                timestamp: Instant::now(),
+                                scoping: *scoping.borrow(),
+                                outcome,
+                                event_id,
+                                remote_addr,
+                            })
+                        }
+                    })
+                    .then(move |x, slf, _| {
+                        metric!(timer(RelayTimers::EnvelopeTotalTime) = start_time.elapsed());
+                        slf.current_active_events -= 1;
+                        fut::result(x)
+                    })
+                    .drop_guard("process_event");
+        //  });
 
         Box::new(future)
     }

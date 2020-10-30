@@ -16,7 +16,7 @@ use relay_general::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 
 use crate::actors::events::{
-    DynamicSamplingError, QueueEnvelope, QueueEnvelopeError, SampleTransactions,
+    sample_transaction, DynamicSamplingError, QueueEnvelope, QueueEnvelopeError,
 };
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{CheckEnvelope, Project};
@@ -442,25 +442,14 @@ where
                         // do the fast path transaction sampling (if we can't do it here
                         // we'll try again after the envelope is queued)
                         .and_then(clone!(event_manager, |project| {
-                            event_manager
-                                .send(SampleTransactions {
-                                    project: project.clone(),
-                                    envelope: envelope.clone(),
-                                    //will sample transactions only if we can do it fast
-                                    //(project state is already cached)
-                                    fast_processing: true,
-                                })
-                                //deal with actor mailbox errors
-                                .map_err(BadStoreRequest::ScheduleFailed)
-                                .and_then(|result| {
-                                    result.map_err(|error| match error {
-                                        DynamicSamplingError::EmptyEnvelope(_) => {
-                                            BadStoreRequest::TraceSampled
-                                        }
-                                        DynamicSamplingError::ScheduleFailed(err) => {
-                                            BadStoreRequest::ScheduleFailed(err)
-                                        }
-                                    })
+                            sample_transaction(envelope.clone(), Some(project.clone()), true)
+                                .map_err(|error| match error {
+                                    DynamicSamplingError::EmptyEnvelope(_) => {
+                                        BadStoreRequest::TraceSampled
+                                    }
+                                    DynamicSamplingError::ScheduleFailed(err) => {
+                                        BadStoreRequest::ScheduleFailed(err)
+                                    }
                                 })
                                 .map(|envelope| (envelope, Some(project)))
                         }));
