@@ -76,7 +76,7 @@ pub struct Breadcrumb {
     ///
     ///   Such a breadcrumb's `data` property has the fields `url`, `method`, `status_code`
     ///   (integer) and `reason` (string).
-    #[metastructure(field = "type", max_chars = "enumlike")]
+    #[metastructure(field = "type", legacy_alias = "ty", max_chars = "enumlike")]
     pub ty: Annotated<String>,
 
     /// A dotted string indicating what the crumb is or from where it comes. _Optional._
@@ -177,6 +177,22 @@ fn test_breadcrumb_default_values() {
 
     let breadcrumb = Annotated::new(Breadcrumb {
         timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+        ..Default::default()
+    });
+
+    assert_eq_dbg!(breadcrumb, Annotated::from_json(input).unwrap());
+    assert_eq_str!(output, breadcrumb.to_json().unwrap());
+}
+
+#[test]
+fn test_python_ty_regression() {
+    // The Python SDK used to send "ty" instead of "type". We're lenient to accept both.
+    let input = r#"{"timestamp":946684800,"ty":"http"}"#;
+    let output = r#"{"timestamp":946684800.0,"type":"http"}"#;
+
+    let breadcrumb = Annotated::new(Breadcrumb {
+        timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+        ty: Annotated::new("http".into()),
         ..Default::default()
     });
 
