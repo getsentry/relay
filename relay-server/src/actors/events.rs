@@ -17,8 +17,8 @@ use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
-    Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, LenientString,
-    Metrics, SecurityReportType, SessionUpdate, Timestamp, UserReport, Values,
+    Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
+    LenientString, Metrics, SecurityReportType, SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
@@ -45,7 +45,6 @@ use {
     failure::ResultExt,
     minidump::Minidump,
     relay_filter::FilterStatKey,
-    relay_general::protocol::IpAddr,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{DataCategory, RateLimitingError, RedisRateLimiter},
 };
@@ -301,6 +300,7 @@ impl EventProcessor {
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
         let envelope = &mut state.envelope;
         let received = state.received_at;
+        let client_addr = envelope.meta().client_addr();
 
         let clock_drift_processor =
             ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
@@ -357,6 +357,13 @@ impl EventProcessor {
                     max_future.num_seconds()
                 );
                 return false;
+            }
+
+            if let Some(ref ip_address) = session.attributes.ip_address {
+                if ip_address.is_auto() {
+                    session.attributes.ip_address = client_addr.map(IpAddr::from);
+                    changed = true;
+                }
             }
 
             if changed {
