@@ -1,6 +1,6 @@
 ---
 source: relay-server/src/utils/unreal.rs
-expression: event.to_json_pretty().unwrap()
+expression: "Annotated::new(event).to_json_pretty().unwrap()"
 ---
 {
   "logentry": {
