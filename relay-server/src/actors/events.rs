@@ -18,7 +18,7 @@ use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, LenientString,
-    Metrics, SecurityReportType, SessionUpdate, Timestamp, Values,
+    Metrics, SecurityReportType, SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
@@ -298,7 +298,7 @@ impl EventProcessor {
     ///
     /// Sessions are removed from the envelope if they contain invalid JSON or if their timestamps
     /// are out of range after clock drift correction.
-    fn process_sessions(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
         let envelope = &mut state.envelope;
         let received = state.received_at;
 
@@ -370,8 +370,25 @@ impl EventProcessor {
 
             true
         });
+    }
 
-        Ok(())
+    /// Validates all user report/feedback items in the envelope, if any.
+    ///
+    /// User feedback items are removed from the envelope if they contain invalid JSON or if the
+    /// JSON violates the schema (basic type validation).
+    fn process_user_reports(&self, state: &mut ProcessEnvelopeState) {
+        state.envelope.retain_items(|item| {
+            if item.ty() != ItemType::UserReport {
+                return true;
+            };
+
+            if let Err(error) = serde_json::from_slice::<UserReport>(&item.payload()) {
+                log::error!("failed to store user report: {}", LogError(&error));
+                return false;
+            }
+
+            true
+        });
     }
 
     /// Creates and initializes the processing state.
@@ -1109,7 +1126,8 @@ impl EventProcessor {
             };
         }
 
-        self.process_sessions(&mut state)?;
+        self.process_sessions(&mut state);
+        self.process_user_reports(&mut state);
 
         if state.creates_event() {
             if_processing!({
@@ -1631,6 +1649,8 @@ impl Handler<GetCapturedEvent> for EventManager {
 mod tests {
     use super::*;
 
+    use crate::extractors::RequestMeta;
+
     use chrono::{DateTime, TimeZone, Utc};
 
     fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> Item {
@@ -1773,5 +1793,43 @@ mod tests {
 
         // regression test to ensure we don't fail parsing an empty file
         result.expect("event_from_attachments");
+    }
+
+    #[test]
+    fn test_user_report_invalid() {
+        let processor = EventProcessor::new(Arc::new(Default::default()));
+        let event_id = EventId::new();
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::UserReport);
+            item.set_payload(ContentType::Json, r###"{"foo": "bar"}"###);
+            item
+        });
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::Event);
+            item.set_payload(ContentType::Json, "{}");
+            item
+        });
+
+        let envelope_response = processor
+            .process(ProcessEnvelope {
+                envelope,
+                project_state: Arc::new(ProjectState::allowed()),
+                start_time: Instant::now(),
+            })
+            .unwrap();
+
+        let new_envelope = envelope_response.envelope.unwrap();
+
+        assert_eq!(new_envelope.len(), 1);
+        assert_eq!(new_envelope.items().next().unwrap().ty(), ItemType::Event);
     }
 }
