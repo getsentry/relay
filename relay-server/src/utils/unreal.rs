@@ -3,9 +3,9 @@ use symbolic::unreal::{
 };
 
 use relay_general::protocol::{
-    AsPair, Breadcrumb, Context, Contexts, DeviceContext, Event, EventId, GpuContext,
-    LenientString, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp, User, UserReport,
-    Values,
+    AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DeviceContext, Event, EventId,
+    GpuContext, LenientString, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp, User,
+    UserReport, Values,
 };
 use relay_general::types::{self, Annotated, Array, Object, Value};
 
@@ -19,6 +19,9 @@ const MAX_NUM_UNREAL_LOGS: usize = 40;
 
 /// Name of the custom XML tag in Unreal GameData for Sentry event payloads.
 const SENTRY_PAYLOAD_KEY: &str = "__sentry";
+
+/// Client SDK name used for the event payload to identify the UE4 crash reporter.
+const CLIENT_SDK_NAME: &str = "unreal.crashreporter";
 
 fn get_event_item(data: &[u8]) -> Result<Option<Item>, Unreal4Error> {
     let mut context = Unreal4Context::parse(data)?;
@@ -238,6 +241,17 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
             game_context.extend(filtered_keys);
         }
     }
+
+    // Add sdk information for analytics.
+    event.client_sdk.get_or_insert_with(|| ClientSdkInfo {
+        name: CLIENT_SDK_NAME.to_owned().into(),
+        version: runtime_props
+            .crash_reporter_client_version
+            .take()
+            .unwrap_or_else(|| "0.0.0".to_owned())
+            .into(),
+        ..ClientSdkInfo::default()
+    });
 
     if let Ok(Some(Value::Object(props))) = types::to_value(&runtime_props) {
         let unreal_context =

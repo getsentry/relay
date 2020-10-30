@@ -23,7 +23,6 @@ expression: "Annotated::new(event).to_json_pretty().unwrap()"
       "type": "os"
     },
     "unreal": {
-      "crash_reporter_client_version": "1.0",
       "custom": {
         "CrashVersion": "3",
         "PlatformFullName": "Win64 [Windows 10  64b]"
@@ -32,5 +31,9 @@ expression: "Annotated::new(event).to_json_pretty().unwrap()"
       "misc_cpu_brand": "Intel(R) Core(TM) i7-7920HQ CPU @ 3.10GHz",
       "misc_cpu_vendor": "GenuineIntel"
     }
+  },
+  "sdk": {
+    "name": "unreal.crashreporter",
+    "version": "1.0"
   }
 }
