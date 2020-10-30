@@ -817,15 +817,7 @@ fn test_user_ip_from_remote_addr() {
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    let user = event
-        .value()
-        .unwrap()
-        .user
-        .value()
-        .expect("user was not created");
-
-    let ip_addr = user.ip_address.value().expect("ip address was not created");
-
+    let ip_addr = get_value!(event.user.ip_address!);
     assert_eq_dbg!(ip_addr, &IpAddr("2.125.160.216".to_string()));
 }
 
@@ -867,15 +859,7 @@ fn test_user_ip_from_client_ip_without_auto() {
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    let user = event
-        .value()
-        .unwrap()
-        .user
-        .value()
-        .expect("user was not created");
-
-    let ip_addr = user.ip_address.value().expect("ip address was not created");
-
+    let ip_addr = get_value!(event.user.ip_address!);
     assert_eq_dbg!(ip_addr, &IpAddr("2.125.160.216".to_string()));
 }
 
@@ -896,8 +880,7 @@ fn test_user_ip_from_client_ip_with_auto() {
     let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    let user = event.value().unwrap().user.value().expect("user missing");
-
+    let user = get_value!(event.user!);
     let ip_addr = user.ip_address.value().expect("ip address missing");
 
     assert_eq_dbg!(ip_addr, &IpAddr("2.125.160.216".to_string()));
@@ -915,8 +898,7 @@ fn test_user_ip_from_client_ip_without_appropriate_platform() {
     let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    let user = event.value().unwrap().user.value().expect("user missing");
-
+    let user = get_value!(event.user!);
     assert!(user.ip_address.value().is_none());
     assert!(user.geo.value().is_none());
 }
@@ -927,9 +909,7 @@ fn test_event_level_defaulted() {
     let mut event = Annotated::new(Event::default());
 
     process_value(&mut event, processor, ProcessingState::root()).unwrap();
-
-    let event = event.value().unwrap();
-    assert_eq_dbg!(event.level.value(), Some(&Level::Error));
+    assert_eq_dbg!(get_value!(event.level), Some(&Level::Error));
 }
 
 #[test]
@@ -941,9 +921,7 @@ fn test_transaction_level_untouched() {
     });
 
     process_value(&mut event, processor, ProcessingState::root()).unwrap();
-
-    let event = event.value().unwrap();
-    assert_eq_dbg!(event.level.value(), Some(&Level::Info));
+    assert_eq_dbg!(get_value!(event.level), Some(&Level::Info));
 }
 
 #[test]
@@ -994,9 +972,7 @@ fn test_empty_environment_is_removed() {
 
     let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-    let event = event.value().unwrap();
-    assert_eq_dbg!(event.environment.value(), None);
+    assert_eq_dbg!(get_value!(event.environment), None);
 }
 
 #[test]
@@ -1009,7 +985,7 @@ fn test_none_environment_errors() {
     let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    let environment = &event.value().unwrap().environment;
+    let environment = get_path!(event.environment!);
     let expected_original = &Value::String("none".to_string());
 
     assert_eq_dbg!(
@@ -1035,7 +1011,7 @@ fn test_invalid_release_removed() {
     let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    let release = &event.value().unwrap().release;
+    let release = get_path!(event.release!);
     let expected_original = &Value::String("Latest".to_string());
 
     assert_eq_dbg!(
@@ -1067,14 +1043,12 @@ fn test_top_level_keys_moved_into_tags() {
     let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    let event = event.value().unwrap();
-
-    assert_eq_dbg!(event.site.value(), None);
-    assert_eq_dbg!(event.server_name.value(), None);
+    assert_eq_dbg!(get_value!(event.site), None);
+    assert_eq_dbg!(get_value!(event.server_name), None);
 
     assert_eq_dbg!(
-        event.tags.value(),
-        Some(&Tags(PairList(vec![
+        get_value!(event.tags!),
+        &Tags(PairList(vec![
             Annotated::new(TagEntry(
                 Annotated::new("site".to_string()),
                 Annotated::new("foo".to_string()),
@@ -1083,7 +1057,7 @@ fn test_top_level_keys_moved_into_tags() {
                 Annotated::new("server_name".to_string()),
                 Annotated::new("foo".to_string()),
             )),
-        ])))
+        ]))
     );
 }
 
@@ -1122,7 +1096,7 @@ fn test_internal_tags_removed() {
     let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    assert_eq!(event.value().unwrap().tags.value().unwrap().len(), 1);
+    assert_eq!(get_value!(event.tags!).len(), 1);
 }
 
 #[test]
@@ -1148,10 +1122,8 @@ fn test_empty_tags_removed() {
     let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    let tags = event.value().unwrap().tags.value().unwrap();
-
     assert_eq_dbg!(
-        tags,
+        get_value!(event.tags!),
         &Tags(PairList(vec![
             Annotated::new(TagEntry(
                 Annotated::from_error(Error::nonempty(), None),
@@ -1202,7 +1174,7 @@ fn test_tags_deduplicated() {
 
     // should keep the first occurrence of every tag
     assert_eq_dbg!(
-        event.value().unwrap().tags.value().unwrap(),
+        get_value!(event.tags!),
         &Tags(PairList(vec![
             Annotated::new(TagEntry(
                 Annotated::new("foo".to_string()),
@@ -1262,15 +1234,16 @@ fn test_unknown_debug_image() {
     let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    let expected = Annotated::new(DebugMeta {
-        images: Annotated::new(vec![Annotated::from_error(
-            Error::invalid("unsupported debug image type"),
-            Some(Value::Object(Object::default())),
-        )]),
-        ..DebugMeta::default()
-    });
-
-    assert_eq_dbg!(expected, event.value().unwrap().debug_meta);
+    assert_eq_dbg!(
+        get_path!(event.debug_meta!),
+        &Annotated::new(DebugMeta {
+            images: Annotated::new(vec![Annotated::from_error(
+                Error::invalid("unsupported debug image type"),
+                Some(Value::Object(Object::default())),
+            )]),
+            ..DebugMeta::default()
+        })
+    );
 }
 
 #[test]
@@ -1315,16 +1288,15 @@ fn test_frame_null_context_lines() {
     let mut processor = NormalizeProcessor::default();
     process_value(&mut frame, &mut processor, ProcessingState::root()).unwrap();
 
-    let frame = frame.value().unwrap();
     assert_eq_dbg!(
-        *frame.pre_context.value().unwrap(),
+        *get_value!(frame.pre_context!),
         vec![
             Annotated::new("".to_string()),
             Annotated::new("".to_string())
         ],
     );
     assert_eq_dbg!(
-        *frame.post_context.value().unwrap(),
+        *get_value!(frame.post_context!),
         vec![
             Annotated::new("".to_string()),
             Annotated::new("".to_string())
@@ -1350,10 +1322,8 @@ fn test_too_long_tags() {
     let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    let tags = event.value().unwrap().tags.value().unwrap();
-
     assert_eq_dbg!(
-        tags,
+        get_value!(event.tags!),
         &Tags(PairList(vec![
             Annotated::new(TagEntry(
                 Annotated::new("foobar".to_string()),
@@ -1396,8 +1366,9 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
     let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    let expected = Annotated::new(
-        RawStacktrace {
+    assert_eq_dbg!(
+        get_value!(event.exceptions.values[0].stacktrace!),
+        &Stacktrace(RawStacktrace {
             frames: Annotated::new(vec![Annotated::new(Frame {
                 module: Annotated::new("MyModule".to_string()),
                 filename: Annotated::new("MyFilename".into()),
@@ -1406,26 +1377,7 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
                 ..Frame::default()
             })]),
             ..RawStacktrace::default()
-        }
-        .into(),
-    );
-
-    assert_eq_dbg!(
-        event
-            .value()
-            .unwrap()
-            .exceptions
-            .value()
-            .unwrap()
-            .values
-            .value()
-            .unwrap()
-            .get(0)
-            .unwrap()
-            .value()
-            .unwrap()
-            .stacktrace,
-        expected
+        })
     );
 }
 
@@ -1442,8 +1394,8 @@ fn test_parses_sdk_info_from_header() {
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
-        event.value().unwrap().client_sdk,
-        Annotated::new(ClientSdkInfo {
+        get_path!(event.client_sdk!),
+        &Annotated::new(ClientSdkInfo {
             name: Annotated::new("_fooBar".to_string()),
             version: Annotated::new("0.0.0".to_string()),
             ..ClientSdkInfo::default()
@@ -1463,11 +1415,7 @@ fn test_discards_received() {
 
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    assert!(event.value().unwrap().timestamp.value().is_some());
-    assert_eq_dbg!(
-        event.value().unwrap().received,
-        event.value().unwrap().timestamp,
-    );
+    assert_eq_dbg!(get_value!(event.received!), get_value!(event.timestamp!));
 }
 
 #[test]

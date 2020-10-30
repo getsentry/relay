@@ -516,6 +516,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "console"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0b1aacfaffdbff75be81c15a399b4bedf78aaefe840e8af1d299ac2ade885d2"
+dependencies = [
+ "encode_unicode",
+ "lazy_static",
+ "libc",
+ "terminal_size",
+ "termios",
+ "winapi 0.3.8",
+]
+
+[[package]]
 name = "const-random"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -794,7 +808,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8b5eb0fce3c4f955b8d8d864b131fb8863959138da962026c106ba7a2e3bf7a"
 dependencies = [
- "console",
+ "console 0.10.3",
  "lazy_static",
  "tempfile",
 ]
@@ -819,7 +833,7 @@ name = "document-metrics"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "insta 0.15.0",
+ "insta",
  "paw",
  "serde",
  "serde_json",
@@ -1535,30 +1549,16 @@ dependencies = [
 
 [[package]]
 name = "insta"
-version = "0.15.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8de3f029212a3fe78a6090f1f2b993877ca245a9ded863f3fcbd6eae084fc1ed"
+checksum = "e7e7528a20113cf7ca90eddfc2439c608188b6eafc0613964da2bd140c92acec"
 dependencies = [
- "console",
+ "console 0.12.0",
  "difference",
  "lazy_static",
  "pest",
  "pest_derive",
  "ron",
- "serde",
- "serde_json",
- "serde_yaml",
-]
-
-[[package]]
-name = "insta"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8386e795fb3927131ea4cede203c529a333652eb6dc4ff29616b832b27e9b096"
-dependencies = [
- "console",
- "difference",
- "lazy_static",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -2836,7 +2836,7 @@ version = "20.10.1"
 dependencies = [
  "chrono",
  "clap",
- "console",
+ "console 0.10.3",
  "dialoguer",
  "env_logger",
  "failure",
@@ -2946,7 +2946,7 @@ name = "relay-filter"
 version = "20.10.1"
 dependencies = [
  "globset",
- "insta 0.15.0",
+ "insta",
  "ipnetwork",
  "lazy_static",
  "regex",
@@ -2970,7 +2970,7 @@ dependencies = [
  "dynfmt",
  "failure",
  "hmac",
- "insta 0.15.0",
+ "insta",
  "itertools 0.8.2",
  "lazy_static",
  "maxminddb",
@@ -3012,7 +3012,7 @@ name = "relay-quotas"
 version = "20.10.1"
 dependencies = [
  "failure",
- "insta 0.15.0",
+ "insta",
  "lazy_static",
  "log",
  "relay-common",
@@ -3047,7 +3047,7 @@ dependencies = [
  "failure",
  "flate2",
  "futures 0.1.29",
- "insta 0.16.0",
+ "insta",
  "itertools 0.8.2",
  "json-forensics",
  "lazy_static",
@@ -3158,11 +3158,11 @@ dependencies = [
 
 [[package]]
 name = "ron"
-version = "0.5.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ece421e0c4129b90e4a35b6f625e472e96c552136f5093a2f4fa2bbb75a62d5"
+checksum = "f8a58080b7bb83b2ea28c3b7a9a994fd5e310330b7c8ca5258d99b98128ecfe4"
 dependencies = [
- "base64 0.10.1",
+ "base64 0.12.3",
  "bitflags",
  "serde",
 ]
@@ -3895,9 +3895,9 @@ dependencies = [
 
 [[package]]
 name = "terminal_size"
-version = "0.1.12"
+version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8038f95fc7a6f351163f4b964af631bd26c9e828f7db085f2a84aca56f70d13b"
+checksum = "9a14cd9f8c72704232f0bfc8455c0e861f0ad4eb60cc9ec8a170e231414c1e13"
 dependencies = [
  "libc",
  "winapi 0.3.8",

@@ -92,6 +92,48 @@ macro_rules! assert_annotated_snapshot {
     };
 }
 
+/// Returns `&Annotated<T>` for the annotated value at the given path.
+macro_rules! get_path {
+    (@access $root:ident,) => {};
+    (@access $root:ident, !) => {
+        let $root = $root.unwrap();
+    };
+    (@access $root:ident, . $field:ident $( $tail:tt )*) => {
+        let $root = $root.and_then(|a| a.value()).map(|v| &v.$field);
+        get_path!(@access $root, $($tail)*);
+    };
+    (@access $root:ident, [ $index:literal ] $( $tail:tt )*) => {
+        let $root = $root.and_then(|a| a.value()).and_then(|v| v.get($index));
+        get_path!(@access $root, $($tail)*);
+    };
+    ($root:ident $( $tail:tt )*) => {{
+        let $root = Some(&$root);
+        get_path!(@access $root, $($tail)*);
+        $root
+    }};
+}
+
+/// Returns `Option<&V>` for the value at the given path.
+macro_rules! get_value {
+    (@access $root:ident,) => {};
+    (@access $root:ident, !) => {
+        let $root = $root.unwrap();
+    };
+    (@access $root:ident, . $field:ident $( $tail:tt )*) => {
+        let $root = $root.and_then(|v| v.$field.value());
+        get_value!(@access $root, $($tail)*);
+    };
+    (@access $root:ident, [ $index:literal ] $( $tail:tt )*) => {
+        let $root = $root.and_then(|v| v.get($index)).and_then(|a| a.value());
+        get_value!(@access $root, $($tail)*);
+    };
+    ($root:ident $( $tail:tt )*) => {{
+        let $root = $root.value();
+        get_value!(@access $root, $($tail)*);
+        $root
+    }};
+}
+
 #[cfg(feature = "uaparser")]
 /// Creates an Event with the specified user agent.
 pub(super) fn get_event_with_user_agent(user_agent: &str) -> Event {
