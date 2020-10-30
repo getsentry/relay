@@ -17,8 +17,8 @@ use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
-    Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, LenientString,
-    Metrics, SecurityReportType, SessionUpdate, Timestamp, Values,
+    Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
+    LenientString, Metrics, SecurityReportType, SessionUpdate, Timestamp, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
@@ -45,7 +45,6 @@ use {
     failure::ResultExt,
     minidump::Minidump,
     relay_filter::FilterStatKey,
-    relay_general::protocol::IpAddr,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{DataCategory, RateLimitingError, RedisRateLimiter},
 };
