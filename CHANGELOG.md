@@ -2,8 +2,14 @@
 
 ## Unreleased
 
+**Features**:
+
+- Rename upstream retries histogram metric and add upstream requests duration metric. ([#816](https://github.com/getsentry/relay/pull/816))
+- Add options for metrics buffering (`metrics.buffering`) and sampling (`metrics.sample_rate`). ([#821](https://github.com/getsentry/relay/pull/821))
+
 **Internal**:
 
+- Always apply cache debouncing for project states. This reduces pressure on the Redis and file system cache. ([#819](https://github.com/getsentry/relay/pull/819))
 - Internal refactoring such that validating of characters in tags no longer uses regexes internally. ([#814](https://github.com/getsentry/relay/pull/814))
 
 ## 20.10.1

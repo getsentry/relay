@@ -105,7 +105,7 @@ pub enum RelayHistograms {
     ///  - `limits.max_concurrent_requests` for the overall number of connections
     ///  - `limits.max_concurrent_queries` for the number of concurrent high-priority requests
     UpstreamMessageQueueSize,
-    /// Counts the number of upstream http request.
+    /// Counts the number of retries for each upstream http request.
     ///
     /// This metric is tagged with:
     ///
@@ -118,7 +118,7 @@ pub enum RelayHistograms {
     ///     * `invalid_json`: The response could not be parsed back into JSON.
     ///   - `route`: The endpoint that was called on the upstream.
     ///   - `status-code`: The status code of the request when available, otherwise "-".
-    UpstreamRequests,
+    UpstreamRetries,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -134,7 +134,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::ProjectStateCacheSize => "project_cache.size",
             RelayHistograms::ConnectorWaitQueue => "connector.wait_queue",
             RelayHistograms::UpstreamMessageQueueSize => "http_queue.size",
-            RelayHistograms::UpstreamRequests => "upstream.requests",
+            RelayHistograms::UpstreamRetries => "upstream.retries",
         }
     }
 }
@@ -228,6 +228,21 @@ pub enum RelayTimers {
     /// scrubbing.minidumps.duration) will be scrubbed as plain attachments and count
     /// towards this.
     AttachmentScrubbing,
+    /// Total time spent to send request to upstream Relay and handle the response.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///   - `result`: What happened to the request, an enumeration with the following values:
+    ///     * `success`: The request was sent and returned a success code `HTTP 2xx`
+    ///     * `response_error`: The request was sent and it returned an HTTP error.
+    ///     * `payload_failed`: The request was sent but there was an error in interpreting the response.
+    ///     * `send_failed`: Failed to send the request due to a network error.
+    ///     * `rate_limited`: The request was rate limited.
+    ///     * `invalid_json`: The response could not be parsed back into JSON.
+    ///   - `route`: The endpoint that was called on the upstream.
+    ///   - `status-code`: The status code of the request when available, otherwise "-".
+    ///   - `retries`: Number of retries bucket 0, 1, 2, few (3 - 10), many (more than 10).
+    UpstreamRequestsDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -250,6 +265,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::RequestsDuration => "requests.duration",
             RelayTimers::MinidumpScrubbing => "scrubbing.minidumps.duration",
             RelayTimers::AttachmentScrubbing => "scrubbing.attachments.duration",
+            RelayTimers::UpstreamRequestsDuration => "upstream.requests.duration",
         }
     }
 }
