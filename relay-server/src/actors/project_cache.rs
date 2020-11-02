@@ -176,22 +176,11 @@ pub struct FetchProjectState {
 #[derive(Debug)]
 pub struct ProjectStateResponse {
     pub state: Arc<ProjectState>,
-    pub is_local: bool,
 }
 
 impl ProjectStateResponse {
-    pub fn managed(state: Arc<ProjectState>) -> Self {
-        ProjectStateResponse {
-            state,
-            is_local: false,
-        }
-    }
-
-    pub fn local(state: Arc<ProjectState>) -> Self {
-        ProjectStateResponse {
-            state,
-            is_local: true,
-        }
+    pub fn new(state: Arc<ProjectState>) -> Self {
+        ProjectStateResponse { state }
     }
 }
 
@@ -239,23 +228,23 @@ impl Handler<FetchProjectState> for ProjectCache {
 
         let future = fetch_local.and_then(move |response| {
             if let Some(state) = response {
-                return Box::new(future::ok(ProjectStateResponse::local(state)))
+                return Box::new(future::ok(ProjectStateResponse::new(state)))
                     as ResponseFuture<_, _>;
             }
 
             match relay_mode {
                 RelayMode::Proxy => {
-                    return Box::new(future::ok(ProjectStateResponse::local(Arc::new(
+                    return Box::new(future::ok(ProjectStateResponse::new(Arc::new(
                         ProjectState::allowed(),
                     ))));
                 }
                 RelayMode::Static => {
-                    return Box::new(future::ok(ProjectStateResponse::local(Arc::new(
+                    return Box::new(future::ok(ProjectStateResponse::new(Arc::new(
                         ProjectState::missing(),
                     ))));
                 }
                 RelayMode::Capture => {
-                    return Box::new(future::ok(ProjectStateResponse::local(Arc::new(
+                    return Box::new(future::ok(ProjectStateResponse::new(Arc::new(
                         ProjectState::allowed(),
                     ))));
                 }
@@ -280,7 +269,7 @@ impl Handler<FetchProjectState> for ProjectCache {
 
             let fetch_redis = fetch_redis.and_then(move |response| {
                 if let Some(state) = response {
-                    return Box::new(future::ok(ProjectStateResponse::local(state)))
+                    return Box::new(future::ok(ProjectStateResponse::new(state)))
                         as ResponseFuture<_, _>;
                 }
 

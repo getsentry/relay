@@ -335,7 +335,7 @@ impl Handler<FetchProjectState> for UpstreamProjectSource {
             channel
                 .receiver()
                 .map_err(|_| ())
-                .map(|x| ProjectStateResponse::managed((*x).clone())),
+                .map(|x| ProjectStateResponse::new((*x).clone())),
         )
     }
 }
