@@ -752,7 +752,7 @@
     <span class="kw">fn</span> <span class="ident">expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">UnixTimestamp</span> {
         <span class="kw">let</span> <span class="ident">next_slot</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">slot</span>() <span class="op">+</span> <span class="number">1</span>;
         <span class="kw">let</span> <span class="ident">next_start</span> <span class="op">=</span> <span class="ident">next_slot</span> <span class="op">*</span> <span class="self">self</span>.<span class="ident">window</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">shift</span>();
-        <span class="ident">UnixTimestamp</span>::<span class="ident">from_secs</span>(<span class="ident">next_start</span> <span class="op">+</span> <span class="ident">GRACE</span>)
+        <span class="ident">UnixTimestamp</span>::<span class="ident">from_secs</span>(<span class="ident">next_start</span>)
     }
 
     <span class="kw">fn</span> <span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
@@ -856,7 +856,7 @@
                 <span class="ident">invocation</span>.<span class="ident">key</span>(<span class="ident">refund_key</span>);
 
                 <span class="ident">invocation</span>.<span class="ident">arg</span>(<span class="ident">quota</span>.<span class="ident">limit</span>());
-                <span class="ident">invocation</span>.<span class="ident">arg</span>(<span class="ident">quota</span>.<span class="ident">expiry</span>().<span class="ident">as_secs</span>());
+                <span class="ident">invocation</span>.<span class="ident">arg</span>(<span class="ident">quota</span>.<span class="ident">expiry</span>().<span class="ident">as_secs</span>() <span class="op">+</span> <span class="ident">GRACE</span>);
                 <span class="ident">invocation</span>.<span class="ident">arg</span>(<span class="ident">quantity</span>);
 
                 <span class="ident">tracked_quotas</span>.<span class="ident">push</span>(<span class="ident">quota</span>);
