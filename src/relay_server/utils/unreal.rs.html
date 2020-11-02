@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/unreal.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>unreal.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../../favicon.svg">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/unreal.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>unreal.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../../favicon.svg">
 <link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png">
 <link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../relay_server/index.html'><div class='logo-container rust-logo'><img src='../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
                 <a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
@@ -384,85 +384,15 @@
 <span id="381">381</span>
 <span id="382">382</span>
 <span id="383">383</span>
-<span id="384">384</span>
-<span id="385">385</span>
-<span id="386">386</span>
-<span id="387">387</span>
-<span id="388">388</span>
-<span id="389">389</span>
-<span id="390">390</span>
-<span id="391">391</span>
-<span id="392">392</span>
-<span id="393">393</span>
-<span id="394">394</span>
-<span id="395">395</span>
-<span id="396">396</span>
-<span id="397">397</span>
-<span id="398">398</span>
-<span id="399">399</span>
-<span id="400">400</span>
-<span id="401">401</span>
-<span id="402">402</span>
-<span id="403">403</span>
-<span id="404">404</span>
-<span id="405">405</span>
-<span id="406">406</span>
-<span id="407">407</span>
-<span id="408">408</span>
-<span id="409">409</span>
-<span id="410">410</span>
-<span id="411">411</span>
-<span id="412">412</span>
-<span id="413">413</span>
-<span id="414">414</span>
-<span id="415">415</span>
-<span id="416">416</span>
-<span id="417">417</span>
-<span id="418">418</span>
-<span id="419">419</span>
-<span id="420">420</span>
-<span id="421">421</span>
-<span id="422">422</span>
-<span id="423">423</span>
-<span id="424">424</span>
-<span id="425">425</span>
-<span id="426">426</span>
-<span id="427">427</span>
-<span id="428">428</span>
-<span id="429">429</span>
-<span id="430">430</span>
-<span id="431">431</span>
-<span id="432">432</span>
-<span id="433">433</span>
-<span id="434">434</span>
-<span id="435">435</span>
-<span id="436">436</span>
-<span id="437">437</span>
-<span id="438">438</span>
-<span id="439">439</span>
-<span id="440">440</span>
-<span id="441">441</span>
-<span id="442">442</span>
-<span id="443">443</span>
-<span id="444">444</span>
-<span id="445">445</span>
-<span id="446">446</span>
-<span id="447">447</span>
-<span id="448">448</span>
-<span id="449">449</span>
-<span id="450">450</span>
-<span id="451">451</span>
-<span id="452">452</span>
-<span id="453">453</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">symbolic</span>::<span class="ident">unreal</span>::{
     <span class="ident">Unreal4Context</span>, <span class="ident">Unreal4Crash</span>, <span class="ident">Unreal4Error</span>, <span class="ident">Unreal4FileType</span>, <span class="ident">Unreal4LogEntry</span>,
 };
 
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">protocol</span>::{
-    <span class="ident">AsPair</span>, <span class="ident">Breadcrumb</span>, <span class="ident">Context</span>, <span class="ident">Contexts</span>, <span class="ident">DeviceContext</span>, <span class="ident">Event</span>, <span class="ident">EventId</span>, <span class="ident">GpuContext</span>,
-    <span class="ident">LenientString</span>, <span class="ident">LogEntry</span>, <span class="ident">Message</span>, <span class="ident">OsContext</span>, <span class="ident">TagEntry</span>, <span class="ident">Tags</span>, <span class="ident">Timestamp</span>, <span class="ident">User</span>, <span class="ident">UserReport</span>,
-    <span class="ident">Values</span>,
+    <span class="ident">AsPair</span>, <span class="ident">Breadcrumb</span>, <span class="ident">ClientSdkInfo</span>, <span class="ident">Context</span>, <span class="ident">Contexts</span>, <span class="ident">DeviceContext</span>, <span class="ident">Event</span>, <span class="ident">EventId</span>,
+    <span class="ident">GpuContext</span>, <span class="ident">LenientString</span>, <span class="ident">LogEntry</span>, <span class="ident">Message</span>, <span class="ident">OsContext</span>, <span class="ident">TagEntry</span>, <span class="ident">Tags</span>, <span class="ident">Timestamp</span>, <span class="ident">User</span>,
+    <span class="ident">UserReport</span>, <span class="ident">Values</span>,
 };
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">types</span>::{<span class="self">self</span>, <span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">Object</span>, <span class="ident">Value</span>};
 
@@ -474,7 +404,11 @@
 <span class="doccomment">/// Maximum number of unreal logs to parse for breadcrumbs.</span>
 <span class="kw">const</span> <span class="ident">MAX_NUM_UNREAL_LOGS</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">40</span>;
 
+<span class="doccomment">/// Name of the custom XML tag in Unreal GameData for Sentry event payloads.</span>
 <span class="kw">const</span> <span class="ident">SENTRY_PAYLOAD_KEY</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;__sentry&quot;</span>;
+
+<span class="doccomment">/// Client SDK name used for the event payload to identify the UE4 crash reporter.</span>
+<span class="kw">const</span> <span class="ident">CLIENT_SDK_NAME</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;unreal.crashreporter&quot;</span>;
 
 <span class="kw">fn</span> <span class="ident">get_event_item</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>, <span class="ident">Unreal4Error</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Unreal4Context</span>::<span class="ident">parse</span>(<span class="ident">data</span>)<span class="question-mark">?</span>;
@@ -649,6 +583,7 @@
         }
     }
 
+    <span class="comment">// OS information is likely overwritten by Minidump processing later.</span>
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">os_major</span>) <span class="op">=</span> <span class="ident">runtime_props</span>.<span class="ident">misc_os_version_major</span>.<span class="ident">take</span>() {
         <span class="kw">let</span> <span class="ident">os_context</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">OsContext</span>::<span class="ident">default_key</span>(), <span class="op">|</span><span class="op">|</span> {
             <span class="ident">Context</span>::<span class="ident">Os</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">OsContext</span>::<span class="ident">default</span>()))
@@ -677,10 +612,10 @@
         }
     }
 
-    <span class="comment">// modules not used just remove it from runtime props</span>
+    <span class="comment">// Modules are not used and later replaced with Modules from the Minidump or Apple Crash Report.</span>
     <span class="ident">runtime_props</span>.<span class="ident">modules</span>.<span class="ident">take</span>();
 
-    <span class="comment">// promote all game data (except the special __sentry key) into a context.</span>
+    <span class="comment">// Promote all game data (except the special `__sentry` key) into a context.</span>
     <span class="kw">if</span> <span class="op">!</span><span class="ident">context</span>.<span class="ident">game_data</span>.<span class="ident">is_empty</span>() {
         <span class="kw">let</span> <span class="ident">game_context</span> <span class="op">=</span> <span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="string">&quot;game&quot;</span>, <span class="op">|</span><span class="op">|</span> <span class="ident">Context</span>::<span class="ident">Other</span>(<span class="ident">Object</span>::<span class="ident">new</span>()));
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Context</span>::<span class="ident">Other</span>(<span class="ident">game_context</span>) <span class="op">=</span> <span class="ident">game_context</span> {
@@ -693,6 +628,17 @@
             <span class="ident">game_context</span>.<span class="ident">extend</span>(<span class="ident">filtered_keys</span>);
         }
     }
+
+    <span class="comment">// Add sdk information for analytics.</span>
+    <span class="ident">event</span>.<span class="ident">client_sdk</span>.<span class="ident">get_or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">ClientSdkInfo</span> {
+        <span class="ident">name</span>: <span class="ident">CLIENT_SDK_NAME</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
+        <span class="ident">version</span>: <span class="ident">runtime_props</span>
+            .<span class="ident">crash_reporter_client_version</span>
+            .<span class="ident">take</span>()
+            .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="string">&quot;0.0.0&quot;</span>.<span class="ident">to_owned</span>())
+            .<span class="ident">into</span>(),
+        ..<span class="ident">ClientSdkInfo</span>::<span class="ident">default</span>()
+    });
 
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">Object</span>(<span class="ident">props</span>))) <span class="op">=</span> <span class="ident">types</span>::<span class="ident">to_value</span>(<span class="kw-2">&amp;</span><span class="ident">runtime_props</span>) {
         <span class="kw">let</span> <span class="ident">unreal_context</span> <span class="op">=</span>
@@ -745,6 +691,7 @@
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">report</span>) <span class="op">=</span> <span class="ident">get_unreal_user_report</span>(<span class="ident">event_id</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">context</span>) {
             <span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">report</span>);
         }
+
         <span class="ident">merge_unreal_context</span>(<span class="ident">event</span>, <span class="ident">context</span>);
     }
 
@@ -754,18 +701,6 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-
-    <span class="doccomment">/// Extracts a Context element from Contexts</span>
-    <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">get_context</span> {
-        (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">contexts</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">context_key</span>: <span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">enum_name</span>: <span class="ident">path</span>) <span class="op">=</span><span class="op">&gt;</span> {{
-            <span class="kw">let</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">contexts</span>.<span class="ident">get</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">context_key</span>).<span class="ident">unwrap</span>().<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="number">0</span>;
-
-            <span class="kw">match</span> <span class="ident">ctx</span> {
-                <span class="macro-nonterminal">$</span><span class="macro-nonterminal">enum_name</span>(<span class="kw-2">ref</span> <span class="ident">context</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">context</span>,
-                <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;invalid context&quot;</span>),
-            }
-        }};
-    }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_merge_unreal_context</span>() {
@@ -802,65 +737,7 @@
 
         <span class="ident">merge_unreal_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="ident">context</span>);
 
-        <span class="kw">let</span> <span class="ident">user_name</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">user</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">username</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
-
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">user_name</span>, <span class="string">&quot;bruno&quot;</span>);
-
-        <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">contexts</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
-
-        <span class="kw">let</span> <span class="ident">device_context</span> <span class="op">=</span> <span class="macro">get_context</span><span class="macro">!</span>(<span class="ident">contexts</span>, <span class="ident">DeviceContext</span>::<span class="ident">default_key</span>(), <span class="ident">Context</span>::<span class="ident">Device</span>);
-        <span class="kw">let</span> <span class="ident">mem_size</span> <span class="op">=</span> <span class="ident">device_context</span>.<span class="ident">memory_size</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
-
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">mem_size</span>, <span class="number">6_896_832_512</span>);
-
-        <span class="kw">let</span> <span class="ident">os_context</span> <span class="op">=</span> <span class="macro">get_context</span><span class="macro">!</span>(<span class="ident">contexts</span>, <span class="ident">OsContext</span>::<span class="ident">default_key</span>(), <span class="ident">Context</span>::<span class="ident">Os</span>);
-        <span class="kw">let</span> <span class="ident">os_name</span> <span class="op">=</span> <span class="ident">os_context</span>.<span class="ident">name</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
-
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">os_name</span>, <span class="string">&quot;Windows 10&quot;</span>);
-
-        <span class="kw">let</span> <span class="ident">gpu_context</span> <span class="op">=</span> <span class="macro">get_context</span><span class="macro">!</span>(<span class="ident">contexts</span>, <span class="ident">GpuContext</span>::<span class="ident">default_key</span>(), <span class="ident">Context</span>::<span class="ident">Gpu</span>);
-        <span class="kw">let</span> <span class="ident">gpu_name</span> <span class="op">=</span> <span class="ident">gpu_context</span>.<span class="ident">name</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">as_str</span>();
-
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">gpu_name</span>, <span class="string">&quot;Parallels Display Adapter (WDDM)&quot;</span>);
-
-        <span class="kw">let</span> <span class="ident">unreal_context</span> <span class="op">=</span> <span class="macro">get_context</span><span class="macro">!</span>(<span class="ident">contexts</span>, <span class="string">&quot;unreal&quot;</span>, <span class="ident">Context</span>::<span class="ident">Other</span>);
-
-        <span class="kw">let</span> <span class="ident">mem_stats_total_virtual</span> <span class="op">=</span> <span class="ident">unreal_context</span>
-            .<span class="ident">get</span>(<span class="string">&quot;memory_stats_total_virtual&quot;</span>)
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>();
-
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">Value</span>::<span class="ident">I64</span>(<span class="number">140_737_488_224_256</span>), <span class="ident">mem_stats_total_virtual</span>);
-
-        <span class="kw">let</span> <span class="ident">cpu_brand</span> <span class="op">=</span> <span class="ident">unreal_context</span>
-            .<span class="ident">get</span>(<span class="string">&quot;misc_cpu_brand&quot;</span>)
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>();
-
-        <span class="macro">assert_eq</span><span class="macro">!</span>(
-            <span class="string">&quot;Intel(R) Core(TM) i7-7920HQ CPU @ 3.10GHz&quot;</span>,
-            <span class="ident">cpu_brand</span>.<span class="ident">as_str</span>().<span class="ident">unwrap</span>()
-        );
-        <span class="kw">let</span> <span class="ident">cpu_brand</span> <span class="op">=</span> <span class="ident">unreal_context</span>
-            .<span class="ident">get</span>(<span class="string">&quot;misc_cpu_brand&quot;</span>)
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>();
-
-        <span class="macro">assert_eq</span><span class="macro">!</span>(
-            <span class="string">&quot;Intel(R) Core(TM) i7-7920HQ CPU @ 3.10GHz&quot;</span>,
-            <span class="ident">cpu_brand</span>.<span class="ident">as_str</span>().<span class="ident">unwrap</span>()
-        );
-
-        <span class="kw">let</span> <span class="ident">cpu_vendor</span> <span class="op">=</span> <span class="ident">unreal_context</span>
-            .<span class="ident">get</span>(<span class="string">&quot;misc_cpu_vendor&quot;</span>)
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>();
-
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="string">&quot;GenuineIntel&quot;</span>, <span class="ident">cpu_vendor</span>.<span class="ident">as_str</span>().<span class="ident">unwrap</span>());
+        <span class="ident">insta</span>::<span class="macro">assert_snapshot</span><span class="macro">!</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">event</span>).<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -870,42 +747,25 @@
 [2018.10.29-16.56.39:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI prefixes -  0.000 s
 [2018.10.29-16.56.40:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: Construct from data asset -  0.000 s
 [2018.10.29-16.56.41:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI -  0.000 s&quot;##</span>;
+
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">default</span>();
         <span class="ident">merge_unreal_logs</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="ident">logs</span>).<span class="ident">ok</span>();
-        <span class="kw">let</span> <span class="ident">breadcrumbs</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">breadcrumbs</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">values</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
 
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">breadcrumbs</span>.<span class="ident">len</span>(), <span class="number">4</span>);
-        <span class="kw">let</span> <span class="ident">first_message</span> <span class="op">=</span> <span class="ident">breadcrumbs</span>[<span class="number">0</span>].<span class="ident">value</span>().<span class="ident">unwrap</span>();
-
-        <span class="kw">let</span> <span class="ident">timestamp_str</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">first_message</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>());
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">timestamp_str</span>, <span class="string">&quot;2018-10-29 16:56:38 UTC&quot;</span>);
-
-        <span class="kw">let</span> <span class="ident">category</span> <span class="op">=</span> <span class="ident">first_message</span>.<span class="ident">category</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">as_str</span>();
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">category</span>, <span class="string">&quot;LogGameplayTags&quot;</span>);
-
-        <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">first_message</span>.<span class="ident">message</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">as_str</span>();
-        <span class="macro">assert_eq</span><span class="macro">!</span>(
-            <span class="ident">message</span>,
-            <span class="string">&quot;Display: UGameplayTagsManager::DoneAddingNativeTags. DelegateIsBound: 0&quot;</span>
-        );
+        <span class="ident">insta</span>::<span class="macro">assert_snapshot</span><span class="macro">!</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">event</span>).<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_merge_unreal_context_event</span>() {
         <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="macro">include_bytes</span><span class="macro">!</span>(<span class="string">&quot;../../../tests/integration/fixtures/native/unreal_crash&quot;</span>);
-        <span class="kw">let</span> <span class="ident">crash</span> <span class="op">=</span> <span class="ident">Unreal4Crash</span>::<span class="ident">parse</span>(<span class="ident">bytes</span>).<span class="ident">unwrap</span>();
-
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Event</span>::<span class="ident">default</span>());
-
         <span class="kw">let</span> <span class="ident">user_id</span> <span class="op">=</span> <span class="string">&quot;ebff51ef3c4878627823eebd9ff40eb4|2e7d369327054a448be6c8d3601213cb|C52DC39D-DAF3-5E36-A8D3-BF5F53A5D38F&quot;</span>;
 
-        <span class="ident">merge_unreal_user_info</span>(<span class="ident">event</span>.<span class="ident">value_mut</span>().<span class="ident">as_mut</span>().<span class="ident">unwrap</span>(), <span class="ident">user_id</span>);
+        <span class="kw">let</span> <span class="ident">crash</span> <span class="op">=</span> <span class="ident">Unreal4Crash</span>::<span class="ident">parse</span>(<span class="ident">bytes</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">default</span>();
 
-        <span class="ident">merge_unreal_context</span>(
-            <span class="ident">event</span>.<span class="ident">value_mut</span>().<span class="ident">as_mut</span>().<span class="ident">unwrap</span>(),
-            <span class="ident">crash</span>.<span class="ident">context</span>().<span class="ident">unwrap</span>().<span class="ident">unwrap</span>(),
-        );
-        <span class="ident">insta</span>::<span class="macro">assert_snapshot</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="ident">merge_unreal_user_info</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="ident">user_id</span>);
+        <span class="ident">merge_unreal_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="ident">crash</span>.<span class="ident">context</span>().<span class="ident">unwrap</span>().<span class="ident">unwrap</span>());
+
+        <span class="ident">insta</span>::<span class="macro">assert_snapshot</span><span class="macro">!</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">event</span>).<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
     }
 }
 </pre></div>
