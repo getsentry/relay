@@ -463,10 +463,7 @@ def test_processing(
     assert event.get("version") is not None
 
 
-@pytest.mark.parametrize("window,max_rate_limit", [
-    (100, 300),
-    (300, 100),
-])
+@pytest.mark.parametrize("window,max_rate_limit", [(100, 300), (300, 100),])
 @pytest.mark.parametrize("event_type", ["default", "error", "transaction"])
 def test_processing_quotas(
     mini_sentry,
@@ -476,7 +473,7 @@ def test_processing_quotas(
     transactions_consumer,
     event_type,
     window,
-    max_rate_limit
+    max_rate_limit,
 ):
     from time import sleep
 
