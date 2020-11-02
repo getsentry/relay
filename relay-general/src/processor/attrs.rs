@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::fmt;
+use std::ops::RangeInclusive;
 
 use failure::Fail;
 use smallvec::SmallVec;
@@ -200,8 +201,8 @@ pub struct FieldAttrs {
     pub nonempty: bool,
     /// Whether to trim whitespace from this string.
     pub trim_whitespace: bool,
-    /// A regex to validate the (string) value against.
-    pub match_regex: Option<&'static str>,
+    /// A set of allowed or denied character ranges for this string.
+    pub characters: Option<CharacterSet>,
     /// The maximum char length of this field.
     pub max_chars: Option<MaxChars>,
     /// The maximum bag size of this field.
@@ -212,6 +213,28 @@ pub struct FieldAttrs {
     pub retain: bool,
 }
 
+/// A set of characters allowed or denied for a (string) field.
+///
+/// Note that this field is generated in the derive, it can't be constructed easily in tests.
+#[derive(Clone, Copy)]
+pub struct CharacterSet {
+    /// Generated in derive for performance. Can be left out when set is created manually.
+    pub char_is_valid: fn(char) -> bool,
+    /// A set of ranges that are allowed/denied within the character set
+    pub ranges: &'static [RangeInclusive<char>],
+    /// Whether the character set is inverted
+    pub is_negative: bool,
+}
+
+impl fmt::Debug for CharacterSet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CharacterSet")
+            .field("ranges", &self.ranges)
+            .field("is_negative", &self.is_negative)
+            .finish()
+    }
+}
+
 impl FieldAttrs {
     /// Creates default `FieldAttrs`.
     pub const fn new() -> Self {
@@ -220,7 +243,7 @@ impl FieldAttrs {
             required: false,
             nonempty: false,
             trim_whitespace: false,
-            match_regex: None,
+            characters: None,
             max_chars: None,
             bag_size: None,
             pii: Pii::False,
