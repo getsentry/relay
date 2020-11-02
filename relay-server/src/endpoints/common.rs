@@ -15,9 +15,7 @@ use relay_common::{clone, metric, tryf, LogError};
 use relay_general::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 
-use crate::actors::events::{
-    sample_transaction, DynamicSamplingError, QueueEnvelope, QueueEnvelopeError,
-};
+use crate::actors::events::{sample_transaction, QueueEnvelope, QueueEnvelopeError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{CheckEnvelope, Project};
 use crate::actors::project_cache::{GetProject, ProjectError};
@@ -443,14 +441,7 @@ where
                         // we'll try again after the envelope is queued)
                         .and_then(clone!(event_manager, |project| {
                             sample_transaction(envelope.clone(), Some(project.clone()), true)
-                                .map_err(|error| match error {
-                                    DynamicSamplingError::EmptyEnvelope(_) => {
-                                        BadStoreRequest::TraceSampled
-                                    }
-                                    DynamicSamplingError::ScheduleFailed(err) => {
-                                        BadStoreRequest::ScheduleFailed(err)
-                                    }
-                                })
+                                .map_err(|_| BadStoreRequest::TraceSampled)
                                 .map(|envelope| (envelope, Some(project)))
                         }));
                     Box::new(response)
