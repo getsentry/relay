@@ -93,7 +93,7 @@ impl<'a> RedisQuota<'a> {
     fn expiry(&self) -> UnixTimestamp {
         let next_slot = self.slot() + 1;
         let next_start = next_slot * self.window + self.shift();
-        UnixTimestamp::from_secs(next_start + GRACE)
+        UnixTimestamp::from_secs(next_start)
     }
 
     fn key(&self) -> String {
@@ -197,7 +197,7 @@ impl RedisRateLimiter {
                 invocation.key(refund_key);
 
                 invocation.arg(quota.limit());
-                invocation.arg(quota.expiry().as_secs());
+                invocation.arg(quota.expiry().as_secs() + GRACE);
                 invocation.arg(quantity);
 
                 tracked_quotas.push(quota);
