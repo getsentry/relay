@@ -46,8 +46,7 @@ use relay_general::types::Value;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
-use crate::utils::ErrorBoundary;
-use relay_filter::TraceContext;
+use crate::utils::{ErrorBoundary, TraceContext};
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 

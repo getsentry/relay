@@ -16,7 +16,6 @@ mod client_ips;
 mod common;
 mod config;
 mod csp;
-mod dynamic_sampling;
 mod error_messages;
 mod legacy_browsers;
 mod localhost;
@@ -29,7 +28,6 @@ mod testutils;
 pub use crate::common::*;
 pub use crate::config::*;
 pub use crate::csp::matches_any_origin;
-pub use crate::dynamic_sampling::*;
 
 /// Checks whether an event should be filtered for a particular configuration.
 ///

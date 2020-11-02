@@ -1,16 +1,14 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 //!
 //! TODO probably move dynamic sampling it into its own crate
+use std::convert::TryInto;
 
 use rand::{distributions::Uniform, Rng};
 use rand_pcg::Pcg32;
-
 use serde::{Deserialize, Serialize};
 
 use relay_common::{ProjectId, ProjectKey, Uuid};
-
-use crate::GlobPatterns;
-use std::convert::TryInto;
+use relay_filter::GlobPatterns;
 
 //TODO move to utils::dynamic_sampling
 /// A sampling rule defined by user in Organization options

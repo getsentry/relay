@@ -12,7 +12,7 @@ use url::Url;
 use relay_auth::PublicKey;
 use relay_common::{metric, ProjectId, ProjectKey};
 use relay_config::Config;
-use relay_filter::{matches_any_origin, FiltersConfig, SamplingConfig};
+use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_quotas::{Quota, RateLimits, Scoping};
 
@@ -21,7 +21,7 @@ use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
-use crate::utils::{ActorResponse, EnvelopeLimiter, Response};
+use crate::utils::{ActorResponse, EnvelopeLimiter, Response, SamplingConfig};
 
 /// The current status of a project state. Return value of `ProjectState::outdated`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
