@@ -10,6 +10,7 @@
 **Bug Fixes**:
 
 - Accept sessions with IP address set to `{{auto}}`. This was previously rejected and silently dropped. ([#827](https://github.com/getsentry/relay/pull/827))
+- Fix an issue where every retry-after response would be too large by one minute. ([#829](https://github.com/getsentry/relay/pull/829))
 
 **Internal**:
 
