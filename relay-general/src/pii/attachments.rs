@@ -369,7 +369,7 @@ impl<'a> PiiAttachmentsProcessor<'a> {
     ) -> ProcessingState<'s> {
         self.root_state.enter_borrowed(
             filename,
-            Some(Cow::Owned(FieldAttrs::new().pii(Pii::Maybe))),
+            Some(Cow::Owned(FieldAttrs::new().pii(Pii::True))),
             Some(value_type),
         )
     }
