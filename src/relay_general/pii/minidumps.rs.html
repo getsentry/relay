@@ -748,6 +748,75 @@
 <span id="745">745</span>
 <span id="746">746</span>
 <span id="747">747</span>
+<span id="748">748</span>
+<span id="749">749</span>
+<span id="750">750</span>
+<span id="751">751</span>
+<span id="752">752</span>
+<span id="753">753</span>
+<span id="754">754</span>
+<span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
+<span id="765">765</span>
+<span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
+<span id="771">771</span>
+<span id="772">772</span>
+<span id="773">773</span>
+<span id="774">774</span>
+<span id="775">775</span>
+<span id="776">776</span>
+<span id="777">777</span>
+<span id="778">778</span>
+<span id="779">779</span>
+<span id="780">780</span>
+<span id="781">781</span>
+<span id="782">782</span>
+<span id="783">783</span>
+<span id="784">784</span>
+<span id="785">785</span>
+<span id="786">786</span>
+<span id="787">787</span>
+<span id="788">788</span>
+<span id="789">789</span>
+<span id="790">790</span>
+<span id="791">791</span>
+<span id="792">792</span>
+<span id="793">793</span>
+<span id="794">794</span>
+<span id="795">795</span>
+<span id="796">796</span>
+<span id="797">797</span>
+<span id="798">798</span>
+<span id="799">799</span>
+<span id="800">800</span>
+<span id="801">801</span>
+<span id="802">802</span>
+<span id="803">803</span>
+<span id="804">804</span>
+<span id="805">805</span>
+<span id="806">806</span>
+<span id="807">807</span>
+<span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Minidump scrubbing.</span>
 
@@ -1041,7 +1110,7 @@
                     <span class="ident">changed</span> <span class="op">|</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">scrub_bytes</span>(<span class="ident">slice</span>, <span class="kw-2">&amp;</span><span class="ident">state</span>, <span class="ident">ScrubEncodings</span>::<span class="ident">All</span>);
 
                     <span class="comment">// Documented visit.</span>
-                    <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">FieldAttrs</span>::<span class="ident">new</span>().<span class="ident">pii</span>(<span class="ident">Pii</span>::<span class="ident">Maybe</span>));
+                    <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">FieldAttrs</span>::<span class="ident">new</span>().<span class="ident">pii</span>(<span class="ident">Pii</span>::<span class="ident">True</span>));
                     <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">file_state</span>.<span class="ident">enter_static</span>(
                         <span class="string">&quot;heap_memory&quot;</span>,
                         <span class="prelude-val">Some</span>(<span class="ident">attrs</span>),
@@ -1053,7 +1122,7 @@
                     <span class="kw">let</span> <span class="ident">slice</span> <span class="op">=</span> <span class="ident">data</span>
                         .<span class="ident">get_mut</span>(<span class="ident">range</span>)
                         .<span class="ident">ok_or</span>(<span class="ident">ScrubMinidumpError</span>::<span class="ident">InvalidAddress</span>)<span class="question-mark">?</span>;
-                    <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">FieldAttrs</span>::<span class="ident">new</span>().<span class="ident">pii</span>(<span class="ident">Pii</span>::<span class="ident">Maybe</span>));
+                    <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">FieldAttrs</span>::<span class="ident">new</span>().<span class="ident">pii</span>(<span class="ident">Pii</span>::<span class="ident">True</span>));
                     <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">file_state</span>.<span class="ident">enter_static</span>(<span class="string">&quot;&quot;</span>, <span class="prelude-val">Some</span>(<span class="ident">attrs</span>), <span class="prelude-val">Some</span>(<span class="ident">ValueType</span>::<span class="ident">Binary</span>));
                     <span class="ident">changed</span> <span class="op">|</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">scrub_bytes</span>(<span class="ident">slice</span>, <span class="kw-2">&amp;</span><span class="ident">state</span>, <span class="ident">ScrubEncodings</span>::<span class="ident">All</span>);
                 }
@@ -1061,7 +1130,7 @@
                     <span class="kw">let</span> <span class="ident">slice</span> <span class="op">=</span> <span class="ident">data</span>
                         .<span class="ident">get_mut</span>(<span class="ident">range</span>)
                         .<span class="ident">ok_or</span>(<span class="ident">ScrubMinidumpError</span>::<span class="ident">InvalidAddress</span>)<span class="question-mark">?</span>;
-                    <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">FieldAttrs</span>::<span class="ident">new</span>().<span class="ident">pii</span>(<span class="ident">Pii</span>::<span class="ident">Maybe</span>));
+                    <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">FieldAttrs</span>::<span class="ident">new</span>().<span class="ident">pii</span>(<span class="ident">Pii</span>::<span class="ident">True</span>));
                     <span class="comment">// Mirrors decisions made on NativeImagePath type</span>
                     <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span>
                         <span class="ident">file_state</span>.<span class="ident">enter_static</span>(<span class="string">&quot;code_file&quot;</span>, <span class="prelude-val">Some</span>(<span class="ident">attrs</span>), <span class="prelude-val">Some</span>(<span class="ident">ValueType</span>::<span class="ident">String</span>));
@@ -1072,7 +1141,7 @@
                     <span class="kw">let</span> <span class="ident">slice</span> <span class="op">=</span> <span class="ident">data</span>
                         .<span class="ident">get_mut</span>(<span class="ident">range</span>)
                         .<span class="ident">ok_or</span>(<span class="ident">ScrubMinidumpError</span>::<span class="ident">InvalidAddress</span>)<span class="question-mark">?</span>;
-                    <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">FieldAttrs</span>::<span class="ident">new</span>().<span class="ident">pii</span>(<span class="ident">Pii</span>::<span class="ident">Maybe</span>));
+                    <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">FieldAttrs</span>::<span class="ident">new</span>().<span class="ident">pii</span>(<span class="ident">Pii</span>::<span class="ident">True</span>));
                     <span class="comment">// Mirrors decisions made on NativeImagePath type</span>
                     <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span>
                         <span class="ident">file_state</span>.<span class="ident">enter_static</span>(<span class="string">&quot;debug_file&quot;</span>, <span class="prelude-val">Some</span>(<span class="ident">attrs</span>), <span class="prelude-val">Some</span>(<span class="ident">ValueType</span>::<span class="ident">String</span>));
@@ -1131,6 +1200,11 @@
         <span class="ident">Scrubbed</span>,
     }
 
+    <span class="kw">enum</span> <span class="ident">MemRegion</span> {
+        <span class="ident">Stack</span>,
+        <span class="ident">Heap</span>,
+    }
+
     <span class="kw">impl</span> <span class="ident">TestScrubber</span> {
         <span class="kw">fn</span> <span class="ident">main_module</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">which</span>: <span class="ident">Which</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">MinidumpModule</span> {
             <span class="kw">let</span> <span class="ident">dump</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">which</span> {
@@ -1152,8 +1226,8 @@
             <span class="ident">iter</span>.<span class="ident">cloned</span>().<span class="ident">collect</span>()
         }
 
-        <span class="doccomment">/// Returns the raw stack memory regions.</span>
-        <span class="kw">fn</span> <span class="ident">stacks</span><span class="op">&lt;</span><span class="lifetime">&#39;slf</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;slf</span> <span class="self">self</span>, <span class="ident">which</span>: <span class="ident">Which</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;slf</span> [<span class="ident">u8</span>]<span class="op">&gt;</span> {
+        <span class="doccomment">/// Returns the raw stack or heap memory regions.</span>
+        <span class="kw">fn</span> <span class="ident">memory_regions</span><span class="op">&lt;</span><span class="lifetime">&#39;slf</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;slf</span> <span class="self">self</span>, <span class="ident">which</span>: <span class="ident">Which</span>, <span class="ident">region</span>: <span class="ident">MemRegion</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;slf</span> [<span class="ident">u8</span>]<span class="op">&gt;</span> {
             <span class="kw">let</span> <span class="ident">dump</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;slf</span> <span class="ident">Minidump</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">u8</span>]<span class="op">&gt;</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">which</span> {
                 <span class="ident">Which</span>::<span class="ident">Original</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">orig_dump</span>,
                 <span class="ident">Which</span>::<span class="ident">Scrubbed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">scrubbed_dump</span>,
@@ -1174,9 +1248,33 @@
             <span class="kw">let</span> <span class="ident">mem_list</span>: <span class="ident">MinidumpMemoryList</span><span class="op">&lt;</span><span class="lifetime">&#39;slf</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">dump</span>.<span class="ident">get_stream</span>().<span class="ident">unwrap</span>();
             <span class="ident">mem_list</span>
                 .<span class="ident">iter</span>()
-                .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">mem</span><span class="op">|</span> <span class="ident">stack_rvas</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">mem</span>.<span class="ident">desc</span>.<span class="ident">memory</span>.<span class="ident">rva</span>))
+                .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">mem</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">region</span> {
+                    <span class="ident">MemRegion</span>::<span class="ident">Stack</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">stack_rvas</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">mem</span>.<span class="ident">desc</span>.<span class="ident">memory</span>.<span class="ident">rva</span>),
+                    <span class="ident">MemRegion</span>::<span class="ident">Heap</span> <span class="op">=</span><span class="op">&gt;</span> <span class="op">!</span><span class="ident">stack_rvas</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">mem</span>.<span class="ident">desc</span>.<span class="ident">memory</span>.<span class="ident">rva</span>),
+                })
                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">mem</span><span class="op">|</span> <span class="kw">unsafe</span> { <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">mem</span>.<span class="ident">bytes</span>) })
                 .<span class="ident">collect</span>()
+        }
+
+        <span class="doccomment">/// Returns the raw stack memory regions.</span>
+        <span class="kw">fn</span> <span class="ident">stacks</span><span class="op">&lt;</span><span class="lifetime">&#39;slf</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;slf</span> <span class="self">self</span>, <span class="ident">which</span>: <span class="ident">Which</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;slf</span> [<span class="ident">u8</span>]<span class="op">&gt;</span> {
+            <span class="self">self</span>.<span class="ident">memory_regions</span>(<span class="ident">which</span>, <span class="ident">MemRegion</span>::<span class="ident">Stack</span>)
+        }
+
+        <span class="doccomment">/// Returns the raw heap memory regions.</span>
+        <span class="kw">fn</span> <span class="ident">heaps</span><span class="op">&lt;</span><span class="lifetime">&#39;slf</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;slf</span> <span class="self">self</span>, <span class="ident">which</span>: <span class="ident">Which</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;slf</span> [<span class="ident">u8</span>]<span class="op">&gt;</span> {
+            <span class="self">self</span>.<span class="ident">memory_regions</span>(<span class="ident">which</span>, <span class="ident">MemRegion</span>::<span class="ident">Heap</span>)
+        }
+
+        <span class="doccomment">/// Returns the Linux environ region.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// Panics if there is no such region.</span>
+        <span class="kw">fn</span> <span class="ident">environ</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">which</span>: <span class="ident">Which</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
+            <span class="kw">let</span> <span class="ident">dump</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">which</span> {
+                <span class="ident">Which</span>::<span class="ident">Original</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">orig_dump</span>,
+                <span class="ident">Which</span>::<span class="ident">Scrubbed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">scrubbed_dump</span>,
+            };
+            <span class="ident">dump</span>.<span class="ident">get_raw_stream</span>(<span class="ident">StreamType</span>::<span class="ident">LinuxEnviron</span>).<span class="ident">unwrap</span>()
         }
     }
 
@@ -1345,6 +1443,25 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_module_list_selectors</span>() {
+        <span class="comment">// Since scrubbing the module list is safe, it should be scrubbed by valuetype.</span>
+        <span class="kw">let</span> <span class="ident">scrubber</span> <span class="op">=</span> <span class="ident">TestScrubber</span>::<span class="ident">new</span>(
+            <span class="string">&quot;linux.dmp&quot;</span>,
+            <span class="macro">include_bytes</span><span class="macro">!</span>(<span class="string">&quot;../../../tests/fixtures/linux.dmp&quot;</span>),
+            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>(
+                {
+                    <span class="string">&quot;applications&quot;</span>: {
+                        <span class="string">&quot;$string&quot;</span>: [<span class="string">&quot;@anything:mask&quot;</span>],
+                    }
+                }
+            ),
+        );
+        <span class="kw">let</span> <span class="ident">main</span> <span class="op">=</span> <span class="ident">scrubber</span>.<span class="ident">main_module</span>(<span class="ident">Which</span>::<span class="ident">Scrubbed</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">main</span>.<span class="ident">code_file</span>(), <span class="string">&quot;*****************/crash&quot;</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">main</span>.<span class="ident">debug_file</span>().<span class="ident">unwrap</span>(), <span class="string">&quot;*****************/crash&quot;</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_stack_scrubbing_backwards_compatible_selector</span>() {
         <span class="comment">// Some users already use this bare selector, that&#39;s all we care about for backwards</span>
         <span class="comment">// compatibility.</span>
@@ -1494,6 +1611,27 @@
         {
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">scrubbed_stack</span>, <span class="ident">original_stack</span>);
         }
+        <span class="kw">for</span> <span class="ident">heap</span> <span class="kw">in</span> <span class="ident">scrubber</span>.<span class="ident">heaps</span>(<span class="ident">Which</span>::<span class="ident">Scrubbed</span>) {
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">heap</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">b</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">b</span> <span class="op">=</span><span class="op">=</span> <span class="string">b&#39;*&#39;</span>));
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_linux_environ_valuetype</span>() {
+        <span class="comment">// The linux environ should be scrubbed for any $binary</span>
+        <span class="kw">let</span> <span class="ident">scrubber</span> <span class="op">=</span> <span class="ident">TestScrubber</span>::<span class="ident">new</span>(
+            <span class="string">&quot;linux.dmp&quot;</span>,
+            <span class="macro">include_bytes</span><span class="macro">!</span>(<span class="string">&quot;../../../tests/fixtures/linux.dmp&quot;</span>),
+            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>(
+                {
+                    <span class="string">&quot;applications&quot;</span>: {
+                        <span class="string">&quot;$binary&quot;</span>: [<span class="string">&quot;@anything:mask&quot;</span>],
+                    }
+                }
+            ),
+        );
+        <span class="kw">let</span> <span class="ident">environ</span> <span class="op">=</span> <span class="ident">scrubber</span>.<span class="ident">environ</span>(<span class="ident">Which</span>::<span class="ident">Scrubbed</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">environ</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">b</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">b</span> <span class="op">=</span><span class="op">=</span> <span class="string">b&#39;*&#39;</span>));
     }
 }
 </pre></div>
