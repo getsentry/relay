@@ -290,7 +290,7 @@ impl PiiAttachmentsProcessor<'_> {
                     changed |= self.scrub_bytes(slice, &state, ScrubEncodings::All);
 
                     // Documented visit.
-                    let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::Maybe));
+                    let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
                     let state = file_state.enter_static(
                         "heap_memory",
                         Some(attrs),
@@ -302,7 +302,7 @@ impl PiiAttachmentsProcessor<'_> {
                     let slice = data
                         .get_mut(range)
                         .ok_or(ScrubMinidumpError::InvalidAddress)?;
-                    let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::Maybe));
+                    let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
                     let state = file_state.enter_static("", Some(attrs), Some(ValueType::Binary));
                     changed |= self.scrub_bytes(slice, &state, ScrubEncodings::All);
                 }
@@ -310,7 +310,7 @@ impl PiiAttachmentsProcessor<'_> {
                     let slice = data
                         .get_mut(range)
                         .ok_or(ScrubMinidumpError::InvalidAddress)?;
-                    let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::Maybe));
+                    let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
                     // Mirrors decisions made on NativeImagePath type
                     let state =
                         file_state.enter_static("code_file", Some(attrs), Some(ValueType::String));
@@ -321,7 +321,7 @@ impl PiiAttachmentsProcessor<'_> {
                     let slice = data
                         .get_mut(range)
                         .ok_or(ScrubMinidumpError::InvalidAddress)?;
-                    let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::Maybe));
+                    let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
                     // Mirrors decisions made on NativeImagePath type
                     let state =
                         file_state.enter_static("debug_file", Some(attrs), Some(ValueType::String));
@@ -380,6 +380,11 @@ mod tests {
         Scrubbed,
     }
 
+    enum MemRegion {
+        Stack,
+        Heap,
+    }
+
     impl TestScrubber {
         fn main_module(&self, which: Which) -> MinidumpModule {
             let dump = match which {
@@ -401,8 +406,8 @@ mod tests {
             iter.cloned().collect()
         }
 
-        /// Returns the raw stack memory regions.
-        fn stacks<'slf>(&'slf self, which: Which) -> Vec<&'slf [u8]> {
+        /// Returns the raw stack or heap memory regions.
+        fn memory_regions<'slf>(&'slf self, which: Which, region: MemRegion) -> Vec<&'slf [u8]> {
             let dump: &'slf Minidump<&'static [u8]> = match which {
                 Which::Original => &self.orig_dump,
                 Which::Scrubbed => &self.scrubbed_dump,
@@ -423,9 +428,33 @@ mod tests {
             let mem_list: MinidumpMemoryList<'slf> = dump.get_stream().unwrap();
             mem_list
                 .iter()
-                .filter(|mem| stack_rvas.contains(&mem.desc.memory.rva))
+                .filter(|mem| match region {
+                    MemRegion::Stack => stack_rvas.contains(&mem.desc.memory.rva),
+                    MemRegion::Heap => !stack_rvas.contains(&mem.desc.memory.rva),
+                })
                 .map(|mem| unsafe { std::mem::transmute(mem.bytes) })
                 .collect()
+        }
+
+        /// Returns the raw stack memory regions.
+        fn stacks<'slf>(&'slf self, which: Which) -> Vec<&'slf [u8]> {
+            self.memory_regions(which, MemRegion::Stack)
+        }
+
+        /// Returns the raw heap memory regions.
+        fn heaps<'slf>(&'slf self, which: Which) -> Vec<&'slf [u8]> {
+            self.memory_regions(which, MemRegion::Heap)
+        }
+
+        /// Returns the Linux environ region.
+        ///
+        /// Panics if there is no such region.
+        fn environ(&self, which: Which) -> &[u8] {
+            let dump = match which {
+                Which::Original => &self.orig_dump,
+                Which::Scrubbed => &self.scrubbed_dump,
+            };
+            dump.get_raw_stream(StreamType::LinuxEnviron).unwrap()
         }
     }
 
@@ -594,6 +623,25 @@ mod tests {
     }
 
     #[test]
+    fn test_module_list_selectors() {
+        // Since scrubbing the module list is safe, it should be scrubbed by valuetype.
+        let scrubber = TestScrubber::new(
+            "linux.dmp",
+            include_bytes!("../../../tests/fixtures/linux.dmp"),
+            serde_json::json!(
+                {
+                    "applications": {
+                        "$string": ["@anything:mask"],
+                    }
+                }
+            ),
+        );
+        let main = scrubber.main_module(Which::Scrubbed);
+        assert_eq!(main.code_file(), "*****************/crash");
+        assert_eq!(main.debug_file().unwrap(), "*****************/crash");
+    }
+
+    #[test]
     fn test_stack_scrubbing_backwards_compatible_selector() {
         // Some users already use this bare selector, that's all we care about for backwards
         // compatibility.
@@ -743,5 +791,26 @@ mod tests {
         {
             assert_eq!(scrubbed_stack, original_stack);
         }
+        for heap in scrubber.heaps(Which::Scrubbed) {
+            assert!(heap.iter().all(|b| *b == b'*'));
+        }
+    }
+
+    #[test]
+    fn test_linux_environ_valuetype() {
+        // The linux environ should be scrubbed for any $binary
+        let scrubber = TestScrubber::new(
+            "linux.dmp",
+            include_bytes!("../../../tests/fixtures/linux.dmp"),
+            serde_json::json!(
+                {
+                    "applications": {
+                        "$binary": ["@anything:mask"],
+                    }
+                }
+            ),
+        );
+        let environ = scrubber.environ(Which::Scrubbed);
+        assert!(environ.iter().all(|b| *b == b'*'));
     }
 }
