@@ -316,6 +316,11 @@ mod tests {
         );
     }
 
+    fn approx_eq(left: f64, right: f64) -> bool {
+        let diff = left - right;
+        diff < 0.001 && diff > -0.001
+    }
+
     #[test]
     /// test that the first rule that mathces is selected
     fn test_rule_precedence() {
@@ -359,9 +364,8 @@ mod tests {
 
         let result = get_matching_rule(&rules, &trace_context, project_id);
         // complete match with first rule
-        assert_eq!(
-            result.unwrap().sample_rate,
-            0.1,
+        assert!(
+            approx_eq(result.unwrap().sample_rate, 0.1),
             "did not match the expected first rule"
         );
 
@@ -374,9 +378,8 @@ mod tests {
 
         let result = get_matching_rule(&rules, &trace_context, project_id);
         // should mach the second rule because of the release
-        assert_eq!(
-            result.unwrap().sample_rate,
-            0.2,
+        assert!(
+            approx_eq(result.unwrap().sample_rate, 0.2),
             "did not match the expected second rule"
         );
 
@@ -389,9 +392,8 @@ mod tests {
 
         let result = get_matching_rule(&rules, &trace_context, project_id);
         // should match the third rule because of the unknown release
-        assert_eq!(
-            result.unwrap().sample_rate,
-            0.3,
+        assert!(
+            approx_eq(result.unwrap().sample_rate, 0.3),
             "did not match the expected third rule"
         );
 
@@ -404,9 +406,8 @@ mod tests {
 
         let result = get_matching_rule(&rules, &trace_context, project_id);
         // should match the fourth rule because of the unknown user segment
-        assert_eq!(
-            result.unwrap().sample_rate,
-            0.4,
+        assert!(
+            approx_eq(result.unwrap().sample_rate, 0.4),
             "did not match the expected fourth rule"
         );
     }
