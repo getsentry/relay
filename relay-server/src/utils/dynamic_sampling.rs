@@ -1,6 +1,5 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 //!
-//! TODO probably move dynamic sampling it into its own crate
 use std::convert::TryInto;
 
 use rand::{distributions::Uniform, Rng};
@@ -10,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use relay_common::{ProjectId, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
 
-//TODO move to utils::dynamic_sampling
 /// A sampling rule defined by user in Organization options
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SamplingRule {
@@ -63,6 +61,7 @@ impl TraceContext {
         Some(rate < rule.sample_rate)
     }
 }
+
 /// Tests whether a rule matches a trace context
 fn matches(rule: &SamplingRule, context: &TraceContext, project_id: ProjectId) -> bool {
     // match against the project
@@ -120,32 +119,318 @@ fn pseudo_random_from_trace_id(trace_id: Uuid) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
-    /// Tests that we actually do generate a random number from a UUID string
-    fn generates_random_from_uuid() {}
+    /// test matching for various rules
+    fn test_matches() {
+        let project_id = ProjectId::new(22);
+        let project_id2 = ProjectId::new(23);
+        let project_id3 = ProjectId::new(24);
+        let trace_context = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user_segment: Some("vip".to_string()),
+        };
+        let rules = [
+            (
+                "simple",
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                    user_segments: vec!["vip".to_string()],
+                    sample_rate: 1.0,
+                },
+            ),
+            (
+                "multiple projects",
+                SamplingRule {
+                    project_ids: vec![project_id2, project_id, project_id3],
+                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                    user_segments: vec!["vip".to_string()],
+                    sample_rate: 1.0,
+                },
+            ),
+            (
+                "all projects",
+                SamplingRule {
+                    project_ids: vec![],
+                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                    user_segments: vec!["vip".to_string()],
+                    sample_rate: 1.0,
+                },
+            ),
+            (
+                "glob releases",
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    releases: GlobPatterns::new(vec!["1.*".to_string()]),
+                    user_segments: vec!["vip".to_string()],
+                    sample_rate: 1.0,
+                },
+            ),
+            (
+                "multiple releases",
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    releases: GlobPatterns::new(vec!["2.1.1".to_string(), "1.1.*".to_string()]),
+                    user_segments: vec!["vip".to_string()],
+                    sample_rate: 1.0,
+                },
+            ),
+            (
+                "multiple user segments",
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                    user_segments: vec!["paid".to_string(), "vip".to_string(), "free".to_string()],
+                    sample_rate: 1.0,
+                },
+            ),
+            (
+                "all user segments",
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                    user_segments: vec![],
+                    sample_rate: 1.0,
+                },
+            ),
+            (
+                "match all",
+                SamplingRule {
+                    project_ids: vec![],
+                    releases: GlobPatterns::new(vec![]),
+                    user_segments: vec![],
+                    sample_rate: 1.0,
+                },
+            ),
+        ];
+
+        for (rule_test_name, rule) in rules.iter() {
+            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            assert!(matches(rule, &trace_context, project_id), failure_name);
+        }
+    }
 
     #[test]
-    /// Test we support both hyphenated and simple formats for the trace_id
-    fn test_trace_id_format() {
-        let mut trace_id = "ffffffff-ffff-ffff-ffff-ffffffffffff";
-        let mut val = pseudo_random_from_trace_id(trace_id);
+    /// test various rules that do not match
+    fn test_not_matches() {
+        let project_id = ProjectId::new(22);
+        let project_id2 = ProjectId::new(23);
+        let trace_context = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user_segment: Some("vip".to_string()),
+        };
+        let rules = [
+            (
+                "simple",
+                SamplingRule {
+                    project_ids: vec![project_id2],
+                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                    user_segments: vec!["vip".to_string()],
+                    sample_rate: 1.0,
+                },
+            ),
+            (
+                "project id",
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    releases: GlobPatterns::new(vec!["1.1.2".to_string()]),
+                    user_segments: vec!["vip".to_string()],
+                    sample_rate: 1.0,
+                },
+            ),
+            (
+                "user segment",
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                    user_segments: vec!["all".to_string()],
+                    sample_rate: 1.0,
+                },
+            ),
+        ];
+
+        for (rule_test_name, rule) in rules.iter() {
+            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            assert!(!matches(rule, &trace_context, project_id), failure_name);
+        }
+    }
+
+    #[test]
+    fn test_partial_trace_matches() {
+        let project_id = ProjectId::new(22);
+        let trace_context = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: None,
+            user_segment: Some("vip".to_string()),
+        };
+        let rule = SamplingRule {
+            project_ids: vec![project_id],
+            releases: GlobPatterns::new(vec![]),
+            user_segments: vec!["vip".to_string()],
+            sample_rate: 1.0,
+        };
+        assert!(
+            matches(&rule, &trace_context, project_id),
+            "did not match with missing release"
+        );
+        let trace_context = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user_segment: None,
+        };
+
+        let rule = SamplingRule {
+            project_ids: vec![project_id],
+            releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
+            user_segments: vec![],
+            sample_rate: 1.0,
+        };
+        assert!(
+            matches(&rule, &trace_context, project_id),
+            "did not match with missing release"
+        );
+
+        let trace_context = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: None,
+            user_segment: None,
+        };
+        let rule = SamplingRule {
+            project_ids: vec![project_id],
+            releases: GlobPatterns::new(vec![]),
+            user_segments: vec![],
+            sample_rate: 1.0,
+        };
+        assert!(
+            matches(&rule, &trace_context, project_id),
+            "did not match with missing release and user segment"
+        );
+    }
+
+    #[test]
+    /// test that the first rule that mathces is selected
+    fn test_rule_precedence() {
+        let project_id = ProjectId::new(22);
+
+        let rules = SamplingConfig {
+            rules: vec![
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                    user_segments: vec!["vip".to_string()],
+                    sample_rate: 0.1,
+                },
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    releases: GlobPatterns::new(vec!["1.1.2".to_string()]),
+                    user_segments: vec![],
+                    sample_rate: 0.2,
+                },
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    releases: GlobPatterns::new(vec![]),
+                    user_segments: vec!["vip".to_string()],
+                    sample_rate: 0.3,
+                },
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    releases: GlobPatterns::new(vec![]),
+                    user_segments: vec![],
+                    sample_rate: 0.4,
+                },
+            ],
+        };
+
+        let trace_context = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user_segment: Some("vip".to_string()),
+        };
+
+        let result = get_matching_rule(&rules, &trace_context, project_id);
+        // complete match with first rule
+        assert_eq!(
+            result.unwrap().sample_rate,
+            0.1,
+            "did not match the expected first rule"
+        );
+
+        let trace_context = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.2".to_string()),
+            user_segment: Some("vip".to_string()),
+        };
+
+        let result = get_matching_rule(&rules, &trace_context, project_id);
+        // should mach the second rule because of the release
+        assert_eq!(
+            result.unwrap().sample_rate,
+            0.2,
+            "did not match the expected second rule"
+        );
+
+        let trace_context = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.3".to_string()),
+            user_segment: Some("vip".to_string()),
+        };
+
+        let result = get_matching_rule(&rules, &trace_context, project_id);
+        // should match the third rule because of the unknown release
+        assert_eq!(
+            result.unwrap().sample_rate,
+            0.3,
+            "did not match the expected third rule"
+        );
+
+        let trace_context = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user_segment: Some("all".to_string()),
+        };
+
+        let result = get_matching_rule(&rules, &trace_context, project_id);
+        // should match the fourth rule because of the unknown user segment
+        assert_eq!(
+            result.unwrap().sample_rate,
+            0.4,
+            "did not match the expected fourth rule"
+        );
+    }
+
+    #[test]
+    /// Test that we can convert the full range of UUID into a pseudo random number
+    fn test_trace_id_range() {
+        let highest = Uuid::from_str("ffffffff-ffff-ffff-ffff-ffffffffffff").unwrap();
+
+        let val = pseudo_random_from_trace_id(highest);
         assert!(val.is_some());
-        trace_id = "ffffffffffffffffffffffffffffffff";
-        val = pseudo_random_from_trace_id(trace_id);
+
+        let lowest = Uuid::from_str("00000000-0000-0000-0000-000000000000").unwrap();
+        let val = pseudo_random_from_trace_id(lowest);
         assert!(val.is_some());
     }
 
     #[test]
     /// Test that the we get the same sampling decision from the same trace id
     fn test_repeatable_sampling_decision() {
-        let trace_id = Uuid::new_v4()
-            .to_hyphenated()
-            .encode_upper(&mut Uuid::encode_buffer())
-            .to_string();
+        let trace_id = Uuid::new_v4();
 
-        let val1 = pseudo_random_from_trace_id(&trace_id);
-        let val2 = pseudo_random_from_trace_id(&trace_id);
+        let val1 = pseudo_random_from_trace_id(trace_id);
+        let val2 = pseudo_random_from_trace_id(trace_id);
 
         assert!(val1.is_some());
         assert_eq!(val1, val2);
