@@ -3,7 +3,7 @@ import json
 import os
 import re
 import uuid
-
+import datetime
 from queue import Queue
 
 import pytest
@@ -51,6 +51,62 @@ class Sentry(SentryLike):
             s += "> %s: %s\n" % (route, error)
         return s
 
+    def add_basic_project_config(self, project_id, public_key=None):
+        #TODO fix public_key
+        ret_val = {
+            "projectId": project_id,
+            "slug": "python",
+            "publicKeys": [
+                {"publicKey": self.dsn_public_key, "isEnabled": True, "numericId": 123}
+            ],
+            "rev": "5ceaea8c919811e8ae7daae9fe877901",
+            "disabled": False,
+            "lastFetch": datetime.datetime.utcnow().isoformat() + "Z",
+            "lastChange": datetime.datetime.utcnow().isoformat() + "Z",
+            "config": {
+                "allowedDomains": ["*"],
+                "trustedRelays": list(self.iter_public_keys()),
+                "piiConfig": {
+                    "rules": {},
+                    "applications": {
+                        "$string": ["@email", "@mac", "@creditcard", "@userpath"],
+                        "$object": ["@password"],
+                    },
+                },
+            },
+        }
+        self.project_configs[project_id] = ret_val
+        return ret_val
+
+    def add_full_project_config(self, project_id, public_key=None):
+        basic = self.add_basic_project_config(project_id, public_key)
+        full = {
+            "organizationId": 1,
+            "config": {
+                "excludeFields": [],
+                "filterSettings": {},
+                "scrubIpAddresses": False,
+                "sensitiveFields": [],
+                "scrubDefaults": True,
+                "scrubData": True,
+                "groupingConfig": {
+                    "id": "legacy:2019-03-12",
+                    "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC",
+                },
+                "blacklistedIps": ["127.43.33.22"],
+                "trustedRelays": [],
+            },
+        }
+
+        ret_val = {
+            **basic,
+            **full,
+            "config": {**basic["config"], **full["config"]},
+        }
+
+        # override the original project config
+        self.project_configs[project_id] = ret_val
+        return ret_val
 
 def _get_project_id(public_key, project_configs):
     for project_id, project_config in project_configs.items():

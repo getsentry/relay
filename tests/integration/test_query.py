@@ -13,7 +13,11 @@ from requests.exceptions import HTTPError
 
 
 def test_local_project_config(mini_sentry, relay):
-    config = mini_sentry.basic_project_config()
+    project_id = 42
+    config = mini_sentry.add_basic_project_config(project_id)
+    # TODO RaduW see how to fix this hack
+    # hack we only need a config (we don't need it added to sentry)
+    del mini_sentry.project_configs[42]
     relay_config = {
         "cache": {"file_interval": 1, "project_expiry": 0, "project_grace_period": 0}
     }
@@ -33,7 +37,7 @@ def test_local_project_config(mini_sentry, relay):
     )
 
     relay.wait_relay_healthcheck()
-    relay.send_event(42)
+    relay.send_event(project_id)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
@@ -45,7 +49,7 @@ def test_local_project_config(mini_sentry, relay):
     try:
         # This may or may not respond with 403, depending on how quickly the future to fetch project
         # states executes.
-        relay.send_event(42)
+        relay.send_event(project_id)
     except HTTPError:
         pass
 
@@ -54,7 +58,7 @@ def test_local_project_config(mini_sentry, relay):
 
 @pytest.mark.parametrize("grace_period", [0, 5])
 def test_project_grace_period(mini_sentry, relay, grace_period):
-    config = mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+    config = mini_sentry.add_basic_project_config(42)
     config["disabled"] = True
     fetched_project_config = threading.Event()
 
@@ -107,7 +111,7 @@ def test_project_grace_period(mini_sentry, relay, grace_period):
 def test_query_retry(failure_type, mini_sentry, relay):
     retry_count = 0
 
-    mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+    mini_sentry.add_basic_project_config(42)
     original_endpoint = mini_sentry.app.view_functions["get_project_config"]
 
     @mini_sentry.app.endpoint("get_project_config")
@@ -189,7 +193,8 @@ def test_processing_redis_query(
     events_consumer = events_consumer()
 
     relay = relay_with_processing({"limits": {"query_timeout": 10}})
-    cfg = mini_sentry.full_project_config()
+    project_id = 42
+    cfg = mini_sentry.add_full_project_config(project_id)
     cfg["disabled"] = disabled
 
     key = mini_sentry.dsn_public_key
@@ -199,7 +204,7 @@ def test_processing_redis_query(
     ]
     redis_client.setex(f"{projectconfig_cache_prefix}:{key}", 3600, json.dumps(cfg))
 
-    relay.send_event(42)
+    relay.send_event(project_id)
 
     if disabled:
         outcomes_consumer.assert_dropped_unknown_project()

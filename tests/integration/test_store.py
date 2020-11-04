@@ -16,14 +16,15 @@ from flask import abort, Response
 
 def test_store(mini_sentry, relay_chain):
     relay = relay_chain()
-    mini_sentry.project_configs[42] = relay.basic_project_config()
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
 
-    relay.send_event(42)
+    relay.send_event(project_id)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
 
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
-
+#TODO I don't understand how this works since both paths should do the same thing
 @pytest.mark.parametrize("allowed", [True, False])
 def test_store_external_relay(mini_sentry, relay, allowed):
     # Use 3 Relays to force the middle one to fetch public keys
@@ -50,7 +51,7 @@ def test_store_external_relay(mini_sentry, relay, allowed):
 
 def test_legacy_store(mini_sentry, relay_chain):
     relay = relay_chain()
-    mini_sentry.project_configs[42] = relay.basic_project_config()
+    mini_sentry.add_basic_project_config(42)
 
     relay.send_event(42, legacy=True)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
@@ -77,11 +78,11 @@ def test_filters_are_applied(
     Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
     """
     relay = relay_with_processing()
-    project_config = relay.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
     filter_settings = project_config["config"]["filterSettings"]
     for key in filter_config.keys():
         filter_settings[key] = filter_config[key]
-    mini_sentry.project_configs[42] = project_config
 
     events_consumer = events_consumer()
 
@@ -104,7 +105,7 @@ def test_filters_are_applied(
         "user": {"ip_address": "127.0.0.1"},
     }
 
-    relay.send_event(42, event)
+    relay.send_event(project_id, event)
 
     event, _ = events_consumer.try_get_event()
 
@@ -126,10 +127,10 @@ def test_web_crawlers_filter_are_applied(
     Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
     """
     relay = relay_with_processing()
-    project_config = relay.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
     filter_settings = project_config["config"]["filterSettings"]
     filter_settings["webCrawlers"] = {"isEnabled": is_enabled}
-    mini_sentry.project_configs[42] = project_config
 
     events_consumer = events_consumer()
 
@@ -142,7 +143,7 @@ def test_web_crawlers_filter_are_applied(
         "request": {"headers": {"User-Agent": "BingBot",}},
     }
 
-    relay.send_event(42, event)
+    relay.send_event(project_id, event)
 
     event, _ = events_consumer.try_get_event()
 
@@ -156,14 +157,15 @@ def test_web_crawlers_filter_are_applied(
 def test_options_response(mini_sentry, relay, method_to_test):
     method, should_succeed = method_to_test
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[42] = relay.basic_project_config()
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
 
     headers = {
         "Access-Control-Request-Method": method,
         "Access-Control-Request-Headers": "X-Sentry-Auth",
     }
 
-    result = relay.send_options(42, headers)
+    result = relay.send_options(project_id, headers)
 
     assert result.ok == should_succeed
 
@@ -173,7 +175,8 @@ def test_options_response(mini_sentry, relay, method_to_test):
 def test_store_node_base64(mini_sentry, relay_chain):
     relay = relay_chain()
 
-    mini_sentry.project_configs[42] = relay.basic_project_config()
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
     payload = (
         b"eJytVctu2zAQ/BWDFzuAJYt6WVIfaAsE6KFBi6K3IjAoiXIYSyRLUm7cwP/eJaXEcZr0Bd"
         b"/E5e7OzJIc3aKOak3WFBXoXCmhislOTDqiNmiO6E1FpWGCo"
@@ -189,7 +192,7 @@ def test_store_node_base64(mini_sentry, relay_chain):
         b"+9hPrSaYwJaq1Xhd35Mfb70LUr0Dlt4nJTycwOOuSGv/VCDErByDNE"
         b"/iZZLXQY3zOAnDvElpjJcJTXCUZSEZZYGMTlqKAc68IPPC5RccwQUvgsDdUmGPxJKx/GVLTCNUZ39Fzt5/AgZYWKw="
     )  # noqa
-    relay.send_event(42, payload)
+    relay.send_event(project_id, payload)
 
     event = mini_sentry.captured_events.get(timeout=1).get_event()
 
@@ -199,8 +202,9 @@ def test_store_node_base64(mini_sentry, relay_chain):
 def test_store_pii_stripping(mini_sentry, relay):
     relay = relay(mini_sentry)
 
-    mini_sentry.project_configs[42] = relay.basic_project_config()
-    relay.send_event(42, {"message": "hi", "extra": {"foo": "test@mail.org"}})
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+    relay.send_event(project_id, {"message": "hi", "extra": {"foo": "test@mail.org"}})
 
     event = mini_sentry.captured_events.get(timeout=2).get_event()
 
@@ -220,11 +224,12 @@ def test_store_timeout(mini_sentry, relay):
 
     relay = relay(mini_sentry, {"cache": {"event_expiry": 1}})
 
-    mini_sentry.project_configs[42] = relay.basic_project_config()
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
 
-    relay.send_event(42, {"message": "invalid"})
+    relay.send_event(project_id, {"message": "invalid"})
     sleep(1)  # Sleep so that the second event also has to wait but succeeds
-    relay.send_event(42, {"message": "correct"})
+    relay.send_event(project_id, {"message": "correct"})
 
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "correct"}
@@ -254,19 +259,20 @@ def test_store_rate_limit(mini_sentry, relay):
             return "", 429, {"retry-after": "2"}
 
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[42] = relay.basic_project_config()
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
 
     # This message should return the initial 429 and start rate limiting
-    relay.send_event(42, {"message": "rate limit"})
+    relay.send_event(project_id, {"message": "rate limit"})
 
     # This event should get dropped by relay. We expect 429 here
     sleep(1)
     with pytest.raises(HTTPError):
-        relay.send_event(42, {"message": "invalid"})
+        relay.send_event(project_id, {"message": "invalid"})
 
     # This event should arrive
     sleep(2)
-    relay.send_event(42, {"message": "correct"})
+    relay.send_event(project_id, {"message": "correct"})
 
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "correct"}
@@ -275,18 +281,18 @@ def test_store_rate_limit(mini_sentry, relay):
 def test_store_static_config(mini_sentry, relay):
     from time import sleep
 
-    project_config = mini_sentry.basic_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_basic_project_config(project_id)
 
     def configure_static_project(dir):
         os.remove(dir.join("credentials.json"))
         os.makedirs(dir.join("projects"))
-        dir.join("projects").join("42.json").write(json.dumps(project_config))
+        dir.join("projects").join("{}.json".format(project_id)).write(json.dumps(project_config))
 
     relay_options = {"relay": {"mode": "static"}}
     relay = relay(mini_sentry, options=relay_options, prepare=configure_static_project)
-    mini_sentry.project_configs[42] = project_config
 
-    relay.send_event(42)
+    relay.send_event(project_id)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
@@ -300,27 +306,28 @@ def test_store_static_config(mini_sentry, relay):
 def test_store_proxy_config(mini_sentry, relay):
     from time import sleep
 
-    project_config = mini_sentry.basic_project_config()
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
 
     def configure_proxy(dir):
         os.remove(dir.join("credentials.json"))
 
     relay_options = {"relay": {"mode": "proxy"}}
     relay = relay(mini_sentry, options=relay_options, prepare=configure_proxy)
-    mini_sentry.project_configs[42] = project_config
     sleep(1)  # There is no upstream auth, so just wait for relay to initialize
 
-    relay.send_event(42)
+    relay.send_event(project_id)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
 def test_store_buffer_size(mini_sentry, relay):
     relay = relay(mini_sentry, {"cache": {"event_buffer_size": 0}})
-    mini_sentry.project_configs[42] = relay.basic_project_config()
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
 
     with pytest.raises(HTTPError):
-        relay.send_event(42, {"message": "pls ignore"})
+        relay.send_event(project_id, {"message": "pls ignore"})
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
     for (_, error) in mini_sentry.test_failures:
@@ -336,7 +343,8 @@ def test_store_max_concurrent_requests(mini_sentry, relay):
     processing_store = False
     store_count = Semaphore()
 
-    mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
 
     @mini_sentry.app.endpoint("store_event")
     def store_event():
@@ -357,8 +365,8 @@ def test_store_max_concurrent_requests(mini_sentry, relay):
         {"limits": {"max_concurrent_requests": 1}, "cache": {"event_buffer_expiry": 2}},
     )
 
-    relay.send_event(42)
-    relay.send_event(42)
+    relay.send_event(project_id)
+    relay.send_event(project_id)
 
     store_count.acquire(timeout=2)
     store_count.acquire(timeout=2)
@@ -369,8 +377,9 @@ def test_store_not_normalized(mini_sentry, relay):
     Tests that relay does not normalize when processing is disabled
     """
     relay = relay(mini_sentry, {"processing": {"enabled": False}})
-    mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
-    relay.send_event(42, {"message": "some_message"})
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+    relay.send_event(project_id, {"message": "some_message"})
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event.get("key_id") is None
     assert event.get("project") is None
@@ -422,7 +431,8 @@ def test_processing(
     Test that relay normalizes messages when processing is enabled and sends them via Kafka queues
     """
     relay = relay_with_processing()
-    mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    project_id = 42
+    mini_sentry.add_full_project_config(42)
 
     if event_type == "default":
         events_consumer = events_consumer()
@@ -439,7 +449,7 @@ def test_processing(
     if event_type == "transaction":
         make_transaction(event)
 
-    relay.send_event(42, event)
+    relay.send_event(project_id, event)
 
     event, v = events_consumer.get_event()
 
@@ -479,7 +489,8 @@ def test_processing_quotas(
 
     relay = relay_with_processing({"processing": {"max_rate_limit": max_rate_limit}})
 
-    mini_sentry.project_configs[42] = projectconfig = mini_sentry.full_project_config()
+    project_id = 42
+    projectconfig = mini_sentry.add_full_project_config(project_id)
     public_keys = projectconfig["publicKeys"]
     key_id = public_keys[0]["numericId"]
 
@@ -498,16 +509,18 @@ def test_processing_quotas(
         }
     ]
 
-    # This still creates a project with ID 42, but with a new public key. We need to put it in a new
-    # place, which is going to be slot 43.
     second_key = {
         "publicKey": "31a5a894b4524f74a9a8d0e27e21ba92",
         "isEnabled": True,
         "numericId": 1234,
     }
 
-    mini_sentry.project_configs[43] = second_config = mini_sentry.full_project_config()
+    second_project_id = 43
+    second_config = mini_sentry.add_full_project_config(second_project_id)
     second_config["publicKeys"] = [second_key]
+    # Hack we want the Id to be still 42  but with a new public key
+    # and at slot 43
+    second_config["projectId"] = project_id  # put the initial project id
 
     generates_outcomes = True
     if event_type == "transaction":
@@ -527,14 +540,14 @@ def test_processing_quotas(
         transform = lambda e: e
 
     for i in range(5):
-        relay.send_event(42, transform({"message": f"regular{i}"}))
+        relay.send_event(project_id, transform({"message": f"regular{i}"}))
 
         event, _ = events_consumer.get_event()
         assert event["logentry"]["formatted"] == f"regular{i}"
 
     # this one will not get a 429 but still get rate limited (silently) because
     # of our caching
-    relay.send_event(42, transform({"message": "some_message"}))
+    relay.send_event(project_id, transform({"message": "some_message"}))
 
     if generates_outcomes:
         outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
@@ -544,7 +557,7 @@ def test_processing_quotas(
 
     for _ in range(5):
         with pytest.raises(HTTPError) as excinfo:
-            relay.send_event(42, transform({"message": "rate_limited"}))
+            relay.send_event(project_id, transform({"message": "rate_limited"}))
         headers = excinfo.value.response.headers
 
         retry_after = headers["retry-after"]
@@ -559,7 +572,7 @@ def test_processing_quotas(
     relay.dsn_public_key = second_key["publicKey"]
 
     for i in range(10):
-        relay.send_event(42, transform({"message": f"otherkey{i}"}))
+        relay.send_event(project_id, transform({"message": f"otherkey{i}"}))
         event, _ = events_consumer.get_event()
 
         assert event["logentry"]["formatted"] == f"otherkey{i}"
@@ -582,10 +595,10 @@ def test_events_buffered_before_auth(relay, mini_sentry):
     relay = relay(mini_sentry, relay_options, wait_healthcheck=False)
     assert evt.wait(1)  # wait for relay to start authenticating
 
-    project_config = relay.basic_project_config()
-    mini_sentry.project_configs[42] = project_config
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
 
-    relay.send_event(42)
+    relay.send_event(project_id)
     # resume normal function
     mini_sentry.app.view_functions["get_challenge"] = old_handler
 
@@ -602,8 +615,8 @@ def test_events_are_retried(relay, mini_sentry):
     relay_options = {"http": {"max_retry_interval": 1}}
     relay = relay(mini_sentry, relay_options)
 
-    project_config = relay.basic_project_config()
-    mini_sentry.project_configs[42] = project_config
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
 
     evt = threading.Event()
 
@@ -616,7 +629,7 @@ def test_events_are_retried(relay, mini_sentry):
     # make the store endpoint fail with a network error
     mini_sentry.app.view_functions["store_event"] = network_error_endpoint
 
-    relay.send_event(42)
+    relay.send_event(project_id)
     # test that the network fail handler is called at least once
     assert evt.wait(1)
     # resume normal function
@@ -658,11 +671,11 @@ def test_failed_network_requests_trigger_health_check(relay, mini_sentry):
         }
     }
     relay = relay(mini_sentry, relay_options)
-    project_config = relay.basic_project_config()
-    mini_sentry.project_configs[42] = project_config
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
 
     # send an event, the event should fail and trigger a liveliness check (after a second)
-    relay.send_event(42)
+    relay.send_event(project_id)
 
     # it did try to reestablish connection
     assert evt.wait(5)
@@ -673,7 +686,8 @@ def test_no_auth(relay, mini_sentry, mode):
     """
     Tests that relays that run in proxy and static mode do NOT authenticate
     """
-    project_config = mini_sentry.basic_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_basic_project_config(project_id)
 
     old_handler = mini_sentry.app.view_functions["get_challenge"]
     has_registered = [False]
@@ -688,13 +702,12 @@ def test_no_auth(relay, mini_sentry, mode):
     def configure_static_project(dir):
         os.remove(dir.join("credentials.json"))
         os.makedirs(dir.join("projects"))
-        dir.join("projects").join("42.json").write(json.dumps(project_config))
+        dir.join("projects").join("{}.json".format(project_id)).write(json.dumps(project_config))
 
     relay_options = {"relay": {"mode": mode}}
     relay = relay(mini_sentry, options=relay_options, prepare=configure_static_project)
-    mini_sentry.project_configs[42] = project_config
 
-    relay.send_event(42, {"message": "123"})
+    relay.send_event(project_id, {"message": "123"})
 
     # sanity test that we got the event we sent
     event = mini_sentry.captured_events.get(timeout=1).get_event()
@@ -784,8 +797,8 @@ def test_re_auth_failure(relay, mini_sentry):
 
     # creates a relay (we don't need to call it explicitly it should register by itself)
     relay = relay(mini_sentry, options=relay_options)
-    project_config = relay.basic_project_config()
-    mini_sentry.project_configs[42] = project_config
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
 
     # we have authenticated successfully
     assert evt.wait(2)
@@ -800,7 +813,7 @@ def test_re_auth_failure(relay, mini_sentry):
     assert auth_count_1 < auth_count_2
 
     # send a message, it should not come through while the authentication has failed
-    relay.send_event(42, {"message": "123"})
+    relay.send_event(project_id, {"message": "123"})
     # sentry should have received nothing
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
@@ -918,11 +931,11 @@ def test_buffer_events_during_outage(relay, mini_sentry):
         }
     }
     relay = relay(mini_sentry, relay_options)
-    project_config = relay.basic_project_config()
-    mini_sentry.project_configs[42] = project_config
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
 
     # send an event, the event should fail and trigger a liveliness check (after a second)
-    relay.send_event(42, {"message": "123"})
+    relay.send_event(project_id, {"message": "123"})
 
     # it did try to reestablish connection
     assert evt.wait(5)

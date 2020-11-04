@@ -33,7 +33,7 @@ def test_uses_origins(mini_sentry, relay, json_fixture_provider, allowed_origins
     proj_id = 42
     relay = relay(mini_sentry)
     report = fixture_provider.load("csp", ".input")
-    mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(proj_id)
 
     relay.send_security_report(
         project_id=proj_id,
@@ -62,7 +62,7 @@ def test_security_report_with_processing(
     proj_id = 42
     relay = relay_with_processing()
     report = fixture_provider.load(test_name, ".input")
-    mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(proj_id)
     events_consumer = events_consumer()
 
     relay.send_security_report(
@@ -111,7 +111,7 @@ def test_security_report(mini_sentry, relay, test_case, json_fixture_provider):
     proj_id = 42
     relay = relay(mini_sentry)
     report = fixture_provider.load(test_name, ".input")
-    mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(proj_id)
 
     relay.send_security_report(
         project_id=proj_id,

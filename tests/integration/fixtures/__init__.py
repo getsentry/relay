@@ -16,6 +16,7 @@ class SentryLike(object):
         self.server_address = server_address
         self.upstream = upstream
         self.public_key = public_key
+        self.public_keys = {}
 
     @property
     def url(self):
@@ -68,6 +69,7 @@ class SentryLike(object):
             else:
                 yield from self.upstream.iter_public_keys()
 
+    # TODO RaduW remove after figuring out how to replace it in: test_store.py::test_store_external_relay
     def basic_project_config(self):
         return {
             "projectId": 42,
@@ -90,32 +92,6 @@ class SentryLike(object):
                     },
                 },
             },
-        }
-
-    def full_project_config(self):
-        basic = self.basic_project_config()
-        full = {
-            "organizationId": 1,
-            "config": {
-                "excludeFields": [],
-                "filterSettings": {},
-                "scrubIpAddresses": False,
-                "sensitiveFields": [],
-                "scrubDefaults": True,
-                "scrubData": True,
-                "groupingConfig": {
-                    "id": "legacy:2019-03-12",
-                    "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC",
-                },
-                "blacklistedIps": ["127.43.33.22"],
-                "trustedRelays": [],
-            },
-        }
-
-        return {
-            **basic,
-            **full,
-            "config": {**basic["config"], **full["config"]},
         }
 
     def send_event(self, project_id, payload=None, headers=None, legacy=False):

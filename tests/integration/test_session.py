@@ -12,9 +12,10 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
 
-    mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
     relay.send_session(
-        42,
+        project_id,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "did": "foobarbaz",
@@ -32,7 +33,7 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
     session = sessions_consumer.get_session()
     assert session == {
         "org_id": 1,
-        "project_id": 42,
+        "project_id": project_id,
         "session_id": "8333339f-5675-4f89-a9a0-1c935255ab58",
         "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
         # seq is forced to 0 when init is true
@@ -58,9 +59,10 @@ def test_session_with_processing_two_events(
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
 
-    mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
     relay.send_session(
-        42,
+        project_id,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "did": "foobarbaz",
@@ -75,7 +77,7 @@ def test_session_with_processing_two_events(
     session = sessions_consumer.get_session()
     assert session == {
         "org_id": 1,
-        "project_id": 42,
+        "project_id": project_id,
         "session_id": "8333339f-5675-4f89-a9a0-1c935255ab58",
         "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
         # seq is forced to 0 when init is true
@@ -92,7 +94,7 @@ def test_session_with_processing_two_events(
     }
 
     relay.send_session(
-        42,
+        project_id,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "did": "foobarbaz",
@@ -107,7 +109,7 @@ def test_session_with_processing_two_events(
     session = sessions_consumer.get_session()
     assert session == {
         "org_id": 1,
-        "project_id": 42,
+        "project_id": project_id,
         "session_id": "8333339f-5675-4f89-a9a0-1c935255ab58",
         "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
         "seq": 43,
@@ -129,13 +131,13 @@ def test_session_with_custom_retention(
     relay = relay_with_processing()
     sessions_consumer = sessions_consumer()
 
-    project_config = mini_sentry.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 17
-    mini_sentry.project_configs[42] = project_config
 
     timestamp = datetime.now(tz=timezone.utc)
     relay.send_session(
-        42,
+        project_id,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "timestamp": timestamp.isoformat(),
@@ -152,15 +154,15 @@ def test_session_age_discard(mini_sentry, relay_with_processing, sessions_consum
     relay = relay_with_processing()
     sessions_consumer = sessions_consumer()
 
-    project_config = mini_sentry.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 17
-    mini_sentry.project_configs[42] = project_config
 
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(days=5, hours=1)
 
     relay.send_session(
-        42,
+        project_id,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "timestamp": timestamp.isoformat(),
@@ -181,9 +183,10 @@ def test_session_force_errors_on_crash(
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
 
-    mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
     relay.send_session(
-        42,
+        project_id,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "did": "foobarbaz",
@@ -199,7 +202,7 @@ def test_session_force_errors_on_crash(
     session = sessions_consumer.get_session()
     assert session == {
         "org_id": 1,
-        "project_id": 42,
+        "project_id": project_id,
         "session_id": "8333339f-5675-4f89-a9a0-1c935255ab58",
         "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
         # seq is forced to 0 when init is true
@@ -222,15 +225,15 @@ def test_session_release_required(
     relay = relay_with_processing()
     sessions_consumer = sessions_consumer()
 
-    project_config = mini_sentry.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 17
-    mini_sentry.project_configs[42] = project_config
 
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(days=5, hours=1)
 
     relay.send_session(
-        42,
+        project_id,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "timestamp": timestamp.isoformat(),
@@ -247,7 +250,8 @@ def test_session_quotas(mini_sentry, relay_with_processing, sessions_consumer):
     relay = relay_with_processing()
     sessions_consumer = sessions_consumer()
 
-    project_config = mini_sentry.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 17
     project_config["config"]["quotas"] = [
         {
@@ -260,7 +264,6 @@ def test_session_quotas(mini_sentry, relay_with_processing, sessions_consumer):
             "reasonCode": "sessions_exceeded",
         }
     ]
-    mini_sentry.project_configs[42] = project_config
 
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
@@ -273,15 +276,15 @@ def test_session_quotas(mini_sentry, relay_with_processing, sessions_consumer):
     }
 
     for i in range(5):
-        relay.send_session(42, session)
+        relay.send_session(project_id, session)
         sessions_consumer.get_session()
 
     # Rate limited, but responds with 200 because of deferred processing
-    relay.send_session(42, session)
+    relay.send_session(project_id, session)
     assert sessions_consumer.poll() is None
 
     with pytest.raises(HTTPError):
-        relay.send_session(42, session)
+        relay.send_session(project_id, session)
     assert sessions_consumer.poll() is None
 
 
@@ -289,7 +292,8 @@ def test_session_disabled(mini_sentry, relay_with_processing, sessions_consumer)
     relay = relay_with_processing()
     sessions_consumer = sessions_consumer()
 
-    project_config = mini_sentry.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 17
     project_config["config"]["quotas"] = [
         {
@@ -300,13 +304,12 @@ def test_session_disabled(mini_sentry, relay_with_processing, sessions_consumer)
             "reasonCode": "sessions_exceeded",
         }
     ]
-    mini_sentry.project_configs[42] = project_config
 
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
 
     relay.send_session(
-        42,
+        project_id,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "timestamp": timestamp.isoformat(),
@@ -322,13 +325,13 @@ def test_session_auto_ip(mini_sentry, relay_with_processing, sessions_consumer):
     relay = relay_with_processing()
     sessions_consumer = sessions_consumer()
 
-    project_config = mini_sentry.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 17
-    mini_sentry.project_configs[42] = project_config
 
     timestamp = datetime.now(tz=timezone.utc)
     relay.send_session(
-        42,
+        project_id,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "timestamp": timestamp.isoformat(),

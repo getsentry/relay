@@ -14,8 +14,9 @@ def test_graceful_shutdown(mini_sentry, relay):
         return get_project_config_original()
 
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[42] = relay.basic_project_config()
-    relay.send_event(42)
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+    relay.send_event(project_id)
 
     relay.shutdown(sig=signal.SIGTERM)
     event = mini_sentry.captured_events.get(timeout=0).get_event()
@@ -33,8 +34,9 @@ def test_forced_shutdown(mini_sentry, relay):
         return get_project_config_original()
 
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[42] = relay.basic_project_config()
-    relay.send_event(42)
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+    relay.send_event(project_id)
 
     relay.shutdown(sig=signal.SIGINT)
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
@@ -64,7 +66,7 @@ def test_forced_shutdown(mini_sentry, relay):
     ],
 )
 def test_store_pixel_gif(mini_sentry, relay, input, trailing_slash):
-    mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+    mini_sentry.add_basic_project_config(42)
     relay = relay(mini_sentry)
 
     response = relay.get(
@@ -80,7 +82,7 @@ def test_store_pixel_gif(mini_sentry, relay, input, trailing_slash):
 
 @pytest.mark.parametrize("route", ["/api/42/store/", "/api/42/store//"])
 def test_store_post_trailing_slash(mini_sentry, relay, route):
-    mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+    mini_sentry.add_basic_project_config(42)
     relay = relay(mini_sentry)
 
     response = relay.post(
@@ -112,7 +114,7 @@ def id_fun1(param):
 )
 def test_store_allowed_origins_passes(mini_sentry, relay, allowed_origins):
     allowed_domains, should_be_allowed = allowed_origins
-    config = mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+    config = mini_sentry.add_basic_project_config(42)
     config["config"]["allowedDomains"] = allowed_domains
 
     relay = relay(mini_sentry)
