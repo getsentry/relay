@@ -440,7 +440,7 @@ where
                         // do the fast path transaction sampling (if we can't do it here
                         // we'll try again after the envelope is queued)
                         .and_then(clone!(event_manager, |project| {
-                            sample_transaction(envelope.clone(), Some(project.clone()), true)
+                            sample_transaction(envelope, Some(project.clone()), true)
                                 .map_err(|_| BadStoreRequest::TraceSampled)
                                 .map(|envelope| (envelope, Some(project)))
                         }));

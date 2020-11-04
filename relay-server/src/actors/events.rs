@@ -1414,7 +1414,7 @@ pub fn sample_transaction(
         return Box::new(future::ok(envelope));
     }
     //we have a trace_context and we have a transaction_item see if we can sample them
-    let result = if fast_processing {
+    if fast_processing {
         let fut = project.send(GetCachedProjectState).then(|project_state| {
             let project_state = match project_state {
                 // error getting the project, give up and return envelope unchanged
@@ -1445,8 +1445,7 @@ pub fn sample_transaction(
             }
         });
         Box::new(fut) as ResponseFuture<_, _>
-    };
-    result
+    }
 }
 
 struct HandleEnvelope {
