@@ -69,31 +69,6 @@ class SentryLike(object):
             else:
                 yield from self.upstream.iter_public_keys()
 
-    # TODO RaduW remove after figuring out how to replace it in: test_store.py::test_store_external_relay
-    def basic_project_config(self):
-        return {
-            "projectId": 42,
-            "slug": "python",
-            "publicKeys": [
-                {"publicKey": self.dsn_public_key, "isEnabled": True, "numericId": 123}
-            ],
-            "rev": "5ceaea8c919811e8ae7daae9fe877901",
-            "disabled": False,
-            "lastFetch": datetime.datetime.utcnow().isoformat() + "Z",
-            "lastChange": datetime.datetime.utcnow().isoformat() + "Z",
-            "config": {
-                "allowedDomains": ["*"],
-                "trustedRelays": list(self.iter_public_keys()),
-                "piiConfig": {
-                    "rules": {},
-                    "applications": {
-                        "$string": ["@email", "@mac", "@creditcard", "@userpath"],
-                        "$object": ["@password"],
-                    },
-                },
-            },
-        }
-
     def send_event(self, project_id, payload=None, headers=None, legacy=False):
         if payload is None:
             payload = {"message": "Hello, World!"}

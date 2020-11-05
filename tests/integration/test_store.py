@@ -1,4 +1,3 @@
-import copy
 import json
 import os
 import queue
@@ -8,7 +7,6 @@ import six
 import socket
 import threading
 import pytest
-import time
 
 from requests.exceptions import HTTPError
 from flask import abort, Response
@@ -24,19 +22,16 @@ def test_store(mini_sentry, relay_chain):
 
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
-#TODO I don't understand how this works since both paths should do the same thing
 @pytest.mark.parametrize("allowed", [True, False])
 def test_store_external_relay(mini_sentry, relay, allowed):
     # Use 3 Relays to force the middle one to fetch public keys
     relay = relay(relay(relay(mini_sentry)), external=True)
 
+    project_config = mini_sentry.add_basic_project_config(42)
+
     if allowed:
-        project_config = relay.basic_project_config()
-    else:
-        # Use `mini_sentry` to create the project config, which does not allow the Relay in the
-        # project config.
-        project_config = mini_sentry.basic_project_config()
-    mini_sentry.project_configs[42] = project_config
+        # manually  add all public keys form the relays to the configuration
+        project_config["config"]["trustedRelays"]=list(relay.iter_public_keys())
 
     # Send the event, which always succeeds. The project state is fetched asynchronously and Relay
     # drops the event internally if it does not have permissions.
