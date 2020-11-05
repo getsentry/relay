@@ -10,30 +10,36 @@ session = requests.session()
 class SentryLike(object):
     _healthcheck_passed = False
 
-    dsn_public_key = "31a5a894b4524f74a9a8d0e27e21ba91"
+    default_dsn_public_key = "31a5a894b4524f74a9a8d0e27e21ba91"
 
     def __init__(self, server_address, upstream=None, public_key=None):
         self.server_address = server_address
         self.upstream = upstream
         self.public_key = public_key
-        self.public_keys = {}
+        self.dsn_public_keys = {}
+
+    def get_dsn_public_key(self, project_id):
+        public_key = self.dsn_public_keys.get(project_id)
+
+        if public_key is not None:
+            return public_key
+
+        if self.upstream is not None:
+            return self.upstream.get_dsn_public_key(project_id)
+
+        # sloppy test, fall back on the dsn_public_key
+        return self.default_dsn_public_key
 
     @property
     def url(self):
         return "http://{}:{}".format(*self.server_address)
 
-    @property
-    def dsn(self):
-        """DSN for which you will find the events in self.captured_events"""
-        # bogus, we never check the DSN
-        return "http://{}@{}:{}/42".format(self.dsn_public_key, *self.server_address)
 
-    @property
-    def auth_header(self):
+    def get_auth_header(self, project_id):
         return (
             "Sentry sentry_version=5, sentry_timestamp=1535376240291, "
             "sentry_client=raven-node/2.6.3, "
-            "sentry_key={}".format(self.dsn_public_key)
+            "sentry_key={}".format(self.get_dsn_public_key(project_id))
         )
 
     def _wait(self, path):
@@ -80,9 +86,10 @@ class SentryLike(object):
         else:
             raise ValueError(f"Invalid type {type(payload)} for payload.")
 
+
         headers = {
             "Content-Type": "application/octet-stream",
-            "X-Sentry-Auth": self.auth_header,
+            "X-Sentry-Auth": self.get_auth_header(project_id),
             **(headers or {}),
         }
 
@@ -97,7 +104,7 @@ class SentryLike(object):
 
     def send_options(self, project_id, headers=None):
         headers = {
-            "X-Sentry-Auth": self.auth_header,
+            "X-Sentry-Auth": self.get_auth_header(project_id),
             **(headers or {}),
         }
         url = f"/api/{project_id}/store/"
@@ -108,7 +115,7 @@ class SentryLike(object):
         url = "/api/%s/envelope/" % project_id
         headers = {
             "Content-Type": "application/x-sentry-envelope",
-            "X-Sentry-Auth": self.auth_header,
+            "X-Sentry-Auth": self.get_auth_header(project_id),
             **(headers or {}),
         }
 
@@ -134,7 +141,7 @@ class SentryLike(object):
 
         response = self.post(
             "/api/{}/security/?sentry_key={}&sentry_release={}&sentry_environment={}".format(
-                project_id, self.dsn_public_key, release, environment
+                project_id, self.get_dsn_public_key(project_id), release, environment
             ),
             headers=headers,
             json=payload,
@@ -161,7 +168,7 @@ class SentryLike(object):
                 all_files[param[0]] = (None, param[1])
 
         response = self.post(
-            "/api/{}/minidump/?sentry_key={}".format(project_id, self.dsn_public_key),
+            "/api/{}/minidump/?sentry_key={}".format(project_id, self.get_dsn_public_key(project_id)),
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                 "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
@@ -174,12 +181,12 @@ class SentryLike(object):
 
     def send_unreal_request(self, project_id, file_content):
         """
-        Sends a requuest to the unreal endpoint
+        Sends a request to the unreal endpoint
         :param project_id: the project id
         :param file_content: the unreal file content
         """
         response = self.post(
-            "/api/{}/unreal/{}/".format(project_id, self.dsn_public_key),
+            "/api/{}/unreal/{}/".format(project_id, self.get_dsn_public_key(project_id)),
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                 "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
@@ -202,7 +209,7 @@ class SentryLike(object):
                 "X-Sentry-Auth": (
                     "Sentry sentry_version=5, sentry_timestamp=1535376240291, "
                     "sentry_client=raven-node/2.6.3, "
-                    "sentry_key={}".format(self.dsn_public_key)
+                    "sentry_key={}".format(self.get_dsn_public_key(project_id))
                 ),
             },
             files=files,

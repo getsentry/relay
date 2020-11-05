@@ -511,6 +511,9 @@ def test_processing_quotas(
     }
 
     second_project_id = 43
+    # TODO replace with new
+    # second_public_key = second_key["publicKey"]
+    # second_config = mini_sentry.add_full_project_config(second_project_id, second_public_key)
     second_config = mini_sentry.add_full_project_config(second_project_id)
     second_config["publicKeys"] = [second_key]
     # Hack we want the Id to be still 42  but with a new public key
@@ -564,6 +567,7 @@ def test_processing_quotas(
         if generates_outcomes:
             outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
 
+    #TODO remove after fix
     relay.dsn_public_key = second_key["publicKey"]
 
     for i in range(10):

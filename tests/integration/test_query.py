@@ -197,7 +197,7 @@ def test_processing_redis_query(
     cfg = mini_sentry.add_full_project_config(project_id)
     cfg["disabled"] = disabled
 
-    key = mini_sentry.dsn_public_key
+    key = mini_sentry.get_dsn_public_key(project_id)
     redis_client = redis.Redis(host="127.0.0.1", port=6379, db=0)
     projectconfig_cache_prefix = relay.options["processing"][
         "projectconfig_cache_prefix"

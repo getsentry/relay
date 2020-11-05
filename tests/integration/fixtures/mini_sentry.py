@@ -36,7 +36,7 @@ class Sentry(SentryLike):
     @property
     def internal_error_dsn(self):
         """DSN whose events make the test fail."""
-        return "http://{}@{}:{}/666".format(self.dsn_public_key, *self.server_address)
+        return "http://{}@{}:{}/666".format(self.default_dsn_public_key, *self.server_address)
 
     def get_hits(self, path):
         return self.hits.get(path) or 0
@@ -51,13 +51,19 @@ class Sentry(SentryLike):
             s += "> %s: %s\n" % (route, error)
         return s
 
-    def add_basic_project_config(self, project_id, public_key=None):
-        #TODO fix public_key
+    def add_basic_project_config(self, project_id, dsn_public_key=None):
+
+        if dsn_public_key is None:
+            dsn_public_key = uuid.uuid4().hex
+
+        print("Adding dsn:{} to project:{}".format(dsn_public_key, project_id))
+        self.dsn_public_keys[project_id] = dsn_public_key
+
         ret_val = {
             "projectId": project_id,
             "slug": "python",
             "publicKeys": [
-                {"publicKey": self.dsn_public_key, "isEnabled": True, "numericId": 123}
+                {"publicKey": dsn_public_key, "isEnabled": True, "numericId": 123}
             ],
             "rev": "5ceaea8c919811e8ae7daae9fe877901",
             "disabled": False,
@@ -78,8 +84,8 @@ class Sentry(SentryLike):
         self.project_configs[project_id] = ret_val
         return ret_val
 
-    def add_full_project_config(self, project_id, public_key=None):
-        basic = self.add_basic_project_config(project_id, public_key)
+    def add_full_project_config(self, project_id, dsn_public_key=None):
+        basic = self.add_basic_project_config(project_id, dsn_public_key)
         full = {
             "organizationId": 1,
             "config": {
