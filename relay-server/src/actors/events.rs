@@ -300,6 +300,7 @@ impl EventProcessor {
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
         let envelope = &mut state.envelope;
         let received = state.received_at;
+        let client = envelope.meta().client().map(ToOwned::to_owned);
         let client_addr = envelope.meta().client_addr();
 
         let clock_drift_processor =
@@ -317,7 +318,12 @@ impl EventProcessor {
                 Ok(session) => session,
                 Err(error) => {
                     return sentry::with_scope(
-                        |s| s.set_extra("session", String::from_utf8_lossy(&payload).into()),
+                        |s| {
+                            if let Some(client) = client.as_deref() {
+                                s.set_extra("client", client.into());
+                            }
+                            s.set_extra("session", String::from_utf8_lossy(&payload).into());
+                        },
                         || {
                             // Skip gracefully here to allow sending other sessions.
                             log::error!("failed to store session: {}", LogError(&error));
