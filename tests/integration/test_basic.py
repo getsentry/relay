@@ -14,8 +14,9 @@ def test_graceful_shutdown(mini_sentry, relay):
         return get_project_config_original()
 
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[42] = relay.basic_project_config()
-    relay.send_event(42)
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+    relay.send_event(project_id)
 
     relay.shutdown(sig=signal.SIGTERM)
     event = mini_sentry.captured_events.get(timeout=0).get_event()
@@ -33,8 +34,9 @@ def test_forced_shutdown(mini_sentry, relay):
         return get_project_config_original()
 
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[42] = relay.basic_project_config()
-    relay.send_event(42)
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+    relay.send_event(project_id)
 
     relay.shutdown(sig=signal.SIGINT)
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
@@ -64,12 +66,13 @@ def test_forced_shutdown(mini_sentry, relay):
     ],
 )
 def test_store_pixel_gif(mini_sentry, relay, input, trailing_slash):
-    mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
     relay = relay(mini_sentry)
 
     response = relay.get(
-        "/api/42/store/?sentry_data=%s"
-        "&sentry_key=%s" % (input, relay.dsn_public_key,)
+        "/api/%d/store/?sentry_data=%s&sentry_key=%s"
+        % (project_id, input, mini_sentry.get_dsn_public_key(project_id),)
     )
     response.raise_for_status()
     assert response.headers["content-type"] == "image/gif"
@@ -80,11 +83,13 @@ def test_store_pixel_gif(mini_sentry, relay, input, trailing_slash):
 
 @pytest.mark.parametrize("route", ["/api/42/store/", "/api/42/store//"])
 def test_store_post_trailing_slash(mini_sentry, relay, route):
-    mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
     relay = relay(mini_sentry)
 
     response = relay.post(
-        "%s?sentry_key=%s" % (route, relay.dsn_public_key,), json={"message": "hi"},
+        "%s?sentry_key=%s" % (route, mini_sentry.get_dsn_public_key(project_id),),
+        json={"message": "hi"},
     )
     response.raise_for_status()
 
@@ -112,13 +117,15 @@ def id_fun1(param):
 )
 def test_store_allowed_origins_passes(mini_sentry, relay, allowed_origins):
     allowed_domains, should_be_allowed = allowed_origins
-    config = mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+    project_id = 42
+    config = mini_sentry.add_basic_project_config(project_id)
     config["config"]["allowedDomains"] = allowed_domains
 
     relay = relay(mini_sentry)
 
     relay.post(
-        "/api/42/store/?sentry_key=%s" % (relay.dsn_public_key,),
+        "/api/%d/store/?sentry_key=%s"
+        % (project_id, mini_sentry.get_dsn_public_key(project_id),),
         headers={"Origin": "http://valid.com"},
         json={"message": "hi"},
     )
