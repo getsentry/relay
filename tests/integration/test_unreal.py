@@ -18,7 +18,7 @@ def _load_dump_file(base_file_name: str):
 def test_unreal_crash(mini_sentry, relay, dump_file_name):
     project_id = 42
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
     unreal_content = _load_dump_file(dump_file_name)
 
     response = relay.send_unreal_request(project_id, unreal_content)
@@ -45,7 +45,7 @@ def test_unreal_minidump_with_processing(
     relay = relay_with_processing(options)
     attachments_consumer = attachments_consumer()
 
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
     unreal_content = _load_dump_file("unreal_crash")
 
     relay.send_unreal_request(project_id, unreal_content)
@@ -131,7 +131,7 @@ def test_unreal_apple_crash_with_processing(
     relay = relay_with_processing(options)
     attachments_consumer = attachments_consumer()
 
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
     unreal_content = _load_dump_file("unreal_crash_apple")
 
     relay.send_unreal_request(project_id, unreal_content)
@@ -236,7 +236,7 @@ def test_unreal_minidump_with_config_and_processing(
     relay = relay_with_processing(options)
     attachments_consumer = attachments_consumer()
 
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
     unreal_content = _load_dump_file("unreal_crash_with_config")
 
     relay.send_unreal_request(project_id, unreal_content)

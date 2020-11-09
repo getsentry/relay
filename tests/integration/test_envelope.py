@@ -8,11 +8,12 @@ from sentry_sdk.utils import format_timestamp
 
 def test_envelope(mini_sentry, relay_chain):
     relay = relay_chain()
-    mini_sentry.project_configs[42] = relay.basic_project_config()
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
 
     envelope = Envelope()
     envelope.add_event({"message": "Hello, World!"})
-    relay.send_envelope(42, envelope)
+    relay.send_envelope(project_id, envelope)
 
     event = mini_sentry.captured_events.get(timeout=1).get_event()
 
@@ -54,7 +55,7 @@ def test_normalize_measurement_interface(
     # set up relay
 
     relay = relay_with_processing()
-    mini_sentry.project_configs[42] = relay.basic_project_config()
+    mini_sentry.add_basic_project_config(42)
 
     events_consumer = transactions_consumer()
 
@@ -105,7 +106,7 @@ def test_empty_measurement_interface(mini_sentry, relay_chain):
     # set up relay
 
     relay = relay_chain()
-    mini_sentry.project_configs[42] = relay.basic_project_config()
+    mini_sentry.add_basic_project_config(42)
 
     # construct envelope
 
@@ -137,7 +138,7 @@ def test_strip_measurement_interface(
     # set up relay
 
     relay = relay_with_processing()
-    mini_sentry.project_configs[42] = relay.basic_project_config()
+    mini_sentry.add_basic_project_config(42)
 
     events_consumer = events_consumer()
 

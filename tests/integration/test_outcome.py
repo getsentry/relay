@@ -365,7 +365,8 @@ def test_no_outcomes_rate_limit(
         "outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1,}
     }
     relay = relay_with_processing(config)
-    project_config = mini_sentry.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["quotas"] = [
         {
             "id": "transaction category",
@@ -375,11 +376,10 @@ def test_no_outcomes_rate_limit(
             "reasonCode": "transactions are banned",
         }
     ]
-    mini_sentry.project_configs[42] = project_config
     outcomes_consumer = outcomes_consumer()
 
     message = _get_message(category_type)
-    result = relay.send_event(42, message)
+    result = relay.send_event(project_id, message)
     event_id = result["id"]
 
     # give relay some to handle the message (and send any outcomes it needs to send)
@@ -391,7 +391,7 @@ def test_no_outcomes_rate_limit(
     # end on the same partition (to prove there was noting before)
     dummy_outcome = {
         "org_id": 1,
-        "project_id": 42,
+        "project_id": project_id,
         "reason": "fake",
         "event_id": event_id,
     }
