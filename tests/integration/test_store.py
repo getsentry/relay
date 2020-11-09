@@ -164,8 +164,6 @@ def test_options_response(mini_sentry, relay, method_to_test):
 
     assert result.ok == should_succeed
 
-    print(result)
-
 
 def test_store_node_base64(mini_sentry, relay_chain):
     relay = relay_chain()
@@ -486,7 +484,12 @@ def test_processing_quotas(
 
     project_id = 42
     projectconfig = mini_sentry.add_full_project_config(project_id)
-    public_keys = projectconfig["publicKeys"]
+    # add another dsn key (we want 2 keys so we can set limits per key)
+    mini_sentry.add_dsn_key_to_project(project_id)
+
+    # we should have 2 keys (one created with the config and one added above)
+    public_keys = mini_sentry.get_dsn_public_key_configs(project_id)
+
     key_id = public_keys[0]["numericId"]
 
     # Default events are also mapped to "error" by Relay.
@@ -503,22 +506,6 @@ def test_processing_quotas(
             "reasonCode": "get_lost",
         }
     ]
-
-    second_key = {
-        "publicKey": "31a5a894b4524f74a9a8d0e27e21ba92",
-        "isEnabled": True,
-        "numericId": 1234,
-    }
-
-    second_project_id = 43
-    # TODO replace with new
-    # second_public_key = second_key["publicKey"]
-    # second_config = mini_sentry.add_full_project_config(second_project_id, second_public_key)
-    second_config = mini_sentry.add_full_project_config(second_project_id)
-    second_config["publicKeys"] = [second_key]
-    # Hack we want the Id to be still 42  but with a new public key
-    # and at slot 43
-    second_config["projectId"] = project_id  # put the initial project id
 
     generates_outcomes = True
     if event_type == "transaction":
@@ -538,14 +525,15 @@ def test_processing_quotas(
         transform = lambda e: e
 
     for i in range(5):
-        relay.send_event(project_id, transform({"message": f"regular{i}"}))
+        # send using the first dsn
+        relay.send_event(project_id, transform({"message": f"regular{i}"}), dsn_key_idx=0)
 
         event, _ = events_consumer.get_event()
         assert event["logentry"]["formatted"] == f"regular{i}"
 
     # this one will not get a 429 but still get rate limited (silently) because
     # of our caching
-    relay.send_event(project_id, transform({"message": "some_message"}))
+    relay.send_event(project_id, transform({"message": "some_message"}), dsn_key_idx=0)
 
     if generates_outcomes:
         outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
@@ -567,11 +555,9 @@ def test_processing_quotas(
         if generates_outcomes:
             outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
 
-    #TODO remove after fix
-    relay.dsn_public_key = second_key["publicKey"]
-
     for i in range(10):
-        relay.send_event(project_id, transform({"message": f"otherkey{i}"}))
+        # now send using the second key
+        relay.send_event(project_id, transform({"message": f"otherkey{i}"}), dsn_key_idx=1)
         event, _ = events_consumer.get_event()
 
         assert event["logentry"]["formatted"] == f"otherkey{i}"
@@ -862,7 +848,6 @@ def test_permanent_rejection(relay, mini_sentry):
                 status=403,
                 content_type="application/json",
             )
-            print("returning RESPONSE:", response)
             return response
 
     mini_sentry.app.view_functions["check_challenge"] = counted_check_challenge
@@ -888,7 +873,6 @@ def test_permanent_rejection(relay, mini_sentry):
     assert evt.wait(2) is False
     # to be sure verify that we have only been called once (after failing)
     assert counter[1] == 1
-    print("auth fail called ", counter[1])
     # clear authentication errors accumulated until now
     mini_sentry.test_failures.clear()
 

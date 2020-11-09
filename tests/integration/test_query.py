@@ -14,10 +14,7 @@ from requests.exceptions import HTTPError
 
 def test_local_project_config(mini_sentry, relay):
     project_id = 42
-    config = mini_sentry.add_basic_project_config(project_id)
-    # TODO RaduW see how to fix this hack
-    # hack we only need a config (we don't need it added to sentry)
-    del mini_sentry.project_configs[42]
+    config = mini_sentry.basic_project_config(project_id)
     relay_config = {
         "cache": {"file_interval": 1, "project_expiry": 0, "project_grace_period": 0}
     }
@@ -35,9 +32,13 @@ def test_local_project_config(mini_sentry, relay):
             }
         )
     )
+    # get the dsn key from the config
+    # we need to provide it manually to Relay since it is not in the config (of MiniSentry) and
+    # we don't look on the file system
+    dsn_key = config["publicKeys"][0]['publicKey']
 
     relay.wait_relay_healthcheck()
-    relay.send_event(project_id)
+    relay.send_event(project_id, dsn_key=dsn_key)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
@@ -49,7 +50,7 @@ def test_local_project_config(mini_sentry, relay):
     try:
         # This may or may not respond with 403, depending on how quickly the future to fetch project
         # states executes.
-        relay.send_event(project_id)
+        relay.send_event(project_id, dsn_key=dsn_key)
     except HTTPError:
         pass
 
