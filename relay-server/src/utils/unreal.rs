@@ -3,9 +3,9 @@ use symbolic::unreal::{
 };
 
 use relay_general::protocol::{
-    AsPair, Breadcrumb, Context, Contexts, DeviceContext, Event, EventId, GpuContext,
-    LenientString, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp, User, UserReport,
-    Values,
+    AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DeviceContext, Event, EventId,
+    GpuContext, LenientString, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp, User,
+    UserReport, Values,
 };
 use relay_general::types::{self, Annotated, Array, Object, Value};
 
@@ -17,7 +17,11 @@ use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 /// Maximum number of unreal logs to parse for breadcrumbs.
 const MAX_NUM_UNREAL_LOGS: usize = 40;
 
+/// Name of the custom XML tag in Unreal GameData for Sentry event payloads.
 const SENTRY_PAYLOAD_KEY: &str = "__sentry";
+
+/// Client SDK name used for the event payload to identify the UE4 crash reporter.
+const CLIENT_SDK_NAME: &str = "unreal.crashreporter";
 
 fn get_event_item(data: &[u8]) -> Result<Option<Item>, Unreal4Error> {
     let mut context = Unreal4Context::parse(data)?;
@@ -192,6 +196,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
         }
     }
 
+    // OS information is likely overwritten by Minidump processing later.
     if let Some(os_major) = runtime_props.misc_os_version_major.take() {
         let os_context = contexts.get_or_insert_with(OsContext::default_key(), || {
             Context::Os(Box::new(OsContext::default()))
@@ -220,10 +225,10 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
         }
     }
 
-    // modules not used just remove it from runtime props
+    // Modules are not used and later replaced with Modules from the Minidump or Apple Crash Report.
     runtime_props.modules.take();
 
-    // promote all game data (except the special __sentry key) into a context.
+    // Promote all game data (except the special `__sentry` key) into a context.
     if !context.game_data.is_empty() {
         let game_context = contexts.get_or_insert_with("game", || Context::Other(Object::new()));
         if let Context::Other(game_context) = game_context {
@@ -236,6 +241,17 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
             game_context.extend(filtered_keys);
         }
     }
+
+    // Add sdk information for analytics.
+    event.client_sdk.get_or_insert_with(|| ClientSdkInfo {
+        name: CLIENT_SDK_NAME.to_owned().into(),
+        version: runtime_props
+            .crash_reporter_client_version
+            .take()
+            .unwrap_or_else(|| "0.0.0".to_owned())
+            .into(),
+        ..ClientSdkInfo::default()
+    });
 
     if let Ok(Some(Value::Object(props))) = types::to_value(&runtime_props) {
         let unreal_context =
@@ -288,6 +304,7 @@ pub fn process_unreal_envelope(
         if let Some(report) = get_unreal_user_report(event_id, &mut context) {
             envelope.add_item(report);
         }
+
         merge_unreal_context(event, context);
     }
 
@@ -297,18 +314,6 @@ pub fn process_unreal_envelope(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Extracts a Context element from Contexts
-    macro_rules! get_context {
-        ($contexts:ident, $context_key: expr, $enum_name: path) => {{
-            let ctx = &$contexts.get($context_key).unwrap().value().unwrap().0;
-
-            match ctx {
-                $enum_name(ref context) => context,
-                _ => panic!("invalid context"),
-            }
-        }};
-    }
 
     #[test]
     fn test_merge_unreal_context() {
@@ -345,65 +350,7 @@ mod tests {
 
         merge_unreal_context(&mut event, context);
 
-        let user_name = event.user.value().unwrap().username.value().unwrap();
-
-        assert_eq!(&**user_name, "bruno");
-
-        let contexts = event.contexts.value().unwrap();
-
-        let device_context = get_context!(contexts, DeviceContext::default_key(), Context::Device);
-        let mem_size = device_context.memory_size.value().unwrap();
-
-        assert_eq!(*mem_size, 6_896_832_512);
-
-        let os_context = get_context!(contexts, OsContext::default_key(), Context::Os);
-        let os_name = os_context.name.value().unwrap();
-
-        assert_eq!(&**os_name, "Windows 10");
-
-        let gpu_context = get_context!(contexts, GpuContext::default_key(), Context::Gpu);
-        let gpu_name = gpu_context.name.value().unwrap().as_str();
-
-        assert_eq!(gpu_name, "Parallels Display Adapter (WDDM)");
-
-        let unreal_context = get_context!(contexts, "unreal", Context::Other);
-
-        let mem_stats_total_virtual = unreal_context
-            .get("memory_stats_total_virtual")
-            .unwrap()
-            .value()
-            .unwrap();
-
-        assert_eq!(&Value::I64(140_737_488_224_256), mem_stats_total_virtual);
-
-        let cpu_brand = unreal_context
-            .get("misc_cpu_brand")
-            .unwrap()
-            .value()
-            .unwrap();
-
-        assert_eq!(
-            "Intel(R) Core(TM) i7-7920HQ CPU @ 3.10GHz",
-            cpu_brand.as_str().unwrap()
-        );
-        let cpu_brand = unreal_context
-            .get("misc_cpu_brand")
-            .unwrap()
-            .value()
-            .unwrap();
-
-        assert_eq!(
-            "Intel(R) Core(TM) i7-7920HQ CPU @ 3.10GHz",
-            cpu_brand.as_str().unwrap()
-        );
-
-        let cpu_vendor = unreal_context
-            .get("misc_cpu_vendor")
-            .unwrap()
-            .value()
-            .unwrap();
-
-        assert_eq!("GenuineIntel", cpu_vendor.as_str().unwrap());
+        insta::assert_snapshot!(Annotated::new(event).to_json_pretty().unwrap());
     }
 
     #[test]
@@ -413,41 +360,24 @@ mod tests {
 [2018.10.29-16.56.39:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI prefixes -  0.000 s
 [2018.10.29-16.56.40:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: Construct from data asset -  0.000 s
 [2018.10.29-16.56.41:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI -  0.000 s"##;
+
         let mut event = Event::default();
         merge_unreal_logs(&mut event, logs).ok();
-        let breadcrumbs = event.breadcrumbs.value().unwrap().values.value().unwrap();
 
-        assert_eq!(breadcrumbs.len(), 4);
-        let first_message = breadcrumbs[0].value().unwrap();
-
-        let timestamp_str = format!("{}", first_message.timestamp.value().unwrap());
-        assert_eq!(timestamp_str, "2018-10-29 16:56:38 UTC");
-
-        let category = first_message.category.value().unwrap().as_str();
-        assert_eq!(category, "LogGameplayTags");
-
-        let message = first_message.message.value().unwrap().as_str();
-        assert_eq!(
-            message,
-            "Display: UGameplayTagsManager::DoneAddingNativeTags. DelegateIsBound: 0"
-        );
+        insta::assert_snapshot!(Annotated::new(event).to_json_pretty().unwrap());
     }
 
     #[test]
     fn test_merge_unreal_context_event() {
         let bytes = include_bytes!("../../../tests/integration/fixtures/native/unreal_crash");
-        let crash = Unreal4Crash::parse(bytes).unwrap();
-
-        let mut event = Annotated::new(Event::default());
-
         let user_id = "ebff51ef3c4878627823eebd9ff40eb4|2e7d369327054a448be6c8d3601213cb|C52DC39D-DAF3-5E36-A8D3-BF5F53A5D38F";
 
-        merge_unreal_user_info(event.value_mut().as_mut().unwrap(), user_id);
+        let crash = Unreal4Crash::parse(bytes).unwrap();
+        let mut event = Event::default();
 
-        merge_unreal_context(
-            event.value_mut().as_mut().unwrap(),
-            crash.context().unwrap().unwrap(),
-        );
-        insta::assert_snapshot!(event.to_json_pretty().unwrap());
+        merge_unreal_user_info(&mut event, user_id);
+        merge_unreal_context(&mut event, crash.context().unwrap().unwrap());
+
+        insta::assert_snapshot!(Annotated::new(event).to_json_pretty().unwrap());
     }
 }

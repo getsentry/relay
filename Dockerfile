@@ -20,7 +20,7 @@ ENV OPENSSL_STATIC=1
 
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
-    curl build-essential git zip \
+    curl build-essential git zip cmake \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

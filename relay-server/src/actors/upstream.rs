@@ -43,7 +43,7 @@ use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
 
-use crate::metrics::RelayHistograms;
+use crate::metrics::{RelayHistograms, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, IntoTracked, RelayErrorAction, TrackedFutureFinished};
 
 #[derive(Fail, Debug)]
@@ -238,6 +238,8 @@ struct UpstreamRequest {
     build: Box<dyn FnMut(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>>,
     /// Number of times this request was already sent
     previous_retries: u32,
+    /// When the last sending attempt started
+    send_start: Option<Instant>,
 }
 impl UpstreamRequest {
     pub fn route_name(&self) -> &'static str {
@@ -259,6 +261,16 @@ impl UpstreamRequest {
             "check_live"
         } else {
             "unknown"
+        }
+    }
+
+    pub fn retries_bucket(&self) -> &'static str {
+        match self.previous_retries {
+            0 => "0",
+            1 => "1",
+            2 => "2",
+            3..=10 => "few",
+            _ => "many",
         }
     }
 }
@@ -466,6 +478,7 @@ impl UpstreamRelay {
         // we are about to send a HTTP message keep track of requests in flight
         self.num_inflight_requests += 1;
 
+        request.send_start = Some(Instant::now());
         client_request
             .send()
             .wait_timeout(self.config.event_buffer_expiry())
@@ -511,8 +524,18 @@ impl UpstreamRelay {
             }
         };
 
+        if let Some(send_start) = request.send_start {
+            metric!(
+                timer(RelayTimers::UpstreamRequestsDuration) = send_start.elapsed(),
+                result = result,
+                status_code = status_code,
+                route = request.route_name(),
+                retries = request.retries_bucket(),
+            )
+        }
+
         metric!(
-            histogram(RelayHistograms::UpstreamRequests) = request.previous_retries.into(),
+            histogram(RelayHistograms::UpstreamRetries) = request.previous_retries.into(),
             result = result,
             status_code = status_code,
             route = request.route_name(),
@@ -600,6 +623,7 @@ impl UpstreamRelay {
             response_sender: tx,
             build: Box::new(build),
             previous_retries: 0,
+            send_start: None,
         };
 
         self.enqueue(request, ctx, EnqueuePosition::Front);

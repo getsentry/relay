@@ -1,10 +1,11 @@
-use std::net::IpAddr;
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
 use failure::Fail;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+use crate::protocol::IpAddr;
 
 /// The type of session event we're dealing with.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
@@ -218,12 +219,26 @@ mod tests {
             attributes: SessionAttributes {
                 release: "sentry-test@1.0.0".to_owned(),
                 environment: Some("production".to_owned()),
-                ip_address: Some("::1".parse().unwrap()),
+                ip_address: Some(IpAddr::parse("::1").unwrap()),
                 user_agent: Some("Firefox/72.0".to_owned()),
             },
         };
 
         assert_eq_dbg!(update, SessionUpdate::parse(json.as_bytes()).unwrap());
         assert_eq_str!(json, serde_json::to_string_pretty(&update).unwrap());
+    }
+
+    #[test]
+    fn test_session_ip_addr_auto() {
+        let json = r#"{
+  "started": "2020-02-07T14:16:00Z",
+  "attrs": {
+    "release": "sentry-test@1.0.0",
+    "ip_address": "{{auto}}"
+  }
+}"#;
+
+        let update = SessionUpdate::parse(json.as_bytes()).unwrap();
+        assert_eq_dbg!(update.attributes.ip_address, Some(IpAddr::auto()));
     }
 }

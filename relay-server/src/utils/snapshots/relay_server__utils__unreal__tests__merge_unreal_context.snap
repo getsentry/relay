@@ -1,0 +1,39 @@
+---
+source: relay-server/src/utils/unreal.rs
+expression: "Annotated::new(event).to_json_pretty().unwrap()"
+---
+{
+  "logentry": {
+    "formatted": "Access violation - code c0000005 (first/second chance not available)"
+  },
+  "user": {
+    "username": "bruno"
+  },
+  "contexts": {
+    "device": {
+      "memory_size": 6896832512,
+      "type": "device"
+    },
+    "gpu": {
+      "name": "Parallels Display Adapter (WDDM)",
+      "type": "gpu"
+    },
+    "os": {
+      "name": "Windows 10",
+      "type": "os"
+    },
+    "unreal": {
+      "custom": {
+        "CrashVersion": "3",
+        "PlatformFullName": "Win64 [Windows 10  64b]"
+      },
+      "memory_stats_total_virtual": 140737488224256,
+      "misc_cpu_brand": "Intel(R) Core(TM) i7-7920HQ CPU @ 3.10GHz",
+      "misc_cpu_vendor": "GenuineIntel"
+    }
+  },
+  "sdk": {
+    "name": "unreal.crashreporter",
+    "version": "1.0"
+  }
+}

@@ -8,6 +8,7 @@ import six
 import socket
 import threading
 import pytest
+import time
 
 from requests.exceptions import HTTPError
 from flask import abort, Response
@@ -462,6 +463,7 @@ def test_processing(
     assert event.get("version") is not None
 
 
+@pytest.mark.parametrize("window,max_rate_limit", [(100, 300), (300, 100),])
 @pytest.mark.parametrize("event_type", ["default", "error", "transaction"])
 def test_processing_quotas(
     mini_sentry,
@@ -470,10 +472,12 @@ def test_processing_quotas(
     events_consumer,
     transactions_consumer,
     event_type,
+    window,
+    max_rate_limit,
 ):
     from time import sleep
 
-    relay = relay_with_processing({"processing": {"max_rate_limit": 120}})
+    relay = relay_with_processing({"processing": {"max_rate_limit": max_rate_limit}})
 
     mini_sentry.project_configs[42] = projectconfig = mini_sentry.full_project_config()
     public_keys = projectconfig["publicKeys"]
@@ -489,7 +493,7 @@ def test_processing_quotas(
             "scopeId": six.text_type(key_id),
             "categories": [category],
             "limit": 5,
-            "window": 3600,
+            "window": window,
             "reasonCode": "get_lost",
         }
     ]
@@ -543,10 +547,9 @@ def test_processing_quotas(
             relay.send_event(42, transform({"message": "rate_limited"}))
         headers = excinfo.value.response.headers
 
-        # The rate limit is actually for 1 hour, but we cap at 120s with the
-        # max_rate_limit parameter
         retry_after = headers["retry-after"]
-        assert int(retry_after) <= 120
+        assert int(retry_after) <= window
+        assert int(retry_after) <= max_rate_limit
         retry_after2, rest = headers["x-sentry-rate-limits"].split(":", 1)
         assert int(retry_after2) == int(retry_after)
         assert rest == "%s:key" % category
