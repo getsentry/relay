@@ -55,7 +55,11 @@ class SentryLike(object):
             return self.default_dsn_public_key
 
         if len(public_keys) <= idx:
-            raise Exception("Invalid public key index:{} requested for project_id:{}".format(idx, project_id))
+            raise Exception(
+                "Invalid public key index:{} requested for project_id:{}".format(
+                    idx, project_id
+                )
+            )
 
         key_config = public_keys[idx]
 
@@ -65,7 +69,7 @@ class SentryLike(object):
     def url(self):
         return "http://{}:{}".format(*self.server_address)
 
-    def get_auth_header(self, project_id, dsn_key_idx=0, dsn_key= None):
+    def get_auth_header(self, project_id, dsn_key_idx=0, dsn_key=None):
         if dsn_key is None:
             dsn_key = self.get_dsn_public_key(project_id, dsn_key_idx)
         return (
@@ -107,7 +111,15 @@ class SentryLike(object):
             else:
                 yield from self.upstream.iter_public_keys()
 
-    def send_event(self, project_id, payload=None, headers=None, legacy=False, dsn_key_idx=0, dsn_key=None):
+    def send_event(
+        self,
+        project_id,
+        payload=None,
+        headers=None,
+        legacy=False,
+        dsn_key_idx=0,
+        dsn_key=None,
+    ):
         if payload is None:
             payload = {"message": "Hello, World!"}
 
@@ -159,12 +171,19 @@ class SentryLike(object):
         self.send_envelope(project_id, envelope)
 
     def send_security_report(
-        self, project_id, content_type, payload, release, environment, origin=None, dsn_key_idx=0
+        self,
+        project_id,
+        content_type,
+        payload,
+        release,
+        environment,
+        origin=None,
+        dsn_key_idx=0,
     ):
         headers = {
             "Content-Type": content_type,
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                          "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
+            "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
         }
 
         if origin is not None:
@@ -172,7 +191,10 @@ class SentryLike(object):
 
         response = self.post(
             "/api/{}/security/?sentry_key={}&sentry_release={}&sentry_environment={}".format(
-                project_id, self.get_dsn_public_key(project_id, dsn_key_idx), release, environment
+                project_id,
+                self.get_dsn_public_key(project_id, dsn_key_idx),
+                release,
+                environment,
             ),
             headers=headers,
             json=payload,
@@ -199,10 +221,12 @@ class SentryLike(object):
                 all_files[param[0]] = (None, param[1])
 
         response = self.post(
-            "/api/{}/minidump/?sentry_key={}".format(project_id, self.get_dsn_public_key(project_id, dsn_key_idx)),
+            "/api/{}/minidump/?sentry_key={}".format(
+                project_id, self.get_dsn_public_key(project_id, dsn_key_idx)
+            ),
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                              "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
+                "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
             },
             files=all_files,
         )
@@ -217,10 +241,12 @@ class SentryLike(object):
         :param file_content: the unreal file content
         """
         response = self.post(
-            "/api/{}/unreal/{}/".format(project_id, self.get_dsn_public_key(project_id,dsn_key_idx)),
+            "/api/{}/unreal/{}/".format(
+                project_id, self.get_dsn_public_key(project_id, dsn_key_idx)
+            ),
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                              "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
+                "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
             },
             data=file_content,
         )
@@ -236,11 +262,13 @@ class SentryLike(object):
             "/api/{}/events/{}/attachments/".format(project_id, event_id),
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                              "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
+                "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
                 "X-Sentry-Auth": (
                     "Sentry sentry_version=5, sentry_timestamp=1535376240291, "
                     "sentry_client=raven-node/2.6.3, "
-                    "sentry_key={}".format(self.get_dsn_public_key(project_id,dsn_key_idx))
+                    "sentry_key={}".format(
+                        self.get_dsn_public_key(project_id, dsn_key_idx)
+                    )
                 ),
             },
             files=files,

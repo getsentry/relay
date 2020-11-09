@@ -36,7 +36,9 @@ class Sentry(SentryLike):
     @property
     def internal_error_dsn(self):
         """DSN whose events make the test fail."""
-        return "http://{}@{}:{}/666".format(self.default_dsn_public_key, *self.server_address)
+        return "http://{}@{}:{}/666".format(
+            self.default_dsn_public_key, *self.server_address
+        )
 
     def get_hits(self, path):
         return self.hits.get(path) or 0
@@ -51,33 +53,43 @@ class Sentry(SentryLike):
             s += "> %s: %s\n" % (route, error)
         return s
 
-    def add_dsn_key_to_project(self, project_id, dsn_public_key=None, numeric_id=None, is_enabled=True):
+    def add_dsn_key_to_project(
+        self, project_id, dsn_public_key=None, numeric_id=None, is_enabled=True
+    ):
         if project_id not in self.project_configs:
             raise Exception("trying to add dsn public key to nonexisting project")
 
         if dsn_public_key is None:
             dsn_public_key = uuid.uuid4().hex
 
-        public_keys = self.project_configs[project_id]['publicKeys']
+        public_keys = self.project_configs[project_id]["publicKeys"]
 
         # generate some unique numeric id ( 1 + max of any other numeric id)
         if numeric_id is None:
             numeric_id = 0
             for public_key_config in public_keys:
-                if public_key_config['publicKey'] == dsn_public_key:
+                if public_key_config["publicKey"] == dsn_public_key:
                     # we already have this key, just return
                     return dsn_public_key
                 numeric_id = max(numeric_id, public_key_config["numericId"])
             numeric_id += 1
 
-        key_entry = {"publicKey": dsn_public_key, 'isEnabled': is_enabled, "numericId": numeric_id}
+        key_entry = {
+            "publicKey": dsn_public_key,
+            "isEnabled": is_enabled,
+            "numericId": numeric_id,
+        }
         public_keys.append(key_entry)
 
         return key_entry
 
     def basic_project_config(self, project_id, dsn_public_key=None):
         if dsn_public_key is None:
-            dsn_public_key = {"publicKey": uuid.uuid4().hex, "isEnabled": True, "numericId": 123}
+            dsn_public_key = {
+                "publicKey": uuid.uuid4().hex,
+                "isEnabled": True,
+                "numericId": 123,
+            }
 
         return {
             "projectId": project_id,

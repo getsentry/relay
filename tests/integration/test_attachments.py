@@ -191,7 +191,9 @@ def test_attachments_quotas(
     attachments = [("att_1", "foo.txt", attachment_body)]
 
     for i in range(5):
-        relay.send_attachments(project_id, event_id, [("att_1", "%s.txt" % i, attachment_body)])
+        relay.send_attachments(
+            project_id, event_id, [("att_1", "%s.txt" % i, attachment_body)]
+        )
         chunk, _ = attachments_consumer.get_attachment_chunk()
         assert chunk == attachment_body
         attachment = attachments_consumer.get_individual_attachment()

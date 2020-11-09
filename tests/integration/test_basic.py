@@ -71,7 +71,8 @@ def test_store_pixel_gif(mini_sentry, relay, input, trailing_slash):
     relay = relay(mini_sentry)
 
     response = relay.get(
-        "/api/%d/store/?sentry_data=%s&sentry_key=%s" % (project_id, input, mini_sentry.get_dsn_public_key(project_id),)
+        "/api/%d/store/?sentry_data=%s&sentry_key=%s"
+        % (project_id, input, mini_sentry.get_dsn_public_key(project_id),)
     )
     response.raise_for_status()
     assert response.headers["content-type"] == "image/gif"
@@ -87,7 +88,8 @@ def test_store_post_trailing_slash(mini_sentry, relay, route):
     relay = relay(mini_sentry)
 
     response = relay.post(
-        "%s?sentry_key=%s" % (route, mini_sentry.get_dsn_public_key(project_id),), json={"message": "hi"},
+        "%s?sentry_key=%s" % (route, mini_sentry.get_dsn_public_key(project_id),),
+        json={"message": "hi"},
     )
     response.raise_for_status()
 
@@ -122,7 +124,8 @@ def test_store_allowed_origins_passes(mini_sentry, relay, allowed_origins):
     relay = relay(mini_sentry)
 
     relay.post(
-        "/api/%d/store/?sentry_key=%s" % (project_id, mini_sentry.get_dsn_public_key(project_id),),
+        "/api/%d/store/?sentry_key=%s"
+        % (project_id, mini_sentry.get_dsn_public_key(project_id),),
         headers={"Origin": "http://valid.com"},
         json={"message": "hi"},
     )

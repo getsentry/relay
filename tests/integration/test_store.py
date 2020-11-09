@@ -22,6 +22,7 @@ def test_store(mini_sentry, relay_chain):
 
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
+
 @pytest.mark.parametrize("allowed", [True, False])
 def test_store_external_relay(mini_sentry, relay, allowed):
     # Use 3 Relays to force the middle one to fetch public keys
@@ -31,7 +32,7 @@ def test_store_external_relay(mini_sentry, relay, allowed):
 
     if allowed:
         # manually  add all public keys form the relays to the configuration
-        project_config["config"]["trustedRelays"]=list(relay.iter_public_keys())
+        project_config["config"]["trustedRelays"] = list(relay.iter_public_keys())
 
     # Send the event, which always succeeds. The project state is fetched asynchronously and Relay
     # drops the event internally if it does not have permissions.
@@ -280,7 +281,9 @@ def test_store_static_config(mini_sentry, relay):
     def configure_static_project(dir):
         os.remove(dir.join("credentials.json"))
         os.makedirs(dir.join("projects"))
-        dir.join("projects").join("{}.json".format(project_id)).write(json.dumps(project_config))
+        dir.join("projects").join("{}.json".format(project_id)).write(
+            json.dumps(project_config)
+        )
 
     relay_options = {"relay": {"mode": "static"}}
     relay = relay(mini_sentry, options=relay_options, prepare=configure_static_project)
@@ -526,7 +529,9 @@ def test_processing_quotas(
 
     for i in range(5):
         # send using the first dsn
-        relay.send_event(project_id, transform({"message": f"regular{i}"}), dsn_key_idx=0)
+        relay.send_event(
+            project_id, transform({"message": f"regular{i}"}), dsn_key_idx=0
+        )
 
         event, _ = events_consumer.get_event()
         assert event["logentry"]["formatted"] == f"regular{i}"
@@ -557,7 +562,9 @@ def test_processing_quotas(
 
     for i in range(10):
         # now send using the second key
-        relay.send_event(project_id, transform({"message": f"otherkey{i}"}), dsn_key_idx=1)
+        relay.send_event(
+            project_id, transform({"message": f"otherkey{i}"}), dsn_key_idx=1
+        )
         event, _ = events_consumer.get_event()
 
         assert event["logentry"]["formatted"] == f"otherkey{i}"
@@ -687,7 +694,9 @@ def test_no_auth(relay, mini_sentry, mode):
     def configure_static_project(dir):
         os.remove(dir.join("credentials.json"))
         os.makedirs(dir.join("projects"))
-        dir.join("projects").join("{}.json".format(project_id)).write(json.dumps(project_config))
+        dir.join("projects").join("{}.json".format(project_id)).write(
+            json.dumps(project_config)
+        )
 
     relay_options = {"relay": {"mode": mode}}
     relay = relay(mini_sentry, options=relay_options, prepare=configure_static_project)

@@ -35,7 +35,7 @@ def test_local_project_config(mini_sentry, relay):
     # get the dsn key from the config
     # we need to provide it manually to Relay since it is not in the config (of MiniSentry) and
     # we don't look on the file system
-    dsn_key = config["publicKeys"][0]['publicKey']
+    dsn_key = config["publicKeys"][0]["publicKey"]
 
     relay.wait_relay_healthcheck()
     relay.send_event(project_id, dsn_key=dsn_key)

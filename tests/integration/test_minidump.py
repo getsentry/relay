@@ -278,7 +278,9 @@ def test_minidump_raw(mini_sentry, relay, content_type):
 
     relay.request(
         "post",
-        "/api/{}/minidump?sentry_key={}".format(project_id, mini_sentry.get_dsn_public_key(project_id)),
+        "/api/{}/minidump?sentry_key={}".format(
+            project_id, mini_sentry.get_dsn_public_key(project_id)
+        ),
         headers={"Content-Type": content_type},
         data="MDMP content",
     )
