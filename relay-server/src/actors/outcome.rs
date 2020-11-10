@@ -229,6 +229,10 @@ pub enum DiscardReason {
     /// [Relay] Symbolic failed to extract an Unreal Crash report from a request sent to the
     /// Unreal endpoint
     ProcessUnreal,
+
+    /// [Relay] The envelope, which contained only a transaction, was discarded by the
+    /// dynamic sampling rules.
+    TransactionSampled,
 }
 
 impl DiscardReason {
@@ -261,6 +265,7 @@ impl DiscardReason {
             DiscardReason::DuplicateItem => "duplicate_item",
             DiscardReason::NoEventPayload => "no_event_payload",
             DiscardReason::Internal => "internal",
+            DiscardReason::TransactionSampled => "transaction_sampled",
         }
     }
 }

@@ -126,6 +126,9 @@ enum ProcessingError {
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
+
+    #[fail(display = "envelope empty, transaction removed by sampling")]
+    TransactionSampled,
 }
 
 impl ProcessingError {
@@ -162,6 +165,9 @@ impl ProcessingError {
             Self::StoreFailed(_) | Self::QuotasFailed(_) => {
                 Some(Outcome::Invalid(DiscardReason::Internal))
             }
+
+            // Dynamic sampling (not an error, just discarding messages that were removed by sampling)
+            Self::TransactionSampled => Some(Outcome::Invalid(DiscardReason::TransactionSampled)),
 
             // If we send to an upstream, we don't emit outcomes.
             Self::SendFailed(_) => None,
@@ -1551,7 +1557,7 @@ impl Handler<HandleEnvelope> for EventManager {
         let scoping = Rc::new(RefCell::new(envelope.meta().get_partial_scoping()));
 
         let future = sample_transaction(envelope, sampling_project, false)
-            .map_err(|_| ProcessingError::Timeout)
+            .map_err(|_| ProcessingError::TransactionSampled)
             .and_then(clone!(project, |envelope| {
                 project
                     .send(CheckEnvelope::fetched(envelope))

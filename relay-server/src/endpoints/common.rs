@@ -78,7 +78,7 @@ pub enum BadStoreRequest {
     EventRejected(DiscardReason),
 
     #[fail(display = "envelope empty due to sampling")]
-    TraceSampled,
+    TraceSampled(Option<EventId>),
 }
 
 impl BadStoreRequest {
@@ -128,7 +128,7 @@ impl BadStoreRequest {
             }
             //TODO fix this when we decide how to map empty Envelopes due to the trace being
             //removed by sampling
-            BadStoreRequest::TraceSampled => Outcome::Invalid(DiscardReason::Internal),
+            BadStoreRequest::TraceSampled(_) => Outcome::Invalid(DiscardReason::Internal),
 
             // should actually never create an outcome
             BadStoreRequest::InvalidEventId => Outcome::Invalid(DiscardReason::Internal),
@@ -415,6 +415,7 @@ where
                 .into_future()
                 .and_then(clone!(event_manager, project_manager, |envelope| {
                     // do dynamic sampling on transactions
+                    event_id.replace(envelope.event_id());
 
                     let trace_context = match envelope.get_trace_context() {
                         None => {
@@ -441,15 +442,16 @@ where
                         // we'll try again after the envelope is queued)
                         .and_then(clone!(event_manager, |project| {
                             sample_transaction(envelope, Some(project.clone()), true)
-                                .map_err(|_| BadStoreRequest::TraceSampled)
+                                .map_err(clone!(event_id, |_| {
+                                    let event_id = event_id.borrow();
+                                    BadStoreRequest::TraceSampled(*event_id)
+                                }))
                                 .map(|envelope| (envelope, Some(project)))
                         }));
                     Box::new(response)
                         as ResponseFuture<(Envelope, Option<Addr<Project>>), BadStoreRequest>
                 }))
                 .and_then(clone!(project, |(envelope, sampling_project)| {
-                    event_id.replace(envelope.event_id());
-
                     project
                         .send(CheckEnvelope::cached(envelope))
                         .map_err(BadStoreRequest::ScheduleFailed)
@@ -512,6 +514,10 @@ where
 
             if !emit_rate_limit && matches!(error, BadStoreRequest::RateLimited(_)) {
                 return Ok(create_response(*event_id.borrow()));
+            }
+            if let BadStoreRequest::TraceSampled(event_id) = error {
+                log::debug!("creating response for trace sampled event");
+                return Ok(create_response(event_id));
             }
 
             let response = error.error_response();
