@@ -1431,7 +1431,7 @@ fn sample_transaction_internal<'a>(
         .unwrap_or(true);
 
     if !should_sample {
-        // finally we decided that we should sample the tra
+        // finally we decided that we should sample the transaction
         envelope.take_item_by(|item| item.ty() == ItemType::Transaction);
     }
 
@@ -1467,9 +1467,9 @@ pub fn sample_transaction(
             };
             sample_transaction_internal(&mut envelope, project_state.as_deref());
             if envelope.is_empty() {
-                Ok(envelope)
-            } else {
                 Err(())
+            } else {
+                Ok(envelope)
             }
         });
         Box::new(fut) as ResponseFuture<_, _>
@@ -1483,9 +1483,9 @@ pub fn sample_transaction(
             };
             sample_transaction_internal(&mut envelope, project_state.ok().as_deref());
             if envelope.is_empty() {
-                Ok(envelope)
-            } else {
                 Err(())
+            } else {
+                Ok(envelope)
             }
         });
         Box::new(fut) as ResponseFuture<_, _>
