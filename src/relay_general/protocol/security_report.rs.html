@@ -1870,6 +1870,7 @@
 <span id="1867">1867</span>
 <span id="1868">1868</span>
 <span id="1869">1869</span>
+<span id="1870">1870</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Contains definitions for the security report interfaces.</span>
 <span class="doccomment">//!</span>
@@ -1960,7 +1961,7 @@
 
 <span class="kw">fn</span> <span class="ident">schema_uses_host</span>(<span class="ident">schema</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
     <span class="comment">// List of schemas with host (netloc) from Python&#39;s urlunsplit:</span>
-    <span class="comment">// see https://github.com/python/cpython/blob/1eac437e8da106a626efffe9fce1cb47dbf5be35/Lib/urllib/parse.py#L51</span>
+    <span class="comment">// see &lt;https://github.com/python/cpython/blob/1eac437e8da106a626efffe9fce1cb47dbf5be35/Lib/urllib/parse.py#L51&gt;</span>
     <span class="comment">//</span>
     <span class="comment">// Only modification: &quot;&quot; is set to false, since there is a separate check in the urlunsplit</span>
     <span class="comment">// implementation that omits the leading &quot;//&quot; in that case.</span>
@@ -2297,7 +2298,7 @@
 <span class="doccomment">/// via serde.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// See https://www.w3.org/TR/CSP3/</span>
+<span class="doccomment">/// See &lt;https://www.w3.org/TR/CSP3/&gt;</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">ToValue</span>, <span class="ident">ProcessValue</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Csp</span> {
     <span class="doccomment">/// The directive whose enforcement caused the violation.</span>
@@ -2542,7 +2543,7 @@
 
 <span class="doccomment">/// Expect CT security report sent by user agent (browser).</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// See https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1</span>
+<span class="doccomment">/// See &lt;https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1&gt;</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">ToValue</span>, <span class="ident">ProcessValue</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ExpectCt</span> {
     <span class="doccomment">/// Date time in rfc3339 format YYYY-MM-DDTHH:MM:DD{.FFFFFF}(Z|+/-HH:MM)</span>
@@ -2856,8 +2857,9 @@
     }
 }
 
-<span class="doccomment">/// Represents an Expect Staple security report</span>
-<span class="doccomment">/// See https://scotthelme.co.uk/ocsp-expect-staple/ for specification</span>
+<span class="doccomment">/// Represents an Expect Staple security report.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// See &lt;https://scotthelme.co.uk/ocsp-expect-staple/&gt; for specification.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">ToValue</span>, <span class="ident">ProcessValue</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ExpectStaple</span> {
     <span class="ident">date_time</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,

@@ -21,7 +21,7 @@ The new CSP reports (using report-to policy directive) are different.</p>
 <p>NOTE: This is the structure used inside the Event (serialization is based on Annotated
 infrastructure). We also use a version of this structure to deserialize from raw JSON
 via serde.</p>
-<p>See https://www.w3.org/TR/CSP3/</p>
+<p>See <a href="https://www.w3.org/TR/CSP3/">https://www.w3.org/TR/CSP3/</a></p>
 </div><h2 id="fields" class="fields small-section-header">
                        Fields<a href="#fields" class="anchor"></a></h2><span id="structfield.effective_directive" class="structfield small-section-header"><a href="#structfield.effective_directive" class="anchor field"></a><code>effective_directive: <a class="struct" href="../../relay_general/types/struct.Annotated.html" title="struct relay_general::types::Annotated">Annotated</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</code></span><div class="docblock"><p>The directive whose enforcement caused the violation.</p>
 </div><span id="structfield.blocked_uri" class="structfield small-section-header"><a href="#structfield.blocked_uri" class="anchor field"></a><code>blocked_uri: <a class="struct" href="../../relay_general/types/struct.Annotated.html" title="struct relay_general::types::Annotated">Annotated</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</code></span><div class="docblock"><p>The URI of the resource that was blocked from loading by the Content Security Policy.</p>
