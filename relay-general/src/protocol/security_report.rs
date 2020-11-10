@@ -87,7 +87,7 @@ fn is_local(uri: &str) -> bool {
 
 fn schema_uses_host(schema: &str) -> bool {
     // List of schemas with host (netloc) from Python's urlunsplit:
-    // see https://github.com/python/cpython/blob/1eac437e8da106a626efffe9fce1cb47dbf5be35/Lib/urllib/parse.py#L51
+    // see <https://github.com/python/cpython/blob/1eac437e8da106a626efffe9fce1cb47dbf5be35/Lib/urllib/parse.py#L51>
     //
     // Only modification: "" is set to false, since there is a separate check in the urlunsplit
     // implementation that omits the leading "//" in that case.
@@ -424,7 +424,7 @@ struct CspReportRaw {
 /// via serde.
 ///
 ///
-/// See https://www.w3.org/TR/CSP3/
+/// See <https://www.w3.org/TR/CSP3/>
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct Csp {
     /// The directive whose enforcement caused the violation.
@@ -669,7 +669,7 @@ pub struct SingleCertificateTimestamp {
 
 /// Expect CT security report sent by user agent (browser).
 ///
-/// See https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1
+/// See <https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1>
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct ExpectCt {
     /// Date time in rfc3339 format YYYY-MM-DDTHH:MM:DD{.FFFFFF}(Z|+/-HH:MM)
@@ -983,8 +983,9 @@ impl ExpectStapleRaw {
     }
 }
 
-/// Represents an Expect Staple security report
-/// See https://scotthelme.co.uk/ocsp-expect-staple/ for specification
+/// Represents an Expect Staple security report.
+///
+/// See <https://scotthelme.co.uk/ocsp-expect-staple/> for specification.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct ExpectStaple {
     date_time: Annotated<String>,
