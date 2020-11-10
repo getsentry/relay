@@ -11,6 +11,7 @@ use relay_filter::GlobPatterns;
 
 /// A sampling rule defined by user in Organization options
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SamplingRule {
     /// The project ids for which the sample rule applies, empty applies to all
     #[serde(default)]
@@ -28,6 +29,7 @@ pub struct SamplingRule {
 /// Represents the dynamic sampling configuration available to a project.
 /// Note: This comes from the organization data
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SamplingConfig {
     /// The sampling rules for the project
     pub rules: Vec<SamplingRule>,
