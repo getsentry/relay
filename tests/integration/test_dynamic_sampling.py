@@ -20,8 +20,7 @@ def _create_transaction_item():
                 "type": "trace",
             }
         },
-        "spans": [
-        ],
+        "spans": [],
     }
     return (item, trace_id)
 
@@ -37,7 +36,9 @@ def _relay_with_outcomes():
     }
 
 
-def _add_sampling_config(config, project_ids, sample_rate, releases=None, user_segments=None):
+def _add_sampling_config(
+    config, project_ids, sample_rate, releases=None, user_segments=None
+):
     """
     Adds sampling configuration to a project config
     """
@@ -47,7 +48,12 @@ def _add_sampling_config(config, project_ids, sample_rate, releases=None, user_s
     if user_segments is None:
         user_segments = []
 
-    rule = {"projectIds": project_ids, "sampleRate": sample_rate, "userSegments": user_segments, "releases": releases}
+    rule = {
+        "projectIds": project_ids,
+        "sampleRate": sample_rate,
+        "userSegments": user_segments,
+        "releases": releases,
+    }
     rules.append(rule)
     return rules
 
@@ -56,10 +62,7 @@ def _add_trace_info(envelope, trace_id, public_key, release=None, user_segment=N
     if envelope.headers is None:
         envelope.headers = {}
 
-    trace_info = {
-        "trace_id": trace_id,
-        "public_key": public_key
-    }
+    trace_info = {"trace_id": trace_id, "public_key": public_key}
     envelope.headers["trace"] = trace_info
 
     if release is not None:
@@ -96,9 +99,10 @@ def test_it_removes_transactions(mini_sentry, relay):
 
     outcomes = mini_sentry.captured_outcomes.get(timeout=2)
     assert outcomes is not None
-    outcome = outcomes['outcomes'][0]
+    outcome = outcomes["outcomes"][0]
     assert outcome.get("outcome") == 3
-    assert outcome.get("reason") == 'transaction_sampled'
+    assert outcome.get("reason") == "transaction_sampled"
+
 
 def test_it_keeps_transactions(mini_sentry, relay):
     """
@@ -125,7 +129,9 @@ def test_it_keeps_transactions(mini_sentry, relay):
     evt = mini_sentry.captured_events.get(timeout=1).get_transaction_event()
     assert evt is not None
     # double check that we get back our trace object (check the trace_id from the object)
-    evt_trace_id = evt.setdefault("contexts", {}).setdefault("trace", {}).get("trace_id")
+    evt_trace_id = (
+        evt.setdefault("contexts", {}).setdefault("trace", {}).get("trace_id")
+    )
     assert evt_trace_id == trace_id
 
     # no outcome should be generated since we forward the event to upstream
