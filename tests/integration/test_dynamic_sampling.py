@@ -6,6 +6,11 @@ import queue
 
 
 def _create_transaction_item():
+    """
+    Creates an transaction item that can be added to an envelope
+
+    :return: a tuple (transaction_item, trace_id)
+    """
     trace_id = uuid.uuid4().hex
     item = {
         "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
@@ -25,7 +30,10 @@ def _create_transaction_item():
     return (item, trace_id)
 
 
-def _relay_with_outcomes():
+def _outcomes_enabled_config():
+    """
+    Returns a configuration for Relay that enables outcome generation
+    """
     return {
         "outcomes": {
             "emit_outcomes": True,
@@ -40,7 +48,7 @@ def _add_sampling_config(
     config, project_ids, sample_rate, releases=None, user_segments=None
 ):
     """
-    Adds sampling configuration to a project config
+    Adds a sampling configuration rule to a project configuration
     """
     rules = config["config"].setdefault("samplingConfig", {}).setdefault("rules", [])
     if releases is None:
@@ -59,6 +67,9 @@ def _add_sampling_config(
 
 
 def _add_trace_info(envelope, trace_id, public_key, release=None, user_segment=None):
+    """
+    Adds trace information to an envelope (to the envelope headers)
+    """
     if envelope.headers is None:
         envelope.headers = {}
 
@@ -77,7 +88,7 @@ def test_it_removes_transactions(mini_sentry, relay):
     Tests that when sampling is set to 0% for the trace context project the transactions are removed
     """
     project_id = 42
-    relay = relay(mini_sentry, _relay_with_outcomes())
+    relay = relay(mini_sentry, _outcomes_enabled_config())
 
     # create a basic project config
     config = mini_sentry.add_basic_project_config(project_id)
@@ -109,7 +120,7 @@ def test_it_keeps_transactions(mini_sentry, relay):
     Tests that when sampling is set to 100% for the trace context project the transactions are kept
     """
     project_id = 42
-    relay = relay(mini_sentry, _relay_with_outcomes())
+    relay = relay(mini_sentry, _outcomes_enabled_config())
 
     # create a basic project config
     config = mini_sentry.add_basic_project_config(project_id)
@@ -159,7 +170,7 @@ def test_uses_trace_public_key(mini_sentry, relay):
         It should pass through
 
     """
-    relay = relay(mini_sentry, _relay_with_outcomes())
+    relay = relay(mini_sentry, _outcomes_enabled_config())
 
     # create basic project configs
     project_id1 = 42
@@ -220,7 +231,7 @@ def test_fast_path(mini_sentry, relay):
     know are going to trigger a fast-path evaluation
     """
     project_id = 42
-    relay = relay(mini_sentry, _relay_with_outcomes())
+    relay = relay(mini_sentry, _outcomes_enabled_config())
 
     # create a basic project config
     config = mini_sentry.add_basic_project_config(project_id)
@@ -255,7 +266,7 @@ def test_multi_item_envelope(mini_sentry, relay):
 
     """
     project_id = 42
-    relay = relay(mini_sentry, _relay_with_outcomes())
+    relay = relay(mini_sentry, _outcomes_enabled_config())
 
     # create a basic project config
     config = mini_sentry.add_basic_project_config(project_id)
