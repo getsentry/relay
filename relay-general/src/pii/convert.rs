@@ -19,6 +19,7 @@ lazy_static::lazy_static! {
         | $frame.filename \
         | $frame.abs_path \
         | $logentry.formatted \
+        | $error.value
     )".parse().unwrap();
 }
 
