@@ -61,6 +61,6 @@ def gobetween(background_process, random_port, config_dir):
             GOBETWEEN_BIN + ["from-file", "-fjson", str(config)]
         )
 
-        return Gobetween((host, port), process, upstreams)
+        return Gobetween((host, port), process, upstreams[0])
 
     return inner
