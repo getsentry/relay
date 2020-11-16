@@ -226,6 +226,8 @@ struct UpstreamRequest {
     priority: RequestPriority,
     /// Should the request be retried in case of network error.
     retry: bool,
+    /// Should 429s be honored within the upstream.
+    update_rate_limits: bool,
     /// One-shot channel to be notified when the request is done.
     ///
     /// The request is either successful or it has failed but we are not going to retry it.
@@ -301,10 +303,11 @@ pub struct UpstreamRelay {
 ///  2. `ResponseError` in all other cases.
 fn handle_response(
     response: ClientResponse,
+    update_rate_limits: bool,
 ) -> ResponseFuture<ClientResponse, UpstreamRequestError> {
     let status = response.status();
 
-    if status.is_success() {
+    if !update_rate_limits || status.is_success() {
         return Box::new(future::ok(response));
     }
 
@@ -460,7 +463,7 @@ impl UpstreamRelay {
             .set_header("Host", host_header);
 
         if let Some(ref credentials) = self.config.credentials() {
-            builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
+            builder.set_header("X-Sentry-Relay-Id", credentials.id.to_string());
         }
 
         //try to build a ClientRequest
@@ -478,6 +481,8 @@ impl UpstreamRelay {
         // we are about to send a HTTP message keep track of requests in flight
         self.num_inflight_requests += 1;
 
+        let update_rate_limits = request.update_rate_limits;
+
         request.send_start = Some(Instant::now());
         client_request
             .send()
@@ -487,7 +492,7 @@ impl UpstreamRelay {
             .timeout(self.config.http_timeout())
             .track(ctx.address().recipient())
             .map_err(UpstreamRequestError::SendFailed)
-            .and_then(handle_response)
+            .and_then(move |response| handle_response(response, update_rate_limits))
             .into_actor(self)
             .then(|send_result, slf, ctx| {
                 slf.handle_http_response(request, send_result, ctx);
@@ -604,6 +609,7 @@ impl UpstreamRelay {
         &mut self,
         priority: RequestPriority,
         retry: bool,
+        update_rate_limits: bool,
         method: Method,
         path: P,
         build: F,
@@ -618,6 +624,7 @@ impl UpstreamRelay {
         let request = UpstreamRequest {
             priority,
             retry,
+            update_rate_limits,
             method,
             path: path.as_ref().to_owned(),
             response_sender: tx,
@@ -646,6 +653,7 @@ impl UpstreamRelay {
         let path = query.path();
         let priority = Q::priority();
         let retry = Q::retry();
+        let update_rate_limits = Q::update_rate_limits();
 
         let credentials = tryf!(self
             .config
@@ -661,6 +669,7 @@ impl UpstreamRelay {
             .enqueue_request(
                 priority,
                 retry,
+                update_rate_limits,
                 method,
                 path,
                 move |builder| {
@@ -864,6 +873,7 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
         self.enqueue_request(
             RequestPriority::Immediate,
             false,
+            false,
             Method::GET,
             "/api/0/relays/live/",
             ClientRequestBuilder::finish,
@@ -953,6 +963,7 @@ pub struct SendRequest<B = (), T = ()> {
     builder: B,
     transformer: T,
     retry: bool,
+    update_rate_limits: bool,
 }
 
 impl SendRequest {
@@ -963,6 +974,7 @@ impl SendRequest {
             builder: (),
             transformer: (),
             retry: true,
+            update_rate_limits: true,
         }
     }
 
@@ -982,7 +994,20 @@ impl<B, T> SendRequest<B, T> {
             builder: callback,
             transformer: self.transformer,
             retry: self.retry,
+            update_rate_limits: self.update_rate_limits,
         }
+    }
+
+    #[inline]
+    pub fn retry(mut self, should_retry: bool) -> Self {
+        self.retry = should_retry;
+        self
+    }
+
+    #[inline]
+    pub fn update_rate_limits(mut self, should_update_rate_limits: bool) -> Self {
+        self.update_rate_limits = should_update_rate_limits;
+        self
     }
 
     #[allow(dead_code)]
@@ -996,6 +1021,7 @@ impl<B, T> SendRequest<B, T> {
             builder: self.builder,
             transformer: callback,
             retry: self.retry,
+            update_rate_limits: self.update_rate_limits,
         }
     }
 }
@@ -1033,12 +1059,14 @@ where
             mut builder,
             transformer,
             retry,
+            update_rate_limits,
         } = message;
 
         let future = self
             .enqueue_request(
                 RequestPriority::Low,
                 retry,
+                update_rate_limits,
                 method,
                 path,
                 move |b| builder.build_request(b),
@@ -1087,6 +1115,11 @@ pub trait UpstreamQuery: Serialize {
 
     /// Whether this request should retry on network errors.
     fn retry() -> bool;
+
+    /// Whether 429s should be honored by the upstream actor.
+    fn update_rate_limits() -> bool {
+        true
+    }
 
     /// The queueing priority of the request. Defaults to `Low`.
     fn priority() -> RequestPriority {

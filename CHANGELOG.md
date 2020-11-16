@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**
+
+- Refactor request forwarding to go through only one codepath. ([#839](https://github.com/getsentry/relay/pull/839))
+
 ## 20.11.0
 
 **Features**:

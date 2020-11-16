@@ -180,6 +180,11 @@ impl ServiceState {
     pub fn healthcheck(&self) -> Addr<Healthcheck> {
         self.healthcheck.clone()
     }
+
+    /// Returns an actor for making raw HTTP requests against upstream.
+    pub fn upstream_relay(&self) -> Addr<UpstreamRelay> {
+        self.upstream_relay.clone()
+    }
 }
 
 /// The actix app type for the relay web service.
