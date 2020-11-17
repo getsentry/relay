@@ -32,13 +32,14 @@ use actix_web::http::{header, ContentEncoding, Method, StatusCode};
 use actix_web::{Binary, Error as ActixError, HttpMessage};
 use failure::Fail;
 use futures::{future, prelude::*, sync::oneshot};
+use futures03::{TryFutureExt, FutureExt, compat::{Future01CompatExt}};
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 use relay_common::{metric, tryf, LogError, RetryBackoff};
-use relay_config::{Config, RelayMode};
+use relay_config::{Config, RelayMode, HttpClient};
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
@@ -50,6 +51,9 @@ use crate::utils::{self, ApiErrorResponse, IntoTracked, RelayErrorAction, Tracke
 pub enum UpstreamRequestError {
     #[fail(display = "attempted to send upstream request without credentials configured")]
     NoCredentials,
+
+    #[fail(display = "could not send request")]
+    Reqwest(#[cause] reqwest::Error),
 
     #[fail(display = "could not parse json payload returned by upstream")]
     InvalidJson(#[cause] JsonPayloadError),
@@ -226,7 +230,7 @@ struct UpstreamRequest {
     /// One-shot channel to be notified when the request is done.
     ///
     /// The request is either successful or it has failed but we are not going to retry it.
-    response_sender: oneshot::Sender<Result<ClientResponse, UpstreamRequestError>>,
+    response_sender: oneshot::Sender<Result<Response, UpstreamRequestError>>,
     /// Http method.
     method: Method,
     /// Request URL.
@@ -286,6 +290,7 @@ pub struct UpstreamRelay {
     high_prio_requests: VecDeque<UpstreamRequest>,
     low_prio_requests: VecDeque<UpstreamRequest>,
     config: Arc<Config>,
+    reqwest_client: Option<reqwest::Client>,
 }
 
 /// Handles a response returned from the upstream.
@@ -297,27 +302,24 @@ pub struct UpstreamRelay {
 ///  1. `RateLimited` for a `429` status code.
 ///  2. `ResponseError` in all other cases.
 fn handle_response(
-    response: ClientResponse,
+    response: Response,
     update_rate_limits: bool,
-) -> ResponseFuture<ClientResponse, UpstreamRequestError> {
+) -> ResponseFuture<Response, UpstreamRequestError> {
     let status = response.status();
 
     if !update_rate_limits || status.is_success() {
         return Box::new(future::ok(response));
     }
 
-    // At this point, we consume the ClientResponse. This means we need to consume the response
+    // At this point, we consume the Response. This means we need to consume the response
     // payload stream, regardless of the status code. Parsing the JSON body may fail, which is a
     // non-fatal failure as the upstream is not expected to always include a valid JSON response.
     let future = response.json().then(move |json_result| {
         if response.status() == StatusCode::TOO_MANY_REQUESTS {
-            let headers = response.headers();
-            let retry_after = headers
-                .get(header::RETRY_AFTER)
+            let retry_after = response.get_header(header::RETRY_AFTER)
                 .and_then(|v| v.to_str().ok());
 
-            let rate_limits = headers
-                .get_all(utils::RATE_LIMITS_HEADER)
+            let rate_limits = response.get_all_headers(utils::RATE_LIMITS_HEADER)
                 .iter()
                 .filter_map(|v| v.to_str().ok())
                 .join(", ");
@@ -339,6 +341,16 @@ fn handle_response(
 impl UpstreamRelay {
     /// Creates a new `UpstreamRelay` instance.
     pub fn new(config: Arc<Config>) -> Self {
+        let reqwest_client = match config.http_client() {
+            HttpClient::Actix => None,
+            HttpClient::Reqwest => Some(
+                reqwest::ClientBuilder::new()
+                .connect_timeout(config.http_connection_timeout())
+                .timeout(config.http_timeout())
+                .build().unwrap()
+            )
+        };
+
         UpstreamRelay {
             auth_backoff: RetryBackoff::new(config.http_max_retry_interval()),
             auth_state: AuthState::Unknown,
@@ -349,6 +361,7 @@ impl UpstreamRelay {
             low_prio_requests: VecDeque::new(),
             first_error: None,
             config,
+            reqwest_client
         }
     }
 
@@ -451,18 +464,31 @@ impl UpstreamRelay {
             .http_host_header()
             .unwrap_or_else(|| self.config.upstream_descriptor().host());
 
-        let mut builder = ClientRequest::build();
-        builder
-            .method(request.method.clone())
-            .uri(uri)
-            .set_header("Host", host_header);
+        let mut builder = match self.reqwest_client {
+            None => {
+                let mut builder = ClientRequest::build();
+                builder
+                    .method(request.method.clone())
+                    .uri(uri);
+
+                Box::new(builder) as Box<dyn RequestBuilder>
+            },
+            Some(ref client) => {
+                let method = reqwest::Method::from_bytes(request.method.as_ref().as_bytes()).unwrap();
+                let builder = client.request(method, uri);
+
+                Box::new(Some(builder)) as Box<dyn RequestBuilder>
+            }
+        };
+        
+        builder.header("Host", host_header.as_bytes());
 
         if let Some(ref credentials) = self.config.credentials() {
-            builder.set_header("X-Sentry-Relay-Id", credentials.id.to_string());
+            builder.header("X-Sentry-Relay-Id", credentials.id.to_string().as_bytes());
         }
 
         //try to build a ClientRequest
-        let client_request = match request.build.build_request(Box::new(builder)) {
+        let client_request = match request.build.build_request(builder) {
             Err(e) => {
                 request
                     .response_sender
@@ -470,7 +496,7 @@ impl UpstreamRelay {
                     .ok();
                 return;
             }
-            Ok(Request::Actix(client_request)) => client_request,
+            Ok(client_request) => client_request
         };
 
         // we are about to send a HTTP message keep track of requests in flight
@@ -479,13 +505,33 @@ impl UpstreamRelay {
         let update_rate_limits = request.config.update_rate_limits;
 
         request.send_start = Some(Instant::now());
-        client_request
-            .send()
-            .wait_timeout(self.config.event_buffer_expiry())
-            .conn_timeout(self.config.http_connection_timeout())
-            // This is the timeout after wait + connect.
-            .timeout(self.config.http_timeout())
-            .track(ctx.address().recipient())
+
+        let future = match client_request {
+            Request::Actix(client_request) => {
+                let future = client_request
+                    .send()
+                    .wait_timeout(self.config.event_buffer_expiry())
+                    .conn_timeout(self.config.http_connection_timeout())
+                    // This is the timeout after wait + connect.
+                    .timeout(self.config.http_timeout())
+                    .map(Response::Actix);
+                Box::new(future) as Box<dyn Future<Item = _, Error = _>>
+            },
+            Request::Reqwest(client_request) => {
+                let client = self.reqwest_client
+                    .as_ref()
+                    .expect("Constructed request request without having a client.");
+
+                let future = client.execute(client_request)
+                    .boxed_local()
+                    .compat()
+                    .map(Response::Reqwest);
+
+                Box::new(future) as Box<dyn Future<Item = _, Error = _>>
+            },
+        };
+
+        future.track(ctx.address().recipient())
             .map_err(UpstreamRequestError::SendFailed)
             .and_then(move |response| handle_response(response, update_rate_limits))
             .into_actor(self)
@@ -499,7 +545,7 @@ impl UpstreamRelay {
     /// Adds a metric for the upstream request.
     fn meter_result(
         request: &UpstreamRequest,
-        send_result: &Result<ClientResponse, UpstreamRequestError>,
+        send_result: &Result<Response, UpstreamRequestError>,
     ) {
         let sc: StatusCode;
         let (status_code, result) = match send_result {
@@ -551,7 +597,7 @@ impl UpstreamRelay {
     fn handle_http_response(
         &mut self,
         mut request: UpstreamRequest,
-        send_result: Result<ClientResponse, UpstreamRequestError>,
+        send_result: Result<Response, UpstreamRequestError>,
         ctx: &mut Context<Self>,
     ) {
         UpstreamRelay::meter_result(&request, &send_result);
@@ -607,12 +653,12 @@ impl UpstreamRelay {
         path: P,
         build: F,
         ctx: &mut Context<Self>,
-    ) -> ResponseFuture<ClientResponse, UpstreamRequestError>
+    ) -> ResponseFuture<Response, UpstreamRequestError>
     where
         F: RequestBuilderTransformer,
         P: AsRef<str>,
     {
-        let (tx, rx) = oneshot::channel::<Result<ClientResponse, UpstreamRequestError>>();
+        let (tx, rx) = oneshot::channel::<Result<Response, UpstreamRequestError>>();
 
         let request = UpstreamRequest {
             config,
@@ -873,10 +919,8 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
         )
         .and_then(|client_response| {
             // consume response bodies to ensure the connection remains usable.
+            client_response.consume();
             client_response
-                .payload()
-                .for_each(|_| Ok(()))
-                .map_err(UpstreamRequestError::PayloadFailed)
         })
         .into_actor(self)
         .then(|result, slf, ctx| {
@@ -895,8 +939,10 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
 
 pub enum Request {
     Actix(ClientRequest),
+    Reqwest(reqwest::Request),
 }
 
+// TODO: Move to enum such that we can use generic functions
 pub trait RequestBuilder {
     fn no_default_headers(&mut self);
     fn finish(&mut self) -> Result<Request, ActixError>;
@@ -938,6 +984,45 @@ impl RequestBuilder for ClientRequestBuilder {
     }
 }
 
+impl RequestBuilder for Option<reqwest::RequestBuilder> {
+    fn no_default_headers(&mut self) {
+        // TODO
+    }
+
+    fn content_encoding(&mut self, _encoding: ContentEncoding) {
+        // TODO
+    }
+
+    fn disable_decompress(&mut self) {
+        // TODO
+    }
+
+    fn finish(&mut self) -> Result<Request, ActixError> {
+        reqwest::RequestBuilder::build(self.take().unwrap()).map_err(|e| {
+            ActixError::from(failure::Error::from(e))
+        }).map(Request::Reqwest)
+    }
+
+    fn header(&mut self, key: &str, value: &[u8]) {
+        *self = Some(reqwest::RequestBuilder::header(self.take().unwrap(), key, value));
+    }
+
+    fn set_header(&mut self, key: &str, value: &[u8]) {
+        *self = Some(reqwest::RequestBuilder::header(self.take().unwrap(), key, value));
+    }
+
+    fn body(&mut self, body: Binary) -> Result<Request, ActixError> {
+        let body: reqwest::Body = match body {
+            Binary::Bytes(bytes) => bytes.to_vec().into(),
+            Binary::Slice(slice) => slice.into(),
+            Binary::SharedVec(vec) => vec.to_vec().into()
+        };
+
+        *self = Some(reqwest::RequestBuilder::body(self.take().unwrap(), body));
+        self.finish()
+    }
+}
+
 pub trait RequestBuilderTransformer: 'static + Send {
     fn build_request(&mut self, _: Box<dyn RequestBuilder>) -> Result<Request, ActixError>;
 }
@@ -962,6 +1047,58 @@ where
 
 pub enum Response {
     Actix(ClientResponse),
+    Reqwest(reqwest::Response),
+}
+
+impl Response {
+    fn status(&self) -> StatusCode {
+        match self {
+            Response::Actix(response) => response.status(),
+            Response::Reqwest(response) => StatusCode::from_u16(response.status().as_u16()).unwrap(),
+        }
+    }
+
+    fn json<T: 'static + DeserializeOwned>(&self) -> Box<dyn Future<Item = T, Error = UpstreamRequestError>> {
+        match self {
+            Response::Actix(response) => Box::new(response.json().map_err(UpstreamRequestError::InvalidJson)) as Box<dyn Future<Item = _, Error = _>>,
+            Response::Reqwest(response) => {
+                let future = response.json()
+                    .boxed_local().compat()
+                    .map_err(UpstreamRequestError::Reqwest);
+                Box::new(future) as Box<dyn Future<Item = _, Error = _>>
+            }
+        }
+    }
+
+    fn consume(&self) -> ResponseFuture<(), UpstreamRequestError> {
+        // consume response bodies to allow connection keep-alive
+        match self {
+            Response::Actix(response) => Box::new(
+                response
+                    .payload()
+                    .for_each(|_| Ok(()))
+                    .map_err(UpstreamRequestError::PayloadFailed),
+            ),
+            Response::Reqwest(_) => {
+                // TODO: is this necessary for reqwest?
+                Box::new(future::ok(()))
+            }
+        }
+    }
+
+    fn get_header(&self, key: &str) -> Option<&[u8]> {
+        match self {
+            Response::Actix(response) => Some(response.headers().get(key)?.as_bytes()),
+            Response::Reqwest(response) => Some(response.headers().get(key)?.as_bytes()),
+        }
+    }
+
+    fn get_all_headers(&self, key: &str) -> &[&[u8]] {
+        match self {
+            Response::Actix(response) => Some(response.headers().get_all(key)?.as_bytes()),
+            Response::Reqwest(response) => Some(response.headers().get_all(key)?.as_bytes()),
+        }
+    }
 }
 
 pub trait ResponseTransformer: 'static {
@@ -974,15 +1111,7 @@ impl ResponseTransformer for () {
     type Result = ResponseFuture<(), UpstreamRequestError>;
 
     fn transform_response(self, response: Response) -> Self::Result {
-        // consume response bodies to allow connection keep-alive
-        match response {
-            Response::Actix(response) => Box::new(
-                response
-                    .payload()
-                    .for_each(|_| Ok(()))
-                    .map_err(UpstreamRequestError::PayloadFailed),
-            ),
-        }
+        response.consume()
     }
 }
 
@@ -1109,15 +1238,15 @@ where
         let SendRequest {
             method,
             path,
-            mut builder,
+            builder,
             transformer,
             config,
         } = message;
 
         let future = self
-            .enqueue_request(config, method, path, move |b| builder.build_request(b), ctx)
+            .enqueue_request(config, method, path, builder, ctx)
             .from_err()
-            .and_then(move |r| transformer.transform_response(Response::Actix(r)));
+            .and_then(move |r| transformer.transform_response(r));
 
         Box::new(future)
     }

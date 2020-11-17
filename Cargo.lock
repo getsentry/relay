@@ -1229,6 +1229,7 @@ version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8764574ff08b701a084482c3c7031349104b07ac897393010494beaa18ce32c6"
 dependencies = [
+ "futures 0.1.29",
  "futures-channel",
  "futures-core",
  "futures-io",
@@ -3047,6 +3048,7 @@ dependencies = [
  "failure",
  "flate2",
  "futures 0.1.29",
+ "futures 0.3.5",
  "insta 0.16.0",
  "itertools 0.8.2",
  "json-forensics",
@@ -3067,6 +3069,7 @@ dependencies = [
  "relay-general",
  "relay-quotas",
  "relay-redis",
+ "reqwest",
  "rmp-serde",
  "sentry",
  "sentry-actix",
