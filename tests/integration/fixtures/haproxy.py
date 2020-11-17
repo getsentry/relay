@@ -54,6 +54,6 @@ def haproxy(background_process, random_port, config_dir):
 
         process = background_process(HAPROXY_BIN + ["-f", str(config)])
 
-        return HAProxy((host, port), process, upstreams)
+        return HAProxy((host, port), process, upstreams[0])
 
     return inner
