@@ -6,6 +6,7 @@
 //! * browser extensions (filter events caused by known problematic browser extensions)
 //! * web crawlers (filter events sent by user agents known to be web crawlers)
 //! * legacy browsers (filter events originating from legacy browsers, can be configured)
+#![warn(missing_docs)]
 
 use std::net::IpAddr;
 

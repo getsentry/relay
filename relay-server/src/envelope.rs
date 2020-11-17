@@ -798,7 +798,7 @@ impl Envelope {
         })
     }
 
-    pub fn get_trace_context(&self) -> Option<&TraceContext> {
+    pub fn trace_context(&self) -> Option<&TraceContext> {
         match &self.headers.trace {
             Option::None => None,
             Option::Some(ErrorBoundary::Err(_)) => None,

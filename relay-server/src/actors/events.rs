@@ -8,7 +8,7 @@ use actix::prelude::*;
 use actix_web::http::ContentEncoding;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
-use futures::{future, prelude::*};
+use futures::prelude::*;
 use parking_lot::RwLock;
 use serde_json::Value as SerdeValue;
 
@@ -27,14 +27,14 @@ use relay_redis::RedisPool;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
-    CheckEnvelope, GetCachedProjectState, GetProjectState, Project, ProjectState, UpdateRateLimits,
+    CheckEnvelope, GetProjectState, Project, ProjectState, UpdateRateLimits,
 };
 use crate::actors::project_cache::ProjectError;
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
-use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, FutureExt};
+use crate::utils::{self, sample_transaction, ChunkedFormDataAggregator, FormDataIter, FutureExt};
 
 #[cfg(feature = "processing")]
 use {
@@ -1393,108 +1393,6 @@ impl Handler<QueueEnvelope> for EventManager {
 
         log::trace!("queued event");
         Ok(event_id)
-    }
-}
-
-/// Takes an envelope and potentially removes the transaction item from it if that
-/// transaction item should be sampled out according to the dynamic sampling configuration
-/// and the trace context.
-fn sample_transaction_internal<'a>(
-    envelope: &'a mut Envelope,
-    project_state: Option<&ProjectState>,
-) -> &'a mut Envelope {
-    let project_state = match project_state {
-        None => return envelope,
-        Some(project_state) => project_state,
-    };
-
-    let sampling_config = match project_state.config.sampling_config {
-        // without sampling config we cannot sample transactions so give up here
-        None => return envelope,
-        Some(ref sampling_config) => sampling_config,
-    };
-
-    let project_id = match project_state.project_id {
-        None => return envelope,
-        Some(project_id) => project_id,
-    };
-
-    let trace_context = envelope.get_trace_context();
-    let transaction_item = envelope.get_item_by(|item| item.ty() == ItemType::Transaction);
-
-    let trace_context = match (trace_context, transaction_item) {
-        // we don't have what we need, can't sample the transactions in this envelope
-        (None, _) | (_, None) => return envelope,
-        // see if we need to sample the transaction
-        (Some(trace_context), Some(_)) => trace_context,
-    };
-
-    let should_sample = trace_context
-        // see if we should sample
-        .should_sample(sampling_config, project_id)
-        // TODO verify that this is the desired behaviour (i.e. if we can't find a rule
-        // for sampling, include the transaction)
-        .unwrap_or(true);
-
-    if !should_sample {
-        // finally we decided that we should sample the transaction
-        envelope.take_item_by(|item| item.ty() == ItemType::Transaction);
-    }
-
-    envelope
-}
-
-/// Check if we should remove transactions from this envelope (because of trace sampling) and
-/// return what is left of the envelope
-pub fn sample_transaction(
-    mut envelope: Envelope,
-    project: Option<Addr<Project>>,
-    fast_processing: bool,
-) -> ResponseFuture<Envelope, ()> {
-    let project = match project {
-        None => return Box::new(future::ok(envelope)),
-        Some(project) => project,
-    };
-
-    let trace_context = envelope.get_trace_context();
-    let transaction_item = envelope.get_item_by(|item| item.ty() == ItemType::Transaction);
-
-    // if there is no trace context or there are no transactions to sample return here
-    if trace_context.is_none() || transaction_item.is_none() {
-        return Box::new(future::ok(envelope));
-    }
-    //we have a trace_context and we have a transaction_item see if we can sample them
-    if fast_processing {
-        let fut = project.send(GetCachedProjectState).then(|project_state| {
-            let project_state = match project_state {
-                // error getting the project, give up and return envelope unchanged
-                Err(_) => return Ok(envelope),
-                Ok(project_state) => project_state,
-            };
-            sample_transaction_internal(&mut envelope, project_state.as_deref());
-            if envelope.is_empty() {
-                Err(())
-            } else {
-                Ok(envelope)
-            }
-        });
-        Box::new(fut) as ResponseFuture<_, _>
-    } else {
-        //TODO can we deduplicate the code below without using some weird macro?
-        let fut = project.send(GetProjectState).then(|project_state| {
-            let project_state = match project_state {
-                // error getting the project, give up and return envelope unchanged
-                Err(_) => return Ok(envelope),
-                Ok(project_state) => project_state,
-            };
-            sample_transaction_internal(&mut envelope, project_state.ok().as_deref());
-            if envelope.is_empty() {
-                Err(())
-            } else {
-                Ok(envelope)
-            }
-        });
-        Box::new(fut) as ResponseFuture<_, _>
     }
 }
 

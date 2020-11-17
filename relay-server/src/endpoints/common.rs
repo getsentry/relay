@@ -12,10 +12,11 @@ use futures::prelude::*;
 use serde::Deserialize;
 
 use relay_common::{clone, metric, tryf, LogError};
+use relay_config::Config;
 use relay_general::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 
-use crate::actors::events::{sample_transaction, QueueEnvelope, QueueEnvelopeError};
+use crate::actors::events::{QueueEnvelope, QueueEnvelopeError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{CheckEnvelope, Project};
 use crate::actors::project_cache::{GetProject, ProjectError};
@@ -24,8 +25,7 @@ use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
 use crate::service::{ServiceApp, ServiceState};
-use crate::utils::{self, ApiErrorResponse, FormDataIter, MultipartError};
-use relay_config::Config;
+use crate::utils::{self, sample_transaction, ApiErrorResponse, FormDataIter, MultipartError};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -417,7 +417,7 @@ where
                     // do dynamic sampling on transactions
                     event_id.replace(envelope.event_id());
 
-                    let trace_context = match envelope.get_trace_context() {
+                    let trace_context = match envelope.trace_context() {
                         None => {
                             // if we don't have a trace context we can't do dynamic sampling so stop.
                             return Box::new(Ok((envelope, None)).into_future())
@@ -440,7 +440,7 @@ where
                         .map_err(BadStoreRequest::ScheduleFailed)
                         // do the fast path transaction sampling (if we can't do it here
                         // we'll try again after the envelope is queued)
-                        .and_then(clone!(event_manager, |project| {
+                        .and_then(clone!(event_id, |project| {
                             sample_transaction(envelope, Some(project.clone()), true)
                                 .map_err(clone!(event_id, |_| {
                                     let event_id = event_id.borrow();
@@ -515,6 +515,7 @@ where
             if !emit_rate_limit && matches!(error, BadStoreRequest::RateLimited(_)) {
                 return Ok(create_response(*event_id.borrow()));
             }
+
             if let BadStoreRequest::TraceSampled(event_id) = error {
                 log::debug!("creating response for trace sampled event");
                 return Ok(create_response(event_id));

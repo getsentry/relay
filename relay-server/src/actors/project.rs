@@ -62,7 +62,7 @@ pub struct ProjectConfig {
     pub quotas: Vec<Quota>,
     /// Configuration for sampling traces, if not present there will be no sampling.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sampling_config: Option<SamplingConfig>,
+    pub sampling: Option<SamplingConfig>,
 }
 
 impl Default for ProjectConfig {
@@ -76,7 +76,7 @@ impl Default for ProjectConfig {
             datascrubbing_settings: DataScrubbingConfig::default(),
             event_retention: None,
             quotas: Vec::new(),
-            sampling_config: None,
+            sampling: None,
         }
     }
 }
@@ -558,6 +558,11 @@ impl Actor for Project {
     }
 }
 
+/// Returns the project state if it is already cached.
+///
+/// This is used for cases when we only want to perform operations that do
+/// not require waiting for network requests.
+///
 pub struct GetCachedProjectState;
 
 impl Message for GetCachedProjectState {

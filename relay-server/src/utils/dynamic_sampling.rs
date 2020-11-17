@@ -2,6 +2,8 @@
 //!
 use std::convert::TryInto;
 
+use actix::prelude::*;
+use futures::{future, prelude::*};
 use rand::{distributions::Uniform, Rng};
 use rand_pcg::Pcg32;
 use serde::{Deserialize, Serialize};
@@ -9,7 +11,10 @@ use serde::{Deserialize, Serialize};
 use relay_common::{ProjectId, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
 
-/// A sampling rule defined by user in Organization options
+use crate::actors::project::{GetCachedProjectState, GetProjectState, Project, ProjectState};
+use crate::envelope::{Envelope, ItemType};
+
+/// A sampling rule defined by user in Organization options.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SamplingRule {
@@ -39,9 +44,6 @@ pub struct SamplingConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraceContext {
     /// IID created by SDK to represent the current call flow
-    /// TODO RaduW. Should we deserialize directly into an Uuid ?
-    /// Also since trace_id and public_key are compulsory for tracing functionality should
-    /// they be an option or not ?
     pub trace_id: Uuid,
     /// The project key
     pub public_key: ProjectKey,
@@ -57,10 +59,112 @@ impl TraceContext {
     /// Returns the decision of whether to sample or not a trace based on the configuration rules
     /// If None then a decision can't be made either because of an invalid of missing trace context or
     /// because no applicable sampling rule could be found.
-    pub fn should_sample(&self, config: &SamplingConfig, project_id: ProjectId) -> Option<bool> {
+    fn should_sample(&self, config: &SamplingConfig, project_id: ProjectId) -> Option<bool> {
         let rule = get_matching_rule(config, self, project_id)?;
         let rate = pseudo_random_from_trace_id(self.trace_id)?;
         Some(rate < rule.sample_rate)
+    }
+}
+
+/// Takes an envelope and potentially removes the transaction item from it if that
+/// transaction item should be sampled out according to the dynamic sampling configuration
+/// and the trace context.
+fn sample_transaction_internal<'a>(
+    envelope: &'a mut Envelope,
+    project_state: Option<&ProjectState>,
+) -> &'a mut Envelope {
+    let project_state = match project_state {
+        None => return envelope,
+        Some(project_state) => project_state,
+    };
+
+    let sampling_config = match project_state.config.sampling {
+        // without sampling config we cannot sample transactions so give up here
+        None => return envelope,
+        Some(ref sampling_config) => sampling_config,
+    };
+
+    let project_id = match project_state.project_id {
+        None => return envelope,
+        Some(project_id) => project_id,
+    };
+
+    let trace_context = envelope.trace_context();
+    let transaction_item = envelope.get_item_by(|item| item.ty() == ItemType::Transaction);
+
+    let trace_context = match (trace_context, transaction_item) {
+        // we don't have what we need, can't sample the transactions in this envelope
+        (None, _) | (_, None) => return envelope,
+        // see if we need to sample the transaction
+        (Some(trace_context), Some(_)) => trace_context,
+    };
+
+    let should_sample = trace_context
+        // see if we should sample
+        .should_sample(sampling_config, project_id)
+        // TODO verify that this is the desired behaviour (i.e. if we can't find a rule
+        // for sampling, include the transaction)
+        .unwrap_or(true);
+
+    if !should_sample {
+        // finally we decided that we should sample the transaction
+        envelope.take_item_by(|item| item.ty() == ItemType::Transaction);
+    }
+
+    envelope
+}
+
+/// Check if we should remove transactions from this envelope (because of trace sampling) and
+/// return what is left of the envelope
+pub fn sample_transaction(
+    mut envelope: Envelope,
+    project: Option<Addr<Project>>,
+    fast_processing: bool,
+) -> ResponseFuture<Envelope, ()> {
+    let project = match project {
+        None => return Box::new(future::ok(envelope)),
+        Some(project) => project,
+    };
+
+    let trace_context = envelope.trace_context();
+    let transaction_item = envelope.get_item_by(|item| item.ty() == ItemType::Transaction);
+
+    // if there is no trace context or there are no transactions to sample return here
+    if trace_context.is_none() || transaction_item.is_none() {
+        return Box::new(future::ok(envelope));
+    }
+    //we have a trace_context and we have a transaction_item see if we can sample them
+    if fast_processing {
+        let fut = project.send(GetCachedProjectState).then(|project_state| {
+            let project_state = match project_state {
+                // error getting the project, give up and return envelope unchanged
+                Err(_) => return Ok(envelope),
+                Ok(project_state) => project_state,
+            };
+            sample_transaction_internal(&mut envelope, project_state.as_deref());
+            if envelope.is_empty() {
+                Err(())
+            } else {
+                Ok(envelope)
+            }
+        });
+        Box::new(fut) as ResponseFuture<_, _>
+    } else {
+        //TODO can we deduplicate the code below without using some weird macro?
+        let fut = project.send(GetProjectState).then(|project_state| {
+            let project_state = match project_state {
+                // error getting the project, give up and return envelope unchanged
+                Err(_) => return Ok(envelope),
+                Ok(project_state) => project_state,
+            };
+            sample_transaction_internal(&mut envelope, project_state.ok().as_deref());
+            if envelope.is_empty() {
+                Err(())
+            } else {
+                Ok(envelope)
+            }
+        });
+        Box::new(fut) as ResponseFuture<_, _>
     }
 }
 
