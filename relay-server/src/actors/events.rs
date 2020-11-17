@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
-use actix_web::client::ClientRequestBuilder;
 use actix_web::http::ContentEncoding;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
@@ -31,7 +30,7 @@ use crate::actors::project::{
     CheckEnvelope, GetProjectState, Project, ProjectState, UpdateRateLimits,
 };
 use crate::actors::project_cache::ProjectError;
-use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
+use crate::actors::upstream::{RequestBuilder, SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
@@ -1529,7 +1528,7 @@ impl Handler<HandleEnvelope> for EventManager {
                 log::trace!("sending event to sentry endpoint");
                 let project_id = scoping.borrow().project_id;
                 let request = SendRequest::post(format!("/api/{}/envelope/", project_id)).build(
-                    move |mut builder: ClientRequestBuilder| {
+                    move |mut builder: Box<dyn RequestBuilder>| {
                         // Override the `sent_at` timestamp. Since the event went through basic
                         // normalization, all timestamps have been corrected. We propagate the new
                         // `sent_at` to allow the next Relay to double-check this timestamp and
@@ -1540,11 +1539,11 @@ impl Handler<HandleEnvelope> for EventManager {
                         let meta = envelope.meta();
 
                         if let Some(origin) = meta.origin() {
-                            builder.header("Origin", origin.to_string());
+                            builder.header("Origin", origin.as_str().as_bytes());
                         }
 
                         if let Some(user_agent) = meta.user_agent() {
-                            builder.header("User-Agent", user_agent);
+                            builder.header("User-Agent", user_agent.as_bytes());
                         }
 
                         let content_encoding = match http_encoding {
@@ -1554,12 +1553,11 @@ impl Handler<HandleEnvelope> for EventManager {
                             HttpEncoding::Br => ContentEncoding::Br,
                         };
 
-                        builder
-                            .content_encoding(content_encoding)
-                            .header("X-Sentry-Auth", meta.auth_header())
-                            .header("X-Forwarded-For", meta.forwarded_for())
-                            .header("Content-Type", envelope::CONTENT_TYPE)
-                            .body(envelope.to_vec().map_err(failure::Error::from)?)
+                        builder.content_encoding(content_encoding);
+                        builder.header("X-Sentry-Auth", meta.auth_header().as_bytes());
+                        builder.header("X-Forwarded-For", meta.forwarded_for().as_bytes());
+                        builder.header("Content-Type", envelope::CONTENT_TYPE.as_bytes());
+                        builder.body(envelope.to_vec().map_err(failure::Error::from)?.into())
                     },
                 );
 

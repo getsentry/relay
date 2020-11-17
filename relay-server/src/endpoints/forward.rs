@@ -4,7 +4,7 @@
 //! (`X-Forwarded-For` and `Sentry-Relay-Id`). The response is then streamed back to the origin.
 
 use ::actix::prelude::*;
-use actix_web::client::{ClientRequestBuilder, ClientResponse};
+use actix_web::client::ClientResponse;
 use actix_web::error::ResponseError;
 use actix_web::http::{header, header::HeaderName, uri::PathAndQuery, ContentEncoding, StatusCode};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
@@ -15,7 +15,7 @@ use lazy_static::lazy_static;
 use relay_common::{GlobMatcher, LogError};
 use relay_config::Config;
 
-use crate::actors::upstream::{SendRequest, UpstreamRequestError};
+use crate::actors::upstream::{RequestBuilder, SendRequest, UpstreamRequestError};
 use crate::body::ForwardBody;
 use crate::endpoints::statics;
 use crate::extractors::ForwardedFor;
@@ -135,7 +135,7 @@ pub fn forward_upstream(
             let forward_request = SendRequest::new(method, path_and_query)
                 .retry(false)
                 .update_rate_limits(false)
-                .build(move |mut builder: ClientRequestBuilder| {
+                .build(move |mut builder: Box<dyn RequestBuilder>| {
                     for (key, value) in &headers {
                         // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
                         // must not forward the content-encoding header, as the actix http client will do its own
@@ -146,20 +146,19 @@ pub fn forward_upstream(
                         }
 
                         if SINGLE_REQUEST_HEADERS.iter().any(|x| x == key) {
-                            builder.set_header(key.clone(), value.clone());
+                            builder.set_header(key.as_str(), value.as_bytes());
                         } else {
-                            builder.header(key.clone(), value.clone());
+                            builder.header(key.as_str(), value.as_bytes());
                         }
                     }
 
-                    let req = builder
-                        .no_default_headers()
-                        .disable_decompress()
-                        .set_header("X-Forwarded-For", forwarded_for.as_ref())
-                        .body(data.clone())
-                        .map_err(|e| {
-                            ForwardedUpstreamRequestError(UpstreamRequestError::BuildFailed(e))
-                        })?;
+                    builder.no_default_headers();
+                    builder.disable_decompress();
+                    builder.set_header("X-Forwarded-For", forwarded_for.as_ref().as_bytes());
+
+                    let req = builder.body(data.clone().into()).map_err(|e| {
+                        ForwardedUpstreamRequestError(UpstreamRequestError::BuildFailed(e))
+                    })?;
 
                     Ok(req)
                 })

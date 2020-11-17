@@ -28,8 +28,8 @@ use ::actix::fut;
 use ::actix::prelude::*;
 use actix_web::client::{ClientRequest, ClientRequestBuilder, ClientResponse, SendRequestError};
 use actix_web::error::{JsonPayloadError, PayloadError};
-use actix_web::http::{header, Method, StatusCode};
-use actix_web::{Error as ActixError, HttpMessage};
+use actix_web::http::{header, ContentEncoding, Method, StatusCode};
+use actix_web::{Binary, Error as ActixError, HttpMessage};
 use failure::Fail;
 use futures::{future, prelude::*, sync::oneshot};
 use itertools::Itertools;
@@ -462,7 +462,7 @@ impl UpstreamRelay {
         }
 
         //try to build a ClientRequest
-        let client_request = match request.build.build_request(builder) {
+        let client_request = match request.build.build_request(Box::new(builder)) {
             Err(e) => {
                 request
                     .response_sender
@@ -663,11 +663,10 @@ impl UpstreamRelay {
                 config,
                 method,
                 path,
-                move |mut builder: ClientRequestBuilder| {
-                    builder
-                        .header("X-Sentry-Relay-Signature", signature.as_str())
-                        .header(header::CONTENT_TYPE, "application/json")
-                        .body(json.clone())
+                move |mut builder: Box<dyn RequestBuilder>| {
+                    builder.header("X-Sentry-Relay-Signature", signature.as_str().as_bytes());
+                    builder.header(header::CONTENT_TYPE.as_str(), b"application/json");
+                    builder.body(json.clone().into())
                 },
                 ctx,
             )
@@ -869,7 +868,7 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
             },
             Method::GET,
             "/api/0/relays/live/",
-            |mut b| ClientRequestBuilder::finish(&mut b),
+            |mut b: Box<dyn RequestBuilder>| b.finish(),
             ctx,
         )
         .and_then(|client_response| {
@@ -894,14 +893,55 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
     }
 }
 
+pub trait RequestBuilder {
+    fn no_default_headers(&mut self);
+    fn finish(&mut self) -> Result<ClientRequest, ActixError>;
+    fn header(&mut self, key: &str, value: &[u8]);
+    fn set_header(&mut self, key: &str, value: &[u8]);
+    fn body(&mut self, body: Binary) -> Result<ClientRequest, ActixError>;
+    fn disable_decompress(&mut self);
+
+    fn content_encoding(&mut self, encoding: ContentEncoding);
+}
+
+impl RequestBuilder for ClientRequestBuilder {
+    fn no_default_headers(&mut self) {
+        ClientRequestBuilder::no_default_headers(self);
+    }
+
+    fn finish(&mut self) -> Result<ClientRequest, ActixError> {
+        ClientRequestBuilder::finish(self)
+    }
+
+    fn header(&mut self, key: &str, value: &[u8]) {
+        ClientRequestBuilder::header(self, key, value);
+    }
+
+    fn set_header(&mut self, key: &str, value: &[u8]) {
+        ClientRequestBuilder::set_header(self, key, value);
+    }
+
+    fn body(&mut self, body: Binary) -> Result<ClientRequest, ActixError> {
+        ClientRequestBuilder::body(self, body)
+    }
+
+    fn disable_decompress(&mut self) {
+        ClientRequestBuilder::disable_decompress(self);
+    }
+
+    fn content_encoding(&mut self, encoding: ContentEncoding) {
+        ClientRequestBuilder::content_encoding(self, encoding);
+    }
+}
+
 pub trait RequestBuilderTransformer: 'static + Send {
-    fn build_request(&mut self, _: ClientRequestBuilder) -> Result<ClientRequest, ActixError>;
+    fn build_request(&mut self, _: Box<dyn RequestBuilder>) -> Result<ClientRequest, ActixError>;
 }
 
 impl RequestBuilderTransformer for () {
     fn build_request(
         &mut self,
-        mut builder: ClientRequestBuilder,
+        mut builder: Box<dyn RequestBuilder>,
     ) -> Result<ClientRequest, ActixError> {
         builder.finish()
     }
@@ -909,11 +949,11 @@ impl RequestBuilderTransformer for () {
 
 impl<F> RequestBuilderTransformer for F
 where
-    F: FnMut(ClientRequestBuilder) -> Result<ClientRequest, ActixError> + Send + 'static,
+    F: FnMut(Box<dyn RequestBuilder>) -> Result<ClientRequest, ActixError> + Send + 'static,
 {
     fn build_request(
         &mut self,
-        builder: ClientRequestBuilder,
+        builder: Box<dyn RequestBuilder>,
     ) -> Result<ClientRequest, ActixError> {
         self(builder)
     }
