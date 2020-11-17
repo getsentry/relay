@@ -470,7 +470,7 @@ impl UpstreamRelay {
                     .ok();
                 return;
             }
-            Ok(client_request) => client_request,
+            Ok(Request::Actix(client_request)) => client_request,
         };
 
         // we are about to send a HTTP message keep track of requests in flight
@@ -893,12 +893,16 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
     }
 }
 
+pub enum Request {
+    Actix(ClientRequest),
+}
+
 pub trait RequestBuilder {
     fn no_default_headers(&mut self);
-    fn finish(&mut self) -> Result<ClientRequest, ActixError>;
+    fn finish(&mut self) -> Result<Request, ActixError>;
     fn header(&mut self, key: &str, value: &[u8]);
     fn set_header(&mut self, key: &str, value: &[u8]);
-    fn body(&mut self, body: Binary) -> Result<ClientRequest, ActixError>;
+    fn body(&mut self, body: Binary) -> Result<Request, ActixError>;
     fn disable_decompress(&mut self);
 
     fn content_encoding(&mut self, encoding: ContentEncoding);
@@ -909,8 +913,8 @@ impl RequestBuilder for ClientRequestBuilder {
         ClientRequestBuilder::no_default_headers(self);
     }
 
-    fn finish(&mut self) -> Result<ClientRequest, ActixError> {
-        ClientRequestBuilder::finish(self)
+    fn finish(&mut self) -> Result<Request, ActixError> {
+        ClientRequestBuilder::finish(self).map(Request::Actix)
     }
 
     fn header(&mut self, key: &str, value: &[u8]) {
@@ -921,8 +925,8 @@ impl RequestBuilder for ClientRequestBuilder {
         ClientRequestBuilder::set_header(self, key, value);
     }
 
-    fn body(&mut self, body: Binary) -> Result<ClientRequest, ActixError> {
-        ClientRequestBuilder::body(self, body)
+    fn body(&mut self, body: Binary) -> Result<Request, ActixError> {
+        ClientRequestBuilder::body(self, body).map(Request::Actix)
     }
 
     fn disable_decompress(&mut self) {
@@ -935,58 +939,61 @@ impl RequestBuilder for ClientRequestBuilder {
 }
 
 pub trait RequestBuilderTransformer: 'static + Send {
-    fn build_request(&mut self, _: Box<dyn RequestBuilder>) -> Result<ClientRequest, ActixError>;
+    fn build_request(&mut self, _: Box<dyn RequestBuilder>) -> Result<Request, ActixError>;
 }
 
 impl RequestBuilderTransformer for () {
     fn build_request(
         &mut self,
         mut builder: Box<dyn RequestBuilder>,
-    ) -> Result<ClientRequest, ActixError> {
+    ) -> Result<Request, ActixError> {
         builder.finish()
     }
 }
 
 impl<F> RequestBuilderTransformer for F
 where
-    F: FnMut(Box<dyn RequestBuilder>) -> Result<ClientRequest, ActixError> + Send + 'static,
+    F: FnMut(Box<dyn RequestBuilder>) -> Result<Request, ActixError> + Send + 'static,
 {
-    fn build_request(
-        &mut self,
-        builder: Box<dyn RequestBuilder>,
-    ) -> Result<ClientRequest, ActixError> {
+    fn build_request(&mut self, builder: Box<dyn RequestBuilder>) -> Result<Request, ActixError> {
         self(builder)
     }
+}
+
+pub enum Response {
+    Actix(ClientResponse),
 }
 
 pub trait ResponseTransformer: 'static {
     type Result: 'static + IntoFuture;
 
-    fn transform_response(self, _: ClientResponse) -> Self::Result;
+    fn transform_response(self, _: Response) -> Self::Result;
 }
 
 impl ResponseTransformer for () {
     type Result = ResponseFuture<(), UpstreamRequestError>;
 
-    fn transform_response(self, response: ClientResponse) -> Self::Result {
+    fn transform_response(self, response: Response) -> Self::Result {
         // consume response bodies to allow connection keep-alive
-        let future = response
-            .payload()
-            .for_each(|_| Ok(()))
-            .map_err(UpstreamRequestError::PayloadFailed);
-
-        Box::new(future)
+        match response {
+            Response::Actix(response) => Box::new(
+                response
+                    .payload()
+                    .for_each(|_| Ok(()))
+                    .map_err(UpstreamRequestError::PayloadFailed),
+            ),
+        }
     }
 }
 
 impl<F, T> ResponseTransformer for F
 where
-    F: 'static + FnOnce(ClientResponse) -> T,
+    F: 'static + FnOnce(Response) -> T,
     T: 'static + IntoFuture,
 {
     type Result = T;
 
-    fn transform_response(self, response: ClientResponse) -> Self::Result {
+    fn transform_response(self, response: Response) -> Self::Result {
         self(response)
     }
 }
@@ -1110,7 +1117,7 @@ where
         let future = self
             .enqueue_request(config, method, path, move |b| builder.build_request(b), ctx)
             .from_err()
-            .and_then(move |r| transformer.transform_response(r));
+            .and_then(move |r| transformer.transform_response(Response::Actix(r)));
 
         Box::new(future)
     }

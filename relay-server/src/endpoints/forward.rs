@@ -4,7 +4,6 @@
 //! (`X-Forwarded-For` and `Sentry-Relay-Id`). The response is then streamed back to the origin.
 
 use ::actix::prelude::*;
-use actix_web::client::ClientResponse;
 use actix_web::error::ResponseError;
 use actix_web::http::{header, header::HeaderName, uri::PathAndQuery, ContentEncoding, StatusCode};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
@@ -15,7 +14,7 @@ use lazy_static::lazy_static;
 use relay_common::{GlobMatcher, LogError};
 use relay_config::Config;
 
-use crate::actors::upstream::{RequestBuilder, SendRequest, UpstreamRequestError};
+use crate::actors::upstream::{RequestBuilder, Response, SendRequest, UpstreamRequestError};
 use crate::body::ForwardBody;
 use crate::endpoints::statics;
 use crate::extractors::ForwardedFor;
@@ -162,7 +161,8 @@ pub fn forward_upstream(
 
                     Ok(req)
                 })
-                .transform(|response: ClientResponse| {
+                .transform(|response: Response| {
+                    let Response::Actix(response) = response;
                     let status = response.status();
                     let headers = response.headers().clone();
                     response
