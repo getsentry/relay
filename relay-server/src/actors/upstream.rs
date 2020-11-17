@@ -232,7 +232,7 @@ struct UpstreamRequest {
     /// Request URL.
     path: String,
     /// Request build function.
-    build: Box<dyn FnMut(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>>,
+    build: Box<dyn RequestBuilderTransformer>,
     /// Number of times this request was already sent
     previous_retries: u32,
     /// When the last sending attempt started
@@ -462,7 +462,7 @@ impl UpstreamRelay {
         }
 
         //try to build a ClientRequest
-        let client_request = match (request.build)(&mut builder) {
+        let client_request = match request.build.build_request(builder) {
             Err(e) => {
                 request
                     .response_sender
@@ -609,7 +609,7 @@ impl UpstreamRelay {
         ctx: &mut Context<Self>,
     ) -> ResponseFuture<ClientResponse, UpstreamRequestError>
     where
-        F: 'static + FnMut(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>,
+        F: RequestBuilderTransformer,
         P: AsRef<str>,
     {
         let (tx, rx) = oneshot::channel::<Result<ClientResponse, UpstreamRequestError>>();
@@ -663,7 +663,7 @@ impl UpstreamRelay {
                 config,
                 method,
                 path,
-                move |builder| {
+                move |mut builder: ClientRequestBuilder| {
                     builder
                         .header("X-Sentry-Relay-Signature", signature.as_str())
                         .header(header::CONTENT_TYPE, "application/json")
@@ -869,7 +869,7 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
             },
             Method::GET,
             "/api/0/relays/live/",
-            ClientRequestBuilder::finish,
+            |mut b| ClientRequestBuilder::finish(&mut b),
             ctx,
         )
         .and_then(|client_response| {
@@ -894,33 +894,33 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
     }
 }
 
-pub trait RequestBuilder: 'static {
-    fn build_request(&mut self, _: &mut ClientRequestBuilder) -> Result<ClientRequest, ActixError>;
+pub trait RequestBuilderTransformer: 'static + Send {
+    fn build_request(&mut self, _: ClientRequestBuilder) -> Result<ClientRequest, ActixError>;
 }
 
-impl RequestBuilder for () {
+impl RequestBuilderTransformer for () {
     fn build_request(
         &mut self,
-        builder: &mut ClientRequestBuilder,
+        mut builder: ClientRequestBuilder,
     ) -> Result<ClientRequest, ActixError> {
         builder.finish()
     }
 }
 
-impl<F> RequestBuilder for F
+impl<F> RequestBuilderTransformer for F
 where
-    F: FnMut(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError> + 'static,
+    F: FnMut(ClientRequestBuilder) -> Result<ClientRequest, ActixError> + Send + 'static,
 {
     fn build_request(
         &mut self,
-        builder: &mut ClientRequestBuilder,
+        builder: ClientRequestBuilder,
     ) -> Result<ClientRequest, ActixError> {
         self(builder)
     }
 }
 
 pub trait ResponseTransformer: 'static {
-    type Result: 'static;
+    type Result: 'static + IntoFuture;
 
     fn transform_response(self, _: ClientResponse) -> Self::Result;
 }
@@ -939,9 +939,10 @@ impl ResponseTransformer for () {
     }
 }
 
-impl<F, T: 'static> ResponseTransformer for F
+impl<F, T> ResponseTransformer for F
 where
-    F: FnOnce(ClientResponse) -> T + 'static,
+    F: 'static + FnOnce(ClientResponse) -> T,
+    T: 'static + IntoFuture,
 {
     type Result = T;
 
@@ -950,11 +951,11 @@ where
     }
 }
 
-pub struct SendRequest<B = (), T = ()> {
+pub struct SendRequest<B: RequestBuilderTransformer = (), R: ResponseTransformer = ()> {
     method: Method,
     path: String,
     builder: B,
-    transformer: T,
+    transformer: R,
     config: UpstreamRequestConfig,
 }
 
@@ -987,15 +988,19 @@ impl SendRequest {
     }
 }
 
-impl<B, T> SendRequest<B, T> {
-    pub fn build<F>(self, callback: F) -> SendRequest<F, T>
+impl<B, T> SendRequest<B, T>
+where
+    B: RequestBuilderTransformer,
+    T: ResponseTransformer,
+{
+    pub fn build<F>(self, builder: F) -> SendRequest<F, T>
     where
-        F: FnMut(&mut ClientRequestBuilder) -> Result<ClientRequest, ActixError> + 'static,
+        F: RequestBuilderTransformer,
     {
         SendRequest {
             method: self.method,
             path: self.path,
-            builder: callback,
+            builder,
             transformer: self.transformer,
             config: self.config,
         }
@@ -1014,9 +1019,9 @@ impl<B, T> SendRequest<B, T> {
     }
 
     #[allow(dead_code)]
-    pub fn transform<R, F>(self, callback: F) -> SendRequest<B, F>
+    pub fn transform<F>(self, callback: F) -> SendRequest<B, F>
     where
-        F: FnOnce(ClientResponse) -> R,
+        F: ResponseTransformer,
     {
         SendRequest {
             method: self.method,
@@ -1028,12 +1033,12 @@ impl<B, T> SendRequest<B, T> {
     }
 }
 
-impl<B, R, T: 'static, E: 'static> Message for SendRequest<B, R>
+impl<B, R> Message for SendRequest<B, R>
 where
+    B: RequestBuilderTransformer,
     R: ResponseTransformer,
-    R::Result: IntoFuture<Item = T, Error = E>,
 {
-    type Result = Result<T, E>;
+    type Result = Result<<R::Result as IntoFuture>::Item, <R::Result as IntoFuture>::Error>;
 }
 
 // impl<B> Message for SendRequest<B> {
@@ -1044,15 +1049,14 @@ where
 /// and do not use Relay authentication.
 ///
 /// The handler adds the message to one of the message queues.
-impl<B, R, T: 'static, E: 'static> Handler<SendRequest<B, R>> for UpstreamRelay
+impl<B, R> Handler<SendRequest<B, R>> for UpstreamRelay
 where
-    B: RequestBuilder + Send,
+    B: RequestBuilderTransformer,
     R: ResponseTransformer,
-    R::Result: IntoFuture<Item = T, Error = E>,
-    T: Send,
-    E: From<UpstreamRequestError> + Send,
+    <R::Result as IntoFuture>::Item: Send + 'static,
+    <R::Result as IntoFuture>::Error: From<UpstreamRequestError> + Send + 'static,
 {
-    type Result = ResponseFuture<T, E>;
+    type Result = ResponseFuture<<R::Result as IntoFuture>::Item, <R::Result as IntoFuture>::Error>;
 
     fn handle(&mut self, message: SendRequest<B, R>, ctx: &mut Self::Context) -> Self::Result {
         let SendRequest {

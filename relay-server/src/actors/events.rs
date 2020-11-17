@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
+use actix_web::client::ClientRequestBuilder;
 use actix_web::http::ContentEncoding;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
@@ -1528,7 +1529,7 @@ impl Handler<HandleEnvelope> for EventManager {
                 log::trace!("sending event to sentry endpoint");
                 let project_id = scoping.borrow().project_id;
                 let request = SendRequest::post(format!("/api/{}/envelope/", project_id)).build(
-                    move |builder| {
+                    move |mut builder: ClientRequestBuilder| {
                         // Override the `sent_at` timestamp. Since the event went through basic
                         // normalization, all timestamps have been corrected. We propagate the new
                         // `sent_at` to allow the next Relay to double-check this timestamp and

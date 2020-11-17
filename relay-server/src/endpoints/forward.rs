@@ -4,6 +4,7 @@
 //! (`X-Forwarded-For` and `Sentry-Relay-Id`). The response is then streamed back to the origin.
 
 use ::actix::prelude::*;
+use actix_web::client::{ClientRequestBuilder, ClientResponse};
 use actix_web::error::ResponseError;
 use actix_web::http::{header, header::HeaderName, uri::PathAndQuery, ContentEncoding, StatusCode};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
@@ -134,7 +135,7 @@ pub fn forward_upstream(
             let forward_request = SendRequest::new(method, path_and_query)
                 .retry(false)
                 .update_rate_limits(false)
-                .build(move |builder| {
+                .build(move |mut builder: ClientRequestBuilder| {
                     for (key, value) in &headers {
                         // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
                         // must not forward the content-encoding header, as the actix http client will do its own
@@ -162,7 +163,7 @@ pub fn forward_upstream(
 
                     Ok(req)
                 })
-                .transform(|response| {
+                .transform(|response: ClientResponse| {
                     let status = response.status();
                     let headers = response.headers().clone();
                     response
