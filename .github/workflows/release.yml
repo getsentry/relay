@@ -64,9 +64,10 @@ jobs:
       # but it is broken now.
       - run: sleep 10
       - uses: getsentry/craft@master
+        name: Craft Publish
         with:
           action: publish
-          version: ${{ github.event.inputs.version || steps.calver.outputs.version }}
+          version: ${{ env.RELEASE_VERSION }}
         env:
           DRY_RUN: ${{ github.event.inputs.dry_run }}
           GITHUB_API_TOKEN: ${{ secrets.GH_SENTRY_BOT_PAT }}
