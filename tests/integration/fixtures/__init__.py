@@ -172,9 +172,7 @@ class SentryLike(object):
 
     def send_session_aggregates(self, project_id, payload):
         envelope = Envelope()
-        envelope.add_item(
-            Item(payload=PayloadRef(json=payload), type="sessions")
-        )
+        envelope.add_item(Item(payload=PayloadRef(json=payload), type="sessions"))
         self.send_envelope(project_id, envelope)
 
     def send_security_report(
