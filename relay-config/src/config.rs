@@ -751,11 +751,18 @@ fn default_max_rate_limit() -> Option<u32> {
     Some(300) // 5 minutes
 }
 
+fn default_explode_session_aggregates() -> bool {
+    true
+}
+
 /// Controls Sentry-internal event processing.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Processing {
     /// True if the Relay should do processing. Defaults to `false`.
     pub enabled: bool,
+    /// Indicates if session aggregates should be exploded into individual session updates.
+    #[serde(default = "default_explode_session_aggregates")]
+    pub explode_session_aggregates: bool,
     /// GeoIp DB file source.
     #[serde(default)]
     pub geoip_path: Option<PathBuf>,
@@ -792,6 +799,7 @@ impl Default for Processing {
     fn default() -> Self {
         Self {
             enabled: false,
+            explode_session_aggregates: default_explode_session_aggregates(),
             geoip_path: None,
             max_secs_in_future: 0,
             max_secs_in_past: 0,
@@ -1454,6 +1462,11 @@ impl Config {
     /// True if the Relay should do processing.
     pub fn processing_enabled(&self) -> bool {
         self.values.processing.enabled
+    }
+
+    /// Indicates if session aggregates should be exploded into individual session updates.
+    pub fn explode_session_aggregates(&self) -> bool {
+        self.values.processing.explode_session_aggregates
     }
 
     /// The path to the GeoIp database required for event processing.

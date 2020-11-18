@@ -2,9 +2,17 @@
 
 ## Unreleased
 
+**Features**:
+
+- Relay is now able to ingest pre-aggregated sessions, which will make it possible to efficiently handle applications that produce thousands of sessions per second. ([#815](https://github.com/getsentry/relay/pull/815))
+
 **Internal**
 
 - Refactor request forwarding to go through only one codepath. ([#839](https://github.com/getsentry/relay/pull/839))
+
+## 20.11.1
+
+- No documented changes.
 
 ## 20.11.0
 

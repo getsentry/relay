@@ -3,13 +3,13 @@ use actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, Resp
 use failure::Fail;
 use futures::prelude::*;
 use sentry::Hub;
-use sentry_actix::ActixWebHubExt;
 use serde::de::DeserializeOwned;
 
 use relay_auth::RelayId;
 use relay_common::tryf;
 
 use crate::actors::relays::{GetRelay, RelayInfo};
+use crate::middlewares::ActixWebHubExt;
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
 

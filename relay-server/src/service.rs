@@ -6,7 +6,6 @@ use actix_web::{server, App};
 use failure::ResultExt;
 use failure::{Backtrace, Context, Fail};
 use listenfd::ListenFd;
-use sentry_actix::SentryMiddleware;
 
 use relay_common::clone;
 use relay_config::Config;
@@ -21,7 +20,9 @@ use crate::actors::project_cache::ProjectCache;
 use crate::actors::relays::RelayCache;
 use crate::actors::upstream::UpstreamRelay;
 use crate::endpoints;
-use crate::middlewares::{AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware};
+use crate::middlewares::{
+    AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
+};
 
 /// Common error type for the relay server.
 #[derive(Debug)]
