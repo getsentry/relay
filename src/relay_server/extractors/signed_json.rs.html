@@ -96,13 +96,13 @@
 <span class="kw">use</span> <span class="ident">failure</span>::<span class="ident">Fail</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">sentry</span>::<span class="ident">Hub</span>;
-<span class="kw">use</span> <span class="ident">sentry_actix</span>::<span class="ident">ActixWebHubExt</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">DeserializeOwned</span>;
 
 <span class="kw">use</span> <span class="ident">relay_auth</span>::<span class="ident">RelayId</span>;
 <span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">tryf</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">relays</span>::{<span class="ident">GetRelay</span>, <span class="ident">RelayInfo</span>};
+<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">middlewares</span>::<span class="ident">ActixWebHubExt</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">service</span>::<span class="ident">ServiceState</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">utils</span>::<span class="ident">ApiErrorResponse</span>;
 

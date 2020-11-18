@@ -314,6 +314,7 @@
 <span id="311">311</span>
 <span id="312">312</span>
 <span id="313">313</span>
+<span id="314">314</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
@@ -323,7 +324,6 @@
 <span class="kw">use</span> <span class="ident">failure</span>::<span class="ident">ResultExt</span>;
 <span class="kw">use</span> <span class="ident">failure</span>::{<span class="ident">Backtrace</span>, <span class="ident">Context</span>, <span class="ident">Fail</span>};
 <span class="kw">use</span> <span class="ident">listenfd</span>::<span class="ident">ListenFd</span>;
-<span class="kw">use</span> <span class="ident">sentry_actix</span>::<span class="ident">SentryMiddleware</span>;
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">clone</span>;
 <span class="kw">use</span> <span class="ident">relay_config</span>::<span class="ident">Config</span>;
@@ -338,7 +338,9 @@
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">relays</span>::<span class="ident">RelayCache</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">upstream</span>::<span class="ident">UpstreamRelay</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">endpoints</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">middlewares</span>::{<span class="ident">AddCommonHeaders</span>, <span class="ident">ErrorHandlers</span>, <span class="ident">Metrics</span>, <span class="ident">ReadRequestMiddleware</span>};
+<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">middlewares</span>::{
+    <span class="ident">AddCommonHeaders</span>, <span class="ident">ErrorHandlers</span>, <span class="ident">Metrics</span>, <span class="ident">ReadRequestMiddleware</span>, <span class="ident">SentryMiddleware</span>,
+};
 
 <span class="doccomment">/// Common error type for the relay server.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>

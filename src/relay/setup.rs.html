@@ -215,22 +215,11 @@
 <span id="214">214</span>
 <span id="215">215</span>
 <span id="216">216</span>
-<span id="217">217</span>
-<span id="218">218</span>
-<span id="219">219</span>
-<span id="220">220</span>
-<span id="221">221</span>
-<span id="222">222</span>
-<span id="223">223</span>
-<span id="224">224</span>
-<span id="225">225</span>
-<span id="226">226</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">env</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
 
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Utc</span>};
 <span class="kw">use</span> <span class="ident">failure</span>::{<span class="ident">err_msg</span>, <span class="ident">Error</span>};
@@ -391,42 +380,33 @@
         <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">log_builder</span>.<span class="ident">filter_level</span>(<span class="ident">config</span>.<span class="ident">log_level_filter</span>()),
     };
 
-    <span class="kw">let</span> <span class="ident">log</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">log_builder</span>.<span class="ident">build</span>());
+    <span class="kw">let</span> <span class="ident">dest_log</span> <span class="op">=</span> <span class="ident">log_builder</span>.<span class="ident">build</span>();
+    <span class="ident">log</span>::<span class="ident">set_max_level</span>(<span class="ident">dest_log</span>.<span class="ident">filter</span>());
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">dsn</span>) <span class="op">=</span> <span class="ident">config</span>.<span class="ident">sentry_dsn</span>() {
-        <span class="kw">let</span> <span class="ident">log_integration</span> <span class="op">=</span> <span class="ident">sentry</span>::<span class="ident">integrations</span>::<span class="ident">log</span>::<span class="ident">LogIntegration</span> {
-            <span class="ident">global_filter</span>: <span class="prelude-val">Some</span>(<span class="ident">log</span>.<span class="ident">filter</span>()),
-            <span class="ident">attach_stacktraces</span>: <span class="ident">config</span>.<span class="ident">enable_backtraces</span>(),
-            <span class="ident">dest_log</span>: <span class="prelude-val">Some</span>(<span class="ident">log</span>),
-            ..<span class="ident">Default</span>::<span class="ident">default</span>()
-        };
+    <span class="kw">let</span> <span class="ident">log</span> <span class="op">=</span> <span class="ident">sentry</span>::<span class="ident">integrations</span>::<span class="ident">log</span>::<span class="ident">SentryLogger</span>::<span class="ident">with_dest</span>(<span class="ident">dest_log</span>);
+    <span class="ident">log</span>::<span class="ident">set_boxed_logger</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">log</span>)).<span class="ident">ok</span>();
 
-        <span class="kw">let</span> <span class="ident">guard</span> <span class="op">=</span> <span class="ident">sentry</span>::<span class="ident">init</span>(<span class="ident">sentry</span>::<span class="ident">ClientOptions</span> {
-            <span class="ident">dsn</span>: <span class="prelude-val">Some</span>(<span class="ident">dsn</span>.<span class="ident">to_string</span>().<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-            <span class="ident">in_app_include</span>: <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="string">&quot;relay_auth::&quot;</span>,
-                <span class="string">&quot;relay_common::&quot;</span>,
-                <span class="string">&quot;relay_config::&quot;</span>,
-                <span class="string">&quot;relay_filter::&quot;</span>,
-                <span class="string">&quot;relay_general::&quot;</span>,
-                <span class="string">&quot;relay_quotas::&quot;</span>,
-                <span class="string">&quot;relay_redis::&quot;</span>,
-                <span class="string">&quot;relay_server::&quot;</span>,
-                <span class="string">&quot;relay::&quot;</span>,
-            ],
-            <span class="ident">release</span>: <span class="ident">sentry</span>::<span class="macro">release_name</span><span class="macro">!</span>(),
-            <span class="ident">integrations</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">log_integration</span>)],
-            ..<span class="ident">Default</span>::<span class="ident">default</span>()
-        });
+    <span class="kw">let</span> <span class="ident">guard</span> <span class="op">=</span> <span class="ident">sentry</span>::<span class="ident">init</span>(<span class="ident">sentry</span>::<span class="ident">ClientOptions</span> {
+        <span class="ident">dsn</span>: <span class="ident">config</span>
+            .<span class="ident">sentry_dsn</span>()
+            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">dsn</span><span class="op">|</span> <span class="ident">dsn</span>.<span class="ident">to_string</span>().<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+        <span class="ident">in_app_include</span>: <span class="macro">vec</span><span class="macro">!</span>[
+            <span class="string">&quot;relay_auth::&quot;</span>,
+            <span class="string">&quot;relay_common::&quot;</span>,
+            <span class="string">&quot;relay_config::&quot;</span>,
+            <span class="string">&quot;relay_filter::&quot;</span>,
+            <span class="string">&quot;relay_general::&quot;</span>,
+            <span class="string">&quot;relay_quotas::&quot;</span>,
+            <span class="string">&quot;relay_redis::&quot;</span>,
+            <span class="string">&quot;relay_server::&quot;</span>,
+            <span class="string">&quot;relay::&quot;</span>,
+        ],
+        <span class="ident">release</span>: <span class="ident">sentry</span>::<span class="macro">release_name</span><span class="macro">!</span>(),
+        ..<span class="ident">Default</span>::<span class="ident">default</span>()
+    });
 
-        <span class="comment">// Keep the client initialized. The client is flushed manually in `main`.</span>
-        <span class="ident">mem</span>::<span class="ident">forget</span>(<span class="ident">guard</span>);
-    } <span class="kw">else</span> {
-        <span class="comment">// Work around a bug in the Sentry 0.20.1 log integration that suppresses logs when Sentry</span>
-        <span class="comment">// is disabled. Instead, register the plain logger and skip initializing Sentry.</span>
-        <span class="ident">log</span>::<span class="ident">set_max_level</span>(<span class="ident">log</span>.<span class="ident">filter</span>());
-        <span class="ident">log</span>::<span class="ident">set_boxed_logger</span>(<span class="ident">log</span>).<span class="ident">ok</span>();
-    }
+    <span class="comment">// Keep the client initialized. The client is flushed manually in `main`.</span>
+    <span class="ident">mem</span>::<span class="ident">forget</span>(<span class="ident">guard</span>);
 }
 
 <span class="doccomment">/// Initialize the metric system.</span>
