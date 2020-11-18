@@ -14,10 +14,11 @@ use lazy_static::lazy_static;
 use relay_common::{GlobMatcher, LogError};
 use relay_config::Config;
 
-use crate::actors::upstream::{RequestBuilder, Response, SendRequest, UpstreamRequestError};
+use crate::actors::upstream::{SendRequest, UpstreamRequestError};
 use crate::body::ForwardBody;
 use crate::endpoints::statics;
 use crate::extractors::ForwardedFor;
+use crate::http::{RequestBuilder, Response};
 use crate::service::{ServiceApp, ServiceState};
 
 /// Headers that this endpoint must handle and cannot forward.
@@ -142,7 +143,7 @@ pub fn forward_upstream(
             let forward_request = SendRequest::new(method, path_and_query)
                 .retry(false)
                 .update_rate_limits(false)
-                .build(move |mut builder: Box<dyn RequestBuilder>| {
+                .build(move |mut builder: RequestBuilder| {
                     for (key, value) in &headers {
                         // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
                         // must not forward the content-encoding header, as the actix http client will do its own
@@ -164,11 +165,7 @@ pub fn forward_upstream(
                     builder.disable_decompress();
                     builder.set_header("X-Forwarded-For", forwarded_for.as_ref().as_bytes());
 
-                    let req = builder.body(data.clone().into()).map_err(|e| {
-                        ForwardedUpstreamRequestError(UpstreamRequestError::BuildFailed(e))
-                    })?;
-
-                    Ok(req)
+                    builder.body(data.clone().into())
                 })
                 .transform(move |response: Response| {
                     let status = response.status();
@@ -176,7 +173,7 @@ pub fn forward_upstream(
                     response
                         .bytes(max_response_size)
                         .and_then(move |body| Ok((status, headers, body)))
-                        .map_err(|e| ForwardedUpstreamRequestError(e))
+                        .map_err(ForwardedUpstreamRequestError)
                 });
 
             upstream_relay.send(forward_request).map_err(|_| {

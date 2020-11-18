@@ -30,8 +30,9 @@ use crate::actors::project::{
     CheckEnvelope, GetProjectState, Project, ProjectState, UpdateRateLimits,
 };
 use crate::actors::project_cache::ProjectError;
-use crate::actors::upstream::{RequestBuilder, SendRequest, UpstreamRelay, UpstreamRequestError};
+use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::http::RequestBuilder;
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, FutureExt};
@@ -1528,7 +1529,7 @@ impl Handler<HandleEnvelope> for EventManager {
                 log::trace!("sending event to sentry endpoint");
                 let project_id = scoping.borrow().project_id;
                 let request = SendRequest::post(format!("/api/{}/envelope/", project_id)).build(
-                    move |mut builder: Box<dyn RequestBuilder>| {
+                    move |mut builder: RequestBuilder| {
                         // Override the `sent_at` timestamp. Since the event went through basic
                         // normalization, all timestamps have been corrected. We propagate the new
                         // `sent_at` to allow the next Relay to double-check this timestamp and
@@ -1557,7 +1558,13 @@ impl Handler<HandleEnvelope> for EventManager {
                         builder.header("X-Sentry-Auth", meta.auth_header().as_bytes());
                         builder.header("X-Forwarded-For", meta.forwarded_for().as_bytes());
                         builder.header("Content-Type", envelope::CONTENT_TYPE.as_bytes());
-                        builder.body(envelope.to_vec().map_err(failure::Error::from)?.into())
+                        builder.body(
+                            envelope
+                                .to_vec()
+                                .map_err(failure::Error::from)
+                                .map_err(actix_web::Error::from)?
+                                .into(),
+                        )
                     },
                 );
 

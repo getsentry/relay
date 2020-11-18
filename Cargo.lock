@@ -3078,6 +3078,7 @@ dependencies = [
  "serde_urlencoded 0.7.0",
  "smallvec 1.4.0",
  "symbolic",
+ "take_mut",
  "tokio-timer",
  "url 2.1.1",
  "uuid 0.8.1",
@@ -3862,6 +3863,12 @@ dependencies = [
  "syn 1.0.39",
  "unicode-xid 0.2.1",
 ]
+
+[[package]]
+name = "take_mut"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f764005d11ee5f36500a149ace24e00e3da98b0158b3e2d53a7495660d3f4d60"
 
 [[package]]
 name = "tempfile"
