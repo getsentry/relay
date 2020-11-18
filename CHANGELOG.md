@@ -8,7 +8,7 @@
 
 **Internal**
 
-- Refactor request forwarding to go through only one codepath. ([#839](https://github.com/getsentry/relay/pull/839))
+- Refactor request forwarding to go through only one codepath. For some users this may change how requests to upstream are prioritized. Forwarded HTTP error responses will partially not have response bodies anymore. ([#839](https://github.com/getsentry/relay/pull/839))
 
 ## 20.11.1
 
