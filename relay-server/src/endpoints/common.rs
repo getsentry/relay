@@ -456,46 +456,44 @@ where
                         .send(CheckEnvelope::cached(envelope))
                         .map_err(BadStoreRequest::ScheduleFailed)
                         .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
-                        .and_then(clone!(scoping, |response| {
-                            scoping.replace(response.scoping);
-
-                            let checked =
-                                response.result.map_err(BadStoreRequest::EventRejected)?;
-
-                            // Skip over queuing and issue a rate limit right away
-                            let envelope = match checked.envelope {
-                                Some(envelope) => envelope,
-                                None => {
-                                    return Err(BadStoreRequest::RateLimited(checked.rate_limits))
-                                }
-                            };
-
-                            if check_envelope_size_limits(&config, &envelope) {
-                                Ok((envelope, checked.rate_limits))
-                            } else {
-                                Err(BadStoreRequest::PayloadError(StorePayloadError::Overflow))
-                            }
-                        }))
-                        .and_then(move |(envelope, rate_limits)| {
-                            event_manager
-                                .send(QueueEnvelope {
-                                    envelope,
-                                    project,
-                                    sampling_project,
-                                    start_time,
-                                })
-                                .map_err(BadStoreRequest::ScheduleFailed)
-                                .and_then(|result| result.map_err(BadStoreRequest::QueueFailed))
-                                .map(move |event_id| (event_id, rate_limits))
-                        })
-                        .and_then(move |(event_id, rate_limits)| {
-                            if rate_limits.is_limited() {
-                                Err(BadStoreRequest::RateLimited(rate_limits))
-                            } else {
-                                Ok(create_response(event_id))
-                            }
-                        })
+                        .map(|response| (response, sampling_project))
                 }))
+                .and_then(clone!(scoping, |(response, sampling_project)| {
+                    scoping.replace(response.scoping);
+
+                    let checked = response.result.map_err(BadStoreRequest::EventRejected)?;
+
+                    // Skip over queuing and issue a rate limit right away
+                    let envelope = match checked.envelope {
+                        Some(envelope) => envelope,
+                        None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
+                    };
+
+                    if check_envelope_size_limits(&config, &envelope) {
+                        Ok((envelope, checked.rate_limits, sampling_project))
+                    } else {
+                        Err(BadStoreRequest::PayloadError(StorePayloadError::Overflow))
+                    }
+                }))
+                .and_then(move |(envelope, rate_limits, sampling_project)| {
+                    event_manager
+                        .send(QueueEnvelope {
+                            envelope,
+                            project,
+                            sampling_project,
+                            start_time,
+                        })
+                        .map_err(BadStoreRequest::ScheduleFailed)
+                        .and_then(|result| result.map_err(BadStoreRequest::QueueFailed))
+                        .map(move |event_id| (event_id, rate_limits))
+                })
+                .and_then(move |(event_id, rate_limits)| {
+                    if rate_limits.is_limited() {
+                        Err(BadStoreRequest::RateLimited(rate_limits))
+                    } else {
+                        Ok(create_response(event_id))
+                    }
+                })
         }))
         .or_else(move |error: BadStoreRequest| {
             metric!(counter(RelayCounters::EnvelopeRejected) += 1);
