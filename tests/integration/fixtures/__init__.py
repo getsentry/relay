@@ -2,7 +2,7 @@ import datetime
 import time
 
 import requests
-from sentry_sdk.envelope import Envelope
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 session = requests.session()
 
@@ -168,6 +168,11 @@ class SentryLike(object):
     def send_session(self, project_id, payload):
         envelope = Envelope()
         envelope.add_session(payload)
+        self.send_envelope(project_id, envelope)
+
+    def send_session_aggregates(self, project_id, payload):
+        envelope = Envelope()
+        envelope.add_item(Item(payload=PayloadRef(json=payload), type="sessions"))
         self.send_envelope(project_id, envelope)
 
     def send_security_report(
