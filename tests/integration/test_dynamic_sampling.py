@@ -50,7 +50,7 @@ def _add_sampling_config(
     """
     Adds a sampling configuration rule to a project configuration
     """
-    rules = config["config"].setdefault("samplingConfig", {}).setdefault("rules", [])
+    rules = config["config"].setdefault("sampling", {}).setdefault("rules", [])
     if releases is None:
         releases = []
     if user_segments is None:
