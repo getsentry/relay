@@ -588,6 +588,7 @@
 <span id="585">585</span>
 <span id="586">586</span>
 <span id="587">587</span>
+<span id="588">588</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.</span>
 
@@ -937,6 +938,7 @@
                 <span class="ident">attachments_size</span> <span class="op">+</span><span class="op">=</span> <span class="ident">item</span>.<span class="ident">len</span>()
             }
             <span class="ident">ItemType</span>::<span class="ident">Session</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">session_count</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
+            <span class="ident">ItemType</span>::<span class="ident">Sessions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">session_count</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
             <span class="ident">ItemType</span>::<span class="ident">UserReport</span> <span class="op">=</span><span class="op">&gt;</span> (),
         }
     }

@@ -1307,6 +1307,10 @@
 <span id="1304">1304</span>
 <span id="1305">1305</span>
 <span id="1306">1306</span>
+<span id="1307">1307</span>
+<span id="1308">1308</span>
+<span id="1309">1309</span>
+<span id="1310">1310</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Implementation of event envelopes.</span>
 <span class="doccomment">//!</span>
@@ -1401,6 +1405,8 @@
     <span class="ident">UserReport</span>,
     <span class="doccomment">/// Session update data.</span>
     <span class="ident">Session</span>,
+    <span class="doccomment">/// Aggregated session data.</span>
+    <span class="ident">Sessions</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">ItemType</span> {
@@ -1428,6 +1434,7 @@
             <span class="self">Self</span>::<span class="ident">UnrealReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;unreal report&quot;</span>),
             <span class="self">Self</span>::<span class="ident">UserReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;user feedback&quot;</span>),
             <span class="self">Self</span>::<span class="ident">Session</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;session&quot;</span>),
+            <span class="self">Self</span>::<span class="ident">Sessions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;aggregated sessions&quot;</span>),
         }
     }
 }
@@ -1810,7 +1817,7 @@
             <span class="ident">ItemType</span>::<span class="ident">FormData</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
 
             <span class="comment">// The remaining item types cannot carry event payloads.</span>
-            <span class="ident">ItemType</span>::<span class="ident">UserReport</span> <span class="op">|</span> <span class="ident">ItemType</span>::<span class="ident">Session</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">ItemType</span>::<span class="ident">UserReport</span> <span class="op">|</span> <span class="ident">ItemType</span>::<span class="ident">Session</span> <span class="op">|</span> <span class="ident">ItemType</span>::<span class="ident">Sessions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
         }
     }
 
@@ -1828,6 +1835,7 @@
             <span class="ident">ItemType</span>::<span class="ident">UnrealReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
             <span class="ident">ItemType</span>::<span class="ident">UserReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
             <span class="ident">ItemType</span>::<span class="ident">Session</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">ItemType</span>::<span class="ident">Sessions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
         }
     }
 }

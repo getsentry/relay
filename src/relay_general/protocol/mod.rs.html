@@ -65,6 +65,9 @@
 <span id="62">62</span>
 <span id="63">63</span>
 <span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Implements the sentry event protocol.</span>
 <span class="kw">mod</span> <span class="ident">breadcrumb</span>;
@@ -118,7 +121,10 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">schema</span>::<span class="ident">event_json_schema</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">security_report</span>::{<span class="ident">Csp</span>, <span class="ident">ExpectCt</span>, <span class="ident">ExpectStaple</span>, <span class="ident">Hpkp</span>, <span class="ident">SecurityReportType</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">session</span>::{<span class="ident">ParseSessionStatusError</span>, <span class="ident">SessionAttributes</span>, <span class="ident">SessionStatus</span>, <span class="ident">SessionUpdate</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">session</span>::{
+    <span class="ident">ParseSessionStatusError</span>, <span class="ident">SessionAggregateItem</span>, <span class="ident">SessionAggregates</span>, <span class="ident">SessionAttributes</span>,
+    <span class="ident">SessionStatus</span>, <span class="ident">SessionUpdate</span>,
+};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">span</span>::<span class="ident">Span</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">stacktrace</span>::{<span class="ident">Frame</span>, <span class="ident">FrameData</span>, <span class="ident">FrameVars</span>, <span class="ident">RawStacktrace</span>, <span class="ident">Stacktrace</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">tags</span>::{<span class="ident">TagEntry</span>, <span class="ident">Tags</span>};
