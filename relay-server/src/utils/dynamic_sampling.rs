@@ -31,6 +31,39 @@ pub struct SamplingRule {
     pub sample_rate: f64,
 }
 
+impl SamplingRule {
+    /// Tests whether a rule matches a trace context
+    fn matches(&self, context: &TraceContext, project_id: ProjectId) -> bool {
+        // match against the project
+        if !self.project_ids.is_empty() && !self.project_ids.contains(&project_id) {
+            return false;
+        }
+        // match against the release
+        if !self.releases.is_empty() {
+            match context.release {
+                None => return false,
+                Some(ref release) => {
+                    if !self.releases.is_match(release) {
+                        return false;
+                    }
+                }
+            }
+        }
+        // match against the user_segment
+        if !self.user_segments.is_empty() {
+            match context.user_segment {
+                None => return false,
+                Some(ref user_segment) => {
+                    if !self.user_segments.contains(user_segment) {
+                        return false;
+                    }
+                }
+            }
+        }
+        true
+    }
+}
+
 /// Represents the dynamic sampling configuration available to a project.
 /// Note: This comes from the organization data
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -168,37 +201,6 @@ pub fn sample_transaction(
     }
 }
 
-/// Tests whether a rule matches a trace context
-fn matches(rule: &SamplingRule, context: &TraceContext, project_id: ProjectId) -> bool {
-    // match against the project
-    if !rule.project_ids.is_empty() && !rule.project_ids.contains(&project_id) {
-        return false;
-    }
-    // match against the release
-    if !rule.releases.is_empty() {
-        match context.release {
-            None => return false,
-            Some(ref release) => {
-                if !rule.releases.is_match(release) {
-                    return false;
-                }
-            }
-        }
-    }
-    // match against the user_segment
-    if !rule.user_segments.is_empty() {
-        match context.user_segment {
-            None => return false,
-            Some(ref user_segment) => {
-                if !rule.user_segments.contains(user_segment) {
-                    return false;
-                }
-            }
-        }
-    }
-    true
-}
-
 fn get_matching_rule<'a>(
     config: &'a SamplingConfig,
     context: &TraceContext,
@@ -207,7 +209,7 @@ fn get_matching_rule<'a>(
     config
         .rules
         .iter()
-        .find(|rule| matches(rule, context, project_id))
+        .find(|rule| rule.matches(context, project_id))
 }
 
 /// Generates a pseudo random number by seeding the generator with the trace_id
@@ -316,7 +318,7 @@ mod tests {
 
         for (rule_test_name, rule) in rules.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(matches(rule, &trace_context, project_id), failure_name);
+            assert!(rule.matches(&trace_context, project_id), failure_name);
         }
     }
 
@@ -363,7 +365,7 @@ mod tests {
 
         for (rule_test_name, rule) in rules.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(!matches(rule, &trace_context, project_id), failure_name);
+            assert!(!rule.matches(&trace_context, project_id), failure_name);
         }
     }
 
@@ -383,7 +385,7 @@ mod tests {
             sample_rate: 1.0,
         };
         assert!(
-            matches(&rule, &trace_context, project_id),
+            rule.matches(&trace_context, project_id),
             "did not match with missing release"
         );
         let trace_context = TraceContext {
@@ -400,7 +402,7 @@ mod tests {
             sample_rate: 1.0,
         };
         assert!(
-            matches(&rule, &trace_context, project_id),
+            rule.matches(&trace_context, project_id),
             "did not match with missing release"
         );
 
@@ -417,7 +419,7 @@ mod tests {
             sample_rate: 1.0,
         };
         assert!(
-            matches(&rule, &trace_context, project_id),
+            rule.matches(&trace_context, project_id),
             "did not match with missing release and user segment"
         );
     }
