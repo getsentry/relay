@@ -135,9 +135,10 @@ def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consume
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
 
-    mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
     relay.send_session_aggregates(
-        42,
+        project_id,
         {
             "aggregates": [
                 {
@@ -155,7 +156,7 @@ def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consume
     del session["received"]
     assert session == {
         "org_id": 1,
-        "project_id": 42,
+        "project_id": project_id,
         "session_id": "00000000-0000-0000-0000-000000000000",
         "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
         "quantity": 2,
@@ -174,7 +175,7 @@ def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consume
     del session["received"]
     assert session == {
         "org_id": 1,
-        "project_id": 42,
+        "project_id": project_id,
         "session_id": "00000000-0000-0000-0000-000000000000",
         "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
         "quantity": 3,
@@ -199,9 +200,10 @@ def test_session_aggregates_explode(
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
 
-    mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
     relay.send_session_aggregates(
-        42,
+        project_id,
         {
             "aggregates": [
                 {"started": started.isoformat(), "did": "foobarbaz", "exited": 2,}
@@ -212,7 +214,7 @@ def test_session_aggregates_explode(
 
     expected = {
         "org_id": 1,
-        "project_id": 42,
+        "project_id": project_id,
         "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
         "quantity": 1,
         "seq": 0,
