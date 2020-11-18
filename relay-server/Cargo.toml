@@ -32,7 +32,7 @@ bytes = { version = "0.4.12", features = ["serde"] }
 chrono = { version = "0.4.11", features = ["serde"] }
 clap = "2.33.1"
 failure = "0.1.8"
-flate2 = "1.0.14"
+flate2 = "1.0.19"
 futures = "0.1.28"
 itertools = "0.8.2"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
@@ -63,9 +63,11 @@ symbolic = { version = "7.5.0", optional = true, default-features=false, feature
 tokio-timer = "0.2.13"
 url = { version = "2.1.1", features = ["serde"] }
 uuid = { version = "0.8.1", features = ["v5"] }
-reqwest = "0.10.8"
+reqwest = { version = "0.10.8", features = ["gzip"] }
 futures03 = { version = "0.3", package = "futures", features = ["compat"] }
 take_mut = "0.2.2"
+tokio = "0.2" # in sync with reqwest
+brotli2 = "0.3.2"
 
 [target."cfg(not(windows))".dependencies]
 libc = "0.2.71"

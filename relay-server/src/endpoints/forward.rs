@@ -39,9 +39,6 @@ static IGNORED_REQUEST_HEADERS: &[HeaderName] = &[
     header::CONTENT_LENGTH,
 ];
 
-/// Headers that should not appear duplicated in request.
-static SINGLE_REQUEST_HEADERS: &[&str] = &["x-sentry-relay-id"];
-
 /// Route classes with request body limit overrides.
 #[derive(Clone, Copy, Debug)]
 enum SpecialRoute {
@@ -143,6 +140,7 @@ pub fn forward_upstream(
             let forward_request = SendRequest::new(method, path_and_query)
                 .retry(false)
                 .update_rate_limits(false)
+                .set_relay_id(false)
                 .build(move |mut builder: RequestBuilder| {
                     for (key, value) in &headers {
                         // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
@@ -154,16 +152,12 @@ pub fn forward_upstream(
                             continue;
                         }
 
-                        if SINGLE_REQUEST_HEADERS.iter().any(|x| x == key) {
-                            builder.set_header(key.as_str(), value.as_bytes());
-                        } else {
-                            builder.header(key.as_str(), value.as_bytes());
-                        }
+                        builder.header(key.as_str(), value.as_bytes());
                     }
 
                     builder.no_default_headers();
                     builder.disable_decompress();
-                    builder.set_header("X-Forwarded-For", forwarded_for.as_ref().as_bytes());
+                    builder.header("X-Forwarded-For", forwarded_for.as_ref().as_bytes());
 
                     builder.body(data.clone().into())
                 })

@@ -20,6 +20,7 @@
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::fmt;
+use std::io;
 use std::str;
 use std::sync::Arc;
 use std::time::Instant;
@@ -32,7 +33,6 @@ use actix_web::http::{header, Method, StatusCode};
 use actix_web::Error as ActixError;
 use failure::Fail;
 use futures::{future, prelude::*, sync::oneshot};
-use futures03::{FutureExt, TryFutureExt};
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
@@ -93,6 +93,12 @@ impl From<ActixError> for UpstreamRequestError {
 impl From<reqwest::Error> for UpstreamRequestError {
     fn from(e: reqwest::Error) -> Self {
         UpstreamRequestError::Reqwest(e)
+    }
+}
+
+impl From<io::Error> for UpstreamRequestError {
+    fn from(e: io::Error) -> Self {
+        UpstreamRequestError::PayloadFailed(PayloadError::Io(e))
     }
 }
 
@@ -334,7 +340,7 @@ pub struct UpstreamRelay {
     high_prio_requests: VecDeque<UpstreamRequest>,
     low_prio_requests: VecDeque<UpstreamRequest>,
     config: Arc<Config>,
-    reqwest_client: Option<reqwest::Client>,
+    reqwest_client: Option<(tokio::runtime::Runtime, reqwest::Client)>,
 }
 
 /// Handles a response returned from the upstream.
@@ -399,13 +405,15 @@ impl UpstreamRelay {
     pub fn new(config: Arc<Config>) -> Self {
         let reqwest_client = match config.http_client() {
             HttpClient::Actix => None,
-            HttpClient::Reqwest => Some(
+            HttpClient::Reqwest => Some((
+                tokio::runtime::Runtime::new().unwrap(),
                 reqwest::ClientBuilder::new()
                     .connect_timeout(config.http_connection_timeout())
                     .timeout(config.http_timeout())
+                    .gzip(true)
                     .build()
                     .unwrap(),
-            ),
+            )),
         };
 
         UpstreamRelay {
@@ -526,21 +534,23 @@ impl UpstreamRelay {
                 let mut builder = ClientRequest::build();
                 builder.method(request.method.clone()).uri(uri);
 
-                RequestBuilder::Actix(builder)
+                RequestBuilder::actix(builder)
             }
-            Some(ref client) => {
+            Some((ref _runtime, ref client)) => {
                 let method =
                     reqwest::Method::from_bytes(request.method.as_ref().as_bytes()).unwrap();
                 let builder = client.request(method, uri);
 
-                RequestBuilder::Reqwest(builder)
+                RequestBuilder::reqwest(builder)
             }
         };
 
         builder.header("Host", host_header.as_bytes());
 
-        if let Some(ref credentials) = self.config.credentials() {
-            builder.header("X-Sentry-Relay-Id", credentials.id.to_string().as_bytes());
+        if request.config.set_relay_id {
+            if let Some(ref credentials) = self.config.credentials() {
+                builder.header("X-Sentry-Relay-Id", credentials.id.to_string().as_bytes());
+            }
         }
 
         //try to build a ClientRequest
@@ -573,16 +583,25 @@ impl UpstreamRelay {
                 Box::new(future) as Box<dyn Future<Item = _, Error = _>>
             }
             Request::Reqwest(client_request) => {
-                let client = self
+                let (runtime, client) = self
                     .reqwest_client
                     .as_ref()
                     .expect("Constructed request request without having a client.");
 
-                let future = client
-                    .execute(client_request)
-                    .boxed_local()
-                    .compat()
-                    .map_err(UpstreamRequestError::Reqwest)
+                let client = client.clone();
+
+                let (tx, rx) = oneshot::channel();
+                runtime.spawn(async move {
+                    let res = client
+                        .execute(client_request)
+                        .await
+                        .map_err(UpstreamRequestError::from);
+                    tx.send(res)
+                });
+
+                let future = rx
+                    .map_err(|_| UpstreamRequestError::ChannelClosed)
+                    .flatten()
                     .map(Response::Reqwest);
 
                 Box::new(future) as Box<dyn Future<Item = _, Error = _>>
@@ -761,8 +780,9 @@ impl UpstreamRelay {
         let path = query.path();
         let config = UpstreamRequestConfig {
             retry: Q::retry(),
-            update_rate_limits: Q::update_rate_limits(),
             priority: Q::priority(),
+            update_rate_limits: true,
+            set_relay_id: true,
         };
 
         let credentials = tryf!(self
@@ -978,6 +998,7 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
                 priority: RequestPriority::Immediate,
                 retry: false,
                 update_rate_limits: false,
+                set_relay_id: true,
             },
             Method::GET,
             "/api/0/relays/live/",
@@ -1044,6 +1065,8 @@ struct UpstreamRequestConfig {
     retry: bool,
     /// Should 429s be honored within the upstream.
     update_rate_limits: bool,
+    /// Should the x-sentry-relay-id header be added.
+    set_relay_id: bool,
 }
 
 impl SendRequest {
@@ -1057,6 +1080,7 @@ impl SendRequest {
                 priority: RequestPriority::Low,
                 retry: true,
                 update_rate_limits: true,
+                set_relay_id: true,
             },
         }
     }
@@ -1093,6 +1117,12 @@ where
     #[inline]
     pub fn update_rate_limits(mut self, should_update_rate_limits: bool) -> Self {
         self.config.update_rate_limits = should_update_rate_limits;
+        self
+    }
+
+    #[inline]
+    pub fn set_relay_id(mut self, should_set_relay_id: bool) -> Self {
+        self.config.set_relay_id = should_set_relay_id;
         self
     }
 
@@ -1190,11 +1220,6 @@ pub trait UpstreamQuery: Serialize {
 
     /// Whether this request should retry on network errors.
     fn retry() -> bool;
-
-    /// Whether 429s should be honored by the upstream actor.
-    fn update_rate_limits() -> bool {
-        true
-    }
 
     /// The queueing priority of the request. Defaults to `Low`.
     fn priority() -> RequestPriority {

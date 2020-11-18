@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
-use actix_web::http::ContentEncoding;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use futures::prelude::*;
@@ -13,7 +12,7 @@ use parking_lot::RwLock;
 use serde_json::Value as SerdeValue;
 
 use relay_common::{clone, metric, LogError, ProjectId};
-use relay_config::{Config, HttpEncoding, RelayMode};
+use relay_config::{Config, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
@@ -1548,14 +1547,7 @@ impl Handler<HandleEnvelope> for EventManager {
                             builder.header("User-Agent", user_agent.as_bytes());
                         }
 
-                        let content_encoding = match http_encoding {
-                            HttpEncoding::Identity => ContentEncoding::Identity,
-                            HttpEncoding::Deflate => ContentEncoding::Deflate,
-                            HttpEncoding::Gzip => ContentEncoding::Gzip,
-                            HttpEncoding::Br => ContentEncoding::Br,
-                        };
-
-                        builder.content_encoding(content_encoding);
+                        builder.content_encoding(http_encoding);
                         builder.header("X-Sentry-Auth", meta.auth_header().as_bytes());
                         builder.header("X-Forwarded-For", meta.forwarded_for().as_bytes());
                         builder.header("Content-Type", envelope::CONTENT_TYPE.as_bytes());

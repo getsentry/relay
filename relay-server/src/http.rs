@@ -4,14 +4,26 @@
 ///! transferrable between actors. Trait objects in turn do not allow for consuming self, using
 ///! generic methods or referencing the Self type in return values, all of which is very useful to
 ///! do in builder types.
+///!
+///! Note: This literally does what the `http` crate is supposed to do. That crate has builder
+///! objects and common request objects, it's just that nobody bothers to implement the conversion
+///! logic.
+use std::io;
+use std::io::Write;
+
 use actix_web::client::{ClientRequest, ClientRequestBuilder, ClientResponse};
 use actix_web::http::{ContentEncoding, StatusCode};
 use actix_web::{Binary, Error as ActixError, HttpMessage};
+use brotli2::write::BrotliEncoder;
+use flate2::write::{GzEncoder, ZlibEncoder};
+use flate2::Compression;
 use futures::{future, prelude::*};
 use futures03::{FutureExt, TryFutureExt};
 use serde::de::DeserializeOwned;
 
 use ::actix::prelude::*;
+
+use relay_config::HttpEncoding;
 
 pub enum Request {
     Actix(ClientRequest),
@@ -20,16 +32,37 @@ pub enum Request {
 
 pub enum RequestBuilder {
     Actix(ClientRequestBuilder),
-    Reqwest(reqwest::RequestBuilder),
+    Reqwest {
+        builder: reqwest::RequestBuilder,
+
+        /// The content encoding that this builder object implements on top of reqwest, which does
+        /// not support request encoding at all.
+        http_encoding: HttpEncoding,
+    },
 }
 
 impl RequestBuilder {
+    pub fn reqwest(builder: reqwest::RequestBuilder) -> Self {
+        RequestBuilder::Reqwest {
+            builder,
+
+            // very few endpoints can actually deal with request body content-encoding. Outside of
+            // store/envelope this is almost always identity because there's no way to do content
+            // negotiation on request.
+            http_encoding: HttpEncoding::Identity,
+        }
+    }
+
+    pub fn actix(builder: ClientRequestBuilder) -> Self {
+        RequestBuilder::Actix(builder)
+    }
+
     pub fn no_default_headers(&mut self) -> &mut Self {
         match self {
             RequestBuilder::Actix(builder) => {
                 builder.no_default_headers();
             }
-            RequestBuilder::Reqwest(_) => {
+            RequestBuilder::Reqwest { .. } => {
                 // can only be set on client
             }
         }
@@ -43,27 +76,22 @@ impl RequestBuilder {
     {
         match self {
             RequestBuilder::Actix(mut builder) => Ok(Request::Actix(builder.finish()?)),
-            RequestBuilder::Reqwest(builder) => Ok(Request::Reqwest(builder.build()?)),
+            RequestBuilder::Reqwest {
+                builder,
+                http_encoding: _,
+            } => Ok(Request::Reqwest(builder.build()?)),
         }
     }
 
+    /// Add a new header, not replacing existing ones.
     pub fn header(&mut self, key: &str, value: &[u8]) -> &mut Self {
         match self {
             RequestBuilder::Actix(builder) => {
                 builder.header(key, value);
             }
-            RequestBuilder::Reqwest(builder) => take_mut::take(builder, |b| b.header(key, value)),
-        }
-
-        self
-    }
-
-    pub fn set_header(&mut self, key: &str, value: &[u8]) -> &mut Self {
-        match self {
-            RequestBuilder::Actix(builder) => {
-                builder.set_header(key, value);
+            RequestBuilder::Reqwest { builder, .. } => {
+                take_mut::take(builder, |b| b.header(key, value))
             }
-            RequestBuilder::Reqwest(builder) => take_mut::take(builder, |b| b.header(key, value)),
         }
 
         self
@@ -71,19 +99,44 @@ impl RequestBuilder {
 
     pub fn body<E>(self, body: Binary) -> Result<Request, E>
     where
-        E: From<reqwest::Error> + From<ActixError>,
+        E: From<reqwest::Error> + From<ActixError> + From<io::Error>,
     {
         match self {
             RequestBuilder::Actix(mut builder) => Ok(Request::Actix(builder.body(body)?)),
-            RequestBuilder::Reqwest(builder) => {
-                let body: reqwest::Body = match body {
-                    Binary::Bytes(bytes) => bytes.to_vec().into(),
-                    Binary::Slice(slice) => slice.into(),
-                    Binary::SharedVec(vec) => vec.to_vec().into(),
-                    Binary::SharedString(string) => string.as_bytes().to_owned().into(),
+            RequestBuilder::Reqwest {
+                mut builder,
+                http_encoding,
+            } => {
+                let body = match http_encoding {
+                    HttpEncoding::Identity => {
+                        builder = builder.header("Content-Encoding", "identity");
+                        body.as_ref().to_vec()
+                    }
+                    HttpEncoding::Deflate => {
+                        builder = builder.header("Content-Encoding", "deflate");
+                        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+                        encoder.write(body.as_ref())?;
+                        encoder.finish().unwrap()
+                    }
+                    HttpEncoding::Gzip => {
+                        builder = builder.header("Content-Encoding", "gzip");
+                        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+                        encoder.write(body.as_ref())?;
+                        encoder.finish().unwrap()
+                    }
+                    HttpEncoding::Br => {
+                        builder = builder.header("Content-Encoding", "br");
+                        let mut encoder = BrotliEncoder::new(Vec::new(), 5);
+                        encoder.write(body.as_ref())?;
+                        encoder.finish().unwrap()
+                    }
                 };
 
-                RequestBuilder::Reqwest(builder.body(body)).finish()
+                RequestBuilder::Reqwest {
+                    builder: builder.body(body),
+                    http_encoding,
+                }
+                .finish()
             }
         }
     }
@@ -93,21 +146,31 @@ impl RequestBuilder {
             RequestBuilder::Actix(builder) => {
                 builder.disable_decompress();
             }
-            RequestBuilder::Reqwest(_) => {
-                // can only be set on client
+            RequestBuilder::Reqwest { .. } => {
+                // can only be set on client TODO
             }
         }
 
         self
     }
 
-    pub fn content_encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
+    pub fn content_encoding(&mut self, encoding: HttpEncoding) -> &mut Self {
         match self {
             RequestBuilder::Actix(builder) => {
-                builder.content_encoding(encoding);
+                let content_encoding = match encoding {
+                    HttpEncoding::Identity => ContentEncoding::Identity,
+                    HttpEncoding::Deflate => ContentEncoding::Deflate,
+                    HttpEncoding::Gzip => ContentEncoding::Gzip,
+                    HttpEncoding::Br => ContentEncoding::Br,
+                };
+
+                builder.content_encoding(content_encoding);
             }
-            RequestBuilder::Reqwest(_) => {
-                // can only be set on client
+            RequestBuilder::Reqwest {
+                ref mut http_encoding,
+                ..
+            } => {
+                *http_encoding = encoding;
             }
         }
 
