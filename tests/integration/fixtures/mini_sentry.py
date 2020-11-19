@@ -225,7 +225,9 @@ def mini_sentry(request):
 
     @app.route("/api/42/envelope/", methods=["POST"])
     def store_event():
-        assert flask_request.headers.get("Content-Encoding", "") == "gzip", "Relay should always compress store requests"
+        assert (
+            flask_request.headers.get("Content-Encoding", "") == "gzip"
+        ), "Relay should always compress store requests"
         data = gzip.decompress(flask_request.data)
 
         assert (
