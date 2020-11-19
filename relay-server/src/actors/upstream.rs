@@ -29,7 +29,7 @@ use ::actix::fut;
 use ::actix::prelude::*;
 use actix_web::client::{ClientRequest, SendRequestError};
 use actix_web::error::{JsonPayloadError, PayloadError};
-use actix_web::http::{header, Method, StatusCode};
+use actix_web::http::{Method, StatusCode};
 use actix_web::Error as ActixError;
 use failure::Fail;
 use futures::{future, prelude::*, sync::oneshot};
@@ -113,16 +113,24 @@ impl UpstreamRequestError {
         match self {
             Self::SendFailed(_) | Self::PayloadFailed(_) => true,
             Self::ResponseError(code, _) => matches!(code.as_u16(), 502 | 503 | 504),
+            Self::Reqwest(error) => {
+                matches!(
+                    error.status().map(|code| code.as_u16()),
+                    Some(502) | Some(503) | Some(504)
+                ) || error.is_timeout()
+            }
             _ => false,
         }
     }
 
     fn is_permanent_rejection(&self) -> bool {
-        if let Self::ResponseError(status_code, response) = self {
-            return *status_code == StatusCode::FORBIDDEN
-                && response.relay_action() == RelayErrorAction::Stop;
+        match self {
+            Self::ResponseError(status_code, response) => {
+                *status_code == StatusCode::FORBIDDEN
+                    && response.relay_action() == RelayErrorAction::Stop
+            }
+            _ => false,
         }
-        false
     }
 }
 
@@ -364,7 +372,7 @@ fn handle_response(
 
     let upstream_limits = if status == StatusCode::TOO_MANY_REQUESTS {
         let retry_after = response
-            .get_header(header::RETRY_AFTER.as_str())
+            .get_header("retry-after")
             .and_then(|v| str::from_utf8(v).ok());
 
         let rate_limits = response
@@ -802,7 +810,7 @@ impl UpstreamRelay {
                 path,
                 move |mut builder: RequestBuilder| {
                     builder.header("X-Sentry-Relay-Signature", signature.as_str().as_bytes());
-                    builder.header(header::CONTENT_TYPE.as_str(), b"application/json");
+                    builder.header("content-type", b"application/json");
                     builder.body(json.clone().into())
                 },
                 ctx,

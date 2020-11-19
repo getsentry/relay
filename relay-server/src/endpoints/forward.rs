@@ -190,7 +190,7 @@ pub fn forward_upstream(
             let mut has_content_type = false;
 
             for (key, value) in headers {
-                if key == header::CONTENT_TYPE.as_str() {
+                if key == "content-type" {
                     has_content_type = true;
                 }
 

@@ -115,19 +115,19 @@ impl RequestBuilder {
                     HttpEncoding::Deflate => {
                         builder = builder.header("Content-Encoding", "deflate");
                         let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-                        encoder.write(body.as_ref())?;
+                        encoder.write_all(body.as_ref())?;
                         encoder.finish().unwrap()
                     }
                     HttpEncoding::Gzip => {
                         builder = builder.header("Content-Encoding", "gzip");
                         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-                        encoder.write(body.as_ref())?;
+                        encoder.write_all(body.as_ref())?;
                         encoder.finish().unwrap()
                     }
                     HttpEncoding::Br => {
                         builder = builder.header("Content-Encoding", "br");
                         let mut encoder = BrotliEncoder::new(Vec::new(), 5);
-                        encoder.write(body.as_ref())?;
+                        encoder.write_all(body.as_ref())?;
                         encoder.finish().unwrap()
                     }
                 };
@@ -178,6 +178,7 @@ impl RequestBuilder {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum Response {
     Actix(ClientResponse),
     Reqwest(reqwest::Response),
