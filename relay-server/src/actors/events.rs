@@ -1454,17 +1454,9 @@ impl Handler<HandleEnvelope> for EventManager {
 
         let scoping = Rc::new(RefCell::new(envelope.meta().get_partial_scoping()));
 
-        let future = sample_transaction(envelope, sampling_project, false)
-            .then(|result| match result {
-                Err(()) => Err(ProcessingError::TransactionSampled),
-                Ok(envelope) if envelope.is_empty() => Err(ProcessingError::TransactionSampled),
-                Ok(envelope) => Ok(envelope),
-            })
-            .and_then(clone!(project, |envelope| {
-                project
-                    .send(CheckEnvelope::fetched(envelope))
-                    .map_err(ProcessingError::ScheduleFailed)
-            }))
+        let future = project
+            .send(CheckEnvelope::fetched(envelope))
+            .map_err(ProcessingError::ScheduleFailed)
             .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
             .and_then(clone!(scoping, |response| {
                 // Use the project id from the loaded project state to account for redirects.
@@ -1479,6 +1471,13 @@ impl Handler<HandleEnvelope> for EventManager {
                     None => Err(ProcessingError::RateLimited(checked.rate_limits)),
                 }
             }))
+            .and_then(|envelope| {
+                sample_transaction(envelope, sampling_project, false).then(|result| match result {
+                    Err(()) => Err(ProcessingError::TransactionSampled),
+                    Ok(envelope) if envelope.is_empty() => Err(ProcessingError::TransactionSampled),
+                    Ok(envelope) => Ok(envelope),
+                })
+            })
             .and_then(clone!(project, |envelope| {
                 // get the state for the current project
                 project
