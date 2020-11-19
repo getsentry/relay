@@ -5,10 +5,7 @@
 **Features**:
 
 - Relay is now able to ingest pre-aggregated sessions, which will make it possible to efficiently handle applications that produce thousands of sessions per second. ([#815](https://github.com/getsentry/relay/pull/815))
-
-**Internal**
-
-- Refactor request forwarding to go through only one codepath. For some users this may change how requests to upstream are prioritized. Forwarded HTTP error responses will partially not have response bodies anymore. ([#839](https://github.com/getsentry/relay/pull/839))
+- Add *experimental* support for picking up HTTP proxies from the regular environment variables. This feature needs to be enabled by setting `http: client: "reqwest"` in your `config.yml`. ([#839](https://github.com/getsentry/relay/pull/839))
 
 ## 20.11.1
 
