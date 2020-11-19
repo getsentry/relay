@@ -441,12 +441,19 @@ where
                         // do the fast path transaction sampling (if we can't do it here
                         // we'll try again after the envelope is queued)
                         .and_then(clone!(event_id, |project| {
-                            sample_transaction(envelope, Some(project.clone()), true)
-                                .map_err(clone!(event_id, |_| {
+                            sample_transaction(envelope, Some(project.clone()), true).then(clone!(
+                                event_id,
+                                |result| {
                                     let event_id = event_id.borrow();
-                                    BadStoreRequest::TraceSampled(*event_id)
-                                }))
-                                .map(|envelope| (envelope, Some(project)))
+                                    match result {
+                                        Err(()) => Err(BadStoreRequest::TraceSampled(*event_id)),
+                                        Ok(envelope) if envelope.is_empty() => {
+                                            Err(BadStoreRequest::TraceSampled(*event_id))
+                                        }
+                                        Ok(envelope) => Ok((envelope, Some(project))),
+                                    }
+                                }
+                            ))
                         }));
                     Box::new(response)
                         as ResponseFuture<(Envelope, Option<Addr<Project>>), BadStoreRequest>

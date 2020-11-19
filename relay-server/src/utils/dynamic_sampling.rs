@@ -103,9 +103,9 @@ impl TraceContext {
 /// transaction item should be sampled out according to the dynamic sampling configuration
 /// and the trace context.
 fn sample_transaction_internal<'a>(
-    envelope: &'a mut Envelope,
+    mut envelope: Envelope,
     project_state: Option<&ProjectState>,
-) -> &'a mut Envelope {
+) -> Envelope {
     let project_state = match project_state {
         None => return envelope,
         Some(project_state) => project_state,
@@ -150,7 +150,7 @@ fn sample_transaction_internal<'a>(
 /// Check if we should remove transactions from this envelope (because of trace sampling) and
 /// return what is left of the envelope
 pub fn sample_transaction(
-    mut envelope: Envelope,
+    envelope: Envelope,
     project: Option<Addr<Project>>,
     fast_processing: bool,
 ) -> ResponseFuture<Envelope, ()> {
@@ -174,28 +174,23 @@ pub fn sample_transaction(
                 Err(_) => return Ok(envelope),
                 Ok(project_state) => project_state,
             };
-            sample_transaction_internal(&mut envelope, project_state.as_deref());
-            if envelope.is_empty() {
-                Err(())
-            } else {
-                Ok(envelope)
-            }
+            Ok(sample_transaction_internal(
+                envelope,
+                project_state.as_deref(),
+            ))
         });
         Box::new(fut) as ResponseFuture<_, _>
     } else {
-        //TODO can we deduplicate the code below without using some weird macro?
         let fut = project.send(GetProjectState).then(|project_state| {
             let project_state = match project_state {
                 // error getting the project, give up and return envelope unchanged
                 Err(_) => return Ok(envelope),
                 Ok(project_state) => project_state,
             };
-            sample_transaction_internal(&mut envelope, project_state.ok().as_deref());
-            if envelope.is_empty() {
-                Err(())
-            } else {
-                Ok(envelope)
-            }
+            Ok(sample_transaction_internal(
+                envelope,
+                project_state.ok().as_deref(),
+            ))
         });
         Box::new(fut) as ResponseFuture<_, _>
     }

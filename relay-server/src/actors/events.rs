@@ -1455,7 +1455,11 @@ impl Handler<HandleEnvelope> for EventManager {
         let scoping = Rc::new(RefCell::new(envelope.meta().get_partial_scoping()));
 
         let future = sample_transaction(envelope, sampling_project, false)
-            .map_err(|_| ProcessingError::TransactionSampled)
+            .then(|result| match result {
+                Err(()) => Err(ProcessingError::TransactionSampled),
+                Ok(envelope) if envelope.is_empty() => Err(ProcessingError::TransactionSampled),
+                Ok(envelope) => Ok(envelope),
+            })
             .and_then(clone!(project, |envelope| {
                 project
                     .send(CheckEnvelope::fetched(envelope))
