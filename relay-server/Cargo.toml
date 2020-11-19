@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "20.10.1"
+version = "20.11.1"
 edition = "2018"
 build = "build.rs"
 license-file = "../LICENSE"
@@ -53,8 +53,8 @@ relay-general = { path = "../relay-general" }
 relay-quotas = { path = "../relay-quotas" }
 relay-redis = { path = "../relay-redis" }
 rmp-serde = "0.14.3"
-sentry = "0.20.1"
-sentry-actix = "0.20.1"
+sentry = { version = "0.21.0", features = ["failure"] }
+fragile = "1.0.0" # used for vendoring sentry-actix
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
 serde_urlencoded = "0.7.0"

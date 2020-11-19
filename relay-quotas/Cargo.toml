@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Sentry quotas and rate limiting"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "20.10.1"
+version = "20.11.1"
 edition = "2018"
 license-file = "../LICENSE"
 publish = false
@@ -23,7 +23,7 @@ failure = { version = "0.1.8", optional = true }
 log = { version = "0.4.8", optional = true }
 relay-common = { path = "../relay-common" }
 relay-redis = { path = "../relay-redis", optional = true }
-sentry = { version = "0.20.1", optional = true }
+sentry = { version = "0.21.0", optional = true }
 serde = { version = "1.0.114", features = ["derive"] }
 smallvec = { version = "1.4.0", features = ["serde"] }
 
