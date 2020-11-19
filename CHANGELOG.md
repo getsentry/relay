@@ -21,6 +21,7 @@
 - Normalize `breadcrumb.ty` into `breadcrumb.type` for broken Python SDK versions. ([#824](https://github.com/getsentry/relay/pull/824))
 - Add the client SDK interface for unreal crashes and set the name to `unreal.crashreporter`. ([#828](https://github.com/getsentry/relay/pull/828))
 - Fine-tune the selectors for minidump PII scrubbing. ([#818](https://github.com/getsentry/relay/pull/818), [#830](https://github.com/getsentry/relay/pull/830))
+- Make `$error.value` `pii=true`. ([#837](https://github.com/getsentry/relay/pull/837))
 
 ## 20.10.1
 
