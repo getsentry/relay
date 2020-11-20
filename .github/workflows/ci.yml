@@ -9,6 +9,9 @@ on:
 
   pull_request:
 
+env:
+  RUSTFLAGS: -Dwarnings
+
 jobs:
   lint:
     name: Lint
