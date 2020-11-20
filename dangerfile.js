@@ -22,7 +22,7 @@ For changes to the _Relay server_, please add an entry to \`CHANGELOG.md\` under
 To the changelog entry, please add a link to this PR (consider a more descriptive message):
 
 \`\`\`md
-- ${getCleanTitle()}. (${prLink})
+- ${getCleanTitle()}. (${PR_LINK})
 \`\`\`
 
 If none of the above apply, you can opt out by adding _#skip-changelog_ to the PR description.
