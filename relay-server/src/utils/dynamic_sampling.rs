@@ -1,12 +1,15 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 //!
 use std::convert::TryInto;
+use std::fmt;
 
 use actix::prelude::*;
 use futures::{future, prelude::*};
 use rand::{distributions::Uniform, Rng};
 use rand_pcg::Pcg32;
-use serde::{Deserialize, Serialize};
+//use serde::{Deserialize, Deserializer, Serialize};
+use serde::de::Visitor;
+use serde::{self, Deserialize, Deserializer, Serialize};
 
 use relay_common::{ProjectId, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
@@ -26,21 +29,75 @@ pub struct SamplingRule {
     pub releases: GlobPatterns,
     /// A set of user_segments for which the rule applies, empty applies to all
     #[serde(default)]
-    pub user_segments: Vec<String>,
+    pub user_segments: Vec<LowerCaseString>,
+    #[serde(default)]
+    pub environments: Vec<LowerCaseString>,
     /// the sampling rate for trace matching this rule
     pub sample_rate: f64,
 }
 
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct LowerCaseString(String);
+
+impl LowerCaseString {
+    pub fn new(val: &str) -> LowerCaseString {
+        LowerCaseString(val.to_lowercase())
+    }
+}
+
+impl From<&str> for LowerCaseString {
+    fn from(val: &str) -> Self {
+        LowerCaseString(val.to_lowercase())
+    }
+}
+
+impl PartialEq for LowerCaseString {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl Eq for LowerCaseString {}
+
+struct LowerCaseStringVisitor;
+
+impl<'de> Visitor<'de> for LowerCaseStringVisitor {
+    type Value = LowerCaseString;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string to be converted to a lowercase string ")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> {
+        Ok(LowerCaseString::new(v))
+    }
+}
+
+impl<'de> Deserialize<'de> for LowerCaseString {
+    fn deserialize<D>(deserializer: D) -> Result<LowerCaseString, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_string(LowerCaseStringVisitor)
+    }
+}
+
 impl SamplingRule {
     /// Tests whether a rule matches a trace context
-    fn matches(&self, context: &TraceContext, project_id: ProjectId) -> bool {
+    fn matches(
+        &self,
+        release: &Option<String>,
+        user_segment: &Option<LowerCaseString>,
+        environment: &Option<LowerCaseString>,
+        project_id: ProjectId,
+    ) -> bool {
         // match against the project
         if !self.project_ids.is_empty() && !self.project_ids.contains(&project_id) {
             return false;
         }
         // match against the release
         if !self.releases.is_empty() {
-            match context.release {
+            match release {
                 None => return false,
                 Some(ref release) => {
                     if !self.releases.is_match(release) {
@@ -51,10 +108,21 @@ impl SamplingRule {
         }
         // match against the user_segment
         if !self.user_segments.is_empty() {
-            match context.user_segment {
+            match user_segment {
                 None => return false,
                 Some(ref user_segment) => {
                     if !self.user_segments.contains(user_segment) {
+                        return false;
+                    }
+                }
+            }
+        }
+        // match against the environment
+        if !self.environments.is_empty() {
+            match environment {
+                None => return false,
+                Some(ref environment) => {
+                    if !self.environments.contains(environment) {
                         return false;
                     }
                 }
@@ -86,6 +154,9 @@ pub struct TraceContext {
     /// the user segment
     #[serde(default)]
     pub user_segment: Option<String>,
+    /// the environment
+    #[serde(default)]
+    pub environment: Option<String>,
 }
 
 impl TraceContext {
@@ -201,10 +272,21 @@ fn get_matching_rule<'a>(
     context: &TraceContext,
     project_id: ProjectId,
 ) -> Option<&'a SamplingRule> {
+    let TraceContext {
+        trace_id: _,
+        public_key: _,
+        release,
+        user_segment,
+        environment,
+    } = context;
+
+    let user_segment: Option<LowerCaseString> = user_segment.as_deref().map(LowerCaseString::new);
+    let environment: Option<LowerCaseString> = environment.as_deref().map(LowerCaseString::new);
+
     config
         .rules
         .iter()
-        .find(|rule| rule.matches(context, project_id))
+        .find(|rule| rule.matches(release, &user_segment, &environment, project_id))
 }
 
 /// Generates a pseudo random number by seeding the generator with the trace_id
@@ -222,6 +304,7 @@ fn pseudo_random_from_trace_id(trace_id: Uuid) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json;
     use std::str::FromStr;
 
     #[test]
@@ -230,19 +313,17 @@ mod tests {
         let project_id = ProjectId::new(22);
         let project_id2 = ProjectId::new(23);
         let project_id3 = ProjectId::new(24);
-        let trace_context = TraceContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user_segment: Some("vip".to_string()),
-        };
+        let release = Some("1.1.1".to_string());
+        let user_segment = Some(LowerCaseString::new("vip"));
+        let environment = Some(LowerCaseString::new("debug"));
         let rules = [
             (
                 "simple",
                 SamplingRule {
                     project_ids: vec![project_id],
                     releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["vip".to_string()],
+                    user_segments: vec!["vip".into()],
+                    environments: vec!["debug".into()],
                     sample_rate: 1.0,
                 },
             ),
@@ -251,7 +332,8 @@ mod tests {
                 SamplingRule {
                     project_ids: vec![project_id2, project_id, project_id3],
                     releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["vip".to_string()],
+                    user_segments: vec!["vip".into()],
+                    environments: vec!["debug".into()],
                     sample_rate: 1.0,
                 },
             ),
@@ -260,7 +342,8 @@ mod tests {
                 SamplingRule {
                     project_ids: vec![],
                     releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["vip".to_string()],
+                    user_segments: vec!["vip".into()],
+                    environments: vec!["debug".into()],
                     sample_rate: 1.0,
                 },
             ),
@@ -269,7 +352,8 @@ mod tests {
                 SamplingRule {
                     project_ids: vec![project_id],
                     releases: GlobPatterns::new(vec!["1.*".to_string()]),
-                    user_segments: vec!["vip".to_string()],
+                    user_segments: vec!["vip".into()],
+                    environments: vec!["debug".into()],
                     sample_rate: 1.0,
                 },
             ),
@@ -278,7 +362,8 @@ mod tests {
                 SamplingRule {
                     project_ids: vec![project_id],
                     releases: GlobPatterns::new(vec!["2.1.1".to_string(), "1.1.*".to_string()]),
-                    user_segments: vec!["vip".to_string()],
+                    user_segments: vec!["vip".into()],
+                    environments: vec!["debug".into()],
                     sample_rate: 1.0,
                 },
             ),
@@ -287,16 +372,48 @@ mod tests {
                 SamplingRule {
                     project_ids: vec![project_id],
                     releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["paid".to_string(), "vip".to_string(), "free".to_string()],
+                    user_segments: vec!["paid".into(), "vip".into(), "free".into()],
+                    environments: vec!["debug".into()],
                     sample_rate: 1.0,
                 },
             ),
             (
-                "all user segments",
+                "case insensitive user segments",
                 SamplingRule {
                     project_ids: vec![project_id],
                     releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec![],
+                    user_segments: vec!["ViP".into(), "FrEe".into()],
+                    environments: vec!["debug".into()],
+                    sample_rate: 1.0,
+                },
+            ),
+            (
+                "multiple user environments",
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                    user_segments: vec!["vip".into()],
+                    environments: vec!["integration".into(), "debug".into(), "production".into()],
+                    sample_rate: 1.0,
+                },
+            ),
+            (
+                "case insensitive environments",
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                    user_segments: vec!["vip".into()],
+                    environments: vec!["DeBuG".into(), "PrOd".into()],
+                    sample_rate: 1.0,
+                },
+            ),
+            (
+                "all user environments",
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                    user_segments: vec!["vip".into()],
+                    environments: vec![],
                     sample_rate: 1.0,
                 },
             ),
@@ -306,6 +423,7 @@ mod tests {
                     project_ids: vec![],
                     releases: GlobPatterns::new(vec![]),
                     user_segments: vec![],
+                    environments: vec![],
                     sample_rate: 1.0,
                 },
             ),
@@ -313,7 +431,10 @@ mod tests {
 
         for (rule_test_name, rule) in rules.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(rule.matches(&trace_context, project_id), failure_name);
+            assert!(
+                rule.matches(&release, &user_segment, &environment, project_id),
+                failure_name
+            );
         }
     }
 
@@ -322,28 +443,27 @@ mod tests {
     fn test_not_matches() {
         let project_id = ProjectId::new(22);
         let project_id2 = ProjectId::new(23);
-        let trace_context = TraceContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user_segment: Some("vip".to_string()),
-        };
+        let release = Some("1.1.1".to_string());
+        let user_segment = Some(LowerCaseString::new("vip"));
+        let environment = Some(LowerCaseString::new("debug"));
         let rules = [
             (
-                "simple",
+                "project id",
                 SamplingRule {
                     project_ids: vec![project_id2],
                     releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["vip".to_string()],
+                    user_segments: vec!["vip".into()],
+                    environments: vec!["debug".into()],
                     sample_rate: 1.0,
                 },
             ),
             (
-                "project id",
+                "release",
                 SamplingRule {
                     project_ids: vec![project_id],
                     releases: GlobPatterns::new(vec!["1.1.2".to_string()]),
-                    user_segments: vec!["vip".to_string()],
+                    user_segments: vec!["vip".into()],
+                    environments: vec!["debug".into()],
                     sample_rate: 1.0,
                 },
             ),
@@ -352,7 +472,18 @@ mod tests {
                 SamplingRule {
                     project_ids: vec![project_id],
                     releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["all".to_string()],
+                    user_segments: vec!["all".into()],
+                    environments: vec!["debug".into()],
+                    sample_rate: 1.0,
+                },
+            ),
+            (
+                "user environment",
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                    user_segments: vec!["vip".into()],
+                    environments: vec!["prod".into()],
                     sample_rate: 1.0,
                 },
             ),
@@ -360,62 +491,121 @@ mod tests {
 
         for (rule_test_name, rule) in rules.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(!rule.matches(&trace_context, project_id), failure_name);
+            assert!(
+                !rule.matches(&release, &user_segment, &environment, project_id),
+                failure_name
+            );
         }
+    }
+
+    #[test]
+    ///Test SamplingRule deserialization
+    fn test_sampling_rule_deserialization() {
+        let serialized_rule = r#"{
+            "projectIds": [1,2],
+            "sampleRate": 0.7,
+            "releases": ["1.1.1", "1.1.2"],
+            "userSegments": ["FirstSegment", "SeCoNd"],
+            "environments": ["DeV", "pRoD"]
+        }"#;
+
+        let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
+
+        assert!(rule.is_ok());
+        let rule = rule.unwrap();
+        assert_eq!(rule.project_ids, [ProjectId::new(1), ProjectId::new(2)]);
+        assert_eq!(rule.sample_rate, 0.7f64);
+        assert_eq!(
+            rule.environments,
+            [LowerCaseString::new("dev"), LowerCaseString::new("prod")]
+        );
+        assert_eq!(
+            rule.user_segments,
+            [
+                LowerCaseString::new("firstsegment"),
+                LowerCaseString::new("second")
+            ]
+        );
+    }
+
+    #[test]
+    /// Test LowerCaseString deserialization
+    fn test_sampling_lower_case_string_deserialization() {
+        let some_string = r#""FiRsTSEGment""#;
+
+        let lower_case: Result<LowerCaseString, _> = serde_json::from_str(some_string);
+
+        assert!(lower_case.is_ok());
+        let lower_case = lower_case.unwrap();
+        assert_eq!(lower_case, LowerCaseString::new("firstsegment"));
     }
 
     #[test]
     fn test_partial_trace_matches() {
         let project_id = ProjectId::new(22);
-        let trace_context = TraceContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: None,
-            user_segment: Some("vip".to_string()),
-        };
+
+        let release = Option::<String>::None;
+        let user_segment = Some(LowerCaseString::new("vip"));
+        let environment = Some(LowerCaseString::new("debug"));
+
         let rule = SamplingRule {
             project_ids: vec![project_id],
             releases: GlobPatterns::new(vec![]),
-            user_segments: vec!["vip".to_string()],
+            user_segments: vec!["vip".into()],
+            environments: vec!["debug".into()],
             sample_rate: 1.0,
         };
         assert!(
-            rule.matches(&trace_context, project_id),
+            rule.matches(&release, &user_segment, &environment, project_id),
             "did not match with missing release"
         );
-        let trace_context = TraceContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user_segment: None,
-        };
+
+        let release = Some("1.1.1".to_string());
+        let user_segment = Option::<LowerCaseString>::None;
+        let environment = Some(LowerCaseString::new("debug"));
 
         let rule = SamplingRule {
             project_ids: vec![project_id],
             releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
             user_segments: vec![],
+            environments: vec!["debug".into()],
             sample_rate: 1.0,
         };
         assert!(
-            rule.matches(&trace_context, project_id),
-            "did not match with missing release"
+            rule.matches(&release, &user_segment, &environment, project_id),
+            "did not match with missing user segment"
         );
 
-        let trace_context = TraceContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: None,
-            user_segment: None,
+        let release = Some("1.1.1".to_string());
+        let user_segment = Some(LowerCaseString::new("vip"));
+        let environment = Option::<LowerCaseString>::None;
+
+        let rule = SamplingRule {
+            project_ids: vec![project_id],
+            releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
+            user_segments: vec!["vip".into()],
+            environments: vec![],
+            sample_rate: 1.0,
         };
+        assert!(
+            rule.matches(&release, &user_segment, &environment, project_id),
+            "did not match with missing environment"
+        );
+
+        let release = Option::<String>::None;
+        let user_segment = Option::<LowerCaseString>::None;
+        let environment = Option::<LowerCaseString>::None;
+
         let rule = SamplingRule {
             project_ids: vec![project_id],
             releases: GlobPatterns::new(vec![]),
             user_segments: vec![],
+            environments: vec![],
             sample_rate: 1.0,
         };
         assert!(
-            rule.matches(&trace_context, project_id),
-            "did not match with missing release and user segment"
+            rule.matches(&release, &user_segment, &environment, project_id),
+            "did not match with missing release, user segment and environment"
         );
     }
 
@@ -431,29 +621,45 @@ mod tests {
 
         let rules = SamplingConfig {
             rules: vec![
+                //everything specified
                 SamplingRule {
                     project_ids: vec![project_id],
                     releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["vip".to_string()],
+                    user_segments: vec!["vip".into()],
+                    environments: vec!["debug".into()],
                     sample_rate: 0.1,
                 },
+                // no user segments
                 SamplingRule {
                     project_ids: vec![project_id],
                     releases: GlobPatterns::new(vec!["1.1.2".to_string()]),
                     user_segments: vec![],
+                    environments: vec!["debug".into()],
                     sample_rate: 0.2,
                 },
+                // no releases
                 SamplingRule {
                     project_ids: vec![project_id],
                     releases: GlobPatterns::new(vec![]),
-                    user_segments: vec!["vip".to_string()],
+                    user_segments: vec!["vip".into()],
+                    environments: vec!["debug".into()],
                     sample_rate: 0.3,
                 },
+                // no environments
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                    user_segments: vec!["vip".into()],
+                    environments: vec![],
+                    sample_rate: 0.4,
+                },
+                // no user segments releases or environments
                 SamplingRule {
                     project_ids: vec![project_id],
                     releases: GlobPatterns::new(vec![]),
                     user_segments: vec![],
-                    sample_rate: 0.4,
+                    environments: vec![],
+                    sample_rate: 0.5,
                 },
             ],
         };
@@ -463,6 +669,7 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user_segment: Some("vip".to_string()),
+            environment: Some("debug".to_string()),
         };
 
         let result = get_matching_rule(&rules, &trace_context, project_id);
@@ -477,6 +684,7 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.2".to_string()),
             user_segment: Some("vip".to_string()),
+            environment: Some("debug".to_string()),
         };
 
         let result = get_matching_rule(&rules, &trace_context, project_id);
@@ -491,6 +699,7 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.3".to_string()),
             user_segment: Some("vip".to_string()),
+            environment: Some("debug".to_string()),
         };
 
         let result = get_matching_rule(&rules, &trace_context, project_id);
@@ -504,13 +713,29 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
+            user_segment: Some("vip".to_string()),
+            environment: Some("production".to_string()),
+        };
+
+        let result = get_matching_rule(&rules, &trace_context, project_id);
+        // should match the fourth rule because of the unknown environment
+        assert!(
+            approx_eq(result.unwrap().sample_rate, 0.4),
+            "did not match the expected fourth rule"
+        );
+
+        let trace_context = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
             user_segment: Some("all".to_string()),
+            environment: Some("debug".to_string()),
         };
 
         let result = get_matching_rule(&rules, &trace_context, project_id);
         // should match the fourth rule because of the unknown user segment
         assert!(
-            approx_eq(result.unwrap().sample_rate, 0.4),
+            approx_eq(result.unwrap().sample_rate, 0.5),
             "did not match the expected fourth rule"
         );
     }
