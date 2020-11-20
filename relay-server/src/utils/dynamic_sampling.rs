@@ -173,7 +173,7 @@ impl TraceContext {
 /// Takes an envelope and potentially removes the transaction item from it if that
 /// transaction item should be sampled out according to the dynamic sampling configuration
 /// and the trace context.
-fn sample_transaction_internal<'a>(
+fn sample_transaction_internal(
     mut envelope: Envelope,
     project_state: Option<&ProjectState>,
 ) -> Envelope {
@@ -304,7 +304,6 @@ fn pseudo_random_from_trace_id(trace_id: Uuid) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json;
     use std::str::FromStr;
 
     #[test]
@@ -514,7 +513,7 @@ mod tests {
         assert!(rule.is_ok());
         let rule = rule.unwrap();
         assert_eq!(rule.project_ids, [ProjectId::new(1), ProjectId::new(2)]);
-        assert_eq!(rule.sample_rate, 0.7f64);
+        assert!(approx_eq(rule.sample_rate, 0.7f64));
         assert_eq!(
             rule.environments,
             [LowerCaseString::new("dev"), LowerCaseString::new("prod")]
