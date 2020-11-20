@@ -45,7 +45,12 @@ def _outcomes_enabled_config():
 
 
 def _add_sampling_config(
-    config, project_ids, sample_rate, releases=None, user_segments=None, environments=None
+    config,
+    project_ids,
+    sample_rate,
+    releases=None,
+    user_segments=None,
+    environments=None,
 ):
     """
     Adds a sampling configuration rule to a project configuration
