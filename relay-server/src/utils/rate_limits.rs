@@ -88,6 +88,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Attachment if item.creates_event() => Some(DataCategory::Error),
         ItemType::Attachment => None,
         ItemType::Session => None,
+        ItemType::Sessions => None,
         ItemType::FormData => None,
         ItemType::UserReport => None,
     }

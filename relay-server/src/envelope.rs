@@ -92,6 +92,8 @@ pub enum ItemType {
     UserReport,
     /// Session update data.
     Session,
+    /// Aggregated session data.
+    Sessions,
 }
 
 impl ItemType {
@@ -119,6 +121,7 @@ impl fmt::Display for ItemType {
             Self::UnrealReport => write!(f, "unreal report"),
             Self::UserReport => write!(f, "user feedback"),
             Self::Session => write!(f, "session"),
+            Self::Sessions => write!(f, "aggregated sessions"),
         }
     }
 }
@@ -501,7 +504,7 @@ impl Item {
             ItemType::FormData => false,
 
             // The remaining item types cannot carry event payloads.
-            ItemType::UserReport | ItemType::Session => false,
+            ItemType::UserReport | ItemType::Session | ItemType::Sessions => false,
         }
     }
 
@@ -519,6 +522,7 @@ impl Item {
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
             ItemType::Session => false,
+            ItemType::Sessions => false,
         }
     }
 }

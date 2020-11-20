@@ -50,7 +50,10 @@ pub use self::request::{Cookies, HeaderName, HeaderValue, Headers, Query, Reques
 #[cfg(feature = "jsonschema")]
 pub use self::schema::event_json_schema;
 pub use self::security_report::{Csp, ExpectCt, ExpectStaple, Hpkp, SecurityReportType};
-pub use self::session::{ParseSessionStatusError, SessionAttributes, SessionStatus, SessionUpdate};
+pub use self::session::{
+    ParseSessionStatusError, SessionAggregateItem, SessionAggregates, SessionAttributes,
+    SessionStatus, SessionUpdate,
+};
 pub use self::span::Span;
 pub use self::stacktrace::{Frame, FrameData, FrameVars, RawStacktrace, Stacktrace};
 pub use self::tags::{TagEntry, Tags};

@@ -352,6 +352,7 @@ fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool {
                 attachments_size += item.len()
             }
             ItemType::Session => session_count += 1,
+            ItemType::Sessions => session_count += 1,
             ItemType::UserReport => (),
         }
     }

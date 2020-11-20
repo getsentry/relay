@@ -37,7 +37,7 @@ def test_uses_origins(mini_sentry, relay, json_fixture_provider, allowed_origins
 
     relay.send_security_report(
         project_id=proj_id,
-        content_type="application/json",
+        content_type="application/json; charset=utf-8",
         payload=report,
         release="01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
         environment="production",
@@ -67,7 +67,7 @@ def test_security_report_with_processing(
 
     relay.send_security_report(
         project_id=proj_id,
-        content_type="application/json",
+        content_type="application/json; charset=utf-8",
         payload=report,
         release="01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
         environment="production",
