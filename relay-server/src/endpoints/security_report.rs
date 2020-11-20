@@ -1,7 +1,7 @@
 //! Endpoints for security reports.
 
 use actix_web::actix::ResponseFuture;
-use actix_web::{pred, HttpRequest, HttpResponse, Query, Request};
+use actix_web::{pred, HttpMessage, HttpRequest, HttpResponse, Query, Request};
 use futures::Future;
 use serde::Deserialize;
 
@@ -80,19 +80,22 @@ struct SecurityReportFilter;
 
 impl pred::Predicate<ServiceState> for SecurityReportFilter {
     fn check(&self, request: &Request, _: &ServiceState) -> bool {
-        let content_type = request
-            .headers()
-            .get("content-type")
-            .and_then(|h| h.to_str().ok())
-            .unwrap_or("");
+        let mime_type = match request.mime_type() {
+            Ok(Some(mime)) => mime,
+            _ => return false,
+        };
+
+        let ty = mime_type.type_().as_str();
+        let subty = mime_type.subtype().as_str();
+        let suffix = mime_type.suffix().map(|suffix| suffix.as_str());
 
         matches!(
-            content_type,
-            "application/csp-report"
-                | "application/json"
-                | "application/expect-ct-report"
-                | "application/expect-ct-report+json"
-                | "application/expect-staple-report"
+            (ty, subty, suffix),
+            ("application", "json", None)
+                | ("application", "csp-report", None)
+                | ("application", "expect-ct-report", None)
+                | ("application", "expect-ct-report", Some("json"))
+                | ("application", "expect-staple-report", None)
         )
     }
 }

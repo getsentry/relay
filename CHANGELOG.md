@@ -6,6 +6,11 @@
 
 - Relay is now able to ingest pre-aggregated sessions, which will make it possible to efficiently handle applications that produce thousands of sessions per second. ([#815](https://github.com/getsentry/relay/pull/815))
 
+**Bug Fixes**:
+
+- Allow params in content-type for security requests to support content types like `"application/expect-ct-report+json; charset=utf-8"`. ([#844](https://github.com/getsentry/relay/pull/844))
+
+
 ## 20.11.1
 
 - No documented changes.
