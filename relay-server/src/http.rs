@@ -202,7 +202,8 @@ impl Response {
                     .map_err(From::from),
             ),
             Response::Reqwest(_) => {
-                // TODO: is this necessary for reqwest?
+                // This does not appear to be strictly necessary for reqwest to produce correct
+                // behavior.
                 Box::new(future::ok(self))
             }
         }
