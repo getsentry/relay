@@ -21,11 +21,9 @@ jobs:
         with:
           submodules: recursive
 
-      # compile with nightly for intra-doc-links
-      # see https://github.com/rust-lang/rfcs/blob/master/text/1946-intra-rustdoc-links.md
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: stable
           profile: minimal
           components: rust-docs
           override: true
