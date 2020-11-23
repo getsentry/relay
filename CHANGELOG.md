@@ -9,6 +9,7 @@
 **Bug Fixes**:
 
 - Allow params in content-type for security requests to support content types like `"application/expect-ct-report+json; charset=utf-8"`. ([#844](https://github.com/getsentry/relay/pull/844))
+- Fix a panic in CSP filters. ([#848](https://github.com/getsentry/relay/pull/848))
 
 
 ## 20.11.1
