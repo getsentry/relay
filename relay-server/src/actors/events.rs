@@ -1551,13 +1551,15 @@ impl Handler<HandleEnvelope> for EventManager {
                         builder.header("X-Sentry-Auth", meta.auth_header().as_bytes());
                         builder.header("X-Forwarded-For", meta.forwarded_for().as_bytes());
                         builder.header("Content-Type", envelope::CONTENT_TYPE.as_bytes());
-                        builder.body(
-                            envelope
-                                .to_vec()
-                                .map_err(failure::Error::from)
-                                .map_err(actix_web::Error::from)?
-                                .into(),
-                        )
+                        builder
+                            .body(
+                                envelope
+                                    .to_vec()
+                                    .map_err(failure::Error::from)
+                                    .map_err(actix_web::Error::from)?
+                                    .into(),
+                            )
+                            .map_err(UpstreamRequestError::from)
                     },
                 );
 

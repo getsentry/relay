@@ -55,7 +55,7 @@ relay-filter = { path = "../relay-filter" }
 relay-general = { path = "../relay-general" }
 relay-quotas = { path = "../relay-quotas" }
 relay-redis = { path = "../relay-redis" }
-reqwest = { version = "0.10.8", features = ["gzip"] }
+reqwest = { version = "0.10.8", features = ["gzip", "stream"] }
 rmp-serde = "0.14.3"
 sentry = { version = "0.21.0", features = ["failure"] }
 serde = { version = "1.0.114", features = ["derive"] }

@@ -18,7 +18,7 @@ use crate::actors::upstream::{SendRequest, UpstreamRequestError};
 use crate::body::ForwardBody;
 use crate::endpoints::statics;
 use crate::extractors::ForwardedFor;
-use crate::http::{RequestBuilder, Response};
+use crate::http::{HttpError, RequestBuilder, Response};
 use crate::service::{ServiceApp, ServiceState};
 
 /// Headers that this endpoint must handle and cannot forward.
@@ -61,28 +61,27 @@ impl From<UpstreamRequestError> for ForwardedUpstreamRequestError {
 impl ResponseError for ForwardedUpstreamRequestError {
     fn error_response(&self) -> HttpResponse {
         match &self.0 {
-            // should be unreachable
-            UpstreamRequestError::NoCredentials | UpstreamRequestError::InvalidJson(_) => {
-                log::error!("unreachable codepath: {}", LogError(self));
+            UpstreamRequestError::Http(e) => match e {
+                HttpError::Overflow => HttpResponse::PayloadTooLarge().finish(),
+                HttpError::Reqwest(error) => {
+                    log::error!("{}", LogError(error));
+                    HttpResponse::new(
+                        StatusCode::from_u16(error.status().map(|x| x.as_u16()).unwrap_or(500))
+                            .unwrap(),
+                    )
+                }
+                HttpError::Actix(e) => e.as_response_error().error_response(),
+                HttpError::Io(_) => HttpResponse::BadGateway().finish(),
+                HttpError::ActixPayload(e) => e.error_response(),
+                HttpError::ActixJson(e) => e.error_response(),
+            },
+            e => {
+                // should all be unreachable
+                log::error!(
+                    "supposedly unreachable codepath for forward endpoint: {}",
+                    LogError(e)
+                );
                 HttpResponse::InternalServerError().finish()
-            }
-            UpstreamRequestError::SendFailed(e) => e.error_response(),
-            UpstreamRequestError::BuildFailed(e) => e.as_response_error().error_response(),
-            UpstreamRequestError::PayloadFailed(e) => e.error_response(),
-            UpstreamRequestError::RateLimited(_) => {
-                HttpResponse::new(StatusCode::TOO_MANY_REQUESTS)
-            }
-            UpstreamRequestError::ResponseError(code, _) => HttpResponse::new(*code),
-            UpstreamRequestError::ChannelClosed => {
-                log::error!("{}", LogError(self));
-                HttpResponse::InternalServerError().finish()
-            }
-            UpstreamRequestError::Reqwest(error) => {
-                log::error!("{}", LogError(error));
-                HttpResponse::new(
-                    StatusCode::from_u16(error.status().map(|x| x.as_u16()).unwrap_or(500))
-                        .unwrap(),
-                )
             }
         }
     }
@@ -168,7 +167,9 @@ pub fn forward_upstream(
 
                     builder.header("X-Forwarded-For", forwarded_for.as_ref().as_bytes());
 
-                    builder.body(data.clone().into())
+                    builder
+                        .body(data.clone().into())
+                        .map_err(UpstreamRequestError::Http)
                 })
                 .transform(move |response: Response| {
                     let status = response.status();
@@ -176,7 +177,7 @@ pub fn forward_upstream(
                     response
                         .bytes(max_response_size)
                         .and_then(move |body| Ok((status, headers, body)))
-                        .map_err(ForwardedUpstreamRequestError)
+                        .map_err(UpstreamRequestError::Http)
                 });
 
             upstream_relay.send(forward_request).map_err(|_| {
@@ -185,8 +186,8 @@ pub fn forward_upstream(
                 ))
             })
         })
-        .and_then(move |result: Result<_, ForwardedUpstreamRequestError>| {
-            let (status, headers, body) = result?;
+        .and_then(move |result: Result<_, UpstreamRequestError>| {
+            let (status, headers, body) = result.map_err(ForwardedUpstreamRequestError::from)?;
             let mut forwarded_response = HttpResponse::build(status);
 
             // For the response body we're able to disable all automatic decompression and

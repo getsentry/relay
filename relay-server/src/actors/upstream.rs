@@ -44,7 +44,7 @@ use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
 
-use crate::http::{Request, RequestBuilder, Response};
+use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::metrics::{RelayHistograms, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, IntoTracked, RelayErrorAction, TrackedFutureFinished};
 
@@ -53,20 +53,11 @@ pub enum UpstreamRequestError {
     #[fail(display = "attempted to send upstream request without credentials configured")]
     NoCredentials,
 
-    #[fail(display = "could not send request")]
-    Reqwest(#[cause] reqwest::Error),
-
-    #[fail(display = "could not parse json payload returned by upstream")]
-    InvalidJson(#[cause] JsonPayloadError),
-
     #[fail(display = "could not send request to upstream")]
     SendFailed(#[cause] SendRequestError),
 
-    #[fail(display = "failed to create upstream request: {}", _0)]
-    BuildFailed(ActixError),
-
-    #[fail(display = "failed to receive response from upstream")]
-    PayloadFailed(#[cause] PayloadError),
+    #[fail(display = "could not send request")]
+    Http(#[cause] HttpError),
 
     #[fail(display = "upstream requests rate limited")]
     RateLimited(UpstreamRateLimits),
@@ -78,42 +69,49 @@ pub enum UpstreamRequestError {
     ChannelClosed,
 }
 
+impl From<HttpError> for UpstreamRequestError {
+    fn from(e: HttpError) -> Self {
+        UpstreamRequestError::Http(e)
+    }
+}
+
 impl From<PayloadError> for UpstreamRequestError {
     fn from(e: PayloadError) -> Self {
-        UpstreamRequestError::PayloadFailed(e)
+        UpstreamRequestError::Http(e.into())
     }
 }
 
 impl From<ActixError> for UpstreamRequestError {
     fn from(e: ActixError) -> Self {
-        UpstreamRequestError::BuildFailed(e)
+        UpstreamRequestError::Http(e.into())
     }
 }
 
 impl From<reqwest::Error> for UpstreamRequestError {
     fn from(e: reqwest::Error) -> Self {
-        UpstreamRequestError::Reqwest(e)
+        UpstreamRequestError::Http(e.into())
     }
 }
 
 impl From<io::Error> for UpstreamRequestError {
     fn from(e: io::Error) -> Self {
-        UpstreamRequestError::PayloadFailed(PayloadError::Io(e))
+        UpstreamRequestError::Http(e.into())
     }
 }
 
 impl From<JsonPayloadError> for UpstreamRequestError {
     fn from(e: JsonPayloadError) -> Self {
-        UpstreamRequestError::InvalidJson(e)
+        UpstreamRequestError::Http(e.into())
     }
 }
 
 impl UpstreamRequestError {
     fn is_network_error(&self) -> bool {
         match self {
-            Self::SendFailed(_) | Self::PayloadFailed(_) => true,
+            Self::SendFailed(_) => true,
             Self::ResponseError(code, _) => matches!(code.as_u16(), 502 | 503 | 504),
-            Self::Reqwest(error) => {
+            Self::Http(HttpError::ActixPayload(_)) | Self::Http(HttpError::Io(_)) => true,
+            Self::Http(HttpError::Reqwest(error)) => {
                 matches!(
                     error.status().map(|code| code.as_u16()),
                     Some(502) | Some(503) | Some(504)
@@ -266,7 +264,7 @@ pub trait RequestBuilderTransformer: 'static + Send {
 
 impl RequestBuilderTransformer for () {
     fn build_request(&mut self, builder: RequestBuilder) -> Result<Request, UpstreamRequestError> {
-        builder.finish()
+        builder.finish().map_err(UpstreamRequestError::from)
     }
 }
 
@@ -393,8 +391,9 @@ fn handle_response(
     // At this point, we consume the Response. This means we need to consume the response
     // payload stream, regardless of the status code. Parsing the JSON body may fail, which is a
     // non-fatal failure as the upstream is not expected to always include a valid JSON response.
-    let future = response.json(max_response_size).then(
-        move |json_result: Result<_, UpstreamRequestError>| {
+    let future = response
+        .json(max_response_size)
+        .then(move |json_result: Result<_, HttpError>| {
             if let Some(upstream_limits) = upstream_limits {
                 Err(UpstreamRequestError::RateLimited(upstream_limits))
             } else {
@@ -402,8 +401,7 @@ fn handle_response(
                 let api_response = json_result.unwrap_or_default();
                 Err(UpstreamRequestError::ResponseError(status, api_response))
             }
-        },
-    );
+        });
 
     Box::new(future)
 }
@@ -644,24 +642,26 @@ impl UpstreamRelay {
                 sc = client_response.status();
                 (sc.as_str(), "success")
             }
-            Err(UpstreamRequestError::Reqwest(error)) => {
+            Err(UpstreamRequestError::ResponseError(status_code, _)) => {
+                (status_code.as_str(), "response_error")
+            }
+            Err(UpstreamRequestError::Http(HttpError::Io(_))) => ("-", "payload_failed"),
+            Err(UpstreamRequestError::Http(HttpError::ActixPayload(_))) => ("-", "payload_failed"),
+            Err(UpstreamRequestError::Http(HttpError::ActixJson(_))) => ("-", "invalid_json"),
+            Err(UpstreamRequestError::Http(HttpError::Reqwest(error))) => {
                 sc2 = error.status();
                 (
                     sc2.as_ref().map(|x| x.as_str()).unwrap_or("-"),
                     "reqwest_error",
                 )
             }
-            Err(UpstreamRequestError::ResponseError(status_code, _)) => {
-                (status_code.as_str(), "response_error")
-            }
-            Err(UpstreamRequestError::PayloadFailed(_)) => ("-", "payload_failed"),
+
             Err(UpstreamRequestError::SendFailed(_)) => ("-", "send_failed"),
             Err(UpstreamRequestError::RateLimited(_)) => ("-", "rate_limited"),
-            Err(UpstreamRequestError::InvalidJson(_)) => ("-", "invalid_json"),
-
             Err(UpstreamRequestError::NoCredentials)
             | Err(UpstreamRequestError::ChannelClosed)
-            | Err(UpstreamRequestError::BuildFailed(_)) => {
+            | Err(UpstreamRequestError::Http(HttpError::Overflow))
+            | Err(UpstreamRequestError::Http(HttpError::Actix(_))) => {
                 // these are not errors caused when sending to upstream so we don't need to log anything
                 log::error!("meter_result called for unsupported error");
                 return;
@@ -811,11 +811,16 @@ impl UpstreamRelay {
                 move |mut builder: RequestBuilder| {
                     builder.header("X-Sentry-Relay-Signature", signature.as_str().as_bytes());
                     builder.header("content-type", b"application/json");
-                    builder.body(json.clone().into())
+                    builder
+                        .body(json.clone().into())
+                        .map_err(UpstreamRequestError::Http)
                 },
                 ctx,
             )
-            .and_then(move |r| r.json(max_response_size));
+            .and_then(move |r| {
+                r.json(max_response_size)
+                    .map_err(UpstreamRequestError::Http)
+            });
 
         Box::new(future)
     }
@@ -1010,12 +1015,14 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
             },
             Method::GET,
             "/api/0/relays/live/",
-            RequestBuilder::finish,
+            |builder: RequestBuilder| builder.finish().map_err(UpstreamRequestError::from),
             ctx,
         )
         .and_then(|client_response| {
             // consume response bodies to ensure the connection remains usable.
-            client_response.consume()
+            client_response
+                .consume()
+                .map_err(UpstreamRequestError::from)
         })
         .into_actor(self)
         .then(|result, slf, ctx| {
@@ -1042,7 +1049,12 @@ impl ResponseTransformer for () {
     type Result = ResponseFuture<(), UpstreamRequestError>;
 
     fn transform_response(self, response: Response) -> Self::Result {
-        Box::new(response.consume().map(|_| ()))
+        Box::new(
+            response
+                .consume()
+                .map(|_| ())
+                .map_err(UpstreamRequestError::Http),
+        )
     }
 }
 

@@ -15,15 +15,62 @@ use actix_web::client::{ClientRequest, ClientRequestBuilder, ClientResponse};
 use actix_web::http::{ContentEncoding, StatusCode};
 use actix_web::{Binary, Error as ActixError, HttpMessage};
 use brotli2::write::BrotliEncoder;
+use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use futures::{future, prelude::*};
-use futures03::{FutureExt, TryFutureExt};
+use futures03::{FutureExt, TryFutureExt, TryStreamExt};
 use serde::de::DeserializeOwned;
 
 use ::actix::prelude::*;
 
 use relay_config::HttpEncoding;
+
+#[derive(Fail, Debug)]
+pub enum HttpError {
+    #[fail(display = "payload too large")]
+    Overflow,
+    #[fail(display = "could not send request")]
+    Reqwest(#[cause] reqwest::Error),
+    #[fail(display = "failed to create upstream request: {}", _0)]
+    Actix(ActixError),
+    #[fail(display = "failed to stream payload: {}", _0)]
+    Io(#[cause] io::Error),
+    #[fail(display = "could not parse json payload returned by upstream")]
+    ActixJson(#[cause] actix_web::error::JsonPayloadError),
+    #[fail(display = "failed to receive response from upstream")]
+    ActixPayload(#[cause] actix_web::error::PayloadError),
+}
+
+impl From<reqwest::Error> for HttpError {
+    fn from(e: reqwest::Error) -> Self {
+        HttpError::Reqwest(e)
+    }
+}
+
+impl From<ActixError> for HttpError {
+    fn from(e: ActixError) -> Self {
+        HttpError::Actix(e)
+    }
+}
+
+impl From<io::Error> for HttpError {
+    fn from(e: io::Error) -> Self {
+        HttpError::Io(e)
+    }
+}
+
+impl From<actix_web::error::JsonPayloadError> for HttpError {
+    fn from(e: actix_web::error::JsonPayloadError) -> Self {
+        HttpError::ActixJson(e)
+    }
+}
+
+impl From<actix_web::error::PayloadError> for HttpError {
+    fn from(e: actix_web::error::PayloadError) -> Self {
+        HttpError::ActixPayload(e)
+    }
+}
 
 pub enum Request {
     Actix(ClientRequest),
@@ -57,10 +104,7 @@ impl RequestBuilder {
         RequestBuilder::Actix(builder)
     }
 
-    pub fn finish<E>(self) -> Result<Request, E>
-    where
-        E: From<reqwest::Error> + From<ActixError>,
-    {
+    pub fn finish(self) -> Result<Request, HttpError> {
         match self {
             RequestBuilder::Actix(mut builder) => Ok(Request::Actix(builder.finish()?)),
             RequestBuilder::Reqwest {
@@ -84,10 +128,7 @@ impl RequestBuilder {
         self
     }
 
-    pub fn body<E>(self, body: Binary) -> Result<Request, E>
-    where
-        E: From<reqwest::Error> + From<ActixError> + From<io::Error>,
-    {
+    pub fn body(self, body: Binary) -> Result<Request, HttpError> {
         match self {
             RequestBuilder::Actix(mut builder) => Ok(Request::Actix(builder.body(body)?)),
             RequestBuilder::Reqwest {
@@ -168,30 +209,28 @@ impl Response {
         }
     }
 
-    pub fn json<T: 'static + DeserializeOwned, E>(
+    pub fn json<T: 'static + DeserializeOwned>(
         self,
         limit: usize,
-    ) -> Box<dyn Future<Item = T, Error = E>>
-    where
-        E: From<reqwest::Error> + From<actix_web::error::JsonPayloadError> + 'static,
-    {
+    ) -> Box<dyn Future<Item = T, Error = HttpError>> {
         // TODO: apply limit to reqwest
         match self {
             Response::Actix(response) => {
-                let future = response.json().limit(limit).map_err(From::from);
+                let future = response.json().limit(limit).map_err(HttpError::ActixJson);
                 Box::new(future) as Box<dyn Future<Item = _, Error = _>>
             }
             Response::Reqwest(response) => {
-                let future = response.json().boxed_local().compat().map_err(From::from);
+                let future = response
+                    .json()
+                    .boxed_local()
+                    .compat()
+                    .map_err(HttpError::Reqwest);
                 Box::new(future) as Box<dyn Future<Item = _, Error = _>>
             }
         }
     }
 
-    pub fn consume<E>(self) -> ResponseFuture<Self, E>
-    where
-        E: From<actix_web::error::PayloadError> + 'static,
-    {
+    pub fn consume(self) -> ResponseFuture<Self, HttpError> {
         // consume response bodies to allow connection keep-alive
         match self {
             Response::Actix(ref response) => Box::new(
@@ -199,7 +238,7 @@ impl Response {
                     .payload()
                     .for_each(|_| Ok(()))
                     .map(|_| self)
-                    .map_err(From::from),
+                    .map_err(HttpError::ActixPayload),
             ),
             Response::Reqwest(_) => {
                 // This does not appear to be strictly necessary for reqwest to produce correct
@@ -248,26 +287,32 @@ impl Response {
         }
     }
 
-    pub fn bytes<E>(self, limit: usize) -> ResponseFuture<Vec<u8>, E>
-    where
-        E: From<actix_web::error::PayloadError> + From<reqwest::Error> + 'static,
-    {
-        // TODO: apply limit to reqwest
+    pub fn bytes(self, limit: usize) -> ResponseFuture<Vec<u8>, HttpError> {
         match self {
             Response::Actix(response) => Box::new(
                 response
                     .body()
                     .limit(limit)
-                    .map(|x| x.to_vec())
-                    .map_err(From::from),
+                    .map(|body| body.to_vec())
+                    .map_err(HttpError::ActixPayload),
             ) as Box<dyn Future<Item = _, Error = _>>,
             Response::Reqwest(response) => Box::new(
                 response
-                    .bytes()
+                    .bytes_stream()
+                    .map_err(HttpError::Reqwest)
+                    .try_fold(
+                        Vec::with_capacity(8192),
+                        move |mut body, chunk| async move {
+                            if (body.len() + chunk.len()) > limit {
+                                Err(HttpError::Overflow)
+                            } else {
+                                body.extend_from_slice(&chunk);
+                                Ok(body)
+                            }
+                        },
+                    )
                     .boxed_local()
-                    .compat()
-                    .map(|x| x.to_vec())
-                    .map_err(From::from),
+                    .compat(),
             ) as Box<dyn Future<Item = _, Error = _>>,
         }
     }
