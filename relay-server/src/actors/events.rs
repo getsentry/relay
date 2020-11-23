@@ -1540,17 +1540,19 @@ impl Handler<HandleEnvelope> for EventManager {
                         let meta = envelope.meta();
 
                         if let Some(origin) = meta.origin() {
-                            builder.header("Origin", origin.as_str().as_bytes());
+                            builder.header("Origin", origin.as_str());
                         }
 
                         if let Some(user_agent) = meta.user_agent() {
-                            builder.header("User-Agent", user_agent.as_bytes());
+                            builder.header("User-Agent", user_agent);
                         }
 
-                        builder.content_encoding(http_encoding);
-                        builder.header("X-Sentry-Auth", meta.auth_header().as_bytes());
-                        builder.header("X-Forwarded-For", meta.forwarded_for().as_bytes());
-                        builder.header("Content-Type", envelope::CONTENT_TYPE.as_bytes());
+                        builder
+                            .content_encoding(http_encoding)
+                            .header("X-Sentry-Auth", meta.auth_header())
+                            .header("X-Forwarded-For", meta.forwarded_for())
+                            .header("Content-Type", envelope::CONTENT_TYPE);
+
                         builder
                             .body(
                                 envelope

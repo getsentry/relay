@@ -116,13 +116,13 @@ impl RequestBuilder {
     }
 
     /// Add a new header, not replacing existing ones.
-    pub fn header(&mut self, key: &str, value: &[u8]) -> &mut Self {
+    pub fn header(&mut self, key: impl AsRef<str>, value: impl AsRef<[u8]>) -> &mut Self {
         match self {
             RequestBuilder::Actix(builder) => {
-                builder.header(key, value);
+                builder.header(key.as_ref(), value.as_ref());
             }
             RequestBuilder::Reqwest { builder, .. } => {
-                take_mut::take(builder, |b| b.header(key, value))
+                take_mut::take(builder, |b| b.header(key.as_ref(), value.as_ref()))
             }
         }
 
@@ -247,24 +247,24 @@ impl Response {
         }
     }
 
-    pub fn get_header(&self, key: &str) -> Option<&[u8]> {
+    pub fn get_header(&self, key: impl AsRef<str>) -> Option<&[u8]> {
         match self {
-            Response::Actix(response) => Some(response.headers().get(key)?.as_bytes()),
-            Response::Reqwest(response) => Some(response.headers().get(key)?.as_bytes()),
+            Response::Actix(response) => Some(response.headers().get(key.as_ref())?.as_bytes()),
+            Response::Reqwest(response) => Some(response.headers().get(key.as_ref())?.as_bytes()),
         }
     }
 
-    pub fn get_all_headers(&self, key: &str) -> Vec<&[u8]> {
+    pub fn get_all_headers(&self, key: impl AsRef<str>) -> Vec<&[u8]> {
         match self {
             Response::Actix(response) => response
                 .headers()
-                .get_all(key)
+                .get_all(key.as_ref())
                 .into_iter()
                 .map(|value| value.as_bytes())
                 .collect(),
             Response::Reqwest(response) => response
                 .headers()
-                .get_all(key)
+                .get_all(key.as_ref())
                 .into_iter()
                 .map(|value| value.as_bytes())
                 .collect(),

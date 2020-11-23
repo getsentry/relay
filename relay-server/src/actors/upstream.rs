@@ -29,7 +29,7 @@ use ::actix::fut;
 use ::actix::prelude::*;
 use actix_web::client::{ClientRequest, SendRequestError};
 use actix_web::error::{JsonPayloadError, PayloadError};
-use actix_web::http::{Method, StatusCode};
+use actix_web::http::{header, Method, StatusCode};
 use actix_web::Error as ActixError;
 use failure::Fail;
 use futures::{future, prelude::*, sync::oneshot};
@@ -370,7 +370,7 @@ fn handle_response(
 
     let upstream_limits = if status == StatusCode::TOO_MANY_REQUESTS {
         let retry_after = response
-            .get_header("retry-after")
+            .get_header(header::RETRY_AFTER)
             .and_then(|v| str::from_utf8(v).ok());
 
         let rate_limits = response
@@ -810,7 +810,7 @@ impl UpstreamRelay {
                 path,
                 move |mut builder: RequestBuilder| {
                     builder.header("X-Sentry-Relay-Signature", signature.as_str().as_bytes());
-                    builder.header("content-type", b"application/json");
+                    builder.header(header::CONTENT_TYPE, b"application/json");
                     builder
                         .body(json.clone().into())
                         .map_err(UpstreamRequestError::Http)

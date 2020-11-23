@@ -151,7 +151,7 @@ pub fn forward_upstream(
                             continue;
                         }
 
-                        builder.header(key.as_str(), value.as_bytes());
+                        builder.header(key, value);
                     }
 
                     // actix-web specific workarounds. We don't remember why no_default_headers was
@@ -165,7 +165,7 @@ pub fn forward_upstream(
                         builder.disable_decompress();
                     }
 
-                    builder.header("X-Forwarded-For", forwarded_for.as_ref().as_bytes());
+                    builder.header("X-Forwarded-For", forwarded_for.as_ref());
 
                     builder
                         .body(data.clone().into())
