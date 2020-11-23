@@ -28,12 +28,15 @@ processing = [
 actix = "0.7.9"
 actix-web = { version = "0.7.19", default-features = false, features = ["brotli", "flate2-c"] }
 base64 = "0.10.1"
+brotli2 = "0.3.2"
 bytes = { version = "0.4.12", features = ["serde"] }
 chrono = { version = "0.4.11", features = ["serde"] }
 clap = "2.33.1"
 failure = "0.1.8"
 flate2 = "1.0.19"
+fragile = "1.0.0" # used for vendoring sentry-actix
 futures = "0.1.28"
+futures03 = { version = "0.3", package = "futures", features = ["compat"] }
 itertools = "0.8.2"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
 lazy_static = "1.4.0"
@@ -52,22 +55,19 @@ relay-filter = { path = "../relay-filter" }
 relay-general = { path = "../relay-general" }
 relay-quotas = { path = "../relay-quotas" }
 relay-redis = { path = "../relay-redis" }
+reqwest = { version = "0.10.8", features = ["gzip"] }
 rmp-serde = "0.14.3"
 sentry = { version = "0.21.0", features = ["failure"] }
-fragile = "1.0.0" # used for vendoring sentry-actix
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
 serde_urlencoded = "0.7.0"
 smallvec = { version = "1.4.0", features = ["serde"] }
 symbolic = { version = "7.5.0", optional = true, default-features=false, features=["unreal-serde"] }
+take_mut = "0.2.2"
+tokio = "0.2" # in sync with reqwest
 tokio-timer = "0.2.13"
 url = { version = "2.1.1", features = ["serde"] }
 uuid = { version = "0.8.1", features = ["v5"] }
-reqwest = { version = "0.10.8", features = ["gzip"] }
-futures03 = { version = "0.3", package = "futures", features = ["compat"] }
-take_mut = "0.2.2"
-tokio = "0.2" # in sync with reqwest
-brotli2 = "0.3.2"
 
 [target."cfg(not(windows))".dependencies]
 libc = "0.2.71"

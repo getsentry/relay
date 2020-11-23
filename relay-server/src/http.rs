@@ -57,19 +57,6 @@ impl RequestBuilder {
         RequestBuilder::Actix(builder)
     }
 
-    pub fn no_default_headers(&mut self) -> &mut Self {
-        match self {
-            RequestBuilder::Actix(builder) => {
-                builder.no_default_headers();
-            }
-            RequestBuilder::Reqwest { .. } => {
-                // can only be set on client
-            }
-        }
-
-        self
-    }
-
     pub fn finish<E>(self) -> Result<Request, E>
     where
         E: From<reqwest::Error> + From<ActixError>,
@@ -139,19 +126,6 @@ impl RequestBuilder {
                 .finish()
             }
         }
-    }
-
-    pub fn disable_decompress(&mut self) -> &mut Self {
-        match self {
-            RequestBuilder::Actix(builder) => {
-                builder.disable_decompress();
-            }
-            RequestBuilder::Reqwest { .. } => {
-                // can only be set on client TODO
-            }
-        }
-
-        self
     }
 
     pub fn content_encoding(&mut self, encoding: HttpEncoding) -> &mut Self {
@@ -247,13 +221,13 @@ impl Response {
                 .headers()
                 .get_all(key)
                 .into_iter()
-                .map(|x| x.as_bytes())
+                .map(|value| value.as_bytes())
                 .collect(),
             Response::Reqwest(response) => response
                 .headers()
                 .get_all(key)
                 .into_iter()
-                .map(|x| x.as_bytes())
+                .map(|value| value.as_bytes())
                 .collect(),
         }
     }

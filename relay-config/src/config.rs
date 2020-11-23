@@ -592,7 +592,7 @@ struct Http {
     /// default. Switching to "reqwest" is required to get experimental HTTP proxy support.
     ///
     /// Note that this option will be removed in the future once "reqwest" is the default.
-    client: HttpClient,
+    _client: HttpClient,
 }
 
 impl Default for Http {
@@ -605,7 +605,7 @@ impl Default for Http {
             auth_interval: Some(600), // 10 minutes
             outage_grace_period: DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
             encoding: HttpEncoding::Gzip,
-            client: HttpClient::Actix,
+            _client: HttpClient::Actix,
         }
     }
 }
@@ -1208,7 +1208,7 @@ impl Config {
 
     /// (unstable) HTTP client to use for upstream requests.
     pub fn http_client(&self) -> HttpClient {
-        self.values.http.client
+        self.values.http._client
     }
 
     /// Returns whether this Relay should emit outcomes.

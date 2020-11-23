@@ -155,8 +155,17 @@ pub fn forward_upstream(
                         builder.header(key.as_str(), value.as_bytes());
                     }
 
-                    builder.no_default_headers();
-                    builder.disable_decompress();
+                    // actix-web specific workarounds. We don't remember why no_default_headers was
+                    // necessary, but we suspect that actix sends out headers twice instead of
+                    // having them be overridden (user-agent?)
+                    //
+                    // Need for disabling decompression is demonstrated by the
+                    // `test_forwarding_content_encoding` integration test.
+                    if let RequestBuilder::Actix(ref mut builder) = builder {
+                        builder.no_default_headers();
+                        builder.disable_decompress();
+                    }
+
                     builder.header("X-Forwarded-For", forwarded_for.as_ref().as_bytes());
 
                     builder.body(data.clone().into())
