@@ -17,10 +17,10 @@ class HAProxy(SentryLike):
 
 @pytest.fixture
 def haproxy(background_process, random_port, config_dir):
-    def inner(*upstreams):
-        if shutil.which(HAPROXY_BIN[0]) is None:
-            pytest.skip("HAProxy not installed")
+    if shutil.which(HAPROXY_BIN[0]) is None:
+        pytest.skip("HAProxy not installed")
 
+    def inner(*upstreams):
         host = "127.0.0.1"
         port = random_port()
 
@@ -51,6 +51,7 @@ def haproxy(background_process, random_port, config_dir):
             )
 
         config.write("\n".join(config_lines))
+        config.write("\n")
 
         process = background_process(HAPROXY_BIN + ["-f", str(config)])
 
