@@ -12,6 +12,7 @@ use std::io;
 use std::io::Write;
 
 use actix_web::client::{ClientRequest, ClientRequestBuilder, ClientResponse};
+use actix_web::error::{JsonPayloadError, PayloadError};
 use actix_web::http::{ContentEncoding, StatusCode};
 use actix_web::{Binary, Error as ActixError, HttpMessage};
 use brotli2::write::BrotliEncoder;
@@ -37,9 +38,9 @@ pub enum HttpError {
     #[fail(display = "failed to stream payload: {}", _0)]
     Io(#[cause] io::Error),
     #[fail(display = "could not parse json payload returned by upstream")]
-    ActixJson(#[cause] actix_web::error::JsonPayloadError),
+    ActixJson(#[cause] JsonPayloadError),
     #[fail(display = "failed to receive response from upstream")]
-    ActixPayload(#[cause] actix_web::error::PayloadError),
+    ActixPayload(#[cause] PayloadError),
 }
 
 impl From<reqwest::Error> for HttpError {
@@ -60,14 +61,14 @@ impl From<io::Error> for HttpError {
     }
 }
 
-impl From<actix_web::error::JsonPayloadError> for HttpError {
-    fn from(e: actix_web::error::JsonPayloadError) -> Self {
+impl From<JsonPayloadError> for HttpError {
+    fn from(e: JsonPayloadError) -> Self {
         HttpError::ActixJson(e)
     }
 }
 
-impl From<actix_web::error::PayloadError> for HttpError {
-    fn from(e: actix_web::error::PayloadError) -> Self {
+impl From<PayloadError> for HttpError {
+    fn from(e: PayloadError) -> Self {
         HttpError::ActixPayload(e)
     }
 }
@@ -213,18 +214,16 @@ impl Response {
         self,
         limit: usize,
     ) -> Box<dyn Future<Item = T, Error = HttpError>> {
-        // TODO: apply limit to reqwest
         match self {
             Response::Actix(response) => {
                 let future = response.json().limit(limit).map_err(HttpError::ActixJson);
                 Box::new(future) as Box<dyn Future<Item = _, Error = _>>
             }
-            Response::Reqwest(response) => {
-                let future = response
-                    .json()
-                    .boxed_local()
-                    .compat()
-                    .map_err(HttpError::Reqwest);
+            slf @ Response::Reqwest(_) => {
+                let future = slf.bytes(limit).and_then(|bytes| {
+                    serde_json::from_slice(&bytes)
+                        .map_err(|e| HttpError::ActixJson(JsonPayloadError::Deserialize(e)))
+                });
                 Box::new(future) as Box<dyn Future<Item = _, Error = _>>
             }
         }
