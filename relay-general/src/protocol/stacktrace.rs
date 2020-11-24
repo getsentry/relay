@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::protocol::{Addr, NativeImagePath, RegVal};
+use crate::protocol::{Addr, DebugId, NativeImagePath, RegVal};
 use crate::types::{Annotated, Array, FromValue, Object, Value};
 
 /// Holds information about a single stacktrace frame.
@@ -125,6 +125,10 @@ pub struct Frame {
     /// [Debug Meta Interface]({%- link _documentation/development/sdk-dev/event-payloads/debugmeta.md -%}),
     /// then symbolication can take place.
     pub instruction_addr: Annotated<Addr>,
+
+    /// When provided switches `instruction_addr` to be relative within
+    /// a specific image.
+    pub in_image: Annotated<DebugId>,
 
     /// (C/C++/Native) Start address of the frame's function.
     ///
@@ -361,6 +365,7 @@ fn test_frame_roundtrip() {
   },
   "image_addr": "0x400",
   "instruction_addr": "0x404",
+  "in_image": "f3283016-637c-463b-8b3e-46eda376c9dd",
   "symbol_addr": "0x404",
   "trust": "69",
   "lang": "rust",
@@ -395,6 +400,9 @@ fn test_frame_roundtrip() {
         }),
         image_addr: Annotated::new(Addr(0x400)),
         instruction_addr: Annotated::new(Addr(0x404)),
+        in_image: Annotated::new(DebugId(
+            "f3283016-637c-463b-8b3e-46eda376c9dd".parse().unwrap(),
+        )),
         symbol_addr: Annotated::new(Addr(0x404)),
         trust: Annotated::new("69".into()),
         lang: Annotated::new("rust".into()),

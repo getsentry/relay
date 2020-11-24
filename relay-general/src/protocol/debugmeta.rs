@@ -377,13 +377,11 @@ pub struct NativeDebugImage {
     /// Starting memory address of the image (required).
     ///
     /// Memory address, at which the image is mounted in the virtual address space of the process. Should be a string in hex representation prefixed with `"0x"`.
-    #[metastructure(required = "true")]
     pub image_addr: Annotated<Addr>,
 
     /// Size of the image in bytes (required).
     ///
     /// The size of the image in virtual memory. If missing, Sentry will assume that the image spans up to the next image, which might lead to invalid stack traces.
-    #[metastructure(required = "true")]
     pub image_size: Annotated<u64>,
 
     /// Loading address in virtual memory.
@@ -436,6 +434,8 @@ pub enum DebugImage {
     Pe(Box<NativeDebugImage>),
     /// A reference to a proguard debug file.
     Proguard(Box<ProguardDebugImage>),
+    /// WASM debug image.
+    Wasm(Box<NativeDebugImage>),
     /// A debug image that is unknown to this protocol specification.
     #[metastructure(fallback_variant)]
     Other(Object<Value>),
