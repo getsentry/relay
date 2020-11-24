@@ -2,7 +2,7 @@ use std::fmt::{self, Write};
 
 use relay_quotas::{
     DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
-    Scoping,
+    ReasonCode, Scoping,
 };
 
 use crate::envelope::{Envelope, Item, ItemType};
@@ -29,6 +29,10 @@ pub fn format_rate_limits(rate_limits: &RateLimits) -> String {
         }
 
         write!(header, ":{}", rate_limit.scope.name()).ok();
+
+        if let Some(ref reason_code) = rate_limit.reason_code {
+            write!(header, ":{}", reason_code).ok();
+        }
     }
 
     header
@@ -61,10 +65,12 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
         let quota_scope = QuotaScope::from_name(components.next().unwrap_or(""));
         let scope = RateLimitScope::for_quota(scoping, quota_scope);
 
+        let reason_code = components.next().map(ReasonCode::new);
+
         rate_limits.add(RateLimit {
             categories,
             scope,
-            reason_code: None,
+            reason_code,
             retry_after,
         });
     }
@@ -302,7 +308,7 @@ mod tests {
         rate_limits.add(RateLimit {
             categories: DataCategories::new(),
             scope: RateLimitScope::Organization(42),
-            reason_code: None,
+            reason_code: Some(ReasonCode::new("my_limit")),
             retry_after: RetryAfter::from_secs(42),
         });
 
@@ -315,7 +321,7 @@ mod tests {
         });
 
         let formatted = format_rate_limits(&rate_limits);
-        let expected = "42::organization, 4711:transaction;security:project";
+        let expected = "42::organization:my_limit, 4711:transaction;security:project";
         assert_eq!(formatted, expected);
     }
 
@@ -343,7 +349,8 @@ mod tests {
         };
 
         // contains "foobar", an unknown scope that should be mapped to Unknown
-        let formatted = "42::organization, invalid, 4711:foobar;transaction;security:project";
+        let formatted =
+            "42::organization:my_limit, invalid, 4711:foobar;transaction;security:project";
         let rate_limits: Vec<RateLimit> =
             parse_rate_limits(&scoping, formatted).into_iter().collect();
 
@@ -353,7 +360,7 @@ mod tests {
                 RateLimit {
                     categories: DataCategories::new(),
                     scope: RateLimitScope::Organization(42),
-                    reason_code: None,
+                    reason_code: Some(ReasonCode::new("my_limit")),
                     retry_after: rate_limits[0].retry_after,
                 },
                 RateLimit {
