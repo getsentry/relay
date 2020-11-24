@@ -20,7 +20,7 @@ use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use futures::{future, prelude::*};
-use futures03::{FutureExt, TryFutureExt, TryStreamExt};
+use futures03::{FutureExt, StreamExt, TryFutureExt, TryStreamExt};
 use serde::de::DeserializeOwned;
 
 use ::actix::prelude::*;
@@ -229,7 +229,7 @@ impl Response {
         }
     }
 
-    pub fn consume(self) -> ResponseFuture<Self, HttpError> {
+    pub fn consume(mut self) -> ResponseFuture<Self, HttpError> {
         // consume response bodies to allow connection keep-alive
         match self {
             Response::Actix(ref response) => Box::new(
@@ -240,9 +240,24 @@ impl Response {
                     .map_err(HttpError::ActixPayload),
             ),
             Response::Reqwest(_) => {
-                // This does not appear to be strictly necessary for reqwest to produce correct
-                // behavior.
-                Box::new(future::ok(self))
+                // Consume the request payload such that the underlying connection returns to a
+                // "clean state".
+                //
+                // We do not understand if this is strictly necessary for reqwest. It was ported
+                // from actix-web where it was clearly necessary to un-break keepalive connections,
+                // but no testcase has been written for this and we are unsure on how to reproduce
+                // outside of prod. I (markus) have not found code in reqwest that would explicitly
+                // deal with this.
+                Box::new(
+                    async move {
+                        if let Response::Reqwest(ref mut response) = self {
+                            while let Some(_) = response.chunk().await? {}
+                        }
+                        Ok(self)
+                    }
+                    .boxed_local()
+                    .compat(),
+                )
             }
         }
     }
