@@ -192,7 +192,6 @@ impl ReasonCode {
     ///
     /// This method is only to be used by tests. Reason codes should only be deserialized from
     /// quotas, but never constructed manually.
-    #[cfg(test)]
     pub fn new<S: Into<String>>(code: S) -> Self {
         Self(code.into())
     }
@@ -200,6 +199,12 @@ impl ReasonCode {
     /// Returns the string representation of this reason code.
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+impl fmt::Display for ReasonCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 

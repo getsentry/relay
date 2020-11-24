@@ -556,7 +556,7 @@ def test_processing_quotas(
         assert int(retry_after) <= max_rate_limit
         retry_after2, rest = headers["x-sentry-rate-limits"].split(":", 1)
         assert int(retry_after2) == int(retry_after)
-        assert rest == "%s:key" % category
+        assert rest == "%s:key:get_lost" % category
         if generates_outcomes:
             outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
 
