@@ -17,10 +17,10 @@ class Gobetween(SentryLike):
 
 @pytest.fixture
 def gobetween(background_process, random_port, config_dir):
-    if shutil.which(GOBETWEEN_BIN[0]) is None:
-        pytest.skip("Gobetween not installed")
-
     def inner(*upstreams):
+        if shutil.which(GOBETWEEN_BIN[0]) is None:
+            pytest.skip("Gobetween not installed")
+
         host = "127.0.0.1"
         port = random_port()
 
