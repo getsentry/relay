@@ -9,15 +9,17 @@
 ///! objects and common request objects, it's just that nobody bothers to implement the conversion
 ///! logic.
 use std::io;
-use std::io::Write;
+use std::io::Read;
 
 use actix_web::client::{ClientRequest, ClientRequestBuilder, ClientResponse};
 use actix_web::error::{JsonPayloadError, PayloadError};
 use actix_web::http::{ContentEncoding, StatusCode};
 use actix_web::{Binary, Error as ActixError, HttpMessage};
-use brotli2::write::BrotliEncoder;
+use brotli2::read::BrotliEncoder;
+use bytes::buf::Buf;
+use bytes::IntoBuf;
 use failure::Fail;
-use flate2::write::{GzEncoder, ZlibEncoder};
+use flate2::read::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use futures::prelude::*;
 use futures03::{FutureExt, TryFutureExt, TryStreamExt};
@@ -129,40 +131,53 @@ impl RequestBuilder {
         self
     }
 
-    pub fn body(self, body: Binary) -> Result<Request, HttpError> {
+    pub fn body(self, mut body: Binary) -> Result<Request, HttpError> {
+        // actix-web's Binary is used as argument here because the type can be constructed from
+        // almost anything and then the actix-web codepath is minimally affected.
+        //
+        // Still it's not perfect as in the identity-encoding path we have some unnecessary copying
+        // that is just to get around type conflicts. We cannot use Bytes here because we have a
+        // version split between actix-web's Bytes dependency and reqwest's Bytes dependency. A
+        // real zero-copy abstraction over both would force us to downgrade reqwest to a version
+        // that uses Bytes 0.4.
         match self {
             RequestBuilder::Actix(mut builder) => Ok(Request::Actix(builder.body(body)?)),
             RequestBuilder::Reqwest {
                 mut builder,
                 http_encoding,
             } => {
-                let body = match http_encoding {
+                match http_encoding {
                     HttpEncoding::Identity => {
-                        builder = builder.header("Content-Encoding", "identity");
-                        body.as_ref().to_vec()
+                        builder = builder
+                            .header("Content-Encoding", "identity")
+                            .body(reqwest_body_from_read(body.take().into_buf().reader()))
                     }
                     HttpEncoding::Deflate => {
-                        builder = builder.header("Content-Encoding", "deflate");
-                        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-                        encoder.write_all(body.as_ref())?;
-                        encoder.finish().unwrap()
+                        let encoder = ZlibEncoder::new(
+                            body.take().into_buf().reader(),
+                            Compression::default(),
+                        );
+                        builder = builder
+                            .header("Content-Encoding", "deflate")
+                            .body(reqwest_body_from_read(encoder))
                     }
                     HttpEncoding::Gzip => {
-                        builder = builder.header("Content-Encoding", "gzip");
-                        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-                        encoder.write_all(body.as_ref())?;
-                        encoder.finish().unwrap()
+                        let encoder =
+                            GzEncoder::new(body.take().into_buf().reader(), Compression::default());
+                        builder = builder
+                            .header("Content-Encoding", "gzip")
+                            .body(reqwest_body_from_read(encoder))
                     }
                     HttpEncoding::Br => {
-                        builder = builder.header("Content-Encoding", "br");
-                        let mut encoder = BrotliEncoder::new(Vec::new(), 5);
-                        encoder.write_all(body.as_ref())?;
-                        encoder.finish().unwrap()
+                        let encoder = BrotliEncoder::new(body.take().into_buf().reader(), 5);
+                        builder = builder
+                            .header("Content-Encoding", "br")
+                            .body(reqwest_body_from_read(encoder))
                     }
                 };
 
                 RequestBuilder::Reqwest {
-                    builder: builder.body(body),
+                    builder,
                     http_encoding,
                 }
                 .finish()
@@ -249,9 +264,11 @@ impl Response {
                 // outside of prod. I (markus) have not found code in reqwest that would explicitly
                 // deal with this.
                 Box::new(
+                    // Note: The reqwest codepath is impossible to write with streams due to
+                    // borrowing issues. You *have* to use `chunk()`.
                     async move {
                         if let Response::Reqwest(ref mut response) = self {
-                            while let Some(_) = response.chunk().await? {}
+                            while response.chunk().await?.is_some() {}
                         }
                         Ok(self)
                     }
@@ -330,4 +347,28 @@ impl Response {
             ) as Box<dyn Future<Item = _, Error = _>>,
         }
     }
+}
+
+fn reqwest_body_from_read<R>(mut reader: R) -> reqwest::Body
+where
+    R: Send + Sync + Read + 'static,
+{
+    // Local imports because importing them top-level is too confusing with two futures crates
+    use futures03::{stream::poll_fn, task::Poll};
+    let mut buf = Vec::with_capacity(8192);
+
+    let stream = poll_fn(move |_| {
+        let bytes_read = match reader.read(&mut buf) {
+            Ok(x) => x,
+            Err(e) => return Poll::Ready(Some(Err(e))),
+        };
+
+        if bytes_read > 0 {
+            Poll::Ready(Some(Ok(buf[..bytes_read].to_vec())))
+        } else {
+            Poll::Ready(None)
+        }
+    });
+
+    reqwest::Body::wrap_stream(stream)
 }
