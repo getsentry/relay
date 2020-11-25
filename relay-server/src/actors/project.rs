@@ -134,7 +134,7 @@ pub struct LimitedProjectState {
     pub project_id: Option<ProjectId>,
     pub last_change: Option<DateTime<Utc>>,
     pub disabled: bool,
-    #[serde(with = "limited_public_key_comfigs")]
+    #[serde(with = "limited_public_key_configs")]
     pub public_keys: SmallVec<[PublicKeyConfig; 1]>,
     pub slug: Option<String>,
     #[serde(with = "LimitedProjectConfig")]
@@ -365,13 +365,11 @@ pub struct PublicKeyConfig {
     pub public_key: ProjectKey,
 
     /// The primary key of the DSN in Sentry's main database.
-    ///
-    /// Only available for internal relays.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub numeric_id: Option<u64>,
 }
 
-mod limited_public_key_comfigs {
+mod limited_public_key_configs {
     use super::*;
     use serde::ser::SerializeSeq;
 
@@ -380,6 +378,8 @@ mod limited_public_key_comfigs {
     #[serde(rename_all = "camelCase", remote = "PublicKeyConfig")]
     pub struct LimitedPublicKeyConfig {
         pub public_key: ProjectKey,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub numeric_id: Option<u64>,
     }
 
     /// Serializes a list of `PublicKeyConfig` objects using `LimitedPublicKeyConfig`.
