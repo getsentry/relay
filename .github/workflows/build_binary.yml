@@ -94,3 +94,8 @@ jobs:
           cd target/release
           7z a relay-Windows-x86_64-pdb.zip relay.pdb
           mv relay.exe relay-Windows-x86_64.exe
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.sha }}
+          path: target/release/relay-Windows-x86_64*
