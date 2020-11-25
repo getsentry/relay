@@ -438,6 +438,8 @@
 <span id="435">435</span>
 <span id="436">436</span>
 <span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">metrics</span>::{<span class="ident">CounterMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
@@ -731,6 +733,8 @@
     <span class="doccomment">///  - `outcome`: The basic cause for rejecting the event.</span>
     <span class="doccomment">///  - `reason`: A more detailed identifier describing the rule or mechanism leading to the</span>
     <span class="doccomment">///    outcome.</span>
+    <span class="doccomment">///  - `to`: Describes the destination of the outcome. Can be either &#39;kafka&#39; (when in</span>
+    <span class="doccomment">///    processing mode) or &#39;http&#39; (when outcomes are enabled in an external relay).</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Possible outcomes are:</span>
     <span class="doccomment">///  - `filtered`: Dropped by inbound data filters. The reason specifies the filter that</span>

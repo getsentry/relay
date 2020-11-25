@@ -600,6 +600,14 @@
 <span id="597">597</span>
 <span id="598">598</span>
 <span id="599">599</span>
+<span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module contains the actor that tracks event outcomes.</span>
 <span class="doccomment">//!</span>
@@ -1030,6 +1038,7 @@
                 <span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">Outcomes</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
                 <span class="ident">reason</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">reason</span>.<span class="ident">as_deref</span>().<span class="ident">unwrap_or</span>(<span class="string">&quot;&quot;</span>),
                 <span class="ident">outcome</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">tag_name</span>(),
+                <span class="ident">to</span> <span class="op">=</span> <span class="string">&quot;kafka&quot;</span>,
             );
 
             <span class="comment">// At the moment, we support outcomes with optional EventId.</span>
@@ -1058,6 +1067,13 @@
                     <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
                 }
             };
+
+            <span class="macro">metric</span><span class="macro">!</span>(
+                <span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">Outcomes</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
+                <span class="ident">reason</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">reason</span>.<span class="ident">as_deref</span>().<span class="ident">unwrap_or</span>(<span class="string">&quot;&quot;</span>),
+                <span class="ident">outcome</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">tag_name</span>(),
+                <span class="ident">to</span> <span class="op">=</span> <span class="string">&quot;http&quot;</span>,
+            );
 
             <span class="ident">producer</span>.<span class="ident">do_send</span>(<span class="ident">message</span>);
 
