@@ -14,7 +14,7 @@
 **Internal**:
 
 - Add reason codes to the `X-Sentry-Rate-Limits` header in store responses. This allows external Relays to emit outcomes with the proper reason codes. ([#850](https://github.com/getsentry/relay/pull/850))
-
+- Emit metrics for outcomes in external relays. ([#851](https://github.com/getsentry/relay/pull/851))
 
 ## 20.11.1
 
