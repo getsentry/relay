@@ -471,20 +471,24 @@ where
                         .map_err(BadStoreRequest::ScheduleFailed)
                         // do the fast path transaction sampling (if we can't do it here
                         // we'll try again after the envelope is queued)
-                        .and_then(move |project| {
-                            let event_id: Option<EventId> = envelope.event_id();
-                            sample_transaction(envelope, Some(project.clone()), true).then(
-                                move |result| match result {
-                                    Err(()) => Err(BadStoreRequest::TraceSampled(event_id)),
-                                    Ok(envelope) if envelope.is_empty() => {
-                                        Err(BadStoreRequest::TraceSampled(event_id))
-                                    }
-                                    Ok(envelope) => Ok((envelope, rate_limits, Some(project))),
-                                },
-                            )
-                        });
+                        .map(|project| (envelope, rate_limits, Some(project)));
                     Box::new(response) as RetVal
                 }))
+                .and_then(|(envelope, rate_limits, sampling_project)| {
+                    // do the fast path transaction sampling (if we can't do it here
+                    // we'll try again after the envelope is queued)
+                    let event_id: Option<EventId> = envelope.event_id();
+
+                    sample_transaction(envelope, sampling_project.clone(), true).then(
+                        move |result| match result {
+                            Err(()) => Err(BadStoreRequest::TraceSampled(event_id)),
+                            Ok(envelope) if envelope.is_empty() => {
+                                Err(BadStoreRequest::TraceSampled(event_id))
+                            }
+                            Ok(envelope) => Ok((envelope, rate_limits, sampling_project)),
+                        },
+                    )
+                })
                 .and_then(move |(envelope, rate_limits, sampling_project)| {
                     event_manager
                         .send(QueueEnvelope {
