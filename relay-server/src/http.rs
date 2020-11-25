@@ -349,6 +349,10 @@ impl Response {
     }
 }
 
+/// Convert a Read to a reqwest body.
+///
+/// NOTE: This should really only be used for Read that don't do I/O, i.e. strings (where this is
+/// useless), and read-based compressors that wrap the former (where this is useful)
 fn reqwest_body_from_read<R>(mut reader: R) -> reqwest::Body
 where
     R: Send + Sync + Read + 'static,
