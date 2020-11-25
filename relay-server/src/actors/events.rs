@@ -34,7 +34,7 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
-use crate::utils::{self, sample_transaction, ChunkedFormDataAggregator, FormDataIter, FutureExt};
+use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, FutureExt};
 
 #[cfg(feature = "processing")]
 use {
@@ -1473,10 +1473,14 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
             }))
             .and_then(|envelope| {
-                sample_transaction(envelope, sampling_project, false).then(|result| match result {
-                    Err(()) => Err(ProcessingError::TransactionSampled),
-                    Ok(envelope) if envelope.is_empty() => Err(ProcessingError::TransactionSampled),
-                    Ok(envelope) => Ok(envelope),
+                utils::sample_transaction(envelope, sampling_project, false).then(|result| {
+                    match result {
+                        Err(()) => Err(ProcessingError::TransactionSampled),
+                        Ok(envelope) if envelope.is_empty() => {
+                            Err(ProcessingError::TransactionSampled)
+                        }
+                        Ok(envelope) => Ok(envelope),
+                    }
                 })
             })
             .and_then(clone!(project, |envelope| {

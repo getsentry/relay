@@ -439,57 +439,52 @@ where
                         Err(BadStoreRequest::PayloadError(StorePayloadError::Overflow))
                     }
                 }))
-                .and_then(clone!(
-                    event_manager,
-                    project_manager,
-                    event_id,
-                    |(envelope, rate_limits)| {
-                        // do dynamic sampling on transactions
-                        let trace_context = match envelope.trace_context() {
-                            None => {
-                                // if we don't have a trace context we can't do dynamic sampling so stop.
-                                return Box::new(Ok((envelope, rate_limits, None)).into_future())
-                                    as ResponseFuture<
-                                        (Envelope, RateLimits, Option<Addr<Project>>),
-                                        _,
-                                    >;
-                            }
-                            Some(trace_context) => trace_context,
-                        };
-                        // Sample and potentially remove transactions from the envelope.
-                        // We only do this if the envelope contains only transactions,
-                        // The reason for that is that in case of envelopes containing only
-                        // transactions we have a chance to end processing here (if the transactions
-                        // are sampled out).
-                        // If the envelope contains other items (beyond transactions then we cannot
-                        // shortcut the processing here so we'll do it after we queue the envelope).
-                        let response = project_manager
-                            .send(GetProject {
-                                public_key: trace_context.public_key,
-                            })
-                            // deal with mailbox errors
-                            .map_err(BadStoreRequest::ScheduleFailed)
-                            // do the fast path transaction sampling (if we can't do it here
-                            // we'll try again after the envelope is queued)
-                            .and_then(|project| {
-                                let event_id = envelope.event_id();
-                                sample_transaction(envelope, Some(project.clone()), true).then(
-                                    clone!(event_id, |result| match result {
-                                        Err(()) => Err(BadStoreRequest::TraceSampled(event_id)),
-                                        Ok(envelope) if envelope.is_empty() => {
-                                            Err(BadStoreRequest::TraceSampled(event_id))
-                                        }
-                                        Ok(envelope) => Ok((envelope, rate_limits, Some(project))),
-                                    }),
-                                )
-                            });
-                        Box::new(response)
-                            as ResponseFuture<
-                                (Envelope, RateLimits, Option<Addr<Project>>),
-                                BadStoreRequest,
-                            >
-                    }
-                ))
+                .and_then(clone!(event_manager, project_manager, |(
+                    envelope,
+                    rate_limits,
+                )| {
+                    type RetVal = ResponseFuture<
+                        (Envelope, RateLimits, Option<Addr<Project>>),
+                        BadStoreRequest,
+                    >;
+                    // do dynamic sampling on transactions
+                    let trace_context = match envelope.trace_context() {
+                        None => {
+                            // if we don't have a trace context we can't do dynamic sampling so stop.
+                            return Box::new(Ok((envelope, rate_limits, None)).into_future())
+                                as RetVal;
+                        }
+                        Some(trace_context) => trace_context,
+                    };
+                    // Sample and potentially remove transactions from the envelope.
+                    // We only do this if the envelope contains only transactions,
+                    // The reason for that is that in case of envelopes containing only
+                    // transactions we have a chance to end processing here (if the transactions
+                    // are sampled out).
+                    // If the envelope contains other items (beyond transactions then we cannot
+                    // shortcut the processing here so we'll do it after we queue the envelope).
+                    let response = project_manager
+                        .send(GetProject {
+                            public_key: trace_context.public_key,
+                        })
+                        // deal with mailbox errors
+                        .map_err(BadStoreRequest::ScheduleFailed)
+                        // do the fast path transaction sampling (if we can't do it here
+                        // we'll try again after the envelope is queued)
+                        .and_then(move |project| {
+                            let event_id: Option<EventId> = envelope.event_id();
+                            sample_transaction(envelope, Some(project.clone()), true).then(
+                                move |result| match result {
+                                    Err(()) => Err(BadStoreRequest::TraceSampled(event_id)),
+                                    Ok(envelope) if envelope.is_empty() => {
+                                        Err(BadStoreRequest::TraceSampled(event_id))
+                                    }
+                                    Ok(envelope) => Ok((envelope, rate_limits, Some(project))),
+                                },
+                            )
+                        });
+                    Box::new(response) as RetVal
+                }))
                 .and_then(move |(envelope, rate_limits, sampling_project)| {
                     event_manager
                         .send(QueueEnvelope {

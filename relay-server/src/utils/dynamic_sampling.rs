@@ -7,9 +7,8 @@ use actix::prelude::*;
 use futures::{future, prelude::*};
 use rand::{distributions::Uniform, Rng};
 use rand_pcg::Pcg32;
-//use serde::{Deserialize, Deserializer, Serialize};
 use serde::de::Visitor;
-use serde::{self, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use relay_common::{ProjectId, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
@@ -91,10 +90,23 @@ impl SamplingRule {
         environment: &Option<LowerCaseString>,
         project_id: ProjectId,
     ) -> bool {
+        // match against the environment
+        if !self.environments.is_empty() {
+            match environment {
+                None => return false,
+                Some(ref environment) => {
+                    if !self.environments.contains(environment) {
+                        return false;
+                    }
+                }
+            }
+        }
+
         // match against the project
         if !self.project_ids.is_empty() && !self.project_ids.contains(&project_id) {
             return false;
         }
+
         // match against the release
         if !self.releases.is_empty() {
             match release {
@@ -106,23 +118,13 @@ impl SamplingRule {
                 }
             }
         }
+
         // match against the user_segment
         if !self.user_segments.is_empty() {
             match user_segment {
                 None => return false,
                 Some(ref user_segment) => {
                     if !self.user_segments.contains(user_segment) {
-                        return false;
-                    }
-                }
-            }
-        }
-        // match against the environment
-        if !self.environments.is_empty() {
-            match environment {
-                None => return false,
-                Some(ref environment) => {
-                    if !self.environments.contains(environment) {
                         return false;
                     }
                 }
