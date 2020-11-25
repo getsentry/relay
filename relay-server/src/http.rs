@@ -19,8 +19,8 @@ use brotli2::write::BrotliEncoder;
 use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
-use futures::{future, prelude::*};
-use futures03::{FutureExt, StreamExt, TryFutureExt, TryStreamExt};
+use futures::prelude::*;
+use futures03::{FutureExt, TryFutureExt, TryStreamExt};
 use serde::de::DeserializeOwned;
 
 use ::actix::prelude::*;
