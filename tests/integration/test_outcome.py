@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 import uuid
 from queue import Empty
 
+import requests
 import pytest
 import time
 
@@ -49,7 +50,12 @@ def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consum
     assert start <= event_emission <= end
 
 
-def _send_event(relay):
+def _send_event(relay, project_id=42):
+    """
+    Send an event to the given project.
+
+    If the project doesn't exist, relay should generate INVALID outcome with reason "project_id".
+    """
     event_id = uuid.uuid1().hex
     message_text = "some message {}".format(datetime.now())
     event_body = {
@@ -59,7 +65,7 @@ def _send_event(relay):
     }
 
     try:
-        relay.send_event(42, event_body)
+        relay.send_event(project_id=project_id, payload=event_body)
     except:
         pass
     return event_id
@@ -211,22 +217,6 @@ def test_outcomes_non_processing_batching(relay, mini_sentry):
     assert mini_sentry.captured_events.empty()
 
 
-def _send_event(relay):
-    event_id = uuid.uuid1().hex
-    message_text = "some message {}".format(datetime.now())
-    event_body = {
-        "event_id": event_id,
-        "message": message_text,
-        "extra": {"msg_text": message_text},
-    }
-
-    try:
-        relay.send_event(42, event_body)
-    except:
-        pass
-    return event_id
-
-
 def test_outcome_source(relay, mini_sentry):
     """
     Test that the source is picked from configuration and passed in outcomes
@@ -306,15 +296,104 @@ def test_outcome_forwarding(
 
     outcomes_consumer = outcomes_consumer()
     outcome = outcomes_consumer.get_outcome()
-    assert outcome.get("source") == "downstream-layer"
-    assert outcome.get("event_id") == event_id
+
+    expected_outcome = {
+        "project_id": 42,
+        "outcome": 3,
+        "source": "downstream-layer",
+        "reason": "project_id",
+        "event_id": event_id,
+        "remote_addr": "127.0.0.1",
+    }
+    outcome.pop("timestamp")
+
+    assert outcome == expected_outcome
+
+
+# FIXME(anton)
+@pytest.mark.xfail(
+    reason="Might be inconsistent now because we sometimes emit outcomes twice when rate limiting"
+)
+def test_outcomes_forwarding_rate_limited(
+    mini_sentry, relay, relay_with_processing, outcomes_consumer
+):
+    """
+    TODO
+    """
+    processing_config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "source": "processing-layer",
+        }
+    }
+    # The innermost Relay needs to be in processing mode
+    upstream = relay_with_processing(processing_config)
+
+    config_downstream = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "source": "downstream-layer",
+        }
+    }
+    downstream_relay = relay(upstream, config_downstream)
+
+    # Create project config
+    project_id = 42
+    category = "error"
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["quotas"] = [
+        {
+            "id": "drop-everything",
+            "categories": [category],
+            "limit": 0,
+            "window": 1600,
+            "reasonCode": "rate_limited",
+        }
+    ]
+
+    outcomes_consumer = outcomes_consumer()
+
+    # Send an event
+    result = downstream_relay.send_event(project_id, _get_message(category))
+    event_id = result["id"]
+
+    outcome = outcomes_consumer.get_outcome()
+    outcome.pop("timestamp")
+    expected_outcome = {
+        "reason": "rate_limited",
+        "org_id": 1,
+        "key_id": 123,
+        "outcome": 2,
+        "project_id": 42,
+        "remote_addr": "127.0.0.1",
+        "event_id": event_id,
+        "source": "processing-layer",
+    }
+    assert outcome == expected_outcome
+
+    # Send another event
+    with pytest.raises(requests.exceptions.HTTPError, match="429 Client Error"):
+        result = downstream_relay.send_event(project_id, _get_message(category))
+
+    expected_outcome_from_downstream = deepcopy(expected_outcome)
+    expected_outcome_from_downstream["source"] = "downstream-layer"
+
+    outcome = outcomes_consumer.get_outcome()
+    outcome.pop("timestamp")
+
+    assert outcome == expected_outcome_from_downstream
+
+    assert False, "check that we don't send redundant outcomes"
 
 
 def _get_message(message_type):
-
-    if message_type == "event":
+    if message_type == "error":
         return {"message": "hello"}
-    if message_type == "transaction":
+    elif message_type == "transaction":
         now = datetime.utcnow()
         return {
             "type": "transaction",
@@ -330,7 +409,7 @@ def _get_message(message_type):
             },
             "transaction": "hi",
         }
-    if message_type == "session":
+    elif message_type == "session":
         timestamp = datetime.now(tz=timezone.utc)
         started = timestamp - timedelta(hours=1)
         return {
@@ -345,6 +424,8 @@ def _get_message(message_type):
             "errors": 0,
             "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
         }
+    else:
+        raise Exception("Invalid message_type")
 
 
 @pytest.mark.parametrize("category_type", ["session", "transaction"])
