@@ -608,6 +608,11 @@
 <span id="605">605</span>
 <span id="606">606</span>
 <span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module contains the actor that tracks event outcomes.</span>
 <span class="doccomment">//!</span>
@@ -840,6 +845,10 @@
     <span class="doccomment">/// [Relay] Symbolic failed to extract an Unreal Crash report from a request sent to the</span>
     <span class="doccomment">/// Unreal endpoint</span>
     <span class="ident">ProcessUnreal</span>,
+
+    <span class="doccomment">/// [Relay] The envelope, which contained only a transaction, was discarded by the</span>
+    <span class="doccomment">/// dynamic sampling rules.</span>
+    <span class="ident">TransactionSampled</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">DiscardReason</span> {
@@ -872,6 +881,7 @@
             <span class="ident">DiscardReason</span>::<span class="ident">DuplicateItem</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;duplicate_item&quot;</span>,
             <span class="ident">DiscardReason</span>::<span class="ident">NoEventPayload</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;no_event_payload&quot;</span>,
             <span class="ident">DiscardReason</span>::<span class="ident">Internal</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;internal&quot;</span>,
+            <span class="ident">DiscardReason</span>::<span class="ident">TransactionSampled</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;transaction_sampled&quot;</span>,
         }
     }
 }
