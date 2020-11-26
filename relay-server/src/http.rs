@@ -209,6 +209,34 @@ impl RequestBuilder {
     }
 }
 
+/// Convert a Read to a reqwest body.
+///
+/// NOTE: This should really only be used for Read that don't do I/O, i.e. strings (where this is
+/// useless), and read-based compressors that wrap the former (where this is useful)
+fn reqwest_body_from_read<R>(mut reader: R) -> reqwest::Body
+where
+    R: Send + Sync + Read + 'static,
+{
+    // Local imports because importing them top-level is too confusing with two futures crates
+    use futures03::{stream::poll_fn, task::Poll};
+    let mut buf = Vec::with_capacity(8192);
+
+    let stream = poll_fn(move |_| {
+        let bytes_read = match reader.read(&mut buf) {
+            Ok(x) => x,
+            Err(e) => return Poll::Ready(Some(Err(e))),
+        };
+
+        if bytes_read > 0 {
+            Poll::Ready(Some(Ok(buf[..bytes_read].to_vec())))
+        } else {
+            Poll::Ready(None)
+        }
+    });
+
+    reqwest::Body::wrap_stream(stream)
+}
+
 #[allow(clippy::large_enum_variant)]
 pub enum Response {
     Actix(ClientResponse),
@@ -347,32 +375,4 @@ impl Response {
             ) as Box<dyn Future<Item = _, Error = _>>,
         }
     }
-}
-
-/// Convert a Read to a reqwest body.
-///
-/// NOTE: This should really only be used for Read that don't do I/O, i.e. strings (where this is
-/// useless), and read-based compressors that wrap the former (where this is useful)
-fn reqwest_body_from_read<R>(mut reader: R) -> reqwest::Body
-where
-    R: Send + Sync + Read + 'static,
-{
-    // Local imports because importing them top-level is too confusing with two futures crates
-    use futures03::{stream::poll_fn, task::Poll};
-    let mut buf = Vec::with_capacity(8192);
-
-    let stream = poll_fn(move |_| {
-        let bytes_read = match reader.read(&mut buf) {
-            Ok(x) => x,
-            Err(e) => return Poll::Ready(Some(Err(e))),
-        };
-
-        if bytes_read > 0 {
-            Poll::Ready(Some(Ok(buf[..bytes_read].to_vec())))
-        } else {
-            Poll::Ready(None)
-        }
-    });
-
-    reqwest::Body::wrap_stream(stream)
 }
