@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::protocol::{Addr, DebugId, NativeImagePath, RegVal};
+use crate::protocol::{Addr, NativeImagePath, RegVal};
 use crate::types::{Annotated, Array, FromValue, Object, Value};
 
 /// Holds information about a single stacktrace frame.
