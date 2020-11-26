@@ -18,6 +18,7 @@
 - Refactor transparent request forwarding for unknown endpoints. Requests are now entirely buffered in memory and occupy the same queues and actors as other requests. This should not cause issues but may change behavior under load. ([#839](https://github.com/getsentry/relay/pull/839))
 - Add reason codes to the `X-Sentry-Rate-Limits` header in store responses. This allows external Relays to emit outcomes with the proper reason codes. ([#850](https://github.com/getsentry/relay/pull/850))
 - Emit metrics for outcomes in external relays. ([#851](https://github.com/getsentry/relay/pull/851))
+- Make `$error.value` `pii=true`. ([#837](https://github.com/getsentry/relay/pull/837))
 
 ## 20.11.1
 
@@ -44,7 +45,6 @@
 - Normalize `breadcrumb.ty` into `breadcrumb.type` for broken Python SDK versions. ([#824](https://github.com/getsentry/relay/pull/824))
 - Add the client SDK interface for unreal crashes and set the name to `unreal.crashreporter`. ([#828](https://github.com/getsentry/relay/pull/828))
 - Fine-tune the selectors for minidump PII scrubbing. ([#818](https://github.com/getsentry/relay/pull/818), [#830](https://github.com/getsentry/relay/pull/830))
-- Make `$error.value` `pii=true`. ([#837](https://github.com/getsentry/relay/pull/837))
 
 ## 20.10.1
 
