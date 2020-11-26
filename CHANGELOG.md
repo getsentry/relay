@@ -5,6 +5,7 @@
 **Features**:
 
 - Relay is now able to ingest pre-aggregated sessions, which will make it possible to efficiently handle applications that produce thousands of sessions per second. ([#815](https://github.com/getsentry/relay/pull/815))
+- Add protocol support for WASM. ([#852](https://github.com/getsentry/relay/pull/852))
 
 **Bug Fixes**:
 
