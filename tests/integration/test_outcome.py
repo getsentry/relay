@@ -79,11 +79,7 @@ def test_outcomes_non_processing(relay, mini_sentry):
     with all necessary information set.
     """
     config = {
-        "outcomes": {
-            "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-        }
+        "outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1,}
     }
 
     relay = relay(mini_sentry, config)
@@ -122,11 +118,7 @@ def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
     when we disable outcomes.
     """
     config = {
-        "outcomes": {
-            "emit_outcomes": False,
-            "batch_size": 1,
-            "batch_interval": 1,
-        }
+        "outcomes": {"emit_outcomes": False, "batch_size": 1, "batch_interval": 1,}
     }
 
     relay = relay(mini_sentry, config)
@@ -430,10 +422,7 @@ def _get_message(message_type):
             "duration": 1947.49,
             "status": "exited",
             "errors": 0,
-            "attrs": {
-                "release": "sentry-test@1.0.0",
-                "environment": "production",
-            },
+            "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
         }
     else:
         raise Exception("Invalid message_type")
@@ -454,11 +443,7 @@ def test_no_outcomes_rate_limit(
     """
 
     config = {
-        "outcomes": {
-            "emit_outcomes": True,
-            "batch_size": 1,
-            "batch_interval": 1,
-        }
+        "outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1,}
     }
     relay = relay_with_processing(config)
     project_id = 42
