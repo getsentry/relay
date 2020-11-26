@@ -223,6 +223,10 @@ mod tests {
         - path: $string
           value: "123"
         - path: $string
+          value: Divided by zero
+        - path: $string
+          value: Something failed
+        - path: $string
           value: bar
         - path: $string
           value: not really
