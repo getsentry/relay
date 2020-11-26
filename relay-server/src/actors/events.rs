@@ -126,6 +126,9 @@ enum ProcessingError {
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
+
+    #[fail(display = "envelope empty, transaction removed by sampling")]
+    TransactionSampled,
 }
 
 impl ProcessingError {
@@ -162,6 +165,9 @@ impl ProcessingError {
             Self::StoreFailed(_) | Self::QuotasFailed(_) => {
                 Some(Outcome::Invalid(DiscardReason::Internal))
             }
+
+            // Dynamic sampling (not an error, just discarding messages that were removed by sampling)
+            Self::TransactionSampled => Some(Outcome::Invalid(DiscardReason::TransactionSampled)),
 
             // If we send to an upstream, we don't emit outcomes.
             Self::SendFailed(_) => None,
@@ -1330,6 +1336,7 @@ impl Actor for EventManager {
 pub struct QueueEnvelope {
     pub envelope: Envelope,
     pub project: Addr<Project>,
+    pub sampling_project: Option<Addr<Project>>,
     pub start_time: Instant,
 }
 
@@ -1367,6 +1374,7 @@ impl Handler<QueueEnvelope> for EventManager {
             self.current_active_events += 1;
             context.notify(HandleEnvelope {
                 envelope: event_envelope,
+                sampling_project: message.sampling_project.clone(),
                 project: message.project.clone(),
                 start_time: message.start_time,
             });
@@ -1375,6 +1383,7 @@ impl Handler<QueueEnvelope> for EventManager {
         self.current_active_events += 1;
         context.notify(HandleEnvelope {
             envelope: message.envelope,
+            sampling_project: message.sampling_project,
             project: message.project,
             start_time: message.start_time,
         });
@@ -1391,6 +1400,7 @@ impl Handler<QueueEnvelope> for EventManager {
 struct HandleEnvelope {
     pub envelope: Envelope,
     pub project: Addr<Project>,
+    pub sampling_project: Option<Addr<Project>>,
     pub start_time: Instant,
 }
 
@@ -1401,7 +1411,7 @@ impl Message for HandleEnvelope {
 impl Handler<HandleEnvelope> for EventManager {
     type Result = ResponseActFuture<Self, (), ()>;
 
-    fn handle(&mut self, message: HandleEnvelope, _context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: HandleEnvelope, _ctx: &mut Self::Context) -> Self::Result {
         // We measure three timers while handling events, once they have been initially accepted:
         //
         // 1. `event.wait_time`: The time we take to get all dependencies for events before
@@ -1432,13 +1442,14 @@ impl Handler<HandleEnvelope> for EventManager {
             envelope,
             project,
             start_time,
+            sampling_project,
         } = message;
 
         let event_id = envelope.event_id();
         let remote_addr = envelope.meta().client_addr();
 
         // Compute whether this envelope contains an event. This is used in error handling to
-        // appropriately emit an outecome. Envelopes not containing events (such as standalone
+        // appropriately emit an outcome. Envelopes not containing events (such as standalone
         // attachment uploads or user reports) should never create outcomes.
         let is_event = envelope.items().any(Item::creates_event);
 
@@ -1461,7 +1472,19 @@ impl Handler<HandleEnvelope> for EventManager {
                     None => Err(ProcessingError::RateLimited(checked.rate_limits)),
                 }
             }))
+            .and_then(|envelope| {
+                utils::sample_transaction(envelope, sampling_project, false)
+                    .map_err(|()| (ProcessingError::TransactionSampled))
+            })
+            .and_then(|envelope| {
+                if envelope.is_empty() {
+                    Err(ProcessingError::TransactionSampled)
+                } else {
+                    Ok(envelope)
+                }
+            })
             .and_then(clone!(project, |envelope| {
+                // get the state for the current project
                 project
                     .send(GetProjectState)
                     .map_err(ProcessingError::ScheduleFailed)

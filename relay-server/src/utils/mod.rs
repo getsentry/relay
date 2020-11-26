@@ -1,5 +1,6 @@
 mod actix;
 mod api;
+mod dynamic_sampling;
 mod error_boundary;
 mod multipart;
 mod param_parser;
@@ -20,6 +21,7 @@ mod unreal;
 
 pub use self::actix::*;
 pub use self::api::*;
+pub use self::dynamic_sampling::*;
 pub use self::error_boundary::*;
 pub use self::multipart::*;
 pub use self::param_parser::*;
