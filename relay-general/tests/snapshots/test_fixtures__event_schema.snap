@@ -1311,6 +1311,14 @@ expression: event_json_schema()
                 }
               ]
             },
+            "addr_mode": {
+              "description": " Defines the addressing mode for addresses.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "colno": {
               "description": " Column number within the source file, starting at 1.",
               "default": null,
@@ -1367,18 +1375,6 @@ expression: event_json_schema()
               "type": [
                 "boolean",
                 "null"
-              ]
-            },
-            "in_image": {
-              "description": " When provided switches `instruction_addr` to be relative within\n a specific image.",
-              "default": null,
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/DebugId"
-                },
-                {
-                  "type": "null"
-                }
               ]
             },
             "instruction_addr": {
