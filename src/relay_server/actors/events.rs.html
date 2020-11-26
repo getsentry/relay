@@ -1844,6 +1844,8 @@
 <span id="1841">1841</span>
 <span id="1842">1842</span>
 <span id="1843">1843</span>
+<span id="1844">1844</span>
+<span id="1845">1845</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -1852,7 +1854,6 @@
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
 
 <span class="kw">use</span> <span class="ident">actix</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">http</span>::<span class="ident">ContentEncoding</span>;
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Duration</span> <span class="kw">as</span> <span class="ident">SignedDuration</span>, <span class="ident">Utc</span>};
 <span class="kw">use</span> <span class="ident">failure</span>::<span class="ident">Fail</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
@@ -1860,7 +1861,7 @@
 <span class="kw">use</span> <span class="ident">serde_json</span>::<span class="ident">Value</span> <span class="kw">as</span> <span class="ident">SerdeValue</span>;
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">clone</span>, <span class="ident">metric</span>, <span class="ident">LogError</span>, <span class="ident">ProjectId</span>};
-<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">HttpEncoding</span>, <span class="ident">RelayMode</span>};
+<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">pii</span>::{<span class="ident">PiiAttachmentsProcessor</span>, <span class="ident">PiiProcessor</span>};
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessingState</span>};
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">protocol</span>::{
@@ -1879,6 +1880,7 @@
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">project_cache</span>::<span class="ident">ProjectError</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">upstream</span>::{<span class="ident">SendRequest</span>, <span class="ident">UpstreamRelay</span>, <span class="ident">UpstreamRequestError</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">envelope</span>::{<span class="self">self</span>, <span class="ident">AttachmentType</span>, <span class="ident">ContentType</span>, <span class="ident">Envelope</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
+<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">http</span>::<span class="ident">RequestBuilder</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">metrics</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelaySets</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">service</span>::<span class="ident">ServerError</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">utils</span>::{<span class="self">self</span>, <span class="ident">ChunkedFormDataAggregator</span>, <span class="ident">FormDataIter</span>, <span class="ident">FutureExt</span>};
@@ -3376,7 +3378,7 @@
                 <span class="ident">log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;sending event to sentry endpoint&quot;</span>);
                 <span class="kw">let</span> <span class="ident">project_id</span> <span class="op">=</span> <span class="ident">scoping</span>.<span class="ident">borrow</span>().<span class="ident">project_id</span>;
                 <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">SendRequest</span>::<span class="ident">post</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;/api/{}/envelope/&quot;</span>, <span class="ident">project_id</span>)).<span class="ident">build</span>(
-                    <span class="kw">move</span> <span class="op">|</span><span class="ident">builder</span><span class="op">|</span> {
+                    <span class="kw">move</span> <span class="op">|</span><span class="kw-2">mut</span> <span class="ident">builder</span>: <span class="ident">RequestBuilder</span><span class="op">|</span> {
                         <span class="comment">// Override the `sent_at` timestamp. Since the event went through basic</span>
                         <span class="comment">// normalization, all timestamps have been corrected. We propagate the new</span>
                         <span class="comment">// `sent_at` to allow the next Relay to double-check this timestamp and</span>
@@ -3387,26 +3389,28 @@
                         <span class="kw">let</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>();
 
                         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">origin</span>) <span class="op">=</span> <span class="ident">meta</span>.<span class="ident">origin</span>() {
-                            <span class="ident">builder</span>.<span class="ident">header</span>(<span class="string">&quot;Origin&quot;</span>, <span class="ident">origin</span>.<span class="ident">to_string</span>());
+                            <span class="ident">builder</span>.<span class="ident">header</span>(<span class="string">&quot;Origin&quot;</span>, <span class="ident">origin</span>.<span class="ident">as_str</span>());
                         }
 
                         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">user_agent</span>) <span class="op">=</span> <span class="ident">meta</span>.<span class="ident">user_agent</span>() {
                             <span class="ident">builder</span>.<span class="ident">header</span>(<span class="string">&quot;User-Agent&quot;</span>, <span class="ident">user_agent</span>);
                         }
 
-                        <span class="kw">let</span> <span class="ident">content_encoding</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">http_encoding</span> {
-                            <span class="ident">HttpEncoding</span>::<span class="ident">Identity</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ContentEncoding</span>::<span class="ident">Identity</span>,
-                            <span class="ident">HttpEncoding</span>::<span class="ident">Deflate</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ContentEncoding</span>::<span class="ident">Deflate</span>,
-                            <span class="ident">HttpEncoding</span>::<span class="ident">Gzip</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ContentEncoding</span>::<span class="ident">Gzip</span>,
-                            <span class="ident">HttpEncoding</span>::<span class="ident">Br</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ContentEncoding</span>::<span class="ident">Br</span>,
-                        };
-
                         <span class="ident">builder</span>
-                            .<span class="ident">content_encoding</span>(<span class="ident">content_encoding</span>)
+                            .<span class="ident">content_encoding</span>(<span class="ident">http_encoding</span>)
                             .<span class="ident">header</span>(<span class="string">&quot;X-Sentry-Auth&quot;</span>, <span class="ident">meta</span>.<span class="ident">auth_header</span>())
                             .<span class="ident">header</span>(<span class="string">&quot;X-Forwarded-For&quot;</span>, <span class="ident">meta</span>.<span class="ident">forwarded_for</span>())
-                            .<span class="ident">header</span>(<span class="string">&quot;Content-Type&quot;</span>, <span class="ident">envelope</span>::<span class="ident">CONTENT_TYPE</span>)
-                            .<span class="ident">body</span>(<span class="ident">envelope</span>.<span class="ident">to_vec</span>().<span class="ident">map_err</span>(<span class="ident">failure</span>::<span class="ident">Error</span>::<span class="ident">from</span>)<span class="question-mark">?</span>)
+                            .<span class="ident">header</span>(<span class="string">&quot;Content-Type&quot;</span>, <span class="ident">envelope</span>::<span class="ident">CONTENT_TYPE</span>);
+
+                        <span class="ident">builder</span>
+                            .<span class="ident">body</span>(
+                                <span class="ident">envelope</span>
+                                    .<span class="ident">to_vec</span>()
+                                    .<span class="ident">map_err</span>(<span class="ident">failure</span>::<span class="ident">Error</span>::<span class="ident">from</span>)
+                                    .<span class="ident">map_err</span>(<span class="ident">actix_web</span>::<span class="ident">Error</span>::<span class="ident">from</span>)<span class="question-mark">?</span>
+                                    .<span class="ident">into</span>(),
+                            )
+                            .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">from</span>)
                     },
                 );
 
