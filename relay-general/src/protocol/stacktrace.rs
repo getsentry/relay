@@ -126,9 +126,8 @@ pub struct Frame {
     /// then symbolication can take place.
     pub instruction_addr: Annotated<Addr>,
 
-    /// When provided switches `instruction_addr` to be relative within
-    /// a specific image.
-    pub in_image: Annotated<DebugId>,
+    /// Defines the addressing mode for addresses.
+    pub addr_mode: Annotated<String>,
 
     /// (C/C++/Native) Start address of the frame's function.
     ///
@@ -365,7 +364,7 @@ fn test_frame_roundtrip() {
   },
   "image_addr": "0x400",
   "instruction_addr": "0x404",
-  "in_image": "f3283016-637c-463b-8b3e-46eda376c9dd",
+  "addr_mode": "abs",
   "symbol_addr": "0x404",
   "trust": "69",
   "lang": "rust",
@@ -400,9 +399,7 @@ fn test_frame_roundtrip() {
         }),
         image_addr: Annotated::new(Addr(0x400)),
         instruction_addr: Annotated::new(Addr(0x404)),
-        in_image: Annotated::new(DebugId(
-            "f3283016-637c-463b-8b3e-46eda376c9dd".parse().unwrap(),
-        )),
+        addr_mode: Annotated::new("abs".into()),
         symbol_addr: Annotated::new(Addr(0x404)),
         trust: Annotated::new("69".into()),
         lang: Annotated::new("rust".into()),
