@@ -229,6 +229,10 @@ pub enum DiscardReason {
     /// [Relay] Symbolic failed to extract an Unreal Crash report from a request sent to the
     /// Unreal endpoint
     ProcessUnreal,
+
+    /// [Relay] The envelope, which contained only a transaction, was discarded by the
+    /// dynamic sampling rules.
+    TransactionSampled,
 }
 
 impl DiscardReason {
@@ -261,6 +265,7 @@ impl DiscardReason {
             DiscardReason::DuplicateItem => "duplicate_item",
             DiscardReason::NoEventPayload => "no_event_payload",
             DiscardReason::Internal => "internal",
+            DiscardReason::TransactionSampled => "transaction_sampled",
         }
     }
 }
@@ -427,6 +432,7 @@ mod processing {
                 counter(RelayCounters::Outcomes) += 1,
                 reason = message.reason.as_deref().unwrap_or(""),
                 outcome = message.tag_name(),
+                to = "kafka",
             );
 
             // At the moment, we support outcomes with optional EventId.
@@ -455,6 +461,13 @@ mod processing {
                     return Ok(());
                 }
             };
+
+            metric!(
+                counter(RelayCounters::Outcomes) += 1,
+                reason = message.reason.as_deref().unwrap_or(""),
+                outcome = message.tag_name(),
+                to = "http",
+            );
 
             producer.do_send(message);
 

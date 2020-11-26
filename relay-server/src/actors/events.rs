@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
-use actix_web::http::ContentEncoding;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use futures::prelude::*;
@@ -13,7 +12,7 @@ use parking_lot::RwLock;
 use serde_json::Value as SerdeValue;
 
 use relay_common::{clone, metric, LogError, ProjectId};
-use relay_config::{Config, HttpEncoding, RelayMode};
+use relay_config::{Config, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
@@ -32,6 +31,7 @@ use crate::actors::project::{
 use crate::actors::project_cache::ProjectError;
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::http::RequestBuilder;
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, FutureExt};
@@ -126,6 +126,9 @@ enum ProcessingError {
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
+
+    #[fail(display = "envelope empty, transaction removed by sampling")]
+    TransactionSampled,
 }
 
 impl ProcessingError {
@@ -162,6 +165,9 @@ impl ProcessingError {
             Self::StoreFailed(_) | Self::QuotasFailed(_) => {
                 Some(Outcome::Invalid(DiscardReason::Internal))
             }
+
+            // Dynamic sampling (not an error, just discarding messages that were removed by sampling)
+            Self::TransactionSampled => Some(Outcome::Invalid(DiscardReason::TransactionSampled)),
 
             // If we send to an upstream, we don't emit outcomes.
             Self::SendFailed(_) => None,
@@ -1330,6 +1336,7 @@ impl Actor for EventManager {
 pub struct QueueEnvelope {
     pub envelope: Envelope,
     pub project: Addr<Project>,
+    pub sampling_project: Option<Addr<Project>>,
     pub start_time: Instant,
 }
 
@@ -1367,6 +1374,7 @@ impl Handler<QueueEnvelope> for EventManager {
             self.current_active_events += 1;
             context.notify(HandleEnvelope {
                 envelope: event_envelope,
+                sampling_project: message.sampling_project.clone(),
                 project: message.project.clone(),
                 start_time: message.start_time,
             });
@@ -1375,6 +1383,7 @@ impl Handler<QueueEnvelope> for EventManager {
         self.current_active_events += 1;
         context.notify(HandleEnvelope {
             envelope: message.envelope,
+            sampling_project: message.sampling_project,
             project: message.project,
             start_time: message.start_time,
         });
@@ -1391,6 +1400,7 @@ impl Handler<QueueEnvelope> for EventManager {
 struct HandleEnvelope {
     pub envelope: Envelope,
     pub project: Addr<Project>,
+    pub sampling_project: Option<Addr<Project>>,
     pub start_time: Instant,
 }
 
@@ -1401,7 +1411,7 @@ impl Message for HandleEnvelope {
 impl Handler<HandleEnvelope> for EventManager {
     type Result = ResponseActFuture<Self, (), ()>;
 
-    fn handle(&mut self, message: HandleEnvelope, _context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: HandleEnvelope, _ctx: &mut Self::Context) -> Self::Result {
         // We measure three timers while handling events, once they have been initially accepted:
         //
         // 1. `event.wait_time`: The time we take to get all dependencies for events before
@@ -1432,13 +1442,14 @@ impl Handler<HandleEnvelope> for EventManager {
             envelope,
             project,
             start_time,
+            sampling_project,
         } = message;
 
         let event_id = envelope.event_id();
         let remote_addr = envelope.meta().client_addr();
 
         // Compute whether this envelope contains an event. This is used in error handling to
-        // appropriately emit an outecome. Envelopes not containing events (such as standalone
+        // appropriately emit an outcome. Envelopes not containing events (such as standalone
         // attachment uploads or user reports) should never create outcomes.
         let is_event = envelope.items().any(Item::creates_event);
 
@@ -1461,7 +1472,19 @@ impl Handler<HandleEnvelope> for EventManager {
                     None => Err(ProcessingError::RateLimited(checked.rate_limits)),
                 }
             }))
+            .and_then(|envelope| {
+                utils::sample_transaction(envelope, sampling_project, false)
+                    .map_err(|()| (ProcessingError::TransactionSampled))
+            })
+            .and_then(|envelope| {
+                if envelope.is_empty() {
+                    Err(ProcessingError::TransactionSampled)
+                } else {
+                    Ok(envelope)
+                }
+            })
             .and_then(clone!(project, |envelope| {
+                // get the state for the current project
                 project
                     .send(GetProjectState)
                     .map_err(ProcessingError::ScheduleFailed)
@@ -1529,7 +1552,7 @@ impl Handler<HandleEnvelope> for EventManager {
                 log::trace!("sending event to sentry endpoint");
                 let project_id = scoping.borrow().project_id;
                 let request = SendRequest::post(format!("/api/{}/envelope/", project_id)).build(
-                    move |builder| {
+                    move |mut builder: RequestBuilder| {
                         // Override the `sent_at` timestamp. Since the event went through basic
                         // normalization, all timestamps have been corrected. We propagate the new
                         // `sent_at` to allow the next Relay to double-check this timestamp and
@@ -1540,26 +1563,28 @@ impl Handler<HandleEnvelope> for EventManager {
                         let meta = envelope.meta();
 
                         if let Some(origin) = meta.origin() {
-                            builder.header("Origin", origin.to_string());
+                            builder.header("Origin", origin.as_str());
                         }
 
                         if let Some(user_agent) = meta.user_agent() {
                             builder.header("User-Agent", user_agent);
                         }
 
-                        let content_encoding = match http_encoding {
-                            HttpEncoding::Identity => ContentEncoding::Identity,
-                            HttpEncoding::Deflate => ContentEncoding::Deflate,
-                            HttpEncoding::Gzip => ContentEncoding::Gzip,
-                            HttpEncoding::Br => ContentEncoding::Br,
-                        };
-
                         builder
-                            .content_encoding(content_encoding)
+                            .content_encoding(http_encoding)
                             .header("X-Sentry-Auth", meta.auth_header())
                             .header("X-Forwarded-For", meta.forwarded_for())
-                            .header("Content-Type", envelope::CONTENT_TYPE)
-                            .body(envelope.to_vec().map_err(failure::Error::from)?)
+                            .header("Content-Type", envelope::CONTENT_TYPE);
+
+                        builder
+                            .body(
+                                envelope
+                                    .to_vec()
+                                    .map_err(failure::Error::from)
+                                    .map_err(actix_web::Error::from)?
+                                    .into(),
+                            )
+                            .map_err(UpstreamRequestError::from)
                     },
                 );
 

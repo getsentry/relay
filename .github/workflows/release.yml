@@ -16,11 +16,11 @@ on:
   schedule:
     # We want the release to be at 9-10am Pacific Time
     # We also want it to be 1 hour before the on-prem release
-    - cron: '0 17 15 * *'
+    - cron: "0 17 15 * *"
 jobs:
   release:
     runs-on: ubuntu-latest
-    name: 'Release a new version'
+    name: "Release a new version"
     steps:
       - id: killswitch
         name: Check release blockers
@@ -59,7 +59,6 @@ jobs:
           version: ${{ env.RELEASE_VERSION }}
         env:
           DRY_RUN: ${{ github.event.inputs.dry_run }}
-          ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
       # Wait until the builds start. Craft should do this automatically
       # but it is broken now.
       - run: sleep 10
@@ -71,7 +70,6 @@ jobs:
         env:
           DRY_RUN: ${{ github.event.inputs.dry_run }}
           GITHUB_API_TOKEN: ${{ secrets.GH_SENTRY_BOT_PAT }}
-          ZEUS_API_TOKEN: ${{ secrets.ZEUS_API_TOKEN }}
           CRAFT_GCS_TARGET_CREDS_JSON: ${{ secrets.CRAFT_GCS_TARGET_CREDS_JSON }}
-          DOCKER_USERNAME: 'sentrybuilder'
+          DOCKER_USERNAME: "sentrybuilder"
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}

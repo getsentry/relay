@@ -4,18 +4,21 @@
 //! (`X-Forwarded-For` and `Sentry-Relay-Id`). The response is then streamed back to the origin.
 
 use ::actix::prelude::*;
-use actix_web::client::ClientRequest;
-use actix_web::http::{header, header::HeaderName, uri::PathAndQuery, ContentEncoding};
+use actix_web::error::ResponseError;
+use actix_web::http::{header, header::HeaderName, uri::PathAndQuery, ContentEncoding, StatusCode};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
+use failure::Fail;
 use futures::prelude::*;
 use lazy_static::lazy_static;
 
-use relay_common::GlobMatcher;
+use relay_common::{GlobMatcher, LogError};
 use relay_config::Config;
 
+use crate::actors::upstream::{SendRequest, UpstreamRequestError};
 use crate::body::ForwardBody;
 use crate::endpoints::statics;
 use crate::extractors::ForwardedFor;
+use crate::http::{HttpError, RequestBuilder, Response};
 use crate::service::{ServiceApp, ServiceState};
 
 /// Headers that this endpoint must handle and cannot forward.
@@ -30,13 +33,58 @@ static HOP_BY_HOP_HEADERS: &[HeaderName] = &[
 ];
 
 /// Headers ignored in addition to the headers defined in `HOP_BY_HOP_HEADERS`.
-static IGNORED_REQUEST_HEADERS: &[HeaderName] = &[header::CONTENT_ENCODING, header::CONTENT_LENGTH];
+static IGNORED_REQUEST_HEADERS: &[HeaderName] = &[
+    header::HOST,
+    header::CONTENT_ENCODING,
+    header::CONTENT_LENGTH,
+];
 
 /// Route classes with request body limit overrides.
 #[derive(Clone, Copy, Debug)]
 enum SpecialRoute {
     FileUpload,
     ChunkUpload,
+}
+
+/// A wrapper struct that allows conversion of UpstreamRequestError into a `dyn ResponseError`. The
+/// conversion logic is really only acceptable for blindly forwarded requests.
+#[derive(Fail, Debug)]
+#[fail(display = "error while forwarding request: {}", _0)]
+struct ForwardedUpstreamRequestError(#[cause] UpstreamRequestError);
+
+impl From<UpstreamRequestError> for ForwardedUpstreamRequestError {
+    fn from(e: UpstreamRequestError) -> Self {
+        ForwardedUpstreamRequestError(e)
+    }
+}
+
+impl ResponseError for ForwardedUpstreamRequestError {
+    fn error_response(&self) -> HttpResponse {
+        match &self.0 {
+            UpstreamRequestError::Http(e) => match e {
+                HttpError::Overflow => HttpResponse::PayloadTooLarge().finish(),
+                HttpError::Reqwest(error) => {
+                    log::error!("{}", LogError(error));
+                    HttpResponse::new(
+                        StatusCode::from_u16(error.status().map(|x| x.as_u16()).unwrap_or(500))
+                            .unwrap(),
+                    )
+                }
+                HttpError::Actix(e) => e.as_response_error().error_response(),
+                HttpError::Io(_) => HttpResponse::BadGateway().finish(),
+                HttpError::ActixPayload(e) => e.error_response(),
+                HttpError::ActixJson(e) => e.error_response(),
+            },
+            e => {
+                // should all be unreachable
+                log::error!(
+                    "supposedly unreachable codepath for forward endpoint: {}",
+                    LogError(e)
+                );
+                HttpResponse::InternalServerError().finish()
+            }
+        }
+    }
 }
 
 lazy_static! {
@@ -70,47 +118,77 @@ pub fn forward_upstream(
     request: &HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, Error> {
     let config = request.state().config();
-    let upstream = config.upstream_descriptor();
+    let max_response_size = config.max_api_payload_size();
+    let upstream_relay = request.state().upstream_relay();
     let limit = get_limit_for_path(request.path(), &config);
 
     let path_and_query = request
         .uri()
         .path_and_query()
         .map(PathAndQuery::as_str)
-        .unwrap_or("");
+        .unwrap_or("")
+        .to_owned();
 
-    let mut forwarded_request_builder = ClientRequest::build();
-    for (key, value) in request.headers() {
-        // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
-        // must not forward the content-encoding header, as the actix http client will do its own
-        // content encoding. Also remove content-length because it's likely wrong.
-        if HOP_BY_HOP_HEADERS.contains(key) || IGNORED_REQUEST_HEADERS.contains(key) {
-            continue;
-        }
-        forwarded_request_builder.header(key.clone(), value.clone());
-    }
-
-    let host_header = config.http_host_header().unwrap_or_else(|| upstream.host());
-    forwarded_request_builder
-        .no_default_headers()
-        .disable_decompress()
-        .method(request.method().clone())
-        .uri(upstream.get_url(path_and_query))
-        .set_header("Host", host_header)
-        .set_header("X-Forwarded-For", ForwardedFor::from(request));
+    let method = request.method().clone();
+    let headers = request.headers().clone();
+    let forwarded_for = ForwardedFor::from(request);
 
     ForwardBody::new(request, limit)
         .map_err(Error::from)
-        .and_then(move |data| forwarded_request_builder.body(data).map_err(Error::from))
-        .and_then(move |request| {
-            request
-                .send()
-                .conn_timeout(config.http_connection_timeout())
-                .timeout(config.http_timeout())
-                .map_err(Error::from)
+        .and_then(move |data| {
+            let forward_request = SendRequest::new(method, path_and_query)
+                .retry(false)
+                .update_rate_limits(false)
+                .set_relay_id(false)
+                .build(move |mut builder: RequestBuilder| {
+                    for (key, value) in &headers {
+                        // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
+                        // must not forward the content-encoding header, as the actix http client will do its own
+                        // content encoding. Also remove content-length because it's likely wrong.
+                        if HOP_BY_HOP_HEADERS.iter().any(|x| x == key)
+                            || IGNORED_REQUEST_HEADERS.iter().any(|x| x == key)
+                        {
+                            continue;
+                        }
+
+                        builder.header(key, value);
+                    }
+
+                    // actix-web specific workarounds. We don't remember why no_default_headers was
+                    // necessary, but we suspect that actix sends out headers twice instead of
+                    // having them be overridden (user-agent?)
+                    //
+                    // Need for disabling decompression is demonstrated by the
+                    // `test_forwarding_content_encoding` integration test.
+                    if let RequestBuilder::Actix(ref mut builder) = builder {
+                        builder.no_default_headers();
+                        builder.disable_decompress();
+                    }
+
+                    builder.header("X-Forwarded-For", forwarded_for.as_ref());
+
+                    builder
+                        .body(data.clone().into())
+                        .map_err(UpstreamRequestError::Http)
+                })
+                .transform(move |response: Response| {
+                    let status = response.status();
+                    let headers = response.clone_headers();
+                    response
+                        .bytes(max_response_size)
+                        .and_then(move |body| Ok((status, headers, body)))
+                        .map_err(UpstreamRequestError::Http)
+                });
+
+            upstream_relay.send(forward_request).map_err(|_| {
+                Error::from(ForwardedUpstreamRequestError(
+                    UpstreamRequestError::ChannelClosed,
+                ))
+            })
         })
-        .and_then(move |response| {
-            let mut forwarded_response = HttpResponse::build(response.status());
+        .and_then(move |result: Result<_, UpstreamRequestError>| {
+            let (status, headers, body) = result.map_err(ForwardedUpstreamRequestError::from)?;
+            let mut forwarded_response = HttpResponse::build(status);
 
             // For the response body we're able to disable all automatic decompression and
             // compression done by actix-web or actix' http client.
@@ -119,16 +197,23 @@ pub fn forward_upstream(
             // 1. Set content-encoding to identity such that actix-web will not to compress again
             forwarded_response.content_encoding(ContentEncoding::Identity);
 
-            for (key, value) in response.headers() {
+            let mut has_content_type = false;
+
+            for (key, value) in headers {
+                if key == "content-type" {
+                    has_content_type = true;
+                }
+
                 // 2. Just pass content-length, content-encoding etc through
-                if HOP_BY_HOP_HEADERS.contains(key) {
+                if HOP_BY_HOP_HEADERS.iter().any(|x| key.as_str() == x) {
                     continue;
                 }
-                forwarded_response.header(key.clone(), value.clone());
+
+                forwarded_response.header(&key, &*value);
             }
 
-            Ok(if response.headers().get(header::CONTENT_TYPE).is_some() {
-                forwarded_response.streaming(response.payload())
+            Ok(if has_content_type {
+                forwarded_response.body(body)
             } else {
                 forwarded_response.finish()
             })

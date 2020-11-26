@@ -254,6 +254,7 @@ mod constants;
 mod endpoints;
 mod envelope;
 mod extractors;
+mod http;
 mod metrics;
 mod middlewares;
 mod service;
