@@ -4,7 +4,7 @@ use std::time::Instant;
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
 use futures::{future::Shared, sync::oneshot, Future};
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use smallvec::SmallVec;
 use url::Url;
@@ -134,7 +134,6 @@ pub struct LimitedProjectState {
     pub project_id: Option<ProjectId>,
     pub last_change: Option<DateTime<Utc>>,
     pub disabled: bool,
-    #[serde(with = "limited_public_key_configs")]
     pub public_keys: SmallVec<[PublicKeyConfig; 1]>,
     pub slug: Option<String>,
     #[serde(with = "LimitedProjectConfig")]
@@ -367,35 +366,6 @@ pub struct PublicKeyConfig {
     /// The primary key of the DSN in Sentry's main database.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub numeric_id: Option<u64>,
-}
-
-mod limited_public_key_configs {
-    use super::*;
-    use serde::ser::SerializeSeq;
-
-    /// Represents a public key received from the projectconfig endpoint.
-    #[derive(Debug, Serialize)]
-    #[serde(rename_all = "camelCase", remote = "PublicKeyConfig")]
-    pub struct LimitedPublicKeyConfig {
-        pub public_key: ProjectKey,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        pub numeric_id: Option<u64>,
-    }
-
-    /// Serializes a list of `PublicKeyConfig` objects using `LimitedPublicKeyConfig`.
-    pub fn serialize<S>(keys: &[PublicKeyConfig], serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        #[derive(Serialize)]
-        struct Wrapper<'a>(#[serde(with = "LimitedPublicKeyConfig")] &'a PublicKeyConfig);
-
-        let mut seq = serializer.serialize_seq(Some(keys.len()))?;
-        for key in keys {
-            seq.serialize_element(&Wrapper(key))?;
-        }
-        seq.end()
-    }
 }
 
 /// Actor representing organization and project configuration for a project key.
