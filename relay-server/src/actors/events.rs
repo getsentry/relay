@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
-use actix_web::http::ContentEncoding;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use futures::prelude::*;
@@ -13,7 +12,7 @@ use parking_lot::RwLock;
 use serde_json::Value as SerdeValue;
 
 use relay_common::{clone, metric, LogError, ProjectId};
-use relay_config::{Config, HttpEncoding, RelayMode};
+use relay_config::{Config, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
@@ -32,6 +31,7 @@ use crate::actors::project::{
 use crate::actors::project_cache::ProjectError;
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::http::RequestBuilder;
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, FutureExt};
@@ -1529,7 +1529,7 @@ impl Handler<HandleEnvelope> for EventManager {
                 log::trace!("sending event to sentry endpoint");
                 let project_id = scoping.borrow().project_id;
                 let request = SendRequest::post(format!("/api/{}/envelope/", project_id)).build(
-                    move |builder| {
+                    move |mut builder: RequestBuilder| {
                         // Override the `sent_at` timestamp. Since the event went through basic
                         // normalization, all timestamps have been corrected. We propagate the new
                         // `sent_at` to allow the next Relay to double-check this timestamp and
@@ -1540,26 +1540,28 @@ impl Handler<HandleEnvelope> for EventManager {
                         let meta = envelope.meta();
 
                         if let Some(origin) = meta.origin() {
-                            builder.header("Origin", origin.to_string());
+                            builder.header("Origin", origin.as_str());
                         }
 
                         if let Some(user_agent) = meta.user_agent() {
                             builder.header("User-Agent", user_agent);
                         }
 
-                        let content_encoding = match http_encoding {
-                            HttpEncoding::Identity => ContentEncoding::Identity,
-                            HttpEncoding::Deflate => ContentEncoding::Deflate,
-                            HttpEncoding::Gzip => ContentEncoding::Gzip,
-                            HttpEncoding::Br => ContentEncoding::Br,
-                        };
-
                         builder
-                            .content_encoding(content_encoding)
+                            .content_encoding(http_encoding)
                             .header("X-Sentry-Auth", meta.auth_header())
                             .header("X-Forwarded-For", meta.forwarded_for())
-                            .header("Content-Type", envelope::CONTENT_TYPE)
-                            .body(envelope.to_vec().map_err(failure::Error::from)?)
+                            .header("Content-Type", envelope::CONTENT_TYPE);
+
+                        builder
+                            .body(
+                                envelope
+                                    .to_vec()
+                                    .map_err(failure::Error::from)
+                                    .map_err(actix_web::Error::from)?
+                                    .into(),
+                            )
+                            .map_err(UpstreamRequestError::from)
                     },
                 );
 
