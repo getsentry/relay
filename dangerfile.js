@@ -1,11 +1,17 @@
-const prNumber = danger.github.pr.number;
-const prUrl = danger.github.pr.html_url;
-const prLink = `[#${prNumber}](${prUrl})`;
+const PR_NUMBER = danger.github.pr.number;
+const PR_URL = danger.github.pr.html_url;
+const PR_LINK = `[#${PR_NUMBER}](${PR_URL})`;
 
-const ERROR_MESSAGE =
-  "Please consider adding a changelog entry for the next release.";
+function getCleanTitle() {
+  const title = danger.github.pr.title;
+  return title.split(": ").slice(-1)[0].trim().replace(/\.+$/, "");
+}
 
-const DETAILS = `
+function getChangelogDetails() {
+  return `
+<details>
+<summary><b>Instructions and example for changelog</b></summary>
+
 For changes exposed to the _Python package_, please add an entry to \`py/CHANGELOG.md\`. This includes, but is not limited to event normalization, PII scrubbing, and the protocol.
 
 For changes to the _Relay server_, please add an entry to \`CHANGELOG.md\` under the following heading:
@@ -16,23 +22,21 @@ For changes to the _Relay server_, please add an entry to \`CHANGELOG.md\` under
 To the changelog entry, please add a link to this PR (consider a more descriptive message):
 
 \`\`\`md
-- ${getCleanTitle()}. (${prLink})
+- ${getCleanTitle()}. (${PR_LINK})
 \`\`\`
 
 If none of the above apply, you can opt out by adding _#skip-changelog_ to the PR description.
+
+</details>
 `;
-
-function getCleanTitle() {
-  const title = danger.github.pr.title;
-  return title.split(": ").slice(-1)[0].trim().replace(/\.+$/, "");
 }
 
-async function checkChangelog(path) {
+async function containsChangelog(path) {
   const contents = await danger.github.utils.fileContents(path);
-  return contents.includes(prLink);
+  return contents.includes(PR_LINK);
 }
 
-schedule(async () => {
+async function checkChangelog() {
   const skipChangelog =
     danger.github && (danger.github.pr.body + "").includes("#skip-changelog");
 
@@ -41,11 +45,24 @@ schedule(async () => {
   }
 
   const hasChangelog =
-    (await checkChangelog("CHANGELOG.md")) ||
-    (await checkChangelog("py/CHANGELOG.md"));
+    (await containsChangelog("CHANGELOG.md")) ||
+    (await containsChangelog("py/CHANGELOG.md"));
 
   if (!hasChangelog) {
-    fail(ERROR_MESSAGE);
-    markdown(DETAILS);
+    fail("Please consider adding a changelog entry for the next release.");
+    markdown(getChangelogDetails());
   }
-});
+}
+
+async function checkAll() {
+  // See: https://spectrum.chat/danger/javascript/support-for-github-draft-prs~82948576-ce84-40e7-a043-7675e5bf5690
+  const isDraft = danger.github.pr.mergeable_state === "draft";
+
+  if (isDraft) {
+    return;
+  }
+
+  await checkChangelog();
+}
+
+schedule(checkAll);

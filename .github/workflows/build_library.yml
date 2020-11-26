@@ -25,16 +25,10 @@ jobs:
         env:
           BUILD_ARCH: ${{ matrix.build-arch }}
 
-      - uses: actions/setup-node@v1
-
-      - name: Upload to Zeus
-        env:
-          ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
-        run: |
-          npm install -D @zeus-ci/cli
-          npx zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip+wheel" py/dist/*
-          npx zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.sha }}
+          path: py/dist/*
 
   macos:
     name: Python macOS
@@ -61,16 +55,10 @@ jobs:
           python setup.py bdist_wheel
         working-directory: py
 
-      - uses: actions/setup-node@v1
-
-      - name: Upload to Zeus
-        env:
-          ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
-        run: |
-          npm install -D @zeus-ci/cli
-          npx zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip+wheel" py/dist/*
-          npx zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.sha }}
+          path: py/dist/*
 
   sdist:
     name: Python sdist
@@ -89,13 +77,7 @@ jobs:
         run: python setup.py sdist --format=zip
         working-directory: py
 
-      - uses: actions/setup-node@v1
-
-      - name: Upload to Zeus
-        env:
-          ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
-        run: |
-          npm install -D @zeus-ci/cli
-          npx zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip+wheel" py/dist/*
-          npx zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.sha }}
+          path: py/dist/*

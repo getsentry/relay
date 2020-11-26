@@ -290,6 +290,8 @@ pub enum RelayCounters {
     ///  - `outcome`: The basic cause for rejecting the event.
     ///  - `reason`: A more detailed identifier describing the rule or mechanism leading to the
     ///    outcome.
+    ///  - `to`: Describes the destination of the outcome. Can be either 'kafka' (when in
+    ///    processing mode) or 'http' (when outcomes are enabled in an external relay).
     ///
     /// Possible outcomes are:
     ///  - `filtered`: Dropped by inbound data filters. The reason specifies the filter that

@@ -1,10 +1,13 @@
 ---
-minVersion: "0.11.1"
+minVersion: "0.13.2"
 github:
   owner: getsentry
   repo: relay
 changelogPolicy: auto
+
 statusProvider:
+  name: github
+artifactProvider:
   name: github
 
 preReleaseCommand: ../scripts/bump-library.sh

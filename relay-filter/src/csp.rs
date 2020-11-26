@@ -125,8 +125,8 @@ pub fn matches_any_origin(url: Option<&str>, origins: &[SchemeDomainPort]) -> bo
                 // no direct match for domain, look for  partial patterns (e.g. "*.domain.com")
                 if let (Some(origin_domain), Some(domain)) = (&origin.domain, &url.domain) {
                     if origin_domain.starts_with('*')
-                        && ((*domain).ends_with(&origin_domain[1..])
-                            || domain.as_str() == &origin_domain[2..])
+                        && ((*domain).ends_with(origin_domain.get(1..).unwrap_or(""))
+                            || domain.as_str() == origin_domain.get(2..).unwrap_or(""))
                     {
                         return true; // partial domain pattern match
                     }
@@ -197,6 +197,7 @@ mod tests {
                 Some("x.y.z"),
                 Some("4000"),
             ),
+            ("http://", Some("http"), Some(""), None),
         ];
 
         for (url, scheme, domain, port) in examples {
@@ -268,6 +269,8 @@ mod tests {
                 vec!["http://abc13.com:8080", "bbc.com"],
                 false,
             ),
+            // this used to crash
+            ("http://y:80", vec!["http://x"], false),
         ];
 
         for (url, origins, expected) in examples {

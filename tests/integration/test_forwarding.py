@@ -40,9 +40,16 @@ def test_forwarding_content_encoding(
     else:
         payload = data
 
-    response = relay.post("/api/test/reflect", data=payload, headers=headers)
+    response = relay.post(
+        "/api/test/reflect", data=payload, headers=headers, stream=True
+    )
     response.raise_for_status()
-    assert response.content == data
+    if compress_response:
+        assert response.headers["content-encoding"] == "gzip"
+        assert gzip.decompress(response.raw.read()) == data
+    else:
+        assert response.headers.get("content-encoding", "identity") == "identity"
+        assert response.raw.read() == data
 
 
 def test_forwarding_routes(mini_sentry, relay):

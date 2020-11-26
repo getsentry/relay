@@ -22,19 +22,15 @@ jobs:
           RELAY_FEATURES: ssl
 
       - name: Bundle Debug File
-        run: zip -r relay-debug.zip target/x86_64-unknown-linux-gnu/release/relay.debug
-
-      - uses: actions/setup-node@v1
-
-      - name: Upload to Zeus
-        env:
-          ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
         run: |
-          npm install -D @zeus-ci/cli
-          npx zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/octet-stream" -n relay-Linux-x86_64 target/x86_64-unknown-linux-gnu/release/relay
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip" -n relay-Linux-x86_64-debug.zip relay-debug.zip
-          npx zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+          cd target/x86_64-unknown-linux-gnu/release/
+          zip relay-Linux-x86_64-debug.zip relay.debug
+          mv relay relay-Linux-x86_64
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.sha }}
+          path: target/x86_64-unknown-linux-gnu/release/relay-Linux-x86_64*
 
   macos:
     name: macOS
@@ -58,19 +54,15 @@ jobs:
           args: --manifest-path=relay/Cargo.toml --release --features ssl
 
       - name: Bundle dSYM
-        run: zip -r relay-dsym.zip target/release/relay.dSYM
-
-      - uses: actions/setup-node@v1
-
-      - name: Upload to Zeus
-        env:
-          ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
         run: |
-          npm install -D @zeus-ci/cli
-          npx zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/octet-stream" -n relay-Darwin-x86_64 target/release/relay
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip" -n relay-Darwin-x86_64-dsym.zip relay-dsym.zip
-          npx zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+          cd target/release
+          mv relay relay-Darwin-x86_64
+          zip -r relay-Darwin-x86_64-dsym.zip relay.dSYM
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.sha }}
+          path: target/release/relay-Darwin-x86_64*
 
   windows:
     name: Windows
@@ -96,16 +88,11 @@ jobs:
       - name: Bundle PDB
         run: |
           Install-Module 7Zip4PowerShell -Force -Verbose
-          7z a .\relay-pdb.zip .\target\release\relay.pdb
+          cd target/release
+          7z a relay-Windows-x86_64-pdb.zip relay.pdb
+          mv relay.exe relay-Windows-x86_64.exe
 
-      - uses: actions/setup-node@v1
-
-      - name: Upload to Zeus
-        env:
-          ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
-        run: |
-          npm install -D @zeus-ci/cli
-          npx zeus job update -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/octet-stream" -n relay-Windows-x86_64.exe target/release/relay.exe
-          npx zeus upload -b ${{ github.run_id }} -j ${{ github.job }} -t "application/zip" -n relay-Windows-x86_64-pdb.zip relay-pdb.zip
-          npx zeus job update --status=passed -b ${{ github.run_id }} -j ${{ github.job }} -r ${{ github.sha }}
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.sha }}
+          path: target/release/relay-Windows-x86_64*

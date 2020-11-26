@@ -427,6 +427,7 @@ mod processing {
                 counter(RelayCounters::Outcomes) += 1,
                 reason = message.reason.as_deref().unwrap_or(""),
                 outcome = message.tag_name(),
+                to = "kafka",
             );
 
             // At the moment, we support outcomes with optional EventId.
@@ -455,6 +456,13 @@ mod processing {
                     return Ok(());
                 }
             };
+
+            metric!(
+                counter(RelayCounters::Outcomes) += 1,
+                reason = message.reason.as_deref().unwrap_or(""),
+                outcome = message.tag_name(),
+                to = "http",
+            );
 
             producer.do_send(message);
 

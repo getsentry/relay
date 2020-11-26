@@ -6,6 +6,19 @@
 
 - Relay is now able to ingest pre-aggregated sessions, which will make it possible to efficiently handle applications that produce thousands of sessions per second. ([#815](https://github.com/getsentry/relay/pull/815))
 
+**Bug Fixes**:
+
+- Allow params in content-type for security requests to support content types like `"application/expect-ct-report+json; charset=utf-8"`. ([#844](https://github.com/getsentry/relay/pull/844))
+- Fix a panic in CSP filters. ([#848](https://github.com/getsentry/relay/pull/848))
+- Do not drop sessions due to an invalid age constraint set to `0`. ([#855](https://github.com/getsentry/relay/pull/855))
+
+**Internal**:
+
+- Add *experimental* support for picking up HTTP proxies from the regular environment variables. This feature needs to be enabled by setting `http: client: "reqwest"` in your `config.yml`. ([#839](https://github.com/getsentry/relay/pull/839))
+- Refactor transparent request forwarding for unknown endpoints. Requests are now entirely buffered in memory and occupy the same queues and actors as other requests. This should not cause issues but may change behavior under load. ([#839](https://github.com/getsentry/relay/pull/839))
+- Add reason codes to the `X-Sentry-Rate-Limits` header in store responses. This allows external Relays to emit outcomes with the proper reason codes. ([#850](https://github.com/getsentry/relay/pull/850))
+- Emit metrics for outcomes in external relays. ([#851](https://github.com/getsentry/relay/pull/851))
+
 ## 20.11.1
 
 - No documented changes.
