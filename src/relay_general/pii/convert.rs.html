@@ -1386,6 +1386,7 @@
 <span id="1383">1383</span>
 <span id="1384">1384</span>
 <span id="1385">1385</span>
+<span id="1386">1386</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
 
@@ -1408,6 +1409,7 @@
         | $frame.filename \
         | $frame.abs_path \
         | $logentry.formatted \
+        | $error.value \
     )&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>();
 }
 
@@ -1594,7 +1596,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             &quot;hashKey&quot;: null
           },
           &quot;applications&quot;: {
-            &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted)&quot;: [
+            &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
               &quot;@common:filter&quot;
             ],
             &quot;$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip&quot;: [
@@ -1619,7 +1621,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             &quot;hashKey&quot;: null
           },
           &quot;applications&quot;: {
-            &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted)&quot;: [
+            &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
               &quot;@common:filter&quot;
             ],
             &quot;$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip&quot;: [
@@ -1653,7 +1655,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             &quot;hashKey&quot;: null
           },
           &quot;applications&quot;: {
-            &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted)&quot;: [
+            &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
               &quot;@common:filter&quot;,
               &quot;strip-fields&quot;
             ],
@@ -1679,7 +1681,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             &quot;hashKey&quot;: null
           },
           &quot;applications&quot;: {
-            &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted) &amp;&amp; !foobar&quot;: [
+            &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) &amp;&amp; !foobar&quot;: [
               &quot;@common:filter&quot;
             ],
             &quot;$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip&quot;: [
@@ -2630,7 +2632,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             &quot;hashKey&quot;: null
           },
           &quot;applications&quot;: {
-            &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted)&quot;: [
+            &quot;($string || $number || $array) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
               &quot;@common:filter&quot;,
               &quot;strip-fields&quot;
             ],
