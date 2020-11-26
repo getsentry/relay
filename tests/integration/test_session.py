@@ -1,8 +1,43 @@
 from datetime import datetime, timedelta, timezone
+import json
 import pytest
 from requests.exceptions import HTTPError
 import six
 import uuid
+
+
+def test_sessions(mini_sentry, relay_chain):
+    relay = relay_chain()
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    timestamp = datetime.now(tz=timezone.utc)
+    started = timestamp - timedelta(hours=1)
+
+    session_payload = {
+        "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+        "did": "foobarbaz",
+        "seq": 42,
+        "init": True,
+        "timestamp": timestamp.isoformat(),
+        "started": started.isoformat(),
+        "duration": 1947.49,
+        "status": "exited",
+        "errors": 0,
+        "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
+    }
+
+    relay.send_session(project_id, session_payload)
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    assert len(envelope.items) == 1
+
+    session_item = envelope.items[0]
+    assert session_item.type == "session"
+
+    session = json.loads(session_item.get_bytes())
+    assert session == session_payload
 
 
 def test_session_with_processing(mini_sentry, relay_with_processing, sessions_consumer):
