@@ -8,7 +8,7 @@ use futures::prelude::*;
 use relay_config::{Config, RelayMode};
 
 use crate::actors::controller::{Controller, Shutdown};
-use crate::actors::upstream::{IsAuthenticated, UpstreamRelay};
+use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
 
 pub struct Healthcheck {
     is_shutting_down: bool,
@@ -59,6 +59,9 @@ impl Handler<IsHealthy> for Healthcheck {
     type Result = ResponseFuture<bool, ()>;
 
     fn handle(&mut self, message: IsHealthy, _context: &mut Self::Context) -> Self::Result {
+        if self.config.relay_mode() == RelayMode::Managed {
+            self.upstream.do_send(IsNetworkOutage);
+        }
         match message {
             IsHealthy::Liveness => Box::new(future::ok(true)),
             IsHealthy::Readiness => {

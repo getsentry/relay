@@ -25,6 +25,7 @@ use std::str;
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::metrics::RelayGauges;
 use ::actix::fut;
 use ::actix::prelude::*;
 use actix_web::client::{ClientRequest, SendRequestError};
@@ -968,6 +969,21 @@ impl Handler<IsAuthenticated> for UpstreamRelay {
 
     fn handle(&mut self, _msg: IsAuthenticated, _ctx: &mut Self::Context) -> Self::Result {
         self.auth_state.is_authenticated()
+    }
+}
+
+pub struct IsNetworkOutage;
+
+impl Message for IsNetworkOutage {
+    type Result = bool;
+}
+
+impl Handler<IsNetworkOutage> for UpstreamRelay {
+    type Result = bool;
+
+    fn handle(&mut self, _msg: IsNetworkOutage, _ctx: &mut Self::Context) -> Self::Result {
+        metric!(gauge(RelayGauges::NetworkOutage) = if self.is_network_outage() { 1 } else { 0 });
+        self.is_network_outage()
     }
 }
 
