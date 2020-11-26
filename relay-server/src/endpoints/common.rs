@@ -25,7 +25,7 @@ use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
 use crate::service::{ServiceApp, ServiceState};
-use crate::utils::{self, sample_transaction, ApiErrorResponse, FormDataIter, MultipartError};
+use crate::utils::{self, ApiErrorResponse, FormDataIter, MultipartError};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -477,9 +477,9 @@ where
                 .and_then(|(envelope, rate_limits, sampling_project)| {
                     // do the fast path transaction sampling (if we can't do it here
                     // we'll try again after the envelope is queued)
-                    let event_id: Option<EventId> = envelope.event_id();
+                    let event_id = envelope.event_id();
 
-                    sample_transaction(envelope, sampling_project.clone(), true).then(
+                    utils::sample_transaction(envelope, sampling_project.clone(), true).then(
                         move |result| match result {
                             Err(()) => Err(BadStoreRequest::TraceSampled(event_id)),
                             Ok(envelope) if envelope.is_empty() => {

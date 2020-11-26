@@ -1473,15 +1473,15 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
             }))
             .and_then(|envelope| {
-                utils::sample_transaction(envelope, sampling_project, false).then(|result| {
-                    match result {
-                        Err(()) => Err(ProcessingError::TransactionSampled),
-                        Ok(envelope) if envelope.is_empty() => {
-                            Err(ProcessingError::TransactionSampled)
-                        }
-                        Ok(envelope) => Ok(envelope),
-                    }
-                })
+                utils::sample_transaction(envelope, sampling_project, false)
+                    .map_err(|()| (ProcessingError::TransactionSampled))
+            })
+            .and_then(|envelope| {
+                if envelope.is_empty() {
+                    Err(ProcessingError::TransactionSampled)
+                } else {
+                    Ok(envelope)
+                }
             })
             .and_then(clone!(project, |envelope| {
                 // get the state for the current project
