@@ -585,6 +585,11 @@
 <span id="582">582</span>
 <span id="583">583</span>
 <span id="584">584</span>
+<span id="585">585</span>
+<span id="586">586</span>
+<span id="587">587</span>
+<span id="588">588</span>
+<span id="589">589</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::{<span class="ident">Deref</span>, <span class="ident">DerefMut</span>};
 
@@ -713,6 +718,9 @@
     <span class="doccomment">/// [Debug Meta Interface]({%- link _documentation/development/sdk-dev/event-payloads/debugmeta.md -%}),</span>
     <span class="doccomment">/// then symbolication can take place.</span>
     <span class="kw">pub</span> <span class="ident">instruction_addr</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Defines the addressing mode for addresses.</span>
+    <span class="kw">pub</span> <span class="ident">addr_mode</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// (C/C++/Native) Start address of the frame&#39;s function.</span>
     <span class="doccomment">///</span>
@@ -949,6 +957,7 @@
   },
   &quot;image_addr&quot;: &quot;0x400&quot;,
   &quot;instruction_addr&quot;: &quot;0x404&quot;,
+  &quot;addr_mode&quot;: &quot;abs&quot;,
   &quot;symbol_addr&quot;: &quot;0x404&quot;,
   &quot;trust&quot;: &quot;69&quot;,
   &quot;lang&quot;: &quot;rust&quot;,
@@ -983,6 +992,7 @@
         }),
         <span class="ident">image_addr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">0x400</span>)),
         <span class="ident">instruction_addr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">0x404</span>)),
+        <span class="ident">addr_mode</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;abs&quot;</span>.<span class="ident">into</span>()),
         <span class="ident">symbol_addr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">0x404</span>)),
         <span class="ident">trust</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;69&quot;</span>.<span class="ident">into</span>()),
         <span class="ident">lang</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;rust&quot;</span>.<span class="ident">into</span>()),

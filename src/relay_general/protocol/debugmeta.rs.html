@@ -1246,13 +1246,11 @@
     <span class="doccomment">/// Starting memory address of the image (required).</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Memory address, at which the image is mounted in the virtual address space of the process. Should be a string in hex representation prefixed with `&quot;0x&quot;`.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">image_addr</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// Size of the image in bytes (required).</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// The size of the image in virtual memory. If missing, Sentry will assume that the image spans up to the next image, which might lead to invalid stack traces.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">image_size</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// Loading address in virtual memory.</span>
@@ -1305,6 +1303,8 @@
     <span class="ident">Pe</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">NativeDebugImage</span><span class="op">&gt;</span>),
     <span class="doccomment">/// A reference to a proguard debug file.</span>
     <span class="ident">Proguard</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ProguardDebugImage</span><span class="op">&gt;</span>),
+    <span class="doccomment">/// WASM debug image.</span>
+    <span class="ident">Wasm</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">NativeDebugImage</span><span class="op">&gt;</span>),
     <span class="doccomment">/// A debug image that is unknown to this protocol specification.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">fallback_variant</span>)]</span>
     <span class="ident">Other</span>(<span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>),
