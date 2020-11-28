@@ -106,6 +106,7 @@ impl From<JsonPayloadError> for UpstreamRequestError {
 }
 
 impl UpstreamRequestError {
+    /// Returns `true` if the error indicates a network downtime.
     fn is_network_error(&self) -> bool {
         match self {
             Self::SendFailed(_) => true,
@@ -121,6 +122,9 @@ impl UpstreamRequestError {
         }
     }
 
+    /// Returns `true` if the upstream has permanently rejected this Relay.
+    ///
+    /// This Relay should cease communication with the upstream and may shut down.
     fn is_permanent_rejection(&self) -> bool {
         match self {
             Self::ResponseError(status_code, response) => {
@@ -128,6 +132,22 @@ impl UpstreamRequestError {
                     && response.relay_action() == RelayErrorAction::Stop
             }
             _ => false,
+        }
+    }
+
+    /// Returns `true` if the request was received by the upstream.
+    ///
+    /// Despite resulting in an error, the server has received and acknowledged the request. This
+    /// includes rate limits (status code 429), and bad payloads (4XX), but not network errors
+    /// (502-504).
+    pub fn is_received(&self) -> bool {
+        match self {
+            // Rate limits are a special case of `ResponseError(429, _)`.
+            Self::RateLimited(_) => true,
+            // Everything except network errors indicates the upstream has handled this request.
+            Self::ResponseError(_, _) | Self::Http(_) => !self.is_network_error(),
+            // Remaining kinds indicate a failure to send the request.
+            Self::NoCredentials | Self::SendFailed(_) | Self::ChannelClosed => false,
         }
     }
 }
