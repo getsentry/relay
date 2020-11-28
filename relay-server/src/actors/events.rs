@@ -8,7 +8,6 @@ use actix::prelude::*;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use futures::prelude::*;
-use parking_lot::RwLock;
 use serde_json::Value as SerdeValue;
 
 use relay_common::{clone, metric, LogError, ProjectId};
@@ -1241,7 +1240,8 @@ impl Handler<ProcessEnvelope> for EventProcessor {
     }
 }
 
-pub type CapturedEvent = Result<Envelope, String>;
+/// Either a captured envelope or an error that occured during processing.
+pub type CapturedEnvelope = Result<Envelope, String>;
 
 pub struct EventManager {
     config: Arc<Config>,
@@ -1249,7 +1249,7 @@ pub struct EventManager {
     processor: Addr<EventProcessor>,
     current_active_events: u32,
     outcome_producer: Addr<OutcomeProducer>,
-    captured_events: Arc<RwLock<BTreeMap<EventId, CapturedEvent>>>,
+    captures: BTreeMap<EventId, CapturedEnvelope>,
 
     #[cfg(feature = "processing")]
     store_forwarder: Option<Addr<StoreForwarder>>,
@@ -1307,7 +1307,7 @@ impl EventManager {
             upstream,
             processor,
             current_active_events: 0,
-            captured_events: Arc::default(),
+            captures: BTreeMap::new(),
 
             #[cfg(feature = "processing")]
             store_forwarder,
@@ -1431,7 +1431,6 @@ impl Handler<HandleEnvelope> for EventManager {
         let upstream = self.upstream.clone();
         let processor = self.processor.clone();
         let outcome_producer = self.outcome_producer.clone();
-        let captured_events = self.captured_events.clone();
         let capture = self.config.relay_mode() == RelayMode::Capture;
         let http_encoding = self.config.http_encoding();
 
@@ -1515,7 +1514,8 @@ impl Handler<HandleEnvelope> for EventManager {
                     None => Err(ProcessingError::RateLimited(rate_limits)),
                 }
             }))
-            .and_then(clone!(captured_events, scoping, |mut envelope| {
+            .into_actor(self)
+            .and_then(clone!(scoping, |mut envelope, slf, _| {
                 #[cfg(feature = "processing")]
                 {
                     if let Some(store_forwarder) = store_forwarder {
@@ -1527,9 +1527,10 @@ impl Handler<HandleEnvelope> for EventManager {
                                 scoping: *scoping.borrow(),
                             })
                             .map_err(ProcessingError::ScheduleFailed)
-                            .and_then(move |result| result.map_err(ProcessingError::StoreFailed));
+                            .and_then(move |result| result.map_err(ProcessingError::StoreFailed))
+                            .into_actor(slf);
 
-                        return Box::new(future) as ResponseFuture<_, _>;
+                        return Box::new(future) as ResponseActFuture<_, _, _>;
                     }
                 }
 
@@ -1540,13 +1541,11 @@ impl Handler<HandleEnvelope> for EventManager {
                     // event_id into account.
                     if let Some(event_id) = event_id {
                         log::debug!("capturing envelope");
-                        captured_events
-                            .write()
-                            .insert(event_id, CapturedEvent::Ok(envelope));
+                        slf.captures.insert(event_id, Ok(envelope));
                     } else {
                         log::debug!("dropping non event envelope");
                     }
-                    return Box::new(Ok(()).into_future()) as ResponseFuture<_, _>;
+                    return Box::new(fut::ok(())) as ResponseActFuture<_, _, _>;
                 }
 
                 log::trace!("sending event to sentry endpoint");
@@ -1600,11 +1599,11 @@ impl Handler<HandleEnvelope> for EventManager {
                             }
                             other => ProcessingError::SendFailed(other),
                         })
-                    });
+                    })
+                    .into_actor(slf);
 
-                Box::new(future) as ResponseFuture<_, _>
+                Box::new(future) as ResponseActFuture<_, _, _>
             }))
-            .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
             .map(|_, _, _| metric!(counter(RelayCounters::EnvelopeAccepted) += 1))
             .map_err(move |error, slf, _| {
@@ -1617,9 +1616,7 @@ impl Handler<HandleEnvelope> for EventManager {
                     if let Some(event_id) = event_id {
                         log::debug!("capturing failed event {}", event_id);
                         let msg = LogError(&error).to_string();
-                        slf.captured_events
-                            .write()
-                            .insert(event_id, CapturedEvent::Err(msg));
+                        slf.captures.insert(event_id, Err(msg));
                     } else {
                         log::debug!("dropping failed envelope without event");
                     }
@@ -1662,19 +1659,24 @@ impl Handler<HandleEnvelope> for EventManager {
     }
 }
 
-pub struct GetCapturedEvent {
+/// Resolves a [`CapturedEnvelope`] by the given `event_id`.
+pub struct GetCapturedEnvelope {
     pub event_id: EventId,
 }
 
-impl Message for GetCapturedEvent {
-    type Result = Option<CapturedEvent>;
+impl Message for GetCapturedEnvelope {
+    type Result = Option<CapturedEnvelope>;
 }
 
-impl Handler<GetCapturedEvent> for EventManager {
-    type Result = Option<CapturedEvent>;
+impl Handler<GetCapturedEnvelope> for EventManager {
+    type Result = Option<CapturedEnvelope>;
 
-    fn handle(&mut self, message: GetCapturedEvent, _context: &mut Self::Context) -> Self::Result {
-        self.captured_events.read().get(&message.event_id).cloned()
+    fn handle(
+        &mut self,
+        message: GetCapturedEnvelope,
+        _context: &mut Self::Context,
+    ) -> Self::Result {
+        self.captures.get(&message.event_id).cloned()
     }
 }
 
