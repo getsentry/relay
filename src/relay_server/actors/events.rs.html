@@ -1869,6 +1869,8 @@
 <span id="1866">1866</span>
 <span id="1867">1867</span>
 <span id="1868">1868</span>
+<span id="1869">1869</span>
+<span id="1870">1870</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -1880,7 +1882,6 @@
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Duration</span> <span class="kw">as</span> <span class="ident">SignedDuration</span>, <span class="ident">Utc</span>};
 <span class="kw">use</span> <span class="ident">failure</span>::<span class="ident">Fail</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">parking_lot</span>::<span class="ident">RwLock</span>;
 <span class="kw">use</span> <span class="ident">serde_json</span>::<span class="ident">Value</span> <span class="kw">as</span> <span class="ident">SerdeValue</span>;
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">clone</span>, <span class="ident">metric</span>, <span class="ident">LogError</span>, <span class="ident">ProjectId</span>};
@@ -3113,7 +3114,8 @@
     }
 }
 
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">CapturedEvent</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Envelope</span>, <span class="ident">String</span><span class="op">&gt;</span>;
+<span class="doccomment">/// Either a captured envelope or an error that occured during processing.</span>
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">CapturedEnvelope</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Envelope</span>, <span class="ident">String</span><span class="op">&gt;</span>;
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">EventManager</span> {
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
@@ -3121,7 +3123,7 @@
     <span class="ident">processor</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EventProcessor</span><span class="op">&gt;</span>,
     <span class="ident">current_active_events</span>: <span class="ident">u32</span>,
     <span class="ident">outcome_producer</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeProducer</span><span class="op">&gt;</span>,
-    <span class="ident">captured_events</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">EventId</span>, <span class="ident">CapturedEvent</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">captures</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">EventId</span>, <span class="ident">CapturedEnvelope</span><span class="op">&gt;</span>,
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="ident">store_forwarder</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">StoreForwarder</span><span class="op">&gt;</span><span class="op">&gt;</span>,
@@ -3179,7 +3181,7 @@
             <span class="ident">upstream</span>,
             <span class="ident">processor</span>,
             <span class="ident">current_active_events</span>: <span class="number">0</span>,
-            <span class="ident">captured_events</span>: <span class="ident">Arc</span>::<span class="ident">default</span>(),
+            <span class="ident">captures</span>: <span class="ident">BTreeMap</span>::<span class="ident">new</span>(),
 
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident">store_forwarder</span>,
@@ -3303,7 +3305,6 @@
         <span class="kw">let</span> <span class="ident">upstream</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">upstream</span>.<span class="ident">clone</span>();
         <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">processor</span>.<span class="ident">clone</span>();
         <span class="kw">let</span> <span class="ident">outcome_producer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">outcome_producer</span>.<span class="ident">clone</span>();
-        <span class="kw">let</span> <span class="ident">captured_events</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">captured_events</span>.<span class="ident">clone</span>();
         <span class="kw">let</span> <span class="ident">capture</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">relay_mode</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">RelayMode</span>::<span class="ident">Capture</span>;
         <span class="kw">let</span> <span class="ident">http_encoding</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">http_encoding</span>();
 
@@ -3387,7 +3388,8 @@
                     <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError</span>::<span class="ident">RateLimited</span>(<span class="ident">rate_limits</span>)),
                 }
             }))
-            .<span class="ident">and_then</span>(<span class="macro">clone</span><span class="macro">!</span>(<span class="ident">captured_events</span>, <span class="ident">scoping</span>, <span class="op">|</span><span class="kw-2">mut</span> <span class="ident">envelope</span><span class="op">|</span> {
+            .<span class="ident">into_actor</span>(<span class="self">self</span>)
+            .<span class="ident">and_then</span>(<span class="macro">clone</span><span class="macro">!</span>(<span class="ident">scoping</span>, <span class="op">|</span><span class="kw-2">mut</span> <span class="ident">envelope</span>, <span class="ident">slf</span>, <span class="kw">_</span><span class="op">|</span> {
                 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
                 {
                     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">store_forwarder</span>) <span class="op">=</span> <span class="ident">store_forwarder</span> {
@@ -3399,9 +3401,10 @@
                                 <span class="ident">scoping</span>: <span class="kw-2">*</span><span class="ident">scoping</span>.<span class="ident">borrow</span>(),
                             })
                             .<span class="ident">map_err</span>(<span class="ident">ProcessingError</span>::<span class="ident">ScheduleFailed</span>)
-                            .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">result</span><span class="op">|</span> <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="ident">ProcessingError</span>::<span class="ident">StoreFailed</span>));
+                            .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">result</span><span class="op">|</span> <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="ident">ProcessingError</span>::<span class="ident">StoreFailed</span>))
+                            .<span class="ident">into_actor</span>(<span class="ident">slf</span>);
 
-                        <span class="kw">return</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">future</span>) <span class="kw">as</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>;
+                        <span class="kw">return</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">future</span>) <span class="kw">as</span> <span class="ident">ResponseActFuture</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>;
                     }
                 }
 
@@ -3412,13 +3415,11 @@
                     <span class="comment">// event_id into account.</span>
                     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event_id</span>) <span class="op">=</span> <span class="ident">event_id</span> {
                         <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;capturing envelope&quot;</span>);
-                        <span class="ident">captured_events</span>
-                            .<span class="ident">write</span>()
-                            .<span class="ident">insert</span>(<span class="ident">event_id</span>, <span class="ident">CapturedEvent</span>::<span class="prelude-val">Ok</span>(<span class="ident">envelope</span>));
+                        <span class="ident">slf</span>.<span class="ident">captures</span>.<span class="ident">insert</span>(<span class="ident">event_id</span>, <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>));
                     } <span class="kw">else</span> {
                         <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;dropping non event envelope&quot;</span>);
                     }
-                    <span class="kw">return</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="prelude-val">Ok</span>(()).<span class="ident">into_future</span>()) <span class="kw">as</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>;
+                    <span class="kw">return</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">fut</span>::<span class="ident">ok</span>(())) <span class="kw">as</span> <span class="ident">ResponseActFuture</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>;
                 }
 
                 <span class="ident">log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;sending event to sentry endpoint&quot;</span>);
@@ -3472,11 +3473,11 @@
                             }
                             <span class="ident">other</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ProcessingError</span>::<span class="ident">SendFailed</span>(<span class="ident">other</span>),
                         })
-                    });
+                    })
+                    .<span class="ident">into_actor</span>(<span class="ident">slf</span>);
 
-                <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">future</span>) <span class="kw">as</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>
+                <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">future</span>) <span class="kw">as</span> <span class="ident">ResponseActFuture</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>
             }))
-            .<span class="ident">into_actor</span>(<span class="self">self</span>)
             .<span class="ident">timeout</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">event_buffer_expiry</span>(), <span class="ident">ProcessingError</span>::<span class="ident">Timeout</span>)
             .<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">|</span> <span class="macro">metric</span><span class="macro">!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">EnvelopeAccepted</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>))
             .<span class="ident">map_err</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">error</span>, <span class="ident">slf</span>, <span class="kw">_</span><span class="op">|</span> {
@@ -3489,9 +3490,7 @@
                     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event_id</span>) <span class="op">=</span> <span class="ident">event_id</span> {
                         <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;capturing failed event {}&quot;</span>, <span class="ident">event_id</span>);
                         <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>).<span class="ident">to_string</span>();
-                        <span class="ident">slf</span>.<span class="ident">captured_events</span>
-                            .<span class="ident">write</span>()
-                            .<span class="ident">insert</span>(<span class="ident">event_id</span>, <span class="ident">CapturedEvent</span>::<span class="prelude-val">Err</span>(<span class="ident">msg</span>));
+                        <span class="ident">slf</span>.<span class="ident">captures</span>.<span class="ident">insert</span>(<span class="ident">event_id</span>, <span class="prelude-val">Err</span>(<span class="ident">msg</span>));
                     } <span class="kw">else</span> {
                         <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;dropping failed envelope without event&quot;</span>);
                     }
@@ -3534,19 +3533,24 @@
     }
 }
 
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GetCapturedEvent</span> {
+<span class="doccomment">/// Resolves a [`CapturedEnvelope`] by the given `event_id`.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GetCapturedEnvelope</span> {
     <span class="kw">pub</span> <span class="ident">event_id</span>: <span class="ident">EventId</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">GetCapturedEvent</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">CapturedEvent</span><span class="op">&gt;</span>;
+<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">GetCapturedEnvelope</span> {
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">CapturedEnvelope</span><span class="op">&gt;</span>;
 }
 
-<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">GetCapturedEvent</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EventManager</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">CapturedEvent</span><span class="op">&gt;</span>;
+<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">GetCapturedEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EventManager</span> {
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">CapturedEnvelope</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">GetCapturedEvent</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
-        <span class="self">self</span>.<span class="ident">captured_events</span>.<span class="ident">read</span>().<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">event_id</span>).<span class="ident">cloned</span>()
+    <span class="kw">fn</span> <span class="ident">handle</span>(
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+        <span class="ident">message</span>: <span class="ident">GetCapturedEnvelope</span>,
+        <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>,
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+        <span class="self">self</span>.<span class="ident">captures</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">event_id</span>).<span class="ident">cloned</span>()
     }
 }
 
