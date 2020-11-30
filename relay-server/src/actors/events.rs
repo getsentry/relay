@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -1453,6 +1454,7 @@ impl Handler<HandleEnvelope> for EventManager {
         let is_event = envelope.items().any(Item::creates_event);
 
         let scoping = Rc::new(RefCell::new(envelope.meta().get_partial_scoping()));
+        let is_received = Rc::new(AtomicBool::from(false));
 
         let future = project
             .send(CheckEnvelope::fetched(envelope))
@@ -1515,7 +1517,7 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
             }))
             .into_actor(self)
-            .and_then(clone!(scoping, |mut envelope, slf, _| {
+            .and_then(clone!(scoping, is_received, |mut envelope, slf, _| {
                 #[cfg(feature = "processing")]
                 {
                     if let Some(store_forwarder) = store_forwarder {
@@ -1591,6 +1593,15 @@ impl Handler<HandleEnvelope> for EventManager {
                     .send(request)
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(move |result| {
+                        let received = match result {
+                            Ok(_) => true,
+                            Err(ref e) => e.is_received(),
+                        };
+
+                        // Flag that upstream has received the request, which will skip outcome
+                        // generation below.
+                        is_received.store(received, Ordering::SeqCst);
+
                         result.map_err(move |error| match error {
                             UpstreamRequestError::RateLimited(upstream_limits) => {
                                 let limits = upstream_limits.scope(&scoping.borrow());
@@ -1636,6 +1647,13 @@ impl Handler<HandleEnvelope> for EventManager {
                     log::error!("error processing event: {}", LogError(&error));
                 } else {
                     log::debug!("dropped event: {}", LogError(&error));
+                }
+
+                // Do not emit outcomes for requests that have been accepted by the upstream. In
+                // such a case, the upstream assumes ownership and logs the outcome, instead. This
+                // is irrelevant to processing Relays, since they never send to the upstream.
+                if is_received.load(Ordering::SeqCst) {
+                    return;
                 }
 
                 if let Some(outcome) = outcome {
