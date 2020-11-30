@@ -1308,6 +1308,26 @@
 <span id="1305">1305</span>
 <span id="1306">1306</span>
 <span id="1307">1307</span>
+<span id="1308">1308</span>
+<span id="1309">1309</span>
+<span id="1310">1310</span>
+<span id="1311">1311</span>
+<span id="1312">1312</span>
+<span id="1313">1313</span>
+<span id="1314">1314</span>
+<span id="1315">1315</span>
+<span id="1316">1316</span>
+<span id="1317">1317</span>
+<span id="1318">1318</span>
+<span id="1319">1319</span>
+<span id="1320">1320</span>
+<span id="1321">1321</span>
+<span id="1322">1322</span>
+<span id="1323">1323</span>
+<span id="1324">1324</span>
+<span id="1325">1325</span>
+<span id="1326">1326</span>
+<span id="1327">1327</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -1417,6 +1437,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">UpstreamRequestError</span> {
+    <span class="doccomment">/// Returns `true` if the error indicates a network downtime.</span>
     <span class="kw">fn</span> <span class="ident">is_network_error</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span> {
             <span class="self">Self</span>::<span class="ident">SendFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
@@ -1432,6 +1453,9 @@
         }
     }
 
+    <span class="doccomment">/// Returns `true` if the upstream has permanently rejected this Relay.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This Relay should cease communication with the upstream and may shut down.</span>
     <span class="kw">fn</span> <span class="ident">is_permanent_rejection</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span> {
             <span class="self">Self</span>::<span class="ident">ResponseError</span>(<span class="ident">status_code</span>, <span class="ident">response</span>) <span class="op">=</span><span class="op">&gt;</span> {
@@ -1439,6 +1463,22 @@
                     <span class="op">&amp;&amp;</span> <span class="ident">response</span>.<span class="ident">relay_action</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">RelayErrorAction</span>::<span class="ident">Stop</span>
             }
             <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+        }
+    }
+
+    <span class="doccomment">/// Returns `true` if the request was received by the upstream.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Despite resulting in an error, the server has received and acknowledged the request. This</span>
+    <span class="doccomment">/// includes rate limits (status code 429), and bad payloads (4XX), but not network errors</span>
+    <span class="doccomment">/// (502-504).</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_received</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">match</span> <span class="self">self</span> {
+            <span class="comment">// Rate limits are a special case of `ResponseError(429, _)`.</span>
+            <span class="self">Self</span>::<span class="ident">RateLimited</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
+            <span class="comment">// Everything except network errors indicates the upstream has handled this request.</span>
+            <span class="self">Self</span>::<span class="ident">ResponseError</span>(<span class="kw">_</span>, <span class="kw">_</span>) <span class="op">|</span> <span class="self">Self</span>::<span class="ident">Http</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_network_error</span>(),
+            <span class="comment">// Remaining kinds indicate a failure to send the request.</span>
+            <span class="self">Self</span>::<span class="ident">NoCredentials</span> <span class="op">|</span> <span class="self">Self</span>::<span class="ident">SendFailed</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="self">Self</span>::<span class="ident">ChannelClosed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
         }
     }
 }
