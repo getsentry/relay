@@ -1,4 +1,19 @@
-use relay_common::metrics::{CounterMetric, HistogramMetric, SetMetric, TimerMetric};
+use relay_common::metrics::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
+
+/// Gauge metrics used by Relay
+pub enum RelayGauges {
+    /// The state of Relay with respect to the upstream connection.
+    /// Possible values are `0` for normal operations and `1` for a network outage.
+    NetworkOutage,
+}
+
+impl GaugeMetric for RelayGauges {
+    fn name(&self) -> &'static str {
+        match self {
+            RelayGauges::NetworkOutage => "upstream.network_outage",
+        }
+    }
+}
 
 /// Set metrics used by Relay
 pub enum RelaySets {

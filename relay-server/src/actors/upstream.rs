@@ -971,6 +971,25 @@ impl Handler<IsAuthenticated> for UpstreamRelay {
     }
 }
 
+pub struct IsNetworkOutage;
+
+impl Message for IsNetworkOutage {
+    type Result = bool;
+}
+
+/// The `IsNetworkOutage` message is an internal Relay message that is used to
+/// query the current state of network connection with the upstream server.
+///
+/// Currently it is only used by the HealthCheck actor to emit the
+/// `upstream.network_outage` metric.
+impl Handler<IsNetworkOutage> for UpstreamRelay {
+    type Result = bool;
+
+    fn handle(&mut self, _msg: IsNetworkOutage, _ctx: &mut Self::Context) -> Self::Result {
+        self.is_network_outage()
+    }
+}
+
 /// Message send to drive the HttpMessage queue
 struct PumpHttpMessageQueue;
 
