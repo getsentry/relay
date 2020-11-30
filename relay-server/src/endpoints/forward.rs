@@ -4,6 +4,7 @@
 //! (`X-Forwarded-For` and `Sentry-Relay-Id`). The response is then streamed back to the origin.
 
 use ::actix::prelude::*;
+use actix_web::client::SendRequestError;
 use actix_web::error::ResponseError;
 use actix_web::http::{header, header::HeaderName, uri::PathAndQuery, StatusCode};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
@@ -76,7 +77,15 @@ impl ResponseError for ForwardedUpstreamRequestError {
                 HttpError::ActixPayload(e) => e.error_response(),
                 HttpError::ActixJson(e) => e.error_response(),
             },
-            UpstreamRequestError::SendFailed(_) => HttpResponse::GatewayTimeout().finish(),
+            UpstreamRequestError::SendFailed(SendRequestError::Connector(_)) => {
+                HttpResponse::BadGateway().finish()
+            }
+            UpstreamRequestError::SendFailed(SendRequestError::Io(_)) => {
+                HttpResponse::BadGateway().finish()
+            }
+            UpstreamRequestError::SendFailed(SendRequestError::Timeout) => {
+                HttpResponse::GatewayTimeout().finish()
+            }
             e => {
                 // should all be unreachable
                 relay_log::error!(
