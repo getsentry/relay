@@ -60,17 +60,18 @@ impl Message for IsHealthy {
 impl Handler<IsHealthy> for Healthcheck {
     type Result = ResponseFuture<bool, ()>;
 
-    fn handle(&mut self, message: IsHealthy, _context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: IsHealthy, context: &mut Self::Context) -> Self::Result {
         if self.config.relay_mode() == RelayMode::Managed {
-            let _ = self
-                .upstream
+            self.upstream
                 .send(IsNetworkOutage)
                 .map_err(|_| ())
                 .map(|is_network_outage| {
                     metric!(
                         gauge(RelayGauges::NetworkOutage) = if is_network_outage { 1 } else { 0 }
                     );
-                });
+                })
+                .into_actor(self)
+                .spawn(context);
         }
 
         match message {
