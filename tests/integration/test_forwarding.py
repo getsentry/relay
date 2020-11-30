@@ -1,5 +1,6 @@
 import errno
 import gzip
+import time
 
 import pytest
 import requests
@@ -102,3 +103,17 @@ def test_limits(mini_sentry, relay):
             raise
     else:
         assert response.status_code == 413
+
+
+def test_timeouts(mini_sentry, relay):
+    @mini_sentry.app.route("/api/test/timeout")
+    def hi():
+        time.sleep(60)
+
+    relay = relay(mini_sentry)
+
+    response = relay.get("/api/test/timeout")
+    assert response.status_code == 504
+
+
+
