@@ -1323,11 +1323,6 @@
 <span id="1320">1320</span>
 <span id="1321">1321</span>
 <span id="1322">1322</span>
-<span id="1323">1323</span>
-<span id="1324">1324</span>
-<span id="1325">1325</span>
-<span id="1326">1326</span>
-<span id="1327">1327</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -1441,14 +1436,9 @@
     <span class="kw">fn</span> <span class="ident">is_network_error</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span> {
             <span class="self">Self</span>::<span class="ident">SendFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
+            <span class="comment">// Both reqwest and awc responses are mapped into this codepath by handle_response</span>
             <span class="self">Self</span>::<span class="ident">ResponseError</span>(<span class="ident">code</span>, <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">matches</span><span class="macro">!</span>(<span class="ident">code</span>.<span class="ident">as_u16</span>(), <span class="number">502</span> <span class="op">|</span> <span class="number">503</span> <span class="op">|</span> <span class="number">504</span>),
             <span class="self">Self</span>::<span class="ident">Http</span>(<span class="ident">HttpError</span>::<span class="ident">ActixPayload</span>(<span class="kw">_</span>)) <span class="op">|</span> <span class="self">Self</span>::<span class="ident">Http</span>(<span class="ident">HttpError</span>::<span class="ident">Io</span>(<span class="kw">_</span>)) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
-            <span class="self">Self</span>::<span class="ident">Http</span>(<span class="ident">HttpError</span>::<span class="ident">Reqwest</span>(<span class="ident">error</span>)) <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="macro">matches</span><span class="macro">!</span>(
-                    <span class="ident">error</span>.<span class="ident">status</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">code</span><span class="op">|</span> <span class="ident">code</span>.<span class="ident">as_u16</span>()),
-                    <span class="prelude-val">Some</span>(<span class="number">502</span>) <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="number">503</span>) <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="number">504</span>)
-                ) <span class="op">|</span><span class="op">|</span> <span class="ident">error</span>.<span class="ident">is_timeout</span>()
-            }
             <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
         }
     }
