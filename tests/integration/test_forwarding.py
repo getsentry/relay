@@ -114,6 +114,3 @@ def test_timeouts(mini_sentry, relay):
 
     response = relay.get("/api/test/timeout")
     assert response.status_code == 504
-
-
-
