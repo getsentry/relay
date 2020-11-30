@@ -76,6 +76,21 @@
 <span id="73">73</span>
 <span id="74">74</span>
 <span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
+<span id="81">81</span>
+<span id="82">82</span>
+<span id="83">83</span>
+<span id="84">84</span>
+<span id="85">85</span>
+<span id="86">86</span>
+<span id="87">87</span>
+<span id="88">88</span>
+<span id="89">89</span>
+<span id="90">90</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
 
@@ -84,10 +99,12 @@
 <span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">future</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
 
+<span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">metric</span>;
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">controller</span>::{<span class="ident">Controller</span>, <span class="ident">Shutdown</span>};
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">upstream</span>::{<span class="ident">IsAuthenticated</span>, <span class="ident">UpstreamRelay</span>};
+<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">upstream</span>::{<span class="ident">IsAuthenticated</span>, <span class="ident">IsNetworkOutage</span>, <span class="ident">UpstreamRelay</span>};
+<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">metrics</span>::<span class="ident">RelayGauges</span>;
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Healthcheck</span> {
     <span class="ident">is_shutting_down</span>: <span class="ident">bool</span>,
@@ -137,7 +154,20 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">IsHealthy</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Healthcheck</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">bool</span>, ()<span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">IsHealthy</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">IsHealthy</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">relay_mode</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">RelayMode</span>::<span class="ident">Managed</span> {
+            <span class="self">self</span>.<span class="ident">upstream</span>
+                .<span class="ident">send</span>(<span class="ident">IsNetworkOutage</span>)
+                .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
+                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">is_network_outage</span><span class="op">|</span> {
+                    <span class="macro">metric</span><span class="macro">!</span>(
+                        <span class="ident">gauge</span>(<span class="ident">RelayGauges</span>::<span class="ident">NetworkOutage</span>) <span class="op">=</span> <span class="kw">if</span> <span class="ident">is_network_outage</span> { <span class="number">1</span> } <span class="kw">else</span> { <span class="number">0</span> }
+                    );
+                })
+                .<span class="ident">into_actor</span>(<span class="self">self</span>)
+                .<span class="ident">spawn</span>(<span class="ident">context</span>);
+        }
+
         <span class="kw">match</span> <span class="ident">message</span> {
             <span class="ident">IsHealthy</span>::<span class="ident">Liveness</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">future</span>::<span class="ident">ok</span>(<span class="bool-val">true</span>)),
             <span class="ident">IsHealthy</span>::<span class="ident">Readiness</span> <span class="op">=</span><span class="op">&gt;</span> {

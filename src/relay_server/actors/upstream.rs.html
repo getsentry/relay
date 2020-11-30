@@ -1323,6 +1323,25 @@
 <span id="1320">1320</span>
 <span id="1321">1321</span>
 <span id="1322">1322</span>
+<span id="1323">1323</span>
+<span id="1324">1324</span>
+<span id="1325">1325</span>
+<span id="1326">1326</span>
+<span id="1327">1327</span>
+<span id="1328">1328</span>
+<span id="1329">1329</span>
+<span id="1330">1330</span>
+<span id="1331">1331</span>
+<span id="1332">1332</span>
+<span id="1333">1333</span>
+<span id="1334">1334</span>
+<span id="1335">1335</span>
+<span id="1336">1336</span>
+<span id="1337">1337</span>
+<span id="1338">1338</span>
+<span id="1339">1339</span>
+<span id="1340">1340</span>
+<span id="1341">1341</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -2294,6 +2313,25 @@
 
     <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_msg</span>: <span class="ident">IsAuthenticated</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
         <span class="self">self</span>.<span class="ident">auth_state</span>.<span class="ident">is_authenticated</span>()
+    }
+}
+
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">IsNetworkOutage</span>;
+
+<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">IsNetworkOutage</span> {
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">bool</span>;
+}
+
+<span class="doccomment">/// The `IsNetworkOutage` message is an internal Relay message that is used to</span>
+<span class="doccomment">/// query the current state of network connection with the upstream server.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Currently it is only used by the HealthCheck actor to emit the</span>
+<span class="doccomment">/// `upstream.network_outage` metric.</span>
+<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">IsNetworkOutage</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">UpstreamRelay</span> {
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">bool</span>;
+
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_msg</span>: <span class="ident">IsNetworkOutage</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+        <span class="self">self</span>.<span class="ident">is_network_outage</span>()
     }
 }
 
