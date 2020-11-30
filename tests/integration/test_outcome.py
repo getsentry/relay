@@ -1,6 +1,7 @@
+import random
+import uuid
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-import uuid
 from queue import Empty
 
 import requests
@@ -66,7 +67,7 @@ def _send_event(relay, project_id=42):
 
     try:
         relay.send_event(project_id=project_id, payload=event_body)
-    except:
+    except Exception:
         pass
     return event_id
 
@@ -78,9 +79,7 @@ def test_outcomes_non_processing(relay, mini_sentry):
     Send one event that generates an outcome and verify that we get an outcomes batch
     with all necessary information set.
     """
-    config = {
-        "outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1,}
-    }
+    config = {"outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1}}
 
     relay = relay(mini_sentry, config)
 
@@ -94,7 +93,6 @@ def test_outcomes_non_processing(relay, mini_sentry):
 
     outcome = outcomes[0]
 
-    timestamp = outcome.get("timestamp")
     del outcome["timestamp"]  # 'timestamp': '2020-06-03T16:18:59.259447Z'
 
     expected_outcome = {
@@ -118,7 +116,7 @@ def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
     when we disable outcomes.
     """
     config = {
-        "outcomes": {"emit_outcomes": False, "batch_size": 1, "batch_interval": 1,}
+        "outcomes": {"emit_outcomes": False, "batch_size": 1, "batch_interval": 1}
     }
 
     relay = relay(mini_sentry, config)
@@ -310,15 +308,20 @@ def test_outcome_forwarding(
     assert outcome == expected_outcome
 
 
-# FIXME(anton)
-@pytest.mark.xfail(
-    reason="Might be inconsistent now because we sometimes emit outcomes twice when rate limiting"
-)
 def test_outcomes_forwarding_rate_limited(
     mini_sentry, relay, relay_with_processing, outcomes_consumer
 ):
     """
-    TODO
+    Tests that external relays do not emit duplicate outcomes for forwarded messages.
+
+    External relays should not produce outcomes for messages already forwarded to the upstream.
+    In this test, we send two events that should be rate-limited. The first one is dropped in the
+    upstream (processing) relay, and the second -- in the downstream, because it should cache the
+    rate-limited response from the upstream.
+    In total, two outcomes have to be emitted:
+    - The first one from the upstream relay
+    - The second one is emittedy by the downstream, and then sent to the upstream that writes it
+      to Kafka.
     """
     processing_config = {
         "outcomes": {
@@ -355,13 +358,13 @@ def test_outcomes_forwarding_rate_limited(
         }
     ]
 
-    outcomes_consumer = outcomes_consumer()
+    outcomes_consumer_instance = outcomes_consumer()
 
-    # Send an event
+    # Send an event, it should be dropped in the upstream (processing) relay
     result = downstream_relay.send_event(project_id, _get_message(category))
     event_id = result["id"]
 
-    outcome = outcomes_consumer.get_outcome()
+    outcome = outcomes_consumer_instance.get_outcome()
     outcome.pop("timestamp")
     expected_outcome = {
         "reason": "rate_limited",
@@ -375,19 +378,40 @@ def test_outcomes_forwarding_rate_limited(
     }
     assert outcome == expected_outcome
 
-    # Send another event
+    # Send another event, now the downstream should drop it because it'll cache the 429
+    # response from the previous event, but the outcome should be emitted
     with pytest.raises(requests.exceptions.HTTPError, match="429 Client Error"):
-        result = downstream_relay.send_event(project_id, _get_message(category))
+        downstream_relay.send_event(project_id, _get_message(category))
 
     expected_outcome_from_downstream = deepcopy(expected_outcome)
     expected_outcome_from_downstream["source"] = "downstream-layer"
+    expected_outcome_from_downstream.pop("event_id")
 
-    outcome = outcomes_consumer.get_outcome()
+    outcome = outcomes_consumer_instance.get_outcome()
     outcome.pop("timestamp")
+    outcome.pop("event_id")
 
     assert outcome == expected_outcome_from_downstream
 
-    assert False, "check that we don't send redundant outcomes"
+    _assert_outcomes_topic_empty(outcomes_consumer_instance)
+
+
+def _assert_outcomes_topic_empty(outcomes_consumer_instance):
+    """
+    To prove there's nothing in the topic, we send a randomized message and then
+    immediately consume it.
+    """
+    event_id = "".join(random.choice("0123456789abcdef") for _ in range(32))
+    print(event_id)
+    dummy_outcome = {
+        "org_id": 0,
+        "project_id": 0,
+        "reason": "fake",
+        "event_id": event_id,
+    }
+    outcomes_consumer_instance.produce_test_message(dummy_outcome)
+    outcome = outcomes_consumer_instance.get_outcome()
+    assert outcome == dummy_outcome
 
 
 def _get_message(message_type):
@@ -422,7 +446,7 @@ def _get_message(message_type):
             "duration": 1947.49,
             "status": "exited",
             "errors": 0,
-            "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
+            "attrs": {"release": "sentry-test@1.0.0", "environment": "production"},
         }
     else:
         raise Exception("Invalid message_type")
@@ -442,9 +466,7 @@ def test_no_outcomes_rate_limit(
     Once that happens change test to verify that a transaction outcome IS sent
     """
 
-    config = {
-        "outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1,}
-    }
+    config = {"outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1}}
     relay = relay_with_processing(config)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -460,22 +482,10 @@ def test_no_outcomes_rate_limit(
     outcomes_consumer = outcomes_consumer()
 
     message = _get_message(category_type)
-    result = relay.send_event(project_id, message)
-    event_id = result["id"]
+    relay.send_event(project_id, message)
 
     # give relay some to handle the message (and send any outcomes it needs to send)
     time.sleep(1)
 
     # we should not have anything on the outcome topic,
-    # since it is quite annoying to wait until some timeout expires to "prove"
-    # that nothing was sent we can instead send something on the topic  that should
-    # end on the same partition (to prove there was noting before)
-    dummy_outcome = {
-        "org_id": 1,
-        "project_id": project_id,
-        "reason": "fake",
-        "event_id": event_id,
-    }
-    outcomes_consumer.produce_test_message(dummy_outcome)
-    outcome = outcomes_consumer.get_outcome()
-    assert outcome["reason"] == "fake"
+    _assert_outcomes_topic_empty(outcomes_consumer)
