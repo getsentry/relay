@@ -9,6 +9,8 @@ use relay_config::{Config, RelayMode};
 
 use crate::actors::controller::{Controller, Shutdown};
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
+use crate::metrics::RelayGauges;
+use relay_common::metric;
 
 pub struct Healthcheck {
     is_shutting_down: bool,
@@ -60,8 +62,17 @@ impl Handler<IsHealthy> for Healthcheck {
 
     fn handle(&mut self, message: IsHealthy, _context: &mut Self::Context) -> Self::Result {
         if self.config.relay_mode() == RelayMode::Managed {
-            self.upstream.do_send(IsNetworkOutage);
+            let _ = self
+                .upstream
+                .send(IsNetworkOutage)
+                .map_err(|_| ())
+                .map(|is_network_outage| {
+                    metric!(
+                        gauge(RelayGauges::NetworkOutage) = if is_network_outage { 1 } else { 0 }
+                    );
+                });
         }
+
         match message {
             IsHealthy::Liveness => Box::new(future::ok(true)),
             IsHealthy::Readiness => {

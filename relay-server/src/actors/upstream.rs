@@ -25,7 +25,6 @@ use std::str;
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::metrics::RelayGauges;
 use ::actix::fut;
 use ::actix::prelude::*;
 use actix_web::client::{ClientRequest, SendRequestError};
@@ -978,11 +977,15 @@ impl Message for IsNetworkOutage {
     type Result = bool;
 }
 
+/// The `IsNetworkOutage` message is an internal Relay message that is used to
+/// query the current state of network connection with the upstream server.
+///
+/// Currently it is only used by the HealthCheck actor to emit the
+/// `upstream.network_outage` metric.
 impl Handler<IsNetworkOutage> for UpstreamRelay {
     type Result = bool;
 
     fn handle(&mut self, _msg: IsNetworkOutage, _ctx: &mut Self::Context) -> Self::Result {
-        metric!(gauge(RelayGauges::NetworkOutage) = if self.is_network_outage() { 1 } else { 0 });
         self.is_network_outage()
     }
 }
