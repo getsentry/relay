@@ -205,6 +205,7 @@ class SentryLike(object):
             json=payload,
         )
         response.raise_for_status()
+        return response
 
     def send_minidump(self, project_id, params=None, files=None, dsn_key_idx=0):
         """

@@ -113,13 +113,15 @@ def test_security_report(mini_sentry, relay, test_case, json_fixture_provider):
     report = fixture_provider.load(test_name, ".input")
     mini_sentry.add_full_project_config(proj_id)
 
-    relay.send_security_report(
+    resp = relay.send_security_report(
         project_id=proj_id,
         content_type="application/json",
         payload=report,
         release="01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
         environment="production",
     )
+
+    assert resp.status_code == 200
 
     envelope = mini_sentry.captured_events.get(timeout=1)
     event = get_security_report(envelope)
@@ -130,3 +132,67 @@ def test_security_report(mini_sentry, relay, test_case, json_fixture_provider):
     expected_evt = fixture_provider.load(test_name, ext)
 
     assert event == expected_evt
+
+
+def test_security_report_cors(mini_sentry, relay):
+    """
+    Test that we respond correctly to a CORS preflight request
+    """
+    proj_id = 42
+    relay = relay(mini_sentry)
+    project_config = mini_sentry.add_full_project_config(proj_id)
+    dsn = project_config["publicKeys"][0]
+    url = "/api/{}/security/?sentry_key={}".format(proj_id, dsn)
+    headers = {
+        "Host": "raduw-relay.eu.ngrok.io",
+        "Pragma": "no-cache",
+        "Cache-Control": "no-cache",
+        "Origin": None,
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type",
+        "User-Agent": "Some Browser",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Language": "en-GB,en;q=0.9,en-US;q=0.8",
+        "X-Forwarded-Proto": "https",
+        "X-Forwarded-For": "2a02:8388:8b86:a700:541e:f608:70f6:bcf2",
+    }
+    resp = relay.req_options(url, headers=headers)
+    assert resp.status_code == 200
+    headers = resp.headers
+
+    def should_contain(header_val, required_vals):
+        # split value in its components (should be a comma delimited list with spaces)
+        if not header_val:
+            header_val = ""
+        header_elements = [x.strip() for x in header_val.split(",")]
+
+        for elm in required_vals:
+            if elm not in header_elements:
+                return False, "Could not find required value: '{}'".format(elm)
+        return True, None
+
+    allow_headers = headers.get("access-control-allow-headers", "")
+    should_allow_headers = [
+        "x-forwarded-for",
+        "content-type",
+        "transfer-encoding",
+        "referer",
+        "authorization",
+        "origin",
+        "authentication",
+        "content-encoding",
+        "x-sentry-auth",
+        "accept",
+        "x-requested-with",
+    ]
+    ok, err = should_contain(allow_headers, should_allow_headers)
+    assert ok, err
+
+    allow_methods = headers.get("access-control-allow-methods", "")
+    ok, err = should_contain(allow_methods, ["POST"])
+    assert ok, err
+
+    expose_headers = headers.get("access-control-expose-headers", "")
+    should_expose_headers = ["x-sentry-error", "x-sentry-rate-limits", "retry-after"]
+    ok, err = should_contain(expose_headers, should_expose_headers)
+    assert ok, err
