@@ -519,6 +519,16 @@ impl UpstreamRelay {
     fn reset_network_error(&mut self) {
         self.first_error = None;
         self.outage_backoff.reset();
+        log::debug!("Recovering from network outage.")
+    }
+
+    fn upstream_connection_check(&mut self, ctx: &mut Context<Self>) {
+        let next_backoff = self.outage_backoff.next_backoff();
+        log::debug!(
+            "Network outage, scheduling another check in {:?}",
+            next_backoff
+        );
+        ctx.notify_later(CheckUpstreamConnection, next_backoff);
     }
 
     /// Records an occurrence of a network error.
@@ -535,7 +545,7 @@ impl UpstreamRelay {
         }
 
         if !self.outage_backoff.started() {
-            ctx.notify_later(CheckUpstreamConnection, self.outage_backoff.next_backoff());
+            self.upstream_connection_check(ctx);
         }
     }
 
@@ -1062,7 +1072,7 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
         .then(|result, slf, ctx| {
             if matches!(result, Err(err) if err.is_network_error()) {
                 // still network error, schedule another attempt
-                ctx.notify_later(CheckUpstreamConnection, slf.outage_backoff.next_backoff());
+                slf.upstream_connection_check(ctx);
             } else {
                 // resume normal messages
                 ctx.notify(PumpHttpMessageQueue);
