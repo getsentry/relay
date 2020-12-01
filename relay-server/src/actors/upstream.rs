@@ -524,7 +524,7 @@ impl UpstreamRelay {
 
     fn upstream_connection_check(&mut self, ctx: &mut Context<Self>) {
         let next_backoff = self.outage_backoff.next_backoff();
-        log::debug!(
+        log::warn!(
             "Network outage, scheduling another check in {:?}",
             next_backoff
         );
