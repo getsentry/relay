@@ -52,9 +52,7 @@ fn extract_envelope(
 }
 
 fn create_response() -> HttpResponse {
-    HttpResponse::Created()
-        .content_type("application/javascript")
-        .finish()
+    HttpResponse::Ok().finish()
 }
 
 /// This handles all messages coming on the Security endpoint.
