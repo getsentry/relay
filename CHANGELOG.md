@@ -16,6 +16,7 @@
 - Do not drop sessions due to an invalid age constraint set to `0`. ([#855](https://github.com/getsentry/relay/pull/855))
 - Do not emit outcomes after forwarding envelopes to the upstream, even if that envelope is rate limited, rejected, or dropped. Since the upstream logs an outcome, it would be a duplicate. ([#857](https://github.com/getsentry/relay/pull/857))
 - Fix status code for security report. ([#864](https://github.com/getsentry/relay/pull/864))
+- Add missing fields for ExpectCT security reports. ([#865](https://github.com/getsentry/relay/pull/865))
 
 **Internal**:
 
