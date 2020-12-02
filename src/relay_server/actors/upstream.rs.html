@@ -1342,6 +1342,16 @@
 <span id="1339">1339</span>
 <span id="1340">1340</span>
 <span id="1341">1341</span>
+<span id="1342">1342</span>
+<span id="1343">1343</span>
+<span id="1344">1344</span>
+<span id="1345">1345</span>
+<span id="1346">1346</span>
+<span id="1347">1347</span>
+<span id="1348">1348</span>
+<span id="1349">1349</span>
+<span id="1350">1350</span>
+<span id="1351">1351</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -1864,6 +1874,16 @@
     <span class="kw">fn</span> <span class="ident">reset_network_error</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
         <span class="self">self</span>.<span class="ident">first_error</span> <span class="op">=</span> <span class="prelude-val">None</span>;
         <span class="self">self</span>.<span class="ident">outage_backoff</span>.<span class="ident">reset</span>();
+        <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Recovering from network outage.&quot;</span>)
+    }
+
+    <span class="kw">fn</span> <span class="ident">upstream_connection_check</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) {
+        <span class="kw">let</span> <span class="ident">next_backoff</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">outage_backoff</span>.<span class="ident">next_backoff</span>();
+        <span class="ident">log</span>::<span class="macro">warn</span><span class="macro">!</span>(
+            <span class="string">&quot;Network outage, scheduling another check in {:?}&quot;</span>,
+            <span class="ident">next_backoff</span>
+        );
+        <span class="ident">ctx</span>.<span class="ident">notify_later</span>(<span class="ident">CheckUpstreamConnection</span>, <span class="ident">next_backoff</span>);
     }
 
     <span class="doccomment">/// Records an occurrence of a network error.</span>
@@ -1880,7 +1900,7 @@
         }
 
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">outage_backoff</span>.<span class="ident">started</span>() {
-            <span class="ident">ctx</span>.<span class="ident">notify_later</span>(<span class="ident">CheckUpstreamConnection</span>, <span class="self">self</span>.<span class="ident">outage_backoff</span>.<span class="ident">next_backoff</span>());
+            <span class="self">self</span>.<span class="ident">upstream_connection_check</span>(<span class="ident">ctx</span>);
         }
     }
 
@@ -2407,7 +2427,7 @@
         .<span class="ident">then</span>(<span class="op">|</span><span class="ident">result</span>, <span class="ident">slf</span>, <span class="ident">ctx</span><span class="op">|</span> {
             <span class="kw">if</span> <span class="macro">matches</span><span class="macro">!</span>(<span class="ident">result</span>, <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="kw">if</span> <span class="ident">err</span>.<span class="ident">is_network_error</span>()) {
                 <span class="comment">// still network error, schedule another attempt</span>
-                <span class="ident">ctx</span>.<span class="ident">notify_later</span>(<span class="ident">CheckUpstreamConnection</span>, <span class="ident">slf</span>.<span class="ident">outage_backoff</span>.<span class="ident">next_backoff</span>());
+                <span class="ident">slf</span>.<span class="ident">upstream_connection_check</span>(<span class="ident">ctx</span>);
             } <span class="kw">else</span> {
                 <span class="comment">// resume normal messages</span>
                 <span class="ident">ctx</span>.<span class="ident">notify</span>(<span class="ident">PumpHttpMessageQueue</span>);
