@@ -119,8 +119,6 @@
 <span id="116">116</span>
 <span id="117">117</span>
 <span id="118">118</span>
-<span id="119">119</span>
-<span id="120">120</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Endpoints for security reports.</span>
 
@@ -176,9 +174,7 @@
 }
 
 <span class="kw">fn</span> <span class="ident">create_response</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">HttpResponse</span> {
-    <span class="ident">HttpResponse</span>::<span class="ident">Created</span>()
-        .<span class="ident">content_type</span>(<span class="string">&quot;application/javascript&quot;</span>)
-        .<span class="ident">finish</span>()
+    <span class="ident">HttpResponse</span>::<span class="prelude-val">Ok</span>().<span class="ident">finish</span>()
 }
 
 <span class="doccomment">/// This handles all messages coming on the Security endpoint.</span>
