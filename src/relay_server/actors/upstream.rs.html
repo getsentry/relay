@@ -1352,6 +1352,7 @@
 <span id="1349">1349</span>
 <span id="1350">1350</span>
 <span id="1351">1351</span>
+<span id="1352">1352</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -1722,19 +1723,20 @@
 <span class="doccomment">/// Handles a response returned from the upstream.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// If the response indicates success via 2XX status codes, `Ok(response)` is returned. Otherwise,</span>
-<span class="doccomment">/// the response is consumed and an error is returned. Depending on the status code and details</span>
-<span class="doccomment">/// provided in the payload, one of the following errors can be returned:</span>
+<span class="doccomment">/// the response is consumed and an error is returned. If intercept_status_errors is set to true,</span>
+<span class="doccomment">/// depending on the status code and details provided in the payload, one</span>
+<span class="doccomment">/// of the following errors is returned:</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///  1. `RateLimited` for a `429` status code.</span>
 <span class="doccomment">///  2. `ResponseError` in all other cases.</span>
 <span class="kw">fn</span> <span class="ident">handle_response</span>(
     <span class="ident">response</span>: <span class="ident">Response</span>,
-    <span class="ident">update_rate_limits</span>: <span class="ident">bool</span>,
+    <span class="ident">intercept_status_errors</span>: <span class="ident">bool</span>,
     <span class="ident">max_response_size</span>: <span class="ident">usize</span>,
 ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">response</span>.<span class="ident">status</span>();
 
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">update_rate_limits</span> <span class="op">|</span><span class="op">|</span> <span class="ident">status</span>.<span class="ident">is_success</span>() {
+    <span class="kw">if</span> <span class="op">!</span><span class="ident">intercept_status_errors</span> <span class="op">|</span><span class="op">|</span> <span class="ident">status</span>.<span class="ident">is_success</span>() {
         <span class="kw">return</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">future</span>::<span class="ident">ok</span>(<span class="ident">response</span>));
     }
 
@@ -1951,7 +1953,7 @@
         <span class="comment">// we are about to send a HTTP message keep track of requests in flight</span>
         <span class="self">self</span>.<span class="ident">num_inflight_requests</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
 
-        <span class="kw">let</span> <span class="ident">update_rate_limits</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">config</span>.<span class="ident">update_rate_limits</span>;
+        <span class="kw">let</span> <span class="ident">intercept_status_errors</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">config</span>.<span class="ident">intercept_status_errors</span>;
 
         <span class="ident">request</span>.<span class="ident">send_start</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Instant</span>::<span class="ident">now</span>());
 
@@ -1999,7 +2001,7 @@
         <span class="ident">future</span>
             .<span class="ident">track</span>(<span class="ident">ctx</span>.<span class="ident">address</span>().<span class="ident">recipient</span>())
             .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">response</span><span class="op">|</span> {
-                <span class="ident">handle_response</span>(<span class="ident">response</span>, <span class="ident">update_rate_limits</span>, <span class="ident">max_response_size</span>)
+                <span class="ident">handle_response</span>(<span class="ident">response</span>, <span class="ident">intercept_status_errors</span>, <span class="ident">max_response_size</span>)
             })
             .<span class="ident">into_actor</span>(<span class="self">self</span>)
             .<span class="ident">then</span>(<span class="op">|</span><span class="ident">send_result</span>, <span class="ident">slf</span>, <span class="ident">ctx</span><span class="op">|</span> {
@@ -2169,7 +2171,7 @@
         <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">UpstreamRequestConfig</span> {
             <span class="ident">retry</span>: <span class="ident">Q</span>::<span class="ident">retry</span>(),
             <span class="ident">priority</span>: <span class="ident">Q</span>::<span class="ident">priority</span>(),
-            <span class="ident">update_rate_limits</span>: <span class="bool-val">true</span>,
+            <span class="ident">intercept_status_errors</span>: <span class="bool-val">true</span>,
             <span class="ident">set_relay_id</span>: <span class="bool-val">true</span>,
         };
 
@@ -2409,7 +2411,7 @@
             <span class="ident">UpstreamRequestConfig</span> {
                 <span class="ident">priority</span>: <span class="ident">RequestPriority</span>::<span class="ident">Immediate</span>,
                 <span class="ident">retry</span>: <span class="bool-val">false</span>,
-                <span class="ident">update_rate_limits</span>: <span class="bool-val">false</span>,
+                <span class="ident">intercept_status_errors</span>: <span class="bool-val">true</span>,
                 <span class="ident">set_relay_id</span>: <span class="bool-val">true</span>,
             },
             <span class="ident">Method</span>::<span class="ident">GET</span>,
@@ -2483,7 +2485,7 @@
     <span class="doccomment">/// Should the request be retried in case of network error.</span>
     <span class="ident">retry</span>: <span class="ident">bool</span>,
     <span class="doccomment">/// Should 429s be honored within the upstream.</span>
-    <span class="ident">update_rate_limits</span>: <span class="ident">bool</span>,
+    <span class="ident">intercept_status_errors</span>: <span class="ident">bool</span>,
     <span class="doccomment">/// Should the x-sentry-relay-id header be added.</span>
     <span class="ident">set_relay_id</span>: <span class="ident">bool</span>,
 }
@@ -2498,7 +2500,7 @@
             <span class="ident">config</span>: <span class="ident">UpstreamRequestConfig</span> {
                 <span class="ident">priority</span>: <span class="ident">RequestPriority</span>::<span class="ident">Low</span>,
                 <span class="ident">retry</span>: <span class="bool-val">true</span>,
-                <span class="ident">update_rate_limits</span>: <span class="bool-val">true</span>,
+                <span class="ident">intercept_status_errors</span>: <span class="bool-val">true</span>,
                 <span class="ident">set_relay_id</span>: <span class="bool-val">true</span>,
             },
         }
@@ -2534,8 +2536,8 @@
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update_rate_limits</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">should_update_rate_limits</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">update_rate_limits</span> <span class="op">=</span> <span class="ident">should_update_rate_limits</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">intercept_status_errors</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">should_intercept_status_errors</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">intercept_status_errors</span> <span class="op">=</span> <span class="ident">should_intercept_status_errors</span>;
         <span class="self">self</span>
     }
 
