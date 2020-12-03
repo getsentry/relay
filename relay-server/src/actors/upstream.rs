@@ -1054,7 +1054,7 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
             UpstreamRequestConfig {
                 priority: RequestPriority::Immediate,
                 retry: false,
-                update_rate_limits: false,
+                update_rate_limits: true,
                 set_relay_id: true,
             },
             Method::GET,
