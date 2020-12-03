@@ -367,8 +367,9 @@ pub struct UpstreamRelay {
 /// Handles a response returned from the upstream.
 ///
 /// If the response indicates success via 2XX status codes, `Ok(response)` is returned. Otherwise,
-/// the response is consumed and an error is returned. Depending on the status code and details
-/// provided in the payload, one of the following errors can be returned:
+/// the response is consumed and an error is returned. If intercept_status_errors is set to true,
+/// depending on the status code and details provided in the payload, one
+/// of the following errors is returned:
 ///
 ///  1. `RateLimited` for a `429` status code.
 ///  2. `ResponseError` in all other cases.
