@@ -367,19 +367,20 @@ pub struct UpstreamRelay {
 /// Handles a response returned from the upstream.
 ///
 /// If the response indicates success via 2XX status codes, `Ok(response)` is returned. Otherwise,
-/// the response is consumed and an error is returned. Depending on the status code and details
-/// provided in the payload, one of the following errors can be returned:
+/// the response is consumed and an error is returned. If intercept_status_errors is set to true,
+/// depending on the status code and details provided in the payload, one
+/// of the following errors is returned:
 ///
 ///  1. `RateLimited` for a `429` status code.
 ///  2. `ResponseError` in all other cases.
 fn handle_response(
     response: Response,
-    update_rate_limits: bool,
+    intercept_status_errors: bool,
     max_response_size: usize,
 ) -> ResponseFuture<Response, UpstreamRequestError> {
     let status = response.status();
 
-    if !update_rate_limits || status.is_success() {
+    if !intercept_status_errors || status.is_success() {
         return Box::new(future::ok(response));
     }
 
@@ -596,7 +597,7 @@ impl UpstreamRelay {
         // we are about to send a HTTP message keep track of requests in flight
         self.num_inflight_requests += 1;
 
-        let update_rate_limits = request.config.update_rate_limits;
+        let intercept_status_errors = request.config.intercept_status_errors;
 
         request.send_start = Some(Instant::now());
 
@@ -644,7 +645,7 @@ impl UpstreamRelay {
         future
             .track(ctx.address().recipient())
             .and_then(move |response| {
-                handle_response(response, update_rate_limits, max_response_size)
+                handle_response(response, intercept_status_errors, max_response_size)
             })
             .into_actor(self)
             .then(|send_result, slf, ctx| {
@@ -814,7 +815,7 @@ impl UpstreamRelay {
         let config = UpstreamRequestConfig {
             retry: Q::retry(),
             priority: Q::priority(),
-            update_rate_limits: true,
+            intercept_status_errors: true,
             set_relay_id: true,
         };
 
@@ -1054,7 +1055,7 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
             UpstreamRequestConfig {
                 priority: RequestPriority::Immediate,
                 retry: false,
-                update_rate_limits: false,
+                intercept_status_errors: true,
                 set_relay_id: true,
             },
             Method::GET,
@@ -1128,7 +1129,7 @@ struct UpstreamRequestConfig {
     /// Should the request be retried in case of network error.
     retry: bool,
     /// Should 429s be honored within the upstream.
-    update_rate_limits: bool,
+    intercept_status_errors: bool,
     /// Should the x-sentry-relay-id header be added.
     set_relay_id: bool,
 }
@@ -1143,7 +1144,7 @@ impl SendRequest {
             config: UpstreamRequestConfig {
                 priority: RequestPriority::Low,
                 retry: true,
-                update_rate_limits: true,
+                intercept_status_errors: true,
                 set_relay_id: true,
             },
         }
@@ -1179,8 +1180,8 @@ where
     }
 
     #[inline]
-    pub fn update_rate_limits(mut self, should_update_rate_limits: bool) -> Self {
-        self.config.update_rate_limits = should_update_rate_limits;
+    pub fn intercept_status_errors(mut self, should_intercept_status_errors: bool) -> Self {
+        self.config.intercept_status_errors = should_intercept_status_errors;
         self
     }
 
