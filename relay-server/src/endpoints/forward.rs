@@ -138,7 +138,7 @@ pub fn forward_upstream(
         .and_then(move |data| {
             let forward_request = SendRequest::new(method, path_and_query)
                 .retry(false)
-                .update_rate_limits(false)
+                .intercept_status_errors(false)
                 .set_relay_id(false)
                 .build(move |mut builder: RequestBuilder| {
                     for (key, value) in &headers {
