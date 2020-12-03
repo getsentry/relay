@@ -495,13 +495,21 @@ impl EventProcessor {
             .map_err(ProcessingError::InvalidJson)?
             .ok_or(ProcessingError::InvalidSecurityType)?;
 
-        match report_type {
+        let apply_result = match report_type {
             SecurityReportType::Csp => Csp::apply_to_event(data, &mut event),
             SecurityReportType::ExpectCt => ExpectCt::apply_to_event(data, &mut event),
             SecurityReportType::ExpectStaple => ExpectStaple::apply_to_event(data, &mut event),
             SecurityReportType::Hpkp => Hpkp::apply_to_event(data, &mut event),
+        };
+
+        if let Err(json_error) = apply_result {
+            // logged at call site of extract_event
+            sentry::configure_scope(|scope| {
+                scope.set_extra("payload", String::from_utf8_lossy(&data).into());
+            });
+
+            return Err(ProcessingError::InvalidSecurityReport(json_error));
         }
-        .map_err(ProcessingError::InvalidSecurityReport)?;
 
         if let Some(release) = item.get_header("sentry_release").and_then(Value::as_str) {
             event.release = Annotated::from(LenientString(release.to_owned()));
@@ -699,7 +707,7 @@ impl EventProcessor {
     ///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.
     ///  4. A multipart form data body.
     ///  5. If none match, `Annotated::empty()`.
-    fn extract_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn extract_event_inner(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let envelope = &mut state.envelope;
 
         // Remove all items first, and then process them. After this function returns, only
@@ -760,6 +768,26 @@ impl EventProcessor {
         state.metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
         Ok(())
+    }
+
+    /// Extracts the primary event payload from an envelope.
+    ///
+    /// The event is obtained from only one source in the following precedence:
+    ///  1. An explicit event item. This is also the case for JSON uploads.
+    ///  2. A security report item.
+    ///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.
+    ///  4. A multipart form data body.
+    ///  5. If none match, `Annotated::empty()`.
+    fn extract_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        sentry::with_scope(
+            |_| (),
+            || {
+                self.extract_event_inner(state).map_err(|error| {
+                    log::error!("failed to extract event: {}", LogError(&error));
+                    error
+                })
+            },
+        )
     }
 
     /// Extracts event information from an unreal context.
@@ -1148,10 +1176,7 @@ impl EventProcessor {
                 self.expand_unreal(&mut state)?;
             });
 
-            self.extract_event(&mut state).map_err(|error| {
-                log::error!("failed to extract event: {}", LogError(&error));
-                error
-            })?;
+            self.extract_event(&mut state)?;
 
             if_processing!({
                 self.process_unreal(&mut state)?;
