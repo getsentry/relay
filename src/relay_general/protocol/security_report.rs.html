@@ -1871,6 +1871,22 @@
 <span id="1868">1868</span>
 <span id="1869">1869</span>
 <span id="1870">1870</span>
+<span id="1871">1871</span>
+<span id="1872">1872</span>
+<span id="1873">1873</span>
+<span id="1874">1874</span>
+<span id="1875">1875</span>
+<span id="1876">1876</span>
+<span id="1877">1877</span>
+<span id="1878">1878</span>
+<span id="1879">1879</span>
+<span id="1880">1880</span>
+<span id="1881">1881</span>
+<span id="1882">1882</span>
+<span id="1883">1883</span>
+<span id="1884">1884</span>
+<span id="1885">1885</span>
+<span id="1886">1886</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Contains definitions for the security report interfaces.</span>
 <span class="doccomment">//!</span>
@@ -2410,10 +2426,14 @@
     <span class="ident">date_time</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">hostname</span>: <span class="ident">String</span>,
     <span class="ident">port</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>,
+    <span class="ident">scheme</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">with</span> <span class="op">=</span> <span class="string">&quot;serde_date_time_3339&quot;</span>)]</span>
     <span class="ident">effective_expiration_date</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">served_certificate_chain</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">validated_certificate_chain</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">scts</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SingleCertificateTimestampRaw</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">failure_mode</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="ident">test_report</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">mod</span> <span class="ident">serde_date_time_3339</span> {
@@ -2474,6 +2494,7 @@
             <span class="ident">date_time</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">date_time</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">d</span><span class="op">|</span> <span class="ident">d</span>.<span class="ident">to_rfc3339</span>())),
             <span class="ident">hostname</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">hostname</span>),
             <span class="ident">port</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">port</span>),
+            <span class="ident">scheme</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">scheme</span>),
             <span class="ident">effective_expiration_date</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(
                 <span class="self">self</span>.<span class="ident">effective_expiration_date</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">d</span><span class="op">|</span> <span class="ident">d</span>.<span class="ident">to_rfc3339</span>()),
             ),
@@ -2493,6 +2514,8 @@
                     .<span class="ident">map</span>(<span class="op">|</span><span class="ident">elm</span><span class="op">|</span> <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">elm</span>.<span class="ident">into_protocol</span>()))
                     .<span class="ident">collect</span>()
             })),
+            <span class="ident">failure_mode</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">failure_mode</span>),
+            <span class="ident">test_report</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">test_report</span>),
         }
     }
 
@@ -2552,11 +2575,14 @@
     <span class="doccomment">/// The hostname to which the UA made the original request that failed the CT compliance check.</span>
     <span class="kw">pub</span> <span class="ident">hostname</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">port</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">scheme</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="doccomment">/// Date time in rfc3339 format</span>
     <span class="kw">pub</span> <span class="ident">effective_expiration_date</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">served_certificate_chain</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">validated_certificate_chain</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">scts</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">SingleCertificateTimestamp</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">failure_mode</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">test_report</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">ExpectCt</span> {
@@ -3464,6 +3490,7 @@
                 &quot;date-time&quot;: &quot;2014-04-06T13:00:50Z&quot;,
                 &quot;hostname&quot;: &quot;www.example.com&quot;,
                 &quot;port&quot;: 443,
+                &quot;scheme&quot;: &quot;https&quot;,
                 &quot;effective-expiration-date&quot;: &quot;2014-05-01T12:40:50Z&quot;,
                 &quot;served-certificate-chain&quot;: [&quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;],
                 &quot;validated-certificate-chain&quot;: [&quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;],
@@ -3474,7 +3501,9 @@
                         &quot;source&quot;: &quot;embedded&quot;,
                         &quot;serialized_sct&quot;: &quot;ABCD==&quot;
                     }
-                ]
+                ],
+                &quot;failure-mode&quot;: &quot;enforce&quot;,
+                &quot;test-report&quot;: false
             }
         }&quot;#</span>;
 
@@ -3503,6 +3532,7 @@
             &quot;date_time&quot;: &quot;2014-04-06T13:00:50+00:00&quot;,
             &quot;hostname&quot;: &quot;www.example.com&quot;,
             &quot;port&quot;: 443,
+            &quot;scheme&quot;: &quot;https&quot;,
             &quot;effective_expiration_date&quot;: &quot;2014-05-01T12:40:50+00:00&quot;,
             &quot;served_certificate_chain&quot;: [
               &quot;-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----&quot;
@@ -3517,7 +3547,9 @@
                 &quot;source&quot;: &quot;embedded&quot;,
                 &quot;serialized_sct&quot;: &quot;ABCD==&quot;
               }
-            ]
+            ],
+            &quot;failure_mode&quot;: &quot;enforce&quot;,
+            &quot;test_report&quot;: false
           }
         }
         &quot;###</span>);
