@@ -821,7 +821,7 @@
 
                 <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">explode_session_aggregates</span>() {
                     <span class="kw">if</span> <span class="ident">aggregates</span>.<span class="ident">num_sessions</span>() <span class="kw">as</span> <span class="ident">usize</span> <span class="op">&gt;</span> <span class="ident">MAX_EXPLODED_SESSIONS</span> {
-                        <span class="ident">log</span>::<span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;exploded session items from aggregate exceed threshold&quot;</span>);
+                        <span class="ident">relay_log</span>::<span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;exploded session items from aggregate exceed threshold&quot;</span>);
                     }
 
                     <span class="kw">for</span> <span class="ident">session</span> <span class="kw">in</span> <span class="ident">aggregates</span>.<span class="ident">into_updates_iter</span>().<span class="ident">take</span>(<span class="ident">MAX_EXPLODED_SESSIONS</span>) {
@@ -879,7 +879,7 @@
         };
 
         <span class="kw">if</span> <span class="ident">aggregates</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="ident">MAX_EXPLODED_SESSIONS</span> {
-            <span class="ident">log</span>::<span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;aggregated session items exceed threshold&quot;</span>);
+            <span class="ident">relay_log</span>::<span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;aggregated session items exceed threshold&quot;</span>);
         }
 
         <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="ident">aggregates</span>.<span class="ident">into_iter</span>().<span class="ident">take</span>(<span class="ident">MAX_EXPLODED_SESSIONS</span>) {
@@ -953,7 +953,7 @@
     }
 
     <span class="kw">fn</span> <span class="ident">send_session_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SessionKafkaMessage</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="ident">log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;Sending session item to kafka&quot;</span>);
+        <span class="ident">relay_log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;Sending session item to kafka&quot;</span>);
         <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic</span>::<span class="ident">Sessions</span>, <span class="ident">KafkaMessage</span>::<span class="ident">Session</span>(<span class="ident">message</span>))<span class="question-mark">?</span>;
         <span class="macro">metric</span><span class="macro">!</span>(
             <span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
@@ -974,11 +974,11 @@
         <span class="kw">let</span> <span class="ident">mailbox_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">event_buffer_size</span>() <span class="kw">as</span> <span class="ident">usize</span>;
         <span class="ident">context</span>.<span class="ident">set_mailbox_capacity</span>(<span class="ident">mailbox_size</span>);
 
-        <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;store forwarder started&quot;</span>);
+        <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;store forwarder started&quot;</span>);
     }
 
     <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) {
-        <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;store forwarder stopped&quot;</span>);
+        <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;store forwarder stopped&quot;</span>);
     }
 }
 
@@ -1237,7 +1237,7 @@
         }
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event_item</span>) <span class="op">=</span> <span class="ident">event_item</span> {
-            <span class="ident">log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;Sending event item of envelope to kafka&quot;</span>);
+            <span class="ident">relay_log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;Sending event item of envelope to kafka&quot;</span>);
             <span class="kw">let</span> <span class="ident">event_message</span> <span class="op">=</span> <span class="ident">KafkaMessage</span>::<span class="ident">Event</span>(<span class="ident">EventKafkaMessage</span> {
                 <span class="ident">payload</span>: <span class="ident">event_item</span>.<span class="ident">payload</span>(),
                 <span class="ident">start_time</span>: <span class="ident">UnixTimestamp</span>::<span class="ident">from_instant</span>(<span class="ident">start_time</span>).<span class="ident">as_secs</span>(),
@@ -1253,7 +1253,7 @@
                 <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;event&quot;</span>
             );
         } <span class="kw">else</span> <span class="kw">if</span> <span class="op">!</span><span class="ident">attachments</span>.<span class="ident">is_empty</span>() {
-            <span class="ident">log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;Sending individual attachments of envelope to kafka&quot;</span>);
+            <span class="ident">relay_log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;Sending individual attachments of envelope to kafka&quot;</span>);
             <span class="kw">for</span> <span class="ident">attachment</span> <span class="kw">in</span> <span class="ident">attachments</span> {
                 <span class="kw">let</span> <span class="ident">attachment_message</span> <span class="op">=</span> <span class="ident">KafkaMessage</span>::<span class="ident">Attachment</span>(<span class="ident">AttachmentKafkaMessage</span> {
                     <span class="ident">event_id</span>: <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError</span>::<span class="ident">NoEventId</span>)<span class="question-mark">?</span>,

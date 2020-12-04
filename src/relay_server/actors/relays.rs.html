@@ -378,6 +378,7 @@
 <span id="375">375</span>
 <span id="376">376</span>
 <span id="377">377</span>
+<span id="378">378</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This actor caches known public keys.</span>
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
@@ -394,8 +395,9 @@
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">use</span> <span class="ident">relay_auth</span>::{<span class="ident">PublicKey</span>, <span class="ident">RelayId</span>};
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">LogError</span>, <span class="ident">RetryBackoff</span>};
+<span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">RetryBackoff</span>;
 <span class="kw">use</span> <span class="ident">relay_config</span>::<span class="ident">Config</span>;
+<span class="kw">use</span> <span class="ident">relay_log</span>::<span class="ident">LogError</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">upstream</span>::{<span class="ident">RequestPriority</span>, <span class="ident">SendQuery</span>, <span class="ident">UpstreamQuery</span>, <span class="ident">UpstreamRelay</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">utils</span>::{<span class="self">self</span>, <span class="ident">ApiErrorResponse</span>, <span class="ident">Response</span>};
@@ -521,7 +523,7 @@
     <span class="doccomment">/// channels are pushed in the meanwhile, this will reschedule automatically.</span>
     <span class="kw">fn</span> <span class="ident">fetch_relays</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) {
         <span class="kw">let</span> <span class="ident">channels</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">replace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">relay_channels</span>, <span class="ident">HashMap</span>::<span class="ident">new</span>());
-        <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(
+        <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(
             <span class="string">&quot;updating public keys for {} relays (attempt {})&quot;</span>,
             <span class="ident">channels</span>.<span class="ident">len</span>(),
             <span class="self">self</span>.<span class="ident">backoff</span>.<span class="ident">attempt</span>(),
@@ -544,12 +546,12 @@
                         <span class="kw">for</span> (<span class="ident">id</span>, <span class="ident">channel</span>) <span class="kw">in</span> <span class="ident">channels</span> {
                             <span class="kw">let</span> <span class="ident">info</span> <span class="op">=</span> <span class="ident">response</span>.<span class="ident">relays</span>.<span class="ident">remove</span>(<span class="kw-2">&amp;</span><span class="ident">id</span>).<span class="ident">unwrap_or</span>(<span class="prelude-val">None</span>);
                             <span class="ident">slf</span>.<span class="ident">relays</span>.<span class="ident">insert</span>(<span class="ident">id</span>, <span class="ident">RelayState</span>::<span class="ident">from_option</span>(<span class="ident">info</span>.<span class="ident">clone</span>()));
-                            <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;relay {} public key updated&quot;</span>, <span class="ident">id</span>);
+                            <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;relay {} public key updated&quot;</span>, <span class="ident">id</span>);
                             <span class="ident">channel</span>.<span class="ident">send</span>(<span class="ident">info</span>).<span class="ident">ok</span>();
                         }
                     }
                     <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                        <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;error fetching public keys: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
+                        <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;error fetching public keys: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
 
                         <span class="comment">// Put the channels back into the queue, in addition to channels that have</span>
                         <span class="comment">// been pushed in the meanwhile. We will retry again shortly.</span>
@@ -579,14 +581,14 @@
         }
 
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">credentials</span>().<span class="ident">is_none</span>() {
-            <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(
+            <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(
                 <span class="string">&quot;No credentials configured. Relay {} cannot send requests to this relay.&quot;</span>,
                 <span class="ident">relay_id</span>
             );
             <span class="kw">return</span> <span class="ident">Response</span>::<span class="ident">ok</span>((<span class="ident">relay_id</span>, <span class="prelude-val">None</span>));
         }
 
-        <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;relay {} public key requested&quot;</span>, <span class="ident">relay_id</span>);
+        <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;relay {} public key requested&quot;</span>, <span class="ident">relay_id</span>);
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">backoff</span>.<span class="ident">started</span>() {
             <span class="self">self</span>.<span class="ident">backoff</span>.<span class="ident">reset</span>();
             <span class="self">self</span>.<span class="ident">schedule_fetch</span>(<span class="ident">context</span>);
@@ -608,11 +610,11 @@
     <span class="kw">type</span> <span class="ident">Context</span> <span class="op">=</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
 
     <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) {
-        <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;key cache started&quot;</span>);
+        <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;key cache started&quot;</span>);
     }
 
     <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) {
-        <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;key cache stopped&quot;</span>);
+        <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;key cache stopped&quot;</span>);
     }
 }
 

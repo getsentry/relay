@@ -237,6 +237,7 @@
 <span id="234">234</span>
 <span id="235">235</span>
 <span id="236">236</span>
+<span id="237">237</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Server endpoint that proxies any request to the upstream.</span>
 <span class="doccomment">//!</span>
@@ -251,8 +252,9 @@
 <span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">lazy_static</span>::<span class="ident">lazy_static</span>;
 
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">GlobMatcher</span>, <span class="ident">LogError</span>};
+<span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">GlobMatcher</span>;
 <span class="kw">use</span> <span class="ident">relay_config</span>::<span class="ident">Config</span>;
+<span class="kw">use</span> <span class="ident">relay_log</span>::<span class="ident">LogError</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">upstream</span>::{<span class="ident">SendRequest</span>, <span class="ident">UpstreamRequestError</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">body</span>::<span class="ident">ForwardBody</span>;
@@ -304,7 +306,7 @@
             <span class="ident">UpstreamRequestError</span>::<span class="ident">Http</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">e</span> {
                 <span class="ident">HttpError</span>::<span class="ident">Overflow</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">HttpResponse</span>::<span class="ident">PayloadTooLarge</span>().<span class="ident">finish</span>(),
                 <span class="ident">HttpError</span>::<span class="ident">Reqwest</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                    <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">LogError</span>(<span class="ident">error</span>));
+                    <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">LogError</span>(<span class="ident">error</span>));
                     <span class="ident">HttpResponse</span>::<span class="ident">new</span>(
                         <span class="ident">StatusCode</span>::<span class="ident">from_u16</span>(<span class="ident">error</span>.<span class="ident">status</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">as_u16</span>()).<span class="ident">unwrap_or</span>(<span class="number">500</span>))
                             .<span class="ident">unwrap</span>(),
@@ -317,7 +319,7 @@
             },
             <span class="ident">e</span> <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="comment">// should all be unreachable</span>
-                <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(
+                <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(
                     <span class="string">&quot;supposedly unreachable codepath for forward endpoint: {}&quot;</span>,
                     <span class="ident">LogError</span>(<span class="ident">e</span>)
                 );

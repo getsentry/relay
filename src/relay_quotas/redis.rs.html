@@ -661,9 +661,9 @@
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
 
 <span class="kw">use</span> <span class="ident">failure</span>::<span class="ident">Fail</span>;
-<span class="kw">use</span> <span class="ident">sentry</span>::<span class="ident">protocol</span>::<span class="ident">value</span>;
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">UnixTimestamp</span>;
+<span class="kw">use</span> <span class="ident">relay_log</span>::<span class="ident">protocol</span>::<span class="ident">value</span>;
 <span class="kw">use</span> <span class="ident">relay_redis</span>::{<span class="ident">redis</span>::<span class="ident">Script</span>, <span class="ident">RedisError</span>, <span class="ident">RedisPool</span>};
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">quota</span>::{<span class="ident">ItemScoping</span>, <span class="ident">Quota</span>, <span class="ident">QuotaScope</span>};
@@ -863,9 +863,9 @@
             } <span class="kw">else</span> {
                 <span class="comment">// This quota is neither a static reject-all, nor can it be tracked in Redis due to</span>
                 <span class="comment">// missing fields. We&#39;re skipping this for forward-compatibility.</span>
-                <span class="ident">sentry</span>::<span class="ident">with_scope</span>(
+                <span class="ident">relay_log</span>::<span class="ident">with_scope</span>(
                     <span class="op">|</span><span class="ident">scope</span><span class="op">|</span> <span class="ident">scope</span>.<span class="ident">set_extra</span>(<span class="string">&quot;quota&quot;</span>, <span class="ident">value</span>::<span class="ident">to_value</span>(<span class="ident">quota</span>).<span class="ident">unwrap</span>()),
-                    <span class="op">|</span><span class="op">|</span> <span class="ident">log</span>::<span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;skipping unsupported quota&quot;</span>),
+                    <span class="op">|</span><span class="op">|</span> <span class="ident">relay_log</span>::<span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;skipping unsupported quota&quot;</span>),
                 )
             }
         }

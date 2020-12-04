@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["check_config",""],["dump_credentials","Dumps out credential info."],["dump_spawn_infos","Print spawn infos to the log."],["init_logging","Initialize the logging system."],["init_metrics","Initialize the metric system."]]});
+initSidebarItems({"fn":[["check_config",""],["dump_credentials","Dumps out credential info."],["dump_spawn_infos","Print spawn infos to the log."],["init_metrics","Initialize the metric system."]]});

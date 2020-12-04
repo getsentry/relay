@@ -342,6 +342,14 @@
 <span id="339">339</span>
 <span id="340">340</span>
 <span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
@@ -355,8 +363,9 @@
 <span class="kw">use</span> <span class="ident">itertools</span>::<span class="ident">Itertools</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">LogError</span>, <span class="ident">ProjectKey</span>, <span class="ident">RetryBackoff</span>};
+<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">ProjectKey</span>, <span class="ident">RetryBackoff</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::<span class="ident">Config</span>;
+<span class="kw">use</span> <span class="ident">relay_log</span>::<span class="ident">LogError</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">project</span>::<span class="ident">ProjectState</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">project_cache</span>::{<span class="ident">FetchProjectState</span>, <span class="ident">ProjectError</span>, <span class="ident">ProjectStateResponse</span>};
@@ -483,7 +492,7 @@
     <span class="doccomment">/// channels are pushed in the meanwhile, this will reschedule automatically.</span>
     <span class="kw">fn</span> <span class="ident">fetch_states</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">state_channels</span>.<span class="ident">is_empty</span>() {
-            <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;project state update scheduled without projects&quot;</span>);
+            <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;project state update scheduled without projects&quot;</span>);
             <span class="kw">return</span>;
         }
 
@@ -512,7 +521,7 @@
 
         <span class="macro">metric</span><span class="macro">!</span>(<span class="ident">histogram</span>(<span class="ident">RelayHistograms</span>::<span class="ident">ProjectStatePending</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">state_channels</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>);
 
-        <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(
+        <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(
             <span class="string">&quot;updating project states for {}/{} projects (attempt {})&quot;</span>,
             <span class="ident">channels</span>.<span class="ident">len</span>(),
             <span class="ident">channels</span>.<span class="ident">len</span>() <span class="op">+</span> <span class="self">self</span>.<span class="ident">state_channels</span>.<span class="ident">len</span>(),
@@ -533,7 +542,7 @@
             .<span class="ident">into_iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">channels_batch</span><span class="op">|</span> {
                 <span class="kw">let</span> <span class="ident">channels_batch</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">channels_batch</span>.<span class="ident">collect</span>();
-                <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;sending request of size {}&quot;</span>, <span class="ident">channels_batch</span>.<span class="ident">len</span>());
+                <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;sending request of size {}&quot;</span>, <span class="ident">channels_batch</span>.<span class="ident">len</span>());
                 <span class="macro">metric</span><span class="macro">!</span>(
                     <span class="ident">histogram</span>(<span class="ident">RelayHistograms</span>::<span class="ident">ProjectStateRequestBatchSize</span>) <span class="op">=</span>
                         <span class="ident">channels_batch</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>
@@ -584,7 +593,11 @@
                                     .<span class="ident">unwrap_or</span>(<span class="ident">ErrorBoundary</span>::<span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>))
                                     .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="ident">error</span><span class="op">|</span> {
                                         <span class="kw">let</span> <span class="ident">e</span> <span class="op">=</span> <span class="ident">LogError</span>(<span class="ident">error</span>);
-                                        <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;error fetching project state {}: {}&quot;</span>, <span class="ident">key</span>, <span class="ident">e</span>);
+                                        <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(
+                                            <span class="string">&quot;error fetching project state {}: {}&quot;</span>,
+                                            <span class="ident">key</span>,
+                                            <span class="ident">e</span>
+                                        );
                                         <span class="prelude-val">Some</span>(<span class="ident">ProjectState</span>::<span class="ident">err</span>())
                                     })
                                     .<span class="ident">unwrap_or_else</span>(<span class="ident">ProjectState</span>::<span class="ident">missing</span>);
@@ -593,7 +606,10 @@
                             }
                         }
                         <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                            <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;error fetching project states: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
+                            <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(
+                                <span class="string">&quot;error fetching project states: {}&quot;</span>,
+                                <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>)
+                            );
 
                             <span class="comment">// Put the channels back into the queue, in addition to channels that</span>
                             <span class="comment">// have been pushed in the meanwhile. We will retry again shortly.</span>
@@ -643,11 +659,11 @@
         <span class="kw">let</span> <span class="ident">mailbox_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">event_buffer_size</span>() <span class="kw">as</span> <span class="ident">usize</span>;
         <span class="ident">context</span>.<span class="ident">set_mailbox_capacity</span>(<span class="ident">mailbox_size</span>);
 
-        <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;project upstream cache started&quot;</span>);
+        <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;project upstream cache started&quot;</span>);
     }
 
     <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) {
-        <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;project upstream cache stopped&quot;</span>);
+        <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;project upstream cache stopped&quot;</span>);
     }
 }
 

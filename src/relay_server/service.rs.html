@@ -529,9 +529,9 @@
     <span class="ident">H</span>: <span class="ident">server</span>::<span class="ident">IntoHttpHandler</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
     <span class="ident">F</span>: <span class="ident">Fn</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">H</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Clone</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
 {
-    <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;spawning http server&quot;</span>);
+    <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;spawning http server&quot;</span>);
     <span class="kw">for</span> (<span class="ident">addr</span>, <span class="ident">scheme</span>) <span class="kw">in</span> <span class="ident">server</span>.<span class="ident">addrs_with_scheme</span>() {
-        <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;  listening on: {}://{}/&quot;</span>, <span class="ident">scheme</span>, <span class="ident">addr</span>);
+        <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;  listening on: {}://{}/&quot;</span>, <span class="ident">scheme</span>, <span class="ident">addr</span>);
     }
 }
 

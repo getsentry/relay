@@ -343,9 +343,9 @@
 
         <span class="comment">// All actors have started successfully. Run the system, which blocks the current thread</span>
         <span class="comment">// until a signal arrives or `Controller::stop` is called.</span>
-        <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;relay server starting&quot;</span>);
+        <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;relay server starting&quot;</span>);
         <span class="ident">sys</span>.<span class="ident">run</span>();
-        <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;relay shutdown complete&quot;</span>);
+        <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;relay shutdown complete&quot;</span>);
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -433,16 +433,16 @@
     <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">signal</span>::<span class="ident">Signal</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
         <span class="kw">match</span> <span class="ident">message</span>.<span class="number">0</span> {
             <span class="ident">signal</span>::<span class="ident">SignalType</span>::<span class="ident">Int</span> <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;SIGINT received, exiting&quot;</span>);
+                <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;SIGINT received, exiting&quot;</span>);
                 <span class="self">self</span>.<span class="ident">shutdown</span>(<span class="ident">context</span>, <span class="prelude-val">None</span>);
             }
             <span class="ident">signal</span>::<span class="ident">SignalType</span>::<span class="ident">Quit</span> <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;SIGQUIT received, exiting&quot;</span>);
+                <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;SIGQUIT received, exiting&quot;</span>);
                 <span class="self">self</span>.<span class="ident">shutdown</span>(<span class="ident">context</span>, <span class="prelude-val">None</span>);
             }
             <span class="ident">signal</span>::<span class="ident">SignalType</span>::<span class="ident">Term</span> <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="kw">let</span> <span class="ident">timeout</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">timeout</span>;
-                <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;SIGTERM received, stopping in {}s&quot;</span>, <span class="ident">timeout</span>.<span class="ident">as_secs</span>());
+                <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;SIGTERM received, stopping in {}s&quot;</span>, <span class="ident">timeout</span>.<span class="ident">as_secs</span>());
                 <span class="self">self</span>.<span class="ident">shutdown</span>(<span class="ident">context</span>, <span class="prelude-val">Some</span>(<span class="ident">timeout</span>));
             }
             <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> (),

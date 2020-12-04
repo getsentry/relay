@@ -1353,6 +1353,7 @@
 <span id="1350">1350</span>
 <span id="1351">1351</span>
 <span id="1352">1352</span>
+<span id="1353">1353</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -1394,8 +1395,9 @@
 <span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">Serialize</span>;
 
 <span class="kw">use</span> <span class="ident">relay_auth</span>::{<span class="ident">RegisterChallenge</span>, <span class="ident">RegisterRequest</span>, <span class="ident">RegisterResponse</span>, <span class="ident">Registration</span>};
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">tryf</span>, <span class="ident">LogError</span>, <span class="ident">RetryBackoff</span>};
+<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">tryf</span>, <span class="ident">RetryBackoff</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">HttpClient</span>, <span class="ident">RelayMode</span>};
+<span class="kw">use</span> <span class="ident">relay_log</span>::<span class="ident">LogError</span>;
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{
     <span class="ident">DataCategories</span>, <span class="ident">QuotaScope</span>, <span class="ident">RateLimit</span>, <span class="ident">RateLimitScope</span>, <span class="ident">RateLimits</span>, <span class="ident">RetryAfter</span>, <span class="ident">Scoping</span>,
 };
@@ -1876,12 +1878,12 @@
     <span class="kw">fn</span> <span class="ident">reset_network_error</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
         <span class="self">self</span>.<span class="ident">first_error</span> <span class="op">=</span> <span class="prelude-val">None</span>;
         <span class="self">self</span>.<span class="ident">outage_backoff</span>.<span class="ident">reset</span>();
-        <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Recovering from network outage.&quot;</span>)
+        <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Recovering from network outage.&quot;</span>)
     }
 
     <span class="kw">fn</span> <span class="ident">upstream_connection_check</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) {
         <span class="kw">let</span> <span class="ident">next_backoff</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">outage_backoff</span>.<span class="ident">next_backoff</span>();
-        <span class="ident">log</span>::<span class="macro">warn</span><span class="macro">!</span>(
+        <span class="ident">relay_log</span>::<span class="macro">warn</span><span class="macro">!</span>(
             <span class="string">&quot;Network outage, scheduling another check in {:?}&quot;</span>,
             <span class="ident">next_backoff</span>
         );
@@ -2045,7 +2047,7 @@
             <span class="op">|</span> <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">Http</span>(<span class="ident">HttpError</span>::<span class="ident">Overflow</span>))
             <span class="op">|</span> <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">Http</span>(<span class="ident">HttpError</span>::<span class="ident">Actix</span>(<span class="kw">_</span>))) <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="comment">// these are not errors caused when sending to upstream so we don&#39;t need to log anything</span>
-                <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;meter_result called for unsupported error&quot;</span>);
+                <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;meter_result called for unsupported error&quot;</span>);
                 <span class="kw">return</span>;
             }
         };
@@ -2212,7 +2214,7 @@
     <span class="kw">type</span> <span class="ident">Context</span> <span class="op">=</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
 
     <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) {
-        <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;upstream relay started&quot;</span>);
+        <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;upstream relay started&quot;</span>);
 
         <span class="self">self</span>.<span class="ident">auth_backoff</span>.<span class="ident">reset</span>();
         <span class="self">self</span>.<span class="ident">outage_backoff</span>.<span class="ident">reset</span>();
@@ -2223,7 +2225,7 @@
     }
 
     <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) {
-        <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;upstream relay stopped&quot;</span>);
+        <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;upstream relay stopped&quot;</span>);
     }
 }
 
@@ -2248,7 +2250,7 @@
     <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_msg</span>: <span class="ident">Authenticate</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
         <span class="comment">// detect incorrect authentication requests, if we detect them we have a programming error</span>
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">auth_state_error</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_auth_state_error</span>() {
-            <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">auth_state_error</span>);
+            <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">auth_state_error</span>);
             <span class="kw">return</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">fut</span>::<span class="ident">err</span>(()));
         }
 
@@ -2257,7 +2259,7 @@
             <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">fut</span>::<span class="ident">err</span>(())),
         };
 
-        <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(
+        <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(
             <span class="string">&quot;registering with upstream ({})&quot;</span>,
             <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">upstream_descriptor</span>()
         );
@@ -2275,14 +2277,14 @@
             .<span class="ident">enqueue_query</span>(<span class="ident">request</span>, <span class="ident">ctx</span>)
             .<span class="ident">into_actor</span>(<span class="self">self</span>)
             .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">challenge</span>, <span class="ident">slf</span>, <span class="ident">ctx</span><span class="op">|</span> {
-                <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;got register challenge (token = {})&quot;</span>, <span class="ident">challenge</span>.<span class="ident">token</span>());
+                <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;got register challenge (token = {})&quot;</span>, <span class="ident">challenge</span>.<span class="ident">token</span>());
                 <span class="kw">let</span> <span class="ident">challenge_response</span> <span class="op">=</span> <span class="ident">challenge</span>.<span class="ident">into_response</span>();
 
-                <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;sending register challenge response&quot;</span>);
+                <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;sending register challenge response&quot;</span>);
                 <span class="ident">slf</span>.<span class="ident">enqueue_query</span>(<span class="ident">challenge_response</span>, <span class="ident">ctx</span>).<span class="ident">into_actor</span>(<span class="ident">slf</span>)
             })
             .<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span>, <span class="ident">slf</span>, <span class="ident">ctx</span><span class="op">|</span> {
-                <span class="ident">log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;relay successfully registered with upstream&quot;</span>);
+                <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;relay successfully registered with upstream&quot;</span>);
                 <span class="ident">slf</span>.<span class="ident">auth_state</span> <span class="op">=</span> <span class="ident">AuthState</span>::<span class="ident">Registered</span>;
                 <span class="ident">slf</span>.<span class="ident">auth_backoff</span>.<span class="ident">reset</span>();
 
@@ -2294,7 +2296,7 @@
                 <span class="ident">ctx</span>.<span class="ident">notify</span>(<span class="ident">PumpHttpMessageQueue</span>);
             })
             .<span class="ident">map_err</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">err</span>, <span class="ident">slf</span>, <span class="ident">ctx</span><span class="op">|</span> {
-                <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;authentication encountered error: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">err</span>));
+                <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;authentication encountered error: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">err</span>));
 
                 <span class="kw">if</span> <span class="ident">err</span>.<span class="ident">is_permanent_rejection</span>() {
                     <span class="ident">slf</span>.<span class="ident">auth_state</span> <span class="op">=</span> <span class="ident">AuthState</span>::<span class="ident">Denied</span>;
@@ -2309,7 +2311,7 @@
                 }
 
                 <span class="comment">// Even on network errors, retry authentication independently.</span>
-                <span class="ident">log</span>::<span class="macro">debug</span><span class="macro">!</span>(
+                <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(
                     <span class="string">&quot;scheduling authentication retry in {} seconds&quot;</span>,
                     <span class="ident">interval</span>.<span class="ident">as_secs</span>()
                 );

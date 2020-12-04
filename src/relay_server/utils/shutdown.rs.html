@@ -120,7 +120,7 @@
             <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">test</span>) {
                 <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Dropped unfinished future during shutdown: {}&quot;</span>, <span class="self">self</span>.<span class="ident">name</span>);
             } <span class="kw">else</span> {
-                <span class="ident">log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;Dropped unfinished future during shutdown: {}&quot;</span>, <span class="self">self</span>.<span class="ident">name</span>);
+                <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;Dropped unfinished future during shutdown: {}&quot;</span>, <span class="self">self</span>.<span class="ident">name</span>);
             }
         }
     }
