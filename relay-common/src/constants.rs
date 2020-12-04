@@ -3,7 +3,6 @@
 use std::fmt;
 use std::str::FromStr;
 
-use failure::Fail;
 #[cfg(feature = "jsonschema")]
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -31,9 +30,16 @@ pub enum EventType {
 }
 
 /// An error used when parsing `EventType`.
-#[derive(Debug, Fail)]
-#[fail(display = "invalid event type")]
+#[derive(Clone, Copy, Debug)]
 pub struct ParseEventTypeError;
+
+impl fmt::Display for ParseEventTypeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid event type")
+    }
+}
+
+impl std::error::Error for ParseEventTypeError {}
 
 impl Default for EventType {
     fn default() -> Self {
@@ -242,9 +248,16 @@ pub enum SpanStatus {
 }
 
 /// Error parsing a `SpanStatus`.
-#[derive(Debug, Fail)]
-#[fail(display = "invalid span status")]
+#[derive(Clone, Copy, Debug)]
 pub struct ParseSpanStatusError;
+
+impl fmt::Display for ParseSpanStatusError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid span status")
+    }
+}
+
+impl std::error::Error for ParseSpanStatusError {}
 
 impl FromStr for SpanStatus {
     type Err = ParseSpanStatusError;

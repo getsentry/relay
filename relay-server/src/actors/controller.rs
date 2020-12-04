@@ -85,9 +85,9 @@ impl Controller {
 
         // All actors have started successfully. Run the system, which blocks the current thread
         // until a signal arrives or `Controller::stop` is called.
-        log::info!("relay server starting");
+        relay_log::info!("relay server starting");
         sys.run();
-        log::info!("relay shutdown complete");
+        relay_log::info!("relay shutdown complete");
 
         Ok(())
     }
@@ -175,16 +175,16 @@ impl Handler<signal::Signal> for Controller {
     fn handle(&mut self, message: signal::Signal, context: &mut Self::Context) -> Self::Result {
         match message.0 {
             signal::SignalType::Int => {
-                log::info!("SIGINT received, exiting");
+                relay_log::info!("SIGINT received, exiting");
                 self.shutdown(context, None);
             }
             signal::SignalType::Quit => {
-                log::info!("SIGQUIT received, exiting");
+                relay_log::info!("SIGQUIT received, exiting");
                 self.shutdown(context, None);
             }
             signal::SignalType::Term => {
                 let timeout = self.timeout;
-                log::info!("SIGTERM received, stopping in {}s", timeout.as_secs());
+                relay_log::info!("SIGTERM received, stopping in {}s", timeout.as_secs());
                 self.shutdown(context, Some(timeout));
             }
             _ => (),

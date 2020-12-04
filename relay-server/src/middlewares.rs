@@ -10,12 +10,10 @@ use actix_web::middleware::{Finished, Middleware, Response, Started};
 use actix_web::{http::header, Body, HttpMessage, HttpRequest, HttpResponse};
 use failure::Fail;
 use futures::prelude::*;
-use sentry::integrations::failure::exception_from_single_fail;
-use sentry::protocol::{ClientSdkPackage, Event};
-use sentry::types::Uuid;
-use sentry::{Hub, Level, ScopeGuard};
 
 use relay_common::metric;
+use relay_log::_sentry::{types::Uuid, Hub, Level, ScopeGuard};
+use relay_log::protocol::{ClientSdkPackage, Event, Request};
 
 use crate::constants::SERVER;
 use crate::metrics::{RelayCounters, RelayTimers};
@@ -152,10 +150,7 @@ impl Default for SentryMiddleware {
     }
 }
 
-fn extract_request<S: 'static>(
-    req: &HttpRequest<S>,
-    with_pii: bool,
-) -> (Option<String>, sentry::protocol::Request) {
+fn extract_request<S: 'static>(req: &HttpRequest<S>, with_pii: bool) -> (Option<String>, Request) {
     let resource = req.resource();
     let transaction = if let Some(rdef) = resource.rdef() {
         Some(rdef.pattern().to_string())
@@ -164,7 +159,7 @@ fn extract_request<S: 'static>(
     } else {
         None
     };
-    let mut sentry_req = sentry::protocol::Request {
+    let mut sentry_req = Request {
         url: format!(
             "{}://{}{}",
             req.connection_info().scheme(),
@@ -308,7 +303,7 @@ impl ActixWebHubExt for Hub {
             let compat: Option<&failure::Compat<failure::Error>> = fail.downcast_ref();
             let failure_err = compat.map(failure::Compat::get_ref);
             let fail = failure_err.map_or(fail, |x| x.as_fail());
-            exceptions.push(exception_from_single_fail(
+            exceptions.push(relay_log::exception_from_single_fail(
                 fail,
                 if idx == 0 {
                     Some(failure_err.map_or_else(|| err.backtrace(), |err| err.backtrace()))

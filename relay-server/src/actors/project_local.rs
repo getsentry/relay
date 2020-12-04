@@ -9,8 +9,9 @@ use std::thread;
 use actix::prelude::*;
 use futures::{sync::oneshot, Future};
 
-use relay_common::{LogError, ProjectId, ProjectKey};
+use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
+use relay_log::LogError;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchOptionalProjectState;
@@ -33,7 +34,7 @@ impl Actor for LocalProjectSource {
     type Context = Context<Self>;
 
     fn started(&mut self, context: &mut Self::Context) {
-        log::info!("project local cache started");
+        relay_log::info!("project local cache started");
 
         // Start the background thread that reads the local states from disk.
         // `poll_local_states` returns a future that resolves as soon as the first read is done.
@@ -45,7 +46,7 @@ impl Actor for LocalProjectSource {
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::info!("project local cache stopped");
+        relay_log::info!("project local cache stopped");
     }
 }
 
@@ -97,19 +98,19 @@ fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectKey, Arc
     };
 
     // only printed when directory even exists.
-    log::debug!("Loading local states from directory {:?}", projects_path);
+    relay_log::debug!("Loading local states from directory {:?}", projects_path);
 
     for entry in directory {
         let entry = entry?;
         let path = entry.path();
 
         if !entry.metadata()?.is_file() {
-            log::warn!("skipping {:?}, not a file", path);
+            relay_log::warn!("skipping {:?}, not a file", path);
             continue;
         }
 
         if path.extension().map(|x| x != "json").unwrap_or(true) {
-            log::warn!("skipping {:?}, file extension must be .json", path);
+            relay_log::warn!("skipping {:?}, file extension must be .json", path);
             continue;
         }
 
@@ -120,7 +121,7 @@ fn load_local_states(projects_path: &Path) -> io::Result<HashMap<ProjectKey, Arc
             if let Some(project_id) = get_project_id(&path) {
                 sanitized.project_id = Some(project_id);
             } else {
-                log::warn!("skipping {:?}, filename is not a valid project id", path);
+                relay_log::warn!("skipping {:?}, filename is not a valid project id", path);
                 continue;
             }
         }
@@ -150,7 +151,7 @@ fn poll_local_states(
                     manager.do_send(UpdateLocalStates { states });
                     sender.take().map(|sender| sender.send(()).ok());
                 }
-                Err(error) => log::error!(
+                Err(error) => relay_log::error!(
                     "failed to load static project configs: {}",
                     LogError(&error)
                 ),

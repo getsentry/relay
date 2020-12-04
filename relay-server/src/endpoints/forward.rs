@@ -11,8 +11,9 @@ use failure::Fail;
 use futures::prelude::*;
 use lazy_static::lazy_static;
 
-use relay_common::{GlobMatcher, LogError};
+use relay_common::GlobMatcher;
 use relay_config::Config;
+use relay_log::LogError;
 
 use crate::actors::upstream::{SendRequest, UpstreamRequestError};
 use crate::body::ForwardBody;
@@ -64,7 +65,7 @@ impl ResponseError for ForwardedUpstreamRequestError {
             UpstreamRequestError::Http(e) => match e {
                 HttpError::Overflow => HttpResponse::PayloadTooLarge().finish(),
                 HttpError::Reqwest(error) => {
-                    log::error!("{}", LogError(error));
+                    relay_log::error!("{}", LogError(error));
                     HttpResponse::new(
                         StatusCode::from_u16(error.status().map(|x| x.as_u16()).unwrap_or(500))
                             .unwrap(),
@@ -77,7 +78,7 @@ impl ResponseError for ForwardedUpstreamRequestError {
             },
             e => {
                 // should all be unreachable
-                log::error!(
+                relay_log::error!(
                     "supposedly unreachable codepath for forward endpoint: {}",
                     LogError(e)
                 );

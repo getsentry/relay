@@ -171,7 +171,7 @@ impl<'a> Iterator for FormDataIter<'a> {
         while !self.data.is_empty() {
             match FormDataEntry::read(&mut self.data) {
                 Some(entry) => return Some(entry),
-                None => log::error!("form data deserialization failed"),
+                None => relay_log::error!("form data deserialization failed"),
             }
         }
 
@@ -235,7 +235,7 @@ fn consume_item(
             let string = String::from_utf8_lossy(&data);
             content.form_data.append(field_name, &string);
         } else {
-            log::trace!("multipart content without name or file_name");
+            relay_log::trace!("multipart content without name or file_name");
         }
 
         content

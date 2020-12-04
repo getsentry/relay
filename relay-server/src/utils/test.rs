@@ -12,7 +12,6 @@ use std::cell::RefCell;
 
 use actix::{System, SystemRunner};
 use futures::{future, IntoFuture};
-use log::LevelFilter;
 
 pub use actix_web::test::*;
 
@@ -54,18 +53,13 @@ impl Drop for Inner {
 
 /// Setup the test environment.
 ///
-///  - Initializes logs: The logger only captures logs from the `symbolicator` crate and mutes all
-///    other logs (such as actix or symbolic).
+///  - Initializes logs: The logger only captures logs from this crate and mutes all
+///    other logs.
 ///  - Switches threadpools into test mode: In this mode, threadpools do not actually spawn threads,
 ///    but instead return the futures that are spawned. This allows to capture console output logged
 ///    from spawned tasks.
 pub(crate) fn setup() {
-    env_logger::builder()
-        .filter(Some("relay_server"), LevelFilter::Trace)
-        //.filter_level(LevelFilter::Debug)
-        .is_test(true)
-        .try_init()
-        .ok();
+    relay_log::init_test!();
 
     // Force initialization of the actix system
     SYSTEM.with(|_sys| ());

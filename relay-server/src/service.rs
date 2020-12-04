@@ -206,9 +206,9 @@ where
     H: server::IntoHttpHandler + 'static,
     F: Fn() -> H + Send + Clone + 'static,
 {
-    log::info!("spawning http server");
+    relay_log::info!("spawning http server");
     for (addr, scheme) in server.addrs_with_scheme() {
-        log::info!("  listening on: {}://{}/", scheme, addr);
+        relay_log::info!("  listening on: {}://{}/", scheme, addr);
     }
 }
 

@@ -38,6 +38,7 @@
 //!  - [`relay-ffi-macros`]: Macros for error handling in FFI bindings.
 //!  - [`relay-filter`]: Inbound data filters.
 //!  - [`relay-general`]: Event protocol, normalization and data scrubbing.
+//!  - [`relay-log`]: Error reporting and logging.
 //!  - [`relay-quotas`]: Sentry quotas and rate limiting.
 //!  - [`relay-redis`]: Pooled Redis and Redis cluster abstraction.
 //!  - [`relay-server`]: Endpoints and services.
@@ -61,6 +62,7 @@
 //! [`relay-ffi-macros`]: ../relay_ffi_macros/index.html
 //! [`relay-filter`]: ../relay_filter/index.html
 //! [`relay-general`]: ../relay_general/index.html
+//! [`relay-log`]: ../relay_log/index.html
 //! [`relay-quotas`]: ../relay_quotas/index.html
 //! [`relay-redis`]: ../relay_redis/index.html
 //! [`relay-server`]: ../relay_server/index.html
@@ -79,8 +81,9 @@ mod cliapp;
 mod setup;
 mod utils;
 
-use sentry::Hub;
 use std::process;
+
+use relay_log::Hub;
 
 pub fn main() {
     // on non windows machines we want to initialize the openssl envvars based on
@@ -95,7 +98,7 @@ pub fn main() {
     let exit_code = match cli::execute() {
         Ok(()) => 0,
         Err(err) => {
-            cli::ensure_log_error(&err);
+            relay_log::ensure_error(&err);
             1
         }
     };

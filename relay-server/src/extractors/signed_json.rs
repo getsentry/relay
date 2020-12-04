@@ -2,11 +2,11 @@ use ::actix::prelude::*;
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
 use futures::prelude::*;
-use sentry::Hub;
 use serde::de::DeserializeOwned;
 
 use relay_auth::RelayId;
 use relay_common::tryf;
+use relay_log::Hub;
 
 use crate::actors::relays::{GetRelay, RelayInfo};
 use crate::middlewares::ActixWebHubExt;
