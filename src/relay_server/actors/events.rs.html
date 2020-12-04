@@ -1898,23 +1898,6 @@
 <span id="1895">1895</span>
 <span id="1896">1896</span>
 <span id="1897">1897</span>
-<span id="1898">1898</span>
-<span id="1899">1899</span>
-<span id="1900">1900</span>
-<span id="1901">1901</span>
-<span id="1902">1902</span>
-<span id="1903">1903</span>
-<span id="1904">1904</span>
-<span id="1905">1905</span>
-<span id="1906">1906</span>
-<span id="1907">1907</span>
-<span id="1908">1908</span>
-<span id="1909">1909</span>
-<span id="1910">1910</span>
-<span id="1911">1911</span>
-<span id="1912">1912</span>
-<span id="1913">1913</span>
-<span id="1914">1914</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -2626,7 +2609,7 @@
     <span class="doccomment">///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.</span>
     <span class="doccomment">///  4. A multipart form data body.</span>
     <span class="doccomment">///  5. If none match, `Annotated::empty()`.</span>
-    <span class="kw">fn</span> <span class="ident">extract_event_inner</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">extract_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>;
 
         <span class="comment">// Remove all items first, and then process them. After this function returns, only</span>
@@ -2687,26 +2670,6 @@
         <span class="ident">state</span>.<span class="ident">metrics</span>.<span class="ident">bytes_ingested_event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">event_len</span> <span class="kw">as</span> <span class="ident">u64</span>);
 
         <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="doccomment">/// Extracts the primary event payload from an envelope.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The event is obtained from only one source in the following precedence:</span>
-    <span class="doccomment">///  1. An explicit event item. This is also the case for JSON uploads.</span>
-    <span class="doccomment">///  2. A security report item.</span>
-    <span class="doccomment">///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.</span>
-    <span class="doccomment">///  4. A multipart form data body.</span>
-    <span class="doccomment">///  5. If none match, `Annotated::empty()`.</span>
-    <span class="kw">fn</span> <span class="ident">extract_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
-        <span class="ident">relay_log</span>::<span class="ident">with_scope</span>(
-            <span class="op">|</span><span class="kw">_</span><span class="op">|</span> (),
-            <span class="op">|</span><span class="op">|</span> {
-                <span class="self">self</span>.<span class="ident">extract_event_inner</span>(<span class="ident">state</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">error</span><span class="op">|</span> {
-                    <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;failed to extract event: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
-                    <span class="ident">error</span>
-                })
-            },
-        )
     }
 
     <span class="doccomment">/// Extracts event information from an unreal context.</span>
@@ -3095,7 +3058,10 @@
                 <span class="self">self</span>.<span class="ident">expand_unreal</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
             });
 
-            <span class="self">self</span>.<span class="ident">extract_event</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
+            <span class="self">self</span>.<span class="ident">extract_event</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">error</span><span class="op">|</span> {
+                <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;failed to extract event: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
+                <span class="ident">error</span>
+            })<span class="question-mark">?</span>;
 
             <span class="macro">if_processing</span><span class="macro">!</span>({
                 <span class="self">self</span>.<span class="ident">process_unreal</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
