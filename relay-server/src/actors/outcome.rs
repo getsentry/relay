@@ -16,10 +16,11 @@ use chrono::SecondsFormat;
 use futures::future::Future;
 use serde::{Deserialize, Serialize};
 
-use relay_common::{LogError, ProjectId};
+use relay_common::ProjectId;
 use relay_config::Config;
 use relay_filter::FilterStatKey;
 use relay_general::protocol::EventId;
+use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 
 use crate::actors::upstream::SendQuery;
@@ -403,7 +404,7 @@ mod processing {
                 let http_producer = HttpOutcomeProducer::create(config.clone(), upstream)
                     .map(|producer| producer.start())
                     .map_err(|error| {
-                        log::error!("Failed to start http producer: {}", LogError(&error));
+                        relay_log::error!("Failed to start http producer: {}", LogError(&error));
                         error
                     })
                     .ok();
@@ -418,7 +419,7 @@ mod processing {
         }
 
         fn send_kafka_message(&self, message: TrackRawOutcome) -> Result<(), OutcomeError> {
-            log::trace!("Tracking kafka outcome: {:?}", message);
+            relay_log::trace!("Tracking kafka outcome: {:?}", message);
 
             let producer = match self.producer {
                 Some(ref producer) => producer,
@@ -452,12 +453,12 @@ mod processing {
         }
 
         fn send_http_message(&self, message: TrackRawOutcome) -> Result<(), OutcomeError> {
-            log::trace!("Tracking http outcome: {:?}", message);
+            relay_log::trace!("Tracking http outcome: {:?}", message);
 
             let producer = match self.http_producer {
                 Some(ref producer) => producer,
                 None => {
-                    log::error!("send_http_message called with invalid http_producer");
+                    relay_log::error!("send_http_message called with invalid http_producer");
                     return Ok(());
                 }
             };
@@ -484,11 +485,11 @@ mod processing {
             let mailbox_size = self.config.event_buffer_size() as usize;
             context.set_mailbox_capacity(mailbox_size);
 
-            log::info!("OutcomeProducer started.");
+            relay_log::info!("OutcomeProducer started.");
         }
 
         fn stopped(&mut self, _ctx: &mut Self::Context) {
-            log::info!("OutcomeProducer stopped.");
+            relay_log::info!("OutcomeProducer stopped.");
         }
     }
 
@@ -503,7 +504,7 @@ mod processing {
     impl Handler<TrackRawOutcome> for ProcessingOutcomeProducer {
         type Result = Result<(), OutcomeError>;
         fn handle(&mut self, message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            log::trace!("handling outcome");
+            relay_log::trace!("handling outcome");
             if self.config.processing_enabled() {
                 self.send_kafka_message(message)
             } else if self.config.emit_outcomes() {
@@ -546,10 +547,10 @@ impl HttpOutcomeProducer {
         self.pending_flush_handle = None;
 
         if self.unsent_outcomes.is_empty() {
-            log::warn!("unexpected send_batch scheduled with no outcomes to send.");
+            relay_log::warn!("unexpected send_batch scheduled with no outcomes to send.");
             return;
         } else {
-            log::trace!(
+            relay_log::trace!(
                 "sending outcome batch of size:{}",
                 self.unsent_outcomes.len()
             );
@@ -561,8 +562,10 @@ impl HttpOutcomeProducer {
 
         self.upstream
             .send(SendQuery(request))
-            .map(|_| log::trace!("outcome batch sent."))
-            .map_err(|error| log::error!("outcome batch sending failed with: {}", LogError(&error)))
+            .map(|_| relay_log::trace!("outcome batch sent."))
+            .map_err(|error| {
+                relay_log::error!("outcome batch sending failed with: {}", LogError(&error))
+            })
             .into_actor(self)
             .spawn(context);
     }
@@ -572,7 +575,7 @@ impl HttpOutcomeProducer {
         message: TrackRawOutcome,
         context: &mut Context<Self>,
     ) -> Result<(), OutcomeError> {
-        log::trace!("Batching outcome");
+        relay_log::trace!("Batching outcome");
         self.unsent_outcomes.push(message);
         if self.unsent_outcomes.len() >= self.config.outcome_batch_size() {
             if let Some(pending_flush_handle) = self.pending_flush_handle {

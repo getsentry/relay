@@ -1,7 +1,8 @@
 use rdkafka::producer::{DeliveryResult, ProducerContext};
 use rdkafka::ClientContext;
 
-use relay_common::{metric, LogError};
+use relay_common::metric;
+use relay_log::LogError;
 
 use crate::metrics::RelayCounters;
 
@@ -17,7 +18,7 @@ impl ProducerContext for CaptureErrorContext {
     /// It's called asynchronously for every message, so we want to handle errors explicitly here.
     fn delivery(&self, result: &DeliveryResult, _delivery_opaque: Self::DeliveryOpaque) {
         if let Err((error, _message)) = result {
-            log::error!(
+            relay_log::error!(
                 "failed to produce message to Kafka (delivery callback): {}",
                 LogError(error)
             );

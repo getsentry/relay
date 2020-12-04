@@ -38,8 +38,9 @@ use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
-use relay_common::{metric, tryf, LogError, RetryBackoff};
+use relay_common::{metric, tryf, RetryBackoff};
 use relay_config::{Config, HttpClient, RelayMode};
+use relay_log::LogError;
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
@@ -520,12 +521,12 @@ impl UpstreamRelay {
     fn reset_network_error(&mut self) {
         self.first_error = None;
         self.outage_backoff.reset();
-        log::debug!("Recovering from network outage.")
+        relay_log::debug!("Recovering from network outage.")
     }
 
     fn upstream_connection_check(&mut self, ctx: &mut Context<Self>) {
         let next_backoff = self.outage_backoff.next_backoff();
-        log::warn!(
+        relay_log::warn!(
             "Network outage, scheduling another check in {:?}",
             next_backoff
         );
@@ -689,7 +690,7 @@ impl UpstreamRelay {
             | Err(UpstreamRequestError::Http(HttpError::Overflow))
             | Err(UpstreamRequestError::Http(HttpError::Actix(_))) => {
                 // these are not errors caused when sending to upstream so we don't need to log anything
-                log::error!("meter_result called for unsupported error");
+                relay_log::error!("meter_result called for unsupported error");
                 return;
             }
         };
@@ -856,7 +857,7 @@ impl Actor for UpstreamRelay {
     type Context = Context<Self>;
 
     fn started(&mut self, context: &mut Self::Context) {
-        log::info!("upstream relay started");
+        relay_log::info!("upstream relay started");
 
         self.auth_backoff.reset();
         self.outage_backoff.reset();
@@ -867,7 +868,7 @@ impl Actor for UpstreamRelay {
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::info!("upstream relay stopped");
+        relay_log::info!("upstream relay stopped");
     }
 }
 
@@ -892,7 +893,7 @@ impl Handler<Authenticate> for UpstreamRelay {
     fn handle(&mut self, _msg: Authenticate, ctx: &mut Self::Context) -> Self::Result {
         // detect incorrect authentication requests, if we detect them we have a programming error
         if let Some(auth_state_error) = self.get_auth_state_error() {
-            log::error!("{}", auth_state_error);
+            relay_log::error!("{}", auth_state_error);
             return Box::new(fut::err(()));
         }
 
@@ -901,7 +902,7 @@ impl Handler<Authenticate> for UpstreamRelay {
             None => return Box::new(fut::err(())),
         };
 
-        log::info!(
+        relay_log::info!(
             "registering with upstream ({})",
             self.config.upstream_descriptor()
         );
@@ -919,14 +920,14 @@ impl Handler<Authenticate> for UpstreamRelay {
             .enqueue_query(request, ctx)
             .into_actor(self)
             .and_then(|challenge, slf, ctx| {
-                log::debug!("got register challenge (token = {})", challenge.token());
+                relay_log::debug!("got register challenge (token = {})", challenge.token());
                 let challenge_response = challenge.into_response();
 
-                log::debug!("sending register challenge response");
+                relay_log::debug!("sending register challenge response");
                 slf.enqueue_query(challenge_response, ctx).into_actor(slf)
             })
             .map(|_, slf, ctx| {
-                log::info!("relay successfully registered with upstream");
+                relay_log::info!("relay successfully registered with upstream");
                 slf.auth_state = AuthState::Registered;
                 slf.auth_backoff.reset();
 
@@ -938,7 +939,7 @@ impl Handler<Authenticate> for UpstreamRelay {
                 ctx.notify(PumpHttpMessageQueue);
             })
             .map_err(move |err, slf, ctx| {
-                log::error!("authentication encountered error: {}", LogError(&err));
+                relay_log::error!("authentication encountered error: {}", LogError(&err));
 
                 if err.is_permanent_rejection() {
                     slf.auth_state = AuthState::Denied;
@@ -953,7 +954,7 @@ impl Handler<Authenticate> for UpstreamRelay {
                 }
 
                 // Even on network errors, retry authentication independently.
-                log::debug!(
+                relay_log::debug!(
                     "scheduling authentication retry in {} seconds",
                     interval.as_secs()
                 );

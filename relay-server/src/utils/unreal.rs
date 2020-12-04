@@ -30,7 +30,7 @@ fn get_event_item(data: &[u8]) -> Result<Option<Item>, Unreal4Error> {
         _ => return Ok(None),
     };
 
-    log::trace!("adding event payload from unreal context");
+    relay_log::trace!("adding event payload from unreal context");
     let mut item = Item::new(ItemType::Event);
     item.set_payload(ContentType::Json, json);
     Ok(Some(item))

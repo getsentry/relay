@@ -182,7 +182,7 @@ impl StoreForwarder {
 
                 if self.config.explode_session_aggregates() {
                     if aggregates.num_sessions() as usize > MAX_EXPLODED_SESSIONS {
-                        log::warn!("exploded session items from aggregate exceed threshold");
+                        relay_log::warn!("exploded session items from aggregate exceed threshold");
                     }
 
                     for session in aggregates.into_updates_iter().take(MAX_EXPLODED_SESSIONS) {
@@ -240,7 +240,7 @@ impl StoreForwarder {
         };
 
         if aggregates.len() > MAX_EXPLODED_SESSIONS {
-            log::warn!("aggregated session items exceed threshold");
+            relay_log::warn!("aggregated session items exceed threshold");
         }
 
         for item in aggregates.into_iter().take(MAX_EXPLODED_SESSIONS) {
@@ -314,7 +314,7 @@ impl StoreForwarder {
     }
 
     fn send_session_message(&self, message: SessionKafkaMessage) -> Result<(), StoreError> {
-        log::trace!("Sending session item to kafka");
+        relay_log::trace!("Sending session item to kafka");
         self.produce(KafkaTopic::Sessions, KafkaMessage::Session(message))?;
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
@@ -335,11 +335,11 @@ impl Actor for StoreForwarder {
         let mailbox_size = self.config.event_buffer_size() as usize;
         context.set_mailbox_capacity(mailbox_size);
 
-        log::info!("store forwarder started");
+        relay_log::info!("store forwarder started");
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::info!("store forwarder stopped");
+        relay_log::info!("store forwarder stopped");
     }
 }
 
@@ -598,7 +598,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
         }
 
         if let Some(event_item) = event_item {
-            log::trace!("Sending event item of envelope to kafka");
+            relay_log::trace!("Sending event item of envelope to kafka");
             let event_message = KafkaMessage::Event(EventKafkaMessage {
                 payload: event_item.payload(),
                 start_time: UnixTimestamp::from_instant(start_time).as_secs(),
@@ -614,7 +614,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                 event_type = "event"
             );
         } else if !attachments.is_empty() {
-            log::trace!("Sending individual attachments of envelope to kafka");
+            relay_log::trace!("Sending individual attachments of envelope to kafka");
             for attachment in attachments {
                 let attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {
                     event_id: event_id.ok_or(StoreError::NoEventId)?,

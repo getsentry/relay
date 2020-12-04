@@ -330,7 +330,7 @@ impl ProjectState {
 
         // sanity-check that the state has a matching public key loaded.
         if !self.is_matching_key(meta.public_key()) {
-            log::error!("public key mismatch on state {}", meta.public_key());
+            relay_log::error!("public key mismatch on state {}", meta.public_key());
             return Err(DiscardReason::ProjectId);
         }
 
@@ -426,11 +426,11 @@ impl Project {
 
         let channel = match self.state_channel {
             Some(ref channel) => {
-                log::debug!("project {} state request amended", self.public_key);
+                relay_log::debug!("project {} state request amended", self.public_key);
                 channel.clone()
             }
             None => {
-                log::debug!("project {} state requested", self.public_key);
+                relay_log::debug!("project {} state requested", self.public_key);
                 let channel = self.fetch_state(context);
                 self.state_channel = Some(channel.clone());
                 channel
@@ -463,7 +463,7 @@ impl Project {
                 slf.state = state_result.map(|resp| resp.state).ok();
 
                 if let Some(ref state) = slf.state {
-                    log::debug!("project state {} updated", public_key);
+                    relay_log::debug!("project state {} updated", public_key);
                     sender.send(state.clone()).ok();
                 }
             })
@@ -520,11 +520,11 @@ impl Actor for Project {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        log::debug!("project {} initialized without state", self.public_key);
+        relay_log::debug!("project {} initialized without state", self.public_key);
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::debug!("project {} removed from cache", self.public_key);
+        relay_log::debug!("project {} removed from cache", self.public_key);
     }
 }
 

@@ -63,11 +63,11 @@ impl Actor for MeteredConnector {
     type Context = Context<Self>;
 
     fn started(&mut self, _context: &mut Self::Context) {
-        log::info!("metered connector started");
+        relay_log::info!("metered connector started");
     }
 
     fn stopped(&mut self, _context: &mut Self::Context) {
-        log::info!("metered connector stopped");
+        relay_log::info!("metered connector stopped");
     }
 }
 

@@ -86,7 +86,7 @@ fn get_project_configs(
                 {
                     Some((*project_state).clone())
                 } else {
-                    log::debug!(
+                    relay_log::debug!(
                         "Relay {} does not have access to project key {}",
                         relay.public_key,
                         public_key

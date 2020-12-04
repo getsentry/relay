@@ -105,11 +105,11 @@ impl Actor for ProjectCache {
             slf.evict_stale_project_caches()
         });
 
-        log::info!("project cache started");
+        relay_log::info!("project cache started");
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::info!("project cache stopped");
+        relay_log::info!("project cache stopped");
     }
 }
 

@@ -11,7 +11,7 @@ use failure::Fail;
 use futures::prelude::*;
 use serde_json::Value as SerdeValue;
 
-use relay_common::{clone, metric, LogError, ProjectId};
+use relay_common::{clone, metric, ProjectId};
 use relay_config::{Config, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
@@ -21,6 +21,7 @@ use relay_general::protocol::{
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
+use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 
@@ -322,11 +323,11 @@ impl EventProcessor {
             let mut session = match SessionUpdate::parse(&payload) {
                 Ok(session) => session,
                 Err(error) => {
-                    return sentry::with_scope(
+                    return relay_log::with_scope(
                         |s| s.set_extra("session", String::from_utf8_lossy(&payload).into()),
                         || {
                             // Skip gracefully here to allow sending other sessions.
-                            log::error!("failed to store session: {}", LogError(&error));
+                            relay_log::error!("failed to store session: {}", LogError(&error));
                             false
                         },
                     );
@@ -334,31 +335,31 @@ impl EventProcessor {
             };
 
             if session.sequence == u64::max_value() {
-                log::trace!("skipping session due to sequence overflow");
+                relay_log::trace!("skipping session due to sequence overflow");
                 return false;
             }
 
             if clock_drift_processor.is_drifted() {
-                log::trace!("applying clock drift correction to session");
+                relay_log::trace!("applying clock drift correction to session");
                 clock_drift_processor.process_session(&mut session);
                 changed = true;
             }
 
             if session.timestamp < session.started {
-                log::trace!("fixing session timestamp to {}", session.timestamp);
+                relay_log::trace!("fixing session timestamp to {}", session.timestamp);
                 session.timestamp = session.started;
                 changed = true;
             }
 
             let max_age = SignedDuration::seconds(self.config.max_session_secs_in_past());
             if (received - session.started) > max_age || (received - session.timestamp) > max_age {
-                log::trace!("skipping session older than {} days", max_age.num_days());
+                relay_log::trace!("skipping session older than {} days", max_age.num_days());
                 return false;
             }
 
             let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
             if (session.started - received) > max_age || (session.timestamp - received) > max_age {
-                log::trace!(
+                relay_log::trace!(
                     "skipping session more than {}s in the future",
                     max_future.num_seconds()
                 );
@@ -396,7 +397,7 @@ impl EventProcessor {
             };
 
             if let Err(error) = serde_json::from_slice::<UserReport>(&item.payload()) {
-                log::error!("failed to store user report: {}", LogError(&error));
+                relay_log::error!("failed to store user report: {}", LogError(&error));
                 return false;
             }
 
@@ -504,7 +505,7 @@ impl EventProcessor {
 
         if let Err(json_error) = apply_result {
             // logged at call site of extract_event
-            sentry::configure_scope(|scope| {
+            relay_log::configure_scope(|scope| {
                 scope.set_extra("payload", String::from_utf8_lossy(&data).into());
             });
 
@@ -544,7 +545,7 @@ impl EventProcessor {
                 // the optional `sentry` field.
                 match serde_json::from_str(entry.value()) {
                     Ok(event) => utils::merge_values(target, event),
-                    Err(_) => log::debug!("invalid json event payload in sentry form field"),
+                    Err(_) => relay_log::debug!("invalid json event payload in sentry form field"),
                 }
             } else if let Some(index) = utils::get_sentry_chunk_index(entry.key(), "sentry__") {
                 // Electron SDK splits up long payloads into chunks starting at sentry__1 with an
@@ -566,7 +567,7 @@ impl EventProcessor {
         if !aggregator.is_empty() {
             match serde_json::from_str(&aggregator.join()) {
                 Ok(event) => utils::merge_values(target, event),
-                Err(_) => log::debug!("invalid json event payload in sentry__* form fields"),
+                Err(_) => relay_log::debug!("invalid json event payload in sentry__* form fields"),
             }
         }
     }
@@ -731,27 +732,27 @@ impl EventProcessor {
         }
 
         let (event, event_len) = if let Some(item) = event_item.or(security_item) {
-            log::trace!("processing json event");
+            relay_log::trace!("processing json event");
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Event items can never include transactions, so retain the event type and let
                 // inference deal with this during store normalization.
                 self.event_from_json_payload(item, None)?
             })
         } else if let Some(item) = transaction_item {
-            log::trace!("processing json transaction");
+            relay_log::trace!("processing json transaction");
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Transaction items can only contain transaction events. Force the event type to
                 // hint to normalization that we're dealing with a transaction now.
                 self.event_from_json_payload(item, Some(EventType::Transaction))?
             })
         } else if let Some(item) = raw_security_item {
-            log::trace!("processing security report");
+            relay_log::trace!("processing security report");
             self.event_from_security_report(item)?
         } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
-            log::trace!("extracting attached event data");
+            relay_log::trace!("extracting attached event data");
             Self::event_from_attachments(&self.config, attachment_item, breadcrumbs1, breadcrumbs2)?
         } else if let Some(item) = form_item {
-            log::trace!("extracting form data");
+            relay_log::trace!("extracting form data");
             let len = item.len();
 
             let mut value = SerdeValue::Object(Default::default());
@@ -760,7 +761,7 @@ impl EventProcessor {
 
             (event, len)
         } else {
-            log::trace!("no event in envelope");
+            relay_log::trace!("no event in envelope");
             (Annotated::empty(), 0)
         };
 
@@ -779,11 +780,11 @@ impl EventProcessor {
     ///  4. A multipart form data body.
     ///  5. If none match, `Annotated::empty()`.
     fn extract_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        sentry::with_scope(
+        relay_log::with_scope(
             |_| (),
             || {
                 self.extract_event_inner(state).map_err(|error| {
-                    log::error!("failed to extract event: {}", LogError(&error));
+                    relay_log::error!("failed to extract event: {}", LogError(&error));
                     error
                 })
             },
@@ -861,7 +862,7 @@ impl EventProcessor {
         let minidump = match Minidump::read(minidump_item.payload()) {
             Ok(minidump) => minidump,
             Err(err) => {
-                log::debug!("Failed to parse minidump: {:?}", err);
+                relay_log::debug!("Failed to parse minidump: {:?}", err);
                 return;
             }
         };
@@ -965,7 +966,7 @@ impl EventProcessor {
             .and_then(|k| Some(k.numeric_id?.to_string()));
 
         if key_id.is_none() {
-            log::error!(
+            relay_log::error!(
                 "project state for key {} is missing key id",
                 envelope.meta().public_key()
             );
@@ -1121,7 +1122,7 @@ impl EventProcessor {
                             timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
                             status = "error"
                         );
-                        log::warn!("failed to scrub minidump: {}", LogError(&scrub_error));
+                        relay_log::warn!("failed to scrub minidump: {}", LogError(&scrub_error));
                         metric!(timer(RelayTimers::AttachmentScrubbing), {
                             processor.scrub_attachment(filename, &mut payload);
                         })
@@ -1214,7 +1215,7 @@ impl EventProcessor {
         let project_id = state.project_id;
         let client = state.envelope.meta().client().map(str::to_owned);
 
-        sentry::with_scope(
+        relay_log::with_scope(
             |scope| {
                 scope.set_tag("project", project_id);
                 if let Some(client) = client {
@@ -1289,7 +1290,7 @@ impl EventManager {
         redis_pool: Option<RedisPool>,
     ) -> Result<Self, ServerError> {
         let thread_count = config.cpu_concurrency();
-        log::info!("starting {} event processing workers", thread_count);
+        relay_log::info!("starting {} event processing workers", thread_count);
 
         #[cfg(not(feature = "processing"))]
         let _ = redis_pool;
@@ -1351,11 +1352,11 @@ impl Actor for EventManager {
         // should ensure that we're not dropping events unintentionally after we've accepted them.
         let mailbox_size = self.config.event_buffer_size() as usize;
         context.set_mailbox_capacity(mailbox_size);
-        log::info!("event manager started");
+        relay_log::info!("event manager started");
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::info!("event manager stopped");
+        relay_log::info!("event manager stopped");
     }
 }
 
@@ -1418,7 +1419,7 @@ impl Handler<QueueEnvelope> for EventManager {
         // that future will be tied to the EventManager's context. This allows to keep the Project
         // actor alive even if it is cleaned up in the ProjectManager.
 
-        log::trace!("queued event");
+        relay_log::trace!("queued event");
         Ok(event_id)
     }
 }
@@ -1546,7 +1547,7 @@ impl Handler<HandleEnvelope> for EventManager {
                 #[cfg(feature = "processing")]
                 {
                     if let Some(store_forwarder) = store_forwarder {
-                        log::trace!("sending envelope to kafka");
+                        relay_log::trace!("sending envelope to kafka");
                         let future = store_forwarder
                             .send(StoreEnvelope {
                                 envelope,
@@ -1567,15 +1568,15 @@ impl Handler<HandleEnvelope> for EventManager {
                     // XXX: this is wrong because captured_events does not take envelopes without
                     // event_id into account.
                     if let Some(event_id) = event_id {
-                        log::debug!("capturing envelope");
+                        relay_log::debug!("capturing envelope");
                         slf.captures.insert(event_id, Ok(envelope));
                     } else {
-                        log::debug!("dropping non event envelope");
+                        relay_log::debug!("dropping non event envelope");
                     }
                     return Box::new(fut::ok(())) as ResponseActFuture<_, _, _>;
                 }
 
-                log::trace!("sending event to sentry endpoint");
+                relay_log::trace!("sending event to sentry endpoint");
                 let project_id = scoping.borrow().project_id;
                 let request = SendRequest::post(format!("/api/{}/envelope/", project_id)).build(
                     move |mut builder: RequestBuilder| {
@@ -1650,11 +1651,11 @@ impl Handler<HandleEnvelope> for EventManager {
                 if capture {
                     // XXX: does not work with envelopes without event_id
                     if let Some(event_id) = event_id {
-                        log::debug!("capturing failed event {}", event_id);
+                        relay_log::debug!("capturing failed event {}", event_id);
                         let msg = LogError(&error).to_string();
                         slf.captures.insert(event_id, Err(msg));
                     } else {
-                        log::debug!("dropping failed envelope without event");
+                        relay_log::debug!("dropping failed envelope without event");
                     }
                 }
 
@@ -1669,9 +1670,9 @@ impl Handler<HandleEnvelope> for EventManager {
                     // Errors are only logged for what we consider an internal discard reason. These
                     // indicate errors in the infrastructure or implementation bugs. In other cases,
                     // we "expect" errors and log them as debug level.
-                    log::error!("error processing event: {}", LogError(&error));
+                    relay_log::error!("error processing event: {}", LogError(&error));
                 } else {
-                    log::debug!("dropped event: {}", LogError(&error));
+                    relay_log::debug!("dropped event: {}", LogError(&error));
                 }
 
                 // Do not emit outcomes for requests that have been accepted by the upstream. In
