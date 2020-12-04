@@ -171,7 +171,7 @@ def mini_sentry(request):
 
     def get_error_message(data):
         exceptions = data.get("exception", {}).get("values", [])
-        exc_msg = (exceptions[0] or {}).get("value")
+        exc_msg = (exceptions and exceptions[0] or {}).get("value")
         message = data.get("message", {})
         message = message if type(message) == str else message.get("formatted")
         return exc_msg or message or "unknown error"
