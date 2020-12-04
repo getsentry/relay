@@ -13,8 +13,9 @@ use futures::{future, future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 
 use relay_auth::{PublicKey, RelayId};
-use relay_common::{LogError, RetryBackoff};
+use relay_common::RetryBackoff;
 use relay_config::Config;
+use relay_log::LogError;
 
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::utils::{self, ApiErrorResponse, Response};
@@ -140,7 +141,7 @@ impl RelayCache {
     /// channels are pushed in the meanwhile, this will reschedule automatically.
     fn fetch_relays(&mut self, context: &mut Context<Self>) {
         let channels = mem::replace(&mut self.relay_channels, HashMap::new());
-        log::debug!(
+        relay_log::debug!(
             "updating public keys for {} relays (attempt {})",
             channels.len(),
             self.backoff.attempt(),
@@ -163,12 +164,12 @@ impl RelayCache {
                         for (id, channel) in channels {
                             let info = response.relays.remove(&id).unwrap_or(None);
                             slf.relays.insert(id, RelayState::from_option(info.clone()));
-                            log::debug!("relay {} public key updated", id);
+                            relay_log::debug!("relay {} public key updated", id);
                             channel.send(info).ok();
                         }
                     }
                     Err(error) => {
-                        log::error!("error fetching public keys: {}", LogError(&error));
+                        relay_log::error!("error fetching public keys: {}", LogError(&error));
 
                         // Put the channels back into the queue, in addition to channels that have
                         // been pushed in the meanwhile. We will retry again shortly.
@@ -198,14 +199,14 @@ impl RelayCache {
         }
 
         if self.config.credentials().is_none() {
-            log::error!(
+            relay_log::error!(
                 "No credentials configured. Relay {} cannot send requests to this relay.",
                 relay_id
             );
             return Response::ok((relay_id, None));
         }
 
-        log::debug!("relay {} public key requested", relay_id);
+        relay_log::debug!("relay {} public key requested", relay_id);
         if !self.backoff.started() {
             self.backoff.reset();
             self.schedule_fetch(context);
@@ -227,11 +228,11 @@ impl Actor for RelayCache {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        log::info!("key cache started");
+        relay_log::info!("key cache started");
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::info!("key cache stopped");
+        relay_log::info!("key cache stopped");
     }
 }
 

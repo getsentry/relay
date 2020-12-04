@@ -17,23 +17,17 @@ processing = ["relay-server/processing"]
 
 # Direct dependencies of the main application in `src/`
 [dependencies]
-chrono = "0.4.11"
 clap = { version = "2.33.0", default-features = false, features = ["wrap_help"] }
 console = "0.10.0"
 dialoguer = "0.5.0"
-env_logger = "0.7.1"
 failure = "0.1.8"
 futures = "0.1.28"
+hostname = "0.3.1"
 lazy_static = "1.4.0"
-log = { version = "0.4.8", features = ["serde"] }
-pretty_env_logger = "0.4.0"
 relay-common = { path = "../relay-common" }
 relay-config = { path = "../relay-config" }
+relay-log = { path = "../relay-log" }
 relay-server = { path = "../relay-server" }
-sentry = { version = "0.21.0", features = ["debug-images", "log"] }
-serde = "1.0.114"
-serde_json = "1.0.55"
-hostname = "0.3.1"
 
 [target."cfg(not(windows))".dependencies]
 openssl-probe = "0.1.2"

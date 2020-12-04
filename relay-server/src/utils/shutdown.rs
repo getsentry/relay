@@ -23,7 +23,7 @@ impl<F> Drop for DropGuardedFuture<F> {
             if cfg!(test) {
                 panic!("Dropped unfinished future during shutdown: {}", self.name);
             } else {
-                log::error!("Dropped unfinished future during shutdown: {}", self.name);
+                relay_log::error!("Dropped unfinished future during shutdown: {}", self.name);
             }
         }
     }

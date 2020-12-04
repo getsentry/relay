@@ -10,8 +10,9 @@ use futures::{future, future::Shared, sync::oneshot, Future};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use relay_common::{metric, LogError, ProjectKey, RetryBackoff};
+use relay_common::{metric, ProjectKey, RetryBackoff};
 use relay_config::Config;
+use relay_log::LogError;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{FetchProjectState, ProjectError, ProjectStateResponse};
@@ -138,7 +139,7 @@ impl UpstreamProjectSource {
     /// channels are pushed in the meanwhile, this will reschedule automatically.
     fn fetch_states(&mut self, context: &mut Context<Self>) {
         if self.state_channels.is_empty() {
-            log::error!("project state update scheduled without projects");
+            relay_log::error!("project state update scheduled without projects");
             return;
         }
 
@@ -167,7 +168,7 @@ impl UpstreamProjectSource {
 
         metric!(histogram(RelayHistograms::ProjectStatePending) = self.state_channels.len() as u64);
 
-        log::debug!(
+        relay_log::debug!(
             "updating project states for {}/{} projects (attempt {})",
             channels.len(),
             channels.len() + self.state_channels.len(),
@@ -188,7 +189,7 @@ impl UpstreamProjectSource {
             .into_iter()
             .map(|channels_batch| {
                 let channels_batch: BTreeMap<_, _> = channels_batch.collect();
-                log::debug!("sending request of size {}", channels_batch.len());
+                relay_log::debug!("sending request of size {}", channels_batch.len());
                 metric!(
                     histogram(RelayHistograms::ProjectStateRequestBatchSize) =
                         channels_batch.len() as u64
@@ -239,7 +240,11 @@ impl UpstreamProjectSource {
                                     .unwrap_or(ErrorBoundary::Ok(None))
                                     .unwrap_or_else(|error| {
                                         let e = LogError(error);
-                                        log::error!("error fetching project state {}: {}", key, e);
+                                        relay_log::error!(
+                                            "error fetching project state {}: {}",
+                                            key,
+                                            e
+                                        );
                                         Some(ProjectState::err())
                                     })
                                     .unwrap_or_else(ProjectState::missing);
@@ -248,7 +253,10 @@ impl UpstreamProjectSource {
                             }
                         }
                         Err(error) => {
-                            log::error!("error fetching project states: {}", LogError(&error));
+                            relay_log::error!(
+                                "error fetching project states: {}",
+                                LogError(&error)
+                            );
 
                             // Put the channels back into the queue, in addition to channels that
                             // have been pushed in the meanwhile. We will retry again shortly.
@@ -298,11 +306,11 @@ impl Actor for UpstreamProjectSource {
         let mailbox_size = self.config.event_buffer_size() as usize;
         context.set_mailbox_capacity(mailbox_size);
 
-        log::info!("project upstream cache started");
+        relay_log::info!("project upstream cache started");
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::info!("project upstream cache stopped");
+        relay_log::info!("project upstream cache stopped");
     }
 }
 

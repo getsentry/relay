@@ -11,9 +11,10 @@ use failure::Fail;
 use futures::prelude::*;
 use serde::Deserialize;
 
-use relay_common::{clone, metric, tryf, LogError};
+use relay_common::{clone, metric, tryf};
 use relay_config::Config;
 use relay_general::protocol::{EventId, EventType};
+use relay_log::LogError;
 use relay_quotas::RateLimits;
 
 use crate::actors::events::{QueueEnvelope, QueueEnvelopeError};
@@ -529,13 +530,13 @@ where
             }
 
             if let BadStoreRequest::TraceSampled(event_id) = error {
-                log::debug!("creating response for trace sampled event");
+                relay_log::debug!("creating response for trace sampled event");
                 return Ok(create_response(event_id));
             }
 
             let response = error.error_response();
             if response.status().is_server_error() {
-                log::error!("error handling request: {}", LogError(&error));
+                relay_log::error!("error handling request: {}", LogError(&error));
             }
 
             Ok(response)

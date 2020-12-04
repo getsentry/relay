@@ -71,7 +71,7 @@ use lazy_static::lazy_static;
 use parking_lot::RwLock;
 use rand::distributions::{Distribution, Uniform};
 
-use crate::LogError;
+use relay_log::LogError;
 
 /// Maximum number of metric events that can be queued before we start dropping them
 const METRICS_MAX_QUEUE_SIZE: usize = 100_000;
@@ -117,7 +117,7 @@ impl MetricsClient {
         }
 
         if let Err(error) = metric.try_send() {
-            log::error!(
+            relay_log::error!(
                 "Error sending a metric: {}, maximum capacity: {}",
                 LogError(&error),
                 METRICS_MAX_QUEUE_SIZE
@@ -182,12 +182,12 @@ pub fn configure_statsd<A: ToSocketAddrs>(
 ) {
     let addrs: Vec<_> = host.to_socket_addrs().unwrap().collect();
     if !addrs.is_empty() {
-        log::info!("reporting metrics to statsd at {}", addrs[0]);
+        relay_log::info!("reporting metrics to statsd at {}", addrs[0]);
     }
 
     // Normalize sample_rate
     let sample_rate = sample_rate.max(0.).min(1.);
-    log::debug!(
+    relay_log::debug!(
         "metrics sample rate is set to {}{}",
         sample_rate,
         if sample_rate == 0.0 {
@@ -208,7 +208,7 @@ pub fn configure_statsd<A: ToSocketAddrs>(
         let simple_sink = UdpMetricSink::from(host, socket).unwrap();
         StatsdClient::from_sink(prefix, simple_sink)
     };
-    log::debug!(
+    relay_log::debug!(
         "metrics buffering is {}",
         if buffering { "enabled" } else { "disabled" }
     );

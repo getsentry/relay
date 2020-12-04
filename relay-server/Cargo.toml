@@ -41,7 +41,6 @@ itertools = "0.8.2"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
 lazy_static = "1.4.0"
 listenfd = "0.3.3"
-log = "0.4.8"
 minidump = { git = "https://github.com/luser/rust-minidump", rev = "f8a18211dbb0bf7dca5dd41e578af4b366fcb9be", optional = true }
 native-tls = { version = "0.2.4", optional = true }
 parking_lot = "0.10.0"
@@ -55,11 +54,11 @@ relay-common = { path = "../relay-common" }
 relay-config = { path = "../relay-config" }
 relay-filter = { path = "../relay-filter" }
 relay-general = { path = "../relay-general" }
+relay-log = { path = "../relay-log" }
 relay-quotas = { path = "../relay-quotas" }
 relay-redis = { path = "../relay-redis" }
 reqwest = { version = "0.10.8", features = ["gzip", "stream"] }
 rmp-serde = "0.14.3"
-sentry = { version = "0.21.0", features = ["failure"] }
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
 serde_urlencoded = "0.7.0"
@@ -76,4 +75,3 @@ libc = "0.2.71"
 
 [dev-dependencies]
 insta = "0.16.0"
-env_logger = "0.7.1"

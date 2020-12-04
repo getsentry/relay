@@ -6,22 +6,13 @@ use clap::{ArgMatches, Shell};
 use dialoguer::{Confirmation, Select};
 use failure::{err_msg, Error};
 
-use relay_common::{LogError, Uuid};
+use relay_common::Uuid;
 use relay_config::{Config, Credentials, MinimalConfig, OverridableConfig, RelayMode};
 
 use crate::cliapp::make_app;
 use crate::setup;
 use crate::utils;
 use crate::utils::get_theme;
-
-/// Logs an error to the configured logger or `stderr` if not yet configured.
-pub fn ensure_log_error<E: failure::AsFail>(error: &E) {
-    if log::log_enabled!(log::Level::Error) {
-        log::error!("{}", LogError(error));
-    } else {
-        eprintln!("error: {}", LogError(error));
-    }
-}
 
 /// Runs the command line application.
 pub fn execute() -> Result<(), Error> {
@@ -44,7 +35,7 @@ pub fn execute() -> Result<(), Error> {
     let env_config = extract_config_env_vars();
     config.apply_override(env_config)?;
 
-    setup::init_logging(&config);
+    relay_log::init(config.logging(), config.sentry());
     if let Some(matches) = matches.subcommand_matches("config") {
         manage_config(&config, &matches)
     } else if let Some(matches) = matches.subcommand_matches("credentials") {
