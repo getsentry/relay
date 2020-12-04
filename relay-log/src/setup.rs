@@ -233,6 +233,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
         ],
         integrations: vec![Arc::new(FailureIntegration::new())],
         release: sentry::release_name!(),
+        attach_stacktrace: config.enable_backtraces,
         ..Default::default()
     });
 
