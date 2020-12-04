@@ -16,6 +16,7 @@ env_logger = "0.7.1"
 failure = "0.1.8"
 log = { version = "0.4.11", features = ["serde"] }
 pretty_env_logger = "0.4.0"
-sentry = { version = "0.21.0", features = ["debug-images", "log"] }
+# https://github.com/getsentry/sentry-rust/pull/301
+sentry = { git = "https://github.com/getsentry/sentry-rust", rev = "8e7442b839605998518742b1bda373957d8771d6", features = ["debug-images", "log"] }
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
