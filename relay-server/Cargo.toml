@@ -75,4 +75,3 @@ libc = "0.2.71"
 
 [dev-dependencies]
 insta = "0.16.0"
-# env_logger = "0.7.1"
