@@ -1,8 +1,8 @@
-name: Nightly CI
+name: Beta CI
 
 on:
   schedule:
-    - cron: '11 7 * * 1,4'
+    - cron: "11 7 * * 1,4"
 
 env:
   RUSTFLAGS: -Dwarnings
@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        rust: [nightly, beta]
+        rust: [beta]
 
     services:
       redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
@@ -32,7 +32,7 @@ jobs:
           override: true
           components: clippy
 
-      - name: Run clipppy
+      - name: Run clippy
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
