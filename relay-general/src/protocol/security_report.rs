@@ -50,7 +50,14 @@ pub enum CspDirective {
     StyleSrcAttr,
     UpgradeInsecureRequests,
     WorkerSrc,
-    // Sandbox , // unsupported
+    Sandbox,
+    NavigateTo,
+    ReportUri,
+    ReportTo,
+    BlockAllMixedContent,
+    RequireSriFor,
+    RequireTrustedTypesFor,
+    TrustedTypes,
 }
 
 derive_fromstr_and_display!(CspDirective, InvalidSecurityError, {
@@ -77,6 +84,14 @@ derive_fromstr_and_display!(CspDirective, InvalidSecurityError, {
     CspDirective::StyleSrcAttr => "style-src-attr",
     CspDirective::UpgradeInsecureRequests => "upgrade-insecure-requests",
     CspDirective::WorkerSrc => "worker-src",
+    CspDirective::Sandbox => "sandbox",
+    CspDirective::NavigateTo => "navigate-to",
+    CspDirective::ReportUri => "report-uri",
+    CspDirective::ReportTo => "report-to",
+    CspDirective::BlockAllMixedContent => "block-all-mixed-content",
+    CspDirective::RequireSriFor => "require-sri-for",
+    CspDirective::RequireTrustedTypesFor => "require-trusted-types-for",
+    CspDirective::TrustedTypes => "trusted-types",
 });
 
 impl_str_serde!(CspDirective);
