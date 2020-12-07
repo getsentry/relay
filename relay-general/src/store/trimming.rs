@@ -123,11 +123,11 @@ impl Processor for TrimmingProcessor {
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         if let Some(max_chars) = state.attrs().max_chars {
-            trim_string(value, meta, max_chars)?;
+            trim_string(value, meta, max_chars);
         }
 
         if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
-            trim_string(value, meta, MaxChars::Hard(bag_size_state.size_remaining))?;
+            trim_string(value, meta, MaxChars::Hard(bag_size_state.size_remaining));
         }
 
         Ok(())
@@ -245,27 +245,29 @@ impl Processor for TrimmingProcessor {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        stacktrace
-            .frames
-            .apply(|frames, meta| enforce_frame_hard_limit(frames, meta, 250))?;
+        stacktrace.frames.apply(|frames, meta| {
+            enforce_frame_hard_limit(frames, meta, 250);
+            Ok(())
+        })?;
 
         stacktrace.process_child_values(self, state)?;
 
-        stacktrace
-            .frames
-            .apply(|frames, _meta| slim_frame_data(frames, 50))?;
+        stacktrace.frames.apply(|frames, _meta| {
+            slim_frame_data(frames, 50);
+            Ok(())
+        })?;
 
         Ok(())
     }
 }
 
 /// Trims the string to the given maximum length and updates meta data.
-fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) -> ProcessingResult {
+fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
     let soft_limit = max_chars.limit();
     let hard_limit = soft_limit + max_chars.allowance();
 
     if bytecount::num_chars(value.as_bytes()) <= hard_limit {
-        return Ok(());
+        return;
     }
 
     process_chunked_value(value, meta, |chunks| {
@@ -319,15 +321,9 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) -> Proc
 
         new_chunks
     });
-
-    Ok(())
 }
 
-fn enforce_frame_hard_limit(
-    frames: &mut Array<Frame>,
-    meta: &mut Meta,
-    limit: usize,
-) -> ProcessingResult {
+fn enforce_frame_hard_limit(frames: &mut Array<Frame>, meta: &mut Meta, limit: usize) {
     // Trim down the frame list to a hard limit. Leave the last frame in place in case
     // it's useful for debugging.
     let original_length = frames.len();
@@ -340,18 +336,16 @@ fn enforce_frame_hard_limit(
             frames.push(last_frame);
         }
     }
-
-    Ok(())
 }
 
 /// Remove excess metadata for middle frames which go beyond `frame_allowance`.
 ///
 /// This is supposed to be equivalent to `slim_frame_data` in Sentry.
-fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) -> ProcessingResult {
+fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
     let frames_len = frames.len();
 
     if frames_len <= frame_allowance {
-        return Ok(());
+        return;
     }
 
     // Avoid ownership issues by only storing indices
@@ -392,8 +386,6 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) -> Process
             }
         }
     }
-
-    Ok(())
 }
 
 #[test]
@@ -403,7 +395,10 @@ fn test_string_trimming() {
 
     let mut value = Annotated::new("This is my long string I want to have trimmed!".to_string());
     value
-        .apply(|v, m| trim_string(v, m, MaxChars::Hard(20)))
+        .apply(|v, m| {
+            trim_string(v, m, MaxChars::Hard(20));
+            Ok(())
+        })
         .unwrap();
 
     assert_eq_dbg!(
@@ -440,8 +435,12 @@ fn test_basic_trimming() {
 
     let mut expected = Annotated::new(repeat("x").take(300).collect::<String>());
     expected
-        .apply(|v, m| trim_string(v, m, MaxChars::Culprit))
+        .apply(|v, m| {
+            trim_string(v, m, MaxChars::Culprit);
+            Ok(())
+        })
         .unwrap();
+
     assert_eq_dbg!(event.value().unwrap().culprit, expected);
 }
 
@@ -811,7 +810,10 @@ fn test_frame_hard_limit() {
     ]);
 
     frames
-        .apply(|f, m| enforce_frame_hard_limit(f, m, 3))
+        .apply(|f, m| {
+            enforce_frame_hard_limit(f, m, 3);
+            Ok(())
+        })
         .unwrap();
 
     let mut expected_meta = Meta::default();
@@ -841,7 +843,7 @@ fn test_slim_frame_data_under_max() {
     })];
 
     let old_frames = frames.clone();
-    slim_frame_data(&mut frames, 4).unwrap();
+    slim_frame_data(&mut frames, 4);
 
     assert_eq_dbg!(frames, old_frames);
 }
@@ -860,7 +862,7 @@ fn test_slim_frame_data_over_max() {
         }));
     }
 
-    slim_frame_data(&mut frames, 4).unwrap();
+    slim_frame_data(&mut frames, 4);
 
     let expected = vec![
         Annotated::new(Frame {

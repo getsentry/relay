@@ -437,12 +437,12 @@ mod tests {
         }
 
         /// Returns the raw stack memory regions.
-        fn stacks<'slf>(&'slf self, which: Which) -> Vec<&'slf [u8]> {
+        fn stacks(&self, which: Which) -> Vec<&[u8]> {
             self.memory_regions(which, MemRegion::Stack)
         }
 
         /// Returns the raw heap memory regions.
-        fn heaps<'slf>(&'slf self, which: Which) -> Vec<&'slf [u8]> {
+        fn heaps(&self, which: Which) -> Vec<&[u8]> {
             self.memory_regions(which, MemRegion::Heap)
         }
 

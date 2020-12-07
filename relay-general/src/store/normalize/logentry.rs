@@ -29,7 +29,7 @@ impl FormatArgs for Value {
     }
 }
 
-fn format_message<'f>(format: &'f str, params: &Value) -> Option<String> {
+fn format_message(format: &str, params: &Value) -> Option<String> {
     // NB: This currently resembles the historic logic for formatting strings. It could be much more
     // lenient however, and try multiple formats one after another without exiting early.
     if format.contains('%') {
