@@ -452,14 +452,14 @@ mod processing {
             }
         }
 
-        fn send_http_message(&self, message: TrackRawOutcome) -> Result<(), OutcomeError> {
+        fn send_http_message(&self, message: TrackRawOutcome) {
             relay_log::trace!("Tracking http outcome: {:?}", message);
 
             let producer = match self.http_producer {
                 Some(ref producer) => producer,
                 None => {
                     relay_log::error!("send_http_message called with invalid http_producer");
-                    return Ok(());
+                    return;
                 }
             };
 
@@ -471,8 +471,6 @@ mod processing {
             );
 
             producer.do_send(message);
-
-            Ok(())
         }
     }
 
@@ -508,7 +506,8 @@ mod processing {
             if self.config.processing_enabled() {
                 self.send_kafka_message(message)
             } else if self.config.emit_outcomes() {
-                self.send_http_message(message)
+                self.send_http_message(message);
+                Ok(())
             } else {
                 Ok(()) // processing not enabled and emit_outcomes disabled
             }
@@ -570,24 +569,20 @@ impl HttpOutcomeProducer {
             .spawn(context);
     }
 
-    fn send_http_message(
-        &mut self,
-        message: TrackRawOutcome,
-        context: &mut Context<Self>,
-    ) -> Result<(), OutcomeError> {
+    fn send_http_message(&mut self, message: TrackRawOutcome, context: &mut Context<Self>) {
         relay_log::trace!("Batching outcome");
         self.unsent_outcomes.push(message);
+
         if self.unsent_outcomes.len() >= self.config.outcome_batch_size() {
             if let Some(pending_flush_handle) = self.pending_flush_handle {
                 context.cancel_future(pending_flush_handle);
             }
+
             self.send_batch(context)
         } else if self.pending_flush_handle.is_none() {
             self.pending_flush_handle =
                 Some(context.run_later(self.config.outcome_batch_interval(), Self::send_batch));
         }
-
-        Ok(())
     }
 }
 
@@ -599,10 +594,10 @@ impl Handler<TrackRawOutcome> for HttpOutcomeProducer {
     type Result = Result<(), OutcomeError>;
     fn handle(&mut self, message: TrackRawOutcome, ctx: &mut Self::Context) -> Self::Result {
         if self.config.emit_outcomes() {
-            self.send_http_message(message, ctx)
-        } else {
-            Ok(()) // processing not enabled and emit_outcomes disabled
+            self.send_http_message(message, ctx);
         }
+
+        Ok(())
     }
 }
 

@@ -12,7 +12,7 @@ impl Processor for SchemaProcessor {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        value_trim_whitespace(value, meta, &state)?;
+        value_trim_whitespace(value, meta, &state);
         verify_value_nonempty(value, meta, &state)?;
         verify_value_characters(value, meta, &state)?;
         Ok(())
@@ -60,18 +60,12 @@ impl Processor for SchemaProcessor {
     }
 }
 
-fn value_trim_whitespace(
-    value: &mut String,
-    _meta: &mut Meta,
-    state: &ProcessingState<'_>,
-) -> ProcessingResult {
+fn value_trim_whitespace(value: &mut String, _meta: &mut Meta, state: &ProcessingState<'_>) {
     if state.attrs().trim_whitespace {
         let new_value = value.trim().to_owned();
         value.clear();
         value.push_str(&new_value);
     }
-
-    Ok(())
 }
 
 fn verify_value_nonempty<T>(

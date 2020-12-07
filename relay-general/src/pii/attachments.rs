@@ -749,7 +749,7 @@ mod tests {
             rule: "@anything:remove",
             filename: "foo.txt",
             value_type: ValueType::Binary,
-            input: (0..255 as u8).collect::<Vec<_>>().as_slice(),
+            input: (0..255u8).collect::<Vec<_>>().as_slice(),
             output: &[b'*'; 255],
             changed: true,
         }

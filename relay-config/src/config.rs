@@ -323,9 +323,7 @@ fn is_docker() -> bool {
         return true;
     }
 
-    fs::read_to_string("/proc/self/cgroup")
-        .map(|s| s.find("/docker").is_some())
-        .unwrap_or(false)
+    fs::read_to_string("/proc/self/cgroup").map_or(false, |s| s.contains("/docker"))
 }
 
 /// Default value for the "bind" configuration.

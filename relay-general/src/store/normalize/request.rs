@@ -115,7 +115,7 @@ fn urlencoded_from_str(raw: &str) -> Option<Value> {
             .values()
             .next()
             .and_then(Annotated::<Value>::as_str)
-            .map_or(false, |s| s != "" && s != "=");
+            .map_or(false, |s| !matches!(s, "" | "="));
 
     if is_valid {
         Some(Value::Object(object))

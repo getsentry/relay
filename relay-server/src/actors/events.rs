@@ -857,7 +857,7 @@ impl EventProcessor {
     ///
     /// If the event payload was empty before, it is created.
     #[cfg(feature = "processing")]
-    fn create_placeholders(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn create_placeholders(&self, state: &mut ProcessEnvelopeState) {
         let envelope = &mut state.envelope;
 
         let minidump_attachment =
@@ -875,8 +875,6 @@ impl EventProcessor {
             state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
             self.write_native_placeholder(event, false);
         }
-
-        Ok(())
     }
 
     fn finalize_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
@@ -1073,7 +1071,7 @@ impl EventProcessor {
     /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
     /// attachment types. When special attachments are detected, these are scrubbed with custom
     /// logic; otherwise the entire attachment is treated as a single binary blob.
-    fn scrub_attachments(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn scrub_attachments(&self, state: &mut ProcessEnvelopeState) {
         let envelope = &mut state.envelope;
         if let Some(ref config) = state.project_state.config.pii_config {
             let minidump = envelope
@@ -1117,8 +1115,6 @@ impl EventProcessor {
                 item.set_payload(content_type, payload);
             }
         }
-
-        Ok(())
     }
 
     fn serialize_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
@@ -1164,7 +1160,7 @@ impl EventProcessor {
 
             if_processing!({
                 self.process_unreal(&mut state)?;
-                self.create_placeholders(&mut state)?;
+                self.create_placeholders(&mut state);
             });
 
             self.finalize_event(&mut state)?;
@@ -1184,7 +1180,7 @@ impl EventProcessor {
             self.serialize_event(&mut state)?;
         }
 
-        self.scrub_attachments(&mut state)?;
+        self.scrub_attachments(&mut state);
 
         Ok(ProcessEnvelopeResponse::from(state))
     }
