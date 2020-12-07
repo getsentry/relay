@@ -7,17 +7,17 @@
 --
 -- ``ARGV`` (3 per quota):
 --  * [number] Quota limit. Can be ``-1`` for unlimited quotas.
---  * [number] Expiration time in seconds for the key.
+--  * [number] Absolute Expiration time as Unix timestamp (secs since 1.1.1970 ) for the key.
 --  * [number] Quantity to increment the quota by.
 --
--- For example, to check the following two quotas each with a timeout of 10 minutes:
+-- For example, to check the following two quotas each with a timeout of 10 minutes from now:
 --  * Key ``foo``, refund key ``foo_refund``, limit ``10``; quantity ``5``
 --  * Key ``bar``, refund key ``bar_refund``, limit ``20``; quantity ``1``
 --
 -- Send these values:
 --
 --     KEYS = {"foo", "foo_refund", "bar", "bar_refund"}
---     ARGV = {10, 600, 5, 20, 600, 1}
+--     ARGV = {10, 600 + now(), 5, 20, 600 + now(), 1}
 --
 -- The script applies the following logic:
 --  * If all checks pass, the item is accepted and the counters for all quotas
