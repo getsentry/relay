@@ -1463,8 +1463,6 @@
 <span id="1460">1460</span>
 <span id="1461">1461</span>
 <span id="1462">1462</span>
-<span id="1463">1463</span>
-<span id="1464">1464</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">env</span>;
@@ -1791,9 +1789,7 @@
         <span class="kw">return</span> <span class="bool-val">true</span>;
     }
 
-    <span class="ident">fs</span>::<span class="ident">read_to_string</span>(<span class="string">&quot;/proc/self/cgroup&quot;</span>)
-        .<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">find</span>(<span class="string">&quot;/docker&quot;</span>).<span class="ident">is_some</span>())
-        .<span class="ident">unwrap_or</span>(<span class="bool-val">false</span>)
+    <span class="ident">fs</span>::<span class="ident">read_to_string</span>(<span class="string">&quot;/proc/self/cgroup&quot;</span>).<span class="ident">map_or</span>(<span class="bool-val">false</span>, <span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">contains</span>(<span class="string">&quot;/docker&quot;</span>))
 }
 
 <span class="doccomment">/// Default value for the &quot;bind&quot; configuration.</span>

@@ -903,6 +903,8 @@
 <span id="900">900</span>
 <span id="901">901</span>
 <span id="902">902</span>
+<span id="903">903</span>
+<span id="904">904</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 
@@ -1029,11 +1031,11 @@
         <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingResult</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">max_chars</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">attrs</span>().<span class="ident">max_chars</span> {
-            <span class="ident">trim_string</span>(<span class="ident">value</span>, <span class="ident">meta</span>, <span class="ident">max_chars</span>)<span class="question-mark">?</span>;
+            <span class="ident">trim_string</span>(<span class="ident">value</span>, <span class="ident">meta</span>, <span class="ident">max_chars</span>);
         }
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">bag_size_state</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">bag_size_state</span>.<span class="ident">last_mut</span>() {
-            <span class="ident">trim_string</span>(<span class="ident">value</span>, <span class="ident">meta</span>, <span class="ident">MaxChars</span>::<span class="ident">Hard</span>(<span class="ident">bag_size_state</span>.<span class="ident">size_remaining</span>))<span class="question-mark">?</span>;
+            <span class="ident">trim_string</span>(<span class="ident">value</span>, <span class="ident">meta</span>, <span class="ident">MaxChars</span>::<span class="ident">Hard</span>(<span class="ident">bag_size_state</span>.<span class="ident">size_remaining</span>));
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -1151,27 +1153,29 @@
         <span class="ident">_meta</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Meta</span>,
         <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingResult</span> {
-        <span class="ident">stacktrace</span>
-            .<span class="ident">frames</span>
-            .<span class="ident">apply</span>(<span class="op">|</span><span class="ident">frames</span>, <span class="ident">meta</span><span class="op">|</span> <span class="ident">enforce_frame_hard_limit</span>(<span class="ident">frames</span>, <span class="ident">meta</span>, <span class="number">250</span>))<span class="question-mark">?</span>;
+        <span class="ident">stacktrace</span>.<span class="ident">frames</span>.<span class="ident">apply</span>(<span class="op">|</span><span class="ident">frames</span>, <span class="ident">meta</span><span class="op">|</span> {
+            <span class="ident">enforce_frame_hard_limit</span>(<span class="ident">frames</span>, <span class="ident">meta</span>, <span class="number">250</span>);
+            <span class="prelude-val">Ok</span>(())
+        })<span class="question-mark">?</span>;
 
         <span class="ident">stacktrace</span>.<span class="ident">process_child_values</span>(<span class="self">self</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
 
-        <span class="ident">stacktrace</span>
-            .<span class="ident">frames</span>
-            .<span class="ident">apply</span>(<span class="op">|</span><span class="ident">frames</span>, <span class="ident">_meta</span><span class="op">|</span> <span class="ident">slim_frame_data</span>(<span class="ident">frames</span>, <span class="number">50</span>))<span class="question-mark">?</span>;
+        <span class="ident">stacktrace</span>.<span class="ident">frames</span>.<span class="ident">apply</span>(<span class="op">|</span><span class="ident">frames</span>, <span class="ident">_meta</span><span class="op">|</span> {
+            <span class="ident">slim_frame_data</span>(<span class="ident">frames</span>, <span class="number">50</span>);
+            <span class="prelude-val">Ok</span>(())
+        })<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(())
     }
 }
 
 <span class="doccomment">/// Trims the string to the given maximum length and updates meta data.</span>
-<span class="kw">fn</span> <span class="ident">trim_string</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">String</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Meta</span>, <span class="ident">max_chars</span>: <span class="ident">MaxChars</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingResult</span> {
+<span class="kw">fn</span> <span class="ident">trim_string</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">String</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Meta</span>, <span class="ident">max_chars</span>: <span class="ident">MaxChars</span>) {
     <span class="kw">let</span> <span class="ident">soft_limit</span> <span class="op">=</span> <span class="ident">max_chars</span>.<span class="ident">limit</span>();
     <span class="kw">let</span> <span class="ident">hard_limit</span> <span class="op">=</span> <span class="ident">soft_limit</span> <span class="op">+</span> <span class="ident">max_chars</span>.<span class="ident">allowance</span>();
 
     <span class="kw">if</span> <span class="ident">bytecount</span>::<span class="ident">num_chars</span>(<span class="ident">value</span>.<span class="ident">as_bytes</span>()) <span class="op">&lt;</span><span class="op">=</span> <span class="ident">hard_limit</span> {
-        <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+        <span class="kw">return</span>;
     }
 
     <span class="ident">process_chunked_value</span>(<span class="ident">value</span>, <span class="ident">meta</span>, <span class="op">|</span><span class="ident">chunks</span><span class="op">|</span> {
@@ -1225,15 +1229,9 @@
 
         <span class="ident">new_chunks</span>
     });
-
-    <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">fn</span> <span class="ident">enforce_frame_hard_limit</span>(
-    <span class="ident">frames</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Array</span><span class="op">&lt;</span><span class="ident">Frame</span><span class="op">&gt;</span>,
-    <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Meta</span>,
-    <span class="ident">limit</span>: <span class="ident">usize</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingResult</span> {
+<span class="kw">fn</span> <span class="ident">enforce_frame_hard_limit</span>(<span class="ident">frames</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Array</span><span class="op">&lt;</span><span class="ident">Frame</span><span class="op">&gt;</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Meta</span>, <span class="ident">limit</span>: <span class="ident">usize</span>) {
     <span class="comment">// Trim down the frame list to a hard limit. Leave the last frame in place in case</span>
     <span class="comment">// it&#39;s useful for debugging.</span>
     <span class="kw">let</span> <span class="ident">original_length</span> <span class="op">=</span> <span class="ident">frames</span>.<span class="ident">len</span>();
@@ -1246,18 +1244,16 @@
             <span class="ident">frames</span>.<span class="ident">push</span>(<span class="ident">last_frame</span>);
         }
     }
-
-    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="doccomment">/// Remove excess metadata for middle frames which go beyond `frame_allowance`.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// This is supposed to be equivalent to `slim_frame_data` in Sentry.</span>
-<span class="kw">fn</span> <span class="ident">slim_frame_data</span>(<span class="ident">frames</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Array</span><span class="op">&lt;</span><span class="ident">Frame</span><span class="op">&gt;</span>, <span class="ident">frame_allowance</span>: <span class="ident">usize</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingResult</span> {
+<span class="kw">fn</span> <span class="ident">slim_frame_data</span>(<span class="ident">frames</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Array</span><span class="op">&lt;</span><span class="ident">Frame</span><span class="op">&gt;</span>, <span class="ident">frame_allowance</span>: <span class="ident">usize</span>) {
     <span class="kw">let</span> <span class="ident">frames_len</span> <span class="op">=</span> <span class="ident">frames</span>.<span class="ident">len</span>();
 
     <span class="kw">if</span> <span class="ident">frames_len</span> <span class="op">&lt;</span><span class="op">=</span> <span class="ident">frame_allowance</span> {
-        <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+        <span class="kw">return</span>;
     }
 
     <span class="comment">// Avoid ownership issues by only storing indices</span>
@@ -1298,8 +1294,6 @@
             }
         }
     }
-
-    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1309,7 +1303,10 @@
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;This is my long string I want to have trimmed!&quot;</span>.<span class="ident">to_string</span>());
     <span class="ident">value</span>
-        .<span class="ident">apply</span>(<span class="op">|</span><span class="ident">v</span>, <span class="ident">m</span><span class="op">|</span> <span class="ident">trim_string</span>(<span class="ident">v</span>, <span class="ident">m</span>, <span class="ident">MaxChars</span>::<span class="ident">Hard</span>(<span class="number">20</span>)))
+        .<span class="ident">apply</span>(<span class="op">|</span><span class="ident">v</span>, <span class="ident">m</span><span class="op">|</span> {
+            <span class="ident">trim_string</span>(<span class="ident">v</span>, <span class="ident">m</span>, <span class="ident">MaxChars</span>::<span class="ident">Hard</span>(<span class="number">20</span>));
+            <span class="prelude-val">Ok</span>(())
+        })
         .<span class="ident">unwrap</span>();
 
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
@@ -1346,8 +1343,12 @@
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">expected</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">repeat</span>(<span class="string">&quot;x&quot;</span>).<span class="ident">take</span>(<span class="number">300</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>());
     <span class="ident">expected</span>
-        .<span class="ident">apply</span>(<span class="op">|</span><span class="ident">v</span>, <span class="ident">m</span><span class="op">|</span> <span class="ident">trim_string</span>(<span class="ident">v</span>, <span class="ident">m</span>, <span class="ident">MaxChars</span>::<span class="ident">Culprit</span>))
+        .<span class="ident">apply</span>(<span class="op">|</span><span class="ident">v</span>, <span class="ident">m</span><span class="op">|</span> {
+            <span class="ident">trim_string</span>(<span class="ident">v</span>, <span class="ident">m</span>, <span class="ident">MaxChars</span>::<span class="ident">Culprit</span>);
+            <span class="prelude-val">Ok</span>(())
+        })
         .<span class="ident">unwrap</span>();
+
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">culprit</span>, <span class="ident">expected</span>);
 }
 
@@ -1717,7 +1718,10 @@
     ]);
 
     <span class="ident">frames</span>
-        .<span class="ident">apply</span>(<span class="op">|</span><span class="ident">f</span>, <span class="ident">m</span><span class="op">|</span> <span class="ident">enforce_frame_hard_limit</span>(<span class="ident">f</span>, <span class="ident">m</span>, <span class="number">3</span>))
+        .<span class="ident">apply</span>(<span class="op">|</span><span class="ident">f</span>, <span class="ident">m</span><span class="op">|</span> {
+            <span class="ident">enforce_frame_hard_limit</span>(<span class="ident">f</span>, <span class="ident">m</span>, <span class="number">3</span>);
+            <span class="prelude-val">Ok</span>(())
+        })
         .<span class="ident">unwrap</span>();
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">expected_meta</span> <span class="op">=</span> <span class="ident">Meta</span>::<span class="ident">default</span>();
@@ -1747,7 +1751,7 @@
     })];
 
     <span class="kw">let</span> <span class="ident">old_frames</span> <span class="op">=</span> <span class="ident">frames</span>.<span class="ident">clone</span>();
-    <span class="ident">slim_frame_data</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">frames</span>, <span class="number">4</span>).<span class="ident">unwrap</span>();
+    <span class="ident">slim_frame_data</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">frames</span>, <span class="number">4</span>);
 
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">frames</span>, <span class="ident">old_frames</span>);
 }
@@ -1766,7 +1770,7 @@
         }));
     }
 
-    <span class="ident">slim_frame_data</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">frames</span>, <span class="number">4</span>).<span class="ident">unwrap</span>();
+    <span class="ident">slim_frame_data</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">frames</span>, <span class="number">4</span>);
 
     <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
         <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Frame</span> {

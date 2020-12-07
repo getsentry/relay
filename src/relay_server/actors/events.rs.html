@@ -1894,10 +1894,6 @@
 <span id="1891">1891</span>
 <span id="1892">1892</span>
 <span id="1893">1893</span>
-<span id="1894">1894</span>
-<span id="1895">1895</span>
-<span id="1896">1896</span>
-<span id="1897">1897</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -2758,7 +2754,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// If the event payload was empty before, it is created.</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="kw">fn</span> <span class="ident">create_placeholders</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">create_placeholders</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) {
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>;
 
         <span class="kw">let</span> <span class="ident">minidump_attachment</span> <span class="op">=</span>
@@ -2776,8 +2772,6 @@
             <span class="ident">state</span>.<span class="ident">metrics</span>.<span class="ident">bytes_ingested_event_applecrashreport</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">item</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>);
             <span class="self">self</span>.<span class="ident">write_native_placeholder</span>(<span class="ident">event</span>, <span class="bool-val">false</span>);
         }
-
-        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">fn</span> <span class="ident">finalize_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
@@ -2974,7 +2968,7 @@
     <span class="doccomment">/// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the</span>
     <span class="doccomment">/// attachment types. When special attachments are detected, these are scrubbed with custom</span>
     <span class="doccomment">/// logic; otherwise the entire attachment is treated as a single binary blob.</span>
-    <span class="kw">fn</span> <span class="ident">scrub_attachments</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">scrub_attachments</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) {
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>;
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">config</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">config</span>.<span class="ident">pii_config</span> {
             <span class="kw">let</span> <span class="ident">minidump</span> <span class="op">=</span> <span class="ident">envelope</span>
@@ -3018,8 +3012,6 @@
                 <span class="ident">item</span>.<span class="ident">set_payload</span>(<span class="ident">content_type</span>, <span class="ident">payload</span>);
             }
         }
-
-        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">fn</span> <span class="ident">serialize_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
@@ -3065,7 +3057,7 @@
 
             <span class="macro">if_processing</span><span class="macro">!</span>({
                 <span class="self">self</span>.<span class="ident">process_unreal</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
-                <span class="self">self</span>.<span class="ident">create_placeholders</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
+                <span class="self">self</span>.<span class="ident">create_placeholders</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>);
             });
 
             <span class="self">self</span>.<span class="ident">finalize_event</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
@@ -3085,7 +3077,7 @@
             <span class="self">self</span>.<span class="ident">serialize_event</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
         }
 
-        <span class="self">self</span>.<span class="ident">scrub_attachments</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
+        <span class="self">self</span>.<span class="ident">scrub_attachments</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>);
 
         <span class="prelude-val">Ok</span>(<span class="ident">ProcessEnvelopeResponse</span>::<span class="ident">from</span>(<span class="ident">state</span>))
     }
