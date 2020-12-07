@@ -1887,6 +1887,21 @@
 <span id="1884">1884</span>
 <span id="1885">1885</span>
 <span id="1886">1886</span>
+<span id="1887">1887</span>
+<span id="1888">1888</span>
+<span id="1889">1889</span>
+<span id="1890">1890</span>
+<span id="1891">1891</span>
+<span id="1892">1892</span>
+<span id="1893">1893</span>
+<span id="1894">1894</span>
+<span id="1895">1895</span>
+<span id="1896">1896</span>
+<span id="1897">1897</span>
+<span id="1898">1898</span>
+<span id="1899">1899</span>
+<span id="1900">1900</span>
+<span id="1901">1901</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Contains definitions for the security report interfaces.</span>
 <span class="doccomment">//!</span>
@@ -1940,7 +1955,14 @@
     <span class="ident">StyleSrcAttr</span>,
     <span class="ident">UpgradeInsecureRequests</span>,
     <span class="ident">WorkerSrc</span>,
-    <span class="comment">// Sandbox , // unsupported</span>
+    <span class="ident">Sandbox</span>,
+    <span class="ident">NavigateTo</span>,
+    <span class="ident">ReportUri</span>,
+    <span class="ident">ReportTo</span>,
+    <span class="ident">BlockAllMixedContent</span>,
+    <span class="ident">RequireSriFor</span>,
+    <span class="ident">RequireTrustedTypesFor</span>,
+    <span class="ident">TrustedTypes</span>,
 }
 
 <span class="macro">derive_fromstr_and_display</span><span class="macro">!</span>(<span class="ident">CspDirective</span>, <span class="ident">InvalidSecurityError</span>, {
@@ -1967,6 +1989,14 @@
     <span class="ident">CspDirective</span>::<span class="ident">StyleSrcAttr</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;style-src-attr&quot;</span>,
     <span class="ident">CspDirective</span>::<span class="ident">UpgradeInsecureRequests</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;upgrade-insecure-requests&quot;</span>,
     <span class="ident">CspDirective</span>::<span class="ident">WorkerSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;worker-src&quot;</span>,
+    <span class="ident">CspDirective</span>::<span class="ident">Sandbox</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;sandbox&quot;</span>,
+    <span class="ident">CspDirective</span>::<span class="ident">NavigateTo</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;navigate-to&quot;</span>,
+    <span class="ident">CspDirective</span>::<span class="ident">ReportUri</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;report-uri&quot;</span>,
+    <span class="ident">CspDirective</span>::<span class="ident">ReportTo</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;report-to&quot;</span>,
+    <span class="ident">CspDirective</span>::<span class="ident">BlockAllMixedContent</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;block-all-mixed-content&quot;</span>,
+    <span class="ident">CspDirective</span>::<span class="ident">RequireSriFor</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;require-sri-for&quot;</span>,
+    <span class="ident">CspDirective</span>::<span class="ident">RequireTrustedTypesFor</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;require-trusted-types-for&quot;</span>,
+    <span class="ident">CspDirective</span>::<span class="ident">TrustedTypes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;trusted-types&quot;</span>,
 });
 
 <span class="macro">impl_str_serde</span><span class="macro">!</span>(<span class="ident">CspDirective</span>);
