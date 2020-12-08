@@ -9,15 +9,13 @@
 ///! objects and common request objects, it's just that nobody bothers to implement the conversion
 ///! logic.
 use std::io;
-use std::io::Read;
+use std::io::{Cursor, Read};
 
 use actix_web::client::{ClientRequest, ClientRequestBuilder, ClientResponse};
 use actix_web::error::{JsonPayloadError, PayloadError};
 use actix_web::http::{ContentEncoding, StatusCode};
 use actix_web::{Binary, Error as ActixError, HttpMessage};
 use brotli2::read::BrotliEncoder;
-use bytes::buf::Buf;
-use bytes::IntoBuf;
 use failure::Fail;
 use flate2::read::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
@@ -131,7 +129,7 @@ impl RequestBuilder {
         self
     }
 
-    pub fn body(self, mut body: Binary) -> Result<Request, HttpError> {
+    pub fn body(self, body: Binary) -> Result<Request, HttpError> {
         // actix-web's Binary is used as argument here because the type can be constructed from
         // almost anything and then the actix-web codepath is minimally affected.
         //
@@ -146,30 +144,28 @@ impl RequestBuilder {
                 mut builder,
                 http_encoding,
             } => {
+                let reader = Cursor::new(body);
+
                 match http_encoding {
                     HttpEncoding::Identity => {
                         builder = builder
                             .header("Content-Encoding", "identity")
-                            .body(reqwest_body_from_read(body.take().into_buf().reader()))
+                            .body(reqwest_body_from_read(reader))
                     }
                     HttpEncoding::Deflate => {
-                        let encoder = ZlibEncoder::new(
-                            body.take().into_buf().reader(),
-                            Compression::default(),
-                        );
+                        let encoder = ZlibEncoder::new(reader, Compression::default());
                         builder = builder
                             .header("Content-Encoding", "deflate")
                             .body(reqwest_body_from_read(encoder))
                     }
                     HttpEncoding::Gzip => {
-                        let encoder =
-                            GzEncoder::new(body.take().into_buf().reader(), Compression::default());
+                        let encoder = GzEncoder::new(reader, Compression::default());
                         builder = builder
                             .header("Content-Encoding", "gzip")
                             .body(reqwest_body_from_read(encoder))
                     }
                     HttpEncoding::Br => {
-                        let encoder = BrotliEncoder::new(body.take().into_buf().reader(), 5);
+                        let encoder = BrotliEncoder::new(reader, 5);
                         builder = builder
                             .header("Content-Encoding", "br")
                             .body(reqwest_body_from_read(encoder))
@@ -219,7 +215,7 @@ where
 {
     // Local imports because importing them top-level is too confusing with two futures crates
     use futures03::{stream::poll_fn, task::Poll};
-    let mut buf = Vec::with_capacity(8192);
+    let mut buf = vec![0; 8192];
 
     let stream = poll_fn(move |_| {
         let bytes_read = match reader.read(&mut buf) {

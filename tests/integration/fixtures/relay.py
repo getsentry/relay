@@ -62,7 +62,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, request):
             "limits": {"max_api_file_upload_size": "1MiB"},
             "cache": {"batch_interval": 0},
             "logging": {"level": "trace"},
-            "http": {"timeout": 2, "client": request.param},
+            "http": {"timeout": 2, "_client": request.param},
             "processing": {
                 "enabled": False,
                 "kafka_config": [],
