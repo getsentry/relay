@@ -273,7 +273,9 @@ impl PiiAttachmentsProcessor<'_> {
                     changed |= self.scrub_bytes(slice, &state, ScrubEncodings::All);
                 }
                 MinidumpItem::NonStackMemory(range) => {
-                    // Documented visit.
+                    let slice = data
+                        .get_mut(range)
+                        .ok_or(ScrubMinidumpError::InvalidAddress)?;
                     let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
                     let state = file_state.enter_static(
                         "heap_memory",
