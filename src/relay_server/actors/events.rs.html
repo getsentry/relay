@@ -1898,6 +1898,11 @@
 <span id="1895">1895</span>
 <span id="1896">1896</span>
 <span id="1897">1897</span>
+<span id="1898">1898</span>
+<span id="1899">1899</span>
+<span id="1900">1900</span>
+<span id="1901">1901</span>
+<span id="1902">1902</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -1933,7 +1938,7 @@
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">project_cache</span>::<span class="ident">ProjectError</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">upstream</span>::{<span class="ident">SendRequest</span>, <span class="ident">UpstreamRelay</span>, <span class="ident">UpstreamRequestError</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">envelope</span>::{<span class="self">self</span>, <span class="ident">AttachmentType</span>, <span class="ident">ContentType</span>, <span class="ident">Envelope</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">http</span>::<span class="ident">RequestBuilder</span>;
+<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">http</span>::{<span class="ident">HttpError</span>, <span class="ident">RequestBuilder</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">metrics</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelaySets</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">service</span>::<span class="ident">ServerError</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">utils</span>::{<span class="self">self</span>, <span class="ident">ChunkedFormDataAggregator</span>, <span class="ident">FormDataIter</span>, <span class="ident">FutureExt</span>};
@@ -3491,11 +3496,16 @@
                             .<span class="ident">body</span>(
                                 <span class="ident">envelope</span>
                                     .<span class="ident">to_vec</span>()
+                                    <span class="comment">// XXX: upstream actor should allow for custom error type,</span>
+                                    <span class="comment">// right now we are forced to shoehorn our envelope errors into</span>
+                                    <span class="comment">// UpstreamRequestError</span>
                                     .<span class="ident">map_err</span>(<span class="ident">failure</span>::<span class="ident">Error</span>::<span class="ident">from</span>)
-                                    .<span class="ident">map_err</span>(<span class="ident">actix_web</span>::<span class="ident">Error</span>::<span class="ident">from</span>)<span class="question-mark">?</span>
+                                    .<span class="ident">map_err</span>(<span class="ident">actix_web</span>::<span class="ident">Error</span>::<span class="ident">from</span>)
+                                    .<span class="ident">map_err</span>(<span class="ident">HttpError</span>::<span class="ident">Actix</span>)
+                                    .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">Http</span>)<span class="question-mark">?</span>
                                     .<span class="ident">into</span>(),
                             )
-                            .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">from</span>)
+                            .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">Http</span>)
                     },
                 );
 

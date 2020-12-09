@@ -379,6 +379,16 @@
 <span id="376">376</span>
 <span id="377">377</span>
 <span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">///! Abstractions for dealing with either actix-web client structs or reqwest structs.</span>
 <span class="doccomment">///!</span>
@@ -391,15 +401,13 @@
 <span class="doccomment">///! objects and common request objects, it&#39;s just that nobody bothers to implement the conversion</span>
 <span class="doccomment">///! logic.</span>
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Read</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">Cursor</span>, <span class="ident">Read</span>};
 
 <span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">client</span>::{<span class="ident">ClientRequest</span>, <span class="ident">ClientRequestBuilder</span>, <span class="ident">ClientResponse</span>};
 <span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">error</span>::{<span class="ident">JsonPayloadError</span>, <span class="ident">PayloadError</span>};
 <span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">http</span>::{<span class="ident">ContentEncoding</span>, <span class="ident">StatusCode</span>};
 <span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">Binary</span>, <span class="ident">Error</span> <span class="kw">as</span> <span class="ident">ActixError</span>, <span class="ident">HttpMessage</span>};
 <span class="kw">use</span> <span class="ident">brotli2</span>::<span class="ident">read</span>::<span class="ident">BrotliEncoder</span>;
-<span class="kw">use</span> <span class="ident">bytes</span>::<span class="ident">buf</span>::<span class="ident">Buf</span>;
-<span class="kw">use</span> <span class="ident">bytes</span>::<span class="ident">IntoBuf</span>;
 <span class="kw">use</span> <span class="ident">failure</span>::<span class="ident">Fail</span>;
 <span class="kw">use</span> <span class="ident">flate2</span>::<span class="ident">read</span>::{<span class="ident">GzEncoder</span>, <span class="ident">ZlibEncoder</span>};
 <span class="kw">use</span> <span class="ident">flate2</span>::<span class="ident">Compression</span>;
@@ -425,6 +433,20 @@
     <span class="ident">ActixJson</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">JsonPayloadError</span>),
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to receive response from upstream&quot;</span>)]</span>
     <span class="ident">ActixPayload</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">PayloadError</span>),
+}
+
+<span class="kw">impl</span> <span class="ident">HttpError</span> {
+    <span class="doccomment">/// Returns `true` if the error indicates a network downtime.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_network_error</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">match</span> <span class="self">self</span> {
+            <span class="ident">HttpError</span>::<span class="ident">ActixPayload</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">HttpError</span>::<span class="ident">Io</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
+
+            <span class="comment">// note: status codes are not handled here because we never call error_for_status. This</span>
+            <span class="comment">// logic is part of upstream actor.</span>
+            <span class="ident">HttpError</span>::<span class="ident">Reqwest</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">error</span>.<span class="ident">is_timeout</span>(),
+            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+        }
+    }
 }
 
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">reqwest</span>::<span class="ident">Error</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HttpError</span> {
@@ -513,7 +535,7 @@
         <span class="self">self</span>
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">body</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">body</span>: <span class="ident">Binary</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Request</span>, <span class="ident">HttpError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">body</span>(<span class="self">self</span>, <span class="ident">body</span>: <span class="ident">Binary</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Request</span>, <span class="ident">HttpError</span><span class="op">&gt;</span> {
         <span class="comment">// actix-web&#39;s Binary is used as argument here because the type can be constructed from</span>
         <span class="comment">// almost anything and then the actix-web codepath is minimally affected.</span>
         <span class="comment">//</span>
@@ -528,30 +550,28 @@
                 <span class="kw-2">mut</span> <span class="ident">builder</span>,
                 <span class="ident">http_encoding</span>,
             } <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="ident">body</span>);
+
                 <span class="kw">match</span> <span class="ident">http_encoding</span> {
                     <span class="ident">HttpEncoding</span>::<span class="ident">Identity</span> <span class="op">=</span><span class="op">&gt;</span> {
                         <span class="ident">builder</span> <span class="op">=</span> <span class="ident">builder</span>
                             .<span class="ident">header</span>(<span class="string">&quot;Content-Encoding&quot;</span>, <span class="string">&quot;identity&quot;</span>)
-                            .<span class="ident">body</span>(<span class="ident">reqwest_body_from_read</span>(<span class="ident">body</span>.<span class="ident">take</span>().<span class="ident">into_buf</span>().<span class="ident">reader</span>()))
+                            .<span class="ident">body</span>(<span class="ident">reqwest_body_from_read</span>(<span class="ident">reader</span>))
                     }
                     <span class="ident">HttpEncoding</span>::<span class="ident">Deflate</span> <span class="op">=</span><span class="op">&gt;</span> {
-                        <span class="kw">let</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">ZlibEncoder</span>::<span class="ident">new</span>(
-                            <span class="ident">body</span>.<span class="ident">take</span>().<span class="ident">into_buf</span>().<span class="ident">reader</span>(),
-                            <span class="ident">Compression</span>::<span class="ident">default</span>(),
-                        );
+                        <span class="kw">let</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">ZlibEncoder</span>::<span class="ident">new</span>(<span class="ident">reader</span>, <span class="ident">Compression</span>::<span class="ident">default</span>());
                         <span class="ident">builder</span> <span class="op">=</span> <span class="ident">builder</span>
                             .<span class="ident">header</span>(<span class="string">&quot;Content-Encoding&quot;</span>, <span class="string">&quot;deflate&quot;</span>)
                             .<span class="ident">body</span>(<span class="ident">reqwest_body_from_read</span>(<span class="ident">encoder</span>))
                     }
                     <span class="ident">HttpEncoding</span>::<span class="ident">Gzip</span> <span class="op">=</span><span class="op">&gt;</span> {
-                        <span class="kw">let</span> <span class="ident">encoder</span> <span class="op">=</span>
-                            <span class="ident">GzEncoder</span>::<span class="ident">new</span>(<span class="ident">body</span>.<span class="ident">take</span>().<span class="ident">into_buf</span>().<span class="ident">reader</span>(), <span class="ident">Compression</span>::<span class="ident">default</span>());
+                        <span class="kw">let</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">GzEncoder</span>::<span class="ident">new</span>(<span class="ident">reader</span>, <span class="ident">Compression</span>::<span class="ident">default</span>());
                         <span class="ident">builder</span> <span class="op">=</span> <span class="ident">builder</span>
                             .<span class="ident">header</span>(<span class="string">&quot;Content-Encoding&quot;</span>, <span class="string">&quot;gzip&quot;</span>)
                             .<span class="ident">body</span>(<span class="ident">reqwest_body_from_read</span>(<span class="ident">encoder</span>))
                     }
                     <span class="ident">HttpEncoding</span>::<span class="ident">Br</span> <span class="op">=</span><span class="op">&gt;</span> {
-                        <span class="kw">let</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">BrotliEncoder</span>::<span class="ident">new</span>(<span class="ident">body</span>.<span class="ident">take</span>().<span class="ident">into_buf</span>().<span class="ident">reader</span>(), <span class="number">5</span>);
+                        <span class="kw">let</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">BrotliEncoder</span>::<span class="ident">new</span>(<span class="ident">reader</span>, <span class="number">5</span>);
                         <span class="ident">builder</span> <span class="op">=</span> <span class="ident">builder</span>
                             .<span class="ident">header</span>(<span class="string">&quot;Content-Encoding&quot;</span>, <span class="string">&quot;br&quot;</span>)
                             .<span class="ident">body</span>(<span class="ident">reqwest_body_from_read</span>(<span class="ident">encoder</span>))
@@ -601,7 +621,7 @@
 {
     <span class="comment">// Local imports because importing them top-level is too confusing with two futures crates</span>
     <span class="kw">use</span> <span class="ident">futures03</span>::{<span class="ident">stream</span>::<span class="ident">poll_fn</span>, <span class="ident">task</span>::<span class="ident">Poll</span>};
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">8192</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> <span class="op">=</span> [<span class="number">0</span>; <span class="number">8192</span>];
 
     <span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">poll_fn</span>(<span class="kw">move</span> <span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
         <span class="kw">let</span> <span class="ident">bytes_read</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">reader</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>) {

@@ -1324,36 +1324,6 @@
 <span id="1321">1321</span>
 <span id="1322">1322</span>
 <span id="1323">1323</span>
-<span id="1324">1324</span>
-<span id="1325">1325</span>
-<span id="1326">1326</span>
-<span id="1327">1327</span>
-<span id="1328">1328</span>
-<span id="1329">1329</span>
-<span id="1330">1330</span>
-<span id="1331">1331</span>
-<span id="1332">1332</span>
-<span id="1333">1333</span>
-<span id="1334">1334</span>
-<span id="1335">1335</span>
-<span id="1336">1336</span>
-<span id="1337">1337</span>
-<span id="1338">1338</span>
-<span id="1339">1339</span>
-<span id="1340">1340</span>
-<span id="1341">1341</span>
-<span id="1342">1342</span>
-<span id="1343">1343</span>
-<span id="1344">1344</span>
-<span id="1345">1345</span>
-<span id="1346">1346</span>
-<span id="1347">1347</span>
-<span id="1348">1348</span>
-<span id="1349">1349</span>
-<span id="1350">1350</span>
-<span id="1351">1351</span>
-<span id="1352">1352</span>
-<span id="1353">1353</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -1377,7 +1347,6 @@
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">VecDeque</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::<span class="ident">Instant</span>;
@@ -1385,9 +1354,7 @@
 <span class="kw">use</span> ::<span class="ident">actix</span>::<span class="ident">fut</span>;
 <span class="kw">use</span> ::<span class="ident">actix</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">client</span>::{<span class="ident">ClientRequest</span>, <span class="ident">SendRequestError</span>};
-<span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">error</span>::{<span class="ident">JsonPayloadError</span>, <span class="ident">PayloadError</span>};
 <span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">http</span>::{<span class="ident">header</span>, <span class="ident">Method</span>, <span class="ident">StatusCode</span>};
-<span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">Error</span> <span class="kw">as</span> <span class="ident">ActixError</span>;
 <span class="kw">use</span> <span class="ident">failure</span>::<span class="ident">Fail</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">future</span>, <span class="ident">prelude</span>::<span class="kw-2">*</span>, <span class="ident">sync</span>::<span class="ident">oneshot</span>};
 <span class="kw">use</span> <span class="ident">itertools</span>::<span class="ident">Itertools</span>;
@@ -1407,12 +1374,20 @@
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">utils</span>::{<span class="self">self</span>, <span class="ident">ApiErrorResponse</span>, <span class="ident">IntoTracked</span>, <span class="ident">RelayErrorAction</span>, <span class="ident">TrackedFutureFinished</span>};
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Fail</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">UpstreamSendRequestError</span> {
+    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not send request using reqwest&quot;</span>)]</span>
+    <span class="ident">Reqwest</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">reqwest</span>::<span class="ident">Error</span>),
+    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not send request using actix-web client&quot;</span>)]</span>
+    <span class="ident">Actix</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">SendRequestError</span>),
+}
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Fail</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">UpstreamRequestError</span> {
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;attempted to send upstream request without credentials configured&quot;</span>)]</span>
     <span class="ident">NoCredentials</span>,
 
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not send request to upstream&quot;</span>)]</span>
-    <span class="ident">SendFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">SendRequestError</span>),
+    <span class="ident">SendFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">UpstreamSendRequestError</span>),
 
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not send request&quot;</span>)]</span>
     <span class="ident">Http</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">HttpError</span>),
@@ -1427,50 +1402,13 @@
     <span class="ident">ChannelClosed</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">HttpError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">UpstreamRequestError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">HttpError</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="ident">UpstreamRequestError</span>::<span class="ident">Http</span>(<span class="ident">e</span>)
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">PayloadError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">UpstreamRequestError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">PayloadError</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="ident">UpstreamRequestError</span>::<span class="ident">Http</span>(<span class="ident">e</span>.<span class="ident">into</span>())
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">ActixError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">UpstreamRequestError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">ActixError</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="ident">UpstreamRequestError</span>::<span class="ident">Http</span>(<span class="ident">e</span>.<span class="ident">into</span>())
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">reqwest</span>::<span class="ident">Error</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">UpstreamRequestError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">reqwest</span>::<span class="ident">Error</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="ident">UpstreamRequestError</span>::<span class="ident">Http</span>(<span class="ident">e</span>.<span class="ident">into</span>())
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">io</span>::<span class="ident">Error</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">UpstreamRequestError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">io</span>::<span class="ident">Error</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="ident">UpstreamRequestError</span>::<span class="ident">Http</span>(<span class="ident">e</span>.<span class="ident">into</span>())
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">JsonPayloadError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">UpstreamRequestError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">JsonPayloadError</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="ident">UpstreamRequestError</span>::<span class="ident">Http</span>(<span class="ident">e</span>.<span class="ident">into</span>())
-    }
-}
-
 <span class="kw">impl</span> <span class="ident">UpstreamRequestError</span> {
     <span class="doccomment">/// Returns `true` if the error indicates a network downtime.</span>
     <span class="kw">fn</span> <span class="ident">is_network_error</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span> {
             <span class="self">Self</span>::<span class="ident">SendFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
-            <span class="comment">// Both reqwest and awc responses are mapped into this codepath by handle_response</span>
             <span class="self">Self</span>::<span class="ident">ResponseError</span>(<span class="ident">code</span>, <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">matches</span><span class="macro">!</span>(<span class="ident">code</span>.<span class="ident">as_u16</span>(), <span class="number">502</span> <span class="op">|</span> <span class="number">503</span> <span class="op">|</span> <span class="number">504</span>),
-            <span class="self">Self</span>::<span class="ident">Http</span>(<span class="ident">HttpError</span>::<span class="ident">ActixPayload</span>(<span class="kw">_</span>)) <span class="op">|</span> <span class="self">Self</span>::<span class="ident">Http</span>(<span class="ident">HttpError</span>::<span class="ident">Io</span>(<span class="kw">_</span>)) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
+            <span class="self">Self</span>::<span class="ident">Http</span>(<span class="ident">http</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">http</span>.<span class="ident">is_network_error</span>(),
             <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
         }
     }
@@ -1637,7 +1575,7 @@
 
 <span class="kw">impl</span> <span class="ident">RequestBuilderTransformer</span> <span class="kw">for</span> () {
     <span class="kw">fn</span> <span class="ident">build_request</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">builder</span>: <span class="ident">RequestBuilder</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Request</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span> {
-        <span class="ident">builder</span>.<span class="ident">finish</span>().<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">from</span>)
+        <span class="ident">builder</span>.<span class="ident">finish</span>().<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">Http</span>)
     }
 }
 
@@ -1967,6 +1905,7 @@
                     .<span class="ident">conn_timeout</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">http_connection_timeout</span>())
                     <span class="comment">// This is the timeout after wait + connect.</span>
                     .<span class="ident">timeout</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">http_timeout</span>())
+                    .<span class="ident">map_err</span>(<span class="ident">UpstreamSendRequestError</span>::<span class="ident">Actix</span>)
                     .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">SendFailed</span>)
                     .<span class="ident">map</span>(<span class="ident">Response</span>::<span class="ident">Actix</span>);
 
@@ -1985,7 +1924,8 @@
                     <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">client</span>
                         .<span class="ident">execute</span>(<span class="ident">client_request</span>)
                         .<span class="ident">await</span>
-                        .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">from</span>);
+                        .<span class="ident">map_err</span>(<span class="ident">UpstreamSendRequestError</span>::<span class="ident">Reqwest</span>)
+                        .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">SendFailed</span>);
                     <span class="ident">tx</span>.<span class="ident">send</span>(<span class="ident">res</span>)
                 });
 
@@ -2418,14 +2358,14 @@
             },
             <span class="ident">Method</span>::<span class="ident">GET</span>,
             <span class="string">&quot;/api/0/relays/live/&quot;</span>,
-            <span class="op">|</span><span class="ident">builder</span>: <span class="ident">RequestBuilder</span><span class="op">|</span> <span class="ident">builder</span>.<span class="ident">finish</span>().<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">from</span>),
+            <span class="op">|</span><span class="ident">builder</span>: <span class="ident">RequestBuilder</span><span class="op">|</span> <span class="ident">builder</span>.<span class="ident">finish</span>().<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">Http</span>),
             <span class="ident">ctx</span>,
         )
         .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">client_response</span><span class="op">|</span> {
             <span class="comment">// consume response bodies to ensure the connection remains usable.</span>
             <span class="ident">client_response</span>
                 .<span class="ident">consume</span>()
-                .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">from</span>)
+                .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">Http</span>)
         })
         .<span class="ident">into_actor</span>(<span class="self">self</span>)
         .<span class="ident">then</span>(<span class="op">|</span><span class="ident">result</span>, <span class="ident">slf</span>, <span class="ident">ctx</span><span class="op">|</span> {
