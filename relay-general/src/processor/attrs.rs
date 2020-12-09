@@ -468,9 +468,8 @@ impl<'a> ProcessingState<'a> {
         Path(&self)
     }
 
-    pub fn value_type(&self) -> Option<ValueType> {
-        // TODO
-        self.value_type.iter().next()
+    pub fn value_type(&self) -> EnumSet<ValueType> {
+        self.value_type
     }
 
     /// Returns the field attributes.
