@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::fmt;
-use std::mem;
 use std::ops::RangeInclusive;
 
 use enumset::{EnumSet, EnumSetType};
@@ -51,8 +50,11 @@ pub enum ValueType {
 }
 
 impl ValueType {
-    pub fn for_field<T: ProcessValue>(field: &Annotated<T>) -> Option<Self> {
-        field.value().and_then(ProcessValue::value_type)
+    pub fn for_field<T: ProcessValue>(field: &Annotated<T>) -> EnumSet<Self> {
+        field
+            .value()
+            .map(ProcessValue::value_type)
+            .unwrap_or_else(EnumSet::empty)
     }
 }
 
@@ -381,7 +383,7 @@ static ROOT_STATE: ProcessingState = ProcessingState {
     parent: None,
     path_item: None,
     attrs: None,
-    value_type: unsafe { mem::transmute::<u32, EnumSet<ValueType>>(0) },
+    value_type: enumset::enum_set!(),
     depth: 0,
 };
 

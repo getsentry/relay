@@ -543,7 +543,7 @@ fn parse_bag_size(name: &str) -> TokenStream {
 #[derive(Default)]
 struct TypeAttrs {
     process_func: Option<String>,
-    value_type: Option<String>,
+    value_type: Vec<String>,
     tag_key: Option<String>,
 }
 
@@ -600,7 +600,7 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> TypeAttrs {
                             } else if ident == "value_type" {
                                 match name_value.lit {
                                     Lit::Str(litstr) => {
-                                        rv.value_type = Some(litstr.value());
+                                        rv.value_type.push(litstr.value());
                                     }
                                     _ => {
                                         panic!("Got non string literal for value type");

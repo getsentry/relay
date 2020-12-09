@@ -264,37 +264,21 @@ impl PiiAttachmentsProcessor<'_> {
                         .get_mut(range)
                         .ok_or(ScrubMinidumpError::InvalidAddress)?;
 
-                    // Backwards-compatible visit
-                    let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::Maybe));
-                    let state =
-                        file_state.enter_static("", Some(attrs), Some(ValueType::StackMemory));
-                    changed |= self.scrub_bytes(slice, &state, ScrubEncodings::All);
-
-                    // Documented visit
                     let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::Maybe));
                     let state = file_state.enter_static(
                         "stack_memory",
                         Some(attrs),
-                        Some(ValueType::Binary),
+                        ValueType::Binary | ValueType::StackMemory,
                     );
                     changed |= self.scrub_bytes(slice, &state, ScrubEncodings::All);
                 }
                 MinidumpItem::NonStackMemory(range) => {
-                    // Backwards-compatible visit.
-                    let slice = data
-                        .get_mut(range)
-                        .ok_or(ScrubMinidumpError::InvalidAddress)?;
-                    let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::Maybe));
-                    let state =
-                        file_state.enter_static("", Some(attrs), Some(ValueType::HeapMemory));
-                    changed |= self.scrub_bytes(slice, &state, ScrubEncodings::All);
-
                     // Documented visit.
                     let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
                     let state = file_state.enter_static(
                         "heap_memory",
                         Some(attrs),
-                        Some(ValueType::Binary),
+                        ValueType::Binary | ValueType::HeapMemory,
                     );
                     changed |= self.scrub_bytes(slice, &state, ScrubEncodings::All);
                 }

@@ -7,6 +7,7 @@ use schemars::gen::SchemaGenerator;
 #[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
 
+use enumset::EnumSet;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -39,14 +40,14 @@ impl<T: Into<String>> From<T> for NativeImagePath {
 
 impl ProcessValue for NativeImagePath {
     #[inline]
-    fn value_type(&self) -> Option<ValueType> {
+    fn value_type(&self) -> EnumSet<ValueType> {
         // Explicit decision not to expose NativeImagePath as valuetype, as people should not be
         // able to address processing internals.
         //
         // Also decided against exposing a $filepath ("things that may contain filenames") because
         // ruletypes/regexes are better suited for this, and in the case of $frame.package (where
         // it depends on platform) it's really not that useful.
-        Some(ValueType::String)
+        EnumSet::only(ValueType::String)
     }
 
     #[inline]
