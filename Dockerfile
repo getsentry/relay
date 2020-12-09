@@ -15,7 +15,10 @@ ENV BUILD_ARCH=${BUILD_ARCH}
 ENV OPENSSL_ARCH=${OPENSSL_ARCH}
 
 ENV BUILD_TARGET=${BUILD_ARCH}-unknown-linux-gnu
+# For native-tls
 ENV OPENSSL_DIR=/usr/local/build/$BUILD_TARGET
+# For rdkafka
+ENV OPENSSL_ROOT_DIR=/usr/local/build/$BUILD_TARGET
 ENV OPENSSL_STATIC=1
 
 RUN apt-get update \
