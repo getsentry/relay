@@ -111,9 +111,14 @@ impl UpstreamRequestError {
     fn is_network_error(&self) -> bool {
         match self {
             Self::SendFailed(_) => true,
-            // Both reqwest and awc responses are mapped into this codepath by handle_response
             Self::ResponseError(code, _) => matches!(code.as_u16(), 502 | 503 | 504),
             Self::Http(HttpError::ActixPayload(_)) | Self::Http(HttpError::Io(_)) => true,
+            Self::Http(HttpError::Reqwest(error)) => {
+                matches!(
+                    error.status().map(|code| code.as_u16()),
+                    Some(502) | Some(503) | Some(504)
+                ) || error.is_timeout()
+            }
             _ => false,
         }
     }
