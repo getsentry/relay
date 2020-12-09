@@ -1,7 +1,9 @@
 use std::borrow::Cow;
 use std::fmt;
+use std::mem;
 use std::ops::RangeInclusive;
 
+use enumset::{EnumSet, EnumSetType};
 use failure::Fail;
 use smallvec::SmallVec;
 
@@ -14,7 +16,7 @@ use crate::types::Annotated;
 pub struct UnknownValueTypeError;
 
 /// The (simplified) type of a value.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Ord, PartialOrd, EnumSetType)]
 pub enum ValueType {
     // Basic types
     String,
@@ -371,7 +373,7 @@ pub struct ProcessingState<'a> {
     parent: Option<&'a ProcessingState<'a>>,
     path_item: Option<PathItem<'a>>,
     attrs: Option<Cow<'a, FieldAttrs>>,
-    value_type: Option<ValueType>,
+    value_type: EnumSet<ValueType>,
     depth: usize,
 }
 
@@ -379,7 +381,7 @@ static ROOT_STATE: ProcessingState = ProcessingState {
     parent: None,
     path_item: None,
     attrs: None,
-    value_type: None,
+    value_type: unsafe { mem::transmute::<u32, EnumSet<ValueType>>(0) },
     depth: 0,
 };
 
@@ -392,13 +394,13 @@ impl<'a> ProcessingState<'a> {
     /// Creates a new root state.
     pub fn new_root(
         attrs: Option<Cow<'static, FieldAttrs>>,
-        value_type: Option<ValueType>,
+        value_type: impl IntoIterator<Item = ValueType>,
     ) -> ProcessingState<'static> {
         ProcessingState {
             parent: None,
             path_item: None,
             attrs,
-            value_type,
+            value_type: value_type.into_iter().collect(),
             depth: 0,
         }
     }
@@ -408,13 +410,13 @@ impl<'a> ProcessingState<'a> {
         &'a self,
         key: &'static str,
         attrs: Option<Cow<'static, FieldAttrs>>,
-        value_type: Option<ValueType>,
+        value_type: impl IntoIterator<Item = ValueType>,
     ) -> Self {
         ProcessingState {
             parent: Some(self),
             path_item: Some(PathItem::StaticKey(key)),
             attrs,
-            value_type,
+            value_type: value_type.into_iter().collect(),
             depth: self.depth + 1,
         }
     }
@@ -424,13 +426,13 @@ impl<'a> ProcessingState<'a> {
         &'a self,
         key: &'a str,
         attrs: Option<Cow<'a, FieldAttrs>>,
-        value_type: Option<ValueType>,
+        value_type: impl IntoIterator<Item = ValueType>,
     ) -> Self {
         ProcessingState {
             parent: Some(self),
             path_item: Some(PathItem::StaticKey(key)),
             attrs,
-            value_type,
+            value_type: value_type.into_iter().collect(),
             depth: self.depth + 1,
         }
     }
@@ -440,13 +442,13 @@ impl<'a> ProcessingState<'a> {
         &'a self,
         idx: usize,
         attrs: Option<Cow<'a, FieldAttrs>>,
-        value_type: Option<ValueType>,
+        value_type: impl IntoIterator<Item = ValueType>,
     ) -> Self {
         ProcessingState {
             parent: Some(self),
             path_item: Some(PathItem::Index(idx)),
             attrs,
-            value_type,
+            value_type: value_type.into_iter().collect(),
             depth: self.depth + 1,
         }
     }
@@ -467,7 +469,8 @@ impl<'a> ProcessingState<'a> {
     }
 
     pub fn value_type(&self) -> Option<ValueType> {
-        self.value_type
+        // TODO
+        self.value_type.iter().next()
     }
 
     /// Returns the field attributes.

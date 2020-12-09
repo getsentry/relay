@@ -38,6 +38,7 @@ uaparser = { version = "0.3.3", optional = true }
 url = "2.1.1"
 utf16string = "0.2.0"
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
+enumset = "1.0.1"
 
 [dev-dependencies]
 criterion = "0.3"
