@@ -32,7 +32,7 @@ use crate::actors::project::{
 use crate::actors::project_cache::ProjectError;
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::http::RequestBuilder;
+use crate::http::{HttpError, RequestBuilder};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, FutureExt};
@@ -1586,11 +1586,16 @@ impl Handler<HandleEnvelope> for EventManager {
                             .body(
                                 envelope
                                     .to_vec()
+                                    // XXX: upstream actor should allow for custom error type,
+                                    // right now we are forced to shoehorn our envelope errors into
+                                    // UpstreamRequestError
                                     .map_err(failure::Error::from)
-                                    .map_err(actix_web::Error::from)?
+                                    .map_err(actix_web::Error::from)
+                                    .map_err(HttpError::Actix)
+                                    .map_err(UpstreamRequestError::Http)?
                                     .into(),
                             )
-                            .map_err(UpstreamRequestError::from)
+                            .map_err(UpstreamRequestError::Http)
                     },
                 );
 

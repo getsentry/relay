@@ -20,7 +20,6 @@
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::fmt;
-use std::io;
 use std::str;
 use std::sync::Arc;
 use std::time::Instant;
@@ -28,9 +27,7 @@ use std::time::Instant;
 use ::actix::fut;
 use ::actix::prelude::*;
 use actix_web::client::{ClientRequest, SendRequestError};
-use actix_web::error::{JsonPayloadError, PayloadError};
 use actix_web::http::{header, Method, StatusCode};
-use actix_web::Error as ActixError;
 use failure::Fail;
 use futures::{future, prelude::*, sync::oneshot};
 use itertools::Itertools;
@@ -50,12 +47,20 @@ use crate::metrics::{RelayHistograms, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, IntoTracked, RelayErrorAction, TrackedFutureFinished};
 
 #[derive(Fail, Debug)]
+pub enum UpstreamSendRequestError {
+    #[fail(display = "could not send request using reqwest")]
+    Reqwest(#[cause] reqwest::Error),
+    #[fail(display = "could not send request using actix-web client")]
+    Actix(#[cause] SendRequestError),
+}
+
+#[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
     #[fail(display = "attempted to send upstream request without credentials configured")]
     NoCredentials,
 
     #[fail(display = "could not send request to upstream")]
-    SendFailed(#[cause] SendRequestError),
+    SendFailed(#[cause] UpstreamSendRequestError),
 
     #[fail(display = "could not send request")]
     Http(#[cause] HttpError),
@@ -70,55 +75,13 @@ pub enum UpstreamRequestError {
     ChannelClosed,
 }
 
-impl From<HttpError> for UpstreamRequestError {
-    fn from(e: HttpError) -> Self {
-        UpstreamRequestError::Http(e)
-    }
-}
-
-impl From<PayloadError> for UpstreamRequestError {
-    fn from(e: PayloadError) -> Self {
-        UpstreamRequestError::Http(e.into())
-    }
-}
-
-impl From<ActixError> for UpstreamRequestError {
-    fn from(e: ActixError) -> Self {
-        UpstreamRequestError::Http(e.into())
-    }
-}
-
-impl From<reqwest::Error> for UpstreamRequestError {
-    fn from(e: reqwest::Error) -> Self {
-        UpstreamRequestError::Http(e.into())
-    }
-}
-
-impl From<io::Error> for UpstreamRequestError {
-    fn from(e: io::Error) -> Self {
-        UpstreamRequestError::Http(e.into())
-    }
-}
-
-impl From<JsonPayloadError> for UpstreamRequestError {
-    fn from(e: JsonPayloadError) -> Self {
-        UpstreamRequestError::Http(e.into())
-    }
-}
-
 impl UpstreamRequestError {
     /// Returns `true` if the error indicates a network downtime.
     fn is_network_error(&self) -> bool {
         match self {
             Self::SendFailed(_) => true,
             Self::ResponseError(code, _) => matches!(code.as_u16(), 502 | 503 | 504),
-            Self::Http(HttpError::ActixPayload(_)) | Self::Http(HttpError::Io(_)) => true,
-            Self::Http(HttpError::Reqwest(error)) => {
-                matches!(
-                    error.status().map(|code| code.as_u16()),
-                    Some(502) | Some(503) | Some(504)
-                ) || error.is_timeout()
-            }
+            Self::Http(http) => http.is_network_error(),
             _ => false,
         }
     }
@@ -285,7 +248,7 @@ pub trait RequestBuilderTransformer: 'static + Send {
 
 impl RequestBuilderTransformer for () {
     fn build_request(&mut self, builder: RequestBuilder) -> Result<Request, UpstreamRequestError> {
-        builder.finish().map_err(UpstreamRequestError::from)
+        builder.finish().map_err(UpstreamRequestError::Http)
     }
 }
 
@@ -615,6 +578,7 @@ impl UpstreamRelay {
                     .conn_timeout(self.config.http_connection_timeout())
                     // This is the timeout after wait + connect.
                     .timeout(self.config.http_timeout())
+                    .map_err(UpstreamSendRequestError::Actix)
                     .map_err(UpstreamRequestError::SendFailed)
                     .map(Response::Actix);
 
@@ -633,7 +597,8 @@ impl UpstreamRelay {
                     let res = client
                         .execute(client_request)
                         .await
-                        .map_err(UpstreamRequestError::from);
+                        .map_err(UpstreamSendRequestError::Reqwest)
+                        .map_err(UpstreamRequestError::SendFailed);
                     tx.send(res)
                 });
 
@@ -1066,14 +1031,14 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
             },
             Method::GET,
             "/api/0/relays/live/",
-            |builder: RequestBuilder| builder.finish().map_err(UpstreamRequestError::from),
+            |builder: RequestBuilder| builder.finish().map_err(UpstreamRequestError::Http),
             ctx,
         )
         .and_then(|client_response| {
             // consume response bodies to ensure the connection remains usable.
             client_response
                 .consume()
-                .map_err(UpstreamRequestError::from)
+                .map_err(UpstreamRequestError::Http)
         })
         .into_actor(self)
         .then(|result, slf, ctx| {

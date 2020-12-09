@@ -43,6 +43,20 @@ pub enum HttpError {
     ActixPayload(#[cause] PayloadError),
 }
 
+impl HttpError {
+    /// Returns `true` if the error indicates a network downtime.
+    pub fn is_network_error(&self) -> bool {
+        match self {
+            HttpError::ActixPayload(_) | HttpError::Io(_) => true,
+
+            // note: status codes are not handled here because we never call error_for_status. This
+            // logic is part of upstream actor.
+            HttpError::Reqwest(error) => error.is_timeout(),
+            _ => false,
+        }
+    }
+}
+
 impl From<reqwest::Error> for HttpError {
     fn from(e: reqwest::Error) -> Self {
         HttpError::Reqwest(e)
