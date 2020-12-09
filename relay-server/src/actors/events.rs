@@ -1193,12 +1193,16 @@ impl EventProcessor {
 
         let project_id = state.project_id;
         let client = state.envelope.meta().client().map(str::to_owned);
+        let user_agent = state.envelope.meta().user_agent().map(str::to_owned);
 
         relay_log::with_scope(
             |scope| {
                 scope.set_tag("project", project_id);
                 if let Some(client) = client {
                     scope.set_tag("sdk", client);
+                }
+                if let Some(user_agent) = user_agent {
+                    scope.set_extra("user_agent", user_agent.into());
                 }
             },
             || self.process_state(state),
