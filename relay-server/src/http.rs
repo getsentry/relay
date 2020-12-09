@@ -215,7 +215,7 @@ where
 {
     // Local imports because importing them top-level is too confusing with two futures crates
     use futures03::{stream::poll_fn, task::Poll};
-    let mut buf = vec![0; 8192];
+    let mut buf = [0; 8192];
 
     let stream = poll_fn(move |_| {
         let bytes_read = match reader.read(&mut buf) {

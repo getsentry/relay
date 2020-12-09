@@ -175,9 +175,10 @@ pub fn forward_upstream(
                 .transform(move |response: Response| {
                     let status = response.status();
                     let headers = response.clone_headers();
+                    let is_actix = matches!(response, Response::Actix(_));
                     response
                         .bytes(max_response_size)
-                        .and_then(move |body| Ok((status, headers, body)))
+                        .and_then(move |body| Ok((is_actix, status, headers, body)))
                         .map_err(UpstreamRequestError::Http)
                 });
 
@@ -188,15 +189,28 @@ pub fn forward_upstream(
             })
         })
         .and_then(move |result: Result<_, UpstreamRequestError>| {
-            let (status, headers, body) = result.map_err(ForwardedUpstreamRequestError::from)?;
+            let (is_actix, status, headers, body) =
+                result.map_err(ForwardedUpstreamRequestError::from)?;
             let mut forwarded_response = HttpResponse::build(status);
 
-            // For the response body we're able to disable all automatic decompression and
-            // compression done by actix-web or actix' http client.
-            //
-            // 0. Use ClientRequestBuilder::disable_decompress() (see above)
-            // 1. Set content-encoding to identity such that actix-web will not to compress again
-            forwarded_response.content_encoding(ContentEncoding::Identity);
+            if is_actix {
+                // For actix-web we called ClientRequestBuilder::disable_decompress(), therefore
+                // the response body is already compressed and the headers contain the correct
+                // content-encoding
+                //
+                // The content negotiation has effectively happened between *our* upstream and
+                // *our* client, with us just forwarding raw bytes.
+                //
+                // Set content-encoding to identity such that actix-web will not to compress again
+                forwarded_response.content_encoding(ContentEncoding::Identity);
+            } else {
+                // For reqwest the option to disable automatic response decompression can only be
+                // set per-client. For non-forwarded upstream requests that is desirable, so we
+                // keep it enabled.
+                //
+                // Essentially this means that content negotiation is done twice, and the response
+                // body is first decompressed by reqwest, then re-compressed by actix-web.
+            }
 
             let mut has_content_type = false;
 
