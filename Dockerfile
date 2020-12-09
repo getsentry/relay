@@ -63,7 +63,9 @@ RUN echo "Building OpenSSL" \
 FROM getsentry/sentry-cli:1 AS sentry-cli
 FROM relay-deps AS relay-builder
 
-ARG RELAY_FEATURES=ssl,processing
+# ssl and processing are required for basic functionality in onprem
+# kafka-ssl is for free since we already have OpenSSL because we are on Linux
+ARG RELAY_FEATURES=ssl,kafka-ssl,processing
 ENV RELAY_FEATURES=${RELAY_FEATURES}
 
 COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
