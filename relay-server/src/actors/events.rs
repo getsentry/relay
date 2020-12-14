@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -130,6 +131,9 @@ enum ProcessingError {
 
     #[fail(display = "envelope empty, transaction removed by sampling")]
     TransactionSampled,
+
+    #[fail(display = "envelope empty, event removed by sampling")]
+    EventSampled,
 }
 
 impl ProcessingError {
@@ -168,7 +172,9 @@ impl ProcessingError {
             }
 
             // Dynamic sampling (not an error, just discarding messages that were removed by sampling)
-            Self::TransactionSampled => Some(Outcome::Invalid(DiscardReason::TransactionSampled)),
+            Self::TransactionSampled | Self::EventSampled => {
+                Some(Outcome::Invalid(DiscardReason::TransactionSampled))
+            }
 
             // If we send to an upstream, we don't emit outcomes.
             Self::SendFailed(_) => None,
@@ -1133,6 +1139,22 @@ impl EventProcessor {
         Ok(())
     }
 
+    /// Run dynamic sampling rules to see if we keep the event or remove it.
+    fn sample_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let event = match &state.event.0 {
+            None => return Ok(()), // can't process without an event
+            Some(event) => event,
+        };
+
+        let project_state = state.project_state.deref();
+        let project_id = state.project_id;
+        match utils::should_keep_event(event, project_state, project_id) {
+            Some(false) => Err(ProcessingError::EventSampled),
+            Some(true) => Ok(()),
+            None => Ok(()), // Not enough info to make a definite evaluation, keep the event
+        }
+    }
+
     fn process_state(
         &self,
         mut state: ProcessEnvelopeState,
@@ -1164,6 +1186,8 @@ impl EventProcessor {
             });
 
             self.finalize_event(&mut state)?;
+
+            self.sample_event(&mut state)?;
 
             if_processing!({
                 self.store_process_event(&mut state)?;
