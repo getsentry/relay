@@ -30,7 +30,7 @@
 //! - `processing`: Includes event ingestion and processing functionality. This should only be
 //!   specified when compiling Relay as Sentry service.  Standalone Relays do not need this feature.
 //!
-//! - `kafka-ssl`: This feature is only relevant in combination with `processing`. 
+//! - `kafka-ssl`: This feature is only relevant in combination with `processing`.
 //!   The Kafka client `librdkafka` requires OpenSSL on *all* platforms to speak SSL.
 //!   As this is an extra requirement on Windows and Mac, this is disabled by default.
 
