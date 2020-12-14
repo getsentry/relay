@@ -17,6 +17,13 @@ use relay_general::protocol::{Event, EventId};
 use crate::actors::project::{GetCachedProjectState, GetProjectState, Project, ProjectState};
 use crate::envelope::{Envelope, ItemType};
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum SamplingRuleCategory {
+    Transaction, // Rules that apply to Transaction items
+    Event,       // Rules that apply to Event items
+}
+
 /// A sampling rule defined by user in Organization options.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,8 +39,10 @@ pub struct SamplingRule {
     pub user_segments: Vec<LowerCaseString>,
     #[serde(default)]
     pub environments: Vec<LowerCaseString>,
-    /// the sampling rate for trace matching this rule
+    /// The sampling rate for trace matching this rule
     pub sample_rate: f64,
+    /// Specifies to what type of item does this rule apply
+    pub category: SamplingRuleCategory,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -90,7 +99,13 @@ impl SamplingRule {
         user_segment: &Option<LowerCaseString>,
         environment: &Option<LowerCaseString>,
         project_id: ProjectId,
+        category: SamplingRuleCategory,
     ) -> bool {
+        // check we are matching the right type of rule
+        if self.category != category {
+            return false;
+        }
+
         // match against the environment
         if !self.environments.is_empty() {
             match environment {
@@ -175,8 +190,13 @@ impl TraceContext {
     /// Returns the decision of whether to sample or not a trace based on the configuration rules
     /// If None then a decision can't be made either because of an invalid of missing trace context or
     /// because no applicable sampling rule could be found.
-    fn should_sample(&self, config: &SamplingConfig, project_id: ProjectId) -> Option<bool> {
-        let rule = get_matching_rule(config, self, project_id)?;
+    fn should_sample(
+        &self,
+        config: &SamplingConfig,
+        project_id: ProjectId,
+        category: SamplingRuleCategory,
+    ) -> Option<bool> {
+        let rule = get_matching_rule(config, self, project_id, category)?;
         let rate = pseudo_random_from_uuid(self.trace_id)?;
         Some(rate < rule.sample_rate)
     }
@@ -228,7 +248,12 @@ pub fn should_keep_event(
         Some(EventId(id)) => id,
     };
 
-    if let Some(rule) = get_matching_rule(sampling_config, event, project_id) {
+    if let Some(rule) = get_matching_rule(
+        sampling_config,
+        event,
+        project_id,
+        SamplingRuleCategory::Event,
+    ) {
         if let Some(random_number) = pseudo_random_from_uuid(event_id) {
             return Some(rule.sample_rate > random_number);
         }
@@ -271,7 +296,11 @@ fn sample_transaction_internal(
 
     let should_sample = trace_context
         // see if we should sample
-        .should_sample(sampling_config, project_id)
+        .should_sample(
+            sampling_config,
+            project_id,
+            SamplingRuleCategory::Transaction,
+        )
         // TODO verify that this is the desired behaviour (i.e. if we can't find a rule
         // for sampling, include the transaction)
         .unwrap_or(true);
@@ -337,6 +366,7 @@ fn get_matching_rule<'a, T>(
     config: &'a SamplingConfig,
     context: &T,
     project_id: ProjectId,
+    category: SamplingRuleCategory,
 ) -> Option<&'a SamplingRule>
 where
     T: SamplingContextProvider,
@@ -348,7 +378,7 @@ where
     config
         .rules
         .iter()
-        .find(|rule| rule.matches(release, &user_segment, &environment, project_id))
+        .find(|rule| rule.matches(release, &user_segment, &environment, project_id, category))
 }
 
 /// Generates a pseudo random number by seeding the generator with the given id.
@@ -386,6 +416,7 @@ mod tests {
                     user_segments: vec!["vip".into()],
                     environments: vec!["debug".into()],
                     sample_rate: 1.0,
+                    category: SamplingRuleCategory::Transaction,
                 },
             ),
             (
@@ -396,6 +427,7 @@ mod tests {
                     user_segments: vec!["vip".into()],
                     environments: vec!["debug".into()],
                     sample_rate: 1.0,
+                    category: SamplingRuleCategory::Transaction,
                 },
             ),
             (
@@ -406,6 +438,7 @@ mod tests {
                     user_segments: vec!["vip".into()],
                     environments: vec!["debug".into()],
                     sample_rate: 1.0,
+                    category: SamplingRuleCategory::Transaction,
                 },
             ),
             (
@@ -416,6 +449,7 @@ mod tests {
                     user_segments: vec!["vip".into()],
                     environments: vec!["debug".into()],
                     sample_rate: 1.0,
+                    category: SamplingRuleCategory::Transaction,
                 },
             ),
             (
@@ -426,6 +460,7 @@ mod tests {
                     user_segments: vec!["vip".into()],
                     environments: vec!["debug".into()],
                     sample_rate: 1.0,
+                    category: SamplingRuleCategory::Transaction,
                 },
             ),
             (
@@ -436,6 +471,7 @@ mod tests {
                     user_segments: vec!["paid".into(), "vip".into(), "free".into()],
                     environments: vec!["debug".into()],
                     sample_rate: 1.0,
+                    category: SamplingRuleCategory::Transaction,
                 },
             ),
             (
@@ -446,6 +482,7 @@ mod tests {
                     user_segments: vec!["ViP".into(), "FrEe".into()],
                     environments: vec!["debug".into()],
                     sample_rate: 1.0,
+                    category: SamplingRuleCategory::Transaction,
                 },
             ),
             (
@@ -456,6 +493,7 @@ mod tests {
                     user_segments: vec!["vip".into()],
                     environments: vec!["integration".into(), "debug".into(), "production".into()],
                     sample_rate: 1.0,
+                    category: SamplingRuleCategory::Transaction,
                 },
             ),
             (
@@ -466,6 +504,7 @@ mod tests {
                     user_segments: vec!["vip".into()],
                     environments: vec!["DeBuG".into(), "PrOd".into()],
                     sample_rate: 1.0,
+                    category: SamplingRuleCategory::Transaction,
                 },
             ),
             (
@@ -476,6 +515,7 @@ mod tests {
                     user_segments: vec!["vip".into()],
                     environments: vec![],
                     sample_rate: 1.0,
+                    category: SamplingRuleCategory::Transaction,
                 },
             ),
             (
@@ -486,6 +526,7 @@ mod tests {
                     user_segments: vec![],
                     environments: vec![],
                     sample_rate: 1.0,
+                    category: SamplingRuleCategory::Transaction,
                 },
             ),
         ];
@@ -493,7 +534,13 @@ mod tests {
         for (rule_test_name, rule) in rules.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
-                rule.matches(&release, &user_segment, &environment, project_id),
+                rule.matches(
+                    release.as_deref(),
+                    &user_segment,
+                    &environment,
+                    project_id,
+                    SamplingRuleCategory::Transaction
+                ),
                 failure_name
             );
         }
@@ -516,6 +563,7 @@ mod tests {
                     user_segments: vec!["vip".into()],
                     environments: vec!["debug".into()],
                     sample_rate: 1.0,
+                    category: SamplingRuleCategory::Transaction,
                 },
             ),
             (
@@ -526,6 +574,7 @@ mod tests {
                     user_segments: vec!["vip".into()],
                     environments: vec!["debug".into()],
                     sample_rate: 1.0,
+                    category: SamplingRuleCategory::Transaction,
                 },
             ),
             (
@@ -536,6 +585,7 @@ mod tests {
                     user_segments: vec!["all".into()],
                     environments: vec!["debug".into()],
                     sample_rate: 1.0,
+                    category: SamplingRuleCategory::Transaction,
                 },
             ),
             (
@@ -546,6 +596,18 @@ mod tests {
                     user_segments: vec!["vip".into()],
                     environments: vec!["prod".into()],
                     sample_rate: 1.0,
+                    category: SamplingRuleCategory::Transaction,
+                },
+            ),
+            (
+                "category",
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                    user_segments: vec!["vip".into()],
+                    environments: vec!["debug".into()],
+                    sample_rate: 1.0,
+                    category: SamplingRuleCategory::Event,
                 },
             ),
         ];
@@ -553,7 +615,13 @@ mod tests {
         for (rule_test_name, rule) in rules.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
-                !rule.matches(&release, &user_segment, &environment, project_id),
+                !rule.matches(
+                    release.as_deref(),
+                    &user_segment,
+                    &environment,
+                    project_id,
+                    SamplingRuleCategory::Transaction
+                ),
                 failure_name
             );
         }
@@ -567,7 +635,8 @@ mod tests {
             "sampleRate": 0.7,
             "releases": ["1.1.1", "1.1.2"],
             "userSegments": ["FirstSegment", "SeCoNd"],
-            "environments": ["DeV", "pRoD"]
+            "environments": ["DeV", "pRoD"],
+            "category": "transaction"
         }"#;
 
         let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
@@ -587,6 +656,7 @@ mod tests {
                 LowerCaseString::new("second")
             ]
         );
+        assert_eq!(rule.category, SamplingRuleCategory::Transaction);
     }
 
     #[test]
@@ -615,9 +685,16 @@ mod tests {
             user_segments: vec!["vip".into()],
             environments: vec!["debug".into()],
             sample_rate: 1.0,
+            category: SamplingRuleCategory::Transaction,
         };
         assert!(
-            rule.matches(&release, &user_segment, &environment, project_id),
+            rule.matches(
+                release.as_deref(),
+                &user_segment,
+                &environment,
+                project_id,
+                SamplingRuleCategory::Transaction
+            ),
             "did not match with missing release"
         );
 
@@ -631,9 +708,16 @@ mod tests {
             user_segments: vec![],
             environments: vec!["debug".into()],
             sample_rate: 1.0,
+            category: SamplingRuleCategory::Transaction,
         };
         assert!(
-            rule.matches(&release, &user_segment, &environment, project_id),
+            rule.matches(
+                release.as_deref(),
+                &user_segment,
+                &environment,
+                project_id,
+                SamplingRuleCategory::Transaction
+            ),
             "did not match with missing user segment"
         );
 
@@ -647,9 +731,16 @@ mod tests {
             user_segments: vec!["vip".into()],
             environments: vec![],
             sample_rate: 1.0,
+            category: SamplingRuleCategory::Transaction,
         };
         assert!(
-            rule.matches(&release, &user_segment, &environment, project_id),
+            rule.matches(
+                release.as_deref(),
+                &user_segment,
+                &environment,
+                project_id,
+                SamplingRuleCategory::Transaction
+            ),
             "did not match with missing environment"
         );
 
@@ -663,9 +754,16 @@ mod tests {
             user_segments: vec![],
             environments: vec![],
             sample_rate: 1.0,
+            category: SamplingRuleCategory::Transaction,
         };
         assert!(
-            rule.matches(&release, &user_segment, &environment, project_id),
+            rule.matches(
+                release.as_deref(),
+                &user_segment,
+                &environment,
+                project_id,
+                SamplingRuleCategory::Transaction
+            ),
             "did not match with missing release, user segment and environment"
         );
     }
@@ -689,6 +787,7 @@ mod tests {
                     user_segments: vec!["vip".into()],
                     environments: vec!["debug".into()],
                     sample_rate: 0.1,
+                    category: SamplingRuleCategory::Transaction,
                 },
                 // no user segments
                 SamplingRule {
@@ -697,6 +796,7 @@ mod tests {
                     user_segments: vec![],
                     environments: vec!["debug".into()],
                     sample_rate: 0.2,
+                    category: SamplingRuleCategory::Transaction,
                 },
                 // no releases
                 SamplingRule {
@@ -705,6 +805,7 @@ mod tests {
                     user_segments: vec!["vip".into()],
                     environments: vec!["debug".into()],
                     sample_rate: 0.3,
+                    category: SamplingRuleCategory::Transaction,
                 },
                 // no environments
                 SamplingRule {
@@ -713,6 +814,7 @@ mod tests {
                     user_segments: vec!["vip".into()],
                     environments: vec![],
                     sample_rate: 0.4,
+                    category: SamplingRuleCategory::Transaction,
                 },
                 // no user segments releases or environments
                 SamplingRule {
@@ -721,6 +823,7 @@ mod tests {
                     user_segments: vec![],
                     environments: vec![],
                     sample_rate: 0.5,
+                    category: SamplingRuleCategory::Transaction,
                 },
             ],
         };
@@ -733,7 +836,12 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, project_id);
+        let result = get_matching_rule(
+            &rules,
+            &trace_context,
+            project_id,
+            SamplingRuleCategory::Transaction,
+        );
         // complete match with first rule
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.1),
@@ -748,7 +856,12 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, project_id);
+        let result = get_matching_rule(
+            &rules,
+            &trace_context,
+            project_id,
+            SamplingRuleCategory::Transaction,
+        );
         // should mach the second rule because of the release
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.2),
@@ -763,7 +876,12 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, project_id);
+        let result = get_matching_rule(
+            &rules,
+            &trace_context,
+            project_id,
+            SamplingRuleCategory::Transaction,
+        );
         // should match the third rule because of the unknown release
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.3),
@@ -778,7 +896,12 @@ mod tests {
             environment: Some("production".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, project_id);
+        let result = get_matching_rule(
+            &rules,
+            &trace_context,
+            project_id,
+            SamplingRuleCategory::Transaction,
+        );
         // should match the fourth rule because of the unknown environment
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.4),
@@ -793,7 +916,12 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, project_id);
+        let result = get_matching_rule(
+            &rules,
+            &trace_context,
+            project_id,
+            SamplingRuleCategory::Transaction,
+        );
         // should match the fourth rule because of the unknown user segment
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.5),
@@ -803,7 +931,7 @@ mod tests {
 
     #[test]
     /// Test that we can convert the full range of UUID into a pseudo random number
-    fn test_trace_id_range() {
+    fn test_id_range() {
         let highest = Uuid::from_str("ffffffff-ffff-ffff-ffff-ffffffffffff").unwrap();
 
         let val = pseudo_random_from_uuid(highest);
@@ -817,10 +945,10 @@ mod tests {
     #[test]
     /// Test that the we get the same sampling decision from the same trace id
     fn test_repeatable_sampling_decision() {
-        let trace_id = Uuid::new_v4();
+        let id = Uuid::new_v4();
 
-        let val1 = pseudo_random_from_uuid(trace_id);
-        let val2 = pseudo_random_from_uuid(trace_id);
+        let val1 = pseudo_random_from_uuid(id);
+        let val2 = pseudo_random_from_uuid(id);
 
         assert!(val1.is_some());
         assert_eq!(val1, val2);
