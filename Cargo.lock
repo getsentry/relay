@@ -2840,7 +2840,7 @@ checksum = "26412eb97c6b088a6997e05f69403a802a92d520de2f8e63c2b65f9e0f47c4e8"
 
 [[package]]
 name = "relay"
-version = "20.11.1"
+version = "20.12.0"
 dependencies = [
  "clap",
  "console",
@@ -2858,7 +2858,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "20.11.1"
+version = "20.12.0"
 dependencies = [
  "base64 0.10.1",
  "chrono",
@@ -2891,7 +2891,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "20.11.1"
+version = "20.12.0"
 dependencies = [
  "backoff",
  "cadence",
@@ -2912,7 +2912,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "20.11.1"
+version = "20.12.0"
 dependencies = [
  "failure",
  "human-size",
@@ -2929,7 +2929,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi"
-version = "20.11.1"
+version = "20.12.0"
 dependencies = [
  "failure",
  "relay-ffi-macros",
@@ -2937,7 +2937,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "20.11.1"
+version = "20.12.0"
 dependencies = [
  "quote 1.0.7",
  "syn 1.0.39",
@@ -2945,7 +2945,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "20.11.1"
+version = "20.12.0"
 dependencies = [
  "globset",
  "insta 0.15.0",
@@ -2961,7 +2961,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general"
-version = "20.11.1"
+version = "20.12.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3001,7 +3001,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general-derive"
-version = "20.11.1"
+version = "20.12.0"
 dependencies = [
  "proc-macro2 1.0.18",
  "quote 1.0.7",
@@ -3011,7 +3011,7 @@ dependencies = [
 
 [[package]]
 name = "relay-log"
-version = "20.11.1"
+version = "20.12.0"
 dependencies = [
  "chrono",
  "console",
@@ -3026,7 +3026,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "20.11.1"
+version = "20.12.0"
 dependencies = [
  "failure",
  "insta 0.15.0",
@@ -3041,7 +3041,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "20.11.1"
+version = "20.12.0"
 dependencies = [
  "failure",
  "r2d2",
@@ -3051,7 +3051,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "20.11.1"
+version = "20.12.0"
 dependencies = [
  "actix",
  "actix-web",
