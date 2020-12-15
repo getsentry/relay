@@ -1,5 +1,9 @@
 # Changelog
 
+## 20.12.1
+
+- No documented changes.
+
 ## 20.12.0
 
 **Features**:
