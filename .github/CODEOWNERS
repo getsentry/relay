@@ -1,8 +1,9 @@
+# Default code owners 
+*   @getsentry/owners-ingest
+
 # Legal
 /LICENSE  @getsentry/owners-legal
 
 # Build & Releases
 /.github/workflows/release.yml  @getsentry/releases
 
-# Everything else
-*   @getsentry/owners-ingest
