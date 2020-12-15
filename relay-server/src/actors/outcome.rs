@@ -234,6 +234,10 @@ pub enum DiscardReason {
     /// [Relay] The envelope, which contained only a transaction, was discarded by the
     /// dynamic sampling rules.
     TransactionSampled,
+
+    /// [Relay] The envelope, which contained an event, was discarded by the
+    /// dynamic sampling rules.
+    EventSampled,
 }
 
 impl DiscardReason {
@@ -267,6 +271,7 @@ impl DiscardReason {
             DiscardReason::NoEventPayload => "no_event_payload",
             DiscardReason::Internal => "internal",
             DiscardReason::TransactionSampled => "transaction_sampled",
+            DiscardReason::EventSampled => "event_sampled",
         }
     }
 }

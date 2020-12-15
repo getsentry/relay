@@ -171,9 +171,8 @@ impl ProcessingError {
             }
 
             // Dynamic sampling (not an error, just discarding messages that were removed by sampling)
-            Self::TransactionSampled | Self::EventSampled => {
-                Some(Outcome::Invalid(DiscardReason::TransactionSampled))
-            }
+            Self::TransactionSampled => Some(Outcome::Invalid(DiscardReason::TransactionSampled)),
+            Self::EventSampled => Some(Outcome::Invalid(DiscardReason::EventSampled)),
 
             // If we send to an upstream, we don't emit outcomes.
             Self::SendFailed(_) => None,
