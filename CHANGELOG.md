@@ -6,9 +6,8 @@
 
 - Relay is now able to ingest pre-aggregated sessions, which will make it possible to efficiently handle applications that produce thousands of sessions per second. ([#815](https://github.com/getsentry/relay/pull/815))
 - Add protocol support for WASM. ([#852](https://github.com/getsentry/relay/pull/852))
-- Add dynamic sampling for transactions. ([#835](https://github.com/getsentry/relay/pull/835))
 - Send network outage metric on healthcheck endpoint hit. ([#856](https://github.com/getsentry/relay/pull/856))
-- Add dynamic sampling for events (errors). ([#883](https://github.com/getsentry/relay/pull/883))
+- Add dynamic sampling for transactions and errors. ([#835](https://github.com/getsentry/relay/pull/835)) ([#883](https://github.com/getsentry/relay/pull/883))
 
 **Bug Fixes**:
 
