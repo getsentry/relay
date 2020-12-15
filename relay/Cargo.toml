@@ -11,8 +11,10 @@ license-file = "../LICENSE"
 publish = false
 
 [features]
+# See https://getsentry.github.io/relay/relay/#feature-flags for explanation of feature flags
 default = ["ssl"]
 ssl = ["relay-server/ssl"]
+kafka-ssl = ["relay-server/kafka-ssl"]
 processing = ["relay-server/processing"]
 
 # Direct dependencies of the main application in `src/`

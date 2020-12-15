@@ -13,6 +13,7 @@ publish = false
 [features]
 default = []
 ssl = ["native-tls", "actix-web/tls"]
+kafka-ssl = ["rdkafka/ssl"]
 processing = [
     "minidump",
     "rdkafka",
