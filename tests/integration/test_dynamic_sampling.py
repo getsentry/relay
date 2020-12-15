@@ -51,6 +51,7 @@ def _add_sampling_config(
     releases=None,
     user_segments=None,
     environments=None,
+    strategy=None,
 ):
     """
     Adds a sampling configuration rule to a project configuration
@@ -62,6 +63,8 @@ def _add_sampling_config(
         user_segments = []
     if environments is None:
         environments = []
+    if strategy is None:
+        strategy = "trace"
 
     rule = {
         "projectIds": project_ids,
@@ -69,6 +72,7 @@ def _add_sampling_config(
         "userSegments": user_segments,
         "releases": releases,
         "environments": environments,
+        "strategy": strategy
     }
     rules.append(rule)
     return rules
