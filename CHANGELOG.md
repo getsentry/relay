@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 20.12.0
 
 **Features**:
 
@@ -29,7 +29,6 @@
 - Make `$error.value` `pii=true`. ([#837](https://github.com/getsentry/relay/pull/837))
 - Send `key_id` in partial project config. ([#854](https://github.com/getsentry/relay/pull/854))
 - Add stack traces to Sentry error reports. ([#872](https://github.com/getsentry/relay/pull/872))
-
 
 ## 20.11.1
 
