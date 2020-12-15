@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
-use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -1146,9 +1145,8 @@ impl EventProcessor {
             Some(event) => event,
         };
 
-        let project_state = state.project_state.deref();
         let project_id = state.project_id;
-        match utils::should_keep_event(event, project_state, project_id) {
+        match utils::should_keep_event(event, &state.project_state, project_id) {
             Some(false) => Err(ProcessingError::EventSampled),
             Some(true) => Ok(()),
             None => Ok(()), // Not enough info to make a definite evaluation, keep the event
