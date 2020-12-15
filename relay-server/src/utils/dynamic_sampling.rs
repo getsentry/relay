@@ -159,7 +159,7 @@ pub struct SamplingConfig {
     pub rules: Vec<SamplingRule>,
 }
 
-/// Represents an object that can provide the context needed to make a sampling decision
+/// Represents an object that can provide the context needed to make a sampling decision.
 ///
 /// TraceContext and Event are implementers of this trait.
 trait SamplingContextProvider {
