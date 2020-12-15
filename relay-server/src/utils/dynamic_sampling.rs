@@ -161,7 +161,7 @@ pub struct SamplingConfig {
 
 /// Represents an object that can provide the context needed to make a sampling decision.
 ///
-/// TraceContext and Event are implementers of this trait.
+/// TraceContext and Event are implementors of this trait.
 trait SamplingContextProvider {
     fn release(&self) -> Option<&str>;
     fn environment(&self) -> Option<&str>;
