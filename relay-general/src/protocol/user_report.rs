@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 /// keyword-arguments `sentry.models.UserReport` accepts. Anything the model constructor
 /// accepts goes.
 ///
-/// For example, `{"email": null}` is only invalid because `UserReport(email=None).save()` is.
+/// For example, `{"email": null}` is only invalid because `UserReport(email=None).save()` is. SDKs
+/// may neither send this (we can relax this), but more importantly the ingest consumer may never
+/// receive this.
 ///
 /// The database/model schema is a bunch of not-null strings that have (pgsql) defaults, so that's
 /// how we end up with this struct definition.
