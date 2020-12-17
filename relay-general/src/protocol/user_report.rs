@@ -10,7 +10,8 @@ use serde::{Deserialize, Serialize};
 ///
 /// For example, `{"email": null}` is only invalid because `UserReport(email=None).save()` is. SDKs
 /// may neither send this (we can relax this), but more importantly the ingest consumer may never
-/// receive this.
+/// receive this... because it would end up crashing the ingest consumer (while in older versions
+/// of Sentry it would simply crash the endpoint).
 ///
 /// The database/model schema is a bunch of not-null strings that have (pgsql) defaults, so that's
 /// how we end up with this struct definition.
