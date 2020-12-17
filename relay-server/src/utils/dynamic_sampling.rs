@@ -629,9 +629,8 @@ mod tests {
             "releases": ["1.1.1", "1.1.2"],
             "userSegments": ["FirstSegment", "SeCoNd"],
             "environments": ["DeV", "pRoD"],
-            "category": "transaction"
+            "strategy": "trace"
         }"#;
-
         let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
 
         assert!(rule.is_ok());
