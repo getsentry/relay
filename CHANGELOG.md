@@ -2,7 +2,9 @@
 
 ## 20.12.1
 
-- No documented changes.
+**Bug Fixes**:
+
+- Make all fields but event-id optional to fix regressions in user feedback ingestion. ([#886](https://github.com/getsentry/relay/pull/886))
 
 ## 20.12.0
 
