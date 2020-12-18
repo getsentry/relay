@@ -17,22 +17,70 @@
 <span id="14">14</span>
 <span id="15">15</span>
 <span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">protocol</span>::<span class="ident">EventId</span>;
 
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">de</span>::<span class="ident">DeserializeOwned</span>, <span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>};
 
 <span class="doccomment">/// User feedback for an event as sent by the client to the userfeedback/userreport endpoint.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Historically the &quot;schema&quot; for user report has been &quot;defined&quot; as the set of possible</span>
+<span class="doccomment">/// keyword-arguments `sentry.models.UserReport` accepts. Anything the model constructor</span>
+<span class="doccomment">/// accepts goes.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// For example, `{&quot;email&quot;: null}` is only invalid because `UserReport(email=None).save()` is. SDKs</span>
+<span class="doccomment">/// may neither send this (historically, in Relay we relaxed this already), but more importantly</span>
+<span class="doccomment">/// the ingest consumer may never receive this... because it would end up crashing the ingest</span>
+<span class="doccomment">/// consumer (while in older versions of Sentry it would simply crash the endpoint).</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The database/model schema is a bunch of not-null strings that have (pgsql) defaults, so that&#39;s</span>
+<span class="doccomment">/// how we end up with this struct definition.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">UserReport</span> {
     <span class="doccomment">/// The event ID for which this user feedback is created.</span>
     <span class="kw">pub</span> <span class="ident">event_id</span>: <span class="ident">EventId</span>,
     <span class="doccomment">/// The user&#39;s name.</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;null_to_default&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">name</span>: <span class="ident">String</span>,
     <span class="doccomment">/// The user&#39;s email address.</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;null_to_default&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">email</span>: <span class="ident">String</span>,
     <span class="doccomment">/// Comments supplied by the user.</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;null_to_default&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">comments</span>: <span class="ident">String</span>,
+}
+
+<span class="kw">fn</span> <span class="ident">null_to_default</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">D</span>, <span class="ident">V</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+    <span class="ident">V</span>: <span class="ident">Default</span> <span class="op">+</span> <span class="ident">DeserializeOwned</span>,
+{
+    <span class="kw">let</span> <span class="ident">opt</span> <span class="op">=</span> <span class="prelude-ty">Option</span>::<span class="ident">deserialize</span>(<span class="ident">deserializer</span>)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(<span class="ident">opt</span>.<span class="ident">unwrap_or_default</span>())
 }
 </pre></div>
 </section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../../";window.currentCrate = "relay_general";</script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>
