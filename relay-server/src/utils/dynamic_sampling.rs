@@ -99,10 +99,10 @@ impl SamplingRule {
         user_segment: &Option<LowerCaseString>,
         environment: &Option<LowerCaseString>,
         project_id: ProjectId,
-        category: SamplingStrategy,
+        strategy: SamplingStrategy,
     ) -> bool {
         // check we are matching the right type of rule
-        if self.strategy != category {
+        if self.strategy != strategy {
             return false;
         }
 
@@ -194,9 +194,9 @@ impl TraceContext {
         &self,
         config: &SamplingConfig,
         project_id: ProjectId,
-        category: SamplingStrategy,
+        strategy: SamplingStrategy,
     ) -> Option<bool> {
-        let rule = get_matching_rule(config, self, project_id, category)?;
+        let rule = get_matching_rule(config, self, project_id, strategy)?;
         let rate = pseudo_random_from_uuid(self.trace_id)?;
         Some(rate < rule.sample_rate)
     }
@@ -359,7 +359,7 @@ fn get_matching_rule<'a, T>(
     config: &'a SamplingConfig,
     context: &T,
     project_id: ProjectId,
-    category: SamplingStrategy,
+    strategy: SamplingStrategy,
 ) -> Option<&'a SamplingRule>
 where
     T: SamplingContextProvider,
@@ -371,7 +371,7 @@ where
     config
         .rules
         .iter()
-        .find(|rule| rule.matches(release, &user_segment, &environment, project_id, category))
+        .find(|rule| rule.matches(release, &user_segment, &environment, project_id, strategy))
 }
 
 /// Generates a pseudo random number by seeding the generator with the given id.
