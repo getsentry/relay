@@ -2,10 +2,6 @@ SHELL=/bin/bash
 export RELAY_PYTHON_VERSION := python3
 export RELAY_FEATURES := ssl
 
-# This is the subset of --all-features that actually works on OS X. Notably it
-# is missing kafka-ssl which would require openssl to be installed on OS X.
-export RELAY_DEV_FEATURES := ssl,processing
-
 all: check test
 .PHONY: all
 
@@ -20,7 +16,7 @@ clean:
 # Builds
 
 build: setup-git
-	cd relay && cargo +stable build --features ${RELAY_DEV_FEATURES}
+	cargo +stable build --all-features
 .PHONY: build
 
 release: setup-git
@@ -56,7 +52,7 @@ test-rust: setup-git
 .PHONY: test-rust
 
 test-rust-all: setup-git
-	cargo test --workspace --features ${RELAY_DEV_FEATURES}
+	cargo test --workspace --all-features
 .PHONY: test-rust-all
 
 test-python: setup-git setup-venv
