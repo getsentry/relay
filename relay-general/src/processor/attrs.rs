@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::fmt;
 use std::ops::RangeInclusive;
 
+use enumset::{EnumSet, EnumSetType};
 use failure::Fail;
 use smallvec::SmallVec;
 
@@ -14,7 +15,7 @@ use crate::types::Annotated;
 pub struct UnknownValueTypeError;
 
 /// The (simplified) type of a value.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Ord, PartialOrd, EnumSetType)]
 pub enum ValueType {
     // Basic types
     String,
@@ -49,8 +50,11 @@ pub enum ValueType {
 }
 
 impl ValueType {
-    pub fn for_field<T: ProcessValue>(field: &Annotated<T>) -> Option<Self> {
-        field.value().and_then(ProcessValue::value_type)
+    pub fn for_field<T: ProcessValue>(field: &Annotated<T>) -> EnumSet<Self> {
+        field
+            .value()
+            .map(ProcessValue::value_type)
+            .unwrap_or_else(EnumSet::empty)
     }
 }
 
@@ -371,7 +375,7 @@ pub struct ProcessingState<'a> {
     parent: Option<&'a ProcessingState<'a>>,
     path_item: Option<PathItem<'a>>,
     attrs: Option<Cow<'a, FieldAttrs>>,
-    value_type: Option<ValueType>,
+    value_type: EnumSet<ValueType>,
     depth: usize,
 }
 
@@ -379,7 +383,7 @@ static ROOT_STATE: ProcessingState = ProcessingState {
     parent: None,
     path_item: None,
     attrs: None,
-    value_type: None,
+    value_type: enumset::enum_set!(),
     depth: 0,
 };
 
@@ -392,13 +396,13 @@ impl<'a> ProcessingState<'a> {
     /// Creates a new root state.
     pub fn new_root(
         attrs: Option<Cow<'static, FieldAttrs>>,
-        value_type: Option<ValueType>,
+        value_type: impl IntoIterator<Item = ValueType>,
     ) -> ProcessingState<'static> {
         ProcessingState {
             parent: None,
             path_item: None,
             attrs,
-            value_type,
+            value_type: value_type.into_iter().collect(),
             depth: 0,
         }
     }
@@ -408,13 +412,13 @@ impl<'a> ProcessingState<'a> {
         &'a self,
         key: &'static str,
         attrs: Option<Cow<'static, FieldAttrs>>,
-        value_type: Option<ValueType>,
+        value_type: impl IntoIterator<Item = ValueType>,
     ) -> Self {
         ProcessingState {
             parent: Some(self),
             path_item: Some(PathItem::StaticKey(key)),
             attrs,
-            value_type,
+            value_type: value_type.into_iter().collect(),
             depth: self.depth + 1,
         }
     }
@@ -424,13 +428,13 @@ impl<'a> ProcessingState<'a> {
         &'a self,
         key: &'a str,
         attrs: Option<Cow<'a, FieldAttrs>>,
-        value_type: Option<ValueType>,
+        value_type: impl IntoIterator<Item = ValueType>,
     ) -> Self {
         ProcessingState {
             parent: Some(self),
             path_item: Some(PathItem::StaticKey(key)),
             attrs,
-            value_type,
+            value_type: value_type.into_iter().collect(),
             depth: self.depth + 1,
         }
     }
@@ -440,13 +444,13 @@ impl<'a> ProcessingState<'a> {
         &'a self,
         idx: usize,
         attrs: Option<Cow<'a, FieldAttrs>>,
-        value_type: Option<ValueType>,
+        value_type: impl IntoIterator<Item = ValueType>,
     ) -> Self {
         ProcessingState {
             parent: Some(self),
             path_item: Some(PathItem::Index(idx)),
             attrs,
-            value_type,
+            value_type: value_type.into_iter().collect(),
             depth: self.depth + 1,
         }
     }
@@ -466,7 +470,7 @@ impl<'a> ProcessingState<'a> {
         Path(&self)
     }
 
-    pub fn value_type(&self) -> Option<ValueType> {
+    pub fn value_type(&self) -> EnumSet<ValueType> {
         self.value_type
     }
 

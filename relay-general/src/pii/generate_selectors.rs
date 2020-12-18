@@ -33,7 +33,7 @@ impl Processor for GenerateSelectorsProcessor {
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         // The following skip-conditions are in sync with what the PiiProcessor does.
-        if state.value_type() == Some(ValueType::Boolean)
+        if state.value_type().contains(ValueType::Boolean)
             || value.is_none()
             || state.attrs().pii == Pii::False
         {
@@ -66,32 +66,30 @@ impl Processor for GenerateSelectorsProcessor {
                 continue;
             }
 
-            match substate.value_type() {
-                // $array.0.foo and $object.bar are not particularly good suggestions.
-                Some(ValueType::Object) | Some(ValueType::Array) => {}
+            for value_type in substate.value_type() {
+                match value_type {
+                    // $array.0.foo and $object.bar are not particularly good suggestions.
+                    ValueType::Object | ValueType::Array => {}
 
-                // a.b.c.$string is not a good suggestion, so special case those.
-                ty @ Some(ValueType::String)
-                | ty @ Some(ValueType::Number)
-                | ty @ Some(ValueType::Boolean)
-                | ty @ Some(ValueType::DateTime) => {
-                    insert_path(SelectorSpec::Path(vec![SelectorPathItem::Type(
-                        ty.unwrap(),
-                    )]));
-                }
+                    // a.b.c.$string is not a good suggestion, so special case those.
+                    ty @ ValueType::String
+                    | ty @ ValueType::Number
+                    | ty @ ValueType::Boolean
+                    | ty @ ValueType::DateTime => {
+                        insert_path(SelectorSpec::Path(vec![SelectorPathItem::Type(ty)]));
+                    }
 
-                Some(ty) => {
-                    let mut path = path.clone();
-                    path.push(SelectorPathItem::Type(ty));
-                    path.reverse();
-                    if insert_path(SelectorSpec::Path(path)) {
-                        // If we managed to generate $http.header.Authorization, we do not want to
-                        // generate request.headers.Authorization as well.
-                        return Ok(());
+                    ty => {
+                        let mut path = path.clone();
+                        path.push(SelectorPathItem::Type(ty));
+                        path.reverse();
+                        if insert_path(SelectorSpec::Path(path)) {
+                            // If we managed to generate $http.header.Authorization, we do not want to
+                            // generate request.headers.Authorization as well.
+                            return Ok(());
+                        }
                     }
                 }
-
-                None => {}
             }
 
             if let Some(key) = substate.path().key() {
@@ -228,6 +226,8 @@ mod tests {
           value: Something failed
         - path: $string
           value: bar
+        - path: $string
+          value: hi
         - path: $string
           value: not really
         - path: $error.value

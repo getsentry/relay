@@ -4,15 +4,17 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "The Relay binary, a proxy server for Sentry"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "20.11.1"
+version = "20.12.1"
 edition = "2018"
 build = "build.rs"
 license-file = "../LICENSE"
 publish = false
 
 [features]
+# See https://getsentry.github.io/relay/relay/#feature-flags for explanation of feature flags
 default = ["ssl"]
 ssl = ["relay-server/ssl"]
+kafka-ssl = ["relay-server/kafka-ssl"]
 processing = ["relay-server/processing"]
 
 # Direct dependencies of the main application in `src/`

@@ -72,7 +72,7 @@ impl SelectorPathItem {
         match *self {
             SelectorPathItem::Wildcard => true,
             SelectorPathItem::DeepWildcard => true,
-            SelectorPathItem::Type(ty) => state.value_type() == Some(ty),
+            SelectorPathItem::Type(ty) => state.value_type().contains(ty),
             SelectorPathItem::Index(idx) => state.path().index() == Some(idx),
             SelectorPathItem::Key(ref key) => state
                 .path()

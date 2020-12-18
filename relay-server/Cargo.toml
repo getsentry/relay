@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "20.11.1"
+version = "20.12.1"
 edition = "2018"
 build = "build.rs"
 license-file = "../LICENSE"
@@ -13,6 +13,7 @@ publish = false
 [features]
 default = []
 ssl = ["native-tls", "actix-web/tls"]
+kafka-ssl = ["rdkafka/ssl"]
 processing = [
     "minidump",
     "rdkafka",

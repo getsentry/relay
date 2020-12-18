@@ -1,6 +1,6 @@
 [package]
 name = "relay-general"
-version = "20.11.1"
+version = "20.12.1"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
@@ -38,6 +38,7 @@ uaparser = { version = "0.3.3", optional = true }
 url = "2.1.1"
 utf16string = "0.2.0"
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
+enumset = "1.0.1"
 
 [dev-dependencies]
 criterion = "0.3"
