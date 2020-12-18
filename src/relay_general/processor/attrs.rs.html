@@ -763,11 +763,16 @@
 <span id="760">760</span>
 <span id="761">761</span>
 <span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
+<span id="765">765</span>
+<span id="766">766</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">RangeInclusive</span>;
 
+<span class="kw">use</span> <span class="ident">enumset</span>::{<span class="ident">EnumSet</span>, <span class="ident">EnumSetType</span>};
 <span class="kw">use</span> <span class="ident">failure</span>::<span class="ident">Fail</span>;
 <span class="kw">use</span> <span class="ident">smallvec</span>::<span class="ident">SmallVec</span>;
 
@@ -780,7 +785,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">UnknownValueTypeError</span>;
 
 <span class="doccomment">/// The (simplified) type of a value.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Ord</span>, <span class="ident">PartialOrd</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Ord</span>, <span class="ident">PartialOrd</span>, <span class="ident">EnumSetType</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">ValueType</span> {
     <span class="comment">// Basic types</span>
     <span class="ident">String</span>,
@@ -815,8 +820,11 @@
 }
 
 <span class="kw">impl</span> <span class="ident">ValueType</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">for_field</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">ProcessValue</span><span class="op">&gt;</span>(<span class="ident">field</span>: <span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="ident">field</span>.<span class="ident">value</span>().<span class="ident">and_then</span>(<span class="ident">ProcessValue</span>::<span class="ident">value_type</span>)
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">for_field</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">ProcessValue</span><span class="op">&gt;</span>(<span class="ident">field</span>: <span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">EnumSet</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+        <span class="ident">field</span>
+            .<span class="ident">value</span>()
+            .<span class="ident">map</span>(<span class="ident">ProcessValue</span>::<span class="ident">value_type</span>)
+            .<span class="ident">unwrap_or_else</span>(<span class="ident">EnumSet</span>::<span class="ident">empty</span>)
     }
 }
 
@@ -1137,7 +1145,7 @@
     <span class="ident">parent</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">path_item</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PathItem</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">attrs</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">FieldAttrs</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">value_type</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span>,
+    <span class="ident">value_type</span>: <span class="ident">EnumSet</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span>,
     <span class="ident">depth</span>: <span class="ident">usize</span>,
 }
 
@@ -1145,7 +1153,7 @@
     <span class="ident">parent</span>: <span class="prelude-val">None</span>,
     <span class="ident">path_item</span>: <span class="prelude-val">None</span>,
     <span class="ident">attrs</span>: <span class="prelude-val">None</span>,
-    <span class="ident">value_type</span>: <span class="prelude-val">None</span>,
+    <span class="ident">value_type</span>: <span class="ident">enumset</span>::<span class="macro">enum_set</span><span class="macro">!</span>(),
     <span class="ident">depth</span>: <span class="number">0</span>,
 };
 
@@ -1158,13 +1166,13 @@
     <span class="doccomment">/// Creates a new root state.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_root</span>(
         <span class="ident">attrs</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="ident">FieldAttrs</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-        <span class="ident">value_type</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span>,
+        <span class="ident">value_type</span>: <span class="kw">impl</span> <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">ValueType</span><span class="op">&gt;</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
         <span class="ident">ProcessingState</span> {
             <span class="ident">parent</span>: <span class="prelude-val">None</span>,
             <span class="ident">path_item</span>: <span class="prelude-val">None</span>,
             <span class="ident">attrs</span>,
-            <span class="ident">value_type</span>,
+            <span class="ident">value_type</span>: <span class="ident">value_type</span>.<span class="ident">into_iter</span>().<span class="ident">collect</span>(),
             <span class="ident">depth</span>: <span class="number">0</span>,
         }
     }
@@ -1174,13 +1182,13 @@
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>,
         <span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
         <span class="ident">attrs</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="ident">FieldAttrs</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-        <span class="ident">value_type</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span>,
+        <span class="ident">value_type</span>: <span class="kw">impl</span> <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">ValueType</span><span class="op">&gt;</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="ident">ProcessingState</span> {
             <span class="ident">parent</span>: <span class="prelude-val">Some</span>(<span class="self">self</span>),
             <span class="ident">path_item</span>: <span class="prelude-val">Some</span>(<span class="ident">PathItem</span>::<span class="ident">StaticKey</span>(<span class="ident">key</span>)),
             <span class="ident">attrs</span>,
-            <span class="ident">value_type</span>,
+            <span class="ident">value_type</span>: <span class="ident">value_type</span>.<span class="ident">into_iter</span>().<span class="ident">collect</span>(),
             <span class="ident">depth</span>: <span class="self">self</span>.<span class="ident">depth</span> <span class="op">+</span> <span class="number">1</span>,
         }
     }
@@ -1190,13 +1198,13 @@
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>,
         <span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>,
         <span class="ident">attrs</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">FieldAttrs</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-        <span class="ident">value_type</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span>,
+        <span class="ident">value_type</span>: <span class="kw">impl</span> <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">ValueType</span><span class="op">&gt;</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="ident">ProcessingState</span> {
             <span class="ident">parent</span>: <span class="prelude-val">Some</span>(<span class="self">self</span>),
             <span class="ident">path_item</span>: <span class="prelude-val">Some</span>(<span class="ident">PathItem</span>::<span class="ident">StaticKey</span>(<span class="ident">key</span>)),
             <span class="ident">attrs</span>,
-            <span class="ident">value_type</span>,
+            <span class="ident">value_type</span>: <span class="ident">value_type</span>.<span class="ident">into_iter</span>().<span class="ident">collect</span>(),
             <span class="ident">depth</span>: <span class="self">self</span>.<span class="ident">depth</span> <span class="op">+</span> <span class="number">1</span>,
         }
     }
@@ -1206,13 +1214,13 @@
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>,
         <span class="ident">idx</span>: <span class="ident">usize</span>,
         <span class="ident">attrs</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">FieldAttrs</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-        <span class="ident">value_type</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span>,
+        <span class="ident">value_type</span>: <span class="kw">impl</span> <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">ValueType</span><span class="op">&gt;</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="ident">ProcessingState</span> {
             <span class="ident">parent</span>: <span class="prelude-val">Some</span>(<span class="self">self</span>),
             <span class="ident">path_item</span>: <span class="prelude-val">Some</span>(<span class="ident">PathItem</span>::<span class="ident">Index</span>(<span class="ident">idx</span>)),
             <span class="ident">attrs</span>,
-            <span class="ident">value_type</span>,
+            <span class="ident">value_type</span>: <span class="ident">value_type</span>.<span class="ident">into_iter</span>().<span class="ident">collect</span>(),
             <span class="ident">depth</span>: <span class="self">self</span>.<span class="ident">depth</span> <span class="op">+</span> <span class="number">1</span>,
         }
     }
@@ -1232,7 +1240,7 @@
         <span class="ident">Path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>)
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">value_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">value_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">EnumSet</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">value_type</span>
     }
 

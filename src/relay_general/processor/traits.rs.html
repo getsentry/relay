@@ -149,11 +149,15 @@
 <span id="146">146</span>
 <span id="147">147</span>
 <span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// This module only defines traits, every parameter is used by definition</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">unused_variables</span>)]</span>
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Debug</span>;
+
+<span class="kw">use</span> <span class="ident">enumset</span>::<span class="ident">EnumSet</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessingState</span>, <span class="ident">ValueType</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::{<span class="ident">FromValue</span>, <span class="ident">Meta</span>, <span class="ident">ProcessingResult</span>, <span class="ident">ToValue</span>};
@@ -267,8 +271,8 @@
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">ProcessValue</span>: <span class="ident">FromValue</span> <span class="op">+</span> <span class="ident">ToValue</span> <span class="op">+</span> <span class="ident">Debug</span> <span class="op">+</span> <span class="ident">Clone</span> {
     <span class="doccomment">/// Returns the type of the value.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">value_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span> {
-        <span class="prelude-val">None</span>
+    <span class="kw">fn</span> <span class="ident">value_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">EnumSet</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span> {
+        <span class="ident">EnumSet</span>::<span class="ident">empty</span>()
     }
 
     <span class="doccomment">/// Executes a processor on this value.</span>

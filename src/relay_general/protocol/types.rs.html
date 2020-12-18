@@ -1271,6 +1271,7 @@
 <span id="1268">1268</span>
 <span id="1269">1269</span>
 <span id="1270">1270</span>
+<span id="1271">1271</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Common types of the protocol.</span>
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
@@ -1288,6 +1289,7 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">schemars</span>::<span class="ident">schema</span>::<span class="ident">Schema</span>;
 
+<span class="kw">use</span> <span class="ident">enumset</span>::<span class="ident">EnumSet</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>, <span class="ident">ValueType</span>};
@@ -1603,8 +1605,8 @@
     <span class="ident">T</span>: <span class="ident">ProcessValue</span> <span class="op">+</span> <span class="ident">AsPair</span>,
 {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">value_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Some</span>(<span class="ident">ValueType</span>::<span class="ident">Object</span>)
+    <span class="kw">fn</span> <span class="ident">value_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">EnumSet</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span> {
+        <span class="ident">EnumSet</span>::<span class="ident">only</span>(<span class="ident">ValueType</span>::<span class="ident">Object</span>)
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
@@ -2141,8 +2143,8 @@
 
 <span class="kw">impl</span> <span class="ident">ProcessValue</span> <span class="kw">for</span> <span class="ident">Timestamp</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">value_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Some</span>(<span class="ident">ValueType</span>::<span class="ident">DateTime</span>)
+    <span class="kw">fn</span> <span class="ident">value_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">EnumSet</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span> {
+        <span class="ident">EnumSet</span>::<span class="ident">only</span>(<span class="ident">ValueType</span>::<span class="ident">DateTime</span>)
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>

@@ -803,20 +803,6 @@
 <span id="800">800</span>
 <span id="801">801</span>
 <span id="802">802</span>
-<span id="803">803</span>
-<span id="804">804</span>
-<span id="805">805</span>
-<span id="806">806</span>
-<span id="807">807</span>
-<span id="808">808</span>
-<span id="809">809</span>
-<span id="810">810</span>
-<span id="811">811</span>
-<span id="812">812</span>
-<span id="813">813</span>
-<span id="814">814</span>
-<span id="815">815</span>
-<span id="816">816</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Minidump scrubbing.</span>
 
@@ -1084,37 +1070,23 @@
                         .<span class="ident">get_mut</span>(<span class="ident">range</span>)
                         .<span class="ident">ok_or</span>(<span class="ident">ScrubMinidumpError</span>::<span class="ident">InvalidAddress</span>)<span class="question-mark">?</span>;
 
-                    <span class="comment">// Backwards-compatible visit</span>
-                    <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">FieldAttrs</span>::<span class="ident">new</span>().<span class="ident">pii</span>(<span class="ident">Pii</span>::<span class="ident">Maybe</span>));
-                    <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span>
-                        <span class="ident">file_state</span>.<span class="ident">enter_static</span>(<span class="string">&quot;&quot;</span>, <span class="prelude-val">Some</span>(<span class="ident">attrs</span>), <span class="prelude-val">Some</span>(<span class="ident">ValueType</span>::<span class="ident">StackMemory</span>));
-                    <span class="ident">changed</span> <span class="op">|</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">scrub_bytes</span>(<span class="ident">slice</span>, <span class="kw-2">&amp;</span><span class="ident">state</span>, <span class="ident">ScrubEncodings</span>::<span class="ident">All</span>);
-
-                    <span class="comment">// Documented visit</span>
                     <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">FieldAttrs</span>::<span class="ident">new</span>().<span class="ident">pii</span>(<span class="ident">Pii</span>::<span class="ident">Maybe</span>));
                     <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">file_state</span>.<span class="ident">enter_static</span>(
                         <span class="string">&quot;stack_memory&quot;</span>,
                         <span class="prelude-val">Some</span>(<span class="ident">attrs</span>),
-                        <span class="prelude-val">Some</span>(<span class="ident">ValueType</span>::<span class="ident">Binary</span>),
+                        <span class="ident">ValueType</span>::<span class="ident">Binary</span> <span class="op">|</span> <span class="ident">ValueType</span>::<span class="ident">StackMemory</span>,
                     );
                     <span class="ident">changed</span> <span class="op">|</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">scrub_bytes</span>(<span class="ident">slice</span>, <span class="kw-2">&amp;</span><span class="ident">state</span>, <span class="ident">ScrubEncodings</span>::<span class="ident">All</span>);
                 }
                 <span class="ident">MinidumpItem</span>::<span class="ident">NonStackMemory</span>(<span class="ident">range</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                    <span class="comment">// Backwards-compatible visit.</span>
                     <span class="kw">let</span> <span class="ident">slice</span> <span class="op">=</span> <span class="ident">data</span>
                         .<span class="ident">get_mut</span>(<span class="ident">range</span>)
                         .<span class="ident">ok_or</span>(<span class="ident">ScrubMinidumpError</span>::<span class="ident">InvalidAddress</span>)<span class="question-mark">?</span>;
-                    <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">FieldAttrs</span>::<span class="ident">new</span>().<span class="ident">pii</span>(<span class="ident">Pii</span>::<span class="ident">Maybe</span>));
-                    <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span>
-                        <span class="ident">file_state</span>.<span class="ident">enter_static</span>(<span class="string">&quot;&quot;</span>, <span class="prelude-val">Some</span>(<span class="ident">attrs</span>), <span class="prelude-val">Some</span>(<span class="ident">ValueType</span>::<span class="ident">HeapMemory</span>));
-                    <span class="ident">changed</span> <span class="op">|</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">scrub_bytes</span>(<span class="ident">slice</span>, <span class="kw-2">&amp;</span><span class="ident">state</span>, <span class="ident">ScrubEncodings</span>::<span class="ident">All</span>);
-
-                    <span class="comment">// Documented visit.</span>
                     <span class="kw">let</span> <span class="ident">attrs</span> <span class="op">=</span> <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">FieldAttrs</span>::<span class="ident">new</span>().<span class="ident">pii</span>(<span class="ident">Pii</span>::<span class="ident">True</span>));
                     <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">file_state</span>.<span class="ident">enter_static</span>(
                         <span class="string">&quot;heap_memory&quot;</span>,
                         <span class="prelude-val">Some</span>(<span class="ident">attrs</span>),
-                        <span class="prelude-val">Some</span>(<span class="ident">ValueType</span>::<span class="ident">Binary</span>),
+                        <span class="ident">ValueType</span>::<span class="ident">Binary</span> <span class="op">|</span> <span class="ident">ValueType</span>::<span class="ident">HeapMemory</span>,
                     );
                     <span class="ident">changed</span> <span class="op">|</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">scrub_bytes</span>(<span class="ident">slice</span>, <span class="kw-2">&amp;</span><span class="ident">state</span>, <span class="ident">ScrubEncodings</span>::<span class="ident">All</span>);
                 }
