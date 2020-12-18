@@ -73,7 +73,9 @@ impl<'a> Processor for PiiProcessor<'a> {
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         // booleans cannot be PII, and strings are handled in process_string
-        if let Some(ValueType::Boolean) | Some(ValueType::String) = state.value_type() {
+        if state.value_type().contains(ValueType::Boolean)
+            || state.value_type().contains(ValueType::String)
+        {
             return Ok(());
         }
 
@@ -836,6 +838,7 @@ fn test_logentry_value_types() {
         "$logentry.formatted",
         "$message",
         "$logentry.formatted && $message",
+        "$string",
     ] {
         let config = PiiConfig::from_json(&format!(
             r##"
