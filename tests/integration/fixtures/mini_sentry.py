@@ -185,6 +185,11 @@ def mini_sentry(request):
         if flask_request.url_rule:
             sentry.hit(flask_request.url_rule.rule)
 
+        # Store endpoints theoretically support chunked transfer encoding,
+        # but for now, we're conservative and don't allow that anywhere.
+        if flask_request.headers.get("transfer-encoding"):
+            abort(400, "transfer encoding not supported")
+
     @app.route("/api/0/relays/register/challenge/", methods=["POST"])
     def get_challenge():
         relay_id = flask_request.json["relay_id"]
