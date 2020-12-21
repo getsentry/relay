@@ -9,15 +9,15 @@
 ///! objects and common request objects, it's just that nobody bothers to implement the conversion
 ///! logic.
 use std::io;
-use std::io::{Cursor, Read};
+use std::io::Write;
 
 use actix_web::client::{ClientRequest, ClientRequestBuilder, ClientResponse};
 use actix_web::error::{JsonPayloadError, PayloadError};
 use actix_web::http::{ContentEncoding, StatusCode};
 use actix_web::{Binary, Error as ActixError, HttpMessage};
-use brotli2::read::BrotliEncoder;
+use brotli2::write::BrotliEncoder;
 use failure::Fail;
-use flate2::read::{GzEncoder, ZlibEncoder};
+use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use futures::prelude::*;
 use futures03::{FutureExt, TryFutureExt, TryStreamExt};
@@ -155,34 +155,31 @@ impl RequestBuilder {
         match self {
             RequestBuilder::Actix(mut builder) => Ok(Request::Actix(builder.body(body)?)),
             RequestBuilder::Reqwest {
-                mut builder,
+                builder,
                 http_encoding,
             } => {
-                let reader = Cursor::new(body);
-
-                match http_encoding {
-                    HttpEncoding::Identity => {
-                        builder = builder
-                            .header("Content-Encoding", "identity")
-                            .body(reqwest_body_from_read(reader))
-                    }
+                let builder = match http_encoding {
+                    HttpEncoding::Identity => builder.body(body.as_ref().to_vec()),
                     HttpEncoding::Deflate => {
-                        let encoder = ZlibEncoder::new(reader, Compression::default());
-                        builder = builder
+                        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+                        encoder.write_all(body.as_ref())?;
+                        builder
                             .header("Content-Encoding", "deflate")
-                            .body(reqwest_body_from_read(encoder))
+                            .body(encoder.finish()?)
                     }
                     HttpEncoding::Gzip => {
-                        let encoder = GzEncoder::new(reader, Compression::default());
-                        builder = builder
+                        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+                        encoder.write_all(body.as_ref())?;
+                        builder
                             .header("Content-Encoding", "gzip")
-                            .body(reqwest_body_from_read(encoder))
+                            .body(encoder.finish()?)
                     }
                     HttpEncoding::Br => {
-                        let encoder = BrotliEncoder::new(reader, 5);
-                        builder = builder
+                        let mut encoder = BrotliEncoder::new(Vec::new(), 5);
+                        encoder.write_all(body.as_ref())?;
+                        builder
                             .header("Content-Encoding", "br")
-                            .body(reqwest_body_from_read(encoder))
+                            .body(encoder.finish()?)
                     }
                 };
 
@@ -217,34 +214,6 @@ impl RequestBuilder {
 
         self
     }
-}
-
-/// Convert a Read to a reqwest body.
-///
-/// NOTE: This should really only be used for Read that don't do I/O, i.e. strings (where this is
-/// useless), and read-based compressors that wrap the former (where this is useful)
-fn reqwest_body_from_read<R>(mut reader: R) -> reqwest::Body
-where
-    R: Send + Sync + Read + 'static,
-{
-    // Local imports because importing them top-level is too confusing with two futures crates
-    use futures03::{stream::poll_fn, task::Poll};
-    let mut buf = [0; 8192];
-
-    let stream = poll_fn(move |_| {
-        let bytes_read = match reader.read(&mut buf) {
-            Ok(x) => x,
-            Err(e) => return Poll::Ready(Some(Err(e))),
-        };
-
-        if bytes_read > 0 {
-            Poll::Ready(Some(Ok(buf[..bytes_read].to_vec())))
-        } else {
-            Poll::Ready(None)
-        }
-    });
-
-    reqwest::Body::wrap_stream(stream)
 }
 
 #[allow(clippy::large_enum_variant)]
