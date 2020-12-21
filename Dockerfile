@@ -15,10 +15,7 @@ ENV BUILD_ARCH=${BUILD_ARCH}
 ENV OPENSSL_ARCH=${OPENSSL_ARCH}
 
 ENV BUILD_TARGET=${BUILD_ARCH}-unknown-linux-gnu
-# For native-tls
 ENV OPENSSL_DIR=/usr/local/build/$BUILD_TARGET
-# For rdkafka
-ENV OPENSSL_ROOT_DIR=/usr/local/build/$BUILD_TARGET
 ENV OPENSSL_STATIC=1
 
 RUN apt-get update \
@@ -66,9 +63,7 @@ RUN echo "Building OpenSSL" \
 FROM getsentry/sentry-cli:1 AS sentry-cli
 FROM relay-deps AS relay-builder
 
-# ssl and processing are required for basic functionality in onprem
-# kafka-ssl is for free since we already have OpenSSL because we are on Linux
-ARG RELAY_FEATURES=ssl,kafka-ssl,processing
+ARG RELAY_FEATURES=ssl,processing
 ENV RELAY_FEATURES=${RELAY_FEATURES}
 
 COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
