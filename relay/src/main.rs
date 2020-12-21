@@ -21,19 +21,9 @@
 //!
 //! # Feature Flags
 //!
-//! - `ssl` _(default)_: Enables SSL support for incoming and outgoing HTTP using the [`native-tls`
-//!   crate](https://crates.io/crates/native-tls). On Windows/Mac this will use the native SSL
-//!   capabilities while for other platforms OpenSSL is required.
-//!
-//!   Disable this feature to remove the dependency on OpenSSL under Linux.
-//!
+//! - `ssl` _(default)_: Enables SSL support using `native-tls`.
 //! - `processing`: Includes event ingestion and processing functionality. This should only be
-//!   specified when compiling Relay as Sentry service.  Standalone Relays do not need this feature.
-//!
-//! - `kafka-ssl`: This feature is only relevant in combination with `processing`.
-//!   The Kafka client `librdkafka` requires OpenSSL on *all* platforms to speak SSL.
-//!   As this is an extra requirement on Windows and Mac, this is disabled by default.
-
+//!   specified when compiling Relay as Sentry service. Standalone Relays do not need this feature.
 //!
 //! # Workspace Crates
 //!
