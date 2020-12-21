@@ -469,3 +469,41 @@ def test_minidump_ratelimit(
     # Minidumps never return rate limits
     relay.send_minidump(project_id=project_id, files=attachments)
     outcomes_consumer.assert_rate_limited("static_disabled_quota")
+
+
+def test_crashpad_annotations(mini_sentry, relay_with_processing, attachments_consumer):
+    dmp_path = os.path.join(
+        os.path.dirname(__file__), "fixtures/native/annotations.dmp"
+    )
+    with open(dmp_path, "rb") as f:
+        content = f.read()
+
+    relay = relay_with_processing(
+        {
+            # Prevent normalization from overwriting the minidump timestamp
+            "processing": {"max_secs_in_past": 2 ** 32 - 1}
+        }
+    )
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+
+    # Disable scurbbing, the basic and full project configs from the mini_sentry fixture
+    # will modify the minidump since it contains user paths in the module list.  This breaks
+    # get_attachment_chunk() below.
+    del project_config["config"]["piiConfig"]
+
+    attachments_consumer = attachments_consumer()
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
+    relay.send_minidump(project_id=project_id, files=attachments)
+
+    # Only one attachment chunk expected
+    attachments_consumer.get_attachment_chunk()
+    event, _ = attachments_consumer.get_event()
+
+    # Check the placeholder payload
+    assert event["contexts"]["crashpad"] == {"hello": "world"}
+    assert event["contexts"]["dyld"] == {
+        "annotations": ["dyld2 mode"],
+        "type": "crashpad",
+    }
