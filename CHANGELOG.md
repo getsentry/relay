@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Remove `kafka-ssl` feature again because it breaks development workflow on OS X. ([#889](https://github.com/getsentry/relay/pull/889))
+
 **Bug Fixes**:
 
 - Make all fields but event-id optional to fix regressions in user feedback ingestion. ([#886](https://github.com/getsentry/relay/pull/886))
@@ -14,6 +18,7 @@
 
 **Features**:
 
+- Add `kafka-ssl` compilation feature that builds Kafka linked against OpenSSL. This feature is enabled in Docker containers only. This is only relevant for Relays running as part of on-premise Sentry. ([#881](https://github.com/getsentry/relay/pull/881))
 - Relay is now able to ingest pre-aggregated sessions, which will make it possible to efficiently handle applications that produce thousands of sessions per second. ([#815](https://github.com/getsentry/relay/pull/815))
 - Add protocol support for WASM. ([#852](https://github.com/getsentry/relay/pull/852))
 - Add dynamic sampling for transactions. ([#835](https://github.com/getsentry/relay/pull/835))
