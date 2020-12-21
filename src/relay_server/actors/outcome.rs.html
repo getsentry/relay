@@ -611,6 +611,11 @@
 <span id="608">608</span>
 <span id="609">609</span>
 <span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module contains the actor that tracks event outcomes.</span>
 <span class="doccomment">//!</span>
@@ -848,6 +853,10 @@
     <span class="doccomment">/// [Relay] The envelope, which contained only a transaction, was discarded by the</span>
     <span class="doccomment">/// dynamic sampling rules.</span>
     <span class="ident">TransactionSampled</span>,
+
+    <span class="doccomment">/// [Relay] The envelope, which contained an event, was discarded by the</span>
+    <span class="doccomment">/// dynamic sampling rules.</span>
+    <span class="ident">EventSampled</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">DiscardReason</span> {
@@ -881,6 +890,7 @@
             <span class="ident">DiscardReason</span>::<span class="ident">NoEventPayload</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;no_event_payload&quot;</span>,
             <span class="ident">DiscardReason</span>::<span class="ident">Internal</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;internal&quot;</span>,
             <span class="ident">DiscardReason</span>::<span class="ident">TransactionSampled</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;transaction_sampled&quot;</span>,
+            <span class="ident">DiscardReason</span>::<span class="ident">EventSampled</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_sampled&quot;</span>,
         }
     }
 }
