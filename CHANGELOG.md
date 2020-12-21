@@ -5,11 +5,11 @@
 **Features**:
 
 - Support dynamic sampling for error events. ([#883](https://github.com/getsentry/relay/pull/883))
-- Remove `kafka-ssl` feature again because it breaks development workflow on OS X. ([#889](https://github.com/getsentry/relay/pull/889))
 
 **Bug Fixes**:
 
 - Make all fields but event-id optional to fix regressions in user feedback ingestion. ([#886](https://github.com/getsentry/relay/pull/886))
+- Remove `kafka-ssl` feature because it breaks development workflow on macOS. ([#889](https://github.com/getsentry/relay/pull/889))
 
 ## 20.12.1
 
