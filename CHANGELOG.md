@@ -6,10 +6,15 @@
 
 - Support dynamic sampling for error events. ([#883](https://github.com/getsentry/relay/pull/883))
 
+
 **Bug Fixes**:
 
 - Make all fields but event-id optional to fix regressions in user feedback ingestion. ([#886](https://github.com/getsentry/relay/pull/886))
 - Remove `kafka-ssl` feature because it breaks development workflow on macOS. ([#889](https://github.com/getsentry/relay/pull/889))
+
+**Internal**:
+
+- Extract crashpad annotations into contexts. ([#892](https://github.com/getsentry/relay/pull/892))
 
 ## 20.12.1
 
