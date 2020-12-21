@@ -358,37 +358,6 @@
 <span id="355">355</span>
 <span id="356">356</span>
 <span id="357">357</span>
-<span id="358">358</span>
-<span id="359">359</span>
-<span id="360">360</span>
-<span id="361">361</span>
-<span id="362">362</span>
-<span id="363">363</span>
-<span id="364">364</span>
-<span id="365">365</span>
-<span id="366">366</span>
-<span id="367">367</span>
-<span id="368">368</span>
-<span id="369">369</span>
-<span id="370">370</span>
-<span id="371">371</span>
-<span id="372">372</span>
-<span id="373">373</span>
-<span id="374">374</span>
-<span id="375">375</span>
-<span id="376">376</span>
-<span id="377">377</span>
-<span id="378">378</span>
-<span id="379">379</span>
-<span id="380">380</span>
-<span id="381">381</span>
-<span id="382">382</span>
-<span id="383">383</span>
-<span id="384">384</span>
-<span id="385">385</span>
-<span id="386">386</span>
-<span id="387">387</span>
-<span id="388">388</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">///! Abstractions for dealing with either actix-web client structs or reqwest structs.</span>
 <span class="doccomment">///!</span>
@@ -401,15 +370,15 @@
 <span class="doccomment">///! objects and common request objects, it&#39;s just that nobody bothers to implement the conversion</span>
 <span class="doccomment">///! logic.</span>
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">Cursor</span>, <span class="ident">Read</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
 
 <span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">client</span>::{<span class="ident">ClientRequest</span>, <span class="ident">ClientRequestBuilder</span>, <span class="ident">ClientResponse</span>};
 <span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">error</span>::{<span class="ident">JsonPayloadError</span>, <span class="ident">PayloadError</span>};
 <span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">http</span>::{<span class="ident">ContentEncoding</span>, <span class="ident">StatusCode</span>};
 <span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">Binary</span>, <span class="ident">Error</span> <span class="kw">as</span> <span class="ident">ActixError</span>, <span class="ident">HttpMessage</span>};
-<span class="kw">use</span> <span class="ident">brotli2</span>::<span class="ident">read</span>::<span class="ident">BrotliEncoder</span>;
+<span class="kw">use</span> <span class="ident">brotli2</span>::<span class="ident">write</span>::<span class="ident">BrotliEncoder</span>;
 <span class="kw">use</span> <span class="ident">failure</span>::<span class="ident">Fail</span>;
-<span class="kw">use</span> <span class="ident">flate2</span>::<span class="ident">read</span>::{<span class="ident">GzEncoder</span>, <span class="ident">ZlibEncoder</span>};
+<span class="kw">use</span> <span class="ident">flate2</span>::<span class="ident">write</span>::{<span class="ident">GzEncoder</span>, <span class="ident">ZlibEncoder</span>};
 <span class="kw">use</span> <span class="ident">flate2</span>::<span class="ident">Compression</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">futures03</span>::{<span class="ident">FutureExt</span>, <span class="ident">TryFutureExt</span>, <span class="ident">TryStreamExt</span>};
@@ -547,34 +516,31 @@
         <span class="kw">match</span> <span class="self">self</span> {
             <span class="ident">RequestBuilder</span>::<span class="ident">Actix</span>(<span class="kw-2">mut</span> <span class="ident">builder</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Request</span>::<span class="ident">Actix</span>(<span class="ident">builder</span>.<span class="ident">body</span>(<span class="ident">body</span>)<span class="question-mark">?</span>)),
             <span class="ident">RequestBuilder</span>::<span class="ident">Reqwest</span> {
-                <span class="kw-2">mut</span> <span class="ident">builder</span>,
+                <span class="ident">builder</span>,
                 <span class="ident">http_encoding</span>,
             } <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="ident">body</span>);
-
-                <span class="kw">match</span> <span class="ident">http_encoding</span> {
-                    <span class="ident">HttpEncoding</span>::<span class="ident">Identity</span> <span class="op">=</span><span class="op">&gt;</span> {
-                        <span class="ident">builder</span> <span class="op">=</span> <span class="ident">builder</span>
-                            .<span class="ident">header</span>(<span class="string">&quot;Content-Encoding&quot;</span>, <span class="string">&quot;identity&quot;</span>)
-                            .<span class="ident">body</span>(<span class="ident">reqwest_body_from_read</span>(<span class="ident">reader</span>))
-                    }
+                <span class="kw">let</span> <span class="ident">builder</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">http_encoding</span> {
+                    <span class="ident">HttpEncoding</span>::<span class="ident">Identity</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">builder</span>.<span class="ident">body</span>(<span class="ident">body</span>.<span class="ident">as_ref</span>().<span class="ident">to_vec</span>()),
                     <span class="ident">HttpEncoding</span>::<span class="ident">Deflate</span> <span class="op">=</span><span class="op">&gt;</span> {
-                        <span class="kw">let</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">ZlibEncoder</span>::<span class="ident">new</span>(<span class="ident">reader</span>, <span class="ident">Compression</span>::<span class="ident">default</span>());
-                        <span class="ident">builder</span> <span class="op">=</span> <span class="ident">builder</span>
+                        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">ZlibEncoder</span>::<span class="ident">new</span>(<span class="ident">Vec</span>::<span class="ident">new</span>(), <span class="ident">Compression</span>::<span class="ident">default</span>());
+                        <span class="ident">encoder</span>.<span class="ident">write_all</span>(<span class="ident">body</span>.<span class="ident">as_ref</span>())<span class="question-mark">?</span>;
+                        <span class="ident">builder</span>
                             .<span class="ident">header</span>(<span class="string">&quot;Content-Encoding&quot;</span>, <span class="string">&quot;deflate&quot;</span>)
-                            .<span class="ident">body</span>(<span class="ident">reqwest_body_from_read</span>(<span class="ident">encoder</span>))
+                            .<span class="ident">body</span>(<span class="ident">encoder</span>.<span class="ident">finish</span>()<span class="question-mark">?</span>)
                     }
                     <span class="ident">HttpEncoding</span>::<span class="ident">Gzip</span> <span class="op">=</span><span class="op">&gt;</span> {
-                        <span class="kw">let</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">GzEncoder</span>::<span class="ident">new</span>(<span class="ident">reader</span>, <span class="ident">Compression</span>::<span class="ident">default</span>());
-                        <span class="ident">builder</span> <span class="op">=</span> <span class="ident">builder</span>
+                        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">GzEncoder</span>::<span class="ident">new</span>(<span class="ident">Vec</span>::<span class="ident">new</span>(), <span class="ident">Compression</span>::<span class="ident">default</span>());
+                        <span class="ident">encoder</span>.<span class="ident">write_all</span>(<span class="ident">body</span>.<span class="ident">as_ref</span>())<span class="question-mark">?</span>;
+                        <span class="ident">builder</span>
                             .<span class="ident">header</span>(<span class="string">&quot;Content-Encoding&quot;</span>, <span class="string">&quot;gzip&quot;</span>)
-                            .<span class="ident">body</span>(<span class="ident">reqwest_body_from_read</span>(<span class="ident">encoder</span>))
+                            .<span class="ident">body</span>(<span class="ident">encoder</span>.<span class="ident">finish</span>()<span class="question-mark">?</span>)
                     }
                     <span class="ident">HttpEncoding</span>::<span class="ident">Br</span> <span class="op">=</span><span class="op">&gt;</span> {
-                        <span class="kw">let</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">BrotliEncoder</span>::<span class="ident">new</span>(<span class="ident">reader</span>, <span class="number">5</span>);
-                        <span class="ident">builder</span> <span class="op">=</span> <span class="ident">builder</span>
+                        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">BrotliEncoder</span>::<span class="ident">new</span>(<span class="ident">Vec</span>::<span class="ident">new</span>(), <span class="number">5</span>);
+                        <span class="ident">encoder</span>.<span class="ident">write_all</span>(<span class="ident">body</span>.<span class="ident">as_ref</span>())<span class="question-mark">?</span>;
+                        <span class="ident">builder</span>
                             .<span class="ident">header</span>(<span class="string">&quot;Content-Encoding&quot;</span>, <span class="string">&quot;br&quot;</span>)
-                            .<span class="ident">body</span>(<span class="ident">reqwest_body_from_read</span>(<span class="ident">encoder</span>))
+                            .<span class="ident">body</span>(<span class="ident">encoder</span>.<span class="ident">finish</span>()<span class="question-mark">?</span>)
                     }
                 };
 
@@ -609,34 +575,6 @@
 
         <span class="self">self</span>
     }
-}
-
-<span class="doccomment">/// Convert a Read to a reqwest body.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// NOTE: This should really only be used for Read that don&#39;t do I/O, i.e. strings (where this is</span>
-<span class="doccomment">/// useless), and read-based compressors that wrap the former (where this is useful)</span>
-<span class="kw">fn</span> <span class="ident">reqwest_body_from_read</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span>(<span class="kw-2">mut</span> <span class="ident">reader</span>: <span class="ident">R</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">reqwest</span>::<span class="ident">Body</span>
-<span class="kw">where</span>
-    <span class="ident">R</span>: <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span> <span class="op">+</span> <span class="ident">Read</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
-{
-    <span class="comment">// Local imports because importing them top-level is too confusing with two futures crates</span>
-    <span class="kw">use</span> <span class="ident">futures03</span>::{<span class="ident">stream</span>::<span class="ident">poll_fn</span>, <span class="ident">task</span>::<span class="ident">Poll</span>};
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> <span class="op">=</span> [<span class="number">0</span>; <span class="number">8192</span>];
-
-    <span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">poll_fn</span>(<span class="kw">move</span> <span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
-        <span class="kw">let</span> <span class="ident">bytes_read</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">reader</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>) {
-            <span class="prelude-val">Ok</span>(<span class="ident">x</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">x</span>,
-            <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">Poll</span>::<span class="ident">Ready</span>(<span class="prelude-val">Some</span>(<span class="prelude-val">Err</span>(<span class="ident">e</span>))),
-        };
-
-        <span class="kw">if</span> <span class="ident">bytes_read</span> <span class="op">&gt;</span> <span class="number">0</span> {
-            <span class="ident">Poll</span>::<span class="ident">Ready</span>(<span class="prelude-val">Some</span>(<span class="prelude-val">Ok</span>(<span class="ident">buf</span>[..<span class="ident">bytes_read</span>].<span class="ident">to_vec</span>())))
-        } <span class="kw">else</span> {
-            <span class="ident">Poll</span>::<span class="ident">Ready</span>(<span class="prelude-val">None</span>)
-        }
-    });
-
-    <span class="ident">reqwest</span>::<span class="ident">Body</span>::<span class="ident">wrap_stream</span>(<span class="ident">stream</span>)
 }
 
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy</span>::<span class="ident">large_enum_variant</span>)]</span>
