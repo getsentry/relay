@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Support dynamic sampling for error events. ([#883](https://github.com/getsentry/relay/pull/883))
+
 **Bug Fixes**:
 
 - Make all fields but event-id optional to fix regressions in user feedback ingestion. ([#886](https://github.com/getsentry/relay/pull/886))
