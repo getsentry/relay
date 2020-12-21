@@ -15,7 +15,8 @@ mod test;
 
 #[cfg(feature = "processing")]
 mod kafka;
-
+#[cfg(feature = "processing")]
+mod native;
 #[cfg(feature = "processing")]
 mod unreal;
 
@@ -33,6 +34,7 @@ pub use self::tracked_future::*;
 
 #[cfg(feature = "processing")]
 pub use self::kafka::*;
-
+#[cfg(feature = "processing")]
+pub use self::native::*;
 #[cfg(feature = "processing")]
 pub use self::unreal::*;
