@@ -1,5 +1,6 @@
 #!/bin/bash
-set -eu
+# Script: upload debug information and source bundle to Sentry when deploying the new version.
+#
 # Positional arguments:
 #   $1: Release version (commit SHA)
 #
@@ -7,6 +8,7 @@ set -eu
 #   SENTRY_AUTH_TOKEN: Sentry auth token (https://sentry.io/settings/account/api/auth-tokens/)
 #   SENTRY_ORG: Organization slug
 #   SENTRY_PROJECT: Project slug
+set -eu
 
 VERSION="${1:-}"
 GITHUB_PROJECT="getsentry/relay"
