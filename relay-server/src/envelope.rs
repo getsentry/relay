@@ -892,7 +892,9 @@ impl Envelope {
         let headers_end = stream.byte_offset();
         Self::require_termination(slice, headers_end)?;
 
-        let payload_start = headers_end + 1;
+        // The last header does not require a trailing newline, so `payload_start` may point
+        // past the end of the buffer.
+        let payload_start = std::cmp::min(headers_end + 1, bytes.len());
         let payload_end = match headers.length {
             Some(len) => {
                 let payload_end = payload_start + len as usize;
@@ -1098,6 +1100,26 @@ mod tests {
     }
 
     #[test]
+    fn test_deserialize_envelope_empty_item_eof() {
+        // With terminating newline after item payload
+        let bytes = Bytes::from(
+            "\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"attachment\",\"length\":0}\n\
+             \n\
+             {\"type\":\"attachment\",\"length\":0}\
+             ",
+        );
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        assert_eq!(envelope.len(), 2);
+
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items[0].len(), 0);
+        assert_eq!(items[1].len(), 0);
+    }
+
+    #[test]
     fn test_deserialize_envelope_implicit_length() {
         // With terminating newline after item payload
         let bytes = Bytes::from(
@@ -1131,6 +1153,24 @@ mod tests {
 
         let items: Vec<_> = envelope.items().collect();
         assert_eq!(items[0].len(), 10);
+    }
+
+    #[test]
+    fn test_deserialize_envelope_implicit_length_empty_eof() {
+        // Empty item with implicit length ending the envelope
+        // Panic regression test.
+        let bytes = Bytes::from(
+            "\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"attachment\"}\
+             ",
+        );
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        assert_eq!(envelope.len(), 1);
+
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items[0].len(), 0);
     }
 
     #[test]
