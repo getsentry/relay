@@ -12,6 +12,7 @@
 - Make all fields but event-id optional to fix regressions in user feedback ingestion. ([#886](https://github.com/getsentry/relay/pull/886))
 - Remove `kafka-ssl` feature because it breaks development workflow on macOS. ([#889](https://github.com/getsentry/relay/pull/889))
 - Accept envelopes where their last item is empty and trailing newlines are omitted. This also fixes a panic in some cases. ([#894](https://github.com/getsentry/relay/pull/894))
+- Changes the .NET Framework version format to be 3 digits. ([#898](https://github.com/getsentry/relay/pull/898))
 
 **Internal**:
 
