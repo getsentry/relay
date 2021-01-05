@@ -723,7 +723,7 @@
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">categories</span> <span class="op">=</span> <span class="ident">DataCategories</span>::<span class="ident">new</span>();
         <span class="kw">for</span> <span class="ident">category</span> <span class="kw">in</span> <span class="ident">components</span>.<span class="ident">next</span>().<span class="ident">unwrap_or</span>(<span class="string">&quot;&quot;</span>).<span class="ident">split</span>(<span class="string">&#39;;&#39;</span>) {
-            <span class="kw">if</span> <span class="ident">category</span> <span class="op">!</span><span class="op">=</span> <span class="string">&quot;&quot;</span> {
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">category</span>.<span class="ident">is_empty</span>() {
                 <span class="ident">categories</span>.<span class="ident">push</span>(<span class="ident">DataCategory</span>::<span class="ident">from_name</span>(<span class="ident">category</span>));
             }
         }

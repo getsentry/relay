@@ -68,8 +68,16 @@
 <span id="65">65</span>
 <span id="66">66</span>
 <span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Implements the sentry event protocol.</span>
+
+<span class="comment">// FIXME: Workaround for https://github.com/GREsau/schemars/pull/65</span>
+<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy</span>::<span class="ident">field_reassign_with_default</span>)]</span>
+
 <span class="kw">mod</span> <span class="ident">breadcrumb</span>;
 <span class="kw">mod</span> <span class="ident">clientsdk</span>;
 <span class="kw">mod</span> <span class="ident">constants</span>;
