@@ -861,8 +861,10 @@ fn test_user_ip_from_client_ip_without_auto() {
         ..Default::default()
     });
 
-    let mut config = StoreConfig::default();
-    config.client_ip = Some(IpAddr::parse("2.125.160.216").unwrap());
+    let config = StoreConfig {
+        client_ip: Some(IpAddr::parse("2.125.160.216").unwrap()),
+        ..StoreConfig::default()
+    };
 
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
@@ -889,8 +891,10 @@ fn test_user_ip_from_client_ip_with_auto() {
         ..Default::default()
     });
 
-    let mut config = StoreConfig::default();
-    config.client_ip = Some(IpAddr::parse("2.125.160.216").unwrap());
+    let config = StoreConfig {
+        client_ip: Some(IpAddr::parse("2.125.160.216").unwrap()),
+        ..StoreConfig::default()
+    };
 
     let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
     let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
@@ -908,8 +912,10 @@ fn test_user_ip_from_client_ip_with_auto() {
 fn test_user_ip_from_client_ip_without_appropriate_platform() {
     let mut event = Annotated::new(Event::default());
 
-    let mut config = StoreConfig::default();
-    config.client_ip = Some(IpAddr::parse("2.125.160.216").unwrap());
+    let config = StoreConfig {
+        client_ip: Some(IpAddr::parse("2.125.160.216").unwrap()),
+        ..StoreConfig::default()
+    };
 
     let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
     let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));

@@ -57,7 +57,7 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
 
         let mut categories = DataCategories::new();
         for category in components.next().unwrap_or("").split(';') {
-            if category != "" {
+            if !category.is_empty() {
                 categories.push(DataCategory::from_name(category));
             }
         }
