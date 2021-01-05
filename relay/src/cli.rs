@@ -90,7 +90,7 @@ pub fn extract_config_env_vars() -> OverridableConfig {
     }
 }
 
-pub fn manage_credentials<'a>(mut config: Config, matches: &ArgMatches<'a>) -> Result<(), Error> {
+pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<(), Error> {
     // generate completely new credentials
     if let Some(matches) = matches.subcommand_matches("generate") {
         if config.has_credentials() && !matches.is_present("overwrite") {
@@ -214,10 +214,7 @@ pub fn manage_config<'a>(config: &Config, matches: &ArgMatches<'a>) -> Result<()
     }
 }
 
-pub fn init_config<'a, P: AsRef<Path>>(
-    config_path: P,
-    _matches: &ArgMatches<'a>,
-) -> Result<(), Error> {
+pub fn init_config<P: AsRef<Path>>(config_path: P, _matches: &ArgMatches) -> Result<(), Error> {
     let mut done_something = false;
     let config_path = env::current_dir()?.join(config_path.as_ref());
     println!("Initializing relay in {}", config_path.display());
@@ -307,7 +304,7 @@ pub fn init_config<'a, P: AsRef<Path>>(
     Ok(())
 }
 
-pub fn generate_completions<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
+pub fn generate_completions(matches: &ArgMatches) -> Result<(), Error> {
     let shell = match matches
         .value_of("format")
         .map(|x| x.parse::<Shell>().unwrap())
@@ -337,7 +334,7 @@ pub fn generate_completions<'a>(matches: &ArgMatches<'a>) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn run<'a>(config: Config, _matches: &ArgMatches<'a>) -> Result<(), Error> {
+pub fn run(config: Config, _matches: &ArgMatches) -> Result<(), Error> {
     setup::dump_spawn_infos(&config);
     setup::check_config(&config)?;
     setup::init_metrics(&config)?;
