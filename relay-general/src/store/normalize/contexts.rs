@@ -15,7 +15,7 @@ lazy_static::lazy_static! {
     static ref OS_UNAME_REGEX: Regex = Regex::new(r#"^(?P<name>[a-zA-Z]+) (?P<version>\d+\.\d+\.\d+(\.[1-9]+)?).*$"#).unwrap();
 
     /// Mono 5.4, .NET Core 2.0
-    static ref RUNTIME_DOTNET_REGEX: Regex = Regex::new(r#"^(?P<name>.*) (?P<version>\d+\.\d+(\.\d+){0,2}).*$"#).unwrap();
+    static ref RUNTIME_DOTNET_REGEX: Regex = Regex::new(r#"^(?P<name>.*) (?P<version>\d+\.\d+(\.\d+)?)(\.\d+)?.*$"#).unwrap();
 }
 
 fn normalize_runtime_context(runtime: &mut RuntimeContext) {
@@ -121,7 +121,7 @@ fn test_dotnet_framework_48_without_build_id() {
 
     normalize_runtime_context(&mut runtime);
     assert_eq_dbg!(Some(".NET Framework"), runtime.name.as_str());
-    assert_eq_dbg!(Some("4.8.4250.0"), runtime.version.as_str());
+    assert_eq_dbg!(Some("4.8.4250"), runtime.version.as_str());
 }
 
 #[test]
