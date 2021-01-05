@@ -113,6 +113,18 @@ pub fn normalize_context(context: &mut Context) {
 use crate::protocol::LenientString;
 
 #[test]
+fn test_dotnet_framework_48_without_build_id() {
+    let mut runtime = RuntimeContext {
+        raw_description: ".NET Framework 4.8.4250.0".to_string().into(),
+        ..RuntimeContext::default()
+    };
+
+    normalize_runtime_context(&mut runtime);
+    assert_eq_dbg!(Some(".NET Framework"), runtime.name.as_str());
+    assert_eq_dbg!(Some("4.8.4250.0"), runtime.version.as_str());
+}
+
+#[test]
 fn test_dotnet_framework_472() {
     let mut runtime = RuntimeContext {
         raw_description: ".NET Framework 4.7.3056.0".to_string().into(),
