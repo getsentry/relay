@@ -1,21 +1,29 @@
 #!/bin/bash
-set -eu
+# Script: upload debug information and source bundle to Sentry when deploying the new version.
+#
+# Positional arguments:
+#   $1: Release version (commit SHA)
+#
 # Required environment variables:
 #   SENTRY_AUTH_TOKEN: Sentry auth token (https://sentry.io/settings/account/api/auth-tokens/)
+#   SENTRY_ORG: Organization slug
+#   SENTRY_PROJECT: Project slug
+set -eu
 
 VERSION="${1:-}"
 GITHUB_PROJECT="getsentry/relay"
 DOCKER_IMAGE="us.gcr.io/sentryio/relay:${VERSION}"
-export SENTRY_ORG="sentry"
-export SENTRY_PROJECT="relay"
 
 if [ -z "${VERSION}" ]; then
   echo 'No version specified' && exit 1
 fi
 
-
 if [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then
   echo 'No Sentry auth token found' && exit 1
+fi
+
+if [ -z "${SENTRY_ORG:-}" ] || [ -z "${SENTRY_PROJECT:-}" ]; then
+  echo 'No SENTRY_ORG or SENTRY_PROJECT provided' && exit 1
 fi
 
 echo 'Pulling debug information from relay image...'

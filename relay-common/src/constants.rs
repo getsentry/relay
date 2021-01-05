@@ -1,5 +1,8 @@
 //! Constants shared with the C-ABI and Sentry.
 
+// FIXME: Workaround for https://github.com/GREsau/schemars/pull/65
+#![allow(clippy::field_reassign_with_default)]
+
 use std::fmt;
 use std::str::FromStr;
 
