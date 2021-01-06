@@ -17,8 +17,8 @@
   </p>
 </p>
 
-The Sentry Relay is a work in progress service that pushes some functionality
-from the Sentry SDKs as well as the Sentry server into a proxy process.
+The Sentry Relay is a service that pushes some functionality from the Sentry
+SDKs as well as the Sentry server into a proxy process.
 
 ## Documentation
 
