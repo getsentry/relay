@@ -388,21 +388,31 @@ impl EventProcessor {
         });
     }
 
-    /// Validates all user report/feedback items in the envelope, if any.
+    /// Validates and normalizes all user report items in the envelope.
     ///
     /// User feedback items are removed from the envelope if they contain invalid JSON or if the
-    /// JSON violates the schema (basic type validation).
+    /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
+    /// is written back into the item.
     fn process_user_reports(&self, state: &mut ProcessEnvelopeState) {
         state.envelope.retain_items(|item| {
             if item.ty() != ItemType::UserReport {
                 return true;
             };
 
-            if let Err(error) = serde_json::from_slice::<UserReport>(&item.payload()) {
-                relay_log::error!("failed to store user report: {}", LogError(&error));
-                return false;
-            }
+            let report = match serde_json::from_slice::<UserReport>(&item.payload()) {
+                Ok(session) => session,
+                Err(error) => {
+                    relay_log::error!("failed to store user report: {}", LogError(&error));
+                    return false;
+                }
+            };
 
+            let json_string = match serde_json::to_string(&report) {
+                Ok(json) => json,
+                Err(_) => return false,
+            };
+
+            item.set_payload(ContentType::Json, json_string);
             true
         });
     }
