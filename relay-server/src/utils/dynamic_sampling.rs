@@ -151,7 +151,7 @@ fn matches<T: FieldValueProvider>(
     if ty != rule.ty {
         return false;
     }
-    if rule.project_ids.len() != 0 && !rule.project_ids.iter().any(|id| *id == project_id) {
+    if !rule.project_ids.is_empty() && !rule.project_ids.iter().any(|id| *id == project_id) {
         return false;
     }
     for cond in &rule.conditions {
@@ -453,7 +453,6 @@ fn pseudo_random_from_uuid(id: Uuid) -> Option<f64> {
 mod tests {
     use super::*;
     use insta::assert_ron_snapshot;
-    use relay_log;
     use std::str::FromStr;
 
     #[test]
