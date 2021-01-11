@@ -5,6 +5,7 @@
 **Features**:
 
 - Support dynamic sampling for error events. ([#883](https://github.com/getsentry/relay/pull/883))
+- Improve dynamic sampling rule configuration. ([#907](https://github.com/getsentry/relay/pull/907))
 
 
 **Bug Fixes**:
