@@ -190,7 +190,7 @@ fn match_glob(rule_val: &GlobPatterns, field_val: &FieldValue) -> bool {
     }
 }
 
-fn equal(rule_val: &Vec<String>, field_val: &FieldValue) -> bool {
+fn equal(rule_val: &[String], field_val: &FieldValue) -> bool {
     match field_val {
         FieldValue::String(fv) => rule_val.iter().any(|v| v == fv),
         _ => false,
@@ -200,7 +200,7 @@ fn equal(rule_val: &Vec<String>, field_val: &FieldValue) -> bool {
 // Note: this is horrible (we allocate strings at every comparison, when we
 // move to an 'compiled' version where the rule value is already processed
 // things should improve
-fn str_eq_no_case(rule_val: &Vec<LowerCaseString>, field_val: &FieldValue) -> bool {
+fn str_eq_no_case(rule_val: &[LowerCaseString], field_val: &FieldValue) -> bool {
     match field_val {
         FieldValue::LoCaseString(fv) => rule_val.iter().any(|val| val == fv),
         _ => false,
