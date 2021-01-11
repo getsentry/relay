@@ -679,7 +679,7 @@ mod tests {
                 },
             ),
             (
-                "all user environments",
+                "all environments",
                 SamplingRule {
                     project_ids: vec![project_id],
                     conditions: vec![
@@ -690,6 +690,24 @@ mod tests {
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
                             value: (vec![]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![LowerCaseString::new("vip")]),
+                        }),
+                    ],
+                    sample_rate: 1.0,
+                    ty: RuleType::Trace,
+                },
+            ),
+            (
+                "undefined environments",
+                SamplingRule {
+                    project_ids: vec![project_id],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.1.1".to_string()]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
@@ -718,6 +736,15 @@ mod tests {
                             value: (vec![]),
                         }),
                     ],
+                    sample_rate: 1.0,
+                    ty: RuleType::Trace,
+                },
+            ),
+            (
+                "match no conditions",
+                SamplingRule {
+                    project_ids: vec![],
+                    conditions: vec![],
                     sample_rate: 1.0,
                     ty: RuleType::Trace,
                 },
@@ -935,7 +962,7 @@ mod tests {
         let serialized_rule = r#"{
             "projectIds": [1,2],
             "conditions":[
-                { "operator" : "match", "name": "releases", "value":["1.1.1", "1.1.2"]},
+                { "operator" : "globMatch", "name": "releases", "value":["1.1.1", "1.1.2"]},
                 { "operator" : "strEqualNoCase", "name": "enviroments", "value":["DeV", "pRoD"]},
                 { "operator" : "strEqualNoCase", "name": "userSegements", "value":["FirstSegment", "SeCoNd"]}
             ],                
