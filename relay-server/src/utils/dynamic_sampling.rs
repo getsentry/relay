@@ -24,10 +24,9 @@ pub enum RuleType {
     Trace,
     /// A transaction rule applies to transactions and it is applied  on the transaction event
     Transaction,
-    //TODO find a better name for this
     /// A non transaction rule applies to Errors, Security events...every type of event that
     /// is not a Transaction
-    NonTransaction,
+    Error,
 }
 
 /// The value of a field extracted from a FieldValueProvider (Event or TraceContext)
@@ -115,7 +114,7 @@ impl FieldValueProvider for Event {
                 return RuleType::Transaction;
             }
         }
-        RuleType::NonTransaction
+        RuleType::Error
     }
 }
 
@@ -322,7 +321,7 @@ fn rule_type_for_event(event: &Event) -> RuleType {
     if let Some(EventType::Transaction) = &event.ty.0 {
         RuleType::Transaction
     } else {
-        RuleType::NonTransaction
+        RuleType::Error
     }
 }
 
@@ -855,7 +854,7 @@ mod tests {
                         }),
                     ],
                     sample_rate: 1.0,
-                    ty: RuleType::NonTransaction,
+                    ty: RuleType::Error,
                 },
             ),
         ];
