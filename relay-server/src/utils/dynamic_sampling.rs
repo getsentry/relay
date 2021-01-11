@@ -10,39 +10,202 @@ use rand_pcg::Pcg32;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use relay_common::{ProjectId, ProjectKey, Uuid};
+use relay_common::{EventType, ProjectId, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
 use relay_general::protocol::{Event, EventId};
 
 use crate::actors::project::{GetCachedProjectState, GetProjectState, Project, ProjectState};
 use crate::envelope::{Envelope, ItemType};
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub enum SamplingStrategy {
-    Trace, // Rules that apply to Transaction items
-    Event, // Rules that apply to Event items
+pub enum RuleType {
+    /// A trace rule applies only to transactions and it is applied on the trace info
+    Trace,
+    /// A transaction rule applies to transactions and it is applied  on the transaction event
+    Transaction,
+    //TODO find a better name for this
+    /// A non transaction rule applies to Errors, Security events...every type of event that
+    /// is not a Transaction
+    NonTransaction,
 }
 
-/// A sampling rule defined by user in Organization options.
+/// The value of a field extracted from a FieldValueProvider (Event or TraceContext)
+#[derive(Debug, Clone)]
+pub enum FieldValue<'a> {
+    String(&'a str),
+    LoCaseString(LowerCaseString),
+    None,
+}
+
+/// The value kept in a configuration rule
+/// Note 1: this is serialized as an untagged struct so it will never
+/// deserialize into a LoCaseStrList, LoCaseStr.
+/// There should be a step after deserialization to convert StrList into
+/// either a LoCaseStrList or a GlobPatterns based on the existing operator.
+/// This is done to both simplify the serialisation format (no tag) and not
+/// to have redundant (potentially contradicting) information between the
+/// RuleValue and the Operator
+/// Note 2: We bother in the first place with LoCaseStr and GlobPatterns in order
+/// not to need to do the conversion every time we check a rule.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", untagged)]
+pub enum RuleValue {
+    StrList(Vec<String>),
+    LoCaseStrList(Vec<LowerCaseString>),
+    Globs(GlobPatterns),
+    None,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConditionData<T> {
+    pub name: String,
+    pub value: T,
+}
+
+/// A condition from a sampling rule
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "operator")]
+pub enum RuleCondition {
+    Equal(ConditionData<Vec<String>>),
+    StrEqualNoCase(ConditionData<Vec<LowerCaseString>>),
+    GlobMatch(ConditionData<GlobPatterns>),
+    #[serde(other)]
+    Unsupported,
+}
+
+/// A sampling rule as it is deserialized from the project
+/// configuration  
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SamplingRule {
-    /// The project ids for which the sample rule applies, empty applies to all
-    #[serde(default)]
     pub project_ids: Vec<ProjectId>,
-    /// A set of Glob patterns for which the rule applies, empty applies to all
-    #[serde(default)]
-    pub releases: GlobPatterns,
-    /// A set of user_segments for which the rule applies, empty applies to all
-    #[serde(default)]
-    pub user_segments: Vec<LowerCaseString>,
-    #[serde(default)]
-    pub environments: Vec<LowerCaseString>,
-    /// The sampling rate for trace matching this rule
+    pub conditions: Vec<RuleCondition>,
     pub sample_rate: f64,
-    /// Specifies to what type of item does this rule apply
-    pub strategy: SamplingStrategy,
+    pub ty: RuleType,
+}
+
+/// Trait implemented by providers of fields (Events and Trace Contexts).
+/// The fields will be used by rules to check if they apply.
+trait FieldValueProvider {
+    /// gets the value of a field
+    fn get_value(&self, path: &str) -> FieldValue;
+    /// what type of rule can be applied to this provider
+    fn get_rule_type(&self) -> RuleType;
+}
+
+impl FieldValueProvider for Event {
+    fn get_value(&self, field_name: &str) -> FieldValue {
+        match field_name {
+            "event.release" => match self.release.as_str() {
+                None => FieldValue::None,
+                Some(s) => FieldValue::String(s),
+            },
+            "event.environment" => match self.environment.as_str() {
+                None => FieldValue::None,
+                Some(s) => FieldValue::LoCaseString(LowerCaseString::new(s)),
+            },
+            "event.user_segment" => FieldValue::None, // Not available at this time
+            _ => FieldValue::None,
+        }
+    }
+    fn get_rule_type(&self) -> RuleType {
+        if let Some(ty) = self.ty.value() {
+            if *ty == EventType::Transaction {
+                return RuleType::Transaction;
+            }
+        }
+        RuleType::NonTransaction
+    }
+}
+
+impl FieldValueProvider for TraceContext {
+    fn get_value(&self, field_name: &str) -> FieldValue {
+        match field_name {
+            "trace.release" => match &self.release {
+                None => FieldValue::None,
+                Some(s) => FieldValue::String(s.as_ref()),
+            },
+            "trace.environment" => match &self.environment {
+                None => FieldValue::None,
+                Some(s) => FieldValue::LoCaseString(LowerCaseString::new(s)),
+            },
+            "trace.user_segment" => match &self.user_segment {
+                None => FieldValue::None,
+                Some(s) => FieldValue::LoCaseString(LowerCaseString::new(s)),
+            },
+            _ => FieldValue::None,
+        }
+    }
+    fn get_rule_type(&self) -> RuleType {
+        RuleType::Trace
+    }
+}
+
+//TODO make this more efficient
+fn matches<T: FieldValueProvider>(
+    value_provider: &T,
+    project_id: ProjectId,
+    rule: &SamplingRule,
+    ty: RuleType,
+) -> bool {
+    if ty != rule.ty {
+        return false;
+    }
+    if rule.project_ids.len() != 0 && !rule.project_ids.iter().any(|id| *id == project_id) {
+        return false;
+    }
+    for cond in &rule.conditions {
+        let passes = match cond {
+            RuleCondition::Equal(cond) => {
+                if cond.value.is_empty() {
+                    continue;
+                }
+                equal(&cond.value, &value_provider.get_value(cond.name.as_str()))
+            }
+            RuleCondition::GlobMatch(cond) => {
+                if cond.value.is_empty() {
+                    continue;
+                }
+                match_glob(&cond.value, &value_provider.get_value(cond.name.as_str()))
+            }
+            RuleCondition::StrEqualNoCase(cond) => {
+                if cond.value.is_empty() {
+                    continue;
+                }
+                str_eq_no_case(&cond.value, &value_provider.get_value(cond.name.as_str()))
+            }
+            _ => false,
+        };
+        if !passes {
+            return false;
+        }
+    }
+    true
+}
+
+fn match_glob(rule_val: &GlobPatterns, field_val: &FieldValue) -> bool {
+    match field_val {
+        FieldValue::String(fv) => rule_val.is_match(fv),
+        _ => false,
+    }
+}
+
+fn equal(rule_val: &Vec<String>, field_val: &FieldValue) -> bool {
+    match field_val {
+        FieldValue::String(fv) => rule_val.iter().any(|v| v == fv),
+        _ => false,
+    }
+}
+
+// Note: this is horrible (we allocate strings at every comparison, when we
+// move to an 'compiled' version where the rule value is already processed
+// things should improve
+fn str_eq_no_case(rule_val: &Vec<LowerCaseString>, field_val: &FieldValue) -> bool {
+    match field_val {
+        FieldValue::LoCaseString(fv) => rule_val.iter().any(|val| val == fv),
+        _ => false,
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -91,65 +254,6 @@ impl<'de> Deserialize<'de> for LowerCaseString {
     }
 }
 
-impl SamplingRule {
-    /// Tests whether a rule matches a trace context
-    fn matches(
-        &self,
-        release: Option<&str>,
-        user_segment: &Option<LowerCaseString>,
-        environment: &Option<LowerCaseString>,
-        project_id: ProjectId,
-        strategy: SamplingStrategy,
-    ) -> bool {
-        // check we are matching the right type of rule
-        if self.strategy != strategy {
-            return false;
-        }
-
-        // match against the environment
-        if !self.environments.is_empty() {
-            match environment {
-                None => return false,
-                Some(ref environment) => {
-                    if !self.environments.contains(environment) {
-                        return false;
-                    }
-                }
-            }
-        }
-
-        // match against the project
-        if !self.project_ids.is_empty() && !self.project_ids.contains(&project_id) {
-            return false;
-        }
-
-        // match against the release
-        if !self.releases.is_empty() {
-            match release {
-                None => return false,
-                Some(ref release) => {
-                    if !self.releases.is_match(release) {
-                        return false;
-                    }
-                }
-            }
-        }
-
-        // match against the user_segment
-        if !self.user_segments.is_empty() {
-            match user_segment {
-                None => return false,
-                Some(ref user_segment) => {
-                    if !self.user_segments.contains(user_segment) {
-                        return false;
-                    }
-                }
-            }
-        }
-        true
-    }
-}
-
 /// Represents the dynamic sampling configuration available to a project.
 /// Note: This comes from the organization data
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,15 +261,6 @@ impl SamplingRule {
 pub struct SamplingConfig {
     /// The sampling rules for the project
     pub rules: Vec<SamplingRule>,
-}
-
-/// Represents an object that can provide the context needed to make a sampling decision.
-///
-/// TraceContext and Event are implementors of this trait.
-trait SamplingContextProvider {
-    fn release(&self) -> Option<&str>;
-    fn environment(&self) -> Option<&str>;
-    fn user_segment(&self) -> Option<&str>;
 }
 
 /// TraceContext created by the first Sentry SDK in the call chain
@@ -190,45 +285,10 @@ impl TraceContext {
     /// Returns the decision of whether to sample or not a trace based on the configuration rules
     /// If None then a decision can't be made either because of an invalid of missing trace context or
     /// because no applicable sampling rule could be found.
-    fn should_sample(
-        &self,
-        config: &SamplingConfig,
-        project_id: ProjectId,
-        strategy: SamplingStrategy,
-    ) -> Option<bool> {
-        let rule = get_matching_rule(config, self, project_id, strategy)?;
+    fn should_sample(&self, config: &SamplingConfig, project_id: ProjectId) -> Option<bool> {
+        let rule = get_matching_rule(config, self, project_id, RuleType::Trace)?;
         let rate = pseudo_random_from_uuid(self.trace_id)?;
         Some(rate < rule.sample_rate)
-    }
-}
-
-impl SamplingContextProvider for TraceContext {
-    fn release(&self) -> Option<&str> {
-        self.release.as_deref()
-    }
-
-    fn environment(&self) -> Option<&str> {
-        self.environment.as_deref()
-    }
-
-    fn user_segment(&self) -> Option<&str> {
-        self.user_segment.as_deref()
-    }
-}
-
-/// NOTE: since relay-general doesn't know anything about dynamic sampling
-/// SamplingContextProvider for Event is implemented here.
-impl SamplingContextProvider for Event {
-    fn release(&self) -> Option<&str> {
-        self.release.as_str()
-    }
-
-    fn environment(&self) -> Option<&str> {
-        self.environment.as_str()
-    }
-
-    fn user_segment(&self) -> Option<&str> {
-        None // TODO RaduW at the moment (10.12.2020) we don't have this (discussions pending)
     }
 }
 
@@ -248,14 +308,22 @@ pub fn should_keep_event(
         Some(EventId(id)) => id,
     };
 
-    if let Some(rule) =
-        get_matching_rule(sampling_config, event, project_id, SamplingStrategy::Event)
-    {
+    let ty = rule_type_for_event(&event);
+    if let Some(rule) = get_matching_rule(sampling_config, event, project_id, ty) {
         if let Some(random_number) = pseudo_random_from_uuid(event_id) {
             return Some(rule.sample_rate > random_number);
         }
     }
     None // if no matching rule there is not enough info to make a decision
+}
+
+// Returns the type of rule that applies to a particular event
+fn rule_type_for_event(event: &Event) -> RuleType {
+    if let Some(EventType::Transaction) = &event.ty.0 {
+        RuleType::Transaction
+    } else {
+        RuleType::NonTransaction
+    }
 }
 
 /// Takes an envelope and potentially removes the transaction item from it if that
@@ -293,7 +361,7 @@ fn sample_transaction_internal(
 
     let should_sample = trace_context
         // see if we should sample
-        .should_sample(sampling_config, project_id, SamplingStrategy::Trace)
+        .should_sample(sampling_config, project_id)
         // TODO verify that this is the desired behaviour (i.e. if we can't find a rule
         // for sampling, include the transaction)
         .unwrap_or(true);
@@ -359,19 +427,15 @@ fn get_matching_rule<'a, T>(
     config: &'a SamplingConfig,
     context: &T,
     project_id: ProjectId,
-    strategy: SamplingStrategy,
+    ty: RuleType,
 ) -> Option<&'a SamplingRule>
 where
-    T: SamplingContextProvider,
+    T: FieldValueProvider,
 {
-    let user_segment = context.user_segment().map(LowerCaseString::new);
-    let environment = context.environment().as_deref().map(LowerCaseString::new);
-    let release = context.release();
-
     config
         .rules
         .iter()
-        .find(|rule| rule.matches(release, &user_segment, &environment, project_id, strategy))
+        .find(|rule| matches(context, project_id, rule, ty))
 }
 
 /// Generates a pseudo random number by seeding the generator with the given id.
@@ -389,6 +453,8 @@ fn pseudo_random_from_uuid(id: Uuid) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use insta::assert_ron_snapshot;
+    use relay_log;
     use std::str::FromStr;
 
     #[test]
@@ -397,239 +463,485 @@ mod tests {
         let project_id = ProjectId::new(22);
         let project_id2 = ProjectId::new(23);
         let project_id3 = ProjectId::new(24);
-        let release = Some("1.1.1".to_string());
-        let user_segment = Some(LowerCaseString::new("vip"));
-        let environment = Some(LowerCaseString::new("debug"));
         let rules = [
             (
                 "simple",
                 SamplingRule {
                     project_ids: vec![project_id],
-                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["vip".into()],
-                    environments: vec!["debug".into()],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![LowerCaseString::new("debug")]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![LowerCaseString::new("vip")]),
+                        }),
+                    ],
                     sample_rate: 1.0,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
             ),
             (
                 "multiple projects",
                 SamplingRule {
                     project_ids: vec![project_id2, project_id, project_id3],
-                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["vip".into()],
-                    environments: vec!["debug".into()],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![LowerCaseString::new("debug")]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![LowerCaseString::new("vip")]),
+                        }),
+                    ],
                     sample_rate: 1.0,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
             ),
             (
                 "all projects",
                 SamplingRule {
                     project_ids: vec![],
-                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["vip".into()],
-                    environments: vec!["debug".into()],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![LowerCaseString::new("debug")]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![LowerCaseString::new("vip")]),
+                        }),
+                    ],
                     sample_rate: 1.0,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
             ),
             (
                 "glob releases",
                 SamplingRule {
                     project_ids: vec![project_id],
-                    releases: GlobPatterns::new(vec!["1.*".to_string()]),
-                    user_segments: vec!["vip".into()],
-                    environments: vec!["debug".into()],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.*".to_string()]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![LowerCaseString::new("debug")]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![LowerCaseString::new("vip")]),
+                        }),
+                    ],
                     sample_rate: 1.0,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
             ),
             (
                 "multiple releases",
                 SamplingRule {
                     project_ids: vec![project_id],
-                    releases: GlobPatterns::new(vec!["2.1.1".to_string(), "1.1.*".to_string()]),
-                    user_segments: vec!["vip".into()],
-                    environments: vec!["debug".into()],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec![
+                                "2.1.1".to_string(),
+                                "1.1.*".to_string(),
+                            ]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![LowerCaseString::new("debug")]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![LowerCaseString::new("vip")]),
+                        }),
+                    ],
                     sample_rate: 1.0,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
             ),
             (
                 "multiple user segments",
                 SamplingRule {
                     project_ids: vec![project_id],
-                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["paid".into(), "vip".into(), "free".into()],
-                    environments: vec!["debug".into()],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![LowerCaseString::new("debug")]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![
+                                LowerCaseString::new("paid"),
+                                LowerCaseString::new("vip"),
+                                LowerCaseString::new("free"),
+                            ]),
+                        }),
+                    ],
                     sample_rate: 1.0,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
             ),
             (
                 "case insensitive user segments",
                 SamplingRule {
                     project_ids: vec![project_id],
-                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["ViP".into(), "FrEe".into()],
-                    environments: vec!["debug".into()],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![LowerCaseString::new("debug")]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![
+                                LowerCaseString::new("ViP"),
+                                LowerCaseString::new("FrEe"),
+                            ]),
+                        }),
+                    ],
                     sample_rate: 1.0,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
             ),
             (
                 "multiple user environments",
                 SamplingRule {
                     project_ids: vec![project_id],
-                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["vip".into()],
-                    environments: vec!["integration".into(), "debug".into(), "production".into()],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![
+                                LowerCaseString::new("integration"),
+                                LowerCaseString::new("debug"),
+                                LowerCaseString::new("production"),
+                            ]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![LowerCaseString::new("vip")]),
+                        }),
+                    ],
                     sample_rate: 1.0,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
             ),
             (
                 "case insensitive environments",
                 SamplingRule {
                     project_ids: vec![project_id],
-                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["vip".into()],
-                    environments: vec!["DeBuG".into(), "PrOd".into()],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![
+                                LowerCaseString::new("DeBuG"),
+                                LowerCaseString::new("PrOd"),
+                            ]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![LowerCaseString::new("vip")]),
+                        }),
+                    ],
                     sample_rate: 1.0,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
             ),
             (
                 "all user environments",
                 SamplingRule {
                     project_ids: vec![project_id],
-                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["vip".into()],
-                    environments: vec![],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![LowerCaseString::new("vip")]),
+                        }),
+                    ],
                     sample_rate: 1.0,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
             ),
             (
                 "match all",
                 SamplingRule {
                     project_ids: vec![],
-                    releases: GlobPatterns::new(vec![]),
-                    user_segments: vec![],
-                    environments: vec![],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec![]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![]),
+                        }),
+                    ],
                     sample_rate: 1.0,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
             ),
         ];
 
+        let tc = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user_segment: Some("vip".to_string()),
+            environment: Some("debug".to_string()),
+        };
+
         for (rule_test_name, rule) in rules.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
-                rule.matches(
-                    release.as_deref(),
-                    &user_segment,
-                    &environment,
-                    project_id,
-                    SamplingStrategy::Trace
-                ),
+                matches(&tc, project_id, rule, RuleType::Trace),
                 failure_name
             );
         }
     }
 
     #[test]
-    /// test various rules that do not match
+    // /// test various rules that do not match
     fn test_not_matches() {
         let project_id = ProjectId::new(22);
         let project_id2 = ProjectId::new(23);
-        let release = Some("1.1.1".to_string());
-        let user_segment = Some(LowerCaseString::new("vip"));
-        let environment = Some(LowerCaseString::new("debug"));
         let rules = [
             (
                 "project id",
                 SamplingRule {
                     project_ids: vec![project_id2],
-                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["vip".into()],
-                    environments: vec!["debug".into()],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![LowerCaseString::new("debug")]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![LowerCaseString::new("vip")]),
+                        }),
+                    ],
                     sample_rate: 1.0,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
             ),
             (
                 "release",
                 SamplingRule {
                     project_ids: vec![project_id],
-                    releases: GlobPatterns::new(vec!["1.1.2".to_string()]),
-                    user_segments: vec!["vip".into()],
-                    environments: vec!["debug".into()],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.1.2".to_string()]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![LowerCaseString::new("debug")]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![LowerCaseString::new("vip")]),
+                        }),
+                    ],
                     sample_rate: 1.0,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
             ),
             (
                 "user segment",
                 SamplingRule {
                     project_ids: vec![project_id],
-                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["all".into()],
-                    environments: vec!["debug".into()],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![LowerCaseString::new("debug")]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![LowerCaseString::new("all")]),
+                        }),
+                    ],
                     sample_rate: 1.0,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
             ),
             (
-                "user environment",
+                "environment",
                 SamplingRule {
                     project_ids: vec![project_id],
-                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["vip".into()],
-                    environments: vec!["prod".into()],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![LowerCaseString::new("prod")]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![LowerCaseString::new("vip")]),
+                        }),
+                    ],
                     sample_rate: 1.0,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
             ),
             (
                 "category",
                 SamplingRule {
                     project_ids: vec![project_id],
-                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["vip".into()],
-                    environments: vec!["debug".into()],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![LowerCaseString::new("debug")]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![LowerCaseString::new("vip")]),
+                        }),
+                    ],
                     sample_rate: 1.0,
-                    strategy: SamplingStrategy::Event,
+                    ty: RuleType::NonTransaction,
                 },
             ),
         ];
 
+        let tc = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user_segment: Some("vip".to_string()),
+            environment: Some("debug".to_string()),
+        };
+
         for (rule_test_name, rule) in rules.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
-                !rule.matches(
-                    release.as_deref(),
-                    &user_segment,
-                    &environment,
-                    project_id,
-                    SamplingStrategy::Trace
-                ),
+                !matches(&tc, project_id, rule, RuleType::Trace),
                 failure_name
             );
         }
     }
 
     #[test]
-    ///Test SamplingRule deserialization
+    fn test_rule_condition_deserialization() {
+        let serialized_rules = r#"[
+        {
+            "operator":"equal",
+            "name": "field_1",
+            "value": ["UPPER","lower"]
+        },
+        {
+            "operator":"strEqualNoCase",
+            "name": "field_2",
+            "value": ["UPPER","lower"]
+        },
+        {
+            "operator":"globMatch",
+            "name": "field_3",
+            "value": ["1.2.*","2.*"]
+        }
+        ]
+        "#;
+        let rules: Result<Vec<RuleCondition>, _> = serde_json::from_str(serialized_rules);
+        relay_log::debug!("{:?}", rules);
+        assert!(rules.is_ok());
+        let rules = rules.unwrap();
+        assert_ron_snapshot!(rules, @r###"
+            [
+              ConditionData(
+                operator: "equal",
+                name: "field_1",
+                value: [
+                  "UPPER",
+                  "lower",
+                ],
+              ),
+              ConditionData(
+                operator: "strEqualNoCase",
+                name: "field_2",
+                value: [
+                  LowerCaseString("upper"),
+                  LowerCaseString("lower"),
+                ],
+              ),
+              ConditionData(
+                operator: "globMatch",
+                name: "field_3",
+                value: [
+                  "1.2.*",
+                  "2.*",
+                ],
+              ),
+            ]"###);
+    }
+
+    #[test]
+    ///Test SamplingRuleOld deserialization
     fn test_sampling_rule_deserialization() {
         let serialized_rule = r#"{
             "projectIds": [1,2],
+            "conditions":[
+                { "operator" : "match", "name": "releases", "value":["1.1.1", "1.1.2"]},
+                { "operator" : "strEqualNoCase", "name": "enviroments", "value":["DeV", "pRoD"]},
+                { "operator" : "strEqualNoCase", "name": "userSegements", "value":["FirstSegment", "SeCoNd"]}
+            ],                
             "sampleRate": 0.7,
-            "releases": ["1.1.1", "1.1.2"],
-            "userSegments": ["FirstSegment", "SeCoNd"],
-            "environments": ["DeV", "pRoD"],
-            "strategy": "trace"
+            "ty": "trace"
         }"#;
         let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
 
@@ -637,18 +949,7 @@ mod tests {
         let rule = rule.unwrap();
         assert_eq!(rule.project_ids, [ProjectId::new(1), ProjectId::new(2)]);
         assert!(approx_eq(rule.sample_rate, 0.7f64));
-        assert_eq!(
-            rule.environments,
-            [LowerCaseString::new("dev"), LowerCaseString::new("prod")]
-        );
-        assert_eq!(
-            rule.user_segments,
-            [
-                LowerCaseString::new("firstsegment"),
-                LowerCaseString::new("second")
-            ]
-        );
-        assert_eq!(rule.strategy, SamplingStrategy::Trace);
+        assert_eq!(rule.ty, RuleType::Trace);
     }
 
     #[test]
@@ -667,95 +968,131 @@ mod tests {
     fn test_partial_trace_matches() {
         let project_id = ProjectId::new(22);
 
-        let release = Option::<String>::None;
-        let user_segment = Some(LowerCaseString::new("vip"));
-        let environment = Some(LowerCaseString::new("debug"));
-
         let rule = SamplingRule {
             project_ids: vec![project_id],
-            releases: GlobPatterns::new(vec![]),
-            user_segments: vec!["vip".into()],
-            environments: vec!["debug".into()],
+            conditions: vec![
+                RuleCondition::GlobMatch(ConditionData {
+                    name: "trace.release".to_owned(),
+                    value: GlobPatterns::new(vec![]),
+                }),
+                RuleCondition::StrEqualNoCase(ConditionData {
+                    name: "trace.environment".to_owned(),
+                    value: (vec![LowerCaseString::new("debug")]),
+                }),
+                RuleCondition::StrEqualNoCase(ConditionData {
+                    name: "trace.user_segment".to_owned(),
+                    value: (vec![LowerCaseString::new("vip")]),
+                }),
+            ],
             sample_rate: 1.0,
-            strategy: SamplingStrategy::Trace,
+            ty: RuleType::Trace,
         };
+        let tc = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: None,
+            user_segment: Some("vip".to_string()),
+            environment: Some("debug".to_string()),
+        };
+
         assert!(
-            rule.matches(
-                release.as_deref(),
-                &user_segment,
-                &environment,
-                project_id,
-                SamplingStrategy::Trace
-            ),
+            matches(&tc, project_id, &rule, RuleType::Trace),
             "did not match with missing release"
         );
 
-        let release = Some("1.1.1".to_string());
-        let user_segment = Option::<LowerCaseString>::None;
-        let environment = Some(LowerCaseString::new("debug"));
-
         let rule = SamplingRule {
             project_ids: vec![project_id],
-            releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-            user_segments: vec![],
-            environments: vec!["debug".into()],
+            conditions: vec![
+                RuleCondition::GlobMatch(ConditionData {
+                    name: "trace.release".to_owned(),
+                    value: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                }),
+                RuleCondition::StrEqualNoCase(ConditionData {
+                    name: "trace.environment".to_owned(),
+                    value: (vec![LowerCaseString::new("debug")]),
+                }),
+                RuleCondition::StrEqualNoCase(ConditionData {
+                    name: "trace.user_segment".to_owned(),
+                    value: (vec![]),
+                }),
+            ],
             sample_rate: 1.0,
-            strategy: SamplingStrategy::Trace,
+            ty: RuleType::Trace,
         };
+        let tc = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user_segment: None,
+            environment: Some("debug".to_string()),
+        };
+
         assert!(
-            rule.matches(
-                release.as_deref(),
-                &user_segment,
-                &environment,
-                project_id,
-                SamplingStrategy::Trace
-            ),
+            matches(&tc, project_id, &rule, RuleType::Trace),
             "did not match with missing user segment"
         );
 
-        let release = Some("1.1.1".to_string());
-        let user_segment = Some(LowerCaseString::new("vip"));
-        let environment = Option::<LowerCaseString>::None;
-
         let rule = SamplingRule {
             project_ids: vec![project_id],
-            releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-            user_segments: vec!["vip".into()],
-            environments: vec![],
+            conditions: vec![
+                RuleCondition::GlobMatch(ConditionData {
+                    name: "trace.release".to_owned(),
+                    value: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                }),
+                RuleCondition::StrEqualNoCase(ConditionData {
+                    name: "trace.environment".to_owned(),
+                    value: (vec![]),
+                }),
+                RuleCondition::StrEqualNoCase(ConditionData {
+                    name: "trace.user_segment".to_owned(),
+                    value: (vec![LowerCaseString::new("vip")]),
+                }),
+            ],
             sample_rate: 1.0,
-            strategy: SamplingStrategy::Trace,
+            ty: RuleType::Trace,
         };
+        let tc = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user_segment: Some("vip".to_string()),
+            environment: None,
+        };
+
         assert!(
-            rule.matches(
-                release.as_deref(),
-                &user_segment,
-                &environment,
-                project_id,
-                SamplingStrategy::Trace
-            ),
+            matches(&tc, project_id, &rule, RuleType::Trace),
             "did not match with missing environment"
         );
 
-        let release = Option::<String>::None;
-        let user_segment = Option::<LowerCaseString>::None;
-        let environment = Option::<LowerCaseString>::None;
-
         let rule = SamplingRule {
             project_ids: vec![project_id],
-            releases: GlobPatterns::new(vec![]),
-            user_segments: vec![],
-            environments: vec![],
+            conditions: vec![
+                RuleCondition::GlobMatch(ConditionData {
+                    name: "trace.release".to_owned(),
+                    value: GlobPatterns::new(vec![]),
+                }),
+                RuleCondition::StrEqualNoCase(ConditionData {
+                    name: "trace.environment".to_owned(),
+                    value: (vec![]),
+                }),
+                RuleCondition::StrEqualNoCase(ConditionData {
+                    name: "trace.user_segment".to_owned(),
+                    value: (vec![]),
+                }),
+            ],
             sample_rate: 1.0,
-            strategy: SamplingStrategy::Trace,
+            ty: RuleType::Trace,
         };
+        let tc = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: None,
+            user_segment: None,
+            environment: None,
+        };
+
         assert!(
-            rule.matches(
-                release.as_deref(),
-                &user_segment,
-                &environment,
-                project_id,
-                SamplingStrategy::Trace
-            ),
+            matches(&tc, project_id, &rule, RuleType::Trace),
             "did not match with missing release, user segment and environment"
         );
     }
@@ -766,7 +1103,7 @@ mod tests {
     }
 
     #[test]
-    /// test that the first rule that mathces is selected
+    /// test that the first rule that matches is selected
     fn test_rule_precedence() {
         let project_id = ProjectId::new(22);
 
@@ -775,47 +1112,102 @@ mod tests {
                 //everything specified
                 SamplingRule {
                     project_ids: vec![project_id],
-                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["vip".into()],
-                    environments: vec!["debug".into()],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![LowerCaseString::new("debug")]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![LowerCaseString::new("vip")]),
+                        }),
+                    ],
                     sample_rate: 0.1,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
                 // no user segments
                 SamplingRule {
                     project_ids: vec![project_id],
-                    releases: GlobPatterns::new(vec!["1.1.2".to_string()]),
-                    user_segments: vec![],
-                    environments: vec!["debug".into()],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.1.2".to_string()]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![LowerCaseString::new("debug")]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![]),
+                        }),
+                    ],
                     sample_rate: 0.2,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
                 // no releases
                 SamplingRule {
                     project_ids: vec![project_id],
-                    releases: GlobPatterns::new(vec![]),
-                    user_segments: vec!["vip".into()],
-                    environments: vec!["debug".into()],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec![]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![LowerCaseString::new("debug")]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![LowerCaseString::new("vip")]),
+                        }),
+                    ],
                     sample_rate: 0.3,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
                 // no environments
                 SamplingRule {
                     project_ids: vec![project_id],
-                    releases: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    user_segments: vec!["vip".into()],
-                    environments: vec![],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec!["1.1.1".to_string()]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![LowerCaseString::new("vip")]),
+                        }),
+                    ],
                     sample_rate: 0.4,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
                 // no user segments releases or environments
                 SamplingRule {
                     project_ids: vec![project_id],
-                    releases: GlobPatterns::new(vec![]),
-                    user_segments: vec![],
-                    environments: vec![],
+                    conditions: vec![
+                        RuleCondition::GlobMatch(ConditionData {
+                            name: "trace.release".to_owned(),
+                            value: GlobPatterns::new(vec![]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.environment".to_owned(),
+                            value: (vec![]),
+                        }),
+                        RuleCondition::StrEqualNoCase(ConditionData {
+                            name: "trace.user_segment".to_owned(),
+                            value: (vec![]),
+                        }),
+                    ],
                     sample_rate: 0.5,
-                    strategy: SamplingStrategy::Trace,
+                    ty: RuleType::Trace,
                 },
             ],
         };
@@ -828,7 +1220,7 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, project_id, SamplingStrategy::Trace);
+        let result = get_matching_rule(&rules, &trace_context, project_id, RuleType::Trace);
         // complete match with first rule
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.1),
@@ -843,7 +1235,7 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, project_id, SamplingStrategy::Trace);
+        let result = get_matching_rule(&rules, &trace_context, project_id, RuleType::Trace);
         // should mach the second rule because of the release
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.2),
@@ -858,7 +1250,7 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, project_id, SamplingStrategy::Trace);
+        let result = get_matching_rule(&rules, &trace_context, project_id, RuleType::Trace);
         // should match the third rule because of the unknown release
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.3),
@@ -873,7 +1265,7 @@ mod tests {
             environment: Some("production".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, project_id, SamplingStrategy::Trace);
+        let result = get_matching_rule(&rules, &trace_context, project_id, RuleType::Trace);
         // should match the fourth rule because of the unknown environment
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.4),
@@ -888,7 +1280,7 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, project_id, SamplingStrategy::Trace);
+        let result = get_matching_rule(&rules, &trace_context, project_id, RuleType::Trace);
         // should match the fourth rule because of the unknown user segment
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.5),

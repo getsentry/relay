@@ -74,4 +74,5 @@ uuid = { version = "0.8.1", features = ["v5"] }
 libc = "0.2.71"
 
 [dev-dependencies]
-insta = "0.16.0"
+insta = {version="0.16.0", features=["ron"]}
+
