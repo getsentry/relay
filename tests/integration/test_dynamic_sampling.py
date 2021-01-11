@@ -66,7 +66,7 @@ def _add_sampling_config(
     config,
     project_ids,
     sample_rate,
-    strategy,
+    rule_type,
     releases=None,
     user_segments=None,
     environments=None,
@@ -75,20 +75,40 @@ def _add_sampling_config(
     Adds a sampling configuration rule to a project configuration
     """
     rules = config["config"].setdefault("sampling", {}).setdefault("rules", [])
-    if releases is None:
-        releases = []
-    if user_segments is None:
-        user_segments = []
-    if environments is None:
-        environments = []
+    if rule_type is None:
+        rule_type = "trace"
+    conditions = []
+    field_prefix = "trace." if rule_type == "trace" else "event."
+    if releases is not None:
+        conditions.append(
+            {
+                "operator": "globMatch",
+                "name": field_prefix + "release",
+                "value": releases,
+            }
+        )
+    if user_segments is not None:
+        conditions.append(
+            {
+                "operator": "strEqualNoCase",
+                "name": field_prefix + "release",
+                "value": user_segments,
+            }
+        )
+    if environments is not None:
+        conditions.append(
+            {
+                "operator": "strEqualNoCase",
+                "name": field_prefix + "release",
+                "value": environments,
+            }
+        )
 
     rule = {
         "projectIds": project_ids,
         "sampleRate": sample_rate,
-        "userSegments": user_segments,
-        "releases": releases,
-        "environments": environments,
-        "strategy": strategy,
+        "ty": rule_type,
+        "conditions": conditions,
     }
     rules.append(rule)
     return rules
@@ -123,7 +143,7 @@ def test_it_removes_transactions(mini_sentry, relay):
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
     public_key = config["publicKeys"][0]["publicKey"]
     _add_sampling_config(
-        config, project_ids=[project_id], sample_rate=0, strategy="trace"
+        config, project_ids=[project_id], sample_rate=0, rule_type="trace"
     )
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
@@ -157,7 +177,7 @@ def test_it_keeps_transactions(mini_sentry, relay):
     # add a sampling rule to project config that keeps all transactions (sample_rate=1)
     public_key = config["publicKeys"][0]["publicKey"]
     _add_sampling_config(
-        config, project_ids=[project_id], sample_rate=1, strategy="trace"
+        config, project_ids=[project_id], sample_rate=1, rule_type="trace"
     )
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
@@ -194,7 +214,7 @@ def test_it_removes_events(mini_sentry, relay):
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
     public_key = config["publicKeys"][0]["publicKey"]
     _add_sampling_config(
-        config, project_ids=[project_id], sample_rate=0, strategy="event"
+        config, project_ids=[project_id], sample_rate=0, rule_type="error"
     )
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
@@ -227,7 +247,7 @@ def test_it_keeps_events(mini_sentry, relay):
     # add a sampling rule to project config that keeps all transactions (sample_rate=1)
     public_key = config["publicKeys"][0]["publicKey"]
     _add_sampling_config(
-        config, project_ids=[project_id], sample_rate=1, strategy="event"
+        config, project_ids=[project_id], sample_rate=1, rule_type="error"
     )
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
@@ -278,14 +298,14 @@ def test_uses_trace_public_key(mini_sentry, relay):
     config1 = mini_sentry.add_basic_project_config(project_id1)
     public_key1 = config1["publicKeys"][0]["publicKey"]
     _add_sampling_config(
-        config1, project_ids=[project_id1], sample_rate=0, strategy="trace"
+        config1, project_ids=[project_id1], sample_rate=0, rule_type="trace"
     )
 
     project_id2 = 43
     config2 = mini_sentry.add_basic_project_config(project_id2)
     public_key2 = config2["publicKeys"][0]["publicKey"]
     _add_sampling_config(
-        config2, project_ids=[project_id1], sample_rate=1, strategy="trace"
+        config2, project_ids=[project_id1], sample_rate=1, rule_type="trace"
     )
 
     # First
@@ -343,7 +363,7 @@ def test_fast_path(mini_sentry, relay):
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
     public_key = config["publicKeys"][0]["publicKey"]
     _add_sampling_config(
-        config, project_ids=[project_id], sample_rate=0, strategy="trace"
+        config, project_ids=[project_id], sample_rate=0, rule_type="trace"
     )
 
     for i in range(2):
@@ -380,7 +400,7 @@ def test_multi_item_envelope(mini_sentry, relay):
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
     public_key = config["publicKeys"][0]["publicKey"]
     _add_sampling_config(
-        config, project_ids=[project_id], sample_rate=0, strategy="trace"
+        config, project_ids=[project_id], sample_rate=0, rule_type="trace"
     )
 
     # we'll run the test twice to make sure that the fast path works as well
