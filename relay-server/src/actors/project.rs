@@ -55,6 +55,9 @@ pub struct ProjectConfig {
     /// Configuration for data scrubbers.
     #[serde(skip_serializing_if = "DataScrubbingConfig::is_disabled")]
     pub datascrubbing_settings: DataScrubbingConfig,
+    /// The DSN endpoint if available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dsn_endpoint: Option<String>,
     /// Maximum event retention for the organization.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event_retention: Option<u16>,
@@ -74,6 +77,7 @@ impl Default for ProjectConfig {
             grouping_config: None,
             filter_settings: FiltersConfig::default(),
             datascrubbing_settings: DataScrubbingConfig::default(),
+            dsn_endpoint: None,
             event_retention: None,
             quotas: Vec::new(),
             sampling: None,
@@ -180,6 +184,22 @@ impl ProjectState {
     /// Returns configuration options for the public key.
     pub fn get_public_key_config(&self) -> Option<&PublicKeyConfig> {
         self.public_keys.get(0)
+    }
+
+    /// Returns the ingestion DSN.
+    ///
+    /// This will take the key's preferred dsn endpoint as reported by the upstream
+    /// sentry and falls back to the upstream directly as old sentrys might not
+    /// provide that information yet.
+    pub fn get_dsn(&self, config: &Config) -> Option<String> {
+        let key_config = self.get_public_key_config()?;
+        let mut url = match self.config.dsn_endpoint {
+            Some(ref endpoint) => Url::parse(endpoint.as_str()).ok()?,
+            None => config.upstream_descriptor().get_url(""),
+        };
+        url.set_username(key_config.public_key.as_str()).ok()?;
+        url.set_path(&format!("/{}", self.project_id?));
+        Some(url.to_string())
     }
 
     /// Returns `true` if the entire project should be considered
@@ -370,6 +390,10 @@ pub struct PublicKeyConfig {
     /// The primary key of the DSN in Sentry's main database.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub numeric_id: Option<u64>,
+
+    /// Target location of the JS SDK for the loader.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub js_sdk_url: Option<String>,
 }
 
 /// Actor representing organization and project configuration for a project key.

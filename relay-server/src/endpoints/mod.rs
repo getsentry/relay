@@ -11,6 +11,7 @@ mod envelope;
 mod events;
 mod forward;
 mod healthcheck;
+mod js_loader;
 mod minidump;
 mod outcomes;
 mod project_configs;
@@ -37,6 +38,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         .configure(minidump::configure_app)
         .configure(attachments::configure_app)
         .configure(unreal::configure_app)
+        .configure(js_loader::configure_app)
         // `forward` must be last as it creates a wildcard proxy
         .configure(forward::configure_app)
 }
