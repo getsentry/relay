@@ -14,8 +14,8 @@ use schemars::gen::SchemaGenerator;
 #[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
 
-use enumset::EnumSet;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use wasmer_enumset::EnumSet;
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::types::{

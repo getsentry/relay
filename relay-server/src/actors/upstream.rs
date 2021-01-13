@@ -402,6 +402,7 @@ impl UpstreamRelay {
                     .connect_timeout(config.http_connection_timeout())
                     .timeout(config.http_timeout())
                     .gzip(true)
+                    .trust_dns(true)
                     .build()
                     .unwrap(),
             )),

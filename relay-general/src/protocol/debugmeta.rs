@@ -7,9 +7,9 @@ use schemars::gen::SchemaGenerator;
 #[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
 
-use enumset::EnumSet;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use wasmer_enumset::EnumSet;
 
 use crate::processor::{ProcessValue, ProcessingState, Processor, ValueType};
 use crate::protocol::Addr;

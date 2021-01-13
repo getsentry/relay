@@ -1,5 +1,5 @@
-use enumset::EnumSet;
 use uuid::Uuid;
+use wasmer_enumset::EnumSet;
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::types::{Annotated, Array, Meta, Object, ProcessingResult};

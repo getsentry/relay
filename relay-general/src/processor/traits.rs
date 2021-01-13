@@ -3,7 +3,7 @@
 
 use std::fmt::Debug;
 
-use enumset::EnumSet;
+use wasmer_enumset::EnumSet;
 
 use crate::processor::{process_value, ProcessingState, ValueType};
 use crate::types::{FromValue, Meta, ProcessingResult, ToValue};
