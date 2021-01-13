@@ -297,7 +297,7 @@ pub fn should_keep_event(
     project_state: &ProjectState,
     project_id: ProjectId,
 ) -> Option<bool> {
-    let sampling_config = match &project_state.config.sampling {
+    let sampling_config = match &project_state.config.dynamic_sampling {
         None => return None, // without config there is not enough info to make up my mind
         Some(config) => config,
     };
@@ -337,7 +337,7 @@ fn sample_transaction_internal(
         Some(project_state) => project_state,
     };
 
-    let sampling_config = match project_state.config.sampling {
+    let sampling_config = match project_state.config.dynamic_sampling {
         // without sampling config we cannot sample transactions so give up here
         None => return envelope,
         Some(ref sampling_config) => sampling_config,

@@ -74,7 +74,7 @@ def _add_sampling_config(
     """
     Adds a sampling configuration rule to a project configuration
     """
-    rules = config["config"].setdefault("sampling", {}).setdefault("rules", [])
+    rules = config["config"].setdefault("dynamicSampling", {}).setdefault("rules", [])
     if rule_type is None:
         rule_type = "trace"
     conditions = []
@@ -91,7 +91,7 @@ def _add_sampling_config(
         conditions.append(
             {
                 "operator": "strEqualNoCase",
-                "name": field_prefix + "release",
+                "name": field_prefix + "user_segment",
                 "value": user_segments,
             }
         )
@@ -99,7 +99,7 @@ def _add_sampling_config(
         conditions.append(
             {
                 "operator": "strEqualNoCase",
-                "name": field_prefix + "release",
+                "name": field_prefix + "environment",
                 "value": environments,
             }
         )
