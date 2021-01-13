@@ -408,6 +408,7 @@ where
     let scoping = Rc::new(RefCell::new(meta.get_partial_scoping()));
     let event_id = Rc::new(RefCell::new(None));
     let config = request.state().config();
+    let processing_enabled = config.processing_enabled();
 
     let future = project_manager
         .send(GetProject { public_key })
@@ -475,20 +476,24 @@ where
                         .map(|project| (envelope, rate_limits, Some(project)));
                     Box::new(response) as RetVal
                 }))
-                .and_then(|(envelope, rate_limits, sampling_project)| {
+                .and_then(move |(envelope, rate_limits, sampling_project)| {
                     // do the fast path transaction sampling (if we can't do it here
                     // we'll try again after the envelope is queued)
                     let event_id = envelope.event_id();
 
-                    utils::sample_transaction(envelope, sampling_project.clone(), true).then(
-                        move |result| match result {
-                            Err(()) => Err(BadStoreRequest::TraceSampled(event_id)),
-                            Ok(envelope) if envelope.is_empty() => {
-                                Err(BadStoreRequest::TraceSampled(event_id))
-                            }
-                            Ok(envelope) => Ok((envelope, rate_limits, sampling_project)),
-                        },
+                    utils::sample_transaction(
+                        envelope,
+                        sampling_project.clone(),
+                        true,
+                        processing_enabled,
                     )
+                    .then(move |result| match result {
+                        Err(()) => Err(BadStoreRequest::TraceSampled(event_id)),
+                        Ok(envelope) if envelope.is_empty() => {
+                            Err(BadStoreRequest::TraceSampled(event_id))
+                        }
+                        Ok(envelope) => Ok((envelope, rate_limits, sampling_project)),
+                    })
                 })
                 .and_then(move |(envelope, rate_limits, sampling_project)| {
                     event_manager

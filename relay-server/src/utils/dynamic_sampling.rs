@@ -84,6 +84,15 @@ pub struct SamplingRule {
     pub ty: RuleType,
 }
 
+impl SamplingRule {
+    fn is_not_supported(&self) -> bool {
+        self.conditions.iter().any(|cond| match cond {
+            RuleCondition::Unsupported => true,
+            _ => false,
+        })
+    }
+}
+
 /// Trait implemented by providers of fields (Events and Trace Contexts).
 /// The fields will be used by rules to check if they apply.
 trait FieldValueProvider {
@@ -262,6 +271,12 @@ pub struct SamplingConfig {
     pub rules: Vec<SamplingRule>,
 }
 
+impl SamplingConfig {
+    pub fn has_unsupported_rules(&self) -> bool {
+        self.rules.iter().any(SamplingRule::is_not_supported)
+    }
+}
+
 /// TraceContext created by the first Sentry SDK in the call chain
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraceContext {
@@ -296,11 +311,17 @@ pub fn should_keep_event(
     event: &Event,
     project_state: &ProjectState,
     project_id: ProjectId,
+    processing_enabled: bool,
 ) -> Option<bool> {
     let sampling_config = match &project_state.config.dynamic_sampling {
         None => return None, // without config there is not enough info to make up my mind
         Some(config) => config,
     };
+
+    // when we have unsupported rules disable sampling for non processing relays
+    if !processing_enabled && sampling_config.has_unsupported_rules() {
+        return Some(true);
+    }
 
     let event_id = match event.id.0 {
         None => return None, // if no eventID we can't really sample so keep everything
@@ -331,6 +352,7 @@ fn rule_type_for_event(event: &Event) -> RuleType {
 fn sample_transaction_internal(
     mut envelope: Envelope,
     project_state: Option<&ProjectState>,
+    processing_enabled: bool,
 ) -> Envelope {
     let project_state = match project_state {
         None => return envelope,
@@ -342,6 +364,11 @@ fn sample_transaction_internal(
         None => return envelope,
         Some(ref sampling_config) => sampling_config,
     };
+
+    // when we have unsupported rules disable sampling for non processing relays
+    if !processing_enabled && sampling_config.has_unsupported_rules() {
+        return envelope;
+    }
 
     let project_id = match project_state.project_id {
         None => return envelope,
@@ -379,6 +406,7 @@ pub fn sample_transaction(
     envelope: Envelope,
     project: Option<Addr<Project>>,
     fast_processing: bool,
+    processing_enabled: bool,
 ) -> ResponseFuture<Envelope, ()> {
     let project = match project {
         None => return Box::new(future::ok(envelope)),
@@ -394,20 +422,23 @@ pub fn sample_transaction(
     }
     //we have a trace_context and we have a transaction_item see if we can sample them
     if fast_processing {
-        let fut = project.send(GetCachedProjectState).then(|project_state| {
-            let project_state = match project_state {
-                // error getting the project, give up and return envelope unchanged
-                Err(_) => return Ok(envelope),
-                Ok(project_state) => project_state,
-            };
-            Ok(sample_transaction_internal(
-                envelope,
-                project_state.as_deref(),
-            ))
-        });
+        let fut = project
+            .send(GetCachedProjectState)
+            .then(move |project_state| {
+                let project_state = match project_state {
+                    // error getting the project, give up and return envelope unchanged
+                    Err(_) => return Ok(envelope),
+                    Ok(project_state) => project_state,
+                };
+                Ok(sample_transaction_internal(
+                    envelope,
+                    project_state.as_deref(),
+                    processing_enabled,
+                ))
+            });
         Box::new(fut) as ResponseFuture<_, _>
     } else {
-        let fut = project.send(GetProjectState).then(|project_state| {
+        let fut = project.send(GetProjectState).then(move |project_state| {
             let project_state = match project_state {
                 // error getting the project, give up and return envelope unchanged
                 Err(_) => return Ok(envelope),
@@ -416,6 +447,7 @@ pub fn sample_transaction(
             Ok(sample_transaction_internal(
                 envelope,
                 project_state.ok().as_deref(),
+                processing_enabled,
             ))
         });
         Box::new(fut) as ResponseFuture<_, _>

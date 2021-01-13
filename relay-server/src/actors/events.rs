@@ -1066,14 +1066,19 @@ impl EventProcessor {
     }
 
     /// Run dynamic sampling rules to see if we keep the event or remove it.
-    fn sample_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn sample_event(
+        &self,
+        state: &mut ProcessEnvelopeState,
+        processing_enabled: bool,
+    ) -> Result<(), ProcessingError> {
         let event = match &state.event.0 {
             None => return Ok(()), // can't process without an event
             Some(event) => event,
         };
 
         let project_id = state.project_id;
-        match utils::should_keep_event(event, &state.project_state, project_id) {
+        match utils::should_keep_event(event, &state.project_state, project_id, processing_enabled)
+        {
             Some(false) => Err(ProcessingError::EventSampled),
             Some(true) => Ok(()),
             None => Ok(()), // Not enough info to make a definite evaluation, keep the event
@@ -1112,7 +1117,7 @@ impl EventProcessor {
 
             self.finalize_event(&mut state)?;
 
-            self.sample_event(&mut state)?;
+            self.sample_event(&mut state, self.config.processing_enabled())?;
 
             if_processing!({
                 self.store_process_event(&mut state)?;
@@ -1392,6 +1397,7 @@ impl Handler<HandleEnvelope> for EventManager {
         let outcome_producer = self.outcome_producer.clone();
         let capture = self.config.relay_mode() == RelayMode::Capture;
         let http_encoding = self.config.http_encoding();
+        let processing_enabled = self.config.processing_enabled();
 
         #[cfg(feature = "processing")]
         let store_forwarder = self.store_forwarder.clone();
@@ -1431,8 +1437,8 @@ impl Handler<HandleEnvelope> for EventManager {
                     None => Err(ProcessingError::RateLimited(checked.rate_limits)),
                 }
             }))
-            .and_then(|envelope| {
-                utils::sample_transaction(envelope, sampling_project, false)
+            .and_then(move |envelope| {
+                utils::sample_transaction(envelope, sampling_project, false, processing_enabled)
                     .map_err(|()| (ProcessingError::TransactionSampled))
             })
             .and_then(|envelope| {
