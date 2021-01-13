@@ -20,7 +20,7 @@ use relay_general::protocol::{
     LenientString, Metrics, SecurityReportType, SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
-use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
+use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
@@ -45,7 +45,6 @@ use {
     failure::ResultExt,
     relay_filter::FilterStatKey,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    relay_general::types::FromValue,
     relay_quotas::{DataCategory, RateLimitingError, RedisRateLimiter},
 };
 
@@ -858,6 +857,8 @@ impl EventProcessor {
         // In processing mode, also write metrics into the event. Most metrics have already been
         // collected at this state, except for the combined size of all attachments.
         if self.config.processing_enabled() {
+            let mut metrics = std::mem::take(&mut state.metrics);
+
             let attachment_size = envelope
                 .items()
                 .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment))
@@ -865,7 +866,7 @@ impl EventProcessor {
                 .sum::<u64>();
 
             if attachment_size > 0 {
-                state.metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size);
+                metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size);
             }
 
             let sample_rates = state
@@ -874,16 +875,13 @@ impl EventProcessor {
                 .and_then(|value| Array::from_value(Annotated::new(value)).into_value());
 
             if let Some(rates) = sample_rates {
-                state
-                    .metrics
+                metrics
                     .sample_rates
                     .get_or_insert_with(Array::new)
                     .extend(rates)
-            } else {
-                relay_log::debug!("Received invalid sample_rates header from client SDK");
             }
 
-            event._metrics = Annotated::new(std::mem::take(&mut state.metrics));
+            event._metrics = Annotated::new(metrics);
         }
 
         // TODO: Temporary workaround before processing. Experimental SDKs relied on a buggy
