@@ -61,12 +61,10 @@ fn js_sdk_loader(
 ) -> ResponseFuture<HttpResponse, BadJsSdkRequest> {
     let config = request.state().config();
     let project_manager = request.state().project_cache();
-    let public_key = meta.public_key().clone();
+    let public_key = meta.public_key();
 
     let future = project_manager
-        .send(FetchProjectState {
-            public_key: public_key.clone(),
-        })
+        .send(FetchProjectState { public_key })
         .map_err(BadJsSdkRequest::ScheduleFailed)
         .and_then(clone!(public_key, config, |project_state| {
             let project_state = if let Ok(project_state) = project_state {
@@ -76,10 +74,10 @@ fn js_sdk_loader(
             };
             let key_config = project_state
                 .get_public_key_config()
-                .ok_or_else(|| BadJsSdkRequest::NotFound)?;
+                .ok_or(BadJsSdkRequest::NotFound)?;
             let dsn = project_state
                 .get_dsn(&config)
-                .ok_or_else(|| BadJsSdkRequest::NotFound)?;
+                .ok_or(BadJsSdkRequest::NotFound)?;
             Ok(HttpResponse::Ok()
                 .content_type("text/javascript")
                 .body(VAR_RE.replace_all(JS_LOADER_MINIFIED, |c: &Captures| {
@@ -91,7 +89,7 @@ fn js_sdk_loader(
                             // here.  This is not useful as this makes the loader fail but there
                             // is currently no point in hard coding an old loader version here.
                             // alternatively we could make the entire loader fail with a 404.
-                            dump(&key_config.js_sdk_url.as_deref().unwrap_or_else(|| ""))
+                            dump(&key_config.js_sdk_url.as_deref().unwrap_or(""))
                         }
                         _ => "null".to_string(),
                     }
