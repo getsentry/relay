@@ -87,7 +87,7 @@ RUN sentry-cli --version \
 FROM debian:buster-slim
 
 RUN apt-get update \
-    && apt-get install -y ca-certificates gosu --no-install-recommends \
+    && apt-get install -y ca-certificates gosu curl --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
