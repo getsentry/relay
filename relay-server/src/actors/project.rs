@@ -448,6 +448,33 @@ impl Project {
         Response::future(future)
     }
 
+    /// This refreshes the underlying state and waits for that.
+    ///
+    /// Note that this currently has the limitation that it does not promote the
+    /// refresh through a chain of relays.  This means that it can only ask for a
+    /// local refresh, but if the next in line relay is outdated this won't do
+    /// anything.
+    fn refresh_state(
+        &mut self,
+        context: &mut Context<Self>,
+    ) -> Response<Arc<ProjectState>, ProjectError> {
+        // count number of times we are looking for the project state
+        metric!(counter(RelayCounters::ProjectStateGet) += 1);
+
+        relay_log::debug!(
+            "project {} state requested (force refresh)",
+            self.public_key
+        );
+        let channel = self.fetch_state(context);
+        self.state_channel = Some(channel.clone());
+
+        let future = channel
+            .map(|shared| (*shared).clone())
+            .map_err(|_| ProjectError::FetchFailed);
+
+        Response::future(future)
+    }
+
     fn fetch_state(
         &mut self,
         context: &mut Context<Self>,
@@ -548,6 +575,27 @@ impl Handler<GetCachedProjectState> for Project {
         _context: &mut Context<Self>,
     ) -> Self::Result {
         self.state.clone()
+    }
+}
+
+/// Returns the up to date project state.
+///
+/// The project state is always fetched if it is missing or outdated.
+pub struct RefreshProjectState;
+
+impl Message for RefreshProjectState {
+    type Result = Result<Arc<ProjectState>, ProjectError>;
+}
+
+impl Handler<RefreshProjectState> for Project {
+    type Result = Response<Arc<ProjectState>, ProjectError>;
+
+    fn handle(
+        &mut self,
+        _message: RefreshProjectState,
+        context: &mut Context<Self>,
+    ) -> Self::Result {
+        self.refresh_state(context)
     }
 }
 
