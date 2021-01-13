@@ -16,7 +16,7 @@ use relay_common::GlobMatcher;
 use relay_config::Config;
 use relay_log::LogError;
 
-use crate::actors::upstream::{SendRequest, UpstreamRequestError};
+use crate::actors::upstream::{SendRequest, UpstreamRequestError, UpstreamSendRequestError};
 use crate::body::ForwardBody;
 use crate::endpoints::statics;
 use crate::extractors::ForwardedFor;
@@ -77,15 +77,7 @@ impl ResponseError for ForwardedUpstreamRequestError {
                 HttpError::ActixPayload(e) => e.error_response(),
                 HttpError::ActixJson(e) => e.error_response(),
             },
-            UpstreamRequestError::SendFailed(SendRequestError::Connector(_)) => {
-                HttpResponse::BadGateway().finish()
-            }
-            UpstreamRequestError::SendFailed(SendRequestError::Io(_)) => {
-                HttpResponse::BadGateway().finish()
-            }
-            UpstreamRequestError::SendFailed(SendRequestError::Timeout) => {
-                HttpResponse::GatewayTimeout().finish()
-            }
+            UpstreamRequestError::SendFailed(_) => HttpResponse::BadGateway().finish(),
             e => {
                 // should all be unreachable
                 relay_log::error!(
