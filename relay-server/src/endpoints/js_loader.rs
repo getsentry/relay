@@ -16,7 +16,7 @@ use crate::service::{ServiceApp, ServiceState};
 use crate::utils::ApiErrorResponse;
 
 lazy_static! {
-    static ref VAR_RE: Regex = Regex::new(r"\{\{(PUBLIC_KEY|CDN_URL|OPTIONS)\}\}").unwrap();
+    static ref VAR_RE: Regex = Regex::new(r"\b__(PUBLIC_KEY|CDN_URL|OPTIONS)__\b").unwrap();
 }
 static JS_LOADER_MINIFIED: &str = include_str!("loader.min.js");
 
