@@ -12,8 +12,9 @@ def _create_transaction_item():
     :return: a tuple (transaction_item, trace_id)
     """
     trace_id = uuid.uuid4().hex
+    event_id = uuid.uuid4().hex
     item = {
-        "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+        "event_id": event_id,
         "type": "transaction",
         "transaction": "tr1",
         "start_timestamp": 1597976392.6542819,
@@ -26,8 +27,9 @@ def _create_transaction_item():
             }
         },
         "spans": [],
+        "extra": {"id": event_id},
     }
-    return item, trace_id
+    return item, trace_id, event_id
 
 
 def _create_event_item(environment=None, release=None):
@@ -148,7 +150,7 @@ def test_it_removes_transactions(mini_sentry, relay):
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
     envelope = Envelope()
-    transaction, trace_id = _create_transaction_item()
+    transaction, trace_id, event_id = _create_transaction_item()
     envelope.add_transaction(transaction)
     _add_trace_info(envelope, trace_id=trace_id, public_key=public_key)
 
@@ -182,7 +184,7 @@ def test_it_keeps_transactions(mini_sentry, relay):
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
     envelope = Envelope()
-    transaction, trace_id = _create_transaction_item()
+    transaction, trace_id, event_id = _create_transaction_item()
     envelope.add_transaction(transaction)
     _add_trace_info(envelope, trace_id=trace_id, public_key=public_key)
 
@@ -202,7 +204,25 @@ def test_it_keeps_transactions(mini_sentry, relay):
         mini_sentry.captured_outcomes.get(timeout=2)
 
 
-def test_it_removes_events(mini_sentry, relay):
+def _create_event_envelope():
+    envelope = Envelope()
+    event, event_id = _create_event_item()
+    envelope.add_event(event)
+    return envelope, event_id
+
+
+def _create_transaction_envelope():
+    envelope = Envelope()
+    transaction, trace_id, event_id = _create_transaction_item()
+    envelope.add_transaction(transaction)
+    return envelope, event_id
+
+
+@pytest.mark.parametrize(
+    "rule_type, event_factory",
+    [("error", _create_event_envelope), ("transaction", _create_transaction_envelope)],
+)
+def test_it_removes_events(mini_sentry, relay, rule_type, event_factory):
     """
     Tests that when sampling is set to 0% for the trace context project the events are removed
     """
@@ -214,13 +234,11 @@ def test_it_removes_events(mini_sentry, relay):
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
     public_key = config["publicKeys"][0]["publicKey"]
     _add_sampling_config(
-        config, project_ids=[project_id], sample_rate=0, rule_type="error"
+        config, project_ids=[project_id], sample_rate=0, rule_type=rule_type
     )
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
-    envelope = Envelope()
-    event, event_id = _create_event_item()
-    envelope.add_event(event)
+    envelope, event_id = event_factory()
 
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id, envelope)
@@ -235,7 +253,11 @@ def test_it_removes_events(mini_sentry, relay):
     assert outcome.get("reason") == "event_sampled"
 
 
-def test_it_keeps_events(mini_sentry, relay):
+@pytest.mark.parametrize(
+    "rule_type, event_factory",
+    [("error", _create_event_envelope), ("transaction", _create_transaction_envelope)],
+)
+def test_it_keeps_events(mini_sentry, relay, rule_type, event_factory):
     """
     Tests that when sampling is set to 100% for the trace context project the events are kept
     """
@@ -244,26 +266,26 @@ def test_it_keeps_events(mini_sentry, relay):
 
     # create a basic project config
     config = mini_sentry.add_basic_project_config(project_id)
-    # add a sampling rule to project config that keeps all transactions (sample_rate=1)
+    # add a sampling rule to project config that keeps all events (sample_rate=1)
     public_key = config["publicKeys"][0]["publicKey"]
     _add_sampling_config(
-        config, project_ids=[project_id], sample_rate=1, rule_type="error"
+        config, project_ids=[project_id], sample_rate=1, rule_type=rule_type
     )
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
-    envelope = Envelope()
-    event, event_id = _create_event_item()
-    envelope.add_event(event)
+    envelope, event_id = event_factory()
 
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id, envelope)
     # the event should be left alone by Relay sampling
-    evt = mini_sentry.captured_events.get(timeout=1).get_event()
-    assert evt is not None
-    # double check that we get back our trace object (check the trace_id from the object)
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    assert envelope is not None
+    # double check that we get back our object
     # we put the id in extra since Relay overrides the initial event_id
+    items = [item for item in envelope]
+    assert len(items) == 1
+    evt = items[0].payload.json
     evt_id = evt.setdefault("extra", {}).get("id")
-
     assert evt_id == event_id
 
     # no outcome should be generated since we forward the event to upstream
@@ -311,7 +333,7 @@ def test_uses_trace_public_key(mini_sentry, relay):
     # First
     # send trace with project_id1 context (should be removed)
     envelope = Envelope()
-    transaction, trace_id = _create_transaction_item()
+    transaction, trace_id, event_id = _create_transaction_item()
     envelope.add_transaction(transaction)
     _add_trace_info(envelope, trace_id=trace_id, public_key=public_key1)
 
@@ -328,7 +350,7 @@ def test_uses_trace_public_key(mini_sentry, relay):
     # Second
     # send trace with project_id2 context (should go through)
     envelope = Envelope()
-    transaction, trace_id = _create_transaction_item()
+    transaction, trace_id, event_id = _create_transaction_item()
     envelope.add_transaction(transaction)
     _add_trace_info(envelope, trace_id=trace_id, public_key=public_key2)
 
@@ -369,7 +391,7 @@ def test_fast_path(mini_sentry, relay):
     for i in range(2):
         # create an envelope with a trace context that is initiated by this project (for simplicity)
         envelope = Envelope()
-        transaction, trace_id = _create_transaction_item()
+        transaction, trace_id, event_id = _create_transaction_item()
         envelope.add_transaction(transaction)
         _add_trace_info(envelope, trace_id=trace_id, public_key=public_key)
 
@@ -407,7 +429,7 @@ def test_multi_item_envelope(mini_sentry, relay):
     for i in range(2):
         # create an envelope with a trace context that is initiated by this project (for simplicity)
         envelope = Envelope()
-        transaction, trace_id = _create_transaction_item()
+        transaction, trace_id, event_id = _create_transaction_item()
         envelope.add_transaction(transaction)
         envelope.add_event({"message": "Hello"})
         _add_trace_info(envelope, trace_id=trace_id, public_key=public_key)
