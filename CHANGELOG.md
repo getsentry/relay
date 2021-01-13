@@ -17,6 +17,7 @@
 
 - Extract crashpad annotations into contexts. ([#892](https://github.com/getsentry/relay/pull/892))
 - Normalize user reports during ingestion and create empty fields. ([#903](https://github.com/getsentry/relay/pull/903))
+- Ingest and normalize sample rates from envelope item headers. ([#910](https://github.com/getsentry/relay/pull/910))
 
 ## 20.12.1
 
