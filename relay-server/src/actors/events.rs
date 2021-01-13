@@ -378,7 +378,10 @@ impl EventProcessor {
             if changed {
                 let json_string = match serde_json::to_string(&session) {
                     Ok(json) => json,
-                    Err(_) => return false,
+                    Err(err) => {
+                        relay_log::error!("failed to serialize session: {}", LogError(&err));
+                        return false;
+                    }
                 };
 
                 item.set_payload(ContentType::Json, json_string);
@@ -409,7 +412,10 @@ impl EventProcessor {
 
             let json_string = match serde_json::to_string(&report) {
                 Ok(json) => json,
-                Err(_) => return false,
+                Err(err) => {
+                    relay_log::error!("failed to serialize user report: {}", LogError(&err));
+                    return false;
+                }
             };
 
             item.set_payload(ContentType::Json, json_string);
