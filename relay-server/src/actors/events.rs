@@ -45,6 +45,7 @@ use {
     failure::ResultExt,
     relay_filter::FilterStatKey,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+    relay_general::types::FromValue,
     relay_quotas::{DataCategory, RateLimitingError, RedisRateLimiter},
 };
 
@@ -201,6 +202,12 @@ struct ProcessEnvelopeState {
     /// The pipeline stages can add to this metrics objects. In `finalize_event`, the metrics are
     /// persisted into the Event. All modifications afterwards will have no effect.
     metrics: Metrics,
+
+    /// A list of cumulative sample rates applied to this event.
+    ///
+    /// This element is obtained from the event or transaction item and re-serialized into the
+    /// resulting item.
+    sample_rates: Option<Value>,
 
     /// Rate limits returned in processing mode.
     ///
@@ -447,6 +454,7 @@ impl EventProcessor {
             envelope,
             event: Annotated::empty(),
             metrics: Metrics::default(),
+            sample_rates: None,
             rate_limits: RateLimits::new(),
             project_state,
             project_id,
@@ -733,22 +741,25 @@ impl EventProcessor {
             return Err(ProcessingError::DuplicateItem(duplicate.ty()));
         }
 
-        let (event, event_len) = if let Some(item) = event_item.or(security_item) {
+        let (event, event_len) = if let Some(mut item) = event_item.or(security_item) {
             relay_log::trace!("processing json event");
+            state.sample_rates = item.take_sample_rates();
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Event items can never include transactions, so retain the event type and let
                 // inference deal with this during store normalization.
                 self.event_from_json_payload(item, None)?
             })
-        } else if let Some(item) = transaction_item {
+        } else if let Some(mut item) = transaction_item {
             relay_log::trace!("processing json transaction");
+            state.sample_rates = item.take_sample_rates();
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Transaction items can only contain transaction events. Force the event type to
                 // hint to normalization that we're dealing with a transaction now.
                 self.event_from_json_payload(item, Some(EventType::Transaction))?
             })
-        } else if let Some(item) = raw_security_item {
+        } else if let Some(mut item) = raw_security_item {
             relay_log::trace!("processing security report");
+            state.sample_rates = item.take_sample_rates();
             self.event_from_security_report(item)?
         } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
             relay_log::trace!("extracting attached event data");
@@ -839,6 +850,21 @@ impl EventProcessor {
 
             if attachment_size > 0 {
                 state.metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size);
+            }
+
+            let sample_rates = state
+                .sample_rates
+                .take()
+                .and_then(|value| Array::from_value(Annotated::new(value)).into_value());
+
+            if let Some(rates) = sample_rates {
+                state
+                    .metrics
+                    .sample_rates
+                    .get_or_insert_with(Array::new)
+                    .extend(rates)
+            } else {
+                relay_log::debug!("Received invalid sample_rates header from client SDK");
             }
 
             event._metrics = Annotated::new(std::mem::take(&mut state.metrics));
@@ -1060,6 +1086,13 @@ impl EventProcessor {
         let event_type = state.event_type().unwrap_or_default();
         let mut event_item = Item::new(ItemType::from_event_type(event_type));
         event_item.set_payload(ContentType::Json, data);
+
+        // If there are sample rates, write them back to the envelope. In processing mode, sample
+        // rates have been removed from the state and burnt into the event via `finalize_event`.
+        if let Some(sample_rates) = state.sample_rates.take() {
+            event_item.set_sample_rates(sample_rates);
+        }
+
         state.envelope.add_item(event_item);
 
         Ok(())
@@ -1111,7 +1144,6 @@ impl EventProcessor {
             });
 
             self.finalize_event(&mut state)?;
-
             self.sample_event(&mut state)?;
 
             if_processing!({
