@@ -1852,6 +1852,22 @@
 <span id="1849">1849</span>
 <span id="1850">1850</span>
 <span id="1851">1851</span>
+<span id="1852">1852</span>
+<span id="1853">1853</span>
+<span id="1854">1854</span>
+<span id="1855">1855</span>
+<span id="1856">1856</span>
+<span id="1857">1857</span>
+<span id="1858">1858</span>
+<span id="1859">1859</span>
+<span id="1860">1860</span>
+<span id="1861">1861</span>
+<span id="1862">1862</span>
+<span id="1863">1863</span>
+<span id="1864">1864</span>
+<span id="1865">1865</span>
+<span id="1866">1866</span>
+<span id="1867">1867</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -2233,7 +2249,10 @@
             <span class="kw">if</span> <span class="ident">changed</span> {
                 <span class="kw">let</span> <span class="ident">json_string</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">serde_json</span>::<span class="ident">to_string</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>) {
                     <span class="prelude-val">Ok</span>(<span class="ident">json</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">json</span>,
-                    <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="bool-val">false</span>,
+                    <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                        <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;failed to serialize session: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">err</span>));
+                        <span class="kw">return</span> <span class="bool-val">false</span>;
+                    }
                 };
 
                 <span class="ident">item</span>.<span class="ident">set_payload</span>(<span class="ident">ContentType</span>::<span class="ident">Json</span>, <span class="ident">json_string</span>);
@@ -2243,21 +2262,34 @@
         });
     }
 
-    <span class="doccomment">/// Validates all user report/feedback items in the envelope, if any.</span>
+    <span class="doccomment">/// Validates and normalizes all user report items in the envelope.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// User feedback items are removed from the envelope if they contain invalid JSON or if the</span>
-    <span class="doccomment">/// JSON violates the schema (basic type validation).</span>
+    <span class="doccomment">/// JSON violates the schema (basic type validation). Otherwise, their normalized representation</span>
+    <span class="doccomment">/// is written back into the item.</span>
     <span class="kw">fn</span> <span class="ident">process_user_reports</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) {
         <span class="ident">state</span>.<span class="ident">envelope</span>.<span class="ident">retain_items</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> {
             <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">!</span><span class="op">=</span> <span class="ident">ItemType</span>::<span class="ident">UserReport</span> {
                 <span class="kw">return</span> <span class="bool-val">true</span>;
             };
 
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">from_slice</span>::<span class="op">&lt;</span><span class="ident">UserReport</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">payload</span>()) {
-                <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;failed to store user report: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
-                <span class="kw">return</span> <span class="bool-val">false</span>;
-            }
+            <span class="kw">let</span> <span class="ident">report</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">serde_json</span>::<span class="ident">from_slice</span>::<span class="op">&lt;</span><span class="ident">UserReport</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">payload</span>()) {
+                <span class="prelude-val">Ok</span>(<span class="ident">session</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">session</span>,
+                <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;failed to store user report: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
+                    <span class="kw">return</span> <span class="bool-val">false</span>;
+                }
+            };
 
+            <span class="kw">let</span> <span class="ident">json_string</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">serde_json</span>::<span class="ident">to_string</span>(<span class="kw-2">&amp;</span><span class="ident">report</span>) {
+                <span class="prelude-val">Ok</span>(<span class="ident">json</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">json</span>,
+                <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;failed to serialize user report: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">err</span>));
+                    <span class="kw">return</span> <span class="bool-val">false</span>;
+                }
+            };
+
+            <span class="ident">item</span>.<span class="ident">set_payload</span>(<span class="ident">ContentType</span>::<span class="ident">Json</span>, <span class="ident">json_string</span>);
             <span class="bool-val">true</span>
         });
     }
