@@ -353,6 +353,7 @@ pub struct ItemHeaders {
     ///
     /// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The
     /// effective sample rate is multiplied.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     sample_rates: Option<Value>,
 
     /// Other attributes for forward compatibility.
