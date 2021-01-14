@@ -397,9 +397,7 @@ impl UpstreamRelay {
         let reqwest_client = match config.http_client() {
             HttpClient::Actix => None,
             HttpClient::Reqwest => Some((
-                tokio::runtime::Builder::new_current_thread()
-                    .build()
-                    .unwrap(),
+                tokio::runtime::Runtime::new().unwrap(),
                 reqwest::ClientBuilder::new()
                     .connect_timeout(config.http_connection_timeout())
                     .timeout(config.http_timeout())
