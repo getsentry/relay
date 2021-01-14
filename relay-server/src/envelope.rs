@@ -349,6 +349,13 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     rate_limited: bool,
 
+    /// A list of cumulative sample rates applied to this event.
+    ///
+    /// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The
+    /// effective sample rate is multiplied.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sample_rates: Option<Value>,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -371,6 +378,7 @@ impl Item {
                 content_type: None,
                 filename: None,
                 rate_limited: false,
+                sample_rates: None,
                 other: BTreeMap::new(),
             },
             payload: Bytes::new(),
@@ -454,6 +462,18 @@ impl Item {
     /// Sets whether this item should be rate limited.
     pub fn set_rate_limited(&mut self, rate_limited: bool) {
         self.headers.rate_limited = rate_limited;
+    }
+
+    /// Removes sample rates from the headers, if any.
+    pub fn take_sample_rates(&mut self) -> Option<Value> {
+        self.headers.sample_rates.take()
+    }
+
+    /// Sets sample rates for this item.
+    pub fn set_sample_rates(&mut self, sample_rates: Value) {
+        if matches!(sample_rates, Value::Array(ref a) if !a.is_empty()) {
+            self.headers.sample_rates = Some(sample_rates);
+        }
     }
 
     /// Returns the specified header value, if present.
