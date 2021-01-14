@@ -1868,6 +1868,36 @@
 <span id="1865">1865</span>
 <span id="1866">1866</span>
 <span id="1867">1867</span>
+<span id="1868">1868</span>
+<span id="1869">1869</span>
+<span id="1870">1870</span>
+<span id="1871">1871</span>
+<span id="1872">1872</span>
+<span id="1873">1873</span>
+<span id="1874">1874</span>
+<span id="1875">1875</span>
+<span id="1876">1876</span>
+<span id="1877">1877</span>
+<span id="1878">1878</span>
+<span id="1879">1879</span>
+<span id="1880">1880</span>
+<span id="1881">1881</span>
+<span id="1882">1882</span>
+<span id="1883">1883</span>
+<span id="1884">1884</span>
+<span id="1885">1885</span>
+<span id="1886">1886</span>
+<span id="1887">1887</span>
+<span id="1888">1888</span>
+<span id="1889">1889</span>
+<span id="1890">1890</span>
+<span id="1891">1891</span>
+<span id="1892">1892</span>
+<span id="1893">1893</span>
+<span id="1894">1894</span>
+<span id="1895">1895</span>
+<span id="1896">1896</span>
+<span id="1897">1897</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -1891,7 +1921,7 @@
     <span class="ident">LenientString</span>, <span class="ident">Metrics</span>, <span class="ident">SecurityReportType</span>, <span class="ident">SessionUpdate</span>, <span class="ident">Timestamp</span>, <span class="ident">UserReport</span>, <span class="ident">Values</span>,
 };
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">store</span>::<span class="ident">ClockDriftProcessor</span>;
-<span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">Object</span>, <span class="ident">ProcessingAction</span>, <span class="ident">Value</span>};
+<span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">FromValue</span>, <span class="ident">Object</span>, <span class="ident">ProcessingAction</span>, <span class="ident">Value</span>};
 <span class="kw">use</span> <span class="ident">relay_log</span>::<span class="ident">LogError</span>;
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::<span class="ident">RateLimits</span>;
 <span class="kw">use</span> <span class="ident">relay_redis</span>::<span class="ident">RedisPool</span>;
@@ -2072,6 +2102,12 @@
     <span class="doccomment">/// The pipeline stages can add to this metrics objects. In `finalize_event`, the metrics are</span>
     <span class="doccomment">/// persisted into the Event. All modifications afterwards will have no effect.</span>
     <span class="ident">metrics</span>: <span class="ident">Metrics</span>,
+
+    <span class="doccomment">/// A list of cumulative sample rates applied to this event.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This element is obtained from the event or transaction item and re-serialized into the</span>
+    <span class="doccomment">/// resulting item.</span>
+    <span class="ident">sample_rates</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// Rate limits returned in processing mode.</span>
     <span class="doccomment">///</span>
@@ -2334,6 +2370,7 @@
             <span class="ident">envelope</span>,
             <span class="ident">event</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
             <span class="ident">metrics</span>: <span class="ident">Metrics</span>::<span class="ident">default</span>(),
+            <span class="ident">sample_rates</span>: <span class="prelude-val">None</span>,
             <span class="ident">rate_limits</span>: <span class="ident">RateLimits</span>::<span class="ident">new</span>(),
             <span class="ident">project_state</span>,
             <span class="ident">project_id</span>,
@@ -2620,22 +2657,25 @@
             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError</span>::<span class="ident">DuplicateItem</span>(<span class="ident">duplicate</span>.<span class="ident">ty</span>()));
         }
 
-        <span class="kw">let</span> (<span class="ident">event</span>, <span class="ident">event_len</span>) <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="op">=</span> <span class="ident">event_item</span>.<span class="ident">or</span>(<span class="ident">security_item</span>) {
+        <span class="kw">let</span> (<span class="ident">event</span>, <span class="ident">event_len</span>) <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">item</span>) <span class="op">=</span> <span class="ident">event_item</span>.<span class="ident">or</span>(<span class="ident">security_item</span>) {
             <span class="ident">relay_log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;processing json event&quot;</span>);
+            <span class="ident">state</span>.<span class="ident">sample_rates</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">take_sample_rates</span>();
             <span class="macro">metric</span><span class="macro">!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers</span>::<span class="ident">EventProcessingDeserialize</span>), {
                 <span class="comment">// Event items can never include transactions, so retain the event type and let</span>
                 <span class="comment">// inference deal with this during store normalization.</span>
                 <span class="self">self</span>.<span class="ident">event_from_json_payload</span>(<span class="ident">item</span>, <span class="prelude-val">None</span>)<span class="question-mark">?</span>
             })
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="op">=</span> <span class="ident">transaction_item</span> {
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">item</span>) <span class="op">=</span> <span class="ident">transaction_item</span> {
             <span class="ident">relay_log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;processing json transaction&quot;</span>);
+            <span class="ident">state</span>.<span class="ident">sample_rates</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">take_sample_rates</span>();
             <span class="macro">metric</span><span class="macro">!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers</span>::<span class="ident">EventProcessingDeserialize</span>), {
                 <span class="comment">// Transaction items can only contain transaction events. Force the event type to</span>
                 <span class="comment">// hint to normalization that we&#39;re dealing with a transaction now.</span>
                 <span class="self">self</span>.<span class="ident">event_from_json_payload</span>(<span class="ident">item</span>, <span class="prelude-val">Some</span>(<span class="ident">EventType</span>::<span class="ident">Transaction</span>))<span class="question-mark">?</span>
             })
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="op">=</span> <span class="ident">raw_security_item</span> {
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">item</span>) <span class="op">=</span> <span class="ident">raw_security_item</span> {
             <span class="ident">relay_log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;processing security report&quot;</span>);
+            <span class="ident">state</span>.<span class="ident">sample_rates</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">take_sample_rates</span>();
             <span class="self">self</span>.<span class="ident">event_from_security_report</span>(<span class="ident">item</span>)<span class="question-mark">?</span>
         } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">attachment_item</span>.<span class="ident">is_some</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">breadcrumbs1</span>.<span class="ident">is_some</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">breadcrumbs2</span>.<span class="ident">is_some</span>() {
             <span class="ident">relay_log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;extracting attached event data&quot;</span>);
@@ -2718,6 +2758,8 @@
         <span class="comment">// In processing mode, also write metrics into the event. Most metrics have already been</span>
         <span class="comment">// collected at this state, except for the combined size of all attachments.</span>
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>() {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">take</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">metrics</span>);
+
             <span class="kw">let</span> <span class="ident">attachment_size</span> <span class="op">=</span> <span class="ident">envelope</span>
                 .<span class="ident">items</span>()
                 .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">=</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType</span>::<span class="ident">Attachment</span>))
@@ -2725,10 +2767,22 @@
                 .<span class="ident">sum</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>();
 
             <span class="kw">if</span> <span class="ident">attachment_size</span> <span class="op">&gt;</span> <span class="number">0</span> {
-                <span class="ident">state</span>.<span class="ident">metrics</span>.<span class="ident">bytes_ingested_event_attachment</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">attachment_size</span>);
+                <span class="ident">metrics</span>.<span class="ident">bytes_ingested_event_attachment</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">attachment_size</span>);
             }
 
-            <span class="ident">event</span>.<span class="ident">_metrics</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">take</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">metrics</span>));
+            <span class="kw">let</span> <span class="ident">sample_rates</span> <span class="op">=</span> <span class="ident">state</span>
+                .<span class="ident">sample_rates</span>
+                .<span class="ident">take</span>()
+                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">value</span><span class="op">|</span> <span class="ident">Array</span>::<span class="ident">from_value</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">value</span>)).<span class="ident">into_value</span>());
+
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rates</span>) <span class="op">=</span> <span class="ident">sample_rates</span> {
+                <span class="ident">metrics</span>
+                    .<span class="ident">sample_rates</span>
+                    .<span class="ident">get_or_insert_with</span>(<span class="ident">Array</span>::<span class="ident">new</span>)
+                    .<span class="ident">extend</span>(<span class="ident">rates</span>)
+            }
+
+            <span class="ident">event</span>.<span class="ident">_metrics</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">metrics</span>);
         }
 
         <span class="comment">// TODO: Temporary workaround before processing. Experimental SDKs relied on a buggy</span>
@@ -2947,6 +3001,13 @@
         <span class="kw">let</span> <span class="ident">event_type</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">event_type</span>().<span class="ident">unwrap_or_default</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event_item</span> <span class="op">=</span> <span class="ident">Item</span>::<span class="ident">new</span>(<span class="ident">ItemType</span>::<span class="ident">from_event_type</span>(<span class="ident">event_type</span>));
         <span class="ident">event_item</span>.<span class="ident">set_payload</span>(<span class="ident">ContentType</span>::<span class="ident">Json</span>, <span class="ident">data</span>);
+
+        <span class="comment">// If there are sample rates, write them back to the envelope. In processing mode, sample</span>
+        <span class="comment">// rates have been removed from the state and burnt into the event via `finalize_event`.</span>
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">sample_rates</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">sample_rates</span>.<span class="ident">take</span>() {
+            <span class="ident">event_item</span>.<span class="ident">set_sample_rates</span>(<span class="ident">sample_rates</span>);
+        }
+
         <span class="ident">state</span>.<span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">event_item</span>);
 
         <span class="prelude-val">Ok</span>(())
@@ -2998,7 +3059,6 @@
             });
 
             <span class="self">self</span>.<span class="ident">finalize_event</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
-
             <span class="self">self</span>.<span class="ident">sample_event</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
 
             <span class="macro">if_processing</span><span class="macro">!</span>({

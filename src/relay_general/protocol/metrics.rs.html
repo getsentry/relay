@@ -137,9 +137,57 @@
 <span id="134">134</span>
 <span id="135">135</span>
 <span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">processor</span>::<span class="ident">ProcessValue</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::<span class="ident">Annotated</span>;
+<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>};
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Empty</span>, <span class="ident">PartialEq</span>, <span class="ident">FromValue</span>, <span class="ident">ToValue</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SampleRate</span> {
+    <span class="doccomment">/// The unique identifier of the sampling rule or mechanism.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// For client-side sampling, this identifies the sampling mechanism:</span>
+    <span class="doccomment">///  - `client_rate`: Default base sample rate configured in client options. Only reported in</span>
+    <span class="doccomment">///    the absence of the traces sampler callback.</span>
+    <span class="doccomment">///  - `client_sampler`: Return value from the traces sampler callback during runtime. Always</span>
+    <span class="doccomment">///    overrides the `client_rate`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// For server-side sampling, this identifies the dynamic sampling rule.</span>
+    <span class="ident">id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// The effective sample rate in the range `(0..1]`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// While allowed in the protocol, a value of `0` can never occur in practice since such events</span>
+    <span class="doccomment">/// would never be reported to Sentry and thus never generate this metric.</span>
+    <span class="ident">rate</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>,
+}
 
 <span class="doccomment">/// Metrics captured during event ingestion and processing.</span>
 <span class="doccomment">///</span>
@@ -270,6 +318,12 @@
     <span class="doccomment">/// This metric is measured in Sentry and should be reported in all processing tasks.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;flag.processing.fatal&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">flag_processing_fatal</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// A list of cumulative sample rates applied to this event.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The</span>
+    <span class="doccomment">/// effective sample rate is multiplied.</span>
+    <span class="kw">pub</span> <span class="ident">sample_rates</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">SampleRate</span><span class="op">&gt;</span><span class="op">&gt;</span>,
 }
 
 <span class="comment">// Do not process Metrics</span>

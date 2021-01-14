@@ -1366,6 +1366,26 @@
 <span id="1363">1363</span>
 <span id="1364">1364</span>
 <span id="1365">1365</span>
+<span id="1366">1366</span>
+<span id="1367">1367</span>
+<span id="1368">1368</span>
+<span id="1369">1369</span>
+<span id="1370">1370</span>
+<span id="1371">1371</span>
+<span id="1372">1372</span>
+<span id="1373">1373</span>
+<span id="1374">1374</span>
+<span id="1375">1375</span>
+<span id="1376">1376</span>
+<span id="1377">1377</span>
+<span id="1378">1378</span>
+<span id="1379">1379</span>
+<span id="1380">1380</span>
+<span id="1381">1381</span>
+<span id="1382">1382</span>
+<span id="1383">1383</span>
+<span id="1384">1384</span>
+<span id="1385">1385</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Implementation of event envelopes.</span>
 <span class="doccomment">//!</span>
@@ -1718,6 +1738,13 @@
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip</span>)]</span>
     <span class="ident">rate_limited</span>: <span class="ident">bool</span>,
 
+    <span class="doccomment">/// A list of cumulative sample rates applied to this event.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The</span>
+    <span class="doccomment">/// effective sample rate is multiplied.</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
+    <span class="ident">sample_rates</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
+
     <span class="doccomment">/// Other attributes for forward compatibility.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">flatten</span>)]</span>
     <span class="ident">other</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Value</span><span class="op">&gt;</span>,
@@ -1740,6 +1767,7 @@
                 <span class="ident">content_type</span>: <span class="prelude-val">None</span>,
                 <span class="ident">filename</span>: <span class="prelude-val">None</span>,
                 <span class="ident">rate_limited</span>: <span class="bool-val">false</span>,
+                <span class="ident">sample_rates</span>: <span class="prelude-val">None</span>,
                 <span class="ident">other</span>: <span class="ident">BTreeMap</span>::<span class="ident">new</span>(),
             },
             <span class="ident">payload</span>: <span class="ident">Bytes</span>::<span class="ident">new</span>(),
@@ -1823,6 +1851,18 @@
     <span class="doccomment">/// Sets whether this item should be rate limited.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_rate_limited</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">rate_limited</span>: <span class="ident">bool</span>) {
         <span class="self">self</span>.<span class="ident">headers</span>.<span class="ident">rate_limited</span> <span class="op">=</span> <span class="ident">rate_limited</span>;
+    }
+
+    <span class="doccomment">/// Removes sample rates from the headers, if any.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take_sample_rates</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">headers</span>.<span class="ident">sample_rates</span>.<span class="ident">take</span>()
+    }
+
+    <span class="doccomment">/// Sets sample rates for this item.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_sample_rates</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">sample_rates</span>: <span class="ident">Value</span>) {
+        <span class="kw">if</span> <span class="macro">matches</span><span class="macro">!</span>(<span class="ident">sample_rates</span>, <span class="ident">Value</span>::<span class="ident">Array</span>(<span class="kw-2">ref</span> <span class="ident">a</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">a</span>.<span class="ident">is_empty</span>()) {
+            <span class="self">self</span>.<span class="ident">headers</span>.<span class="ident">sample_rates</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">sample_rates</span>);
+        }
     }
 
     <span class="doccomment">/// Returns the specified header value, if present.</span>
