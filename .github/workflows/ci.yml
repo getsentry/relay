@@ -52,7 +52,7 @@ jobs:
           args: --all -- --check
 
       - name: Run Clippy
-        uses: actions-rs/clippy@v1
+        uses: actions-rs/cargo@v1
         with:
           command: clippy
           args: --workspace --all-features --tests -- -D clippy::all
