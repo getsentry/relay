@@ -1,14 +1,12 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 //!
 use std::convert::TryInto;
-use std::fmt;
 
 use actix::prelude::*;
 use futures::{future, prelude::*};
 use rand::{distributions::Uniform, Rng};
 use rand_pcg::Pcg32;
-use serde::de::Visitor;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
 use relay_common::{EventType, ProjectId, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
@@ -33,25 +31,14 @@ pub enum RuleType {
 #[derive(Debug, Clone)]
 pub enum FieldValue<'a> {
     String(&'a str),
-    LoCaseString(LowerCaseString),
     None,
 }
 
 /// The value kept in a configuration rule
-/// Note 1: this is serialized as an untagged struct so it will never
-/// deserialize into a LoCaseStrList, LoCaseStr.
-/// There should be a step after deserialization to convert StrList into
-/// either a LoCaseStrList or a GlobPatterns based on the existing operator.
-/// This is done to both simplify the serialisation format (no tag) and not
-/// to have redundant (potentially contradicting) information between the
-/// RuleValue and the Operator
-/// Note 2: We bother in the first place with LoCaseStr and GlobPatterns in order
-/// not to need to do the conversion every time we check a rule.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", untagged)]
 pub enum RuleValue {
     StrList(Vec<String>),
-    LoCaseStrList(Vec<LowerCaseString>),
     Globs(GlobPatterns),
     None,
 }
@@ -67,7 +54,7 @@ pub struct ConditionData<T> {
 #[serde(rename_all = "camelCase", tag = "operator")]
 pub enum RuleCondition {
     Equal(ConditionData<Vec<String>>),
-    StrEqualNoCase(ConditionData<Vec<LowerCaseString>>),
+    StrEqualNoCase(ConditionData<Vec<String>>),
     GlobMatch(ConditionData<GlobPatterns>),
     #[serde(other)]
     Unsupported,
@@ -111,7 +98,7 @@ impl FieldValueProvider for Event {
             },
             "event.environment" => match self.environment.as_str() {
                 None => FieldValue::None,
-                Some(s) => FieldValue::LoCaseString(LowerCaseString::new(s)),
+                Some(s) => FieldValue::String(s),
             },
             "event.user_segment" => FieldValue::None, // Not available at this time
             _ => FieldValue::None,
@@ -136,11 +123,11 @@ impl FieldValueProvider for TraceContext {
             },
             "trace.environment" => match &self.environment {
                 None => FieldValue::None,
-                Some(s) => FieldValue::LoCaseString(LowerCaseString::new(s)),
+                Some(s) => FieldValue::String(s.as_ref()),
             },
             "trace.user_segment" => match &self.user_segment {
                 None => FieldValue::None,
-                Some(s) => FieldValue::LoCaseString(LowerCaseString::new(s)),
+                Some(s) => FieldValue::String(s.as_ref()),
             },
             _ => FieldValue::None,
         }
@@ -209,56 +196,10 @@ fn equal(rule_val: &[String], field_val: &FieldValue) -> bool {
 // Note: this is horrible (we allocate strings at every comparison, when we
 // move to an 'compiled' version where the rule value is already processed
 // things should improve
-fn str_eq_no_case(rule_val: &[LowerCaseString], field_val: &FieldValue) -> bool {
+fn str_eq_no_case(rule_val: &[String], field_val: &FieldValue) -> bool {
     match field_val {
-        FieldValue::LoCaseString(fv) => rule_val.iter().any(|val| val == fv),
+        FieldValue::String(fv) => rule_val.iter().any(|val| unicase::eq(val.as_str(), fv)),
         _ => false,
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Default)]
-pub struct LowerCaseString(String);
-
-impl LowerCaseString {
-    pub fn new(val: &str) -> LowerCaseString {
-        LowerCaseString(val.to_lowercase())
-    }
-}
-
-impl From<&str> for LowerCaseString {
-    fn from(val: &str) -> Self {
-        LowerCaseString(val.to_lowercase())
-    }
-}
-
-impl PartialEq for LowerCaseString {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Eq for LowerCaseString {}
-
-struct LowerCaseStringVisitor;
-
-impl<'de> Visitor<'de> for LowerCaseStringVisitor {
-    type Value = LowerCaseString;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a string to be converted to a lowercase string ")
-    }
-
-    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> {
-        Ok(LowerCaseString::new(v))
-    }
-}
-
-impl<'de> Deserialize<'de> for LowerCaseString {
-    fn deserialize<D>(deserializer: D) -> Result<LowerCaseString, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_string(LowerCaseStringVisitor)
     }
 }
 
@@ -505,11 +446,11 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
-                            value: (vec![LowerCaseString::new("debug")]),
+                            value: (vec!["debug".to_string()]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![LowerCaseString::new("vip")]),
+                            value: (vec!["vip".to_string()]),
                         }),
                     ],
                     sample_rate: 1.0,
@@ -527,11 +468,11 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
-                            value: (vec![LowerCaseString::new("debug")]),
+                            value: (vec!["debug".to_string()]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![LowerCaseString::new("vip")]),
+                            value: (vec!["vip".to_string()]),
                         }),
                     ],
                     sample_rate: 1.0,
@@ -549,11 +490,11 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
-                            value: (vec![LowerCaseString::new("debug")]),
+                            value: (vec!["debug".to_string()]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![LowerCaseString::new("vip")]),
+                            value: (vec!["vip".to_string()]),
                         }),
                     ],
                     sample_rate: 1.0,
@@ -571,11 +512,11 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
-                            value: (vec![LowerCaseString::new("debug")]),
+                            value: (vec!["debug".to_string()]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![LowerCaseString::new("vip")]),
+                            value: (vec!["vip".to_string()]),
                         }),
                     ],
                     sample_rate: 1.0,
@@ -596,11 +537,11 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
-                            value: (vec![LowerCaseString::new("debug")]),
+                            value: (vec!["debug".to_string()]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![LowerCaseString::new("vip")]),
+                            value: (vec!["vip".to_string()]),
                         }),
                     ],
                     sample_rate: 1.0,
@@ -618,14 +559,14 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
-                            value: (vec![LowerCaseString::new("debug")]),
+                            value: (vec!["debug".to_string()]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
                             value: (vec![
-                                LowerCaseString::new("paid"),
-                                LowerCaseString::new("vip"),
-                                LowerCaseString::new("free"),
+                                "paid".to_string(),
+                                "vip".to_string(),
+                                "free".to_string(),
                             ]),
                         }),
                     ],
@@ -644,14 +585,11 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
-                            value: (vec![LowerCaseString::new("debug")]),
+                            value: (vec!["debug".to_string()]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![
-                                LowerCaseString::new("ViP"),
-                                LowerCaseString::new("FrEe"),
-                            ]),
+                            value: (vec!["ViP".to_string(), "FrEe".to_string()]),
                         }),
                     ],
                     sample_rate: 1.0,
@@ -670,14 +608,14 @@ mod tests {
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
                             value: (vec![
-                                LowerCaseString::new("integration"),
-                                LowerCaseString::new("debug"),
-                                LowerCaseString::new("production"),
+                                "integration".to_string(),
+                                "debug".to_string(),
+                                "production".to_string(),
                             ]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![LowerCaseString::new("vip")]),
+                            value: (vec!["vip".to_string()]),
                         }),
                     ],
                     sample_rate: 1.0,
@@ -695,14 +633,11 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
-                            value: (vec![
-                                LowerCaseString::new("DeBuG"),
-                                LowerCaseString::new("PrOd"),
-                            ]),
+                            value: (vec!["DeBuG".to_string(), "PrOd".to_string()]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![LowerCaseString::new("vip")]),
+                            value: (vec!["vip".to_string()]),
                         }),
                     ],
                     sample_rate: 1.0,
@@ -724,7 +659,7 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![LowerCaseString::new("vip")]),
+                            value: (vec!["vip".to_string()]),
                         }),
                     ],
                     sample_rate: 1.0,
@@ -742,7 +677,7 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![LowerCaseString::new("vip")]),
+                            value: (vec!["vip".to_string()]),
                         }),
                     ],
                     sample_rate: 1.0,
@@ -816,11 +751,11 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
-                            value: (vec![LowerCaseString::new("debug")]),
+                            value: (vec!["debug".to_string()]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![LowerCaseString::new("vip")]),
+                            value: (vec!["vip".to_string()]),
                         }),
                     ],
                     sample_rate: 1.0,
@@ -838,11 +773,11 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
-                            value: (vec![LowerCaseString::new("debug")]),
+                            value: (vec!["debug".to_string()]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![LowerCaseString::new("vip")]),
+                            value: (vec!["vip".to_string()]),
                         }),
                     ],
                     sample_rate: 1.0,
@@ -860,11 +795,11 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
-                            value: (vec![LowerCaseString::new("debug")]),
+                            value: (vec!["debug".to_string()]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![LowerCaseString::new("all")]),
+                            value: (vec!["all".to_string()]),
                         }),
                     ],
                     sample_rate: 1.0,
@@ -882,11 +817,11 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
-                            value: (vec![LowerCaseString::new("prod")]),
+                            value: (vec!["prod".to_string()]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![LowerCaseString::new("vip")]),
+                            value: (vec!["vip".to_string()]),
                         }),
                     ],
                     sample_rate: 1.0,
@@ -904,11 +839,11 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
-                            value: (vec![LowerCaseString::new("debug")]),
+                            value: (vec!["debug".to_string()]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![LowerCaseString::new("vip")]),
+                            value: (vec!["vip".to_string()]),
                         }),
                     ],
                     sample_rate: 1.0,
@@ -972,8 +907,8 @@ mod tests {
                 operator: "strEqualNoCase",
                 name: "field_2",
                 value: [
-                  LowerCaseString("upper"),
-                  LowerCaseString("lower"),
+                  "UPPER",
+                  "lower",
                 ],
               ),
               ConditionData(
@@ -1010,18 +945,6 @@ mod tests {
     }
 
     #[test]
-    /// Test LowerCaseString deserialization
-    fn test_sampling_lower_case_string_deserialization() {
-        let some_string = r#""FiRsTSEGment""#;
-
-        let lower_case: Result<LowerCaseString, _> = serde_json::from_str(some_string);
-
-        assert!(lower_case.is_ok());
-        let lower_case = lower_case.unwrap();
-        assert_eq!(lower_case, LowerCaseString::new("firstsegment"));
-    }
-
-    #[test]
     fn test_partial_trace_matches() {
         let project_id = ProjectId::new(22);
 
@@ -1034,11 +957,11 @@ mod tests {
                 }),
                 RuleCondition::StrEqualNoCase(ConditionData {
                     name: "trace.environment".to_owned(),
-                    value: (vec![LowerCaseString::new("debug")]),
+                    value: (vec!["debug".to_string()]),
                 }),
                 RuleCondition::StrEqualNoCase(ConditionData {
                     name: "trace.user_segment".to_owned(),
-                    value: (vec![LowerCaseString::new("vip")]),
+                    value: (vec!["vip".to_string()]),
                 }),
             ],
             sample_rate: 1.0,
@@ -1066,7 +989,7 @@ mod tests {
                 }),
                 RuleCondition::StrEqualNoCase(ConditionData {
                     name: "trace.environment".to_owned(),
-                    value: (vec![LowerCaseString::new("debug")]),
+                    value: (vec!["debug".to_string()]),
                 }),
                 RuleCondition::StrEqualNoCase(ConditionData {
                     name: "trace.user_segment".to_owned(),
@@ -1102,7 +1025,7 @@ mod tests {
                 }),
                 RuleCondition::StrEqualNoCase(ConditionData {
                     name: "trace.user_segment".to_owned(),
-                    value: (vec![LowerCaseString::new("vip")]),
+                    value: (vec!["vip".to_string()]),
                 }),
             ],
             sample_rate: 1.0,
@@ -1176,11 +1099,11 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
-                            value: (vec![LowerCaseString::new("debug")]),
+                            value: (vec!["debug".to_string()]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![LowerCaseString::new("vip")]),
+                            value: (vec!["vip".to_string()]),
                         }),
                     ],
                     sample_rate: 0.1,
@@ -1196,7 +1119,7 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
-                            value: (vec![LowerCaseString::new("debug")]),
+                            value: (vec!["debug".to_string()]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
@@ -1216,11 +1139,11 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.environment".to_owned(),
-                            value: (vec![LowerCaseString::new("debug")]),
+                            value: (vec!["debug".to_string()]),
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![LowerCaseString::new("vip")]),
+                            value: (vec!["vip".to_string()]),
                         }),
                     ],
                     sample_rate: 0.3,
@@ -1240,7 +1163,7 @@ mod tests {
                         }),
                         RuleCondition::StrEqualNoCase(ConditionData {
                             name: "trace.user_segment".to_owned(),
-                            value: (vec![LowerCaseString::new("vip")]),
+                            value: (vec!["vip".to_string()]),
                         }),
                     ],
                     sample_rate: 0.4,
