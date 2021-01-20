@@ -164,11 +164,12 @@ def test_session_with_processing_two_events(
 
 
 def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consumer):
-    relay = relay_with_processing({"processing": {"explode_session_aggregates": False}})
+    relay = relay_with_processing()
     sessions_consumer = sessions_consumer()
 
     timestamp = datetime.now(tz=timezone.utc)
-    started = timestamp - timedelta(hours=1)
+    started1 = timestamp - timedelta(hours=1)
+    started2 = started1 - timedelta(hours=1)
 
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
@@ -177,10 +178,13 @@ def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consume
         {
             "aggregates": [
                 {
-                    "started": started.isoformat(),
+                    "started": started1.isoformat(),
                     "did": "foobarbaz",
                     "exited": 2,
                     "errored": 3,
+                },
+                {"started": started2.isoformat(),
+                "abnormal": 1,
                 }
             ],
             "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
@@ -196,7 +200,7 @@ def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consume
         "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
         "quantity": 2,
         "seq": 0,
-        "started": started.timestamp(),
+        "started": started1.timestamp(),
         "duration": None,
         "status": "exited",
         "errors": 0,
@@ -215,7 +219,7 @@ def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consume
         "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
         "quantity": 3,
         "seq": 0,
-        "started": started.timestamp(),
+        "started": started1.timestamp(),
         "duration": None,
         "status": "errored",
         "errors": 1,
@@ -225,53 +229,24 @@ def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consume
         "sdk": "raven-node/2.6.3",
     }
 
-
-def test_session_aggregates_explode(
-    mini_sentry, relay_with_processing, sessions_consumer
-):
-    relay = relay_with_processing({"processing": {"explode_session_aggregates": True}})
-    sessions_consumer = sessions_consumer()
-
-    timestamp = datetime.now(tz=timezone.utc)
-    started = timestamp - timedelta(hours=1)
-
-    project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-    relay.send_session_aggregates(
-        project_id,
-        {
-            "aggregates": [
-                {"started": started.isoformat(), "did": "foobarbaz", "exited": 2,}
-            ],
-            "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
-        },
-    )
-
-    expected = {
+    session = sessions_consumer.get_session()
+    del session["received"]
+    assert session == {
         "org_id": 1,
         "project_id": project_id,
-        "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
+        "session_id": "00000000-0000-0000-0000-000000000000",
+        "distinct_id": "00000000-0000-0000-0000-000000000000",
         "quantity": 1,
         "seq": 0,
-        "started": started.timestamp(),
+        "started": started2.timestamp(),
         "duration": None,
-        "status": "exited",
-        "errors": 0,
+        "status": "abnormal",
+        "errors": 1,
         "release": "sentry-test@1.0.0",
         "environment": "production",
         "retention_days": 90,
         "sdk": "raven-node/2.6.3",
     }
-
-    session = sessions_consumer.get_session()
-    del session["session_id"]
-    del session["received"]
-    assert session == expected
-
-    session = sessions_consumer.get_session()
-    del session["session_id"]
-    del session["received"]
-    assert session == expected
 
 
 def test_session_with_custom_retention(
