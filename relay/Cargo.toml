@@ -29,8 +29,5 @@ relay-config = { path = "../relay-config" }
 relay-log = { path = "../relay-log" }
 relay-server = { path = "../relay-server" }
 
-[target."cfg(not(windows))".dependencies]
-openssl-probe = "0.1.2"
-
 [build-dependencies]
 clap = { version = "2.33.1", default-features = false }
