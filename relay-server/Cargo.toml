@@ -57,7 +57,7 @@ relay-general = { path = "../relay-general" }
 relay-log = { path = "../relay-log" }
 relay-quotas = { path = "../relay-quotas" }
 relay-redis = { path = "../relay-redis" }
-reqwest = { version = "0.10.8", features = ["gzip", "stream"] }
+reqwest = { version = "0.10.8", features = ["gzip", "stream", "native-tls-vendored"] }
 rmp-serde = "0.14.3"
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
