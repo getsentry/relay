@@ -1076,9 +1076,7 @@ impl EventProcessor {
             Some(event) => event,
         };
 
-        let project_id = state.project_id;
-        match utils::should_keep_event(event, &state.project_state, project_id, processing_enabled)
-        {
+        match utils::should_keep_event(event, &state.project_state, processing_enabled) {
             Some(false) => Err(ProcessingError::EventSampled),
             Some(true) => Ok(()),
             None => Ok(()), // Not enough info to make a definite evaluation, keep the event
