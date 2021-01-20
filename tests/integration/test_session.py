@@ -183,9 +183,7 @@ def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consume
                     "exited": 2,
                     "errored": 3,
                 },
-                {"started": started2.isoformat(),
-                "abnormal": 1,
-                }
+                {"started": started2.isoformat(), "abnormal": 1,},
             ],
             "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
         },
