@@ -34,19 +34,19 @@ pub enum FieldValue<'a> {
     None,
 }
 
-/// The value kept in a configuration rule
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", untagged)]
-pub enum RuleValue {
-    StrList(Vec<String>),
-    Globs(GlobPatterns),
-    None,
+#[serde(rename_all = "camelCase")]
+pub struct EqCondData {
+    pub name: String,
+    pub value: Vec<String>,
+    #[serde(default)]
+    pub ignore_case: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConditionData<T> {
+pub struct GlobCondData {
     pub name: String,
-    pub value: T,
+    pub value: GlobPatterns,
 }
 
 /// Keeps inner conditions for combinator conditions
@@ -63,20 +63,19 @@ pub struct InnerConditions {
 /// This structure is used to aid the serialisation of Rules.
 /// See [InnerConditions] for further explanations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InnerCondition {
+pub struct InnerNotCondition {
     inner: Box<RuleCondition>,
 }
 
 /// A condition from a sampling rule
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "operator")]
+#[serde(rename_all = "camelCase", tag = "op")]
 pub enum RuleCondition {
-    Equal(ConditionData<Vec<String>>),
-    StrEqualNoCase(ConditionData<Vec<String>>),
-    GlobMatch(ConditionData<GlobPatterns>),
+    Eq(EqCondData),
+    Glob(GlobCondData),
     Or(InnerConditions),
     And(InnerConditions),
-    Not(InnerCondition),
+    Not(InnerNotCondition),
     #[serde(other)]
     Unsupported,
 }
@@ -98,14 +97,15 @@ impl RuleCondition {
     }
     fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
         match self {
-            RuleCondition::Equal(cond) => {
-                equal(&cond.value, &value_provider.get_value(cond.name.as_str()))
+            RuleCondition::Eq(cond) => {
+                if cond.ignore_case {
+                    str_eq_no_case(&cond.value, &value_provider.get_value(cond.name.as_str()))
+                } else {
+                    equal(&cond.value, &value_provider.get_value(cond.name.as_str()))
+                }
             }
-            RuleCondition::GlobMatch(cond) => {
+            RuleCondition::Glob(cond) => {
                 match_glob(&cond.value, &value_provider.get_value(cond.name.as_str()))
-            }
-            RuleCondition::StrEqualNoCase(cond) => {
-                str_eq_no_case(&cond.value, &value_provider.get_value(cond.name.as_str()))
             }
             RuleCondition::And(conditions) => conditions
                 .inner
@@ -449,17 +449,19 @@ mod tests {
                 SamplingRule {
                     condition: RuleCondition::And(InnerConditions {
                         inner: vec![
-                            RuleCondition::GlobMatch(ConditionData {
+                            RuleCondition::Glob(GlobCondData {
                                 name: "trace.release".to_owned(),
                                 value: GlobPatterns::new(vec!["1.1.1".to_string()]),
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.environment".to_owned(),
                                 value: (vec!["debug".to_string()]),
+                                ignore_case: true,
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.user_segment".to_owned(),
                                 value: (vec!["vip".to_string()]),
+                                ignore_case: true,
                             }),
                         ],
                     }),
@@ -472,17 +474,19 @@ mod tests {
                 SamplingRule {
                     condition: RuleCondition::And(InnerConditions {
                         inner: vec![
-                            RuleCondition::GlobMatch(ConditionData {
+                            RuleCondition::Glob(GlobCondData {
                                 name: "trace.release".to_owned(),
                                 value: GlobPatterns::new(vec!["1.*".to_string()]),
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.environment".to_owned(),
                                 value: (vec!["debug".to_string()]),
+                                ignore_case: true,
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.user_segment".to_owned(),
                                 value: (vec!["vip".to_string()]),
+                                ignore_case: true,
                             }),
                         ],
                     }),
@@ -495,20 +499,22 @@ mod tests {
                 SamplingRule {
                     condition: RuleCondition::And(InnerConditions {
                         inner: vec![
-                            RuleCondition::GlobMatch(ConditionData {
+                            RuleCondition::Glob(GlobCondData {
                                 name: "trace.release".to_owned(),
                                 value: GlobPatterns::new(vec![
                                     "2.1.1".to_string(),
                                     "1.1.*".to_string(),
                                 ]),
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.environment".to_owned(),
                                 value: (vec!["debug".to_string()]),
+                                ignore_case: true,
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.user_segment".to_owned(),
                                 value: (vec!["vip".to_string()]),
+                                ignore_case: true,
                             }),
                         ],
                     }),
@@ -521,21 +527,23 @@ mod tests {
                 SamplingRule {
                     condition: RuleCondition::And(InnerConditions {
                         inner: vec![
-                            RuleCondition::GlobMatch(ConditionData {
+                            RuleCondition::Glob(GlobCondData {
                                 name: "trace.release".to_owned(),
                                 value: GlobPatterns::new(vec!["1.1.1".to_string()]),
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.environment".to_owned(),
                                 value: (vec!["debug".to_string()]),
+                                ignore_case: true,
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.user_segment".to_owned(),
                                 value: (vec![
                                     "paid".to_string(),
                                     "vip".to_string(),
                                     "free".to_string(),
                                 ]),
+                                ignore_case: true,
                             }),
                         ],
                     }),
@@ -548,17 +556,19 @@ mod tests {
                 SamplingRule {
                     condition: RuleCondition::And(InnerConditions {
                         inner: vec![
-                            RuleCondition::GlobMatch(ConditionData {
+                            RuleCondition::Glob(GlobCondData {
                                 name: "trace.release".to_owned(),
                                 value: GlobPatterns::new(vec!["1.1.1".to_string()]),
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.environment".to_owned(),
                                 value: (vec!["debug".to_string()]),
+                                ignore_case: true,
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.user_segment".to_owned(),
                                 value: (vec!["ViP".to_string(), "FrEe".to_string()]),
+                                ignore_case: true,
                             }),
                         ],
                     }),
@@ -571,21 +581,23 @@ mod tests {
                 SamplingRule {
                     condition: RuleCondition::And(InnerConditions {
                         inner: vec![
-                            RuleCondition::GlobMatch(ConditionData {
+                            RuleCondition::Glob(GlobCondData {
                                 name: "trace.release".to_owned(),
                                 value: GlobPatterns::new(vec!["1.1.1".to_string()]),
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.environment".to_owned(),
                                 value: (vec![
                                     "integration".to_string(),
                                     "debug".to_string(),
                                     "production".to_string(),
                                 ]),
+                                ignore_case: true,
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.user_segment".to_owned(),
                                 value: (vec!["vip".to_string()]),
+                                ignore_case: true,
                             }),
                         ],
                     }),
@@ -598,17 +610,19 @@ mod tests {
                 SamplingRule {
                     condition: RuleCondition::And(InnerConditions {
                         inner: vec![
-                            RuleCondition::GlobMatch(ConditionData {
+                            RuleCondition::Glob(GlobCondData {
                                 name: "trace.release".to_owned(),
                                 value: GlobPatterns::new(vec!["1.1.1".to_string()]),
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.environment".to_owned(),
                                 value: (vec!["DeBuG".to_string(), "PrOd".to_string()]),
+                                ignore_case: true,
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.user_segment".to_owned(),
                                 value: (vec!["vip".to_string()]),
+                                ignore_case: true,
                             }),
                         ],
                     }),
@@ -621,13 +635,14 @@ mod tests {
                 SamplingRule {
                     condition: RuleCondition::And(InnerConditions {
                         inner: vec![
-                            RuleCondition::GlobMatch(ConditionData {
+                            RuleCondition::Glob(GlobCondData {
                                 name: "trace.release".to_owned(),
                                 value: GlobPatterns::new(vec!["1.1.1".to_string()]),
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.user_segment".to_owned(),
                                 value: (vec!["vip".to_string()]),
+                                ignore_case: true,
                             }),
                         ],
                     }),
@@ -640,13 +655,14 @@ mod tests {
                 SamplingRule {
                     condition: RuleCondition::And(InnerConditions {
                         inner: vec![
-                            RuleCondition::GlobMatch(ConditionData {
+                            RuleCondition::Glob(GlobCondData {
                                 name: "trace.release".to_owned(),
                                 value: GlobPatterns::new(vec!["1.1.1".to_string()]),
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.user_segment".to_owned(),
                                 value: (vec!["vip".to_string()]),
+                                ignore_case: true,
                             }),
                         ],
                     }),
@@ -687,17 +703,19 @@ mod tests {
                 SamplingRule {
                     condition: RuleCondition::And(InnerConditions {
                         inner: vec![
-                            RuleCondition::GlobMatch(ConditionData {
+                            RuleCondition::Glob(GlobCondData {
                                 name: "trace.release".to_owned(),
                                 value: GlobPatterns::new(vec!["1.1.2".to_string()]),
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.environment".to_owned(),
                                 value: (vec!["debug".to_string()]),
+                                ignore_case: true,
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.user_segment".to_owned(),
                                 value: (vec!["vip".to_string()]),
+                                ignore_case: true,
                             }),
                         ],
                     }),
@@ -710,17 +728,19 @@ mod tests {
                 SamplingRule {
                     condition: RuleCondition::And(InnerConditions {
                         inner: vec![
-                            RuleCondition::GlobMatch(ConditionData {
+                            RuleCondition::Glob(GlobCondData {
                                 name: "trace.release".to_owned(),
                                 value: GlobPatterns::new(vec!["1.1.1".to_string()]),
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.environment".to_owned(),
                                 value: (vec!["debug".to_string()]),
+                                ignore_case: true,
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.user_segment".to_owned(),
                                 value: (vec!["all".to_string()]),
+                                ignore_case: true,
                             }),
                         ],
                     }),
@@ -733,17 +753,19 @@ mod tests {
                 SamplingRule {
                     condition: RuleCondition::And(InnerConditions {
                         inner: vec![
-                            RuleCondition::GlobMatch(ConditionData {
+                            RuleCondition::Glob(GlobCondData {
                                 name: "trace.release".to_owned(),
                                 value: GlobPatterns::new(vec!["1.1.1".to_string()]),
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.environment".to_owned(),
                                 value: (vec!["prod".to_string()]),
+                                ignore_case: true,
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.user_segment".to_owned(),
                                 value: (vec!["vip".to_string()]),
+                                ignore_case: true,
                             }),
                         ],
                     }),
@@ -756,17 +778,19 @@ mod tests {
                 SamplingRule {
                     condition: RuleCondition::And(InnerConditions {
                         inner: vec![
-                            RuleCondition::GlobMatch(ConditionData {
+                            RuleCondition::Glob(GlobCondData {
                                 name: "trace.release".to_owned(),
                                 value: GlobPatterns::new(vec!["1.1.1".to_string()]),
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.environment".to_owned(),
                                 value: (vec!["debug".to_string()]),
+                                ignore_case: true,
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.user_segment".to_owned(),
                                 value: (vec!["vip".to_string()]),
+                                ignore_case: true,
                             }),
                         ],
                     }),
@@ -794,20 +818,45 @@ mod tests {
     fn test_rule_condition_deserialization() {
         let serialized_rules = r#"[
         {
-            "operator":"equal",
+            "op":"eq",
             "name": "field_1",
-            "value": ["UPPER","lower"]
+            "value": ["UPPER","lower"],
+            "ignoreCase": true
         },
         {
-            "operator":"strEqualNoCase",
+            "op":"eq",
             "name": "field_2",
             "value": ["UPPER","lower"]
         },
         {
-            "operator":"globMatch",
+            "op":"glob",
             "name": "field_3",
             "value": ["1.2.*","2.*"]
-        }
+        },
+        {
+            "op":"not",
+            "inner": {
+                "op":"glob",
+                "name": "field_4",
+                "value": ["1.*"]
+            }
+        },        
+        {
+            "op":"and",
+            "inner": [{
+                "op":"glob",
+                "name": "field_5",
+                "value": ["2.*"]
+            }]
+        },        
+        {
+            "op":"or",
+            "inner": [{
+                "op":"glob",
+                "name": "field_6",
+                "value": ["3.*"]
+            }]
+        }        
         ]
         "#;
         let rules: Result<Vec<RuleCondition>, _> = serde_json::from_str(serialized_rules);
@@ -816,28 +865,64 @@ mod tests {
         let rules = rules.unwrap();
         assert_ron_snapshot!(rules, @r###"
             [
-              ConditionData(
-                operator: "equal",
+              EqCondData(
+                op: "eq",
                 name: "field_1",
                 value: [
                   "UPPER",
                   "lower",
                 ],
+                ignoreCase: true,
               ),
-              ConditionData(
-                operator: "strEqualNoCase",
+              EqCondData(
+                op: "eq",
                 name: "field_2",
                 value: [
                   "UPPER",
                   "lower",
                 ],
+                ignoreCase: false,
               ),
-              ConditionData(
-                operator: "globMatch",
+              GlobCondData(
+                op: "glob",
                 name: "field_3",
                 value: [
                   "1.2.*",
                   "2.*",
+                ],
+              ),
+              InnerNotCondition(
+                op: "not",
+                inner: GlobCondData(
+                  op: "glob",
+                  name: "field_4",
+                  value: [
+                    "1.*",
+                  ],
+                ),
+              ),
+              InnerConditions(
+                op: "and",
+                inner: [
+                  GlobCondData(
+                    op: "glob",
+                    name: "field_5",
+                    value: [
+                      "2.*",
+                    ],
+                  ),
+                ],
+              ),
+              InnerConditions(
+                op: "or",
+                inner: [
+                  GlobCondData(
+                    op: "glob",
+                    name: "field_6",
+                    value: [
+                      "3.*",
+                    ],
+                  ),
                 ],
               ),
             ]"###);
@@ -848,11 +933,9 @@ mod tests {
     fn test_sampling_rule_deserialization() {
         let serialized_rule = r#"{
             "condition":{
-                "operator":"and",
+                "op":"and",
                 "inner": [
-                    { "operator" : "globMatch", "name": "releases", "value":["1.1.1", "1.1.2"]},
-                    { "operator" : "strEqualNoCase", "name": "enviroments", "value":["DeV", "pRoD"]},
-                    { "operator" : "strEqualNoCase", "name": "userSegements", "value":["FirstSegment", "SeCoNd"]}
+                    { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
             },                
             "sampleRate": 0.7,
@@ -871,13 +954,15 @@ mod tests {
         let rule = SamplingRule {
             condition: RuleCondition::And(InnerConditions {
                 inner: vec![
-                    RuleCondition::StrEqualNoCase(ConditionData {
+                    RuleCondition::Eq(EqCondData {
                         name: "trace.environment".to_owned(),
                         value: (vec!["debug".to_string()]),
+                        ignore_case: true,
                     }),
-                    RuleCondition::StrEqualNoCase(ConditionData {
+                    RuleCondition::Eq(EqCondData {
                         name: "trace.user_segment".to_owned(),
                         value: (vec!["vip".to_string()]),
+                        ignore_case: true,
                     }),
                 ],
             }),
@@ -900,13 +985,14 @@ mod tests {
         let rule = SamplingRule {
             condition: RuleCondition::And(InnerConditions {
                 inner: vec![
-                    RuleCondition::GlobMatch(ConditionData {
+                    RuleCondition::Glob(GlobCondData {
                         name: "trace.release".to_owned(),
                         value: GlobPatterns::new(vec!["1.1.1".to_string()]),
                     }),
-                    RuleCondition::StrEqualNoCase(ConditionData {
+                    RuleCondition::Eq(EqCondData {
                         name: "trace.environment".to_owned(),
                         value: (vec!["debug".to_string()]),
+                        ignore_case: true,
                     }),
                 ],
             }),
@@ -929,13 +1015,14 @@ mod tests {
         let rule = SamplingRule {
             condition: RuleCondition::And(InnerConditions {
                 inner: vec![
-                    RuleCondition::GlobMatch(ConditionData {
+                    RuleCondition::Glob(GlobCondData {
                         name: "trace.release".to_owned(),
                         value: GlobPatterns::new(vec!["1.1.1".to_string()]),
                     }),
-                    RuleCondition::StrEqualNoCase(ConditionData {
+                    RuleCondition::Eq(EqCondData {
                         name: "trace.user_segment".to_owned(),
                         value: (vec!["vip".to_string()]),
+                        ignore_case: true,
                     }),
                 ],
             }),
@@ -988,17 +1075,19 @@ mod tests {
                 SamplingRule {
                     condition: RuleCondition::And(InnerConditions {
                         inner: vec![
-                            RuleCondition::GlobMatch(ConditionData {
+                            RuleCondition::Glob(GlobCondData {
                                 name: "trace.release".to_owned(),
                                 value: GlobPatterns::new(vec!["1.1.1".to_string()]),
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.environment".to_owned(),
                                 value: (vec!["debug".to_string()]),
+                                ignore_case: true,
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.user_segment".to_owned(),
                                 value: (vec!["vip".to_string()]),
+                                ignore_case: true,
                             }),
                         ],
                     }),
@@ -1009,13 +1098,14 @@ mod tests {
                 SamplingRule {
                     condition: RuleCondition::And(InnerConditions {
                         inner: vec![
-                            RuleCondition::GlobMatch(ConditionData {
+                            RuleCondition::Glob(GlobCondData {
                                 name: "trace.release".to_owned(),
                                 value: GlobPatterns::new(vec!["1.1.2".to_string()]),
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.environment".to_owned(),
                                 value: (vec!["debug".to_string()]),
+                                ignore_case: true,
                             }),
                         ],
                     }),
@@ -1026,13 +1116,15 @@ mod tests {
                 SamplingRule {
                     condition: RuleCondition::And(InnerConditions {
                         inner: vec![
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.environment".to_owned(),
                                 value: (vec!["debug".to_string()]),
+                                ignore_case: true,
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.user_segment".to_owned(),
                                 value: (vec!["vip".to_string()]),
+                                ignore_case: true,
                             }),
                         ],
                     }),
@@ -1043,13 +1135,14 @@ mod tests {
                 SamplingRule {
                     condition: RuleCondition::And(InnerConditions {
                         inner: vec![
-                            RuleCondition::GlobMatch(ConditionData {
+                            RuleCondition::Glob(GlobCondData {
                                 name: "trace.release".to_owned(),
                                 value: GlobPatterns::new(vec!["1.1.1".to_string()]),
                             }),
-                            RuleCondition::StrEqualNoCase(ConditionData {
+                            RuleCondition::Eq(EqCondData {
                                 name: "trace.user_segment".to_owned(),
                                 value: (vec!["vip".to_string()]),
+                                ignore_case: true,
                             }),
                         ],
                     }),

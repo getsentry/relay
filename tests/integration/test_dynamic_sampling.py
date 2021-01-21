@@ -84,7 +84,7 @@ def _add_sampling_config(
     if releases is not None:
         conditions.append(
             {
-                "operator": "globMatch",
+                "op": "glob",
                 "name": field_prefix + "release",
                 "value": releases,
             }
@@ -92,24 +92,26 @@ def _add_sampling_config(
     if user_segments is not None:
         conditions.append(
             {
-                "operator": "strEqualNoCase",
+                "op": "eq",
                 "name": field_prefix + "user_segment",
                 "value": user_segments,
+                "ignoreCase": True
             }
         )
     if environments is not None:
         conditions.append(
             {
-                "operator": "strEqualNoCase",
+                "op": "eq",
                 "name": field_prefix + "environment",
                 "value": environments,
+                "ignoreCase": True
             }
         )
 
     rule = {
         "sampleRate": sample_rate,
         "ty": rule_type,
-        "condition": {"operator": "and", "inner": conditions},
+        "condition": {"op": "and", "inner": conditions},
     }
     rules.append(rule)
     return rules
@@ -330,7 +332,7 @@ def test_bad_dynamic_rules_in_processing_relays(
     )
     last_rule = rules[-1]
     last_rule["condition"]["inner"].append(
-        {"operator": "BadOperator", "name": "foo", "value": "bar",}
+        {"op": "BadOperator", "name": "foo", "value": "bar", }
     )
     _add_sampling_config(config, sample_rate=sample_rate, rule_type=rule_type)
     envelope, trace_id, event_id = event_factory(public_key)
@@ -368,7 +370,7 @@ def test_bad_dynamic_rules_in_non_processing_relays(
     rules = _add_sampling_config(config, sample_rate=0, rule_type=rule_type)
     last_rule = rules[-1]
     last_rule["condition"]["inner"].append(
-        {"operator": "BadOperator", "name": "foo", "value": "bar",}
+        {"op": "BadOperator", "name": "foo", "value": "bar", }
     )
     # add a sampling rule to project config that drops all events (sample_rate=0), it should be ignored
     # because there is an invalid rule in the configuration
