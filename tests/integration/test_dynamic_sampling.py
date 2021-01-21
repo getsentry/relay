@@ -110,7 +110,7 @@ def _add_sampling_config(
 
     rule = {
         "sampleRate": sample_rate,
-        "ty": rule_type,
+        "type": rule_type,
         "condition": {"op": "and", "inner": conditions},
     }
     rules.append(rule)

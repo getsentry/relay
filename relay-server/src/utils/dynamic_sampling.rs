@@ -127,6 +127,7 @@ impl RuleCondition {
 pub struct SamplingRule {
     pub condition: RuleCondition,
     pub sample_rate: f64,
+    #[serde(rename = "type")]
     pub ty: RuleType,
 }
 
@@ -658,6 +659,15 @@ mod tests {
                     ty: RuleType::Trace,
                 },
             ),
+            (
+                "empty",
+                false,
+                SamplingRule {
+                    condition: or(vec![]),
+                    sample_rate: 1.0,
+                    ty: RuleType::Trace,
+                },
+            ),
         ];
 
         let tc = TraceContext {
@@ -724,6 +734,15 @@ mod tests {
                         eq("trace.environment", &["prod"], true),
                         eq("trace.user_segment", &["all"], true),
                     ]),
+                    sample_rate: 1.0,
+                    ty: RuleType::Trace,
+                },
+            ),
+            (
+                "empty",
+                true,
+                SamplingRule {
+                    condition: and(vec![]),
                     sample_rate: 1.0,
                     ty: RuleType::Trace,
                 },
@@ -980,7 +999,7 @@ mod tests {
                 ]
             },                
             "sampleRate": 0.7,
-            "ty": "trace"
+            "type": "trace"
         }"#;
         let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
 
