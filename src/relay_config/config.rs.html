@@ -1450,19 +1450,6 @@
 <span id="1447">1447</span>
 <span id="1448">1448</span>
 <span id="1449">1449</span>
-<span id="1450">1450</span>
-<span id="1451">1451</span>
-<span id="1452">1452</span>
-<span id="1453">1453</span>
-<span id="1454">1454</span>
-<span id="1455">1455</span>
-<span id="1456">1456</span>
-<span id="1457">1457</span>
-<span id="1458">1458</span>
-<span id="1459">1459</span>
-<span id="1460">1460</span>
-<span id="1461">1461</span>
-<span id="1462">1462</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">env</span>;
@@ -2157,18 +2144,11 @@
     <span class="prelude-val">Some</span>(<span class="number">300</span>) <span class="comment">// 5 minutes</span>
 }
 
-<span class="kw">fn</span> <span class="ident">default_explode_session_aggregates</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
-    <span class="bool-val">true</span>
-}
-
 <span class="doccomment">/// Controls Sentry-internal event processing.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Processing</span> {
     <span class="doccomment">/// True if the Relay should do processing. Defaults to `false`.</span>
     <span class="kw">pub</span> <span class="ident">enabled</span>: <span class="ident">bool</span>,
-    <span class="doccomment">/// Indicates if session aggregates should be exploded into individual session updates.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span> <span class="op">=</span> <span class="string">&quot;default_explode_session_aggregates&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">explode_session_aggregates</span>: <span class="ident">bool</span>,
     <span class="doccomment">/// GeoIp DB file source.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
     <span class="kw">pub</span> <span class="ident">geoip_path</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PathBuf</span><span class="op">&gt;</span>,
@@ -2205,7 +2185,6 @@
     <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">enabled</span>: <span class="bool-val">false</span>,
-            <span class="ident">explode_session_aggregates</span>: <span class="ident">default_explode_session_aggregates</span>(),
             <span class="ident">geoip_path</span>: <span class="prelude-val">None</span>,
             <span class="ident">max_secs_in_future</span>: <span class="ident">default_max_secs_in_future</span>(),
             <span class="ident">max_secs_in_past</span>: <span class="ident">default_max_secs_in_past</span>(),
@@ -2849,11 +2828,6 @@
     <span class="doccomment">/// True if the Relay should do processing.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">processing_enabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">enabled</span>
-    }
-
-    <span class="doccomment">/// Indicates if session aggregates should be exploded into individual session updates.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">explode_session_aggregates</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">explode_session_aggregates</span>
     }
 
     <span class="doccomment">/// The path to the GeoIp database required for event processing.</span>
