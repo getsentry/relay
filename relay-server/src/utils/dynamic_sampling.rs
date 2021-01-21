@@ -440,6 +440,35 @@ mod tests {
     use insta::assert_ron_snapshot;
     use std::str::FromStr;
 
+    fn eq(name: &str, value: &[&str], ignore_case: bool) -> RuleCondition {
+        RuleCondition::Eq(EqCondData {
+            name: name.to_owned(),
+            value: value.iter().map(|s| s.to_string()).collect(),
+            ignore_case,
+        })
+    }
+
+    fn glob(name: &str, value: &[&str]) -> RuleCondition {
+        RuleCondition::Glob(GlobCondData {
+            name: name.to_owned(),
+            value: GlobPatterns::new(value.iter().map(|s| s.to_string()).collect()),
+        })
+    }
+
+    fn and(conds: Vec<RuleCondition>) -> RuleCondition {
+        RuleCondition::And(InnerConditions { inner: conds })
+    }
+
+    fn or(conds: Vec<RuleCondition>) -> RuleCondition {
+        RuleCondition::Or(InnerConditions { inner: conds })
+    }
+
+    fn not(cond: RuleCondition) -> RuleCondition {
+        RuleCondition::Not(InnerNotCondition {
+            inner: Box::new(cond),
+        })
+    }
+
     #[test]
     /// test matching for various rules
     fn test_matches() {
@@ -447,24 +476,11 @@ mod tests {
             (
                 "simple",
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions {
-                        inner: vec![
-                            RuleCondition::Glob(GlobCondData {
-                                name: "trace.release".to_owned(),
-                                value: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.environment".to_owned(),
-                                value: (vec!["debug".to_string()]),
-                                ignore_case: true,
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.user_segment".to_owned(),
-                                value: (vec!["vip".to_string()]),
-                                ignore_case: true,
-                            }),
-                        ],
-                    }),
+                    condition: and(vec![
+                        glob("trace.release", &["1.1.1"]),
+                        eq("trace.environment", &["debug"], true),
+                        eq("trace.user_segment", &["vip"], true),
+                    ]),
                     sample_rate: 1.0,
                     ty: RuleType::Trace,
                 },
@@ -472,24 +488,11 @@ mod tests {
             (
                 "glob releases",
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions {
-                        inner: vec![
-                            RuleCondition::Glob(GlobCondData {
-                                name: "trace.release".to_owned(),
-                                value: GlobPatterns::new(vec!["1.*".to_string()]),
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.environment".to_owned(),
-                                value: (vec!["debug".to_string()]),
-                                ignore_case: true,
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.user_segment".to_owned(),
-                                value: (vec!["vip".to_string()]),
-                                ignore_case: true,
-                            }),
-                        ],
-                    }),
+                    condition: and(vec![
+                        glob("trace.release", &["1.*"]),
+                        eq("trace.environment", &["debug"], true),
+                        eq("trace.user_segment", &["vip"], true),
+                    ]),
                     sample_rate: 1.0,
                     ty: RuleType::Trace,
                 },
@@ -497,27 +500,11 @@ mod tests {
             (
                 "multiple releases",
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions {
-                        inner: vec![
-                            RuleCondition::Glob(GlobCondData {
-                                name: "trace.release".to_owned(),
-                                value: GlobPatterns::new(vec![
-                                    "2.1.1".to_string(),
-                                    "1.1.*".to_string(),
-                                ]),
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.environment".to_owned(),
-                                value: (vec!["debug".to_string()]),
-                                ignore_case: true,
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.user_segment".to_owned(),
-                                value: (vec!["vip".to_string()]),
-                                ignore_case: true,
-                            }),
-                        ],
-                    }),
+                    condition: and(vec![
+                        glob("trace.release", &["2.1.1", "1.1.*"]),
+                        eq("trace.environment", &["debug"], true),
+                        eq("trace.user_segment", &["vip"], true),
+                    ]),
                     sample_rate: 1.0,
                     ty: RuleType::Trace,
                 },
@@ -525,28 +512,11 @@ mod tests {
             (
                 "multiple user segments",
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions {
-                        inner: vec![
-                            RuleCondition::Glob(GlobCondData {
-                                name: "trace.release".to_owned(),
-                                value: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.environment".to_owned(),
-                                value: (vec!["debug".to_string()]),
-                                ignore_case: true,
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.user_segment".to_owned(),
-                                value: (vec![
-                                    "paid".to_string(),
-                                    "vip".to_string(),
-                                    "free".to_string(),
-                                ]),
-                                ignore_case: true,
-                            }),
-                        ],
-                    }),
+                    condition: and(vec![
+                        glob("trace.release", &["1.1.1"]),
+                        eq("trace.environment", &["debug"], true),
+                        eq("trace.user_segment", &["paid", "vip", "free"], true),
+                    ]),
                     sample_rate: 1.0,
                     ty: RuleType::Trace,
                 },
@@ -554,24 +524,11 @@ mod tests {
             (
                 "case insensitive user segments",
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions {
-                        inner: vec![
-                            RuleCondition::Glob(GlobCondData {
-                                name: "trace.release".to_owned(),
-                                value: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.environment".to_owned(),
-                                value: (vec!["debug".to_string()]),
-                                ignore_case: true,
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.user_segment".to_owned(),
-                                value: (vec!["ViP".to_string(), "FrEe".to_string()]),
-                                ignore_case: true,
-                            }),
-                        ],
-                    }),
+                    condition: and(vec![
+                        glob("trace.release", &["1.1.1"]),
+                        eq("trace.environment", &["debug"], true),
+                        eq("trace.user_segment", &["ViP", "FrEe"], true),
+                    ]),
                     sample_rate: 1.0,
                     ty: RuleType::Trace,
                 },
@@ -579,28 +536,15 @@ mod tests {
             (
                 "multiple user environments",
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions {
-                        inner: vec![
-                            RuleCondition::Glob(GlobCondData {
-                                name: "trace.release".to_owned(),
-                                value: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.environment".to_owned(),
-                                value: (vec![
-                                    "integration".to_string(),
-                                    "debug".to_string(),
-                                    "production".to_string(),
-                                ]),
-                                ignore_case: true,
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.user_segment".to_owned(),
-                                value: (vec!["vip".to_string()]),
-                                ignore_case: true,
-                            }),
-                        ],
-                    }),
+                    condition: and(vec![
+                        glob("trace.release", &["1.1.1"]),
+                        eq(
+                            "trace.environment",
+                            &["integration", "debug", "production"],
+                            true,
+                        ),
+                        eq("trace.user_segment", &["vip"], true),
+                    ]),
                     sample_rate: 1.0,
                     ty: RuleType::Trace,
                 },
@@ -608,24 +552,11 @@ mod tests {
             (
                 "case insensitive environments",
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions {
-                        inner: vec![
-                            RuleCondition::Glob(GlobCondData {
-                                name: "trace.release".to_owned(),
-                                value: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.environment".to_owned(),
-                                value: (vec!["DeBuG".to_string(), "PrOd".to_string()]),
-                                ignore_case: true,
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.user_segment".to_owned(),
-                                value: (vec!["vip".to_string()]),
-                                ignore_case: true,
-                            }),
-                        ],
-                    }),
+                    condition: and(vec![
+                        glob("trace.release", &["1.1.1"]),
+                        eq("trace.environment", &["DeBuG", "PrOd"], true),
+                        eq("trace.user_segment", &["vip"], true),
+                    ]),
                     sample_rate: 1.0,
                     ty: RuleType::Trace,
                 },
@@ -633,19 +564,10 @@ mod tests {
             (
                 "all environments",
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions {
-                        inner: vec![
-                            RuleCondition::Glob(GlobCondData {
-                                name: "trace.release".to_owned(),
-                                value: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.user_segment".to_owned(),
-                                value: (vec!["vip".to_string()]),
-                                ignore_case: true,
-                            }),
-                        ],
-                    }),
+                    condition: and(vec![
+                        glob("trace.release", &["1.1.1"]),
+                        eq("trace.user_segment", &["vip"], true),
+                    ]),
                     sample_rate: 1.0,
                     ty: RuleType::Trace,
                 },
@@ -653,19 +575,10 @@ mod tests {
             (
                 "undefined environments",
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions {
-                        inner: vec![
-                            RuleCondition::Glob(GlobCondData {
-                                name: "trace.release".to_owned(),
-                                value: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.user_segment".to_owned(),
-                                value: (vec!["vip".to_string()]),
-                                ignore_case: true,
-                            }),
-                        ],
-                    }),
+                    condition: and(vec![
+                        glob("trace.release", &["1.1.1"]),
+                        eq("trace.user_segment", &["vip"], true),
+                    ]),
                     sample_rate: 1.0,
                     ty: RuleType::Trace,
                 },
@@ -673,7 +586,7 @@ mod tests {
             (
                 "match no conditions",
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions { inner: vec![] }),
+                    condition: and(vec![]),
                     sample_rate: 1.0,
                     ty: RuleType::Trace,
                 },
@@ -695,30 +608,197 @@ mod tests {
     }
 
     #[test]
+    fn test_or_combinator() {
+        let rules = [
+            (
+                "both",
+                true,
+                SamplingRule {
+                    condition: or(vec![
+                        eq("trace.environment", &["debug"], true),
+                        eq("trace.user_segment", &["vip"], true),
+                    ]),
+                    sample_rate: 1.0,
+                    ty: RuleType::Trace,
+                },
+            ),
+            (
+                "first",
+                true,
+                SamplingRule {
+                    condition: or(vec![
+                        eq("trace.environment", &["debug"], true),
+                        eq("trace.user_segment", &["all"], true),
+                    ]),
+                    sample_rate: 1.0,
+                    ty: RuleType::Trace,
+                },
+            ),
+            (
+                "second",
+                true,
+                SamplingRule {
+                    condition: or(vec![
+                        eq("trace.environment", &["prod"], true),
+                        eq("trace.user_segment", &["vip"], true),
+                    ]),
+                    sample_rate: 1.0,
+                    ty: RuleType::Trace,
+                },
+            ),
+            (
+                "none",
+                false,
+                SamplingRule {
+                    condition: or(vec![
+                        eq("trace.environment", &["prod"], true),
+                        eq("trace.user_segment", &["all"], true),
+                    ]),
+                    sample_rate: 1.0,
+                    ty: RuleType::Trace,
+                },
+            ),
+        ];
+
+        let tc = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user_segment: Some("vip".to_string()),
+            environment: Some("debug".to_string()),
+        };
+
+        for (rule_test_name, expected, rule) in rules.iter() {
+            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            assert!(
+                matches(&tc, rule, RuleType::Trace) == *expected,
+                failure_name
+            );
+        }
+    }
+
+    #[test]
+    fn test_and_combinator() {
+        let rules = [
+            (
+                "both",
+                true,
+                SamplingRule {
+                    condition: and(vec![
+                        eq("trace.environment", &["debug"], true),
+                        eq("trace.user_segment", &["vip"], true),
+                    ]),
+                    sample_rate: 1.0,
+                    ty: RuleType::Trace,
+                },
+            ),
+            (
+                "first",
+                false,
+                SamplingRule {
+                    condition: and(vec![
+                        eq("trace.environment", &["debug"], true),
+                        eq("trace.user_segment", &["all"], true),
+                    ]),
+                    sample_rate: 1.0,
+                    ty: RuleType::Trace,
+                },
+            ),
+            (
+                "second",
+                false,
+                SamplingRule {
+                    condition: and(vec![
+                        eq("trace.environment", &["prod"], true),
+                        eq("trace.user_segment", &["vip"], true),
+                    ]),
+                    sample_rate: 1.0,
+                    ty: RuleType::Trace,
+                },
+            ),
+            (
+                "none",
+                false,
+                SamplingRule {
+                    condition: and(vec![
+                        eq("trace.environment", &["prod"], true),
+                        eq("trace.user_segment", &["all"], true),
+                    ]),
+                    sample_rate: 1.0,
+                    ty: RuleType::Trace,
+                },
+            ),
+        ];
+
+        let tc = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user_segment: Some("vip".to_string()),
+            environment: Some("debug".to_string()),
+        };
+
+        for (rule_test_name, expected, rule) in rules.iter() {
+            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            assert!(
+                matches(&tc, rule, RuleType::Trace) == *expected,
+                failure_name
+            );
+        }
+    }
+
+    #[test]
+    fn test_not_combinator() {
+        let rules = [
+            (
+                "not true",
+                false,
+                SamplingRule {
+                    condition: not(eq("trace.environment", &["debug"], true)),
+                    sample_rate: 1.0,
+                    ty: RuleType::Trace,
+                },
+            ),
+            (
+                "not false",
+                true,
+                SamplingRule {
+                    condition: not(eq("trace.environment", &["prod"], true)),
+                    sample_rate: 1.0,
+                    ty: RuleType::Trace,
+                },
+            ),
+        ];
+
+        let tc = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user_segment: Some("vip".to_string()),
+            environment: Some("debug".to_string()),
+        };
+
+        for (rule_test_name, expected, rule) in rules.iter() {
+            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            assert!(
+                matches(&tc, rule, RuleType::Trace) == *expected,
+                failure_name
+            );
+        }
+    }
+
+    #[test]
     // /// test various rules that do not match
-    fn test_not_matches() {
+    fn test_does_not_match() {
         let rules = [
             (
                 "release",
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions {
-                        inner: vec![
-                            RuleCondition::Glob(GlobCondData {
-                                name: "trace.release".to_owned(),
-                                value: GlobPatterns::new(vec!["1.1.2".to_string()]),
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.environment".to_owned(),
-                                value: (vec!["debug".to_string()]),
-                                ignore_case: true,
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.user_segment".to_owned(),
-                                value: (vec!["vip".to_string()]),
-                                ignore_case: true,
-                            }),
-                        ],
-                    }),
+                    condition: and(vec![
+                        glob("trace.release", &["1.1.2"]),
+                        eq("trace.environment", &["debug"], true),
+                        eq("trace.user_segment", &["vip"], true),
+                    ]),
                     sample_rate: 1.0,
                     ty: RuleType::Trace,
                 },
@@ -726,24 +806,11 @@ mod tests {
             (
                 "user segment",
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions {
-                        inner: vec![
-                            RuleCondition::Glob(GlobCondData {
-                                name: "trace.release".to_owned(),
-                                value: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.environment".to_owned(),
-                                value: (vec!["debug".to_string()]),
-                                ignore_case: true,
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.user_segment".to_owned(),
-                                value: (vec!["all".to_string()]),
-                                ignore_case: true,
-                            }),
-                        ],
-                    }),
+                    condition: and(vec![
+                        glob("trace.release", &["1.1.1"]),
+                        eq("trace.environment", &["debug"], true),
+                        eq("trace.user_segment", &["all"], true),
+                    ]),
                     sample_rate: 1.0,
                     ty: RuleType::Trace,
                 },
@@ -751,24 +818,11 @@ mod tests {
             (
                 "environment",
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions {
-                        inner: vec![
-                            RuleCondition::Glob(GlobCondData {
-                                name: "trace.release".to_owned(),
-                                value: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.environment".to_owned(),
-                                value: (vec!["prod".to_string()]),
-                                ignore_case: true,
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.user_segment".to_owned(),
-                                value: (vec!["vip".to_string()]),
-                                ignore_case: true,
-                            }),
-                        ],
-                    }),
+                    condition: and(vec![
+                        glob("trace.release", &["1.1.1"]),
+                        eq("trace.environment", &["prod"], true),
+                        eq("trace.user_segment", &["vip"], true),
+                    ]),
                     sample_rate: 1.0,
                     ty: RuleType::Trace,
                 },
@@ -776,24 +830,11 @@ mod tests {
             (
                 "category",
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions {
-                        inner: vec![
-                            RuleCondition::Glob(GlobCondData {
-                                name: "trace.release".to_owned(),
-                                value: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.environment".to_owned(),
-                                value: (vec!["debug".to_string()]),
-                                ignore_case: true,
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.user_segment".to_owned(),
-                                value: (vec!["vip".to_string()]),
-                                ignore_case: true,
-                            }),
-                        ],
-                    }),
+                    condition: and(vec![
+                        glob("trace.release", &["1.1.1"]),
+                        eq("trace.environment", &["debug"], true),
+                        eq("trace.user_segment", &["vip"], true),
+                    ]),
                     sample_rate: 1.0,
                     ty: RuleType::Error,
                 },
@@ -952,20 +993,10 @@ mod tests {
     #[test]
     fn test_partial_trace_matches() {
         let rule = SamplingRule {
-            condition: RuleCondition::And(InnerConditions {
-                inner: vec![
-                    RuleCondition::Eq(EqCondData {
-                        name: "trace.environment".to_owned(),
-                        value: (vec!["debug".to_string()]),
-                        ignore_case: true,
-                    }),
-                    RuleCondition::Eq(EqCondData {
-                        name: "trace.user_segment".to_owned(),
-                        value: (vec!["vip".to_string()]),
-                        ignore_case: true,
-                    }),
-                ],
-            }),
+            condition: and(vec![
+                eq("trace.environment", &["debug"], true),
+                eq("trace.user_segment", &["vip"], true),
+            ]),
             sample_rate: 1.0,
             ty: RuleType::Trace,
         };
@@ -983,19 +1014,10 @@ mod tests {
         );
 
         let rule = SamplingRule {
-            condition: RuleCondition::And(InnerConditions {
-                inner: vec![
-                    RuleCondition::Glob(GlobCondData {
-                        name: "trace.release".to_owned(),
-                        value: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    }),
-                    RuleCondition::Eq(EqCondData {
-                        name: "trace.environment".to_owned(),
-                        value: (vec!["debug".to_string()]),
-                        ignore_case: true,
-                    }),
-                ],
-            }),
+            condition: and(vec![
+                glob("trace.release", &["1.1.1"]),
+                eq("trace.environment", &["debug"], true),
+            ]),
             sample_rate: 1.0,
             ty: RuleType::Trace,
         };
@@ -1013,19 +1035,10 @@ mod tests {
         );
 
         let rule = SamplingRule {
-            condition: RuleCondition::And(InnerConditions {
-                inner: vec![
-                    RuleCondition::Glob(GlobCondData {
-                        name: "trace.release".to_owned(),
-                        value: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                    }),
-                    RuleCondition::Eq(EqCondData {
-                        name: "trace.user_segment".to_owned(),
-                        value: (vec!["vip".to_string()]),
-                        ignore_case: true,
-                    }),
-                ],
-            }),
+            condition: and(vec![
+                glob("trace.release", &["1.1.1"]),
+                eq("trace.user_segment", &["vip"], true),
+            ]),
             sample_rate: 1.0,
             ty: RuleType::Trace,
         };
@@ -1043,7 +1056,7 @@ mod tests {
         );
 
         let rule = SamplingRule {
-            condition: RuleCondition::And(InnerConditions { inner: vec![] }),
+            condition: and(vec![]),
             sample_rate: 1.0,
             ty: RuleType::Trace,
         };
@@ -1073,79 +1086,38 @@ mod tests {
             rules: vec![
                 //everything specified
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions {
-                        inner: vec![
-                            RuleCondition::Glob(GlobCondData {
-                                name: "trace.release".to_owned(),
-                                value: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.environment".to_owned(),
-                                value: (vec!["debug".to_string()]),
-                                ignore_case: true,
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.user_segment".to_owned(),
-                                value: (vec!["vip".to_string()]),
-                                ignore_case: true,
-                            }),
-                        ],
-                    }),
+                    condition: and(vec![
+                        glob("trace.release", &["1.1.1"]),
+                        eq("trace.environment", &["debug"], true),
+                        eq("trace.user_segment", &["vip"], true),
+                    ]),
                     sample_rate: 0.1,
                     ty: RuleType::Trace,
                 },
                 // no user segments
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions {
-                        inner: vec![
-                            RuleCondition::Glob(GlobCondData {
-                                name: "trace.release".to_owned(),
-                                value: GlobPatterns::new(vec!["1.1.2".to_string()]),
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.environment".to_owned(),
-                                value: (vec!["debug".to_string()]),
-                                ignore_case: true,
-                            }),
-                        ],
-                    }),
+                    condition: and(vec![
+                        glob("trace.release", &["1.1.2"]),
+                        eq("trace.environment", &["debug"], true),
+                    ]),
                     sample_rate: 0.2,
                     ty: RuleType::Trace,
                 },
                 // no releases
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions {
-                        inner: vec![
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.environment".to_owned(),
-                                value: (vec!["debug".to_string()]),
-                                ignore_case: true,
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.user_segment".to_owned(),
-                                value: (vec!["vip".to_string()]),
-                                ignore_case: true,
-                            }),
-                        ],
-                    }),
+                    condition: and(vec![
+                        eq("trace.environment", &["debug"], true),
+                        eq("trace.user_segment", &["vip"], true),
+                    ]),
                     sample_rate: 0.3,
                     ty: RuleType::Trace,
                 },
                 // no environments
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions {
-                        inner: vec![
-                            RuleCondition::Glob(GlobCondData {
-                                name: "trace.release".to_owned(),
-                                value: GlobPatterns::new(vec!["1.1.1".to_string()]),
-                            }),
-                            RuleCondition::Eq(EqCondData {
-                                name: "trace.user_segment".to_owned(),
-                                value: (vec!["vip".to_string()]),
-                                ignore_case: true,
-                            }),
-                        ],
-                    }),
+                    condition: and(vec![
+                        glob("trace.release", &["1.1.1"]),
+                        eq("trace.user_segment", &["vip"], true),
+                    ]),
                     sample_rate: 0.4,
                     ty: RuleType::Trace,
                 },
