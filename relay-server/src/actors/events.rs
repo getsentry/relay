@@ -20,7 +20,7 @@ use relay_general::protocol::{
     LenientString, Metrics, SecurityReportType, SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
-use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
+use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
@@ -202,6 +202,12 @@ struct ProcessEnvelopeState {
     /// persisted into the Event. All modifications afterwards will have no effect.
     metrics: Metrics,
 
+    /// A list of cumulative sample rates applied to this event.
+    ///
+    /// This element is obtained from the event or transaction item and re-serialized into the
+    /// resulting item.
+    sample_rates: Option<Value>,
+
     /// Rate limits returned in processing mode.
     ///
     /// The rate limiter is invoked in processing mode, after which the resulting limits are stored
@@ -378,7 +384,10 @@ impl EventProcessor {
             if changed {
                 let json_string = match serde_json::to_string(&session) {
                     Ok(json) => json,
-                    Err(_) => return false,
+                    Err(err) => {
+                        relay_log::error!("failed to serialize session: {}", LogError(&err));
+                        return false;
+                    }
                 };
 
                 item.set_payload(ContentType::Json, json_string);
@@ -388,21 +397,34 @@ impl EventProcessor {
         });
     }
 
-    /// Validates all user report/feedback items in the envelope, if any.
+    /// Validates and normalizes all user report items in the envelope.
     ///
     /// User feedback items are removed from the envelope if they contain invalid JSON or if the
-    /// JSON violates the schema (basic type validation).
+    /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
+    /// is written back into the item.
     fn process_user_reports(&self, state: &mut ProcessEnvelopeState) {
         state.envelope.retain_items(|item| {
             if item.ty() != ItemType::UserReport {
                 return true;
             };
 
-            if let Err(error) = serde_json::from_slice::<UserReport>(&item.payload()) {
-                relay_log::error!("failed to store user report: {}", LogError(&error));
-                return false;
-            }
+            let report = match serde_json::from_slice::<UserReport>(&item.payload()) {
+                Ok(session) => session,
+                Err(error) => {
+                    relay_log::error!("failed to store user report: {}", LogError(&error));
+                    return false;
+                }
+            };
 
+            let json_string = match serde_json::to_string(&report) {
+                Ok(json) => json,
+                Err(err) => {
+                    relay_log::error!("failed to serialize user report: {}", LogError(&err));
+                    return false;
+                }
+            };
+
+            item.set_payload(ContentType::Json, json_string);
             true
         });
     }
@@ -447,6 +469,7 @@ impl EventProcessor {
             envelope,
             event: Annotated::empty(),
             metrics: Metrics::default(),
+            sample_rates: None,
             rate_limits: RateLimits::new(),
             project_state,
             project_id,
@@ -733,22 +756,25 @@ impl EventProcessor {
             return Err(ProcessingError::DuplicateItem(duplicate.ty()));
         }
 
-        let (event, event_len) = if let Some(item) = event_item.or(security_item) {
+        let (event, event_len) = if let Some(mut item) = event_item.or(security_item) {
             relay_log::trace!("processing json event");
+            state.sample_rates = item.take_sample_rates();
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Event items can never include transactions, so retain the event type and let
                 // inference deal with this during store normalization.
                 self.event_from_json_payload(item, None)?
             })
-        } else if let Some(item) = transaction_item {
+        } else if let Some(mut item) = transaction_item {
             relay_log::trace!("processing json transaction");
+            state.sample_rates = item.take_sample_rates();
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Transaction items can only contain transaction events. Force the event type to
                 // hint to normalization that we're dealing with a transaction now.
                 self.event_from_json_payload(item, Some(EventType::Transaction))?
             })
-        } else if let Some(item) = raw_security_item {
+        } else if let Some(mut item) = raw_security_item {
             relay_log::trace!("processing security report");
+            state.sample_rates = item.take_sample_rates();
             self.event_from_security_report(item)?
         } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
             relay_log::trace!("extracting attached event data");
@@ -831,6 +857,8 @@ impl EventProcessor {
         // In processing mode, also write metrics into the event. Most metrics have already been
         // collected at this state, except for the combined size of all attachments.
         if self.config.processing_enabled() {
+            let mut metrics = std::mem::take(&mut state.metrics);
+
             let attachment_size = envelope
                 .items()
                 .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment))
@@ -838,10 +866,22 @@ impl EventProcessor {
                 .sum::<u64>();
 
             if attachment_size > 0 {
-                state.metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size);
+                metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size);
             }
 
-            event._metrics = Annotated::new(std::mem::take(&mut state.metrics));
+            let sample_rates = state
+                .sample_rates
+                .take()
+                .and_then(|value| Array::from_value(Annotated::new(value)).into_value());
+
+            if let Some(rates) = sample_rates {
+                metrics
+                    .sample_rates
+                    .get_or_insert_with(Array::new)
+                    .extend(rates)
+            }
+
+            event._metrics = Annotated::new(metrics);
         }
 
         // TODO: Temporary workaround before processing. Experimental SDKs relied on a buggy
@@ -1060,6 +1100,13 @@ impl EventProcessor {
         let event_type = state.event_type().unwrap_or_default();
         let mut event_item = Item::new(ItemType::from_event_type(event_type));
         event_item.set_payload(ContentType::Json, data);
+
+        // If there are sample rates, write them back to the envelope. In processing mode, sample
+        // rates have been removed from the state and burnt into the event via `finalize_event`.
+        if let Some(sample_rates) = state.sample_rates.take() {
+            event_item.set_sample_rates(sample_rates);
+        }
+
         state.envelope.add_item(event_item);
 
         Ok(())
@@ -1114,7 +1161,6 @@ impl EventProcessor {
             });
 
             self.finalize_event(&mut state)?;
-
             self.sample_event(&mut state, self.config.processing_enabled())?;
 
             if_processing!({
