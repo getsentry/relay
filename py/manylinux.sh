@@ -5,11 +5,7 @@ set -e
 echo "Installing packages..."
 yum -y -q install gcc libffi-devel openssl-devel
 
-export OPENSSL_INCLUDE_DIR=/usr/include/openssl
 export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig/
-
-echo /usr/lib*/openssl*
-echo /usr/include/openssl*
 
 # Install Rust
 curl https://sh.rustup.rs -sSf | sh -s -- -y
