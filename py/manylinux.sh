@@ -3,11 +3,13 @@ set -e
 
 # Install dependencies needed by our wheel
 echo "Installing packages..."
-yum -y -q -e 0 install gcc libffi-devel openssl101e-devel
+yum -y -q install gcc libffi-devel openssl-devel
 
-export OPENSSL_INCLUDE_DIR=/usr/include/openssl101e
-export I686_UNKNOWN_LINUX_GNU_OPENSSL_LIB_DIR=/usr/lib/openssl101e
-export X86_64_UNKNOWN_LINUX_GNU_OPENSSL_LIB_DIR=/usr/lib64/openssl101e
+export OPENSSL_INCLUDE_DIR=/usr/include/openssl
+export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig/
+
+echo /usr/lib*/openssl*
+echo /usr/include/openssl*
 
 # Install Rust
 curl https://sh.rustup.rs -sSf | sh -s -- -y
