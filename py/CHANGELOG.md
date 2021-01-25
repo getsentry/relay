@@ -2,7 +2,16 @@
 
 ## Unreleased
 
+- Fix compile errors in the sdist with Rust 1.47 and later. ([#801](https://github.com/getsentry/relay/pull/801))
 - Emit more useful normalization meta data for invalid tags. ([#808](https://github.com/getsentry/relay/pull/808))
+- Internal refactoring such that validating of characters in tags no longer uses regexes internally. ([#814](https://github.com/getsentry/relay/pull/814))
+- Normalize `breadcrumb.ty` into `breadcrumb.type` for broken Python SDK versions. ([#824](https://github.com/getsentry/relay/pull/824))
+- Emit event errors and normalization errors for unknown breadcrumb keys. ([#824](https://github.com/getsentry/relay/pull/824))
+- Make `$error.value` `pii=true`. ([#837](https://github.com/getsentry/relay/pull/837))
+- Add protocol support for WASM. ([#852](https://github.com/getsentry/relay/pull/852))
+- Add missing fields for Expect-CT reports. ([#865](https://github.com/getsentry/relay/pull/865))
+- Support more directives in CSP reports, such as `block-all-mixed-content` and `require-trusted-types-for`. ([#876](https://github.com/getsentry/relay/pull/876))
+- Fix a long-standing bug where log messages were not addressible as `$string`. ([#882](https://github.com/getsentry/relay/pull/882))
 
 ## 0.8.1
 
