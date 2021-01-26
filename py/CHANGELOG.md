@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.2
 
 - Fix compile errors in the sdist with Rust 1.47 and later. ([#801](https://github.com/getsentry/relay/pull/801))
 - Emit more useful normalization meta data for invalid tags. ([#808](https://github.com/getsentry/relay/pull/808))
