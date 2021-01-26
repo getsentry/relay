@@ -24,15 +24,16 @@ const MINIDUMP_FIELD_NAME: &str = "upload_file_minidump";
 /// multipart request. The file name is later used to display the event attachment.
 const MINIDUMP_FILE_NAME: &str = "Minidump";
 
-/// Minidump attachments should have these magic bytes.
-const MINIDUMP_MAGIC_HEADER: &[u8] = b"MDMP";
+/// Minidump attachments should have these magic bytes, little- and big-endian.
+const MINIDUMP_MAGIC_HEADER_LE: &[u8] = b"MDMP";
+const MINIDUMP_MAGIC_HEADER_BE: &[u8] = b"PMDM";
 
 /// Content types by which standalone uploads can be recognized.
 const MINIDUMP_RAW_CONTENT_TYPES: &[&str] = &["application/octet-stream", "application/x-dmp"];
 
 fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
-    if !data.starts_with(MINIDUMP_MAGIC_HEADER) {
-        log::trace!("invalid minidump file");
+    if !data.starts_with(MINIDUMP_MAGIC_HEADER_LE) && !data.starts_with(MINIDUMP_MAGIC_HEADER_BE) {
+        relay_log::trace!("invalid minidump file");
         return Err(BadStoreRequest::InvalidMinidump);
     }
 
@@ -198,4 +199,21 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
             r.post().with(store_minidump);
         })
         .register()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_minidump() {
+        let be_minidump = b"PMDMxxxxxx";
+        assert!(validate_minidump(be_minidump).is_ok());
+
+        let le_minidump = b"MDMPxxxxxx";
+        assert!(validate_minidump(le_minidump).is_ok());
+
+        let garbage = b"xxxxxx";
+        assert!(validate_minidump(garbage).is_err());
+    }
 }

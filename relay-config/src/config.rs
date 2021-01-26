@@ -12,11 +12,13 @@ use failure::{Backtrace, Context, Fail};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
-use relay_common::{Dsn, Uuid};
+use relay_common::Uuid;
 use relay_redis::RedisConfig;
 
 use crate::byte_size::ByteSize;
 use crate::upstream::UpstreamDescriptor;
+
+const DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD: u64 = 10;
 
 /// Defines the source of a config error
 #[derive(Debug)]
@@ -249,7 +251,7 @@ pub struct Credentials {
 impl Credentials {
     /// Generates new random credentials.
     pub fn generate() -> Self {
-        log::info!("generating new relay credentials");
+        relay_log::info!("generating new relay credentials");
         let (sk, pk) = generate_key_pair();
         Self {
             secret_key: sk,
@@ -321,9 +323,7 @@ fn is_docker() -> bool {
         return true;
     }
 
-    fs::read_to_string("/proc/self/cgroup")
-        .map(|s| s.find("/docker").is_some())
-        .unwrap_or(false)
+    fs::read_to_string("/proc/self/cgroup").map_or(false, |s| s.contains("/docker"))
 }
 
 /// Default value for the "bind" configuration.
@@ -370,45 +370,6 @@ impl Default for Relay {
     }
 }
 
-/// Controls the log format
-#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum LogFormat {
-    /// Auto detect (pretty for tty, simplified for other)
-    Auto,
-    /// With colors
-    Pretty,
-    /// Simplified log output
-    Simplified,
-    /// Dump out JSON lines
-    Json,
-}
-
-/// Controls the logging system.
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
-struct Logging {
-    /// The log level for the relay.
-    level: log::LevelFilter,
-    /// If set to true this emits log messages for failed event payloads.
-    log_failed_payloads: bool,
-    /// Controls the log format.
-    format: LogFormat,
-    /// When set to true, backtraces are forced on.
-    enable_backtraces: bool,
-}
-
-impl Default for Logging {
-    fn default() -> Self {
-        Logging {
-            level: log::LevelFilter::Info,
-            log_failed_payloads: false,
-            format: LogFormat::Auto,
-            enable_backtraces: false,
-        }
-    }
-}
-
 /// Control the metrics.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -422,6 +383,12 @@ struct Metrics {
     default_tags: BTreeMap<String, String>,
     /// A tag name to report the hostname to, for each metric. Defaults to not sending such a tag.
     hostname_tag: Option<String>,
+    /// If set to true, emitted metrics will be buffered to optimize performance.
+    /// Defaults to true.
+    buffering: bool,
+    /// Global sample rate for all emitted metrics. Should be between 0.0 and 1.0.
+    /// For example, the value of 0.3 means that only 30% of the emitted metrics will be sent.
+    sample_rate: f32,
 }
 
 impl Default for Metrics {
@@ -431,6 +398,8 @@ impl Default for Metrics {
             prefix: "sentry.relay".into(),
             default_tags: BTreeMap::new(),
             hostname_tag: None,
+            buffering: true,
+            sample_rate: 1.0,
         }
     }
 }
@@ -505,6 +474,31 @@ impl Default for Limits {
     }
 }
 
+/// Http content encoding for upstream store requests.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HttpEncoding {
+    /// Identity function, no compression.
+    Identity,
+    /// Compression using a zlib header with deflate encoding.
+    Deflate,
+    /// Compression using gzip.
+    Gzip,
+    /// Compression using the brotli algorithm.
+    Br,
+}
+
+/// (unstable) Http client to use for upstream store requests.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HttpClient {
+    /// Use actix http client, the default.
+    Actix,
+    /// Use reqwest. Necessary for HTTP proxy support (standard envvars are picked up
+    /// automatically)
+    Reqwest,
+}
+
 /// Controls authentication with upstream.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -524,6 +518,40 @@ struct Http {
     max_retry_interval: u32,
     /// The custom HTTP Host header to send to the upstream.
     host_header: Option<String>,
+    /// The interval in seconds at which Relay attempts to reauthenticate with the upstream server.
+    ///
+    /// Re-authentication happens even when Relay is idle. If authentication fails, Relay reverts
+    /// back into startup mode and tries to establish a connection. During this time, incoming
+    /// events will be buffered.
+    ///
+    /// Defaults to `600` (10 minutes).
+    auth_interval: Option<u64>,
+    /// The maximum time of experiencing uninterrupted network failures until Relay considers that
+    /// it has encountered a network outage in seconds.
+    ///
+    /// During a network outage relay will try to reconnect and will buffer all upstream messages
+    /// until it manages to reconnect.
+    outage_grace_period: u64,
+    /// Content encoding to apply to upstream store requests.
+    ///
+    /// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression
+    /// can be disabled to reduce CPU consumption, but at the expense of increased network traffic.
+    ///
+    /// This setting applies to all store requests of SDK data, including events, transactions,
+    /// envelopes and sessions. At the moment, this does not apply to Relay's internal queries.
+    ///
+    /// Available options are:
+    ///
+    ///  - `identity`: Disables compression.
+    ///  - `deflate`: Compression using a zlib header with deflate encoding.
+    ///  - `gzip` (default): Compression using gzip.
+    ///  - `br`: Compression using the brotli algorithm.
+    encoding: HttpEncoding,
+    /// (unstable) Which HTTP client to use. Can be "actix" or "reqwest", with "actix" being the
+    /// default. Switching to "reqwest" is required to get experimental HTTP proxy support.
+    ///
+    /// Note that this option will be removed in the future once "reqwest" is the default.
+    _client: HttpClient,
 }
 
 impl Default for Http {
@@ -531,8 +559,12 @@ impl Default for Http {
         Http {
             timeout: 5,
             connection_timeout: 3,
-            max_retry_interval: 60,
+            max_retry_interval: 60, // 1 minute
             host_header: None,
+            auth_interval: Some(600), // 10 minutes
+            outage_grace_period: DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
+            encoding: HttpEncoding::Gzip,
+            _client: HttpClient::Actix,
         }
     }
 }
@@ -579,25 +611,6 @@ impl Default for Cache {
             batch_size: 500,
             file_interval: 10,     // 10 seconds
             eviction_interval: 60, // 60 seconds
-        }
-    }
-}
-
-/// Controls interal reporting to Sentry.
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
-struct Sentry {
-    dsn: Option<Dsn>,
-    enabled: bool,
-}
-
-impl Default for Sentry {
-    fn default() -> Self {
-        Sentry {
-            dsn: "https://0cc4a37e5aab4da58366266a87a95740@sentry.io/1269704"
-                .parse()
-                .ok(),
-            enabled: false,
         }
     }
 }
@@ -720,9 +733,9 @@ impl Default for Processing {
         Self {
             enabled: false,
             geoip_path: None,
-            max_secs_in_future: 0,
-            max_secs_in_past: 0,
-            max_session_secs_in_past: 0,
+            max_secs_in_future: default_max_secs_in_future(),
+            max_secs_in_past: default_max_secs_in_past(),
+            max_session_secs_in_past: default_max_session_secs_in_past(),
             kafka_config: Vec::new(),
             topics: TopicNames::default(),
             redis: None,
@@ -802,11 +815,11 @@ struct ConfigValues {
     #[serde(default)]
     limits: Limits,
     #[serde(default)]
-    logging: Logging,
+    logging: relay_log::LogConfig,
     #[serde(default)]
     metrics: Metrics,
     #[serde(default)]
-    sentry: Sentry,
+    sentry: relay_log::SentryConfig,
     #[serde(default)]
     processing: Processing,
     #[serde(default)]
@@ -1100,6 +1113,36 @@ impl Config {
         self.values.relay.tls_identity_password.as_deref()
     }
 
+    /// Returns the interval at which Realy should try to re-authenticate with the upstream.
+    ///
+    /// Always disabled in processing mode.
+    pub fn http_auth_interval(&self) -> Option<Duration> {
+        if self.processing_enabled() {
+            return None;
+        }
+
+        match self.values.http.auth_interval {
+            None | Some(0) => None,
+            Some(secs) => Some(Duration::from_secs(secs)),
+        }
+    }
+
+    /// The maximum time of experiencing uninterrupted network failures until Relay considers that
+    /// it has encountered a network outage.
+    pub fn http_outage_grace_period(&self) -> Duration {
+        Duration::from_secs(self.values.http.outage_grace_period)
+    }
+
+    /// Content encoding of upstream requests.
+    pub fn http_encoding(&self) -> HttpEncoding {
+        self.values.http.encoding
+    }
+
+    /// (unstable) HTTP client to use for upstream requests.
+    pub fn http_client(&self) -> HttpClient {
+        self.values.http._client
+    }
+
     /// Returns whether this Relay should emit outcomes.
     ///
     /// This is `true` either if `outcomes.emit_outcomes` is explicitly enabled, or if this Relay is
@@ -1123,24 +1166,14 @@ impl Config {
         self.values.outcomes.source.as_deref()
     }
 
-    /// Returns the log level.
-    pub fn log_level_filter(&self) -> log::LevelFilter {
-        self.values.logging.level
+    /// Returns logging configuration.
+    pub fn logging(&self) -> &relay_log::LogConfig {
+        &self.values.logging
     }
 
-    /// Should backtraces be enabled?
-    pub fn enable_backtraces(&self) -> bool {
-        self.values.logging.enable_backtraces
-    }
-
-    /// Should we debug log bad payloads?
-    pub fn log_failed_payloads(&self) -> bool {
-        self.values.logging.log_failed_payloads
-    }
-
-    /// Which log format should be used?
-    pub fn log_format(&self) -> LogFormat {
-        self.values.logging.format
+    /// Returns logging configuration.
+    pub fn sentry(&self) -> &relay_log::SentryConfig {
+        &self.values.sentry
     }
 
     /// Returns the socket addresses for statsd.
@@ -1172,6 +1205,16 @@ impl Config {
     /// Returns the name of the hostname tag that should be attached to each outgoing metric.
     pub fn metrics_hostname_tag(&self) -> Option<&str> {
         self.values.metrics.hostname_tag.as_deref()
+    }
+
+    /// Returns true if metrics buffering is enabled, false otherwise.
+    pub fn metrics_buffering(&self) -> bool {
+        self.values.metrics.buffering
+    }
+
+    /// Returns the global sample rate for all metrics.
+    pub fn metrics_sample_rate(&self) -> f32 {
+        self.values.metrics.sample_rate
     }
 
     /// Returns the default timeout for all upstream HTTP requests.
@@ -1322,15 +1365,6 @@ impl Config {
     /// Returns the maximum size of a project config query.
     pub fn query_batch_size(&self) -> usize {
         self.values.cache.batch_size
-    }
-
-    /// Return the Sentry DSN if reporting to Sentry is enabled.
-    pub fn sentry_dsn(&self) -> Option<&Dsn> {
-        if self.values.sentry.enabled {
-            self.values.sentry.dsn.as_ref()
-        } else {
-            None
-        }
     }
 
     /// Get filename for static project config.

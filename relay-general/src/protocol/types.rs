@@ -14,6 +14,7 @@ use schemars::gen::SchemaGenerator;
 #[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
 
+use enumset::EnumSet;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
@@ -329,8 +330,8 @@ where
     T: ProcessValue + AsPair,
 {
     #[inline]
-    fn value_type(&self) -> Option<ValueType> {
-        Some(ValueType::Object)
+    fn value_type(&self) -> EnumSet<ValueType> {
+        EnumSet::only(ValueType::Object)
     }
 
     #[inline]
@@ -867,8 +868,8 @@ impl Timestamp {
 
 impl ProcessValue for Timestamp {
     #[inline]
-    fn value_type(&self) -> Option<ValueType> {
-        Some(ValueType::DateTime)
+    fn value_type(&self) -> EnumSet<ValueType> {
+        EnumSet::only(ValueType::DateTime)
     }
 
     #[inline]

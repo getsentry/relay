@@ -12,4 +12,4 @@ echo "Bumping version: ${NEW_VERSION}"
 
 perl -pi -e "s/^version = .*\$/version = \"$NEW_VERSION\"/" relay-cabi/Cargo.toml
 
-cargo update -p relay-common --manifest-path ./relay-cabi/Cargo.toml
+cargo update -p relay-cabi

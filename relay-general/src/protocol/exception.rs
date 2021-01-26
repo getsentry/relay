@@ -38,7 +38,7 @@ pub struct Exception {
     /// Human readable display value.
     ///
     /// At least one of `type` or `value` is required, otherwise the exception is discarded.
-    #[metastructure(max_chars = "message", pii = "maybe")]
+    #[metastructure(max_chars = "message", pii = "true")]
     pub value: Annotated<JsonLenientString>,
 
     /// The optional module, or package which the exception type lives in.

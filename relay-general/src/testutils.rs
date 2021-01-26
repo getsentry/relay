@@ -27,12 +27,8 @@ macro_rules! assert_eq_bytes_str {
                 left == right,
                 "`left == right` in line {}:\n{}\n{}",
                 line!(),
-                difference::Changeset::new("- left", "+ right", "\n"),
-                difference::Changeset::new(
-                    &String::from_utf8_lossy(left),
-                    &String::from_utf8_lossy(right),
-                    "\n"
-                )
+                pretty_hex::pretty_hex(left),
+                pretty_hex::pretty_hex(right),
             ),
         }
     };

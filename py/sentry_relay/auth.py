@@ -18,7 +18,6 @@ __all__ = [
     "SecretKey",
     "generate_key_pair",
     "create_register_challenge",
-    "get_register_response_relay_id",
     "validate_register_response",
     "is_version_supported",
 ]
@@ -91,39 +90,38 @@ def generate_relay_id():
     return decode_uuid(rustcall(lib.relay_generate_relay_id))
 
 
-def create_register_challenge(data, signature, max_age=60 * 15):
+def create_register_challenge(data, signature, secret, max_age=60):
     challenge_json = rustcall(
         lib.relay_create_register_challenge,
         make_buf(data),
         encode_str(signature),
+        encode_str(secret),
         max_age,
     )
 
     challenge = json.loads(decode_str(challenge_json, free=True))
     return {
         "relay_id": uuid.UUID(challenge["relay_id"]),
-        "public_key": PublicKey.parse(challenge["public_key"]),
         "token": challenge["token"],
     }
 
 
-def get_register_response_relay_id(data):
-    return decode_uuid(
-        rustcall(lib.relay_get_register_response_relay_id, make_buf(data))
-    )
-
-
-def validate_register_response(public_key, data, signature, max_age=60 * 15):
+def validate_register_response(data, signature, secret, max_age=60):
     response_json = rustcall(
         lib.relay_validate_register_response,
-        public_key._objptr,
         make_buf(data),
         encode_str(signature),
+        encode_str(secret),
         max_age,
     )
 
     response = json.loads(decode_str(response_json, free=True))
-    return {"relay_id": uuid.UUID(response["relay_id"]), "token": response["token"]}
+    return {
+        "relay_id": uuid.UUID(response["relay_id"]),
+        "token": response["token"],
+        "public_key": response["public_key"],
+        "version": response["version"],
+    }
 
 
 def is_version_supported(version):

@@ -1,4 +1,8 @@
 //! Implements the sentry event protocol.
+
+// FIXME: Workaround for https://github.com/GREsau/schemars/pull/65
+#![allow(clippy::field_reassign_with_default)]
+
 mod breadcrumb;
 mod clientsdk;
 mod constants;
@@ -8,6 +12,7 @@ mod event;
 mod exception;
 mod fingerprint;
 mod logentry;
+mod measurements;
 mod mechanism;
 mod metrics;
 mod request;
@@ -42,13 +47,17 @@ pub use self::event::{
 pub use self::exception::Exception;
 pub use self::fingerprint::Fingerprint;
 pub use self::logentry::{LogEntry, Message};
+pub use self::measurements::Measurements;
 pub use self::mechanism::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
-pub use self::metrics::Metrics;
+pub use self::metrics::{Metrics, SampleRate};
 pub use self::request::{Cookies, HeaderName, HeaderValue, Headers, Query, Request};
 #[cfg(feature = "jsonschema")]
 pub use self::schema::event_json_schema;
 pub use self::security_report::{Csp, ExpectCt, ExpectStaple, Hpkp, SecurityReportType};
-pub use self::session::{ParseSessionStatusError, SessionAttributes, SessionStatus, SessionUpdate};
+pub use self::session::{
+    ParseSessionStatusError, SessionAggregateItem, SessionAggregates, SessionAttributes,
+    SessionStatus, SessionUpdate,
+};
 pub use self::span::Span;
 pub use self::stacktrace::{Frame, FrameData, FrameVars, RawStacktrace, Stacktrace};
 pub use self::tags::{TagEntry, Tags};

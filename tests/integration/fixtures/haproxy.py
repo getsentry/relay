@@ -11,9 +11,8 @@ HAPROXY_BIN = [os.environ.get("HAPROXY_BIN") or "haproxy"]
 
 class HAProxy(SentryLike):
     def __init__(self, server_address, process, upstream):
-        self.server_address = server_address
+        super(HAProxy, self).__init__(server_address, upstream)
         self.process = process
-        self.upstream = upstream
 
 
 @pytest.fixture
@@ -52,9 +51,10 @@ def haproxy(background_process, random_port, config_dir):
             )
 
         config.write("\n".join(config_lines))
+        config.write("\n")
 
         process = background_process(HAPROXY_BIN + ["-f", str(config)])
 
-        return HAProxy((host, port), process, upstreams)
+        return HAProxy((host, port), process, upstreams[0])
 
     return inner

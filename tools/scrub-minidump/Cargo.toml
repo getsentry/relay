@@ -10,7 +10,6 @@ publish = false
 
 [dependencies]
 anyhow = "1.0.32"
-minidump = { git = "https://github.com/luser/rust-minidump", rev = "4d95707b20bf15fb37de5f6d7ba7d7e0f8ab4afd" }
 paw = "1.0.0"
 relay-general = { path = "../../relay-general" }
 structopt = { version = "0.3.16", features = ["paw"] }

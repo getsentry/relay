@@ -14,7 +14,7 @@ clean:
 
 include/relay.h: *.toml src/*.rs
 	@touch src/lib.rs  # Ensure that rustc outputs something
-	RUSTUP_TOOLCHAIN=nightly cbindgen -c cbindgen.toml . -o $@
+	cbindgen -c cbindgen.toml . -o $@
 	@touch include/relay.h  # Ensure that we don't build again
 
 .PHONY: include/relay.h

@@ -14,7 +14,7 @@
 //! ## Initializing the Client
 //!
 //! Metrics can be used without initializing a statsd client. In that case, invoking `with_client`
-//! or the `metric!` macro will become a noop. Only when configured, metrics will actually be
+//! or the [`metric!`] macro will become a noop. Only when configured, metrics will actually be
 //! collected.
 //!
 //! To initialize the client, either use [`set_client`] to pass a custom client, or use
@@ -24,7 +24,7 @@
 //! # use std::collections::BTreeMap;
 //! use relay_common::metrics;
 //!
-//! metrics::configure_statsd("myprefix", "localhost:8125", BTreeMap::new());
+//! metrics::configure_statsd("myprefix", "localhost:8125", BTreeMap::new(), true, 1.0);
 //! ```
 //!
 //! ## Macro Usage
@@ -58,18 +58,23 @@
 //! ```
 //!
 //! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md
-//! [`set_client`]: fn.set_client.html
-//! [`configure_statsd`]: fn.configure_statsd.html
-//! [`metric!`]: ../macro.metric.html
 
 use std::collections::BTreeMap;
-use std::net::ToSocketAddrs;
+use std::net::{ToSocketAddrs, UdpSocket};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
-use cadence::{Metric, MetricBuilder, StatsdClient};
+use cadence::{
+    BufferedUdpMetricSink, Metric, MetricBuilder, QueuingMetricSink, StatsdClient, UdpMetricSink,
+};
 use lazy_static::lazy_static;
 use parking_lot::RwLock;
+use rand::distributions::{Distribution, Uniform};
+
+use relay_log::LogError;
+
+/// Maximum number of metric events that can be queued before we start dropping them
+const METRICS_MAX_QUEUE_SIZE: usize = 100_000;
 
 /// Client configuration object to store globally.
 #[derive(Debug)]
@@ -78,6 +83,8 @@ pub struct MetricsClient {
     pub statsd_client: StatsdClient,
     /// Default tags to apply to every metric
     pub default_tags: BTreeMap<String, String>,
+    /// Global sample rate
+    pub sample_rate: f32,
 }
 
 impl Deref for MetricsClient {
@@ -101,11 +108,37 @@ impl MetricsClient {
     where
         T: Metric + From<String>,
     {
+        if !self._should_send() {
+            return;
+        }
+
         for (k, v) in &self.default_tags {
             metric = metric.with_tag(k, v);
         }
 
-        metric.send();
+        if let Err(error) = metric.try_send() {
+            relay_log::error!(
+                "Error sending a metric: {}, maximum capacity: {}",
+                LogError(&error),
+                METRICS_MAX_QUEUE_SIZE
+            );
+        };
+    }
+
+    fn _should_send(&self) -> bool {
+        if self.sample_rate <= 0.0 {
+            false
+        } else if self.sample_rate >= 1.0 {
+            true
+        } else {
+            // Using thread local RNG and uniform distribution here because Rng::gen_range is
+            // "optimized for the case that only a single sample is made from the given range".
+            // See https://docs.rs/rand/0.7.3/rand/distributions/uniform/struct.Uniform.html for more
+            // details.
+            let mut rng = rand::thread_rng();
+            RNG_UNIFORM_DISTRIBUTION
+                .with(|uniform_dist| uniform_dist.sample(&mut rng) <= self.sample_rate)
+        }
     }
 }
 
@@ -115,6 +148,7 @@ lazy_static! {
 
 thread_local! {
     static CURRENT_CLIENT: Option<Arc<MetricsClient>> = METRICS_CLIENT.read().clone();
+    static RNG_UNIFORM_DISTRIBUTION: Uniform<f32> = Uniform::new(0.0, 1.0);
 }
 
 /// Internal prelude for the macro
@@ -143,22 +177,53 @@ pub fn configure_statsd<A: ToSocketAddrs>(
     prefix: &str,
     host: A,
     default_tags: BTreeMap<String, String>,
+    buffering: bool,
+    sample_rate: f32,
 ) {
     let addrs: Vec<_> = host.to_socket_addrs().unwrap().collect();
     if !addrs.is_empty() {
-        log::info!("reporting metrics to statsd at {}", addrs[0]);
+        relay_log::info!("reporting metrics to statsd at {}", addrs[0]);
     }
-    let statsd_client = StatsdClient::from_udp_host(prefix, &addrs[..]).unwrap();
+
+    // Normalize sample_rate
+    let sample_rate = sample_rate.max(0.).min(1.);
+    relay_log::debug!(
+        "metrics sample rate is set to {}{}",
+        sample_rate,
+        if sample_rate == 0.0 {
+            ", no metrics will be reported"
+        } else {
+            ""
+        }
+    );
+
+    let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
+    socket.set_nonblocking(true).unwrap();
+
+    let statsd_client = if buffering {
+        let udp_sink = BufferedUdpMetricSink::from(host, socket).unwrap();
+        let queuing_sink = QueuingMetricSink::with_capacity(udp_sink, METRICS_MAX_QUEUE_SIZE);
+        StatsdClient::from_sink(prefix, queuing_sink)
+    } else {
+        let simple_sink = UdpMetricSink::from(host, socket).unwrap();
+        StatsdClient::from_sink(prefix, simple_sink)
+    };
+    relay_log::debug!(
+        "metrics buffering is {}",
+        if buffering { "enabled" } else { "disabled" }
+    );
+
     set_client(MetricsClient {
         statsd_client,
         default_tags,
+        sample_rate,
     });
 }
 
 /// Invoke a callback with the current statsd client.
 ///
 /// If statsd is not configured the callback is not invoked.  For the most part
-/// the `metric!` macro should be used instead.
+/// the [`metric!`] macro should be used instead.
 #[inline(always)]
 pub fn with_client<F, R>(f: F) -> R
 where
@@ -407,6 +472,8 @@ pub trait GaugeMetric {
 }
 
 /// Emits a metric.
+///
+/// See [module-level documentation](self) for examples.
 #[macro_export]
 macro_rules! metric {
     // counter increment

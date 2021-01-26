@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -8,19 +9,19 @@ use actix::prelude::*;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use futures::prelude::*;
-use parking_lot::RwLock;
 use serde_json::Value as SerdeValue;
 
-use relay_common::{clone, metric, LogError};
+use relay_common::{clone, metric, ProjectId};
 use relay_config::{Config, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
-    Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, LenientString,
-    Metrics, SecurityReportType, SessionUpdate, Timestamp, Values,
+    Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
+    LenientString, Metrics, SecurityReportType, SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
-use relay_general::types::{Annotated, Array, Object, ProcessingAction, Value};
+use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
+use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 
@@ -31,6 +32,7 @@ use crate::actors::project::{
 use crate::actors::project_cache::ProjectError;
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::http::{HttpError, RequestBuilder};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, FutureExt};
@@ -40,11 +42,8 @@ use {
     crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
     crate::service::ServerErrorKind,
     crate::utils::EnvelopeLimiter,
-    chrono::TimeZone,
     failure::ResultExt,
-    minidump::Minidump,
     relay_filter::FilterStatKey,
-    relay_general::protocol::IpAddr,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{DataCategory, RateLimitingError, RedisRateLimiter},
 };
@@ -91,6 +90,9 @@ enum ProcessingError {
     #[fail(display = "failed to resolve project information")]
     ProjectFailed(#[cause] ProjectError),
 
+    #[fail(display = "missing project id in DSN")]
+    MissingProjectId,
+
     #[fail(display = "invalid security report type")]
     InvalidSecurityType,
 
@@ -123,6 +125,12 @@ enum ProcessingError {
 
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
+
+    #[fail(display = "envelope empty, transaction removed by sampling")]
+    TransactionSampled,
+
+    #[fail(display = "envelope empty, event removed by sampling")]
+    EventSampled,
 }
 
 impl ProcessingError {
@@ -139,7 +147,7 @@ impl ProcessingError {
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
             Self::RateLimited(ref rate_limits) => rate_limits
-                .longest()
+                .longest_error()
                 .map(|r| Outcome::RateLimited(r.reason_code.clone())),
 
             // Processing-only outcomes (Sentry-internal Relays)
@@ -153,11 +161,16 @@ impl ProcessingError {
             | Self::ScheduleFailed(_)
             | Self::ProjectFailed(_)
             | Self::Timeout
-            | Self::ProcessingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
+            | Self::ProcessingFailed(_)
+            | Self::MissingProjectId => Some(Outcome::Invalid(DiscardReason::Internal)),
             #[cfg(feature = "processing")]
             Self::StoreFailed(_) | Self::QuotasFailed(_) => {
                 Some(Outcome::Invalid(DiscardReason::Internal))
             }
+
+            // Dynamic sampling (not an error, just discarding messages that were removed by sampling)
+            Self::TransactionSampled => Some(Outcome::Invalid(DiscardReason::TransactionSampled)),
+            Self::EventSampled => Some(Outcome::Invalid(DiscardReason::EventSampled)),
 
             // If we send to an upstream, we don't emit outcomes.
             Self::SendFailed(_) => None,
@@ -189,6 +202,12 @@ struct ProcessEnvelopeState {
     /// persisted into the Event. All modifications afterwards will have no effect.
     metrics: Metrics,
 
+    /// A list of cumulative sample rates applied to this event.
+    ///
+    /// This element is obtained from the event or transaction item and re-serialized into the
+    /// resulting item.
+    sample_rates: Option<Value>,
+
     /// Rate limits returned in processing mode.
     ///
     /// The rate limiter is invoked in processing mode, after which the resulting limits are stored
@@ -199,6 +218,13 @@ struct ProcessEnvelopeState {
 
     /// The state of the project that this envelope belongs to.
     project_state: Arc<ProjectState>,
+
+    /// The id of the project that this envelope is ingested into.
+    ///
+    /// This identifier can differ from the one stated in the Envelope's DSN if the key was moved to
+    /// a new project or on the legacy endpoint. In that case, normalization will update the project
+    /// ID.
+    project_id: ProjectId,
 
     /// UTC date time converted from the `start_time` instant.
     received_at: DateTime<Utc>,
@@ -248,7 +274,7 @@ impl ProcessEnvelopeState {
 }
 
 /// Synchronous service for processing envelopes.
-struct EventProcessor {
+pub struct EventProcessor {
     config: Arc<Config>,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
@@ -257,36 +283,42 @@ struct EventProcessor {
 }
 
 impl EventProcessor {
-    #[cfg(feature = "processing")]
-    pub fn new(
-        config: Arc<Config>,
-        rate_limiter: Option<RedisRateLimiter>,
-        geoip_lookup: Option<Arc<GeoIpLookup>>,
-    ) -> Self {
+    #[inline]
+    pub fn new(config: Arc<Config>) -> Self {
         Self {
             config,
-            rate_limiter,
-            geoip_lookup,
+            #[cfg(feature = "processing")]
+            rate_limiter: None,
+            #[cfg(feature = "processing")]
+            geoip_lookup: None,
         }
     }
 
-    #[cfg(not(feature = "processing"))]
-    pub fn new(config: Arc<Config>) -> Self {
-        Self { config }
+    #[cfg(feature = "processing")]
+    #[inline]
+    pub fn with_rate_limiter(mut self, rate_limiter: Option<RedisRateLimiter>) -> Self {
+        self.rate_limiter = rate_limiter;
+        self
+    }
+
+    #[cfg(feature = "processing")]
+    #[inline]
+    pub fn with_geoip_lookup(mut self, geoip_lookup: Option<Arc<GeoIpLookup>>) -> Self {
+        self.geoip_lookup = geoip_lookup;
+        self
     }
 
     /// Validates all sessions in the envelope, if any.
     ///
     /// Sessions are removed from the envelope if they contain invalid JSON or if their timestamps
     /// are out of range after clock drift correction.
-    fn process_sessions(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
         let envelope = &mut state.envelope;
         let received = state.received_at;
+        let client_addr = envelope.meta().client_addr();
 
-        let project_id = envelope.meta().project_id().value();
         let clock_drift_processor =
             ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
-        let client = envelope.meta().client().map(str::to_owned);
 
         envelope.retain_items(|item| {
             if item.ty() != ItemType::Session {
@@ -299,17 +331,11 @@ impl EventProcessor {
             let mut session = match SessionUpdate::parse(&payload) {
                 Ok(session) => session,
                 Err(error) => {
-                    return sentry::with_scope(
-                        |scope| {
-                            scope.set_tag("project", project_id);
-                            if let Some(ref client) = client {
-                                scope.set_tag("sdk", client);
-                            }
-                            scope.set_extra("session", String::from_utf8_lossy(&payload).into());
-                        },
+                    return relay_log::with_scope(
+                        |s| s.set_extra("session", String::from_utf8_lossy(&payload).into()),
                         || {
                             // Skip gracefully here to allow sending other sessions.
-                            log::error!("failed to store session: {}", LogError(&error));
+                            relay_log::error!("failed to store session: {}", LogError(&error));
                             false
                         },
                     );
@@ -317,41 +343,51 @@ impl EventProcessor {
             };
 
             if session.sequence == u64::max_value() {
-                log::trace!("skipping session due to sequence overflow");
+                relay_log::trace!("skipping session due to sequence overflow");
                 return false;
             }
 
             if clock_drift_processor.is_drifted() {
-                log::trace!("applying clock drift correction to session");
+                relay_log::trace!("applying clock drift correction to session");
                 clock_drift_processor.process_session(&mut session);
                 changed = true;
             }
 
             if session.timestamp < session.started {
-                log::trace!("fixing session timestamp to {}", session.timestamp);
+                relay_log::trace!("fixing session timestamp to {}", session.timestamp);
                 session.timestamp = session.started;
                 changed = true;
             }
 
             let max_age = SignedDuration::seconds(self.config.max_session_secs_in_past());
             if (received - session.started) > max_age || (received - session.timestamp) > max_age {
-                log::trace!("skipping session older than {} days", max_age.num_days());
+                relay_log::trace!("skipping session older than {} days", max_age.num_days());
                 return false;
             }
 
             let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
             if (session.started - received) > max_age || (session.timestamp - received) > max_age {
-                log::trace!(
+                relay_log::trace!(
                     "skipping session more than {}s in the future",
                     max_future.num_seconds()
                 );
                 return false;
             }
 
+            if let Some(ref ip_address) = session.attributes.ip_address {
+                if ip_address.is_auto() {
+                    session.attributes.ip_address = client_addr.map(IpAddr::from);
+                    changed = true;
+                }
+            }
+
             if changed {
                 let json_string = match serde_json::to_string(&session) {
                     Ok(json) => json,
-                    Err(_) => return false,
+                    Err(err) => {
+                        relay_log::error!("failed to serialize session: {}", LogError(&err));
+                        return false;
+                    }
                 };
 
                 item.set_payload(ContentType::Json, json_string);
@@ -359,8 +395,38 @@ impl EventProcessor {
 
             true
         });
+    }
 
-        Ok(())
+    /// Validates and normalizes all user report items in the envelope.
+    ///
+    /// User feedback items are removed from the envelope if they contain invalid JSON or if the
+    /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
+    /// is written back into the item.
+    fn process_user_reports(&self, state: &mut ProcessEnvelopeState) {
+        state.envelope.retain_items(|item| {
+            if item.ty() != ItemType::UserReport {
+                return true;
+            };
+
+            let report = match serde_json::from_slice::<UserReport>(&item.payload()) {
+                Ok(session) => session,
+                Err(error) => {
+                    relay_log::error!("failed to store user report: {}", LogError(&error));
+                    return false;
+                }
+            };
+
+            let json_string = match serde_json::to_string(&report) {
+                Ok(json) => json,
+                Err(err) => {
+                    relay_log::error!("failed to serialize user report: {}", LogError(&err));
+                    return false;
+                }
+            };
+
+            item.set_payload(ContentType::Json, json_string);
+            true
+        });
     }
 
     /// Creates and initializes the processing state.
@@ -382,12 +448,31 @@ impl EventProcessor {
             envelope.set_retention(retention);
         }
 
+        // Prefer the project's project ID, and fall back to the stated project id from the
+        // envelope. The project ID is available in all modes, other than in proxy mode, where
+        // events for unknown projects are forwarded blindly.
+        //
+        // Neither ID can be available in proxy mode on the /store/ endpoint. This is not supported,
+        // since we cannot process an event without project ID, so drop it.
+        let project_id = project_state
+            .project_id
+            .or_else(|| envelope.meta().project_id())
+            .ok_or(ProcessingError::MissingProjectId)?;
+
+        // Ensure the project ID is updated to the stored instance for this project cache. This can
+        // differ in two cases:
+        //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
+        //  2. The DSN was moved and the envelope sent to the old project ID.
+        envelope.meta_mut().set_project_id(project_id);
+
         Ok(ProcessEnvelopeState {
             envelope,
             event: Annotated::empty(),
             metrics: Metrics::default(),
+            sample_rates: None,
             rate_limits: RateLimits::new(),
             project_state,
+            project_id,
             received_at: relay_common::instant_to_date_time(start_time),
         })
     }
@@ -436,13 +521,21 @@ impl EventProcessor {
             .map_err(ProcessingError::InvalidJson)?
             .ok_or(ProcessingError::InvalidSecurityType)?;
 
-        match report_type {
+        let apply_result = match report_type {
             SecurityReportType::Csp => Csp::apply_to_event(data, &mut event),
             SecurityReportType::ExpectCt => ExpectCt::apply_to_event(data, &mut event),
             SecurityReportType::ExpectStaple => ExpectStaple::apply_to_event(data, &mut event),
             SecurityReportType::Hpkp => Hpkp::apply_to_event(data, &mut event),
+        };
+
+        if let Err(json_error) = apply_result {
+            // logged at call site of extract_event
+            relay_log::configure_scope(|scope| {
+                scope.set_extra("payload", String::from_utf8_lossy(&data).into());
+            });
+
+            return Err(ProcessingError::InvalidSecurityReport(json_error));
         }
-        .map_err(ProcessingError::InvalidSecurityReport)?;
 
         if let Some(release) = item.get_header("sentry_release").and_then(Value::as_str) {
             event.release = Annotated::from(LenientString(release.to_owned()));
@@ -477,7 +570,7 @@ impl EventProcessor {
                 // the optional `sentry` field.
                 match serde_json::from_str(entry.value()) {
                     Ok(event) => utils::merge_values(target, event),
-                    Err(_) => log::debug!("invalid json event payload in sentry form field"),
+                    Err(_) => relay_log::debug!("invalid json event payload in sentry form field"),
                 }
             } else if let Some(index) = utils::get_sentry_chunk_index(entry.key(), "sentry__") {
                 // Electron SDK splits up long payloads into chunks starting at sentry__1 with an
@@ -499,7 +592,7 @@ impl EventProcessor {
         if !aggregator.is_empty() {
             match serde_json::from_str(&aggregator.join()) {
                 Ok(event) => utils::merge_values(target, event),
-                Err(_) => log::debug!("invalid json event payload in sentry__* form fields"),
+                Err(_) => relay_log::debug!("invalid json event payload in sentry__* form fields"),
             }
         }
     }
@@ -628,6 +721,7 @@ impl EventProcessor {
 
             // session data is never considered as part of deduplication
             ItemType::Session => false,
+            ItemType::Sessions => false,
         }
     }
 
@@ -662,28 +756,31 @@ impl EventProcessor {
             return Err(ProcessingError::DuplicateItem(duplicate.ty()));
         }
 
-        let (event, event_len) = if let Some(item) = event_item.or(security_item) {
-            log::trace!("processing json event");
+        let (event, event_len) = if let Some(mut item) = event_item.or(security_item) {
+            relay_log::trace!("processing json event");
+            state.sample_rates = item.take_sample_rates();
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Event items can never include transactions, so retain the event type and let
                 // inference deal with this during store normalization.
                 self.event_from_json_payload(item, None)?
             })
-        } else if let Some(item) = transaction_item {
-            log::trace!("processing json transaction");
+        } else if let Some(mut item) = transaction_item {
+            relay_log::trace!("processing json transaction");
+            state.sample_rates = item.take_sample_rates();
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Transaction items can only contain transaction events. Force the event type to
                 // hint to normalization that we're dealing with a transaction now.
                 self.event_from_json_payload(item, Some(EventType::Transaction))?
             })
-        } else if let Some(item) = raw_security_item {
-            log::trace!("processing security report");
+        } else if let Some(mut item) = raw_security_item {
+            relay_log::trace!("processing security report");
+            state.sample_rates = item.take_sample_rates();
             self.event_from_security_report(item)?
         } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
-            log::trace!("extracting attached event data");
+            relay_log::trace!("extracting attached event data");
             Self::event_from_attachments(&self.config, attachment_item, breadcrumbs1, breadcrumbs2)?
         } else if let Some(item) = form_item {
-            log::trace!("extracting form data");
+            relay_log::trace!("extracting form data");
             let len = item.len();
 
             let mut value = SerdeValue::Object(Default::default());
@@ -692,7 +789,7 @@ impl EventProcessor {
 
             (event, len)
         } else {
-            log::trace!("no event in envelope");
+            relay_log::trace!("no event in envelope");
             (Annotated::empty(), 0)
         };
 
@@ -712,75 +809,6 @@ impl EventProcessor {
             .map_err(ProcessingError::InvalidUnrealReport)
     }
 
-    /// Writes a placeholder to indicate that this event has an associated minidump or an apple
-    /// crash report.
-    ///
-    /// This will indicate to the ingestion pipeline that this event will need to be processed. The
-    /// payload can be checked via `is_minidump_event`.
-    #[cfg(feature = "processing")]
-    fn write_native_placeholder(&self, event: &mut Event, is_minidump: bool) {
-        use relay_general::protocol::{Exception, JsonLenientString, Level, Mechanism};
-
-        // Events must be native platform.
-        let platform = event.platform.value_mut();
-        *platform = Some("native".to_string());
-
-        // Assume that this minidump is the result of a crash and assign the fatal
-        // level. Note that the use of `setdefault` here doesn't generally allow the
-        // user to override the minidump's level as processing will overwrite it
-        // later.
-        event.level.get_or_insert_with(|| Level::Fatal);
-
-        // Create a placeholder exception. This signals normalization that this is an
-        // error event and also serves as a placeholder if processing of the minidump
-        // fails.
-        let exceptions = event
-            .exceptions
-            .value_mut()
-            .get_or_insert_with(Values::default)
-            .values
-            .value_mut()
-            .get_or_insert_with(Vec::new);
-
-        exceptions.clear(); // clear previous errors if any
-
-        let (type_name, value, mechanism_type) = if is_minidump {
-            ("Minidump", "Invalid Minidump", "minidump")
-        } else {
-            (
-                "AppleCrashReport",
-                "Invalid Apple Crash Report",
-                "applecrashreport",
-            )
-        };
-
-        exceptions.push(Annotated::new(Exception {
-            ty: Annotated::new(type_name.to_string()),
-            value: Annotated::new(JsonLenientString(value.to_string())),
-            mechanism: Annotated::new(Mechanism {
-                ty: Annotated::from(mechanism_type.to_string()),
-                handled: Annotated::from(false),
-                synthetic: Annotated::from(true),
-                ..Mechanism::default()
-            }),
-            ..Exception::default()
-        }));
-    }
-
-    /// Extracts the timestamp from the minidump and uses it as the event timestamp.
-    #[cfg(feature = "processing")]
-    fn write_minidump_timestamp(&self, event: &mut Event, minidump_item: &Item) {
-        let minidump = match Minidump::read(minidump_item.payload()) {
-            Ok(minidump) => minidump,
-            Err(err) => {
-                log::debug!("Failed to parse minidump: {:?}", err);
-                return;
-            }
-        };
-        let timestamp = Utc.timestamp(minidump.header.time_date_stamp.into(), 0);
-        event.timestamp.set_value(Some(timestamp.into()));
-    }
-
     /// Adds processing placeholders for special attachments.
     ///
     /// If special attachments are present in the envelope, this adds placeholder payloads to the
@@ -788,7 +816,7 @@ impl EventProcessor {
     ///
     /// If the event payload was empty before, it is created.
     #[cfg(feature = "processing")]
-    fn create_placeholders(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn create_placeholders(&self, state: &mut ProcessEnvelopeState) {
         let envelope = &mut state.envelope;
 
         let minidump_attachment =
@@ -799,15 +827,12 @@ impl EventProcessor {
         if let Some(item) = minidump_attachment {
             let event = state.event.get_or_insert_with(Event::default);
             state.metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
-            self.write_native_placeholder(event, true);
-            self.write_minidump_timestamp(event, item);
+            utils::process_minidump(event, &item.payload());
         } else if let Some(item) = apple_crash_report_attachment {
             let event = state.event.get_or_insert_with(Event::default);
             state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
-            self.write_native_placeholder(event, false);
+            utils::process_apple_crash_report(event, &item.payload());
         }
-
-        Ok(())
     }
 
     fn finalize_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
@@ -832,6 +857,8 @@ impl EventProcessor {
         // In processing mode, also write metrics into the event. Most metrics have already been
         // collected at this state, except for the combined size of all attachments.
         if self.config.processing_enabled() {
+            let mut metrics = std::mem::take(&mut state.metrics);
+
             let attachment_size = envelope
                 .items()
                 .filter(|item| item.attachment_type() == Some(AttachmentType::Attachment))
@@ -839,10 +866,22 @@ impl EventProcessor {
                 .sum::<u64>();
 
             if attachment_size > 0 {
-                state.metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size);
+                metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size);
             }
 
-            event._metrics = Annotated::new(std::mem::take(&mut state.metrics));
+            let sample_rates = state
+                .sample_rates
+                .take()
+                .and_then(|value| Array::from_value(Annotated::new(value)).into_value());
+
+            if let Some(rates) = sample_rates {
+                metrics
+                    .sample_rates
+                    .get_or_insert_with(Array::new)
+                    .extend(rates)
+            }
+
+            event._metrics = Annotated::new(metrics);
         }
 
         // TODO: Temporary workaround before processing. Experimental SDKs relied on a buggy
@@ -873,15 +912,18 @@ impl EventProcessor {
         } = *state;
 
         let key_id = project_state
-            .get_public_key_config(&envelope.meta().public_key())
+            .get_public_key_config()
             .and_then(|k| Some(k.numeric_id?.to_string()));
 
         if key_id.is_none() {
-            log::error!("can't find key in project config, but we verified auth before already");
+            relay_log::error!(
+                "project state for key {} is missing key id",
+                envelope.meta().public_key()
+            );
         }
 
         let store_config = StoreConfig {
-            project_id: Some(envelope.meta().project_id().value()),
+            project_id: Some(state.project_id.value()),
             client_ip: envelope.meta().client_addr().map(IpAddr::from),
             client: envelope.meta().client().map(str::to_owned),
             key_id,
@@ -1001,7 +1043,7 @@ impl EventProcessor {
     /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
     /// attachment types. When special attachments are detected, these are scrubbed with custom
     /// logic; otherwise the entire attachment is treated as a single binary blob.
-    fn scrub_attachments(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn scrub_attachments(&self, state: &mut ProcessEnvelopeState) {
         let envelope = &mut state.envelope;
         if let Some(ref config) = state.project_state.config.pii_config {
             let minidump = envelope
@@ -1017,9 +1059,24 @@ impl EventProcessor {
                 // Minidump scrubbing can fail if the minidump cannot be parsed. In this case, we
                 // must be conservative and treat it as a plain attachment. Under extreme
                 // conditions, this could destroy stack memory.
-                if let Err(scrub_error) = processor.scrub_minidump(filename, &mut payload) {
-                    log::debug!("failed to scrub minidump: {}", LogError(&scrub_error));
-                    processor.scrub_attachment(filename, &mut payload);
+                let start = Instant::now();
+                match processor.scrub_minidump(filename, &mut payload) {
+                    Ok(modified) => {
+                        metric!(
+                            timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
+                            status = if modified { "ok" } else { "n/a" },
+                        );
+                    }
+                    Err(scrub_error) => {
+                        metric!(
+                            timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
+                            status = "error"
+                        );
+                        relay_log::warn!("failed to scrub minidump: {}", LogError(&scrub_error));
+                        metric!(timer(RelayTimers::AttachmentScrubbing), {
+                            processor.scrub_attachment(filename, &mut payload);
+                        })
+                    }
                 }
 
                 let content_type = item
@@ -1030,8 +1087,6 @@ impl EventProcessor {
                 item.set_payload(content_type, payload);
             }
         }
-
-        Ok(())
     }
 
     fn serialize_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
@@ -1045,14 +1100,36 @@ impl EventProcessor {
         let event_type = state.event_type().unwrap_or_default();
         let mut event_item = Item::new(ItemType::from_event_type(event_type));
         event_item.set_payload(ContentType::Json, data);
+
+        // If there are sample rates, write them back to the envelope. In processing mode, sample
+        // rates have been removed from the state and burnt into the event via `finalize_event`.
+        if let Some(sample_rates) = state.sample_rates.take() {
+            event_item.set_sample_rates(sample_rates);
+        }
+
         state.envelope.add_item(event_item);
 
         Ok(())
     }
 
-    fn process(
+    /// Run dynamic sampling rules to see if we keep the event or remove it.
+    fn sample_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let event = match &state.event.0 {
+            None => return Ok(()), // can't process without an event
+            Some(event) => event,
+        };
+
+        let project_id = state.project_id;
+        match utils::should_keep_event(event, &state.project_state, project_id) {
+            Some(false) => Err(ProcessingError::EventSampled),
+            Some(true) => Ok(()),
+            None => Ok(()), // Not enough info to make a definite evaluation, keep the event
+        }
+    }
+
+    fn process_state(
         &self,
-        message: ProcessEnvelope,
+        mut state: ProcessEnvelopeState,
     ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
         macro_rules! if_processing {
             ($if_true:block $(, $if_not:block)?) => {
@@ -1062,22 +1139,26 @@ impl EventProcessor {
             };
         }
 
-        let mut state = self.prepare_state(message)?;
-        self.process_sessions(&mut state)?;
+        self.process_sessions(&mut state);
+        self.process_user_reports(&mut state);
 
         if state.creates_event() {
             if_processing!({
                 self.expand_unreal(&mut state)?;
             });
 
-            self.extract_event(&mut state)?;
+            self.extract_event(&mut state).map_err(|error| {
+                relay_log::error!("failed to extract event: {}", LogError(&error));
+                error
+            })?;
 
             if_processing!({
                 self.process_unreal(&mut state)?;
-                self.create_placeholders(&mut state)?;
+                self.create_placeholders(&mut state);
             });
 
             self.finalize_event(&mut state)?;
+            self.sample_event(&mut state)?;
 
             if_processing!({
                 self.store_process_event(&mut state)?;
@@ -1094,9 +1175,33 @@ impl EventProcessor {
             self.serialize_event(&mut state)?;
         }
 
-        self.scrub_attachments(&mut state)?;
+        self.scrub_attachments(&mut state);
 
         Ok(ProcessEnvelopeResponse::from(state))
+    }
+
+    fn process(
+        &self,
+        message: ProcessEnvelope,
+    ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
+        let state = self.prepare_state(message)?;
+
+        let project_id = state.project_id;
+        let client = state.envelope.meta().client().map(str::to_owned);
+        let user_agent = state.envelope.meta().user_agent().map(str::to_owned);
+
+        relay_log::with_scope(
+            |scope| {
+                scope.set_tag("project", project_id);
+                if let Some(client) = client {
+                    scope.set_tag("sdk", client);
+                }
+                if let Some(user_agent) = user_agent {
+                    scope.set_extra("user_agent", user_agent.into());
+                }
+            },
+            || self.process_state(state),
+        )
     }
 }
 
@@ -1140,7 +1245,8 @@ impl Handler<ProcessEnvelope> for EventProcessor {
     }
 }
 
-pub type CapturedEvent = Result<Envelope, String>;
+/// Either a captured envelope or an error that occured during processing.
+pub type CapturedEnvelope = Result<Envelope, String>;
 
 pub struct EventManager {
     config: Arc<Config>,
@@ -1148,7 +1254,7 @@ pub struct EventManager {
     processor: Addr<EventProcessor>,
     current_active_events: u32,
     outcome_producer: Addr<OutcomeProducer>,
-    captured_events: Arc<RwLock<BTreeMap<EventId, CapturedEvent>>>,
+    captures: BTreeMap<EventId, CapturedEnvelope>,
 
     #[cfg(feature = "processing")]
     store_forwarder: Option<Addr<StoreForwarder>>,
@@ -1162,7 +1268,7 @@ impl EventManager {
         redis_pool: Option<RedisPool>,
     ) -> Result<Self, ServerError> {
         let thread_count = config.cpu_concurrency();
-        log::info!("starting {} event processing workers", thread_count);
+        relay_log::info!("starting {} event processing workers", thread_count);
 
         #[cfg(not(feature = "processing"))]
         let _ = redis_pool;
@@ -1181,11 +1287,9 @@ impl EventManager {
 
             SyncArbiter::start(
                 thread_count,
-                clone!(config, || EventProcessor::new(
-                    config.clone(),
-                    rate_limiter.clone(),
-                    geoip_lookup.clone(),
-                )),
+                clone!(config, || EventProcessor::new(config.clone())
+                    .with_rate_limiter(rate_limiter.clone())
+                    .with_geoip_lookup(geoip_lookup.clone())),
             )
         };
 
@@ -1208,7 +1312,7 @@ impl EventManager {
             upstream,
             processor,
             current_active_events: 0,
-            captured_events: Arc::default(),
+            captures: BTreeMap::new(),
 
             #[cfg(feature = "processing")]
             store_forwarder,
@@ -1226,17 +1330,18 @@ impl Actor for EventManager {
         // should ensure that we're not dropping events unintentionally after we've accepted them.
         let mailbox_size = self.config.event_buffer_size() as usize;
         context.set_mailbox_capacity(mailbox_size);
-        log::info!("event manager started");
+        relay_log::info!("event manager started");
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::info!("event manager stopped");
+        relay_log::info!("event manager stopped");
     }
 }
 
 pub struct QueueEnvelope {
     pub envelope: Envelope,
     pub project: Addr<Project>,
+    pub sampling_project: Option<Addr<Project>>,
     pub start_time: Instant,
 }
 
@@ -1274,6 +1379,7 @@ impl Handler<QueueEnvelope> for EventManager {
             self.current_active_events += 1;
             context.notify(HandleEnvelope {
                 envelope: event_envelope,
+                sampling_project: message.sampling_project.clone(),
                 project: message.project.clone(),
                 start_time: message.start_time,
             });
@@ -1282,6 +1388,7 @@ impl Handler<QueueEnvelope> for EventManager {
         self.current_active_events += 1;
         context.notify(HandleEnvelope {
             envelope: message.envelope,
+            sampling_project: message.sampling_project,
             project: message.project,
             start_time: message.start_time,
         });
@@ -1290,7 +1397,7 @@ impl Handler<QueueEnvelope> for EventManager {
         // that future will be tied to the EventManager's context. This allows to keep the Project
         // actor alive even if it is cleaned up in the ProjectManager.
 
-        log::trace!("queued event");
+        relay_log::trace!("queued event");
         Ok(event_id)
     }
 }
@@ -1298,6 +1405,7 @@ impl Handler<QueueEnvelope> for EventManager {
 struct HandleEnvelope {
     pub envelope: Envelope,
     pub project: Addr<Project>,
+    pub sampling_project: Option<Addr<Project>>,
     pub start_time: Instant,
 }
 
@@ -1308,7 +1416,7 @@ impl Message for HandleEnvelope {
 impl Handler<HandleEnvelope> for EventManager {
     type Result = ResponseActFuture<Self, (), ()>;
 
-    fn handle(&mut self, message: HandleEnvelope, _context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: HandleEnvelope, _ctx: &mut Self::Context) -> Self::Result {
         // We measure three timers while handling events, once they have been initially accepted:
         //
         // 1. `event.wait_time`: The time we take to get all dependencies for events before
@@ -1328,8 +1436,8 @@ impl Handler<HandleEnvelope> for EventManager {
         let upstream = self.upstream.clone();
         let processor = self.processor.clone();
         let outcome_producer = self.outcome_producer.clone();
-        let captured_events = self.captured_events.clone();
         let capture = self.config.relay_mode() == RelayMode::Capture;
+        let http_encoding = self.config.http_encoding();
 
         #[cfg(feature = "processing")]
         let store_forwarder = self.store_forwarder.clone();
@@ -1338,26 +1446,29 @@ impl Handler<HandleEnvelope> for EventManager {
             envelope,
             project,
             start_time,
+            sampling_project,
         } = message;
 
         let event_id = envelope.event_id();
-        let project_id = envelope.meta().project_id();
         let remote_addr = envelope.meta().client_addr();
 
         // Compute whether this envelope contains an event. This is used in error handling to
-        // appropriately emit an outecome. Envelopes not containing events (such as standalone
+        // appropriately emit an outcome. Envelopes not containing events (such as standalone
         // attachment uploads or user reports) should never create outcomes.
         let is_event = envelope.items().any(Item::creates_event);
 
         let scoping = Rc::new(RefCell::new(envelope.meta().get_partial_scoping()));
-
-        metric!(set(RelaySets::UniqueProjects) = project_id.value() as i64);
+        let is_received = Rc::new(AtomicBool::from(false));
 
         let future = project
             .send(CheckEnvelope::fetched(envelope))
             .map_err(ProcessingError::ScheduleFailed)
             .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
             .and_then(clone!(scoping, |response| {
+                // Use the project id from the loaded project state to account for redirects.
+                let project_id = response.scoping.project_id.value();
+                metric!(set(RelaySets::UniqueProjects) = project_id as i64);
+
                 scoping.replace(response.scoping);
 
                 let checked = response.result.map_err(ProcessingError::EventRejected)?;
@@ -1366,7 +1477,19 @@ impl Handler<HandleEnvelope> for EventManager {
                     None => Err(ProcessingError::RateLimited(checked.rate_limits)),
                 }
             }))
+            .and_then(|envelope| {
+                utils::sample_transaction(envelope, sampling_project, false)
+                    .map_err(|()| (ProcessingError::TransactionSampled))
+            })
+            .and_then(|envelope| {
+                if envelope.is_empty() {
+                    Err(ProcessingError::TransactionSampled)
+                } else {
+                    Ok(envelope)
+                }
+            })
             .and_then(clone!(project, |envelope| {
+                // get the state for the current project
                 project
                     .send(GetProjectState)
                     .map_err(ProcessingError::ScheduleFailed)
@@ -1397,21 +1520,23 @@ impl Handler<HandleEnvelope> for EventManager {
                     None => Err(ProcessingError::RateLimited(rate_limits)),
                 }
             }))
-            .and_then(clone!(captured_events, scoping, |mut envelope| {
+            .into_actor(self)
+            .and_then(clone!(scoping, is_received, |mut envelope, slf, _| {
                 #[cfg(feature = "processing")]
                 {
                     if let Some(store_forwarder) = store_forwarder {
-                        log::trace!("sending envelope to kafka");
+                        relay_log::trace!("sending envelope to kafka");
                         let future = store_forwarder
                             .send(StoreEnvelope {
                                 envelope,
                                 start_time,
-                                scoping: scoping.borrow().clone(),
+                                scoping: *scoping.borrow(),
                             })
                             .map_err(ProcessingError::ScheduleFailed)
-                            .and_then(move |result| result.map_err(ProcessingError::StoreFailed));
+                            .and_then(move |result| result.map_err(ProcessingError::StoreFailed))
+                            .into_actor(slf);
 
-                        return Box::new(future) as ResponseFuture<_, _>;
+                        return Box::new(future) as ResponseActFuture<_, _, _>;
                     }
                 }
 
@@ -1421,19 +1546,18 @@ impl Handler<HandleEnvelope> for EventManager {
                     // XXX: this is wrong because captured_events does not take envelopes without
                     // event_id into account.
                     if let Some(event_id) = event_id {
-                        log::debug!("capturing envelope");
-                        captured_events
-                            .write()
-                            .insert(event_id, CapturedEvent::Ok(envelope));
+                        relay_log::debug!("capturing envelope");
+                        slf.captures.insert(event_id, Ok(envelope));
                     } else {
-                        log::debug!("dropping non event envelope");
+                        relay_log::debug!("dropping non event envelope");
                     }
-                    return Box::new(Ok(()).into_future()) as ResponseFuture<_, _>;
+                    return Box::new(fut::ok(())) as ResponseActFuture<_, _, _>;
                 }
 
-                log::trace!("sending event to sentry endpoint");
-                let request = SendRequest::post(format!("/api/{}/store/", project_id)).build(
-                    move |builder| {
+                relay_log::trace!("sending event to sentry endpoint");
+                let project_id = scoping.borrow().project_id;
+                let request = SendRequest::post(format!("/api/{}/envelope/", project_id)).build(
+                    move |mut builder: RequestBuilder| {
                         // Override the `sent_at` timestamp. Since the event went through basic
                         // normalization, all timestamps have been corrected. We propagate the new
                         // `sent_at` to allow the next Relay to double-check this timestamp and
@@ -1444,7 +1568,7 @@ impl Handler<HandleEnvelope> for EventManager {
                         let meta = envelope.meta();
 
                         if let Some(origin) = meta.origin() {
-                            builder.header("Origin", origin.to_string());
+                            builder.header("Origin", origin.as_str());
                         }
 
                         if let Some(user_agent) = meta.user_agent() {
@@ -1452,10 +1576,25 @@ impl Handler<HandleEnvelope> for EventManager {
                         }
 
                         builder
+                            .content_encoding(http_encoding)
                             .header("X-Sentry-Auth", meta.auth_header())
                             .header("X-Forwarded-For", meta.forwarded_for())
-                            .header("Content-Type", envelope::CONTENT_TYPE)
-                            .body(envelope.to_vec().map_err(failure::Error::from)?)
+                            .header("Content-Type", envelope::CONTENT_TYPE);
+
+                        builder
+                            .body(
+                                envelope
+                                    .to_vec()
+                                    // XXX: upstream actor should allow for custom error type,
+                                    // right now we are forced to shoehorn our envelope errors into
+                                    // UpstreamRequestError
+                                    .map_err(failure::Error::from)
+                                    .map_err(actix_web::Error::from)
+                                    .map_err(HttpError::Actix)
+                                    .map_err(UpstreamRequestError::Http)?
+                                    .into(),
+                            )
+                            .map_err(UpstreamRequestError::Http)
                     },
                 );
 
@@ -1463,6 +1602,15 @@ impl Handler<HandleEnvelope> for EventManager {
                     .send(request)
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(move |result| {
+                        let received = match result {
+                            Ok(_) => true,
+                            Err(ref e) => e.is_received(),
+                        };
+
+                        // Flag that upstream has received the request, which will skip outcome
+                        // generation below.
+                        is_received.store(received, Ordering::SeqCst);
+
                         result.map_err(move |error| match error {
                             UpstreamRequestError::RateLimited(upstream_limits) => {
                                 let limits = upstream_limits.scope(&scoping.borrow());
@@ -1471,11 +1619,11 @@ impl Handler<HandleEnvelope> for EventManager {
                             }
                             other => ProcessingError::SendFailed(other),
                         })
-                    });
+                    })
+                    .into_actor(slf);
 
-                Box::new(future) as ResponseFuture<_, _>
+                Box::new(future) as ResponseActFuture<_, _, _>
             }))
-            .into_actor(self)
             .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
             .map(|_, _, _| metric!(counter(RelayCounters::EnvelopeAccepted) += 1))
             .map_err(move |error, slf, _| {
@@ -1486,13 +1634,11 @@ impl Handler<HandleEnvelope> for EventManager {
                 if capture {
                     // XXX: does not work with envelopes without event_id
                     if let Some(event_id) = event_id {
-                        log::debug!("capturing failed event {}", event_id);
+                        relay_log::debug!("capturing failed event {}", event_id);
                         let msg = LogError(&error).to_string();
-                        slf.captured_events
-                            .write()
-                            .insert(event_id, CapturedEvent::Err(msg));
+                        slf.captures.insert(event_id, Err(msg));
                     } else {
-                        log::debug!("dropping failed envelope without event");
+                        relay_log::debug!("dropping failed envelope without event");
                     }
                 }
 
@@ -1507,15 +1653,22 @@ impl Handler<HandleEnvelope> for EventManager {
                     // Errors are only logged for what we consider an internal discard reason. These
                     // indicate errors in the infrastructure or implementation bugs. In other cases,
                     // we "expect" errors and log them as debug level.
-                    log::error!("error processing event: {}", LogError(&error));
+                    relay_log::error!("error processing event: {}", LogError(&error));
                 } else {
-                    log::debug!("dropped event: {}", LogError(&error));
+                    relay_log::debug!("dropped event: {}", LogError(&error));
+                }
+
+                // Do not emit outcomes for requests that have been accepted by the upstream. In
+                // such a case, the upstream assumes ownership and logs the outcome, instead. This
+                // is irrelevant to processing Relays, since they never send to the upstream.
+                if is_received.load(Ordering::SeqCst) {
+                    return;
                 }
 
                 if let Some(outcome) = outcome {
                     outcome_producer.do_send(TrackOutcome {
                         timestamp: Instant::now(),
-                        scoping: scoping.borrow().clone(),
+                        scoping: *scoping.borrow(),
                         outcome,
                         event_id,
                         remote_addr,
@@ -1533,25 +1686,32 @@ impl Handler<HandleEnvelope> for EventManager {
     }
 }
 
-pub struct GetCapturedEvent {
+/// Resolves a [`CapturedEnvelope`] by the given `event_id`.
+pub struct GetCapturedEnvelope {
     pub event_id: EventId,
 }
 
-impl Message for GetCapturedEvent {
-    type Result = Option<CapturedEvent>;
+impl Message for GetCapturedEnvelope {
+    type Result = Option<CapturedEnvelope>;
 }
 
-impl Handler<GetCapturedEvent> for EventManager {
-    type Result = Option<CapturedEvent>;
+impl Handler<GetCapturedEnvelope> for EventManager {
+    type Result = Option<CapturedEnvelope>;
 
-    fn handle(&mut self, message: GetCapturedEvent, _context: &mut Self::Context) -> Self::Result {
-        self.captured_events.read().get(&message.event_id).cloned()
+    fn handle(
+        &mut self,
+        message: GetCapturedEnvelope,
+        _context: &mut Self::Context,
+    ) -> Self::Result {
+        self.captures.get(&message.event_id).cloned()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use crate::extractors::RequestMeta;
 
     use chrono::{DateTime, TimeZone, Utc};
 
@@ -1695,5 +1855,43 @@ mod tests {
 
         // regression test to ensure we don't fail parsing an empty file
         result.expect("event_from_attachments");
+    }
+
+    #[test]
+    fn test_user_report_invalid() {
+        let processor = EventProcessor::new(Arc::new(Default::default()));
+        let event_id = EventId::new();
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::UserReport);
+            item.set_payload(ContentType::Json, r###"{"foo": "bar"}"###);
+            item
+        });
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::Event);
+            item.set_payload(ContentType::Json, "{}");
+            item
+        });
+
+        let envelope_response = processor
+            .process(ProcessEnvelope {
+                envelope,
+                project_state: Arc::new(ProjectState::allowed()),
+                start_time: Instant::now(),
+            })
+            .unwrap();
+
+        let new_envelope = envelope_response.envelope.unwrap();
+
+        assert_eq!(new_envelope.len(), 1);
+        assert_eq!(new_envelope.items().next().unwrap().ty(), ItemType::Event);
     }
 }

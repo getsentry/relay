@@ -7,9 +7,8 @@
 
 # Official Sentry Relay
 
-[![Travis](https://travis-ci.com/getsentry/relay.svg?branch=master)](https://travis-ci.com/getsentry/relay)
-[![AppVeyor](https://img.shields.io/appveyor/ci/sentry/relay.svg)](https://ci.appveyor.com/project/sentry/relay)
-[![GitHub release](https://img.shields.io/github/release/getsentry/relay.svg)](https://github.com/getsentry/relay/releases/latest)
+[![CI](https://github.com/getsentry/relay/workflows/CI/badge.svg?branch=master)](https://github.com/getsentry/relay/actions?query=workflow%3ACI+branch%3Amaster)
+[![GitHub Release](https://img.shields.io/github/release/getsentry/relay.svg)](https://github.com/getsentry/relay/releases/latest)
 [![PyPI](https://img.shields.io/pypi/v/sentry-relay.svg)](https://pypi.python.org/pypi/sentry-relay)
 
 <p align="center">
@@ -18,13 +17,14 @@
   </p>
 </p>
 
-The Sentry Relay is a work in progress service that pushes some functionality
-from the Sentry SDKs as well as the Sentry server into a proxy process.
+The Sentry Relay is a service that pushes some functionality from the Sentry
+SDKs as well as the Sentry server into a proxy process.
 
 ## Documentation
 
-The project documentation can be found at:
-[https://getsentry.github.io/relay/](https://getsentry.github.io/relay/).
+- Product documentation can be found at: [https://docs.sentry.io/meta/relay/](https://docs.sentry.io/meta/relay).
+- Code and development documentation can be found at:
+  [https://getsentry.github.io/relay/](https://getsentry.github.io/relay/).
 
 ## License
 
@@ -37,6 +37,7 @@ for more information.
 To build Relay, we require the **latest stable Rust**. The crate is split into a
 workspace with multiple features, so when running building or running tests
 always make sure to pass the `--all` and `--all-features` flags.
+The `processing` feature additionally requires a C compiler and CMake.
 
 We use VSCode for development. This repository contains settings files
 configuring code style, linters, and useful features. When opening the project
@@ -56,7 +57,7 @@ development:
 
 For a lot of tests you will need Redis and Kafka running in their respective
 default configuration. `sentry devservices` from
-[sentry](github.com/getsentry/sentry) does this for you.
+[sentry](https://github.com/getsentry/sentry) does this for you.
 
 ### Building and Running
 
@@ -153,7 +154,7 @@ make lint
 
 Potentially, new functionality also needs to be added to the Python package.
 This first requires to expose new functions in the C ABI. For this, refer to the
-[Relay C-ABI readme](relay-cabi/README.md).
+[Relay C-ABI readme](https://getsentry.github.io/relay/relay_cabi/).
 
 We highly recommend to develop and test the python package in a **virtual
 environment**. Once the ABI has been updated and tested, ensure the virtualenv
@@ -209,6 +210,5 @@ There are two separate projects to publish:
   releases with Sentry.
 
 - **Relay Python library** along with the C-ABI are released from the `py/`
-  subfolder. Change into that directory and run `craft prepare` and `craft
-  publish`. We use [Semantic Versioning](https://semver.org/) and release during
+  subfolder. Change into that directory and run `craft prepare` and `craft publish`. We use [Semantic Versioning](https://semver.org/) and release during
   the development cycle.

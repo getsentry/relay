@@ -2,13 +2,14 @@ use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, TimeZone, Utc};
 use failure::Fail;
+use hmac::{Hmac, Mac};
 use rand::{rngs::OsRng, thread_rng, RngCore};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::Sha512;
 
-use relay_common::Uuid;
+use relay_common::{UnixTimestamp, Uuid};
 
 include!(concat!(env!("OUT_DIR"), "/constants.gen.rs"));
 
@@ -110,10 +111,10 @@ impl Serialize for RelayVersion {
 /// Raised if a key could not be parsed.
 #[derive(Debug, Fail, PartialEq, Eq, Hash)]
 pub enum KeyParseError {
-    /// Invalid key encoding
+    /// Invalid key encoding.
     #[fail(display = "bad key encoding")]
     BadEncoding,
-    /// Invalid key data
+    /// Invalid key data.
     #[fail(display = "bad key data")]
     BadKey,
 }
@@ -124,6 +125,9 @@ pub enum UnpackError {
     /// Raised if the signature is invalid.
     #[fail(display = "invalid signature on data")]
     BadSignature,
+    /// Invalid key encoding.
+    #[fail(display = "bad key encoding")]
+    BadEncoding,
     /// Raised if deserializing of data failed.
     #[fail(display = "could not deserialize payload")]
     BadPayload(#[cause] serde_json::Error),
@@ -188,7 +192,7 @@ impl Clone for SecretKey {
     }
 }
 
-/// Reprensents the final registration.
+/// Represents the final registration.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Registration {
     relay_id: RelayId,
@@ -424,10 +428,137 @@ pub fn generate_key_pair() -> (SecretKey, PublicKey) {
     (SecretKey { inner: kp }, PublicKey { inner: pk })
 }
 
-/// Represents a challenge request.
+/// An encoded and signed `RegisterState`.
+///
+/// This signature can be used by the upstream server to ensure that the downstream client did not
+/// tamper with the token without keeping state between requests. For more information, see
+/// `RegisterState`.
+///
+/// The format and contents of `SignedRegisterState` are intentionally opaque. Downstream clients
+/// do not need to interpret it, and the upstream can change its contents at any time. Parsing and
+/// validation is only performed on the upstream.
+///
+/// In the current implementation, the serialized state has the format `{state}:{signature}`, where
+/// each component is:
+///  - `state`: A URL-safe base64 encoding of the JSON serialized `RegisterState`.
+///  - `signature`: A URL-safe base64 encoding of the SHA512 HMAC of the encoded state.
+///
+/// To create a signed state, use `RegisterChallenge::sign`. To validate the signature and read
+/// the state, use `SignedRegisterChallenge::unpack`. In both cases, a secret for signing has to be
+/// supplied.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SignedRegisterState(String);
+
+impl SignedRegisterState {
+    /// Creates an Hmac instance for signing the `RegisterState`.
+    fn mac(secret: &[u8]) -> Hmac<Sha512> {
+        Hmac::new_varkey(secret).expect("HMAC takes variable keys")
+    }
+
+    /// Signs the given `RegisterState` and serializes it into a single string.
+    fn sign(state: RegisterState, secret: &[u8]) -> Self {
+        let json = serde_json::to_string(&state).expect("relay register state serializes to JSON");
+        let token = base64::encode_config(&json, base64::URL_SAFE_NO_PAD);
+
+        let mut mac = Self::mac(secret);
+        mac.input(token.as_bytes());
+        let signature = base64::encode_config(&mac.result().code(), base64::URL_SAFE_NO_PAD);
+
+        Self(format!("{}:{}", token, signature))
+    }
+
+    /// Splits the signed state into the encoded state and encoded signature.
+    fn split(&self) -> (&str, &str) {
+        let mut split = self.as_str().splitn(2, ':');
+        (split.next().unwrap_or(""), split.next().unwrap_or(""))
+    }
+
+    /// Returns the string representation of the token.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    /// Unpacks the encoded state and validates the signature.
+    ///
+    /// If `max_age` is specified, then the timestamp in the state is validated against the current
+    /// time stamp. If the stored timestamp is too old, `UnpackError::SignatureExpired` is returned.
+    pub fn unpack(
+        &self,
+        secret: &[u8],
+        max_age: Option<Duration>,
+    ) -> Result<RegisterState, UnpackError> {
+        let (token, signature) = self.split();
+        let code = base64::decode_config(signature, base64::URL_SAFE_NO_PAD)
+            .map_err(|_| UnpackError::BadEncoding)?;
+
+        let mut mac = Self::mac(secret);
+        mac.input(token.as_bytes());
+        mac.verify(&code).map_err(|_| UnpackError::BadSignature)?;
+
+        let json = base64::decode_config(token, base64::URL_SAFE_NO_PAD)
+            .map_err(|_| UnpackError::BadEncoding)?;
+        let state =
+            serde_json::from_slice::<RegisterState>(&json).map_err(UnpackError::BadPayload)?;
+
+        if let Some(max_age) = max_age {
+            let secs = state.timestamp().as_secs() as i64;
+            if Utc.timestamp(secs, 0) + max_age < Utc::now() {
+                return Err(UnpackError::SignatureExpired);
+            }
+        }
+
+        Ok(state)
+    }
+}
+
+impl fmt::Display for SignedRegisterState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_str().fmt(f)
+    }
+}
+
+/// A state structure containing relevant information from `RegisterRequest`.
+///
+/// This struct is used to carry over information between the downstream register request and
+/// register response. In addition to identifying information, it contains a random bit to avoid
+/// replay attacks.
+#[derive(Clone, Deserialize, Serialize)]
+pub struct RegisterState {
+    timestamp: UnixTimestamp,
+    relay_id: RelayId,
+    public_key: PublicKey,
+    rand: String,
+}
+
+impl RegisterState {
+    /// Returns the timestamp at which the challenge was created.
+    pub fn timestamp(&self) -> UnixTimestamp {
+        self.timestamp
+    }
+
+    /// Returns the identifier of the requesting downstream Relay.
+    pub fn relay_id(&self) -> RelayId {
+        self.relay_id
+    }
+
+    /// Returns the public key of the requesting downstream Relay.
+    pub fn public_key(&self) -> &PublicKey {
+        &self.public_key
+    }
+}
+
+/// Generates a new random token for the register state.
+fn nonce() -> String {
+    let mut rng = thread_rng();
+    let mut bytes = vec![0u8; 64];
+    rng.fill_bytes(&mut bytes);
+    base64::encode_config(&bytes, base64::URL_SAFE_NO_PAD)
+}
+
+/// Represents a request for registration with the upstream.
 ///
 /// This is created if the relay signs in for the first time.  The server needs
-/// to respond to this challenge with a unique token that is then used to sign
+/// to respond to this request with a unique token that is then used to sign
 /// the response.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterRequest {
@@ -463,8 +594,8 @@ impl RegisterRequest {
     }
 
     /// Returns the relay ID of the registering relay.
-    pub fn relay_id(&self) -> &RelayId {
-        &self.relay_id
+    pub fn relay_id(&self) -> RelayId {
+        self.relay_id
     }
 
     /// Returns the new public key of registering relay.
@@ -473,14 +604,17 @@ impl RegisterRequest {
     }
 
     /// Creates a register challenge for this request.
-    pub fn create_challenge(&self) -> RegisterChallenge {
-        let mut rng = thread_rng();
-        let mut bytes = vec![0u8; 64];
-        rng.fill_bytes(&mut bytes);
-        let token = base64::encode_config(&bytes, base64::URL_SAFE_NO_PAD);
+    pub fn into_challenge(self, secret: &[u8]) -> RegisterChallenge {
+        let state = RegisterState {
+            timestamp: UnixTimestamp::now(),
+            relay_id: self.relay_id,
+            public_key: self.public_key,
+            rand: nonce(),
+        };
+
         RegisterChallenge {
             relay_id: self.relay_id,
-            token,
+            token: SignedRegisterState::sign(state, secret),
         }
     }
 }
@@ -489,7 +623,7 @@ impl RegisterRequest {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterChallenge {
     relay_id: RelayId,
-    token: String,
+    token: SignedRegisterState,
 }
 
 impl RegisterChallenge {
@@ -500,39 +634,65 @@ impl RegisterChallenge {
 
     /// Returns the token that needs signing.
     pub fn token(&self) -> &str {
-        &self.token
+        self.token.as_str()
     }
 
     /// Creates a register response.
-    pub fn create_response(&self) -> RegisterResponse {
+    pub fn into_response(self) -> RegisterResponse {
         RegisterResponse {
             relay_id: self.relay_id,
-            token: self.token.clone(),
+            token: self.token,
+            version: RelayVersion::current(),
         }
     }
 }
 
-/// Represents a response to a register challenge
+/// Represents a response to a register challenge.
+///
+/// The response contains the same data as the register challenge. By signing this payload
+/// successfully, this Relay authenticates with the upstream.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterResponse {
     relay_id: RelayId,
-    token: String,
+    token: SignedRegisterState,
+    #[serde(default)]
+    version: RelayVersion,
 }
 
 impl RegisterResponse {
-    /// Loads the register response without validating.
-    pub fn unpack_unsafe(data: &[u8]) -> Result<RegisterResponse, UnpackError> {
-        serde_json::from_slice(data).map_err(UnpackError::BadPayload)
+    /// Unpacks the register response and validates signatures.
+    pub fn unpack(
+        data: &[u8],
+        signature: &str,
+        secret: &[u8],
+        max_age: Option<Duration>,
+    ) -> Result<(Self, RegisterState), UnpackError> {
+        let response: Self = serde_json::from_slice(data).map_err(UnpackError::BadPayload)?;
+        let state = response.token.unpack(secret, max_age)?;
+
+        if let Some(header) = state.public_key().verify_meta(data, signature) {
+            if max_age.map_or(false, |m| header.expired(m)) {
+                return Err(UnpackError::SignatureExpired);
+            }
+        } else {
+            return Err(UnpackError::BadSignature);
+        }
+
+        Ok((response, state))
     }
 
     /// Returns the relay ID of the registering relay.
-    pub fn relay_id(&self) -> &RelayId {
-        &self.relay_id
+    pub fn relay_id(&self) -> RelayId {
+        self.relay_id
     }
 
     /// Returns the token that needs signing.
     pub fn token(&self) -> &str {
-        &self.token
+        self.token.as_str()
+    }
+
+    pub fn version(&self) -> RelayVersion {
+        self.version
     }
 }
 
@@ -614,32 +774,102 @@ fn test_registration() {
     let (sk, pk) = generate_key_pair();
 
     // create a register request
-    let reg_req = RegisterRequest::new(&relay_id, &pk);
+    let request = RegisterRequest::new(&relay_id, &pk);
 
     // sign it
-    let (reg_req_bytes, reg_req_sig) = sk.pack(&reg_req);
+    let (request_bytes, request_sig) = sk.pack(&request);
 
     // attempt to get the data through bootstrap unpacking.
-    let reg_req =
-        RegisterRequest::bootstrap_unpack(&reg_req_bytes, &reg_req_sig, Some(max_age)).unwrap();
-    assert_eq!(reg_req.relay_id(), &relay_id);
-    assert_eq!(reg_req.public_key(), &pk);
+    let request =
+        RegisterRequest::bootstrap_unpack(&request_bytes, &request_sig, Some(max_age)).unwrap();
+    assert_eq!(request.relay_id(), relay_id);
+    assert_eq!(request.public_key(), &pk);
+
+    let upstream_secret = b"secret";
 
     // create a challenge
-    let challenge = reg_req.create_challenge();
+    let challenge = request.into_challenge(upstream_secret);
+    let challenge_token = challenge.token().to_owned();
     assert_eq!(challenge.relay_id(), &relay_id);
     assert!(challenge.token().len() > 40);
 
+    // check the challenge contains the expected info
+    let state = SignedRegisterState(challenge_token.clone());
+    let register_state = state.unpack(upstream_secret, None).unwrap();
+    assert_eq!(register_state.public_key, pk);
+    assert_eq!(register_state.relay_id, relay_id);
+
     // create a response from the challenge
-    let reg_resp = challenge.create_response();
+    let response = challenge.into_response();
 
     // sign and unsign it
-    let (reg_resp_bytes, reg_resp_sig) = sk.pack(&reg_resp);
-    let reg_resp: RegisterResponse = pk
-        .unpack(&reg_resp_bytes, &reg_resp_sig, Some(max_age))
-        .unwrap();
-    assert_eq!(reg_resp.relay_id(), &relay_id);
-    assert_eq!(reg_resp.token(), challenge.token());
+    let (response_bytes, response_sig) = sk.pack(&response);
+    let (response, _) = RegisterResponse::unpack(
+        &response_bytes,
+        &response_sig,
+        upstream_secret,
+        Some(max_age),
+    )
+    .unwrap();
+
+    assert_eq!(response.relay_id(), relay_id);
+    assert_eq!(response.token(), challenge_token);
+    assert_eq!(response.version, LATEST_VERSION);
+}
+/// This is a pseudo-test to easily generate the strings used by test_auth.py
+/// You can copy the output to the top of the test_auth.py when there are changes in the
+/// exchanged authentication structures.
+/// It follows test_registration but instead of asserting it prints the strings  
+#[test]
+fn test_generate_strings_for_test_auth_py() {
+    let max_age = Duration::minutes(15);
+    println!("Generating test data for test_auth.py...");
+
+    // initial setup
+    let relay_id = generate_relay_id();
+    println!("RELAY_ID = b\"{}\"", relay_id);
+    let (sk, pk) = generate_key_pair();
+    println!("RELAY_KEY = b\"{}\"", pk);
+
+    // create a register request
+    let request = RegisterRequest::new(&relay_id, &pk);
+    println!("REQUEST = b'{}'", serde_json::to_string(&request).unwrap());
+
+    // sign it
+    let (request_bytes, request_sig) = sk.pack(&request);
+    println!("REQUEST_SIG = \"{}\"", request_sig);
+
+    // attempt to get the data through bootstrap unpacking.
+    let request =
+        RegisterRequest::bootstrap_unpack(&request_bytes, &request_sig, Some(max_age)).unwrap();
+
+    let upstream_secret = b"secret";
+
+    // create a challenge
+    let challenge = request.into_challenge(upstream_secret);
+    let challenge_token = challenge.token().to_owned();
+    println!("TOKEN = \"{}\"", challenge_token);
+
+    // create a response from the challenge
+    let response = challenge.into_response();
+    let serialized_response = serde_json::to_string(&response).unwrap();
+    let (_, response_sig) = sk.pack(&response);
+
+    println!("RESPONSE = b'{}'", serialized_response);
+    println!("RESPONSE_SIG = \"{}\"", response_sig);
+
+    println!("RELAY_VERSION = \"{}\"", &LATEST_VERSION);
+}
+
+/// Test we can still deserialize an old response that does not contain the version
+#[test]
+fn test_deserialize_old_response() {
+    let serialized_challenge = "{\"relay_id\":\"6b7d15b8-cee2-4354-9fee-dae7ef43e434\",\"token\":\"eyJ0aW1lc3RhbXAiOjE1OTg5Njc0MzQsInJlbGF5X2lkIjoiNmI3ZDE1YjgtY2VlMi00MzU0LTlmZWUtZGFlN2VmNDNlNDM0IiwicHVibGljX2tleSI6ImtNcEdieWRIWlN2b2h6ZU1sZ2hjV3dIZDhNa3JlS0d6bF9uY2RrWlNPTWciLCJyYW5kIjoiLUViNG9Hal80dUZYOUNRRzFBVmdqTjRmdGxaNU9DSFlNOFl2d1podmlyVXhUY0tFSWYtQzhHaldsZmgwQTNlMzYxWE01dVh0RHhvN00tbWhZeXpWUWcifQ:KJUDXlwvibKNQmex-_Cu1U0FArlmoDkyqP7bYIDGrLXudfjGfCjH-UjNsUHWVDnbM28YdQ-R2MBSyF51aRLQcw\"}";
+    let result: RegisterResponse = serde_json::from_str(serialized_challenge).unwrap();
+    assert_eq!(
+        result.relay_id,
+        Uuid::parse_str("6b7d15b8-cee2-4354-9fee-dae7ef43e434").unwrap()
+    )
 }
 
 #[test]

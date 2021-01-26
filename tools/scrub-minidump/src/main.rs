@@ -22,7 +22,7 @@ use relay_general::pii::{PiiAttachmentsProcessor, PiiConfig};
 ///     {"applications": {"$heap_memory": ["@creditcard:remove"]}}
 ///
 /// For more information on how to scrub IP addresses, user file paths and how to define custom
-/// regexes see https://getsentry.github.io/relay/pii-config/
+/// regexes see <https://getsentry.github.io/relay/pii-config/>
 #[derive(Debug, StructOpt)]
 #[structopt(verbatim_doc_comment, setting = AppSettings::ColoredHelp)]
 struct Cli {

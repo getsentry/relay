@@ -16,11 +16,10 @@ NEW_VERSION="${2}"
 echo "Current version: ${OLD_VERSION}"
 echo "Bumping version: ${NEW_VERSION}"
 
-TOML_FILES="$(git ls-files '*Cargo.toml' | grep -v cabi)"
+TOML_FILES="$(git ls-files 'relay*/Cargo.toml' | grep -v cabi)"
 perl -pi -e "s/^version = .*\$/version = \"$NEW_VERSION\"/" $TOML_FILES
 
 cargo update -p relay
-cargo update -p relay-common --manifest-path ./relay-cabi/Cargo.toml
 
 CHANGE_DATE="$(date +'%Y-%m-%d' -d '3 years')"
 echo "Bumping Change Date to $CHANGE_DATE"

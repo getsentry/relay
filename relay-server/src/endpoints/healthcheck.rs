@@ -70,4 +70,10 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         r.name("internal-healthcheck-live");
         r.get().with(liveness_healthcheck);
     })
+    // live check is also used to check network connectivity by downstream relays.
+    // It must have the same url as Sentry (hence two urls doing the same thing)
+    .resource("/api/0/relays/live/", |r| {
+        r.name("external-healthcheck-live");
+        r.get().with(liveness_healthcheck);
+    })
 }

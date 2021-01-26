@@ -7,8 +7,14 @@ import requests
 from flask import Response, request
 
 
-@pytest.mark.parametrize("compress_request", (True, False))
-@pytest.mark.parametrize("compress_response", (True, False))
+@pytest.mark.parametrize(
+    "compress_request", (True, False), ids=("compress_request", "no_compress_request")
+)
+@pytest.mark.parametrize(
+    "compress_response",
+    (True, False),
+    ids=("compress_response", "no_compress_response"),
+)
 def test_forwarding_content_encoding(
     compress_request, compress_response, mini_sentry, relay_chain
 ):
@@ -17,6 +23,7 @@ def test_forwarding_content_encoding(
     @mini_sentry.app.route("/api/test/reflect", methods=["POST"])
     def test():
         _data = request.data
+
         if request.headers.get("Content-Encoding", "") == "gzip":
             _data = gzip.decompress(_data)
 
@@ -24,7 +31,7 @@ def test_forwarding_content_encoding(
 
         headers = {}
 
-        if compress_response:
+        if request.headers.get("Accept-Encoding", "") == "gzip":
             _data = gzip.compress(_data)
             headers["Content-Encoding"] = "gzip"
 
@@ -40,7 +47,12 @@ def test_forwarding_content_encoding(
     else:
         payload = data
 
-    response = relay.post("/api/test/reflect", data=payload, headers=headers)
+    if compress_response:
+        headers["Accept-Encoding"] = "gzip"
+
+    response = relay.post(
+        "/api/test/reflect", data=payload, headers=headers, stream=True
+    )
     response.raise_for_status()
     assert response.content == data
 

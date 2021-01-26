@@ -15,7 +15,7 @@ use serde::{ser::Error, Serialize};
 
 use relay_common::{metric, ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
-use relay_general::protocol::{self, EventId, SessionStatus, SessionUpdate};
+use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
 use relay_quotas::Scoping;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
@@ -27,6 +27,12 @@ lazy_static::lazy_static! {
     static ref NAMESPACE_DID: Uuid =
         Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/#did");
 }
+
+/// The maximum number of individual session updates generated for each aggregate item.
+const MAX_EXPLODED_SESSIONS: usize = 100;
+
+/// Fallback name used for attachment items without a `filename` header.
+const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
 
 #[derive(Fail, Debug)]
 pub enum StoreError {
@@ -117,7 +123,10 @@ impl StoreForwarder {
 
         Ok(ChunkedAttachment {
             id,
-            name: item.filename().map(str::to_owned),
+            name: match item.filename() {
+                Some(name) => name.to_owned(),
+                None => UNNAMED_ATTACHMENT.to_owned(),
+            },
             content_type: item
                 .content_type()
                 .map(|content_type| content_type.as_str().to_owned()),
@@ -145,19 +154,124 @@ impl StoreForwarder {
         self.produce(KafkaTopic::Attachments, message)
     }
 
-    fn produce_session(
+    fn produce_sessions(
         &self,
         org_id: u64,
         project_id: ProjectId,
         event_retention: u16,
+        client: Option<&str>,
         item: &Item,
     ) -> Result<(), StoreError> {
-        let session = match SessionUpdate::parse(&item.payload()) {
-            Ok(session) => session,
-            Err(_) => return Ok(()),
+        match item.ty() {
+            ItemType::Session => {
+                let mut session = match SessionUpdate::parse(&item.payload()) {
+                    Ok(session) => session,
+                    Err(_) => return Ok(()),
+                };
+
+                if session.status == SessionStatus::Errored {
+                    // Individual updates should never have the status `errored`
+                    session.status = SessionStatus::Exited;
+                }
+                self.produce_session_update(org_id, project_id, event_retention, client, session)
+            }
+            ItemType::Sessions => {
+                let aggregates = match SessionAggregates::parse(&item.payload()) {
+                    Ok(aggregates) => aggregates,
+                    Err(_) => return Ok(()),
+                };
+
+                self.produce_sessions_from_aggregate(
+                    org_id,
+                    project_id,
+                    event_retention,
+                    client,
+                    aggregates,
+                )
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn produce_sessions_from_aggregate(
+        &self,
+        org_id: u64,
+        project_id: ProjectId,
+        event_retention: u16,
+        client: Option<&str>,
+        aggregates: SessionAggregates,
+    ) -> Result<(), StoreError> {
+        let SessionAggregates {
+            aggregates,
+            attributes,
+        } = aggregates;
+        let message = SessionKafkaMessage {
+            org_id,
+            project_id,
+            session_id: Uuid::nil(),
+            distinct_id: Uuid::nil(),
+            quantity: 1,
+            seq: 0,
+            received: protocol::datetime_to_timestamp(chrono::Utc::now()),
+            started: 0f64,
+            duration: None,
+            errors: 0,
+            release: attributes.release,
+            environment: attributes.environment,
+            sdk: client.map(str::to_owned),
+            retention_days: event_retention,
+            status: SessionStatus::Exited,
         };
 
-        let message = KafkaMessage::Session(SessionKafkaMessage {
+        if aggregates.len() > MAX_EXPLODED_SESSIONS {
+            relay_log::warn!("aggregated session items exceed threshold");
+        }
+
+        for item in aggregates.into_iter().take(MAX_EXPLODED_SESSIONS) {
+            let mut message = message.clone();
+            message.started = protocol::datetime_to_timestamp(item.started);
+            message.distinct_id = item
+                .distinct_id
+                .as_deref()
+                .map(make_distinct_id)
+                .unwrap_or_default();
+
+            if item.exited > 0 {
+                message.errors = 0;
+                message.quantity = item.exited;
+                self.send_session_message(message.clone())?;
+            }
+            if item.errored > 0 {
+                message.errors = 1;
+                message.status = SessionStatus::Errored;
+                message.quantity = item.errored;
+                self.send_session_message(message.clone())?;
+            }
+            if item.abnormal > 0 {
+                message.errors = 1;
+                message.status = SessionStatus::Abnormal;
+                message.quantity = item.abnormal;
+                self.send_session_message(message.clone())?;
+            }
+            if item.crashed > 0 {
+                message.errors = 1;
+                message.status = SessionStatus::Crashed;
+                message.quantity = item.crashed;
+                self.send_session_message(message)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn produce_session_update(
+        &self,
+        org_id: u64,
+        project_id: ProjectId,
+        event_retention: u16,
+        client: Option<&str>,
+        session: SessionUpdate,
+    ) -> Result<(), StoreError> {
+        self.send_session_message(SessionKafkaMessage {
             org_id,
             project_id,
             session_id: session.session_id,
@@ -166,6 +280,7 @@ impl StoreForwarder {
                 .as_deref()
                 .map(make_distinct_id)
                 .unwrap_or_default(),
+            quantity: 1,
             seq: if session.init { 0 } else { session.sequence },
             received: protocol::datetime_to_timestamp(session.timestamp),
             started: protocol::datetime_to_timestamp(session.started),
@@ -177,11 +292,19 @@ impl StoreForwarder {
                 .max((session.status == SessionStatus::Crashed) as _) as _,
             release: session.attributes.release,
             environment: session.attributes.environment,
+            sdk: client.map(str::to_owned),
             retention_days: event_retention,
-        });
+        })
+    }
 
-        log::trace!("Sending session item to kafka");
-        self.produce(KafkaTopic::Sessions, message)
+    fn send_session_message(&self, message: SessionKafkaMessage) -> Result<(), StoreError> {
+        relay_log::trace!("Sending session item to kafka");
+        self.produce(KafkaTopic::Sessions, KafkaMessage::Session(message))?;
+        metric!(
+            counter(RelayCounters::ProcessingMessageProduced) += 1,
+            event_type = "session"
+        );
+        Ok(())
     }
 }
 
@@ -196,11 +319,11 @@ impl Actor for StoreForwarder {
         let mailbox_size = self.config.event_buffer_size() as usize;
         context.set_mailbox_capacity(mailbox_size);
 
-        log::info!("store forwarder started");
+        relay_log::info!("store forwarder started");
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::info!("store forwarder stopped");
+        relay_log::info!("store forwarder stopped");
     }
 }
 
@@ -212,8 +335,8 @@ struct ChunkedAttachment {
     /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
     id: String,
 
-    /// File name of the attachment file. Should not be `None`.
-    name: Option<String>,
+    /// File name of the attachment file.
+    name: String,
 
     /// Content type of the attachment payload.
     content_type: Option<String>,
@@ -317,12 +440,13 @@ struct UserReportKafkaMessage {
     event_id: EventId,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 struct SessionKafkaMessage {
     org_id: u64,
     project_id: ProjectId,
     session_id: Uuid,
     distinct_id: Uuid,
+    quantity: u32,
     seq: u64,
     received: f64,
     started: f64,
@@ -331,6 +455,7 @@ struct SessionKafkaMessage {
     errors: u16,
     release: String,
     environment: Option<String>,
+    sdk: Option<String>,
     retention_days: u16,
 }
 
@@ -400,6 +525,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
         } = message;
 
         let retention = envelope.retention();
+        let client = envelope.meta().client();
         let event_id = envelope.event_id();
         let event_item = envelope.get_item_by(|item| {
             matches!(
@@ -437,12 +563,17 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                         start_time,
                         item,
                     )?;
+                    metric!(
+                        counter(RelayCounters::ProcessingMessageProduced) += 1,
+                        event_type = "user_report"
+                    );
                 }
-                ItemType::Session => {
-                    self.produce_session(
+                ItemType::Session | ItemType::Sessions => {
+                    self.produce_sessions(
                         scoping.organization_id,
                         scoping.project_id,
                         retention,
+                        client,
                         item,
                     )?;
                 }
@@ -451,7 +582,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
         }
 
         if let Some(event_item) = event_item {
-            log::trace!("Sending event item of envelope to kafka");
+            relay_log::trace!("Sending event item of envelope to kafka");
             let event_message = KafkaMessage::Event(EventKafkaMessage {
                 payload: event_item.payload(),
                 start_time: UnixTimestamp::from_instant(start_time).as_secs(),
@@ -467,7 +598,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                 event_type = "event"
             );
         } else if !attachments.is_empty() {
-            log::trace!("Sending individual attachments of envelope to kafka");
+            relay_log::trace!("Sending individual attachments of envelope to kafka");
             for attachment in attachments {
                 let attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {
                     event_id: event_id.ok_or(StoreError::NoEventId)?,

@@ -1,12 +1,11 @@
-use std::fmt;
-use std::net::IpAddr;
-use std::str::FromStr;
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
 use failure::Fail;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+use crate::protocol::IpAddr;
 
 /// The type of session event we're dealing with.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
@@ -22,6 +21,8 @@ pub enum SessionStatus {
     Crashed,
     /// The session had an unexpected abrupt termination (not crashing).
     Abnormal,
+    /// The session exited cleanly but experienced some errors during its run.
+    Errored,
 }
 
 impl Default for SessionStatus {
@@ -35,30 +36,13 @@ impl Default for SessionStatus {
 #[fail(display = "invalid session status")]
 pub struct ParseSessionStatusError;
 
-impl FromStr for SessionStatus {
-    type Err = ParseSessionStatusError;
-
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        Ok(match string {
-            "ok" => SessionStatus::Ok,
-            "crashed" => SessionStatus::Crashed,
-            "abnormal" => SessionStatus::Abnormal,
-            "exited" => SessionStatus::Exited,
-            _ => return Err(ParseSessionStatusError),
-        })
-    }
-}
-
-impl fmt::Display for SessionStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            SessionStatus::Ok => write!(f, "ok"),
-            SessionStatus::Crashed => write!(f, "crashed"),
-            SessionStatus::Abnormal => write!(f, "abnormal"),
-            SessionStatus::Exited => write!(f, "exited"),
-        }
-    }
-}
+derive_fromstr_and_display!(SessionStatus, ParseSessionStatusError, {
+    SessionStatus::Ok => "ok",
+    SessionStatus::Crashed => "crashed",
+    SessionStatus::Abnormal => "abnormal",
+    SessionStatus::Exited => "exited",
+    SessionStatus::Errored => "errored",
+});
 
 /// Additional attributes for Sessions.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -131,6 +115,54 @@ impl SessionUpdate {
     }
 
     /// Serializes a session update back into JSON.
+    pub fn serialize(&self) -> Result<Vec<u8>, serde_json::Error> {
+        serde_json::to_vec(self)
+    }
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_zero(val: &u32) -> bool {
+    *val == 0
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SessionAggregateItem {
+    /// The timestamp of when the session itself started.
+    pub started: DateTime<Utc>,
+    /// The distinct identifier.
+    #[serde(rename = "did", default, skip_serializing_if = "Option::is_none")]
+    pub distinct_id: Option<String>,
+    /// The number of exited sessions that ocurred.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub exited: u32,
+    /// The number of errored sessions that ocurred, not including the abnormal and crashed ones.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub errored: u32,
+    /// The number of abnormal sessions that ocurred.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub abnormal: u32,
+    /// The number of crashed sessions that ocurred.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub crashed: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SessionAggregates {
+    /// A batch of sessions that were started.
+    #[serde(default)]
+    pub aggregates: Vec<SessionAggregateItem>,
+    /// The shared session event attributes.
+    #[serde(rename = "attrs")]
+    pub attributes: SessionAttributes,
+}
+
+impl SessionAggregates {
+    /// Parses a session batch from JSON.
+    pub fn parse(payload: &[u8]) -> Result<Self, serde_json::Error> {
+        serde_json::from_slice(payload)
+    }
+
+    /// Serializes a session batch back into JSON.
     pub fn serialize(&self) -> Result<Vec<u8>, serde_json::Error> {
         serde_json::to_vec(self)
     }
@@ -238,12 +270,26 @@ mod tests {
             attributes: SessionAttributes {
                 release: "sentry-test@1.0.0".to_owned(),
                 environment: Some("production".to_owned()),
-                ip_address: Some("::1".parse().unwrap()),
+                ip_address: Some(IpAddr::parse("::1").unwrap()),
                 user_agent: Some("Firefox/72.0".to_owned()),
             },
         };
 
         assert_eq_dbg!(update, SessionUpdate::parse(json.as_bytes()).unwrap());
         assert_eq_str!(json, serde_json::to_string_pretty(&update).unwrap());
+    }
+
+    #[test]
+    fn test_session_ip_addr_auto() {
+        let json = r#"{
+  "started": "2020-02-07T14:16:00Z",
+  "attrs": {
+    "release": "sentry-test@1.0.0",
+    "ip_address": "{{auto}}"
+  }
+}"#;
+
+        let update = SessionUpdate::parse(json.as_bytes()).unwrap();
+        assert_eq_dbg!(update.attributes.ip_address, Some(IpAddr::auto()));
     }
 }

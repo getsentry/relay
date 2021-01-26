@@ -1,0 +1,14 @@
+[package]
+name = "relay-ffi"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Utilities for error handling in FFI bindings"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "21.1.0"
+edition = "2018"
+license-file = "../LICENSE"
+publish = false
+
+[dependencies]
+failure = "0.1.8"
+relay-ffi-macros = { path = "../relay-ffi-macros" }

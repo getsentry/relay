@@ -1,33 +1,32 @@
 use std::borrow::Cow;
-use std::collections::BTreeSet;
+use std::iter::FusedIterator;
 
 use regex::bytes::RegexBuilder as BytesRegexBuilder;
-use regex::Regex;
+use regex::{Match, Regex};
 use smallvec::SmallVec;
+use utf16string::{LittleEndian, WStr};
 
 use crate::pii::compiledconfig::RuleRef;
 use crate::pii::regexes::{get_regex_for_rule_type, ReplaceBehavior};
-use crate::pii::utils::{hash_value, in_range};
+use crate::pii::utils::hash_value;
 use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::processor::{FieldAttrs, Pii, ProcessingState, ValueType};
 
-/// Copy `source` into `target`, truncating/padding with `padding` if necessary.
-fn replace_bytes_padded(source: &[u8], target: &mut [u8], padding: u8) {
-    let cutoff = source.len().min(target.len());
-    let (left, right) = target.split_at_mut(cutoff);
-    left.copy_from_slice(&source[..cutoff]);
+/// The minimum length a string needs to be in a binary blob.
+///
+/// This module extracts encoded strings from within binary blobs, this specifies the
+/// minimum length we require those strings to be before we accept them to match scrubbing
+/// selectors on.
+const MIN_STRING_LEN: usize = 5;
 
-    for byte in right {
-        *byte = padding;
-    }
-}
-
-fn apply_regex_to_bytes(
+fn apply_regex_to_utf8_bytes(
     data: &mut [u8],
     rule: &RuleRef,
     regex: &Regex,
     replace_behavior: &ReplaceBehavior,
-) -> bool {
+) -> SmallVec<[(usize, usize); 1]> {
+    let mut matches = SmallVec::<[(usize, usize); 1]>::new();
+
     let regex = match BytesRegexBuilder::new(regex.as_str())
         // https://github.com/rust-lang/regex/issues/697
         .unicode(false)
@@ -40,11 +39,9 @@ fn apply_regex_to_bytes(
             // XXX: This is not going to fly long-term
             // Idea: Disable unicode support for regexes entirely, that drastically increases the
             // likelihood this conversion will never fail.
-            return false;
+            return matches;
         }
     };
-
-    let mut matches = SmallVec::<[(usize, usize); 1]>::new();
 
     for captures in regex.captures_iter(data) {
         for (idx, group) in captures.iter().enumerate() {
@@ -68,66 +65,285 @@ fn apply_regex_to_bytes(
         }
     }
 
-    if matches.is_empty() {
-        return false;
+    for (start, end) in matches.iter() {
+        data[*start..*end].apply_redaction(&rule.redaction);
     }
+    matches
+}
 
-    const DEFAULT_PADDING: u8 = b'x';
-
-    match rule.redaction {
-        Redaction::Default | Redaction::Remove => {
-            for (start, end) in matches {
-                for c in &mut data[start..end] {
-                    *c = DEFAULT_PADDING;
+fn apply_regex_to_utf16le_bytes(
+    data: &mut [u8],
+    rule: &RuleRef,
+    regex: &Regex,
+    replace_behavior: &ReplaceBehavior,
+) -> bool {
+    let mut changed = false;
+    for segment in WStrSegmentIter::new(data) {
+        match replace_behavior {
+            ReplaceBehavior::Value => {
+                for re_match in regex.find_iter(&segment.decoded) {
+                    changed = true;
+                    let match_wstr = get_wstr_match(&segment.decoded, re_match, segment.encoded);
+                    match_wstr.apply_redaction(&rule.redaction);
                 }
             }
-        }
-        Redaction::Mask(ref mask) => {
-            let chars_to_ignore: BTreeSet<u8> = mask
-                .chars_to_ignore
-                .chars()
-                .filter_map(|x| if x.is_ascii() { Some(x as u8) } else { None })
-                .collect();
-            let mask_char = if mask.mask_char.is_ascii() {
-                mask.mask_char as u8
-            } else {
-                DEFAULT_PADDING
-            };
-
-            for (start, end) in matches {
-                let match_slice = &mut data[start..end];
-                let match_slice_len = match_slice.len();
-                for (idx, c) in match_slice.iter_mut().enumerate() {
-                    if in_range(mask.range, idx, match_slice_len) && !chars_to_ignore.contains(c) {
-                        *c = mask_char;
+            ReplaceBehavior::Groups(ref replace_groups) => {
+                for captures in regex.captures_iter(&segment.decoded) {
+                    for group_idx in replace_groups.iter() {
+                        if let Some(re_match) = captures.get(*group_idx as usize) {
+                            changed = true;
+                            let match_wstr =
+                                get_wstr_match(&segment.decoded, re_match, segment.encoded);
+                            match_wstr.apply_redaction(&rule.redaction);
+                        }
                     }
                 }
             }
         }
-        Redaction::Hash(ref hash) => {
-            for (start, end) in matches {
-                let hashed = hash_value(hash.algorithm, &data[start..end], hash.key.as_deref());
-                replace_bytes_padded(hashed.as_bytes(), &mut data[start..end], DEFAULT_PADDING);
+    }
+    changed
+}
+
+/// Extract the matching encoded slice from the encoded string.
+fn get_wstr_match<'a>(
+    all_text: &str,
+    re_match: Match,
+    all_encoded: &'a mut WStr<LittleEndian>,
+) -> &'a mut WStr<LittleEndian> {
+    let mut encoded_start = 0;
+    let mut encoded_end = all_encoded.len();
+
+    let offsets_iter = all_text.char_indices().zip(all_encoded.char_indices());
+    for ((text_offset, _text_char), (encoded_offset, _encoded_char)) in offsets_iter {
+        if text_offset == re_match.start() {
+            encoded_start = encoded_offset;
+        }
+        if text_offset == re_match.end() {
+            encoded_end = encoded_offset;
+            break;
+        }
+    }
+    &mut all_encoded[encoded_start..encoded_end]
+}
+
+/// Traits to modify the strings in ways we need.
+trait StringMods: AsRef<[u8]> {
+    /// Replace this string's contents by repeating the given character into it.
+    ///
+    /// # Panics
+    ///
+    /// The `fill_char` has to encode to the smallest encoding unit, otherwise this will
+    /// panic.  Using an ASCII replacement character is usually safe in most encodings.
+    fn fill_content(&mut self, fill_char: char);
+
+    /// Replace this string's contents with the given replacement string.
+    ///
+    /// If the replacement string encodes to a shorter byte-slice than the current string
+    /// any remaining space will be filled with the padding character.
+    ///
+    /// If the replacement string encodes to a longer byte-slice than the current string the
+    /// replacement string is truncated.  If this does not align with a character boundary
+    /// in the replacement string it is further trucated to the previous character boundary
+    /// and the remainder is filled with the padding char.
+    ///
+    /// # Panics
+    ///
+    /// The `padding` character has to encode to the smallest encoding unit, otherwise this
+    /// will panic.  Using an ASCII padding character is usually safe in most encodings.
+    fn swap_content(&mut self, replacement: &str, padding: char);
+
+    /// Apply a PII scrubbing redaction to this string slice.
+    fn apply_redaction(&mut self, redaction: &Redaction) {
+        const PADDING: char = '*';
+        const MASK: char = '*';
+
+        match redaction {
+            Redaction::Default | Redaction::Remove => {
+                self.fill_content(PADDING);
+            }
+            Redaction::Mask => {
+                self.fill_content(MASK);
+            }
+            Redaction::Hash => {
+                let hashed = hash_value(self.as_ref());
+                self.swap_content(&hashed, PADDING);
+            }
+            Redaction::Replace(ref replace) => {
+                self.swap_content(replace.text.as_str(), PADDING);
             }
         }
-        Redaction::Replace(ref replace) => {
-            for (start, end) in matches {
-                replace_bytes_padded(
-                    replace.text.as_bytes(),
-                    &mut data[start..end],
-                    DEFAULT_PADDING,
-                );
+    }
+}
+
+impl StringMods for WStr<LittleEndian> {
+    fn fill_content(&mut self, fill_char: char) {
+        // If fill_char is too wide, fill_char.encode_utf16() will panic, fulfilling the
+        // trait's contract that we must panic if fill_char is too wide.
+        let mut buf = [0u16; 1];
+        let fill_u16 = fill_char.encode_utf16(&mut buf[..]);
+        let fill_buf = fill_u16[0].to_le_bytes();
+
+        unsafe {
+            let chunks = self
+                .as_bytes_mut()
+                .chunks_exact_mut(std::mem::size_of::<u16>());
+            for chunk in chunks {
+                chunk.copy_from_slice(&fill_buf);
             }
         }
     }
 
-    true
+    fn swap_content(&mut self, replacement: &str, padding: char) {
+        // If the padding char is too wide, padding.encode_utf16() will panic, fulfilling
+        // the trait's contract that we must panic in this case.
+        let len = self.len();
+
+        let mut buf = [0u16; 1];
+        padding.encode_utf16(&mut buf[..]);
+        let fill_buf = buf[0].to_le_bytes();
+
+        let mut offset = 0;
+        for code in replacement.encode_utf16() {
+            let char_len = if 0xD800 & code == 0xD800 {
+                std::mem::size_of::<u16>() * 2 // leading surrogate
+            } else {
+                std::mem::size_of::<u16>()
+            };
+            if (len - offset) < char_len {
+                break; // Not enough space for this char
+            }
+            unsafe {
+                let target = &mut self.as_bytes_mut()[offset..offset + std::mem::size_of::<u16>()];
+                target.copy_from_slice(&code.to_le_bytes());
+            }
+            offset += std::mem::size_of::<u16>();
+        }
+
+        unsafe {
+            let remainder_bytes = &mut self.as_bytes_mut()[offset..];
+            let chunks = remainder_bytes.chunks_exact_mut(std::mem::size_of::<u16>());
+            for chunk in chunks {
+                chunk.copy_from_slice(&fill_buf);
+            }
+        }
+    }
+}
+
+impl StringMods for [u8] {
+    fn fill_content(&mut self, fill_char: char) {
+        // If fill_char is too wide, fill_char.encode_utf16() will panic, fulfilling the
+        // trait's contract that we must panic if fill_char is too wide.
+        let mut buf = [0u8; 1];
+        fill_char.encode_utf8(&mut buf[..]);
+        for byte in self {
+            *byte = buf[0];
+        }
+    }
+
+    fn swap_content(&mut self, replacement: &str, padding: char) {
+        // If the padding char is too wide, padding.encode_utf16() will panic, fulfilling
+        // the trait's contract that we must panic in this case.
+        let mut buf = [0u8; 1];
+        padding.encode_utf8(&mut buf[..]);
+
+        let cutoff = replacement.len().min(self.len());
+        let (left, right) = self.split_at_mut(cutoff);
+        left.copy_from_slice(&replacement.as_bytes()[..cutoff]);
+
+        for byte in right {
+            *byte = buf[0];
+        }
+    }
+}
+
+/// An iterator over segments of text in binary data.
+///
+/// This iterator will look for blocks of UTF-16 encoded text with little-endian byte order
+/// in a block of binary data and yield those slices as segments with both the decoded and
+/// encoded text.
+struct WStrSegmentIter<'a> {
+    data: &'a mut [u8],
+    offset: usize,
+}
+
+impl<'a> WStrSegmentIter<'a> {
+    fn new(data: &'a mut [u8]) -> Self {
+        Self { data, offset: 0 }
+    }
+}
+
+impl<'a> Iterator for WStrSegmentIter<'a> {
+    type Item = WStrSegment<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.offset >= self.data.len() {
+                return None;
+            }
+
+            let slice = match WStr::from_utf16le_mut(&mut self.data[self.offset..]) {
+                Ok(wstr) => {
+                    self.offset += wstr.len();
+                    unsafe { wstr.as_bytes_mut() }
+                }
+                Err(err) => {
+                    let start = self.offset;
+                    let end = start + err.valid_up_to();
+                    match err.error_len() {
+                        Some(len) => self.offset += err.valid_up_to() + len,
+                        None => self.offset = self.data.len(),
+                    }
+                    &mut self.data[start..end]
+                }
+            };
+
+            // We are handing out multiple mutable slices from the same mutable slice.  This
+            // is safe because we know they are not overlapping.  However the compiler
+            // doesn't know this so we need to transmute the lifetimes of the slices we
+            // return with std::slice::from_raw_parts_mut().
+            let ptr = slice.as_mut_ptr();
+            let len = slice.len();
+            let encoded = unsafe {
+                WStr::from_utf16le_unchecked_mut(std::slice::from_raw_parts_mut(ptr, len))
+            };
+
+            if encoded.chars().take(MIN_STRING_LEN).count() < MIN_STRING_LEN {
+                continue;
+            }
+            let decoded = encoded.to_utf8();
+            return Some(WStrSegment { encoded, decoded });
+        }
+    }
+}
+
+impl<'a> FusedIterator for WStrSegmentIter<'a> {}
+
+/// An encoded string segment in a larger data block.
+///
+/// The slice of data will contain the entire block which will be valid according to the
+/// encoding.  This will be a unique sub-slice of the data in [MutSegmentiter] as the
+/// iterator will not yield overlapping slices.
+///
+/// While the `data` field is mutable, after mutating this the string in `decoded` will no
+/// longer match.
+struct WStrSegment<'a> {
+    /// The raw bytes of this segment.
+    encoded: &'a mut WStr<LittleEndian>,
+    /// The decoded string of this segment.
+    decoded: String,
 }
 
 /// A PII processor for attachment files.
 pub struct PiiAttachmentsProcessor<'a> {
     compiled_config: &'a CompiledPiiConfig,
     root_state: ProcessingState<'static>,
+}
+
+/// Which encodings to scrub for `scrub_bytes`.
+pub enum ScrubEncodings {
+    Utf8,
+    Utf16Le,
+    All,
 }
 
 impl<'a> PiiAttachmentsProcessor<'a> {
@@ -153,7 +369,7 @@ impl<'a> PiiAttachmentsProcessor<'a> {
     ) -> ProcessingState<'s> {
         self.root_state.enter_borrowed(
             filename,
-            Some(Cow::Owned(FieldAttrs::new().pii(Pii::Maybe))),
+            Some(Cow::Owned(FieldAttrs::new().pii(Pii::True))),
             Some(value_type),
         )
     }
@@ -161,10 +377,24 @@ impl<'a> PiiAttachmentsProcessor<'a> {
     /// Applies PII rules to a plain buffer.
     ///
     /// Returns `true`, if the buffer was modified.
-    pub(crate) fn scrub_bytes(&self, data: &mut [u8], state: &ProcessingState<'_>) -> bool {
+    pub(crate) fn scrub_bytes(
+        &self,
+        data: &mut [u8],
+        state: &ProcessingState<'_>,
+        encodings: ScrubEncodings,
+    ) -> bool {
+        let pii = state.attrs().pii;
+        if pii == Pii::False {
+            return false;
+        }
+
         let mut changed = false;
 
         for (selector, rules) in &self.compiled_config.applications {
+            if pii == Pii::Maybe && !selector.is_specific() {
+                continue;
+            }
+
             if state.path().matches_selector(&selector) {
                 for rule in rules {
                     // Note:
@@ -179,7 +409,51 @@ impl<'a> PiiAttachmentsProcessor<'a> {
                     for (_pattern_type, regex, replace_behavior) in
                         get_regex_for_rule_type(&rule.ty)
                     {
-                        changed |= apply_regex_to_bytes(data, rule, regex, &replace_behavior);
+                        match encodings {
+                            ScrubEncodings::Utf8 => {
+                                let matches =
+                                    apply_regex_to_utf8_bytes(data, rule, regex, &replace_behavior);
+                                changed |= !(matches.is_empty());
+                            }
+                            ScrubEncodings::Utf16Le => {
+                                changed |= apply_regex_to_utf16le_bytes(
+                                    data,
+                                    rule,
+                                    regex,
+                                    &replace_behavior,
+                                );
+                            }
+                            ScrubEncodings::All => {
+                                let matches =
+                                    apply_regex_to_utf8_bytes(data, rule, regex, &replace_behavior);
+                                changed |= !(matches.is_empty());
+
+                                // Only scrub regions with the UTF-16 scrubber if they haven't been
+                                // scrubbed yet.
+                                let unscrubbed_ranges = matches
+                                    .into_iter()
+                                    .chain(std::iter::once((data.len(), 0)))
+                                    .scan((0usize, 0usize), |previous, current| {
+                                        let start = if previous.1 % 2 == 0 {
+                                            previous.1
+                                        } else {
+                                            previous.1 + 1
+                                        };
+                                        let item = (start, current.0);
+                                        *previous = current;
+                                        Some(item)
+                                    })
+                                    .filter(|(start, end)| end > start);
+                                for (start, end) in unscrubbed_ranges {
+                                    changed |= apply_regex_to_utf16le_bytes(
+                                        &mut data[start..end],
+                                        rule,
+                                        regex,
+                                        &replace_behavior,
+                                    );
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -193,7 +467,42 @@ impl<'a> PiiAttachmentsProcessor<'a> {
     /// Returns `true`, if the attachment was modified.
     pub fn scrub_attachment(&self, filename: &str, data: &mut [u8]) -> bool {
         let state = self.state(filename, ValueType::Binary);
-        self.scrub_bytes(data, &state)
+        self.scrub_bytes(data, &state, ScrubEncodings::All)
+    }
+
+    /// Scrub a filepath, preserving the basename.
+    pub fn scrub_utf8_filepath(&self, path: &mut str, state: &ProcessingState<'_>) -> bool {
+        if let Some(index) = path.rfind(|c| c == '/' || c == '\\') {
+            let data = unsafe { &mut path.as_bytes_mut()[..index] };
+            self.scrub_bytes(data, state, ScrubEncodings::Utf8)
+        } else {
+            false
+        }
+    }
+
+    /// Scrub a filepath, preserving the basename.
+    pub fn scrub_utf16_filepath(
+        &self,
+        path: &mut WStr<LittleEndian>,
+        state: &ProcessingState<'_>,
+    ) -> bool {
+        let index =
+            path.char_indices().rev().find_map(
+                |(i, c)| {
+                    if c == '/' || c == '\\' {
+                        Some(i)
+                    } else {
+                        None
+                    }
+                },
+            );
+
+        if let Some(index) = index {
+            let data = unsafe { &mut path.as_bytes_mut()[..index] };
+            self.scrub_bytes(data, state, ScrubEncodings::Utf16Le)
+        } else {
+            false
+        }
     }
 }
 
@@ -282,11 +591,21 @@ mod tests {
             let mut data = input.to_owned();
             let processor = PiiAttachmentsProcessor::new(&compiled);
             let state = processor.state(filename, value_type);
-            let has_changed = processor.scrub_bytes(&mut data, &state);
+            let has_changed = processor.scrub_bytes(&mut data, &state, ScrubEncodings::All);
 
             assert_eq_bytes_str!(data, output);
             assert_eq!(changed, has_changed);
         }
+    }
+
+    fn utf16le(s: &str) -> Vec<u8> {
+        s.encode_utf16()
+            .map(|u| u.to_le_bytes())
+            .collect::<Vec<[u8; 2]>>()
+            .iter()
+            .flatten()
+            .copied()
+            .collect()
     }
 
     #[test]
@@ -297,7 +616,21 @@ mod tests {
             filename: "foo.txt",
             value_type: ValueType::Binary,
             input: b"before 127.0.0.1 after",
-            output: b"before [ip]xxxxx after",
+            output: b"before [ip]***** after",
+            changed: true,
+        }
+        .run();
+    }
+
+    #[test]
+    fn test_ip_replace_padding_utf16() {
+        AttachmentBytesTestCase::Builtin {
+            selector: "$binary",
+            rule: "@ip",
+            filename: "foo.txt",
+            value_type: ValueType::Binary,
+            input: utf16le("before 127.0.0.1 after").as_slice(),
+            output: utf16le("before [ip]***** after").as_slice(),
             changed: true,
         }
         .run();
@@ -318,6 +651,20 @@ mod tests {
     }
 
     #[test]
+    fn test_ip_hash_trunchating_utf16() {
+        AttachmentBytesTestCase::Builtin {
+            selector: "$binary",
+            rule: "@ip:hash",
+            filename: "foo.txt",
+            value_type: ValueType::Binary,
+            input: utf16le("before 127.0.0.1 after").as_slice(),
+            output: utf16le("before 3FA8F5A46 after").as_slice(),
+            changed: true,
+        }
+        .run();
+    }
+
+    #[test]
     fn test_ip_masking() {
         AttachmentBytesTestCase::Builtin {
             selector: "$binary",
@@ -332,6 +679,20 @@ mod tests {
     }
 
     #[test]
+    fn test_ip_masking_utf16() {
+        AttachmentBytesTestCase::Builtin {
+            selector: "$binary",
+            rule: "@ip:mask",
+            filename: "foo.txt",
+            value_type: ValueType::Binary,
+            input: utf16le("before 127.0.0.1 after").as_slice(),
+            output: utf16le("before ********* after").as_slice(),
+            changed: true,
+        }
+        .run();
+    }
+
+    #[test]
     fn test_ip_removing() {
         AttachmentBytesTestCase::Builtin {
             selector: "$binary",
@@ -339,7 +700,21 @@ mod tests {
             filename: "foo.txt",
             value_type: ValueType::Binary,
             input: b"before 127.0.0.1 after",
-            output: b"before xxxxxxxxx after",
+            output: b"before ********* after",
+            changed: true,
+        }
+        .run();
+    }
+
+    #[test]
+    fn test_ip_removing_utf16() {
+        AttachmentBytesTestCase::Builtin {
+            selector: "$binary",
+            rule: "@ip:remove",
+            filename: "foo.txt",
+            value_type: ValueType::Binary,
+            input: utf16le("before 127.0.0.1 after").as_slice(),
+            output: utf16le("before ********* after").as_slice(),
             changed: true,
         }
         .run();
@@ -374,8 +749,8 @@ mod tests {
             rule: "@anything:remove",
             filename: "foo.txt",
             value_type: ValueType::Binary,
-            input: (0..255 as u8).collect::<Vec<_>>().as_slice(),
-            output: &[b'x'; 255],
+            input: (0..255u8).collect::<Vec<_>>().as_slice(),
+            output: &[b'*'; 255],
             changed: true,
         }
         .run();
@@ -407,10 +782,185 @@ mod tests {
                 filename: "foo.txt",
                 value_type: ValueType::Binary,
                 input: bytes,
-                output: &vec![b'x'; bytes.len()],
+                output: &vec![b'*'; bytes.len()],
                 changed: true,
             }
             .run()
         }
+    }
+
+    #[test]
+    fn test_segments_all_data() {
+        let mut data = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00"[..]);
+        let mut iter = WStrSegmentIter::new(&mut data[..]);
+
+        let segment = iter.next().unwrap();
+        assert_eq!(segment.decoded, "hello");
+        assert_eq!(segment.encoded.as_bytes(), b"h\x00e\x00l\x00l\x00o\x00");
+
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_segments_middle_2_byte_aligned() {
+        let mut data = Vec::from(&b"\xd8\xd8\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8"[..]);
+        let mut iter = WStrSegmentIter::new(&mut data[..]);
+
+        let segment = iter.next().unwrap();
+        assert_eq!(segment.decoded, "hello");
+        assert_eq!(segment.encoded.as_bytes(), b"h\x00e\x00l\x00l\x00o\x00");
+
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_segments_middle_2_byte_aligned_mutation() {
+        let mut data = Vec::from(&b"\xd8\xd8\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8"[..]);
+        let mut iter = WStrSegmentIter::new(&mut data[..]);
+
+        let segment = iter.next().unwrap();
+        unsafe {
+            segment
+                .encoded
+                .as_bytes_mut()
+                .copy_from_slice(&b"w\x00o\x00r\x00l\x00d\x00"[..]);
+        }
+
+        assert!(iter.next().is_none());
+
+        assert_eq!(data, b"\xd8\xd8\xd8\xd8w\x00o\x00r\x00l\x00d\x00\xd8\xd8");
+    }
+
+    #[test]
+    fn test_segments_middle_unaligned() {
+        let mut data = Vec::from(&b"\xd8\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8"[..]);
+        let mut iter = WStrSegmentIter::new(&mut data);
+
+        // Off-by-one is devastating, nearly everything is valid unicode.
+        let segment = iter.next().unwrap();
+        assert_eq!(segment.decoded, "棘攀氀氀漀");
+
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_segments_end_aligned() {
+        let mut data = Vec::from(&b"\xd8\xd8h\x00e\x00l\x00l\x00o\x00"[..]);
+        let mut iter = WStrSegmentIter::new(&mut data);
+
+        let segment = iter.next().unwrap();
+        assert_eq!(segment.decoded, "hello");
+
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_segments_garbage() {
+        let mut data = Vec::from(&b"\xd8\xd8"[..]);
+        let mut iter = WStrSegmentIter::new(&mut data);
+
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_segments_too_short() {
+        let mut data = Vec::from(&b"\xd8\xd8y\x00o\x00\xd8\xd8h\x00e\x00l\x00l\x00o\x00"[..]);
+        let mut iter = WStrSegmentIter::new(&mut data);
+
+        let segment = iter.next().unwrap();
+        assert_eq!(segment.decoded, "hello");
+
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_segments_multiple() {
+        let mut data =
+            Vec::from(&b"\xd8\xd8h\x00e\x00l\x00l\x00o\x00\xd8\xd8w\x00o\x00r\x00l\x00d\x00"[..]);
+
+        let mut iter = WStrSegmentIter::new(&mut data);
+
+        let segment = iter.next().unwrap();
+        assert_eq!(segment.decoded, "hello");
+
+        let segment = iter.next().unwrap();
+        assert_eq!(segment.decoded, "world");
+
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_fill_content_wstr() {
+        let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00"[..]);
+        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
+        s.fill_content('x');
+        assert_eq!(b.as_slice(), b"x\x00x\x00x\x00x\x00x\x00");
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_fill_content_wstr_panic() {
+        let mut b = Vec::from(&b"h\x00e\x00y\x00"[..]);
+        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
+        s.fill_content('\u{10000}');
+    }
+
+    #[test]
+    fn test_swap_content_wstr() {
+        // Exact same size
+        let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00"[..]);
+        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
+        s.swap_content("world", 'x');
+        assert_eq!(b.as_slice(), b"w\x00o\x00r\x00l\x00d\x00");
+
+        // Shorter, padding fits
+        let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00"[..]);
+        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
+        s.swap_content("hey", 'x');
+        assert_eq!(b.as_slice(), b"h\x00e\x00y\x00x\x00x\x00");
+
+        // Longer, truncated fits
+        let mut b = Vec::from(&b"h\x00e\x00y\x00"[..]);
+        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
+        s.swap_content("world", 'x');
+        assert_eq!(b.as_slice(), b"w\x00o\x00r\x00");
+
+        // Longer, truncated + padding
+        let mut b = Vec::from(&b"h\x00e\x00y\x00"[..]);
+        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
+        s.swap_content("yo\u{10000}", 'x');
+        assert_eq!(b.as_slice(), b"y\x00o\x00x\x00");
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_swap_content_wstr_panic() {
+        let mut b = Vec::from(&b"h\x00e\x00y\x00"[..]);
+        let s = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
+        s.swap_content("yo", '\u{10000}');
+    }
+
+    #[test]
+    fn test_get_wstr_match() {
+        #![allow(clippy::trivial_regex)]
+
+        let s = "hello there";
+        let mut b = Vec::from(&b"h\x00e\x00l\x00l\x00o\x00 \x00t\x00h\x00e\x00r\x00e\x00"[..]);
+        let w = WStr::from_utf16le_mut(b.as_mut_slice()).unwrap();
+
+        // Partial match
+        let re = Regex::new("hello").unwrap();
+        let re_match = re.find(s).unwrap();
+        let m = get_wstr_match(s, re_match, w);
+        assert_eq!(m.as_bytes(), b"h\x00e\x00l\x00l\x00o\x00");
+
+        // Full match
+        let re = Regex::new(".*").unwrap();
+        let re_match = re.find(s).unwrap();
+        let m = get_wstr_match(s, re_match, w);
+        assert_eq!(
+            m.as_bytes(),
+            b"h\x00e\x00l\x00l\x00o\x00 \x00t\x00h\x00e\x00r\x00e\x00"
+        );
     }
 }

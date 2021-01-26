@@ -3,8 +3,8 @@ import json
 import os
 import re
 import uuid
-import types
-
+import datetime
+from copy import deepcopy
 from queue import Queue
 
 import pytest
@@ -12,31 +12,33 @@ import pytest
 from flask import abort, Flask, request as flask_request, jsonify
 from werkzeug.serving import WSGIRequestHandler
 from pytest_localserver.http import WSGIServer
+from sentry_sdk.envelope import Envelope
 
-from . import SentryLike, Envelope
-
+from . import SentryLike
 
 _version_re = re.compile(r'^version\s*=\s*"(.*?)"\s*$(?m)')
-with open(os.path.join(os.path.dirname(__file__), "../../../Cargo.toml")) as f:
+with open(os.path.join(os.path.dirname(__file__), "../../../relay/Cargo.toml")) as f:
     CURRENT_VERSION = _version_re.search(f.read()).group(1)
 
 
 class Sentry(SentryLike):
     def __init__(self, server_address, app):
-        self.server_address = server_address
+        super(Sentry, self).__init__(server_address)
+
         self.app = app
         self.project_configs = {}
         self.captured_events = Queue()
         self.captured_outcomes = Queue()
         self.test_failures = []
-        self.upstream = None
         self.hits = {}
         self.known_relays = {}
 
     @property
     def internal_error_dsn(self):
         """DSN whose events make the test fail."""
-        return "http://{}@{}:{}/666".format(self.dsn_public_key, *self.server_address)
+        return "http://{}@{}:{}/666".format(
+            self.default_dsn_public_key, *self.server_address
+        )
 
     def get_hits(self, path):
         return self.hits.get(path) or 0
@@ -50,6 +52,99 @@ class Sentry(SentryLike):
         for route, error in self.test_failures:
             s += "> %s: %s\n" % (route, error)
         return s
+
+    def add_dsn_key_to_project(
+        self, project_id, dsn_public_key=None, numeric_id=None, is_enabled=True
+    ):
+        if project_id not in self.project_configs:
+            raise Exception("trying to add dsn public key to nonexisting project")
+
+        if dsn_public_key is None:
+            dsn_public_key = uuid.uuid4().hex
+
+        public_keys = self.project_configs[project_id]["publicKeys"]
+
+        # generate some unique numeric id ( 1 + max of any other numeric id)
+        if numeric_id is None:
+            numeric_id = 0
+            for public_key_config in public_keys:
+                if public_key_config["publicKey"] == dsn_public_key:
+                    # we already have this key, just return
+                    return dsn_public_key
+                numeric_id = max(numeric_id, public_key_config["numericId"])
+            numeric_id += 1
+
+        key_entry = {
+            "publicKey": dsn_public_key,
+            "isEnabled": is_enabled,
+            "numericId": numeric_id,
+        }
+        public_keys.append(key_entry)
+
+        return key_entry
+
+    def basic_project_config(self, project_id, dsn_public_key=None):
+        if dsn_public_key is None:
+            dsn_public_key = {
+                "publicKey": uuid.uuid4().hex,
+                "isEnabled": True,
+                "numericId": 123,
+            }
+
+        return {
+            "projectId": project_id,
+            "slug": "python",
+            "publicKeys": [dsn_public_key],
+            "rev": "5ceaea8c919811e8ae7daae9fe877901",
+            "disabled": False,
+            "lastFetch": datetime.datetime.utcnow().isoformat() + "Z",
+            "lastChange": datetime.datetime.utcnow().isoformat() + "Z",
+            "config": {
+                "allowedDomains": ["*"],
+                "trustedRelays": list(self.iter_public_keys()),
+                "piiConfig": {
+                    "rules": {},
+                    "applications": {
+                        "$string": ["@email", "@mac", "@creditcard", "@userpath"],
+                        "$object": ["@password"],
+                    },
+                },
+            },
+        }
+
+    def add_basic_project_config(self, project_id, dsn_public_key=None):
+        ret_val = self.basic_project_config(project_id, dsn_public_key)
+        self.project_configs[project_id] = ret_val
+        return ret_val
+
+    def add_full_project_config(self, project_id, dsn_public_key=None):
+        basic = self.basic_project_config(project_id, dsn_public_key)
+        full = {
+            "organizationId": 1,
+            "config": {
+                "excludeFields": [],
+                "filterSettings": {},
+                "scrubIpAddresses": False,
+                "sensitiveFields": [],
+                "scrubDefaults": True,
+                "scrubData": True,
+                "groupingConfig": {
+                    "id": "legacy:2019-03-12",
+                    "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC",
+                },
+                "blacklistedIps": ["127.43.33.22"],
+                "trustedRelays": [],
+            },
+        }
+
+        ret_val = {
+            **basic,
+            **full,
+            "config": {**basic["config"], **full["config"]},
+        }
+
+        self.project_configs[project_id] = ret_val
+        return ret_val
 
 
 def _get_project_id(public_key, project_configs):
@@ -74,11 +169,11 @@ def mini_sentry(request):
             return False
         return relay_id in project_config["config"]["trustedRelays"]
 
-    def get_error_message(event):
-        data = json.loads(event)
+    def get_error_message(data):
         exceptions = data.get("exception", {}).get("values", [])
-        exc_msg = (exceptions[0] or {}).get("value")
-        message = data.get("message", {}).get("formatted")
+        exc_msg = (exceptions and exceptions[0] or {}).get("value")
+        message = data.get("message", {})
+        message = message if type(message) == str else message.get("formatted")
         return exc_msg or message or "unknown error"
 
     @app.before_request
@@ -89,6 +184,11 @@ def mini_sentry(request):
 
         if flask_request.url_rule:
             sentry.hit(flask_request.url_rule.rule)
+
+        # Store endpoints theoretically support chunked transfer encoding,
+        # but for now, we're conservative and don't allow that anywhere.
+        if flask_request.headers.get("transfer-encoding"):
+            abort(400, "transfer encoding not supported")
 
     @app.route("/api/0/relays/register/challenge/", methods=["POST"])
     def get_challenge():
@@ -113,26 +213,27 @@ def mini_sentry(request):
         assert relay_id in authenticated_relays
         return jsonify({"relay_id": relay_id})
 
-    @app.route("/api/666/store/", methods=["POST"])
+    @app.route("/api/0/relays/live/", methods=["GET"])
+    def is_live():
+        return jsonify({"is_healthy": True})
+
+    @app.route("/api/666/envelope/", methods=["POST"])
     def store_internal_error_event():
-        sentry.test_failures.append(
-            (
-                "/api/666/store/",
-                AssertionError(
-                    "Relay sent us event: {}".format(
-                        get_error_message(flask_request.data)
-                    ),
-                ),
-            )
-        )
+        envelope = Envelope.deserialize(flask_request.data)
+        event = envelope.get_event()
+
+        if event is not None:
+            error = AssertionError("Relay sent us event: " + get_error_message(event))
+            sentry.test_failures.append(("/api/666/envelope/", error))
+
         return jsonify({"event_id": uuid.uuid4().hex})
 
-    @app.route("/api/42/store/", methods=["POST"])
+    @app.route("/api/42/envelope/", methods=["POST"])
     def store_event():
-        if flask_request.headers.get("Content-Encoding", "") == "gzip":
-            data = gzip.decompress(flask_request.data)
-        else:
-            data = flask_request.data
+        assert (
+            flask_request.headers.get("Content-Encoding", "") == "gzip"
+        ), "Relay should always compress store requests"
+        data = gzip.decompress(flask_request.data)
 
         assert (
             flask_request.headers.get("Content-Type") == "application/x-sentry-envelope"
@@ -144,6 +245,7 @@ def mini_sentry(request):
         return jsonify({"event_id": uuid.uuid4().hex})
 
     @app.route("/api/<project>/store/", methods=["POST"])
+    @app.route("/api/<project>/envelope/", methods=["POST"])
     def store_event_catchall(project):
         raise AssertionError(f"Unknown project: {project}")
 
@@ -163,10 +265,31 @@ def mini_sentry(request):
             abort(403, "relay not registered")
 
         rv = {}
-        for project_id in flask_request.json["projects"]:
-            project_config = sentry.project_configs[int(project_id)]
-            if is_trusted(relay_id, project_config):
-                rv[project_id] = project_config
+        version = flask_request.args.get("version")
+        if version in (None, "1"):
+            for project_id in flask_request.json["projects"]:
+                project_config = sentry.project_configs[int(project_id)]
+                if is_trusted(relay_id, project_config):
+                    rv[project_id] = project_config
+
+        elif version == "2":
+            for public_key in flask_request.json["publicKeys"]:
+                # We store projects by id, but need to return by key
+                for project_config in sentry.project_configs.values():
+                    for key in project_config["publicKeys"]:
+                        if not is_trusted(relay_id, project_config):
+                            continue
+
+                        if key["publicKey"] == public_key:
+                            # TODO 11 Nov 2020 (RaduW) horrible hack
+                            #  For some reason returning multiple public keys breaks Relay
+                            # Relay seems to work only with the first key
+                            # Need to figure out why that is.
+                            rv[public_key] = deepcopy(project_config)
+                            rv[public_key]["publicKeys"] = [key]
+
+        else:
+            abort(500, "unsupported version")
 
         return jsonify(configs=rv)
 

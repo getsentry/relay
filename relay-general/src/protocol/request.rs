@@ -3,6 +3,11 @@ use std::iter::{FromIterator, IntoIterator};
 use cookie::Cookie;
 use url::form_urlencoded;
 
+#[cfg(feature = "jsonschema")]
+use schemars::gen::SchemaGenerator;
+#[cfg(feature = "jsonschema")]
+use schemars::schema::Schema;
+
 use crate::protocol::{JsonLenientString, LenientString, PairList};
 use crate::types::{Annotated, Error, FromValue, Object, Value};
 
@@ -19,7 +24,7 @@ impl Cookies {
         pairs.map(Cookies)
     }
 
-    fn iter_cookies<'a>(string: &'a str) -> impl Iterator<Item = Result<CookieEntry, Error>> + 'a {
+    fn iter_cookies(string: &str) -> impl Iterator<Item = Result<CookieEntry, Error>> + '_ {
         string
             .split(';')
             .filter(|cookie| !cookie.trim().is_empty())
@@ -261,10 +266,8 @@ impl std::ops::DerefMut for Headers {
 
 impl FromValue for Headers {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
-        let should_sort = match value.value() {
-            Some(Value::Object(_)) => true,
-            _ => false, // Preserve order if SDK sent headers as array
-        };
+        // Preserve order if SDK sent headers as array
+        let should_sort = matches!(value.value(), Some(Value::Object(_)));
 
         type HeaderTuple = (Annotated<HeaderName>, Annotated<HeaderValue>);
         PairList::<HeaderTuple>::from_value(value).map_value(|mut pair_list| {
@@ -283,7 +286,6 @@ impl FromValue for Headers {
 
 /// A map holding query string pairs.
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Query(pub PairList<(Annotated<String>, Annotated<JsonLenientString>)>);
 
 impl Query {
@@ -319,12 +321,14 @@ where
     where
         T: IntoIterator<Item = (K, V)>,
     {
-        Query(PairList::from_iter(iter.into_iter().map(|(key, value)| {
+        let pairs = iter.into_iter().map(|(key, value)| {
             Annotated::new((
                 Annotated::new(key.into()),
                 Annotated::new(value.into().into()),
             ))
-        })))
+        });
+
+        Query(pairs.collect())
     }
 }
 
@@ -343,6 +347,29 @@ impl FromValue for Query {
                 Annotated(None, meta)
             }
         }
+    }
+}
+
+#[cfg(feature = "jsonschema")]
+impl schemars::JsonSchema for Query {
+    fn schema_name() -> String {
+        "Query".to_string()
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        #[derive(schemars::JsonSchema)]
+        #[schemars(untagged)]
+        #[allow(unused)]
+        enum Helper {
+            QueryString(String),
+            CanonicalQueryObject(PairList<(Annotated<String>, Annotated<String>)>),
+        }
+
+        Helper::json_schema(gen)
+    }
+
+    fn is_referenceable() -> bool {
+        false
     }
 }
 

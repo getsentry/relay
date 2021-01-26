@@ -10,26 +10,21 @@ check: style lint
 
 clean:
 	cargo clean
-	cargo clean --manifest-path relay-cabi/Cargo.toml
 	rm -rf .venv
 .PHONY: clean
 
 # Builds
 
 build: setup-git
-	@cargo +stable build --all-features
+	cargo +stable build --all-features
 .PHONY: build
 
 release: setup-git
-	@cargo +stable build --release --locked --features ${RELAY_FEATURES}
+	@cd relay && cargo +stable build --release --locked --features ${RELAY_FEATURES}
 .PHONY: release
 
-docker: setup-git
-	@scripts/docker-build-linux.sh
-.PHONY: docker
-
 build-linux-release: setup-git
-	cargo build --release --locked --features ${RELAY_FEATURES} --target=${TARGET}
+	cd relay && cargo build --release --locked --features ${RELAY_FEATURES} --target=${TARGET}
 	objcopy --only-keep-debug target/${TARGET}/release/relay{,.debug}
 	objcopy --strip-debug --strip-unneeded target/${TARGET}/release/relay
 	objcopy --add-gnu-debuglink target/${TARGET}/release/relay{.debug,}
@@ -53,11 +48,11 @@ test: test-rust-all test-python test-integration
 .PHONY: test
 
 test-rust: setup-git
-	cargo test --all
+	cargo test --workspace
 .PHONY: test-rust
 
 test-rust-all: setup-git
-	cargo test --all --all-features
+	cargo test --workspace --all-features
 .PHONY: test-rust-all
 
 test-python: setup-git setup-venv
@@ -71,61 +66,14 @@ test-integration: build setup-venv
 	.venv/bin/pytest tests -n auto -v
 .PHONY: test-integration
 
-test-process-event:
-	# Process a basic event and assert its output
-	bash -c 'diff \
-		<(cargo run ${CARGO_ARGS} -- process-event <tests/fixtures/basic-event-input.json) \
-		tests/fixtures/basic-event-output.json'
-	@echo 'OK'
-.PHONY: test-process-event
-
 # Documentation
 
-doc: docs
-.PHONY: doc
+doc: doc-api
+.PHONY: doc-api
 
-docs: api-docs prose-docs
-.PHONY: api-docs prose-docs
-
-api-docs: setup-git
-	@cargo doc
-.PHONY: api-docs
-
-prose-docs: .venv/bin/python extract-metric-docs
-	.venv/bin/mkdocs build
-	touch site/.nojekyll
-.PHONY: prose-docs
-
-extract-metric-docs: .venv/bin/python
-	.venv/bin/pip install -U -r requirements-doc.txt
-	cd scripts && ../.venv/bin/python extract_metric_docs.py
-
-jsonschema: init-submodules
-	# Makes no sense to nest this in docs, but unfortunately that's the path
-	# Snuba uses in their setup right now. Eventually this should be gone in
-	# favor of the data schemas repo
-	mkdir -p docs/event-schema/
-	rm -rf docs/event-schema/event.schema.*
-	set -e && cargo run --features jsonschema -- event-json-schema \
-		> docs/event-schema/event.schema.json
-.PHONY: jsonschema
-
-docserver: prose-docs
-	.venv/bin/mkdocs serve
-.PHONY: docserver
-
-travis-upload-prose-docs: prose-docs
-	cd site && zip -r gh-pages .
-	set -e && zeus upload -t "application/zip+docs" site/gh-pages.zip \
-		|| [[ ! "$(TRAVIS_BRANCH)" =~ ^release/ ]]
-	set -e && zeus upload -t "application/octet-stream" -n event.schema.json docs/event-schema/event.schema.json \
-		|| [[ ! "$(TRAVIS_BRANCH)" =~ ^release/ ]]
-.PHONY: travis-upload-docs
-
-local-upload-prose-docs: prose-docs
-	# Use this for hotfixing docs, prefer a new release
-	.venv/bin/pip install -U ghp-import
-	.venv/bin/ghp-import -pf site/
+doc-api: setup-git
+	cargo doc --workspace --all-features --no-deps
+.PHONY: doc-api
 
 # Style checking
 
@@ -134,7 +82,7 @@ style: style-rust style-python
 
 style-rust:
 	@rustup component add rustfmt --toolchain stable 2> /dev/null
-	cargo +stable fmt -- --check
+	cargo +stable fmt --all -- --check
 .PHONY: style-rust
 
 style-python: setup-venv
@@ -149,7 +97,7 @@ lint: lint-rust lint-python
 
 lint-rust: setup-git
 	@rustup component add clippy --toolchain stable 2> /dev/null
-	cargo +stable clippy --all-features --all --tests --examples -- -D clippy::all
+	cargo +stable clippy --workspace --all-features --tests -- -D clippy::all
 .PHONY: lint-rust
 
 lint-python: setup-venv
@@ -164,7 +112,7 @@ format: format-rust format-python
 
 format-rust:
 	@rustup component add rustfmt --toolchain stable 2> /dev/null
-	cargo +stable fmt
+	cargo +stable fmt --all
 .PHONY: format-rust
 
 format-python: setup-venv
@@ -205,4 +153,4 @@ clean-target-dir:
 	virtualenv -p $$RELAY_PYTHON_VERSION .venv
 
 .git/hooks/pre-commit:
-	@cd .git/hooks && ln -sf ../../scripts/git-precommit-hook.py pre-commit
+	@cd .git/hooks && ln -sf ../../scripts/git-precommit-hook pre-commit

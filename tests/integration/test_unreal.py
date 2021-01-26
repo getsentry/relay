@@ -18,7 +18,7 @@ def _load_dump_file(base_file_name: str):
 def test_unreal_crash(mini_sentry, relay, dump_file_name):
     project_id = 42
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
     unreal_content = _load_dump_file(dump_file_name)
 
     response = relay.send_unreal_request(project_id, unreal_content)
@@ -38,14 +38,14 @@ def test_unreal_crash(mini_sentry, relay, dump_file_name):
 
 
 def test_unreal_minidump_with_processing(
-    mini_sentry, relay_with_processing, attachments_consumer, events_consumer
+    mini_sentry, relay_with_processing, attachments_consumer
 ):
     project_id = 42
     options = {"processing": {"attachment_chunk_size": "1.23 GB"}}
     relay = relay_with_processing(options)
     attachments_consumer = attachments_consumer()
 
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
     unreal_content = _load_dump_file("unreal_crash")
 
     relay.send_unreal_request(project_id, unreal_content)
@@ -124,14 +124,14 @@ def test_unreal_minidump_with_processing(
 
 
 def test_unreal_apple_crash_with_processing(
-    mini_sentry, relay_with_processing, attachments_consumer, events_consumer
+    mini_sentry, relay_with_processing, attachments_consumer
 ):
     project_id = 42
     options = {"processing": {"attachment_chunk_size": "1.23 GB"}}
     relay = relay_with_processing(options)
     attachments_consumer = attachments_consumer()
 
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
     unreal_content = _load_dump_file("unreal_crash_apple")
 
     relay.send_unreal_request(project_id, unreal_content)
@@ -226,3 +226,90 @@ def test_unreal_apple_crash_with_processing(
             apple_crash_report_marker_found = True
 
     assert apple_crash_report_marker_found
+
+
+def test_unreal_minidump_with_config_and_processing(
+    mini_sentry, relay_with_processing, attachments_consumer
+):
+    project_id = 42
+    options = {"processing": {"attachment_chunk_size": "1.23 GB"}}
+    relay = relay_with_processing(options)
+    attachments_consumer = attachments_consumer()
+
+    mini_sentry.add_full_project_config(project_id)
+    unreal_content = _load_dump_file("unreal_crash_with_config")
+
+    relay.send_unreal_request(project_id, unreal_content)
+
+    attachments = {}
+
+    while True:
+        raw_message, message = attachments_consumer.get_message()
+        if message is None or message["type"] != "attachment_chunk":
+            event = message
+            break
+        attachments[message["id"]] = message
+
+    assert event
+    assert event["type"] == "event"
+
+    project_id = event["project_id"]
+    event_id = event["event_id"]
+
+    assert len(event["attachments"]) == 4
+    assert len(attachments) == 4
+
+    logs_file_found = False
+    mini_dump_found = False
+    crash_report_ini_found = False
+    unreal_context_found = False
+
+    for attachment_entry in event["attachments"]:
+        # check that the attachment is registered in the event
+        attachment_id = attachment_entry["id"]
+        # check that we didn't get the messages chunked
+        assert attachment_entry["chunks"] == 1
+
+        entry_name = attachment_entry["name"]
+
+        if entry_name == "UE4Minidump.dmp":
+            mini_dump_found = True
+        elif entry_name == "MyProject.log":
+            logs_file_found = True
+        elif entry_name == "CrashContext.runtime-xml":
+            unreal_context_found = True
+        elif entry_name == "CrashReportClient.ini":
+            crash_report_ini_found = True
+
+        attachment = attachments.get(attachment_id)
+        assert attachment is not None
+        assert attachment["event_id"] == event_id
+        assert attachment["project_id"] == project_id
+
+    assert mini_dump_found
+    assert logs_file_found
+    assert unreal_context_found
+    assert crash_report_ini_found
+
+    # check the created event
+    event_data = json.loads(event["payload"])
+    assert event_data["release"] == "foo-bar@1.0.0"
+
+    assert event_data["event_id"] == event_id
+
+    exception = event_data.get("exception")
+    assert exception is not None
+    values = exception["values"]
+    assert values is not None
+
+    mini_dump_process_marker_found = False
+
+    for value in values:
+        if value == {
+            "type": "Minidump",
+            "value": "Invalid Minidump",
+            "mechanism": {"type": "minidump", "synthetic": True, "handled": False},
+        }:
+            mini_dump_process_marker_found = True
+
+    assert mini_dump_process_marker_found

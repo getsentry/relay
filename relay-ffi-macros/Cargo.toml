@@ -1,0 +1,17 @@
+[package]
+name = "relay-ffi-macros"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Macros for error handling in FFI bindings"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "21.1.0"
+edition = "2018"
+license-file = "../LICENSE"
+publish = false
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "1.0.39", features = ["fold", "full"] }
+quote = "1.0.6"

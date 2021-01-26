@@ -1,3 +1,4 @@
+use enumset::EnumSet;
 use uuid::Uuid;
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
@@ -5,8 +6,8 @@ use crate::types::{Annotated, Array, Meta, Object, ProcessingResult};
 
 impl ProcessValue for String {
     #[inline]
-    fn value_type(&self) -> Option<ValueType> {
-        Some(ValueType::String)
+    fn value_type(&self) -> EnumSet<ValueType> {
+        EnumSet::only(ValueType::String)
     }
 
     #[inline]
@@ -25,8 +26,8 @@ impl ProcessValue for String {
 
 impl ProcessValue for bool {
     #[inline]
-    fn value_type(&self) -> Option<ValueType> {
-        Some(ValueType::Boolean)
+    fn value_type(&self) -> EnumSet<ValueType> {
+        EnumSet::only(ValueType::Boolean)
     }
 
     #[inline]
@@ -45,8 +46,8 @@ impl ProcessValue for bool {
 
 impl ProcessValue for u64 {
     #[inline]
-    fn value_type(&self) -> Option<ValueType> {
-        Some(ValueType::Number)
+    fn value_type(&self) -> EnumSet<ValueType> {
+        EnumSet::only(ValueType::Number)
     }
 
     #[inline]
@@ -65,8 +66,8 @@ impl ProcessValue for u64 {
 
 impl ProcessValue for i64 {
     #[inline]
-    fn value_type(&self) -> Option<ValueType> {
-        Some(ValueType::Number)
+    fn value_type(&self) -> EnumSet<ValueType> {
+        EnumSet::only(ValueType::Number)
     }
 
     #[inline]
@@ -85,8 +86,8 @@ impl ProcessValue for i64 {
 
 impl ProcessValue for f64 {
     #[inline]
-    fn value_type(&self) -> Option<ValueType> {
-        Some(ValueType::Number)
+    fn value_type(&self) -> EnumSet<ValueType> {
+        EnumSet::only(ValueType::Number)
     }
 
     #[inline]
@@ -110,8 +111,8 @@ where
     T: ProcessValue,
 {
     #[inline]
-    fn value_type(&self) -> Option<ValueType> {
-        Some(ValueType::Array)
+    fn value_type(&self) -> EnumSet<ValueType> {
+        EnumSet::only(ValueType::Array)
     }
 
     #[inline]
@@ -153,8 +154,8 @@ where
     T: ProcessValue,
 {
     #[inline]
-    fn value_type(&self) -> Option<ValueType> {
-        Some(ValueType::Object)
+    fn value_type(&self) -> EnumSet<ValueType> {
+        EnumSet::only(ValueType::Object)
     }
 
     #[inline]
@@ -196,7 +197,7 @@ where
     T: ProcessValue,
 {
     #[inline]
-    fn value_type(&self) -> Option<ValueType> {
+    fn value_type(&self) -> EnumSet<ValueType> {
         (**self).value_type()
     }
 
@@ -218,9 +219,7 @@ macro_rules! process_tuple {
     ($($name: ident),+) => {
         impl< $( $name: ProcessValue ),* > ProcessValue for ( $( Annotated<$name>, )* ) {
             #[inline]
-            fn value_type(&self) -> Option<ValueType> {
-                Some(ValueType::Array)
-            }
+            fn value_type(&self) -> EnumSet<ValueType> { EnumSet::only(ValueType::Array) }
 
             #[inline]
             #[allow(non_snake_case, unused_assignments)]

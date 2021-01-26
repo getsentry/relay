@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::collections::BTreeSet;
 use std::mem;
 
 use lazy_static::lazy_static;
@@ -7,7 +6,7 @@ use regex::Regex;
 
 use crate::pii::compiledconfig::RuleRef;
 use crate::pii::regexes::{get_regex_for_rule_type, PatternType, ReplaceBehavior, ANYTHING_REGEX};
-use crate::pii::utils::{hash_value, in_range, process_pairlist};
+use crate::pii::utils::{hash_value, process_pairlist};
 use crate::pii::{CompiledPiiConfig, Redaction, RuleType};
 use crate::processor::{
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
@@ -15,9 +14,14 @@ use crate::processor::{
 use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, User};
 use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
+// The Regex initializer needs a scope to avoid an endless loop/recursion in RustAnalyzer:
+// https://github.com/rust-analyzer/rust-analyzer/issues/5896. Note that outside of lazy_static,
+// this would require the unstable `stmt_expr_attributes` feature.
 lazy_static! {
-    static ref NULL_SPLIT_RE: Regex = #[allow(clippy::trivial_regex)]
-    Regex::new("\x00").unwrap();
+    static ref NULL_SPLIT_RE: Regex = {
+        #[allow(clippy::trivial_regex)]
+        Regex::new("\x00").unwrap()
+    };
 }
 
 /// A processor that performs PII stripping.
@@ -65,7 +69,9 @@ impl<'a> Processor for PiiProcessor<'a> {
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         // booleans cannot be PII, and strings are handled in process_string
-        if let Some(ValueType::Boolean) | Some(ValueType::String) = state.value_type() {
+        if state.value_type().contains(ValueType::Boolean)
+            || state.value_type().contains(ValueType::String)
+        {
             return Ok(());
         }
 
@@ -98,7 +104,7 @@ impl<'a> Processor for PiiProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        // In NativeImagePaths we must not strip the file's basename because that would break
+        // In NativeImagePath we must not strip the file's basename because that would break
         // processing.
         //
         // We pop the basename from the end of the string, call process_string and push the
@@ -175,10 +181,7 @@ fn apply_rule_to_value(
 ) -> ProcessingResult {
     // The rule might specify to remove or to redact. If redaction is chosen, we need to
     // chunk up the value, otherwise we need to simply mark the value for deletion.
-    let should_redact_chunks = match rule.redaction {
-        Redaction::Default | Redaction::Remove => false,
-        _ => true,
-    };
+    let should_redact_chunks = !matches!(rule.redaction, Redaction::Default | Redaction::Remove);
 
     // In case the value is not a string (but a container, bool or number) and the rule matches on
     // anything, we can only remove the value (not replace, hash, etc).
@@ -324,32 +327,20 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
                 ty: RemarkType::Removed,
             });
         }
-        Redaction::Mask(mask) => {
-            let chars_to_ignore: BTreeSet<char> = mask.chars_to_ignore.chars().collect();
-            let mut buf = Vec::with_capacity(text.len());
+        Redaction::Mask => {
+            let buf = vec!['*'; text.chars().count()];
 
-            for (idx, c) in text.chars().enumerate() {
-                if in_range(mask.range, idx, text.len()) && !chars_to_ignore.contains(&c) {
-                    buf.push(mask.mask_char);
-                } else {
-                    buf.push(c);
-                }
-            }
             output.push(Chunk::Redaction {
                 ty: RemarkType::Masked,
                 rule_id: Cow::Owned(rule.origin.to_string()),
                 text: buf.into_iter().collect(),
             })
         }
-        Redaction::Hash(hash) => {
+        Redaction::Hash => {
             output.push(Chunk::Redaction {
                 ty: RemarkType::Pseudonymized,
                 rule_id: Cow::Owned(rule.origin.to_string()),
-                text: Cow::Owned(hash_value(
-                    hash.algorithm,
-                    text.as_bytes(),
-                    hash.key.as_deref(),
-                )),
+                text: Cow::Owned(hash_value(text.as_bytes())),
             });
         }
         Redaction::Replace(replace) => {
@@ -843,6 +834,7 @@ fn test_logentry_value_types() {
         "$logentry.formatted",
         "$message",
         "$logentry.formatted && $message",
+        "$string",
     ] {
         let config = PiiConfig::from_json(&format!(
             r##"

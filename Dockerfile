@@ -4,7 +4,7 @@ ARG DOCKER_ARCH=amd64
 ### Deps stage ###
 ##################
 
-FROM $DOCKER_ARCH/rust:slim-stretch AS relay-deps
+FROM $DOCKER_ARCH/rust:slim-buster AS relay-deps
 
 ARG DOCKER_ARCH
 ARG BUILD_ARCH=x86_64
@@ -20,7 +20,7 @@ ENV OPENSSL_STATIC=1
 
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
-    curl build-essential git zip \
+    curl build-essential git zip cmake \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -84,10 +84,10 @@ RUN sentry-cli --version \
 ### Final stage ###
 ###################
 
-FROM debian:stretch-slim
+FROM debian:buster-slim
 
 RUN apt-get update \
-    && apt-get install -y ca-certificates gosu --no-install-recommends \
+    && apt-get install -y ca-certificates gosu curl --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

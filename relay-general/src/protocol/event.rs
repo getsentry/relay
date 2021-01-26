@@ -11,8 +11,8 @@ use serde::{Serialize, Serializer};
 use crate::processor::ProcessValue;
 use crate::protocol::{
     Breadcrumb, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt, ExpectStaple,
-    Fingerprint, Hpkp, LenientString, Level, LogEntry, Metrics, Request, Span, Stacktrace, Tags,
-    TemplateInfo, Thread, Timestamp, User, Values,
+    Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics, Request, Span,
+    Stacktrace, Tags, TemplateInfo, Thread, Timestamp, User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
@@ -220,7 +220,7 @@ pub struct Event {
     pub fingerprint: Annotated<Fingerprint>,
 
     /// Custom culprit of the event.
-    #[metastructure(max_chars = "culprit")]
+    #[metastructure(max_chars = "culprit", pii = "maybe")]
     pub culprit: Annotated<String>,
 
     /// Transaction name of the event.
@@ -241,7 +241,7 @@ pub struct Event {
     /// Logger that created the event.
     #[metastructure(
         max_chars = "logger", // DB-imposed limit
-        match_regex = r"^[^\r\n]*\z"
+        deny_chars = "\r\n",
     )]
     pub logger: Annotated<String>,
 
@@ -310,7 +310,7 @@ pub struct Event {
     /// can be the git SHA for the given project, or a product identifier with a semantic version.
     #[metastructure(
         max_chars = "tag_value",  // release ends in tag
-        match_regex = r"^[^\r\n\f\t/]*\z",
+        deny_chars = "\r\n\x0c\t/",
         required = "false",
         trim_whitespace = "true",
         nonempty = "true",
@@ -325,10 +325,10 @@ pub struct Event {
     /// Distributions are used to disambiguate build or deployment variants of the same release of
     /// an application. For example, the dist can be the build number of an XCode build or the
     /// version code of an Android build.
-    // Match whitespace here, which will later get trimmed
     #[metastructure(
         max_chars = "tag_value",  // dist ends in tag
-        match_regex = r"^\s*[a-zA-Z0-9_.-]*\s*$",
+        allow_chars = "a-zA-Z0-9_.-",
+        trim_whitespace = "true",
         required = "false",
         nonempty = "true"
     )]
@@ -341,7 +341,9 @@ pub struct Event {
     /// ```
     #[metastructure(
         max_chars = "environment",
-        match_regex = r"^[^\r\n\x0C/]+$",
+        deny_chars = "\r\n\x0C/",
+        nonempty = "true",
+        required = "false",
         trim_whitespace = "true"
     )]
     pub environment: Annotated<String>,
@@ -467,6 +469,14 @@ pub struct Event {
     /// Spans for tracing.
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub spans: Annotated<Array<Span>>,
+
+    /// Measurements which holds observed values such as web vitals.
+    ///
+    /// Measurements are only available on transactions. They contain measurement values of observed
+    /// values such as Largest Contentful Paint (LCP).
+    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(omit_from_schema)] // we only document error events for now
+    pub measurements: Annotated<Measurements>,
 
     /// Internal ingestion and processing metrics.
     ///

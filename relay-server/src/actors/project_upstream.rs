@@ -10,8 +10,9 @@ use futures::{future, future::Shared, sync::oneshot, Future};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use relay_common::{metric, LogError, ProjectId, RetryBackoff};
+use relay_common::{metric, ProjectKey, RetryBackoff};
 use relay_config::Config;
+use relay_log::LogError;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{FetchProjectState, ProjectError, ProjectStateResponse};
@@ -19,17 +20,33 @@ use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, Upstrea
 use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ErrorBoundary};
 
+#[macro_use]
+mod _macro {
+    /// The current version of the project states endpoint.
+    ///
+    /// Only this version is supported by Relay. All other versions are forwarded to the Upstream.
+    /// The endpoint version is added as `version` query parameter to every outgoing request.
+    #[macro_export]
+    macro_rules! project_states_version {
+        () => {
+            2
+        };
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStates {
-    pub projects: Vec<ProjectId>,
+    pub public_keys: Vec<ProjectKey>,
     #[serde(default)]
     pub full_config: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GetProjectStatesResponse {
-    pub configs: HashMap<ProjectId, ErrorBoundary<Option<ProjectState>>>,
+    #[serde(default)]
+    pub configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
 }
 
 impl UpstreamQuery for GetProjectStates {
@@ -40,11 +57,18 @@ impl UpstreamQuery for GetProjectStates {
     }
 
     fn path(&self) -> Cow<'static, str> {
-        Cow::Borrowed("/api/0/relays/projectconfigs/")
+        Cow::Borrowed(concat!(
+            "/api/0/relays/projectconfigs/?version=",
+            project_states_version!()
+        ))
     }
 
     fn priority() -> RequestPriority {
         RequestPriority::High
+    }
+
+    fn retry() -> bool {
+        false
     }
 }
 
@@ -83,7 +107,7 @@ pub struct UpstreamProjectSource {
     backoff: RetryBackoff,
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
-    state_channels: HashMap<ProjectId, ProjectStateChannel>,
+    state_channels: HashMap<ProjectKey, ProjectStateChannel>,
 }
 
 impl UpstreamProjectSource {
@@ -115,7 +139,7 @@ impl UpstreamProjectSource {
     /// channels are pushed in the meanwhile, this will reschedule automatically.
     fn fetch_states(&mut self, context: &mut Context<Self>) {
         if self.state_channels.is_empty() {
-            log::error!("project state update scheduled without projects");
+            relay_log::error!("project state update scheduled without projects");
             return;
         }
 
@@ -144,7 +168,7 @@ impl UpstreamProjectSource {
 
         metric!(histogram(RelayHistograms::ProjectStatePending) = self.state_channels.len() as u64);
 
-        log::debug!(
+        relay_log::debug!(
             "updating project states for {}/{} projects (attempt {})",
             channels.len(),
             channels.len() + self.state_channels.len(),
@@ -165,14 +189,14 @@ impl UpstreamProjectSource {
             .into_iter()
             .map(|channels_batch| {
                 let channels_batch: BTreeMap<_, _> = channels_batch.collect();
-                log::debug!("sending request of size {}", channels_batch.len());
+                relay_log::debug!("sending request of size {}", channels_batch.len());
                 metric!(
                     histogram(RelayHistograms::ProjectStateRequestBatchSize) =
                         channels_batch.len() as u64
                 );
 
-                let request = GetProjectStates {
-                    projects: channels_batch.keys().copied().collect(),
+                let query = GetProjectStates {
+                    public_keys: channels_batch.keys().copied().collect(),
                     full_config: self.config.processing_enabled(),
                 };
 
@@ -180,7 +204,7 @@ impl UpstreamProjectSource {
                 metric!(counter(RelayCounters::ProjectStateRequest) += 1);
 
                 self.upstream
-                    .send(SendQuery(request))
+                    .send(SendQuery(query))
                     .map_err(ProjectError::ScheduleFailed)
                     .map(move |response| (channels_batch, response))
             })
@@ -209,14 +233,18 @@ impl UpstreamProjectSource {
                                 histogram(RelayHistograms::ProjectStateReceived) =
                                     response.configs.len() as u64
                             );
-                            for (id, channel) in channels_batch {
+                            for (key, channel) in channels_batch {
                                 let state = response
                                     .configs
-                                    .remove(&id)
+                                    .remove(&key)
                                     .unwrap_or(ErrorBoundary::Ok(None))
                                     .unwrap_or_else(|error| {
                                         let e = LogError(error);
-                                        log::error!("error fetching project state {}: {}", id, e);
+                                        relay_log::error!(
+                                            "error fetching project state {}: {}",
+                                            key,
+                                            e
+                                        );
                                         Some(ProjectState::err())
                                     })
                                     .unwrap_or_else(ProjectState::missing);
@@ -225,7 +253,10 @@ impl UpstreamProjectSource {
                             }
                         }
                         Err(error) => {
-                            log::error!("error fetching project states: {}", LogError(&error));
+                            relay_log::error!(
+                                "error fetching project states: {}",
+                                LogError(&error)
+                            );
 
                             // Put the channels back into the queue, in addition to channels that
                             // have been pushed in the meanwhile. We will retry again shortly.
@@ -275,11 +306,11 @@ impl Actor for UpstreamProjectSource {
         let mailbox_size = self.config.event_buffer_size() as usize;
         context.set_mailbox_capacity(mailbox_size);
 
-        log::info!("project upstream cache started");
+        relay_log::info!("project upstream cache started");
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::info!("project upstream cache stopped");
+        relay_log::info!("project upstream cache stopped");
     }
 }
 
@@ -305,14 +336,14 @@ impl Handler<FetchProjectState> for UpstreamProjectSource {
         // channel for our current `message.id`.
         let channel = self
             .state_channels
-            .entry(message.id)
+            .entry(message.public_key)
             .or_insert_with(|| ProjectStateChannel::new(query_timeout));
 
         Box::new(
             channel
                 .receiver()
                 .map_err(|_| ())
-                .map(|x| ProjectStateResponse::managed((*x).clone())),
+                .map(|x| ProjectStateResponse::new((*x).clone())),
         )
     }
 }

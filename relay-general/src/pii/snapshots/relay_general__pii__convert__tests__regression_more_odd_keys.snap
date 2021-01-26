@@ -8,7 +8,7 @@ expression: pii_config
     "hashKey": null
   },
   "applications": {
-    "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted) && !url && !message && !'http.request.url' && !'*url*' && !'*message*' && !'*http.request.url*'": [
+    "($string || $number || $array) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) && !url && !message && !'http.request.url' && !'*url*' && !'*message*' && !'*http.request.url*'": [
       "@common:filter"
     ],
     "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [

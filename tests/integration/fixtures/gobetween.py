@@ -11,9 +11,8 @@ GOBETWEEN_BIN = [os.environ.get("GOBETWEEN_BIN") or "gobetween"]
 
 class Gobetween(SentryLike):
     def __init__(self, server_address, process, upstream):
-        self.server_address = server_address
+        super(Gobetween, self).__init__(server_address, upstream)
         self.process = process
-        self.upstream = upstream
 
 
 @pytest.fixture
@@ -62,6 +61,6 @@ def gobetween(background_process, random_port, config_dir):
             GOBETWEEN_BIN + ["from-file", "-fjson", str(config)]
         )
 
-        return Gobetween((host, port), process, upstreams)
+        return Gobetween((host, port), process, upstreams[0])
 
     return inner

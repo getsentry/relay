@@ -5,7 +5,6 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::{self, Write};
-use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
 use serde::de::{Error, IgnoredAny};
@@ -51,93 +50,89 @@ pub enum CspDirective {
     StyleSrcAttr,
     UpgradeInsecureRequests,
     WorkerSrc,
-    // Sandbox , // unsupported
+    Sandbox,
+    NavigateTo,
+    ReportUri,
+    ReportTo,
+    BlockAllMixedContent,
+    RequireSriFor,
+    RequireTrustedTypesFor,
+    TrustedTypes,
 }
 
-impl fmt::Display for CspDirective {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Self::BaseUri => write!(f, "base-uri"),
-            Self::ChildSrc => write!(f, "child-src"),
-            Self::ConnectSrc => write!(f, "connect-src"),
-            Self::DefaultSrc => write!(f, "default-src"),
-            Self::FontSrc => write!(f, "font-src"),
-            Self::FormAction => write!(f, "form-action"),
-            Self::FrameAncestors => write!(f, "frame-ancestors"),
-            Self::FrameSrc => write!(f, "frame-src"),
-            Self::ImgSrc => write!(f, "img-src"),
-            Self::ManifestSrc => write!(f, "manifest-src"),
-            Self::MediaSrc => write!(f, "media-src"),
-            Self::ObjectSrc => write!(f, "object-src"),
-            Self::PluginTypes => write!(f, "plugin-types"),
-            Self::PrefetchSrc => write!(f, "prefetch-src"),
-            Self::Referrer => write!(f, "referrer"),
-            Self::ScriptSrc => write!(f, "script-src"),
-            Self::ScriptSrcAttr => write!(f, "script-src-attr"),
-            Self::ScriptSrcElem => write!(f, "script-src-elem"),
-            Self::StyleSrc => write!(f, "style-src"),
-            Self::StyleSrcElem => write!(f, "style-src-elem"),
-            Self::StyleSrcAttr => write!(f, "style-src-attr"),
-            Self::UpgradeInsecureRequests => write!(f, "upgrade-insecure-requests"),
-            Self::WorkerSrc => write!(f, "worker-src"),
-        }
-    }
-}
-
-impl FromStr for CspDirective {
-    type Err = InvalidSecurityError;
-
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        Ok(match string {
-            "base-uri" => Self::BaseUri,
-            "child-src" => Self::ChildSrc,
-            "connect-src" => Self::ConnectSrc,
-            "default-src" => Self::DefaultSrc,
-            "font-src" => Self::FontSrc,
-            "form-action" => Self::FormAction,
-            "frame-ancestors" => Self::FrameAncestors,
-            "frame-src" => Self::FrameSrc,
-            "img-src" => Self::ImgSrc,
-            "manifest-src" => Self::ManifestSrc,
-            "media-src" => Self::MediaSrc,
-            "object-src" => Self::ObjectSrc,
-            "plugin-types" => Self::PluginTypes,
-            "prefetch-src" => Self::PrefetchSrc,
-            "referrer" => Self::Referrer,
-            "script-src" => Self::ScriptSrc,
-            "script-src-attr" => Self::ScriptSrcAttr,
-            "script-src-elem" => Self::ScriptSrcElem,
-            "style-src" => Self::StyleSrc,
-            "style-src-elem" => Self::StyleSrcElem,
-            "style-src-attr" => Self::StyleSrcAttr,
-            "upgrade-insecure-requests" => Self::UpgradeInsecureRequests,
-            "worker-src" => Self::WorkerSrc,
-            _ => return Err(InvalidSecurityError),
-        })
-    }
-}
+derive_fromstr_and_display!(CspDirective, InvalidSecurityError, {
+    CspDirective::BaseUri => "base-uri",
+    CspDirective::ChildSrc => "child-src",
+    CspDirective::ConnectSrc => "connect-src",
+    CspDirective::DefaultSrc => "default-src",
+    CspDirective::FontSrc => "font-src",
+    CspDirective::FormAction => "form-action",
+    CspDirective::FrameAncestors => "frame-ancestors",
+    CspDirective::FrameSrc => "frame-src",
+    CspDirective::ImgSrc => "img-src",
+    CspDirective::ManifestSrc => "manifest-src",
+    CspDirective::MediaSrc => "media-src",
+    CspDirective::ObjectSrc => "object-src",
+    CspDirective::PluginTypes => "plugin-types",
+    CspDirective::PrefetchSrc => "prefetch-src",
+    CspDirective::Referrer => "referrer",
+    CspDirective::ScriptSrc => "script-src",
+    CspDirective::ScriptSrcAttr => "script-src-attr",
+    CspDirective::ScriptSrcElem => "script-src-elem",
+    CspDirective::StyleSrc => "style-src",
+    CspDirective::StyleSrcElem => "style-src-elem",
+    CspDirective::StyleSrcAttr => "style-src-attr",
+    CspDirective::UpgradeInsecureRequests => "upgrade-insecure-requests",
+    CspDirective::WorkerSrc => "worker-src",
+    CspDirective::Sandbox => "sandbox",
+    CspDirective::NavigateTo => "navigate-to",
+    CspDirective::ReportUri => "report-uri",
+    CspDirective::ReportTo => "report-to",
+    CspDirective::BlockAllMixedContent => "block-all-mixed-content",
+    CspDirective::RequireSriFor => "require-sri-for",
+    CspDirective::RequireTrustedTypesFor => "require-trusted-types-for",
+    CspDirective::TrustedTypes => "trusted-types",
+});
 
 impl_str_serde!(CspDirective);
 
 fn is_local(uri: &str) -> bool {
-    match uri {
-        "" | "self" | "'self'" => true,
-        _ => false,
-    }
+    matches!(uri, "" | "self" | "'self'")
 }
 
 fn schema_uses_host(schema: &str) -> bool {
     // List of schemas with host (netloc) from Python's urlunsplit:
-    // see https://github.com/python/cpython/blob/1eac437e8da106a626efffe9fce1cb47dbf5be35/Lib/urllib/parse.py#L51
+    // see <https://github.com/python/cpython/blob/1eac437e8da106a626efffe9fce1cb47dbf5be35/Lib/urllib/parse.py#L51>
     //
     // Only modification: "" is set to false, since there is a separate check in the urlunsplit
     // implementation that omits the leading "//" in that case.
-    match schema {
-        "ftp" | "http" | "gopher" | "nntp" | "telnet" | "imap" | "wais" | "file" | "mms"
-        | "https" | "shttp" | "snews" | "prospero" | "rtsp" | "rtspu" | "rsync" | "svn"
-        | "svn+ssh" | "sftp" | "nfs" | "git" | "git+ssh" | "ws" | "wss" => true,
-        _ => false,
-    }
+    matches!(
+        schema,
+        "ftp"
+            | "http"
+            | "gopher"
+            | "nntp"
+            | "telnet"
+            | "imap"
+            | "wais"
+            | "file"
+            | "mms"
+            | "https"
+            | "shttp"
+            | "snews"
+            | "prospero"
+            | "rtsp"
+            | "rtspu"
+            | "rsync"
+            | "svn"
+            | "svn+ssh"
+            | "sftp"
+            | "nfs"
+            | "git"
+            | "git+ssh"
+            | "ws"
+            | "wss"
+    )
 }
 
 /// Mimicks Python's urlunsplit with all its quirks.
@@ -444,7 +439,7 @@ struct CspReportRaw {
 /// via serde.
 ///
 ///
-/// See https://www.w3.org/TR/CSP3/
+/// See <https://www.w3.org/TR/CSP3/>
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct Csp {
     /// The directive whose enforcement caused the violation.
@@ -507,28 +502,11 @@ enum ExpectCtStatus {
     Invalid,
 }
 
-impl fmt::Display for ExpectCtStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Self::Unknown => write!(f, "unknown"),
-            Self::Valid => write!(f, "valid"),
-            Self::Invalid => write!(f, "invalid"),
-        }
-    }
-}
-
-impl FromStr for ExpectCtStatus {
-    type Err = InvalidSecurityError;
-
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        Ok(match string {
-            "unknown" => Self::Unknown,
-            "valid" => Self::Valid,
-            "invalid" => Self::Invalid,
-            _ => return Err(InvalidSecurityError),
-        })
-    }
-}
+derive_fromstr_and_display!(ExpectCtStatus, InvalidSecurityError, {
+    ExpectCtStatus::Unknown => "unknown",
+    ExpectCtStatus::Valid => "valid",
+    ExpectCtStatus::Invalid => "invalid",
+});
 
 impl_str_serde!(ExpectCtStatus);
 
@@ -539,28 +517,11 @@ enum ExpectCtSource {
     Embedded,
 }
 
-impl fmt::Display for ExpectCtSource {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Self::TlsExtension => write!(f, "tls-extension"),
-            Self::Ocsp => write!(f, "ocsp"),
-            Self::Embedded => write!(f, "embedded"),
-        }
-    }
-}
-
-impl FromStr for ExpectCtSource {
-    type Err = InvalidSecurityError;
-
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        Ok(match string {
-            "tls-extension" => Self::TlsExtension,
-            "ocsp" => Self::Ocsp,
-            "embedded" => Self::Embedded,
-            _ => return Err(InvalidSecurityError),
-        })
-    }
-}
+derive_fromstr_and_display!(ExpectCtSource, InvalidSecurityError, {
+            ExpectCtSource::TlsExtension => "tls-extension",
+            ExpectCtSource::Ocsp => "ocsp",
+            ExpectCtSource::Embedded => "embedded",
+});
 
 impl_str_serde!(ExpectCtSource);
 
@@ -590,10 +551,14 @@ struct ExpectCtRaw {
     date_time: Option<DateTime<Utc>>,
     hostname: String,
     port: Option<i64>,
+    scheme: Option<String>,
+    #[serde(with = "serde_date_time_3339")]
     effective_expiration_date: Option<DateTime<Utc>>,
     served_certificate_chain: Option<Vec<String>>,
     validated_certificate_chain: Option<Vec<String>>,
     scts: Option<Vec<SingleCertificateTimestampRaw>>,
+    failure_mode: Option<String>,
+    test_report: Option<bool>,
 }
 
 mod serde_date_time_3339 {
@@ -654,6 +619,7 @@ impl ExpectCtRaw {
             date_time: Annotated::from(self.date_time.map(|d| d.to_rfc3339())),
             hostname: Annotated::from(self.hostname),
             port: Annotated::from(self.port),
+            scheme: Annotated::from(self.scheme),
             effective_expiration_date: Annotated::from(
                 self.effective_expiration_date.map(|d| d.to_rfc3339()),
             ),
@@ -673,6 +639,8 @@ impl ExpectCtRaw {
                     .map(|elm| Annotated::from(elm.into_protocol()))
                     .collect()
             })),
+            failure_mode: Annotated::from(self.failure_mode),
+            test_report: Annotated::from(self.test_report),
         }
     }
 
@@ -723,7 +691,7 @@ pub struct SingleCertificateTimestamp {
 
 /// Expect CT security report sent by user agent (browser).
 ///
-/// See https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1
+/// See <https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1>
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct ExpectCt {
     /// Date time in rfc3339 format YYYY-MM-DDTHH:MM:DD{.FFFFFF}(Z|+/-HH:MM)
@@ -732,11 +700,14 @@ pub struct ExpectCt {
     /// The hostname to which the UA made the original request that failed the CT compliance check.
     pub hostname: Annotated<String>,
     pub port: Annotated<i64>,
+    pub scheme: Annotated<String>,
     /// Date time in rfc3339 format
     pub effective_expiration_date: Annotated<String>,
     pub served_certificate_chain: Annotated<Array<String>>,
     pub validated_certificate_chain: Annotated<Array<String>>,
     pub scts: Annotated<Array<SingleCertificateTimestamp>>,
+    pub failure_mode: Annotated<String>,
+    pub test_report: Annotated<bool>,
 }
 
 impl ExpectCt {
@@ -868,6 +839,8 @@ pub struct Hpkp {
     /// The certificate chain, as served by the Known Pinned Host during TLS session setup.  It
     /// is provided as an array of strings; each string pem1, ... pemN is the Privacy-Enhanced Mail
     /// (PEM) representation of each X.509 certificate as described in [RFC7468].
+    ///
+    /// [RFC7468]: https://tools.ietf.org/html/rfc7468
     pub served_certificate_chain: Annotated<Array<String>>,
     /// The certificate chain, as constructed by the UA during certificate chain verification.
     pub validated_certificate_chain: Annotated<Array<String>>,
@@ -915,38 +888,16 @@ pub enum ExpectStapleResponseStatus {
     ParseResponseDataError,
 }
 
-impl fmt::Display for ExpectStapleResponseStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Self::Missing => write!(f, "MISSING"),
-            Self::Provided => write!(f, "PROVIDED"),
-            Self::ErrorResponse => write!(f, "ERROR_RESPONSE"),
-            Self::BadProducedAt => write!(f, "BAD_PRODUCED_AT"),
-            Self::NoMatchingResponse => write!(f, "NO_MATCHING_RESPONSE"),
-            Self::InvalidDate => write!(f, "INVALID_DATE"),
-            Self::ParseResponseError => write!(f, "PARSE_RESPONSE_ERROR"),
-            Self::ParseResponseDataError => write!(f, "PARSE_RESPONSE_DATA_ERROR"),
-        }
-    }
-}
-
-impl FromStr for ExpectStapleResponseStatus {
-    type Err = InvalidSecurityError;
-
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        Ok(match string {
-            "MISSING" => Self::Missing,
-            "PROVIDED" => Self::Provided,
-            "ERROR_RESPONSE" => Self::ErrorResponse,
-            "BAD_PRODUCED_AT" => Self::BadProducedAt,
-            "NO_MATCHING_RESPONSE" => Self::NoMatchingResponse,
-            "INVALID_DATE" => Self::InvalidDate,
-            "PARSE_RESPONSE_ERROR" => Self::ParseResponseError,
-            "PARSE_RESPONSE_DATA_ERROR" => Self::ParseResponseDataError,
-            _ => return Err(InvalidSecurityError),
-        })
-    }
-}
+derive_fromstr_and_display!(ExpectStapleResponseStatus, InvalidSecurityError, {
+    ExpectStapleResponseStatus::Missing => "MISSING",
+    ExpectStapleResponseStatus::Provided => "PROVIDED",
+    ExpectStapleResponseStatus::ErrorResponse => "ERROR_RESPONSE",
+    ExpectStapleResponseStatus::BadProducedAt => "BAD_PRODUCED_AT",
+    ExpectStapleResponseStatus::NoMatchingResponse => "NO_MATCHING_RESPONSE",
+    ExpectStapleResponseStatus::InvalidDate => "INVALID_DATE",
+    ExpectStapleResponseStatus::ParseResponseError => "PARSE_RESPONSE_ERROR",
+    ExpectStapleResponseStatus::ParseResponseDataError => "PARSE_RESPONSE_DATA_ERROR",
+});
 
 impl_str_serde!(ExpectStapleResponseStatus);
 
@@ -957,28 +908,11 @@ pub enum ExpectStapleCertStatus {
     Unknown,
 }
 
-impl fmt::Display for ExpectStapleCertStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Self::Good => write!(f, "GOOD"),
-            Self::Revoked => write!(f, "REVOKED"),
-            Self::Unknown => write!(f, "UNKNOWN"),
-        }
-    }
-}
-
-impl FromStr for ExpectStapleCertStatus {
-    type Err = InvalidSecurityError;
-
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        Ok(match string {
-            "GOOD" => Self::Good,
-            "REVOKED" => Self::Revoked,
-            "UNKNOWN" => Self::Unknown,
-            _ => return Err(InvalidSecurityError),
-        })
-    }
-}
+derive_fromstr_and_display!(ExpectStapleCertStatus, InvalidSecurityError, {
+    ExpectStapleCertStatus::Good => "GOOD",
+    ExpectStapleCertStatus::Revoked => "REVOKED",
+    ExpectStapleCertStatus::Unknown => "UNKNOWN",
+});
 
 impl_str_serde!(ExpectStapleCertStatus);
 
@@ -1074,8 +1008,9 @@ impl ExpectStapleRaw {
     }
 }
 
-/// Represents an Expect Staple security report
-/// See https://scotthelme.co.uk/ocsp-expect-staple/ for specification
+/// Represents an Expect Staple security report.
+///
+/// See <https://scotthelme.co.uk/ocsp-expect-staple/> for specification.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 pub struct ExpectStaple {
     date_time: Annotated<String>,
@@ -1680,6 +1615,7 @@ mod tests {
                 "date-time": "2014-04-06T13:00:50Z",
                 "hostname": "www.example.com",
                 "port": 443,
+                "scheme": "https",
                 "effective-expiration-date": "2014-05-01T12:40:50Z",
                 "served-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"],
                 "validated-certificate-chain": ["-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"],
@@ -1690,7 +1626,9 @@ mod tests {
                         "source": "embedded",
                         "serialized_sct": "ABCD=="
                     }
-                ]
+                ],
+                "failure-mode": "enforce",
+                "test-report": false
             }
         }"#;
 
@@ -1719,6 +1657,7 @@ mod tests {
             "date_time": "2014-04-06T13:00:50+00:00",
             "hostname": "www.example.com",
             "port": 443,
+            "scheme": "https",
             "effective_expiration_date": "2014-05-01T12:40:50+00:00",
             "served_certificate_chain": [
               "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"
@@ -1733,7 +1672,9 @@ mod tests {
                 "source": "embedded",
                 "serialized_sct": "ABCD=="
               }
-            ]
+            ],
+            "failure_mode": "enforce",
+            "test_report": false
           }
         }
         "###);

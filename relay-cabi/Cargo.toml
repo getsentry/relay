@@ -1,6 +1,6 @@
 [package]
 name = "relay-cabi"
-version = "0.5.12"
+version = "0.8.2"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
@@ -10,14 +10,7 @@ license-file = "../LICENSE"
 publish = false
 
 [lib]
-name = "relay"
 crate-type = ["cdylib"]
-
-[workspace]
-
-[profile.release]
-debug = true
-lto = true
 
 [dependencies]
 chrono = "0.4.11"
@@ -28,5 +21,6 @@ serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
 relay-auth = { path = "../relay-auth" }
 relay-common = { path = "../relay-common" }
+relay-ffi = { path = "../relay-ffi" }
 relay-general = { path = "../relay-general" }
 sentry-release-parser = { version = "0.6.0", features = ["serde"] }

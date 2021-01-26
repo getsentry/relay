@@ -1,0 +1,16 @@
+[package]
+name = "generate-schema"
+version = "0.1.0"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Generates an event payload schema file"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+edition = "2018"
+publish = false
+
+[dependencies]
+anyhow = "1.0.32"
+paw = "1.0.0"
+relay-general = { path = "../../relay-general", features = ["jsonschema"] }
+serde_json = "1.0.55"
+structopt = { version = "0.3.16", features = ["paw"] }

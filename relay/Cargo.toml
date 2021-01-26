@@ -1,0 +1,36 @@
+[package]
+name = "relay"
+authors = ["Sentry <oss@sentry.io>"]
+description = "The Relay binary, a proxy server for Sentry"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "21.1.0"
+edition = "2018"
+build = "build.rs"
+license-file = "../LICENSE"
+publish = false
+
+[features]
+default = ["ssl"]
+ssl = ["relay-server/ssl"]
+processing = ["relay-server/processing"]
+
+# Direct dependencies of the main application in `src/`
+[dependencies]
+clap = { version = "2.33.0", default-features = false, features = ["wrap_help"] }
+console = "0.10.0"
+dialoguer = "0.5.0"
+failure = "0.1.8"
+futures = "0.1.28"
+hostname = "0.3.1"
+lazy_static = "1.4.0"
+relay-common = { path = "../relay-common" }
+relay-config = { path = "../relay-config" }
+relay-log = { path = "../relay-log" }
+relay-server = { path = "../relay-server" }
+
+[target."cfg(not(windows))".dependencies]
+openssl-probe = "0.1.2"
+
+[build-dependencies]
+clap = { version = "2.33.1", default-features = false }

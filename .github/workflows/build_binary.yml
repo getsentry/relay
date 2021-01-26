@@ -1,0 +1,98 @@
+name: Binary Release Build
+
+on:
+  push:
+    branches:
+      - release/**
+
+jobs:
+  linux:
+    name: Linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Build in Docker
+        run: scripts/docker-build-linux.sh
+        env:
+          BUILD_ARCH: x86_64
+          RELAY_FEATURES: ssl
+
+      - name: Bundle Debug File
+        run: |
+          cd target/x86_64-unknown-linux-gnu/release/
+          zip relay-Linux-x86_64-debug.zip relay.debug
+          mv relay relay-Linux-x86_64
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.sha }}
+          path: target/x86_64-unknown-linux-gnu/release/relay-Linux-x86_64*
+
+  macos:
+    name: macOS
+    runs-on: macos-10.15
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Run Cargo Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --manifest-path=relay/Cargo.toml --release --features ssl
+
+      - name: Bundle dSYM
+        run: |
+          cd target/release
+          mv relay relay-Darwin-x86_64
+          zip -r relay-Darwin-x86_64-dsym.zip relay.dSYM
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.sha }}
+          path: target/release/relay-Darwin-x86_64*
+
+  windows:
+    name: Windows
+    runs-on: windows-2019
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Run Cargo Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --manifest-path=relay/Cargo.toml --release --features ssl
+
+      - name: Bundle PDB
+        run: |
+          Install-Module 7Zip4PowerShell -Force -Verbose
+          cd target/release
+          7z a relay-Windows-x86_64-pdb.zip relay.pdb
+          mv relay.exe relay-Windows-x86_64.exe
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.sha }}
+          path: target/release/relay-Windows-x86_64*

@@ -1,10 +1,10 @@
 use std::borrow::Cow;
 use std::cmp;
 use std::fmt;
-use std::str::FromStr;
+use std::ops::RangeInclusive;
 
+use enumset::{EnumSet, EnumSetType};
 use failure::Fail;
-use regex::Regex;
 use smallvec::SmallVec;
 
 use crate::processor::{ProcessValue, SelectorPathItem, SelectorSpec};
@@ -16,7 +16,7 @@ use crate::types::Annotated;
 pub struct UnknownValueTypeError;
 
 /// The (simplified) type of a value.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Ord, PartialOrd, EnumSetType)]
 pub enum ValueType {
     // Basic types
     String,
@@ -51,76 +51,39 @@ pub enum ValueType {
 }
 
 impl ValueType {
-    pub fn for_field<T: ProcessValue>(field: &Annotated<T>) -> Option<Self> {
-        field.value().and_then(ProcessValue::value_type)
-    }
-
-    pub fn name(self) -> &'static str {
-        match self {
-            ValueType::String => "string",
-            ValueType::Binary => "binary",
-            ValueType::Number => "number",
-            ValueType::Boolean => "boolean",
-            ValueType::DateTime => "datetime",
-            ValueType::Array => "array",
-            ValueType::Object => "object",
-            ValueType::Event => "event",
-            ValueType::Attachments => "attachments",
-            ValueType::Exception => "error",
-            ValueType::Stacktrace => "stack",
-            ValueType::Frame => "frame",
-            ValueType::Request => "http",
-            ValueType::User => "user",
-            ValueType::LogEntry => "logentry",
-            ValueType::Message => "message",
-            ValueType::Thread => "thread",
-            ValueType::Breadcrumb => "breadcrumb",
-            ValueType::Span => "span",
-            ValueType::ClientSdkInfo => "sdk",
-            ValueType::Minidump => "minidump",
-            ValueType::HeapMemory => "heap_memory",
-            ValueType::StackMemory => "stack_memory",
-        }
+    pub fn for_field<T: ProcessValue>(field: &Annotated<T>) -> EnumSet<Self> {
+        field
+            .value()
+            .map(ProcessValue::value_type)
+            .unwrap_or_else(EnumSet::empty)
     }
 }
 
-impl fmt::Display for ValueType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.name())
-    }
-}
-
-impl FromStr for ValueType {
-    type Err = UnknownValueTypeError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s {
-            "string" => ValueType::String,
-            "binary" => ValueType::Binary,
-            "number" => ValueType::Number,
-            "bool" | "boolean" => ValueType::Boolean,
-            "datetime" => ValueType::DateTime,
-            "array" | "list" => ValueType::Array,
-            "object" => ValueType::Object,
-            "event" => ValueType::Event,
-            "attachments" => ValueType::Attachments,
-            "exception" | "error" => ValueType::Exception,
-            "stacktrace" | "stack" => ValueType::Stacktrace,
-            "frame" => ValueType::Frame,
-            "request" | "http" => ValueType::Request,
-            "user" => ValueType::User,
-            "logentry" => ValueType::LogEntry,
-            "message" => ValueType::Message,
-            "thread" => ValueType::Thread,
-            "breadcrumb" => ValueType::Breadcrumb,
-            "sdk" => ValueType::ClientSdkInfo,
-            "minidump" => ValueType::Minidump,
-            "heap_memory" => ValueType::HeapMemory,
-            "stack_memory" => ValueType::StackMemory,
-            _ => return Err(UnknownValueTypeError),
-        })
-    }
-}
+derive_fromstr_and_display!(ValueType, UnknownValueTypeError, {
+    ValueType::String => "string",
+    ValueType::Binary => "binary",
+    ValueType::Number => "number",
+    ValueType::Boolean => "boolean" | "bool",
+    ValueType::DateTime => "datetime",
+    ValueType::Array => "array" | "list",
+    ValueType::Object => "object",
+    ValueType::Event => "event",
+    ValueType::Attachments => "attachments",
+    ValueType::Exception => "error" | "exception",
+    ValueType::Stacktrace => "stack" | "stacktrace",
+    ValueType::Frame => "frame",
+    ValueType::Request => "http" | "request",
+    ValueType::User => "user",
+    ValueType::LogEntry => "logentry",
+    ValueType::Message => "message",
+    ValueType::Thread => "thread",
+    ValueType::Breadcrumb => "breadcrumb",
+    ValueType::Span => "span",
+    ValueType::ClientSdkInfo => "sdk",
+    ValueType::Minidump => "minidump",
+    ValueType::HeapMemory => "heap_memory",
+    ValueType::StackMemory => "stack_memory",
+});
 
 /// The maximum length of a field.
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]
@@ -233,7 +196,7 @@ pub enum Pii {
 }
 
 /// Meta information about a field.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct FieldAttrs {
     /// Optionally the name of the field.
     pub name: Option<&'static str>,
@@ -243,8 +206,8 @@ pub struct FieldAttrs {
     pub nonempty: bool,
     /// Whether to trim whitespace from this string.
     pub trim_whitespace: bool,
-    /// A regex to validate the (string) value against.
-    pub match_regex: Option<Regex>,
+    /// A set of allowed or denied character ranges for this string.
+    pub characters: Option<CharacterSet>,
     /// The maximum char length of this field.
     pub max_chars: Option<MaxChars>,
     /// The maximum bag size of this field.
@@ -255,6 +218,28 @@ pub struct FieldAttrs {
     pub retain: bool,
 }
 
+/// A set of characters allowed or denied for a (string) field.
+///
+/// Note that this field is generated in the derive, it can't be constructed easily in tests.
+#[derive(Clone, Copy)]
+pub struct CharacterSet {
+    /// Generated in derive for performance. Can be left out when set is created manually.
+    pub char_is_valid: fn(char) -> bool,
+    /// A set of ranges that are allowed/denied within the character set
+    pub ranges: &'static [RangeInclusive<char>],
+    /// Whether the character set is inverted
+    pub is_negative: bool,
+}
+
+impl fmt::Debug for CharacterSet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CharacterSet")
+            .field("ranges", &self.ranges)
+            .field("is_negative", &self.is_negative)
+            .finish()
+    }
+}
+
 impl FieldAttrs {
     /// Creates default `FieldAttrs`.
     pub const fn new() -> Self {
@@ -263,7 +248,7 @@ impl FieldAttrs {
             required: false,
             nonempty: false,
             trim_whitespace: false,
-            match_regex: None,
+            characters: None,
             max_chars: None,
             bag_size: None,
             pii: Pii::False,
@@ -373,13 +358,25 @@ impl<'a> fmt::Display for PathItem<'a> {
     }
 }
 
-/// Processing state passed downwards during processing.
+/// An event's processing state.
+///
+/// The processing state describes an item in an event which is being processed, an example
+/// of processing might be scrubbing the event for PII.  The processing state itself
+/// describes the current item and it's parent, which allows you to follow all the items up
+/// to the root item.  You can think of processing an event as a visitor pattern visiting
+/// all items in the event and the processing state is a stack describing the currently
+/// visited item and all it's parents.
+///
+/// To use a processing state you most likely want to check whether a selector matches the
+/// current state.  For this you turn the state into a [`Path`] using
+/// [`ProcessingState::path`] and call [`Path::matches_selector`] which will iterate through
+/// the path items in the processing state and check whether a selector matches.
 #[derive(Debug, Clone)]
 pub struct ProcessingState<'a> {
     parent: Option<&'a ProcessingState<'a>>,
     path_item: Option<PathItem<'a>>,
     attrs: Option<Cow<'a, FieldAttrs>>,
-    value_type: Option<ValueType>,
+    value_type: EnumSet<ValueType>,
     depth: usize,
 }
 
@@ -387,7 +384,7 @@ static ROOT_STATE: ProcessingState = ProcessingState {
     parent: None,
     path_item: None,
     attrs: None,
-    value_type: None,
+    value_type: enumset::enum_set!(),
     depth: 0,
 };
 
@@ -400,13 +397,13 @@ impl<'a> ProcessingState<'a> {
     /// Creates a new root state.
     pub fn new_root(
         attrs: Option<Cow<'static, FieldAttrs>>,
-        value_type: Option<ValueType>,
+        value_type: impl IntoIterator<Item = ValueType>,
     ) -> ProcessingState<'static> {
         ProcessingState {
             parent: None,
             path_item: None,
             attrs,
-            value_type,
+            value_type: value_type.into_iter().collect(),
             depth: 0,
         }
     }
@@ -416,13 +413,13 @@ impl<'a> ProcessingState<'a> {
         &'a self,
         key: &'static str,
         attrs: Option<Cow<'static, FieldAttrs>>,
-        value_type: Option<ValueType>,
+        value_type: impl IntoIterator<Item = ValueType>,
     ) -> Self {
         ProcessingState {
             parent: Some(self),
             path_item: Some(PathItem::StaticKey(key)),
             attrs,
-            value_type,
+            value_type: value_type.into_iter().collect(),
             depth: self.depth + 1,
         }
     }
@@ -432,13 +429,13 @@ impl<'a> ProcessingState<'a> {
         &'a self,
         key: &'a str,
         attrs: Option<Cow<'a, FieldAttrs>>,
-        value_type: Option<ValueType>,
+        value_type: impl IntoIterator<Item = ValueType>,
     ) -> Self {
         ProcessingState {
             parent: Some(self),
             path_item: Some(PathItem::StaticKey(key)),
             attrs,
-            value_type,
+            value_type: value_type.into_iter().collect(),
             depth: self.depth + 1,
         }
     }
@@ -448,13 +445,13 @@ impl<'a> ProcessingState<'a> {
         &'a self,
         idx: usize,
         attrs: Option<Cow<'a, FieldAttrs>>,
-        value_type: Option<ValueType>,
+        value_type: impl IntoIterator<Item = ValueType>,
     ) -> Self {
         ProcessingState {
             parent: Some(self),
             path_item: Some(PathItem::Index(idx)),
             attrs,
-            value_type,
+            value_type: value_type.into_iter().collect(),
             depth: self.depth + 1,
         }
     }
@@ -474,7 +471,7 @@ impl<'a> ProcessingState<'a> {
         Path(&self)
     }
 
-    pub fn value_type(&self) -> Option<ValueType> {
+    pub fn value_type(&self) -> EnumSet<ValueType> {
         self.value_type
     }
 
@@ -496,6 +493,9 @@ impl<'a> ProcessingState<'a> {
     }
 
     /// Iterates through this state and all its ancestors up the hierarchy.
+    ///
+    /// This starts at the top of the stack of processing states and ends at the root.  Thus
+    /// the first item returned is the currently visited leaf of the event structure.
     pub fn iter(&'a self) -> ProcessingStateIter<'a> {
         ProcessingStateIter {
             state: Some(self),
@@ -574,7 +574,10 @@ pub enum PiiMatch {
     SpecificMatch,
 }
 
-/// Represents the path in a structure
+/// Represents the [`ProcessingState`] as a path.
+///
+/// This is a view of a [`ProcessingState`] which treats the stack of states as a path.  In
+/// particular the [`Path::matches_selector`] method allows if a selector matches this path.
 #[derive(Debug)]
 pub struct Path<'a>(&'a ProcessingState<'a>);
 
@@ -591,6 +594,10 @@ impl<'a> Path<'a> {
         PathItem::index(self.0.path_item()?)
     }
 
+    /// Checks if a path matches given selector.
+    ///
+    /// This walks both the selector and the path starting at the end and towards the root
+    /// to determine if the selector matches the current path.
     pub fn matches_selector(&self, selector: &SelectorSpec) -> bool {
         match (self.0.attrs().pii, self.match_selector(selector)) {
             (_, PiiMatch::NoMatch) => false,

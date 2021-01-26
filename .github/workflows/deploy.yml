@@ -1,0 +1,157 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - master
+
+  # Run actions on PRs, but only deploy on master
+  pull_request:
+
+jobs:
+  cargo_docs:
+    name: Cargo Docs
+    runs-on: ubuntu-latest
+
+    env:
+      RUSTDOCFLAGS: -Dbroken_intra_doc_links
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          components: rust-docs
+          override: true
+
+      - uses: swatinem/rust-cache@v1
+        with:
+          key: ${{ github.job }}
+
+      - name: Build Docs
+        uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --workspace --all-features --no-deps
+
+      - run: echo '<meta http-equiv="refresh" content="0; url=relay/" />Redirecting to <a href="relay/">relay</a>' > target/doc/index.html
+
+      - name: Deploy
+        if: github.ref == 'refs/heads/master'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: target/doc
+
+  event_schema:
+    name: Event Schema
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - uses: swatinem/rust-cache@v1
+        with:
+          key: ${{ github.job }}
+
+      - name: Generate Schema
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: -p generate-schema -- -o event.schema.json
+
+      - name: Deploy
+        if: github.ref == 'refs/heads/master'
+        env:
+          GITHUB_TOKEN: ${{ secrets.DATA_SCHEMAS_GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "$(git log -1 --pretty=format:%an $GITHUB_SHA)"
+          git config --global user.email "$(git log -1 --pretty=format:%ae $GITHUB_SHA)"
+          git clone https://getsentry-bot:$GITHUB_TOKEN@github.com/getsentry/sentry-data-schemas
+          cd sentry-data-schemas/
+          mkdir -p ./relay/
+          mv ../event.schema.json relay/event.schema.json
+          git add relay/event.schema.json
+
+          echo "attempting commit"
+          if ! git commit -m "getsentry/relay@$GITHUB_SHA" ; then
+            echo "Stopping, no changes"
+            exit 0
+          fi
+
+          for i in 1 2 3 4 5; do
+            echo "git push; Attempt $i"
+            if git push; then
+              exit 0
+            fi
+
+            git pull --rebase
+          done
+
+          echo "Failed to push"
+          exit 1
+
+  metrics_docs:
+    name: Metrics Docs
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - uses: swatinem/rust-cache@v1
+        with:
+          key: ${{ github.job }}
+
+      - name: Document Metrics
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: -p document-metrics -- -o relay_metrics.json
+
+      - name: Deploy
+        if: github.ref == 'refs/heads/master'
+        env:
+          GITHUB_TOKEN: ${{ secrets.DATA_SCHEMAS_GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "$(git log -1 --pretty=format:%an $GITHUB_SHA)"
+          git config --global user.email "$(git log -1 --pretty=format:%ae $GITHUB_SHA)"
+          git clone https://getsentry-bot:$GITHUB_TOKEN@github.com/getsentry/sentry-docs
+          cd sentry-docs/
+          mv ../relay_metrics.json src/data/relay_metrics.json
+          git add src/data/relay_metrics.json
+
+          echo "attempting commit"
+          if ! git commit -m "getsentry/relay@$GITHUB_SHA" ; then
+            echo "Stopping, no changes"
+            exit 0
+          fi
+
+          for i in 1 2 3 4 5; do
+            echo "git push; Attempt $i"
+            if git push; then
+              exit 0
+            fi
+
+            git pull --rebase
+          done
+
+          echo "Failed to push"
+          exit 1

@@ -23,7 +23,7 @@ impl<F> Drop for DropGuardedFuture<F> {
             if cfg!(test) {
                 panic!("Dropped unfinished future during shutdown: {}", self.name);
             } else {
-                log::error!("Dropped unfinished future during shutdown: {}", self.name);
+                relay_log::error!("Dropped unfinished future during shutdown: {}", self.name);
             }
         }
     }
@@ -38,10 +38,7 @@ where
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let rv = self.future.poll();
-        self.done = match rv {
-            Ok(Async::NotReady) => false,
-            _ => true,
-        };
+        self.done = !matches!(rv, Ok(Async::NotReady));
         rv
     }
 }
@@ -60,10 +57,7 @@ where
         ctx: &mut <Self::Actor as Actor>::Context,
     ) -> Poll<Self::Item, Self::Error> {
         let rv = self.future.poll(srv, ctx);
-        self.done = match rv {
-            Ok(Async::NotReady) => false,
-            _ => true,
-        };
+        self.done = !matches!(rv, Ok(Async::NotReady));
         rv
     }
 }

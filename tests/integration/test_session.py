@@ -1,8 +1,43 @@
 from datetime import datetime, timedelta, timezone
+import json
 import pytest
 from requests.exceptions import HTTPError
 import six
 import uuid
+
+
+def test_sessions(mini_sentry, relay_chain):
+    relay = relay_chain()
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    timestamp = datetime.now(tz=timezone.utc)
+    started = timestamp - timedelta(hours=1)
+
+    session_payload = {
+        "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+        "did": "foobarbaz",
+        "seq": 42,
+        "init": True,
+        "timestamp": timestamp.isoformat(),
+        "started": started.isoformat(),
+        "duration": 1947.49,
+        "status": "exited",
+        "errors": 0,
+        "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
+    }
+
+    relay.send_session(project_id, session_payload)
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    assert len(envelope.items) == 1
+
+    session_item = envelope.items[0]
+    assert session_item.type == "session"
+
+    session = json.loads(session_item.get_bytes())
+    assert session == session_payload
 
 
 def test_session_with_processing(mini_sentry, relay_with_processing, sessions_consumer):
@@ -12,9 +47,10 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
 
-    mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
     relay.send_session(
-        42,
+        project_id,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "did": "foobarbaz",
@@ -32,9 +68,10 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
     session = sessions_consumer.get_session()
     assert session == {
         "org_id": 1,
-        "project_id": 42,
+        "project_id": project_id,
         "session_id": "8333339f-5675-4f89-a9a0-1c935255ab58",
         "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
+        "quantity": 1,
         # seq is forced to 0 when init is true
         "seq": 0,
         "received": timestamp.timestamp(),
@@ -45,6 +82,7 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
         "release": "sentry-test@1.0.0",
         "environment": "production",
         "retention_days": 90,
+        "sdk": "raven-node/2.6.3",
     }
 
 
@@ -57,9 +95,10 @@ def test_session_with_processing_two_events(
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
 
-    mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
     relay.send_session(
-        42,
+        project_id,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "did": "foobarbaz",
@@ -74,9 +113,10 @@ def test_session_with_processing_two_events(
     session = sessions_consumer.get_session()
     assert session == {
         "org_id": 1,
-        "project_id": 42,
+        "project_id": project_id,
         "session_id": "8333339f-5675-4f89-a9a0-1c935255ab58",
         "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
+        "quantity": 1,
         # seq is forced to 0 when init is true
         "seq": 0,
         "received": timestamp.timestamp(),
@@ -87,10 +127,11 @@ def test_session_with_processing_two_events(
         "release": "sentry-test@1.0.0",
         "environment": "production",
         "retention_days": 90,
+        "sdk": "raven-node/2.6.3",
     }
 
     relay.send_session(
-        42,
+        project_id,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "did": "foobarbaz",
@@ -105,9 +146,10 @@ def test_session_with_processing_two_events(
     session = sessions_consumer.get_session()
     assert session == {
         "org_id": 1,
-        "project_id": 42,
+        "project_id": project_id,
         "session_id": "8333339f-5675-4f89-a9a0-1c935255ab58",
         "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
+        "quantity": 1,
         "seq": 43,
         "received": timestamp.timestamp(),
         "started": started.timestamp(),
@@ -117,6 +159,91 @@ def test_session_with_processing_two_events(
         "release": "sentry-test@1.0.0",
         "environment": "production",
         "retention_days": 90,
+        "sdk": "raven-node/2.6.3",
+    }
+
+
+def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consumer):
+    relay = relay_with_processing()
+    sessions_consumer = sessions_consumer()
+
+    timestamp = datetime.now(tz=timezone.utc)
+    started1 = timestamp - timedelta(hours=1)
+    started2 = started1 - timedelta(hours=1)
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    relay.send_session_aggregates(
+        project_id,
+        {
+            "aggregates": [
+                {
+                    "started": started1.isoformat(),
+                    "did": "foobarbaz",
+                    "exited": 2,
+                    "errored": 3,
+                },
+                {"started": started2.isoformat(), "abnormal": 1,},
+            ],
+            "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
+        },
+    )
+
+    session = sessions_consumer.get_session()
+    del session["received"]
+    assert session == {
+        "org_id": 1,
+        "project_id": project_id,
+        "session_id": "00000000-0000-0000-0000-000000000000",
+        "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
+        "quantity": 2,
+        "seq": 0,
+        "started": started1.timestamp(),
+        "duration": None,
+        "status": "exited",
+        "errors": 0,
+        "release": "sentry-test@1.0.0",
+        "environment": "production",
+        "retention_days": 90,
+        "sdk": "raven-node/2.6.3",
+    }
+
+    session = sessions_consumer.get_session()
+    del session["received"]
+    assert session == {
+        "org_id": 1,
+        "project_id": project_id,
+        "session_id": "00000000-0000-0000-0000-000000000000",
+        "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
+        "quantity": 3,
+        "seq": 0,
+        "started": started1.timestamp(),
+        "duration": None,
+        "status": "errored",
+        "errors": 1,
+        "release": "sentry-test@1.0.0",
+        "environment": "production",
+        "retention_days": 90,
+        "sdk": "raven-node/2.6.3",
+    }
+
+    session = sessions_consumer.get_session()
+    del session["received"]
+    assert session == {
+        "org_id": 1,
+        "project_id": project_id,
+        "session_id": "00000000-0000-0000-0000-000000000000",
+        "distinct_id": "00000000-0000-0000-0000-000000000000",
+        "quantity": 1,
+        "seq": 0,
+        "started": started2.timestamp(),
+        "duration": None,
+        "status": "abnormal",
+        "errors": 1,
+        "release": "sentry-test@1.0.0",
+        "environment": "production",
+        "retention_days": 90,
+        "sdk": "raven-node/2.6.3",
     }
 
 
@@ -126,13 +253,13 @@ def test_session_with_custom_retention(
     relay = relay_with_processing()
     sessions_consumer = sessions_consumer()
 
-    project_config = mini_sentry.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 17
-    mini_sentry.project_configs[42] = project_config
 
     timestamp = datetime.now(tz=timezone.utc)
     relay.send_session(
-        42,
+        project_id,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "timestamp": timestamp.isoformat(),
@@ -149,15 +276,15 @@ def test_session_age_discard(mini_sentry, relay_with_processing, sessions_consum
     relay = relay_with_processing()
     sessions_consumer = sessions_consumer()
 
-    project_config = mini_sentry.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 17
-    mini_sentry.project_configs[42] = project_config
 
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(days=5, hours=1)
 
     relay.send_session(
-        42,
+        project_id,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "timestamp": timestamp.isoformat(),
@@ -178,9 +305,10 @@ def test_session_force_errors_on_crash(
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
 
-    mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
     relay.send_session(
-        42,
+        project_id,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "did": "foobarbaz",
@@ -196,9 +324,10 @@ def test_session_force_errors_on_crash(
     session = sessions_consumer.get_session()
     assert session == {
         "org_id": 1,
-        "project_id": 42,
+        "project_id": project_id,
         "session_id": "8333339f-5675-4f89-a9a0-1c935255ab58",
         "distinct_id": "367e2499-2b45-586d-814f-778b60144e87",
+        "quantity": 1,
         # seq is forced to 0 when init is true
         "seq": 0,
         "received": timestamp.timestamp(),
@@ -209,6 +338,7 @@ def test_session_force_errors_on_crash(
         "release": "sentry-test@1.0.0",
         "environment": "production",
         "retention_days": 90,
+        "sdk": "raven-node/2.6.3",
     }
 
 
@@ -218,15 +348,15 @@ def test_session_release_required(
     relay = relay_with_processing()
     sessions_consumer = sessions_consumer()
 
-    project_config = mini_sentry.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 17
-    mini_sentry.project_configs[42] = project_config
 
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(days=5, hours=1)
 
     relay.send_session(
-        42,
+        project_id,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "timestamp": timestamp.isoformat(),
@@ -243,7 +373,8 @@ def test_session_quotas(mini_sentry, relay_with_processing, sessions_consumer):
     relay = relay_with_processing()
     sessions_consumer = sessions_consumer()
 
-    project_config = mini_sentry.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 17
     project_config["config"]["quotas"] = [
         {
@@ -256,7 +387,6 @@ def test_session_quotas(mini_sentry, relay_with_processing, sessions_consumer):
             "reasonCode": "sessions_exceeded",
         }
     ]
-    mini_sentry.project_configs[42] = project_config
 
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
@@ -269,15 +399,15 @@ def test_session_quotas(mini_sentry, relay_with_processing, sessions_consumer):
     }
 
     for i in range(5):
-        relay.send_session(42, session)
+        relay.send_session(project_id, session)
         sessions_consumer.get_session()
 
     # Rate limited, but responds with 200 because of deferred processing
-    relay.send_session(42, session)
+    relay.send_session(project_id, session)
     assert sessions_consumer.poll() is None
 
     with pytest.raises(HTTPError):
-        relay.send_session(42, session)
+        relay.send_session(project_id, session)
     assert sessions_consumer.poll() is None
 
 
@@ -285,7 +415,8 @@ def test_session_disabled(mini_sentry, relay_with_processing, sessions_consumer)
     relay = relay_with_processing()
     sessions_consumer = sessions_consumer()
 
-    project_config = mini_sentry.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["eventRetention"] = 17
     project_config["config"]["quotas"] = [
         {
@@ -296,13 +427,12 @@ def test_session_disabled(mini_sentry, relay_with_processing, sessions_consumer)
             "reasonCode": "sessions_exceeded",
         }
     ]
-    mini_sentry.project_configs[42] = project_config
 
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
 
     relay.send_session(
-        42,
+        project_id,
         {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "timestamp": timestamp.isoformat(),
@@ -312,3 +442,27 @@ def test_session_disabled(mini_sentry, relay_with_processing, sessions_consumer)
     )
 
     assert sessions_consumer.poll() is None
+
+
+def test_session_auto_ip(mini_sentry, relay_with_processing, sessions_consumer):
+    relay = relay_with_processing()
+    sessions_consumer = sessions_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["eventRetention"] = 17
+
+    timestamp = datetime.now(tz=timezone.utc)
+    relay.send_session(
+        project_id,
+        {
+            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+            "timestamp": timestamp.isoformat(),
+            "started": timestamp.isoformat(),
+            "attrs": {"release": "sentry-test@1.0.0", "ip_address": "{{auto}}"},
+        },
+    )
+
+    # Can't test ip_address since it's not posted to Kafka. Just test that it is accepted.
+    session = sessions_consumer.get_session()
+    assert session

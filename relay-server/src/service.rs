@@ -6,7 +6,6 @@ use actix_web::{server, App};
 use failure::ResultExt;
 use failure::{Backtrace, Context, Fail};
 use listenfd::ListenFd;
-use sentry_actix::SentryMiddleware;
 
 use relay_common::clone;
 use relay_config::Config;
@@ -18,11 +17,12 @@ use crate::actors::events::EventManager;
 use crate::actors::healthcheck::Healthcheck;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::ProjectCache;
-use crate::actors::project_keys::ProjectKeyLookup;
 use crate::actors::relays::RelayCache;
 use crate::actors::upstream::UpstreamRelay;
 use crate::endpoints;
-use crate::middlewares::{AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware};
+use crate::middlewares::{
+    AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
+};
 
 /// Common error type for the relay server.
 #[derive(Debug)]
@@ -111,7 +111,6 @@ pub struct ServiceState {
     project_cache: Addr<ProjectCache>,
     upstream_relay: Addr<UpstreamRelay>,
     event_manager: Addr<EventManager>,
-    key_lookup: Addr<ProjectKeyLookup>,
     outcome_producer: Addr<OutcomeProducer>,
     healthcheck: Addr<Healthcheck>,
 }
@@ -145,7 +144,6 @@ impl ServiceState {
 
         Ok(ServiceState {
             config: config.clone(),
-            key_lookup: ProjectKeyLookup::new(config.clone(), upstream_relay.clone()).start(),
             upstream_relay: upstream_relay.clone(),
             relay_cache: RelayCache::new(config.clone(), upstream_relay.clone()).start(),
             project_cache,
@@ -175,11 +173,6 @@ impl ServiceState {
         self.event_manager.clone()
     }
 
-    /// Returns project id lookup for project keys.
-    pub fn key_lookup(&self) -> Addr<ProjectKeyLookup> {
-        self.key_lookup.clone()
-    }
-
     pub fn outcome_producer(&self) -> Addr<OutcomeProducer> {
         self.outcome_producer.clone()
     }
@@ -187,6 +180,11 @@ impl ServiceState {
     /// Returns the actor for healthchecks.
     pub fn healthcheck(&self) -> Addr<Healthcheck> {
         self.healthcheck.clone()
+    }
+
+    /// Returns an actor for making raw HTTP requests against upstream.
+    pub fn upstream_relay(&self) -> Addr<UpstreamRelay> {
+        self.upstream_relay.clone()
     }
 }
 
@@ -208,9 +206,9 @@ where
     H: server::IntoHttpHandler + 'static,
     F: Fn() -> H + Send + Clone + 'static,
 {
-    log::info!("spawning http server");
+    relay_log::info!("spawning http server");
     for (addr, scheme) in server.addrs_with_scheme() {
-        log::info!("  listening on: {}://{}/", scheme, addr);
+        relay_log::info!("  listening on: {}://{}/", scheme, addr);
     }
 }
 

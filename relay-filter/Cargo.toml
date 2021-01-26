@@ -1,10 +1,10 @@
 [package]
 name = "relay-filter"
 authors = ["Sentry <oss@sentry.io>"]
-description = "Sentry Event filters"
+description = "Inbound data filters for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "20.8.0"
+version = "21.1.0"
 edition = "2018"
 license-file = "../LICENSE"
 publish = false

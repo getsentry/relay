@@ -7,6 +7,7 @@ use schemars::gen::SchemaGenerator;
 #[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
 
+use enumset::EnumSet;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -39,8 +40,14 @@ impl<T: Into<String>> From<T> for NativeImagePath {
 
 impl ProcessValue for NativeImagePath {
     #[inline]
-    fn value_type(&self) -> Option<ValueType> {
-        Some(ValueType::String)
+    fn value_type(&self) -> EnumSet<ValueType> {
+        // Explicit decision not to expose NativeImagePath as valuetype, as people should not be
+        // able to address processing internals.
+        //
+        // Also decided against exposing a $filepath ("things that may contain filenames") because
+        // ruletypes/regexes are better suited for this, and in the case of $frame.package (where
+        // it depends on platform) it's really not that useful.
+        EnumSet::only(ValueType::String)
     }
 
     #[inline]
@@ -371,13 +378,11 @@ pub struct NativeDebugImage {
     /// Starting memory address of the image (required).
     ///
     /// Memory address, at which the image is mounted in the virtual address space of the process. Should be a string in hex representation prefixed with `"0x"`.
-    #[metastructure(required = "true")]
     pub image_addr: Annotated<Addr>,
 
     /// Size of the image in bytes (required).
     ///
     /// The size of the image in virtual memory. If missing, Sentry will assume that the image spans up to the next image, which might lead to invalid stack traces.
-    #[metastructure(required = "true")]
     pub image_size: Annotated<u64>,
 
     /// Loading address in virtual memory.
@@ -430,6 +435,8 @@ pub enum DebugImage {
     Pe(Box<NativeDebugImage>),
     /// A reference to a proguard debug file.
     Proguard(Box<ProguardDebugImage>),
+    /// WASM debug image.
+    Wasm(Box<NativeDebugImage>),
     /// A debug image that is unknown to this protocol specification.
     #[metastructure(fallback_variant)]
     Other(Object<Value>),

@@ -1,6 +1,48 @@
 # Changelog
 
-## Unreleased
+## 0.8.2
+
+- Fix compile errors in the sdist with Rust 1.47 and later. ([#801](https://github.com/getsentry/relay/pull/801))
+- Emit more useful normalization meta data for invalid tags. ([#808](https://github.com/getsentry/relay/pull/808))
+- Internal refactoring such that validating of characters in tags no longer uses regexes internally. ([#814](https://github.com/getsentry/relay/pull/814))
+- Normalize `breadcrumb.ty` into `breadcrumb.type` for broken Python SDK versions. ([#824](https://github.com/getsentry/relay/pull/824))
+- Emit event errors and normalization errors for unknown breadcrumb keys. ([#824](https://github.com/getsentry/relay/pull/824))
+- Make `$error.value` `pii=true`. ([#837](https://github.com/getsentry/relay/pull/837))
+- Add protocol support for WASM. ([#852](https://github.com/getsentry/relay/pull/852))
+- Add missing fields for Expect-CT reports. ([#865](https://github.com/getsentry/relay/pull/865))
+- Support more directives in CSP reports, such as `block-all-mixed-content` and `require-trusted-types-for`. ([#876](https://github.com/getsentry/relay/pull/876))
+- Fix a long-standing bug where log messages were not addressible as `$string`. ([#882](https://github.com/getsentry/relay/pull/882))
+- Use manylinux2010 to build releases instead of manylinux1 to fix issues with newer Rust. ([#917](https://github.com/getsentry/relay/pull/917))
+
+## 0.8.1
+
+- Add support for measurement ingestion. ([#724](https://github.com/getsentry/relay/pull/724), [#785](https://github.com/getsentry/relay/pull/785))
+
+## 0.8.0
+
+- Fix issue where `$span` would not be recognized in Advanced Data Scrubbing. ([#781](https://github.com/getsentry/relay/pull/781))
+- Require macOS 10.15.0 or newer for the macOS wheel after moving to GitHub Actions. ([#780](https://github.com/getsentry/relay/pull/780))
+
+## 0.7.0
+
+- In PII configs, all options on hash and mask redactions (replacement characters, ignored characters, hash algorithm/key) are removed. If they still exist in the configuration, they are ignored. ([#760](https://github.com/getsentry/relay/pull/760))
+- Rename to the library target to `relay_cabi` and add documentation. ([#763](https://github.com/getsentry/relay/pull/763))
+- Update FFI bindings with a new implementation for error handling. ([#766](https://github.com/getsentry/relay/pull/766))
+- **Breaking:** Delete `scrub_event` function from public API. ([#773](https://github.com/getsentry/relay/pull/773))
+- Add Relay version version to challenge response. ([#758](https://github.com/getsentry/relay/pull/758))
+
+## 0.6.1
+
+- Removed deprecated `pii_selectors_from_event`.
+- Return `UnpackErrorSignatureExpired` from `validate_register_response` when the timestamp is too old.
+
+## 0.6.0
+
+- Updates the authentication mechanism by introducing a signed register state. Signatures of `create_register_challenge` and `validate_register_response` now take a mandatory `secret` parameter, and the public key is encoded into the state. ([#743](https://github.com/getsentry/relay/pull/743))
+
+## 0.5.13
+
+_Note: This accidentally got released as 0.15.13 as well, which has since been yanked._
 
 - Fix Python 3 incompatibilities in Relay authentication helpers. ([#712](https://github.com/getsentry/relay/pull/712))
 

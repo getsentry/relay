@@ -1,15 +1,17 @@
 ---
-minVersion: "0.10.0"
+minVersion: "0.14.0"
 github:
   owner: getsentry
   repo: relay
 changelogPolicy: auto
+
 statusProvider:
+  name: github
+artifactProvider:
   name: github
 
 targets:
   - name: github
-  - name: gh-pages
   - name: registry
     type: app
     urlTemplate: "https://downloads.sentry-cdn.com/relay/{{version}}/{{file}}"
@@ -26,12 +28,17 @@ targets:
       - path: /relay/latest/
         metadata:
           cacheControl: "public, max-age=600"
-  - name: docker
+  - id: release
+    name: docker
     source: us.gcr.io/sentryio/relay
     target: getsentry/relay
+  - id: latest
+    name: docker
+    source: us.gcr.io/sentryio/relay
+    target: getsentry/relay
+    targetFormat: "{{{target}}}:latest"
 
 requireNames:
-  - /^gh-pages.zip$/
   - /^relay-Darwin-x86_64$/
   - /^relay-Darwin-x86_64-dsym.zip$/
   - /^relay-Linux-x86_64$/

@@ -3,15 +3,33 @@ use std::collections::HashMap;
 use actix::prelude::*;
 use actix_web::{Error, Json};
 use futures::{future, Future};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-use relay_common::ProjectId;
+use relay_common::ProjectKey;
 
 use crate::actors::project::{GetProjectState, LimitedProjectState, ProjectState};
 use crate::actors::project_cache::GetProject;
 use crate::actors::project_upstream::GetProjectStates;
 use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;
+
+/// Helper to deserialize the `version` query parameter.
+#[derive(Debug, Deserialize)]
+struct VersionQuery {
+    version: u16,
+}
+
+/// Checks for a specific `version` query parameter.
+struct VersionPredicate(u16);
+
+impl<S> actix_web::pred::Predicate<S> for VersionPredicate {
+    fn check(&self, req: &actix_web::Request, _: &S) -> bool {
+        let query = req.uri().query().unwrap_or("");
+        serde_urlencoded::from_str::<VersionQuery>(query)
+            .map(|query| query.version == self.0)
+            .unwrap_or(false)
+    }
+}
 
 /// Wrapper on top the project state which encapsulates information about how ProjectState
 /// should be deserialized
@@ -37,11 +55,11 @@ impl ProjectStateWrapper {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct GetProjectStatesResponseWrapper {
-    configs: HashMap<ProjectId, Option<ProjectStateWrapper>>,
+    configs: HashMap<ProjectKey, Option<ProjectStateWrapper>>,
 }
 
-#[allow(clippy::needless_pass_by_value)]
 fn get_project_configs(
     state: CurrentServiceState,
     body: SignedJson<GetProjectStates>,
@@ -49,11 +67,11 @@ fn get_project_configs(
     let relay = body.relay;
     let full = relay.internal && body.inner.full_config;
 
-    let futures = body.inner.projects.into_iter().map(move |project_id| {
+    let futures = body.inner.public_keys.into_iter().map(move |public_key| {
         let relay = relay.clone();
         state
             .project_cache()
-            .send(GetProject { id: project_id })
+            .send(GetProject { public_key })
             .map_err(Error::from)
             .and_then(|project| project.send(GetProjectState).map_err(Error::from))
             .map(move |project_state| {
@@ -68,22 +86,22 @@ fn get_project_configs(
                 {
                     Some((*project_state).clone())
                 } else {
-                    log::debug!(
-                        "Public key {} does not have access to project {}",
+                    relay_log::debug!(
+                        "Relay {} does not have access to project key {}",
                         relay.public_key,
-                        project_id
+                        public_key
                     );
                     None
                 }
             })
-            .map(move |project_state| (project_id, project_state))
+            .map(move |project_state| (public_key, project_state))
     });
 
     Box::new(future::join_all(futures).map(move |mut project_states| {
         let configs = project_states
             .drain(..)
             .filter(|(_, state)| !state.as_ref().map_or(false, |s| s.invalid()))
-            .map(|(id, state)| (id, state.map(|s| ProjectStateWrapper::new(s, full))))
+            .map(|(key, state)| (key, state.map(|s| ProjectStateWrapper::new(s, full))))
             .collect();
 
         Json(GetProjectStatesResponseWrapper { configs })
@@ -93,6 +111,11 @@ fn get_project_configs(
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     app.resource("/api/0/relays/projectconfigs/", |r| {
         r.name("relay-projectconfigs");
-        r.post().with(get_project_configs);
+        r.post()
+            .filter(VersionPredicate(crate::project_states_version!()))
+            .with(get_project_configs);
+
+        // Forward all unsupported versions to the upstream.
+        r.post().f(crate::endpoints::forward::forward_upstream);
     })
 }

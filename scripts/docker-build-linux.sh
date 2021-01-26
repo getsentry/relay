@@ -26,7 +26,6 @@ docker build --build-arg DOCKER_ARCH=${DOCKER_ARCH} \
 
 DOCKER_RUN_OPTS="
   -v $(pwd):/work
-  -v ${HOME}/.cargo/registry:/usr/local/cargo/registry
   -e TARGET=${TARGET}
   $BUILD_IMAGE
 "
@@ -38,4 +37,4 @@ docker run $DOCKER_RUN_OPTS \
 # Fix permissions for shared directories
 USER_ID=$(id -u)
 GROUP_ID=$(id -g)
-sudo chown -R ${USER_ID}:${GROUP_ID} target/ ${HOME}/.cargo
+sudo chown -R ${USER_ID}:${GROUP_ID} target/

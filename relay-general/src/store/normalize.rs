@@ -104,6 +104,14 @@ impl<'a> NormalizeProcessor<'a> {
         })
     }
 
+    /// Ensure measurements interface is only present for transaction events
+    fn normalize_measurements(&self, event: &mut Event) {
+        if event.ty.value() != Some(&EventType::Transaction) {
+            // Only transaction events may have a measurements interface
+            event.measurements = Annotated::empty();
+        }
+    }
+
     /// Ensures that the `release` and `dist` fields match up.
     fn normalize_release_dist(&self, event: &mut Event) {
         if event.dist.value().is_some() && event.release.value().is_empty() {
@@ -185,8 +193,9 @@ impl<'a> NormalizeProcessor<'a> {
         let mut tag_cache = DedupCache::new();
         tags.retain(|entry| {
             match entry.value() {
-                Some(tag) => match tag.key().unwrap_or_default() {
-                    "" | "release" | "dist" | "user" | "filename" | "function" => false,
+                Some(tag) => match tag.key() {
+                    Some("release") | Some("dist") | Some("user") | Some("filename")
+                    | Some("function") => false,
                     name => tag_cache.probe(name),
                 },
                 // ToValue will decide if we should skip serializing Annotated::empty()
@@ -195,23 +204,20 @@ impl<'a> NormalizeProcessor<'a> {
         });
 
         for tag in tags.iter_mut() {
-            tag.apply(|tag, meta| {
+            tag.apply(|tag, _| {
                 if let Some(key) = tag.key() {
-                    if bytecount::num_chars(key.as_bytes()) > MaxChars::TagKey.limit() {
-                        meta.add_error(Error::new(ErrorKind::ValueTooLong));
-                        return Err(ProcessingAction::DeleteValueHard);
+                    if key.is_empty() {
+                        tag.0 = Annotated::from_error(Error::nonempty(), None);
+                    } else if bytecount::num_chars(key.as_bytes()) > MaxChars::TagKey.limit() {
+                        tag.0 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
                     }
                 }
 
                 if let Some(value) = tag.value() {
                     if value.is_empty() {
-                        meta.add_error(Error::nonempty());
-                        return Err(ProcessingAction::DeleteValueHard);
-                    }
-
-                    if bytecount::num_chars(value.as_bytes()) > MaxChars::TagValue.limit() {
-                        meta.add_error(Error::new(ErrorKind::ValueTooLong));
-                        return Err(ProcessingAction::DeleteValueHard);
+                        tag.1 = Annotated::from_error(Error::nonempty(), None);
+                    } else if bytecount::num_chars(value.as_bytes()) > MaxChars::TagValue.limit() {
+                        tag.1 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
                     }
                 }
 
@@ -486,6 +492,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         self.normalize_event_tags(event)?;
         self.normalize_exceptions(event)?;
         self.normalize_user_agent(event);
+        self.normalize_measurements(event);
 
         Ok(())
     }
@@ -854,8 +861,10 @@ fn test_user_ip_from_client_ip_without_auto() {
         ..Default::default()
     });
 
-    let mut config = StoreConfig::default();
-    config.client_ip = Some(IpAddr::parse("2.125.160.216").unwrap());
+    let config = StoreConfig {
+        client_ip: Some(IpAddr::parse("2.125.160.216").unwrap()),
+        ..StoreConfig::default()
+    };
 
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
@@ -882,8 +891,10 @@ fn test_user_ip_from_client_ip_with_auto() {
         ..Default::default()
     });
 
-    let mut config = StoreConfig::default();
-    config.client_ip = Some(IpAddr::parse("2.125.160.216").unwrap());
+    let config = StoreConfig {
+        client_ip: Some(IpAddr::parse("2.125.160.216").unwrap()),
+        ..StoreConfig::default()
+    };
 
     let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
     let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
@@ -901,8 +912,10 @@ fn test_user_ip_from_client_ip_with_auto() {
 fn test_user_ip_from_client_ip_without_appropriate_platform() {
     let mut event = Annotated::new(Event::default());
 
-    let mut config = StoreConfig::default();
-    config.client_ip = Some(IpAddr::parse("2.125.160.216").unwrap());
+    let config = StoreConfig {
+        client_ip: Some(IpAddr::parse("2.125.160.216").unwrap()),
+        ..StoreConfig::default()
+    };
 
     let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
     let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
@@ -1142,12 +1155,24 @@ fn test_empty_tags_removed() {
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let tags = event.value().unwrap().tags.value().unwrap();
-    assert_eq!(tags.len(), 2);
 
-    assert_eq!(
-        tags.get(0).unwrap(),
-        &Annotated::from_error(Error::nonempty(), None)
-    )
+    assert_eq_dbg!(
+        tags,
+        &Tags(PairList(vec![
+            Annotated::new(TagEntry(
+                Annotated::from_error(Error::nonempty(), None),
+                Annotated::new("foo".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("foo".to_string()),
+                Annotated::from_error(Error::nonempty(), None),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("something".to_string()),
+                Annotated::new("else".to_string()),
+            )),
+        ]))
+    );
 }
 
 #[test]
@@ -1331,14 +1356,20 @@ fn test_too_long_tags() {
     let mut processor = NormalizeProcessor::default();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    let event = event.value().unwrap();
+    let tags = event.value().unwrap().tags.value().unwrap();
 
     assert_eq_dbg!(
-        event.tags.value(),
-        Some(&Tags(PairList(vec![
-            Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None),
-            Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None)
-        ])))
+        tags,
+        &Tags(PairList(vec![
+            Annotated::new(TagEntry(
+                Annotated::new("foobar".to_string()),
+                Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None),
+                Annotated::new("bar".to_string()),
+            )),
+        ]))
     );
 }
 

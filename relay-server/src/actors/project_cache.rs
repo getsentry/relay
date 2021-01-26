@@ -8,7 +8,7 @@ use failure::Fail;
 use futures::{future, Future};
 use serde::{Deserialize, Serialize};
 
-use relay_common::{metric, ProjectId};
+use relay_common::{metric, ProjectKey};
 use relay_config::{Config, RelayMode};
 use relay_redis::RedisPool;
 
@@ -40,7 +40,7 @@ struct ProjectEntry {
 
 pub struct ProjectCache {
     config: Arc<Config>,
-    projects: HashMap<ProjectId, ProjectEntry>,
+    projects: HashMap<ProjectKey, ProjectEntry>,
 
     local_source: Addr<LocalProjectSource>,
     upstream_source: Addr<UpstreamProjectSource>,
@@ -105,17 +105,27 @@ impl Actor for ProjectCache {
             slf.evict_stale_project_caches()
         });
 
-        log::info!("project cache started");
+        relay_log::info!("project cache started");
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::info!("project cache stopped");
+        relay_log::info!("project cache stopped");
     }
 }
 
+/// Resolves the project with the given identifier.
+///
+/// The returned `Project` is an actor that synchronizes state access internally. When it is fetched
+/// for the first time, its state is unpopulated. Only when `GetProjectState` is sent to the project
+/// for the first time, it starts to resolve the state from one of the sources.
+///
+/// If the optional `public_key` is set, then the public keys of the project are checked for a
+/// redirect. If a redirect is detected, then the target project is resolved and returned instead.
+///
+/// **Note** that due to redirects, the returned project may have a different identifier.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetProject {
-    pub id: ProjectId,
+    pub public_key: ProjectKey,
 }
 
 impl Message for GetProject {
@@ -126,16 +136,18 @@ impl Handler<GetProject> for ProjectCache {
     type Result = Addr<Project>;
 
     fn handle(&mut self, message: GetProject, context: &mut Context<Self>) -> Self::Result {
+        let GetProject { public_key } = message;
         let config = self.config.clone();
         metric!(histogram(RelayHistograms::ProjectStateCacheSize) = self.projects.len() as u64);
-        match self.projects.entry(message.id) {
+
+        match self.projects.entry(public_key) {
             Entry::Occupied(entry) => {
                 metric!(counter(RelayCounters::ProjectCacheHit) += 1);
                 entry.get().project.clone()
             }
             Entry::Vacant(entry) => {
                 metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
-                let project = Project::new(message.id, config, context.address()).start();
+                let project = Project::new(public_key, config, context.address()).start();
                 entry.insert(ProjectEntry {
                     last_updated_at: Instant::now(),
                     project: project.clone(),
@@ -146,29 +158,29 @@ impl Handler<GetProject> for ProjectCache {
     }
 }
 
-#[derive(Clone, Copy)]
+/// Fetches a project state from one of the available sources.
+///
+/// The project state is resolved in the following precedence:
+///
+///  1. Local file system
+///  2. Redis cache (processing mode only)
+///  3. Upstream (managed and processing mode only)
+///
+/// Requests to the upstream are performed via `UpstreamProjectSource`, which internally batches
+/// individual requests.
+#[derive(Clone)]
 pub struct FetchProjectState {
-    pub id: ProjectId,
+    pub public_key: ProjectKey,
 }
 
+#[derive(Debug)]
 pub struct ProjectStateResponse {
     pub state: Arc<ProjectState>,
-    pub is_local: bool,
 }
 
 impl ProjectStateResponse {
-    pub fn managed(state: Arc<ProjectState>) -> Self {
-        ProjectStateResponse {
-            state,
-            is_local: false,
-        }
-    }
-
-    pub fn local(state: Arc<ProjectState>) -> Self {
-        ProjectStateResponse {
-            state,
-            is_local: true,
-        }
+    pub fn new(state: Arc<ProjectState>) -> Self {
+        ProjectStateResponse { state }
     }
 }
 
@@ -176,8 +188,9 @@ impl Message for FetchProjectState {
     type Result = Result<ProjectStateResponse, ()>;
 }
 
+#[derive(Clone, Debug)]
 pub struct FetchOptionalProjectState {
-    pub id: ProjectId,
+    pub public_key: ProjectKey,
 }
 
 impl Message for FetchOptionalProjectState {
@@ -188,7 +201,8 @@ impl Handler<FetchProjectState> for ProjectCache {
     type Result = Response<ProjectStateResponse, ()>;
 
     fn handle(&mut self, message: FetchProjectState, _context: &mut Self::Context) -> Self::Result {
-        if let Some(mut entry) = self.projects.get_mut(&message.id) {
+        let FetchProjectState { public_key } = message;
+        if let Some(mut entry) = self.projects.get_mut(&public_key) {
             // Bump the update time of the project in our hashmap to evade eviction. Eviction is a
             // sequential scan over self.projects, so this needs to be as fast as possible and
             // probably should not involve sending a message to each Addr<Project> (this is the
@@ -209,28 +223,28 @@ impl Handler<FetchProjectState> for ProjectCache {
 
         let fetch_local = self
             .local_source
-            .send(FetchOptionalProjectState { id: message.id })
+            .send(FetchOptionalProjectState { public_key })
             .map_err(|_| ());
 
         let future = fetch_local.and_then(move |response| {
             if let Some(state) = response {
-                return Box::new(future::ok(ProjectStateResponse::local(state)))
+                return Box::new(future::ok(ProjectStateResponse::new(state)))
                     as ResponseFuture<_, _>;
             }
 
             match relay_mode {
                 RelayMode::Proxy => {
-                    return Box::new(future::ok(ProjectStateResponse::local(Arc::new(
+                    return Box::new(future::ok(ProjectStateResponse::new(Arc::new(
                         ProjectState::allowed(),
                     ))));
                 }
                 RelayMode::Static => {
-                    return Box::new(future::ok(ProjectStateResponse::local(Arc::new(
+                    return Box::new(future::ok(ProjectStateResponse::new(Arc::new(
                         ProjectState::missing(),
                     ))));
                 }
                 RelayMode::Capture => {
-                    return Box::new(future::ok(ProjectStateResponse::local(Arc::new(
+                    return Box::new(future::ok(ProjectStateResponse::new(Arc::new(
                         ProjectState::allowed(),
                     ))));
                 }
@@ -246,7 +260,7 @@ impl Handler<FetchProjectState> for ProjectCache {
             let fetch_redis: ResponseFuture<_, _> = if let Some(ref redis_source) = redis_source {
                 Box::new(
                     redis_source
-                        .send(FetchOptionalProjectState { id: message.id })
+                        .send(FetchOptionalProjectState { public_key })
                         .map_err(|_| ()),
                 )
             } else {
@@ -255,7 +269,7 @@ impl Handler<FetchProjectState> for ProjectCache {
 
             let fetch_redis = fetch_redis.and_then(move |response| {
                 if let Some(state) = response {
-                    return Box::new(future::ok(ProjectStateResponse::local(state)))
+                    return Box::new(future::ok(ProjectStateResponse::new(state)))
                         as ResponseFuture<_, _>;
                 }
 

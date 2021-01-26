@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use actix::prelude::*;
 use failure::Fail;
-use relay_common::{LogError, ProjectId};
+use relay_common::ProjectKey;
 use relay_config::Config;
+use relay_log::LogError;
 use relay_redis::{RedisError, RedisPool};
 
 use crate::actors::project::ProjectState;
@@ -40,11 +41,11 @@ impl RedisProjectSource {
         RedisProjectSource { config, redis }
     }
 
-    fn get_config(&self, id: ProjectId) -> Result<Option<ProjectState>, RedisProjectError> {
+    fn get_config(&self, key: ProjectKey) -> Result<Option<ProjectState>, RedisProjectError> {
         let mut command = relay_redis::redis::cmd("GET");
 
         let prefix = self.config.projectconfig_cache_prefix();
-        command.arg(format!("{}:{}", prefix, id));
+        command.arg(format!("{}:{}", prefix, key));
 
         let raw_response_opt: Option<String> = command
             .query(&mut self.redis.client()?.connection())
@@ -63,11 +64,11 @@ impl Actor for RedisProjectSource {
     type Context = SyncContext<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        log::info!("redis project cache started");
+        relay_log::info!("redis project cache started");
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::info!("redis project cache stopped");
+        relay_log::info!("redis project cache stopped");
     }
 }
 
@@ -79,10 +80,10 @@ impl Handler<FetchOptionalProjectState> for RedisProjectSource {
         message: FetchOptionalProjectState,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        match self.get_config(message.id) {
+        match self.get_config(message.public_key) {
             Ok(x) => x.map(ProjectState::sanitize).map(Arc::new),
             Err(e) => {
-                log::error!("Failed to fetch project from Redis: {}", LogError(&e));
+                relay_log::error!("Failed to fetch project from Redis: {}", LogError(&e));
                 None
             }
         }

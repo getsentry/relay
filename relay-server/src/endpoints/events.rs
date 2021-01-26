@@ -4,21 +4,20 @@ use ::actix::prelude::*;
 use actix_web::{http::Method, HttpResponse, Path};
 use futures::future::Future;
 
-use crate::actors::events::GetCapturedEvent;
+use crate::actors::events::GetCapturedEnvelope;
 use crate::envelope;
 use crate::extractors::CurrentServiceState;
 use crate::service::ServiceApp;
 
 use relay_general::protocol::EventId;
 
-#[allow(clippy::needless_pass_by_value)]
 fn get_captured_event(
     state: CurrentServiceState,
     event_id: Path<EventId>,
 ) -> ResponseFuture<HttpResponse, actix::MailboxError> {
     let future = state
         .event_manager()
-        .send(GetCapturedEvent {
+        .send(GetCapturedEnvelope {
             event_id: *event_id,
         })
         .map(|captured_event| match captured_event {

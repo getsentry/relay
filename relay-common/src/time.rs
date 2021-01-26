@@ -3,6 +3,8 @@
 use std::fmt;
 use std::time::{Duration, Instant, SystemTime};
 
+use serde::{Deserialize, Serialize};
+
 /// Converts an `Instant` into a `SystemTime`.
 pub fn instant_to_system_time(instant: Instant) -> SystemTime {
     SystemTime::now() - instant.elapsed()
@@ -64,10 +66,37 @@ impl fmt::Debug for UnixTimestamp {
     }
 }
 
+impl std::ops::Add<Duration> for UnixTimestamp {
+    type Output = Self;
+
+    fn add(self, rhs: Duration) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
 impl std::ops::Sub for UnixTimestamp {
     type Output = Duration;
 
     fn sub(self, rhs: Self) -> Self::Output {
         self.0 - rhs.0
+    }
+}
+
+impl Serialize for UnixTimestamp {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_u64(self.0.as_secs())
+    }
+}
+
+impl<'de> Deserialize<'de> for UnixTimestamp {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let secs = u64::deserialize(deserializer)?;
+        Ok(Self::from_secs(secs))
     }
 }

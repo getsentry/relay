@@ -24,10 +24,9 @@ class Relay(SentryLike):
         config_dir,
         options,
     ):
-        self.server_address = server_address
+        super(Relay, self).__init__(server_address, upstream, public_key)
+
         self.process = process
-        self.upstream = upstream
-        self.public_key = public_key
         self.relay_id = relay_id
         self.config_dir = config_dir
         self.options = options
@@ -42,8 +41,8 @@ class Relay(SentryLike):
             raise
 
 
-@pytest.fixture
-def relay(tmpdir, mini_sentry, request, random_port, background_process, config_dir):
+@pytest.fixture(params=["reqwest", "actix"])
+def relay(mini_sentry, random_port, background_process, config_dir, request):
     def inner(
         upstream, options=None, prepare=None, external=None, wait_healthcheck=True
     ):
@@ -63,7 +62,7 @@ def relay(tmpdir, mini_sentry, request, random_port, background_process, config_
             "limits": {"max_api_file_upload_size": "1MiB"},
             "cache": {"batch_interval": 0},
             "logging": {"level": "trace"},
-            "http": {"timeout": 2},
+            "http": {"timeout": 2, "_client": request.param},
             "processing": {
                 "enabled": False,
                 "kafka_config": [],

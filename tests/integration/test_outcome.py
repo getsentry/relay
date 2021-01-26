@@ -1,18 +1,17 @@
-from copy import deepcopy
-from datetime import datetime
-import json
+import random
 import uuid
+from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 from queue import Empty
 
+import requests
 import pytest
 import time
 
 HOUR_MILLISEC = 1000 * 3600
 
 
-def test_outcomes_processing(
-    relay_with_processing, kafka_consumer, mini_sentry, outcomes_consumer
-):
+def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consumer):
     """
     Tests outcomes are sent to the kafka outcome topic
 
@@ -22,8 +21,6 @@ def test_outcomes_processing(
     relay = relay_with_processing()
 
     outcomes_consumer = outcomes_consumer()
-    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
-    mini_sentry.project_configs[42] = None
 
     message_text = "some message {}".format(datetime.now())
     event_id = "11122233344455566677788899900011"
@@ -54,7 +51,12 @@ def test_outcomes_processing(
     assert start <= event_emission <= end
 
 
-def _send_event(relay):
+def _send_event(relay, project_id=42):
+    """
+    Send an event to the given project.
+
+    If the project doesn't exist, relay should generate INVALID outcome with reason "project_id".
+    """
     event_id = uuid.uuid1().hex
     message_text = "some message {}".format(datetime.now())
     event_body = {
@@ -64,26 +66,22 @@ def _send_event(relay):
     }
 
     try:
-        relay.send_event(42, event_body)
-    except:
+        relay.send_event(project_id=project_id, payload=event_body)
+    except Exception:
         pass
     return event_id
 
 
-def test_outcomes_non_processing(relay, relay_with_processing, mini_sentry):
+def test_outcomes_non_processing(relay, mini_sentry):
     """
     Test basic outcome functionality.
 
     Send one event that generates an outcome and verify that we get an outcomes batch
     with all necessary information set.
     """
-    config = {
-        "outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1,}
-    }
+    config = {"outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1}}
 
     relay = relay(mini_sentry, config)
-    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
-    mini_sentry.project_configs[42] = None
 
     event_id = _send_event(relay)
 
@@ -95,7 +93,6 @@ def test_outcomes_non_processing(relay, relay_with_processing, mini_sentry):
 
     outcome = outcomes[0]
 
-    timestamp = outcome.get("timestamp")
     del outcome["timestamp"]  # 'timestamp': '2020-06-03T16:18:59.259447Z'
 
     expected_outcome = {
@@ -119,15 +116,13 @@ def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
     when we disable outcomes.
     """
     config = {
-        "outcomes": {"emit_outcomes": False, "batch_size": 1, "batch_interval": 1,}
+        "outcomes": {"emit_outcomes": False, "batch_size": 1, "batch_interval": 1}
     }
 
     relay = relay(mini_sentry, config)
-    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
-    mini_sentry.project_configs[42] = None
 
     try:
-        outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
+        mini_sentry.captured_outcomes.get(timeout=0.2)
         assert False  # we should not be here ( previous call should have failed)
     except Empty:
         pass  # we do expect not to get anything since we have outcomes disabled
@@ -148,19 +143,17 @@ def test_outcomes_non_processing_max_batch_time(relay, mini_sentry):
         }
     }
     relay = relay(mini_sentry, config)
-    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
-    mini_sentry.project_configs[42] = None
 
     event_ids = set()
     # send one less events than the batch size (and check we don't send anything)
-    for i in range(events_to_send):
+    for _ in range(events_to_send):
         event_id = _send_event(relay)
         event_ids.add(event_id)
         time.sleep(0.12)  # sleep more than the batch time
 
     # we should get one batch per event sent
     batches = []
-    for batch_id in range(events_to_send):
+    for _ in range(events_to_send):
         batch = mini_sentry.captured_outcomes.get(timeout=1)
         batches.append(batch)
 
@@ -188,12 +181,10 @@ def test_outcomes_non_processing_batching(relay, mini_sentry):
     }
 
     relay = relay(mini_sentry, config)
-    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
-    mini_sentry.project_configs[42] = None
 
     event_ids = set()
     # send one less events than the batch size (and check we don't send anything)
-    for i in range(batch_size - 1):
+    for _ in range(batch_size - 1):
         event_id = _send_event(relay)
         event_ids.add(event_id)
 
@@ -224,22 +215,6 @@ def test_outcomes_non_processing_batching(relay, mini_sentry):
     assert mini_sentry.captured_events.empty()
 
 
-def _send_event(relay):
-    event_id = uuid.uuid1().hex
-    message_text = "some message {}".format(datetime.now())
-    event_body = {
-        "event_id": event_id,
-        "message": message_text,
-        "extra": {"msg_text": message_text},
-    }
-
-    try:
-        relay.send_event(42, event_body)
-    except:
-        pass
-    return event_id
-
-
 def test_outcome_source(relay, mini_sentry):
     """
     Test that the source is picked from configuration and passed in outcomes
@@ -254,10 +229,8 @@ def test_outcome_source(relay, mini_sentry):
     }
 
     relay = relay(mini_sentry, config)
-    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
-    mini_sentry.project_configs[42] = None
 
-    event_id = _send_event(relay)
+    _send_event(relay)
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
@@ -308,7 +281,7 @@ def test_outcome_forwarding(
     }
 
     # build a chain of identical relays
-    for i in range(num_intermediate_relays):
+    for _ in range(num_intermediate_relays):
         upstream = relay(upstream, intermediate_config)
 
     # mark the downstream relay so we can identify outcomes originating from it
@@ -317,12 +290,202 @@ def test_outcome_forwarding(
 
     downstream_relay = relay(upstream, config_downstream)
 
-    # hack mini_sentry configures project 42 (remove the configuration so that we get an error for project 42)
-    mini_sentry.project_configs[42] = None
-
     event_id = _send_event(downstream_relay)
 
     outcomes_consumer = outcomes_consumer()
     outcome = outcomes_consumer.get_outcome()
-    assert outcome.get("source") == "downstream-layer"
-    assert outcome.get("event_id") == event_id
+
+    expected_outcome = {
+        "project_id": 42,
+        "outcome": 3,
+        "source": "downstream-layer",
+        "reason": "project_id",
+        "event_id": event_id,
+        "remote_addr": "127.0.0.1",
+    }
+    outcome.pop("timestamp")
+
+    assert outcome == expected_outcome
+
+
+def test_outcomes_forwarding_rate_limited(
+    mini_sentry, relay, relay_with_processing, outcomes_consumer
+):
+    """
+    Tests that external relays do not emit duplicate outcomes for forwarded messages.
+
+    External relays should not produce outcomes for messages already forwarded to the upstream.
+    In this test, we send two events that should be rate-limited. The first one is dropped in the
+    upstream (processing) relay, and the second -- in the downstream, because it should cache the
+    rate-limited response from the upstream.
+    In total, two outcomes have to be emitted:
+    - The first one from the upstream relay
+    - The second one is emittedy by the downstream, and then sent to the upstream that writes it
+      to Kafka.
+    """
+    processing_config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "source": "processing-layer",
+        }
+    }
+    # The innermost Relay needs to be in processing mode
+    upstream = relay_with_processing(processing_config)
+
+    config_downstream = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "source": "downstream-layer",
+        }
+    }
+    downstream_relay = relay(upstream, config_downstream)
+
+    # Create project config
+    project_id = 42
+    category = "error"
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["quotas"] = [
+        {
+            "id": "drop-everything",
+            "categories": [category],
+            "limit": 0,
+            "window": 1600,
+            "reasonCode": "rate_limited",
+        }
+    ]
+
+    outcomes_consumer_instance = outcomes_consumer()
+
+    # Send an event, it should be dropped in the upstream (processing) relay
+    result = downstream_relay.send_event(project_id, _get_message(category))
+    event_id = result["id"]
+
+    outcome = outcomes_consumer_instance.get_outcome()
+    outcome.pop("timestamp")
+    expected_outcome = {
+        "reason": "rate_limited",
+        "org_id": 1,
+        "key_id": 123,
+        "outcome": 2,
+        "project_id": 42,
+        "remote_addr": "127.0.0.1",
+        "event_id": event_id,
+        "source": "processing-layer",
+    }
+    assert outcome == expected_outcome
+
+    # Send another event, now the downstream should drop it because it'll cache the 429
+    # response from the previous event, but the outcome should be emitted
+    with pytest.raises(requests.exceptions.HTTPError, match="429 Client Error"):
+        downstream_relay.send_event(project_id, _get_message(category))
+
+    expected_outcome_from_downstream = deepcopy(expected_outcome)
+    expected_outcome_from_downstream["source"] = "downstream-layer"
+    expected_outcome_from_downstream.pop("event_id")
+
+    outcome = outcomes_consumer_instance.get_outcome()
+    outcome.pop("timestamp")
+    outcome.pop("event_id")
+
+    assert outcome == expected_outcome_from_downstream
+
+    _assert_outcomes_topic_empty(outcomes_consumer_instance)
+
+
+def _assert_outcomes_topic_empty(outcomes_consumer_instance):
+    """
+    To prove there's nothing in the topic, we send a randomized message and then
+    immediately consume it.
+    """
+    event_id = "".join(random.choice("0123456789abcdef") for _ in range(32))
+    print(event_id)
+    dummy_outcome = {
+        "org_id": 0,
+        "project_id": 0,
+        "reason": "fake",
+        "event_id": event_id,
+    }
+    outcomes_consumer_instance.produce_test_message(dummy_outcome)
+    outcome = outcomes_consumer_instance.get_outcome()
+    assert outcome == dummy_outcome
+
+
+def _get_message(message_type):
+    if message_type == "error":
+        return {"message": "hello"}
+    elif message_type == "transaction":
+        now = datetime.utcnow()
+        return {
+            "type": "transaction",
+            "timestamp": now.isoformat(),
+            "start_timestamp": (now - timedelta(seconds=2)).isoformat(),
+            "spans": [],
+            "contexts": {
+                "trace": {
+                    "op": "hi",
+                    "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                    "span_id": "968cff94913ebb07",
+                }
+            },
+            "transaction": "hi",
+        }
+    elif message_type == "session":
+        timestamp = datetime.now(tz=timezone.utc)
+        started = timestamp - timedelta(hours=1)
+        return {
+            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+            "did": "foobarbaz",
+            "seq": 42,
+            "init": True,
+            "timestamp": timestamp.isoformat(),
+            "started": started.isoformat(),
+            "duration": 1947.49,
+            "status": "exited",
+            "errors": 0,
+            "attrs": {"release": "sentry-test@1.0.0", "environment": "production"},
+        }
+    else:
+        raise Exception("Invalid message_type")
+
+
+@pytest.mark.parametrize("category_type", ["session", "transaction"])
+def test_no_outcomes_rate_limit(
+    relay_with_processing, mini_sentry, outcomes_consumer, category_type
+):
+    """
+    Tests that outcomes are not emitted for certain type of messages
+
+    Pass a transaction that is rate limited and check that an outcome is not emitted (although
+    the transaction does NOT go through).
+
+    NOTE: This test should start failing once transactions outcomes become supported.
+    Once that happens change test to verify that a transaction outcome IS sent
+    """
+
+    config = {"outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1}}
+    relay = relay_with_processing(config)
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["quotas"] = [
+        {
+            "id": "transaction category",
+            "categories": [category_type],
+            "limit": 0,
+            "window": 1600,
+            "reasonCode": "transactions are banned",
+        }
+    ]
+    outcomes_consumer = outcomes_consumer()
+
+    message = _get_message(category_type)
+    relay.send_event(project_id, message)
+
+    # give relay some to handle the message (and send any outcomes it needs to send)
+    time.sleep(1)
+
+    # we should not have anything on the outcome topic,
+    _assert_outcomes_topic_empty(outcomes_consumer)

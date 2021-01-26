@@ -6,6 +6,7 @@ import pytest
 import os
 import confluent_kafka as kafka
 from copy import deepcopy
+import json
 
 
 @pytest.fixture
@@ -26,7 +27,7 @@ def processing_config(get_topic_name):
     """
 
     def inner(options=None):
-        # The Travis script sets the kafka bootstrap server into system environment variable.
+        # The CI script sets the kafka bootstrap server into system environment variable.
         bootstrap_servers = os.environ.get("KAFKA_BOOTSTRAP_SERVER", "127.0.0.1:9092")
 
         options = deepcopy(options)  # avoid lateral effects
@@ -63,18 +64,8 @@ def processing_config(get_topic_name):
     return inner
 
 
-def _sync_wait_on_result(futures_dict):
-    """
-    Synchronously waits on all futures returned by the admin_client api.
-    :param futures_dict: the api returns a dict of futures that can be awaited
-    """
-    # just wait on all futures returned by the async operations of the admin_client
-    for f in futures_dict.values():
-        f.result(5)  # wait up to 5 seconds for the admin operation to finish
-
-
 @pytest.fixture
-def relay_with_processing(relay, mini_sentry, processing_config, get_topic_name):
+def relay_with_processing(relay, mini_sentry, processing_config):
     """
     Creates a fixture that configures a relay with processing enabled and that forwards
     requests to the test ingestion topics
@@ -92,6 +83,33 @@ def relay_with_processing(relay, mini_sentry, processing_config, get_topic_name)
     return inner
 
 
+def kafka_producer(options):
+    # look for the servers (it is the only config we are interested in)
+    servers = [
+        elm["value"]
+        for elm in options["processing"]["kafka_config"]
+        if elm["name"] == "bootstrap.servers"
+    ]
+    if len(servers) < 1:
+        raise ValueError(
+            "Bad kafka_config, could not find 'bootstrap.servers'.\n"
+            "The configuration should have an entry of the format \n"
+            "{name:'bootstrap.servers', value:'127.0.0.1'} at path 'processing.kafka_config'"
+        )
+
+    servers = servers[0]
+
+    settings = {
+        "bootstrap.servers": servers,
+        "group.id": "test-consumer-%s" % uuid.uuid4().hex,
+        "enable.auto.commit": True,
+        "auto.offset.reset": "earliest",
+    }
+    producer = kafka.Producer(settings)
+
+    return producer
+
+
 @pytest.fixture
 def kafka_consumer(request, get_topic_name, processing_config):
     """
@@ -99,7 +117,8 @@ def kafka_consumer(request, get_topic_name, processing_config):
     """
 
     def inner(topic: str, options=None):
-        topics = [get_topic_name(topic)]
+        topic_name = get_topic_name(topic)
+        topics = [topic_name]
         options = processing_config(options)
         # look for the servers (it is the only config we are interested in)
         servers = [
@@ -130,27 +149,41 @@ def kafka_consumer(request, get_topic_name, processing_config):
             consumer.close()
 
         request.addfinalizer(die)
-        return consumer
+        return consumer, options, topic_name
 
     return inner
 
 
 class ConsumerBase(object):
+    def __init__(self, consumer, options, topic_name):
+        self.consumer = consumer
+        self.test_producer = kafka_producer(options)
+        self.topic_name = topic_name
+
     # First poll takes forever, the next ones are fast
     def poll(self):
         rv = self.consumer.poll(timeout=5)
         return rv
 
+    def produce_test_message(self, message):
+        """
+        An associated producer, that can send message on the same topic as the
+        consumer used for tests when we don't expect anything to come back we
+        can send a test message at the end and verify that it is the first and
+        only message on the queue (care must be taken to make sure that the
+        test message ends up in the same partition as the message we are checking).
+        """
+        message_str = json.dumps(message)
+        self.test_producer.produce(self.topic_name, message_str)
+        self.test_producer.flush()
+
 
 @pytest.fixture
 def outcomes_consumer(kafka_consumer):
-    return lambda: OutcomesConsumer(kafka_consumer("outcomes"))
+    return lambda: OutcomesConsumer(*kafka_consumer("outcomes"))
 
 
 class OutcomesConsumer(ConsumerBase):
-    def __init__(self, consumer):
-        self.consumer = consumer
-
     def get_outcome(self):
         outcome = self.poll()
         assert outcome is not None
@@ -177,28 +210,25 @@ class OutcomesConsumer(ConsumerBase):
 
 @pytest.fixture
 def events_consumer(kafka_consumer):
-    return lambda: EventsConsumer(kafka_consumer("events"))
+    return lambda: EventsConsumer(*kafka_consumer("events"))
 
 
 @pytest.fixture
 def transactions_consumer(kafka_consumer):
-    return lambda: EventsConsumer(kafka_consumer("transactions"))
+    return lambda: EventsConsumer(*kafka_consumer("transactions"))
 
 
 @pytest.fixture
 def attachments_consumer(kafka_consumer):
-    return lambda: AttachmentsConsumer(kafka_consumer("attachments"))
+    return lambda: AttachmentsConsumer(*kafka_consumer("attachments"))
 
 
 @pytest.fixture
 def sessions_consumer(kafka_consumer):
-    return lambda: SessionsConsumer(kafka_consumer("sessions"))
+    return lambda: SessionsConsumer(*kafka_consumer("sessions"))
 
 
 class SessionsConsumer(ConsumerBase):
-    def __init__(self, consumer):
-        self.consumer = consumer
-
     def get_session(self):
         message = self.poll()
         assert message is not None
@@ -208,9 +238,6 @@ class SessionsConsumer(ConsumerBase):
 
 
 class EventsConsumer(ConsumerBase):
-    def __init__(self, consumer):
-        self.consumer = consumer
-
     def get_event(self):
         message = self.poll()
         assert message is not None

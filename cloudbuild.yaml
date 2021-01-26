@@ -18,7 +18,7 @@ steps:
     args:
       [
         "-c",
-        "docker pull us.gcr.io/$PROJECT_ID/relay:latest || true"
+        "docker pull us.gcr.io/$PROJECT_ID/relay:nightly || true"
       ]
 
   # Pull the image with the first build stage
@@ -46,10 +46,10 @@ steps:
     args:
       [
         "build",
-        "-t", "us.gcr.io/$PROJECT_ID/relay:latest",
+        "-t", "us.gcr.io/$PROJECT_ID/relay:nightly",
         "-t", "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA",
         "--cache-from", "us.gcr.io/$PROJECT_ID/relay:deps",
-        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:latest",
+        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:nightly",
         ".",
       ]
 
@@ -65,15 +65,10 @@ steps:
     - '-c'
     - |
       mkdir onpremise && cd onpremise
-      # TODO(byk): We may also build this part as a builder image everytime
-      #            there's a push to onpremise and use that image for
       curl -L "https://github.com/getsentry/onpremise/archive/master.tar.gz" | tar xzf - --strip-components=1
       # The following trick is from https://stackoverflow.com/a/52400857/90297 with great gratuity
       echo '{"version": "3.4", "networks":{"default":{"external":{"name":"cloudbuild"}}}}' > docker-compose.override.yml
       ./install.sh
-      docker-compose run --rm web createuser --superuser --email test@example.com --password test123TEST
-      docker-compose up -d
-      timeout 20 bash -c 'until $(curl -Isf -o /dev/null http://nginx); do printf "."; sleep 0.5; done' || docker-compose logs web
       ./test.sh || docker-compose logs nginx web relay
     timeout: 450s
 
@@ -86,14 +81,14 @@ steps:
     - |
       # Only push to Docker Hub from master
       [ "$BRANCH_NAME" != "master" ] && exit 0
-      docker push us.gcr.io/$PROJECT_ID/relay:latest
+      docker push us.gcr.io/$PROJECT_ID/relay:nightly
       echo "$$DOCKER_PASSWORD" | docker login --username=sentrybuilder --password-stdin
       docker tag us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA getsentry/relay:$SHORT_SHA
       docker push getsentry/relay:$SHORT_SHA
       docker tag us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA getsentry/relay:$COMMIT_SHA
       docker push getsentry/relay:$COMMIT_SHA
-      docker tag us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA getsentry/relay:latest
-      docker push getsentry/relay:latest
+      docker tag us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA getsentry/relay:nightly
+      docker push getsentry/relay:nightly
 
 images:
   [

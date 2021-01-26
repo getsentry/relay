@@ -2,7 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
-use relay_common::ProjectId;
+use relay_common::{ProjectId, ProjectKey};
 
 use crate::quota::{DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping};
 use crate::REJECT_ALL_SECS;
@@ -43,6 +43,7 @@ impl RetryAfter {
     pub fn remaining_seconds(self) -> u64 {
         match self.remaining() {
             // Compensate for the missing subsec part by adding 1s
+            Some(duration) if duration.subsec_nanos() == 0 => duration.as_secs(),
             Some(duration) => duration.as_secs() + 1,
             None => 0,
         }
@@ -107,7 +108,7 @@ pub enum RateLimitScope {
     /// A project with identifier.
     Project(ProjectId),
     /// A DSN public key.
-    Key(String),
+    Key(ProjectKey),
 }
 
 impl RateLimitScope {
@@ -116,9 +117,9 @@ impl RateLimitScope {
         match scope {
             QuotaScope::Organization => RateLimitScope::Organization(scoping.organization_id),
             QuotaScope::Project => RateLimitScope::Project(scoping.project_id),
-            QuotaScope::Key => RateLimitScope::Key(scoping.public_key.clone()),
+            QuotaScope::Key => RateLimitScope::Key(scoping.public_key),
             // For unknown scopes, assume the most specific scope:
-            QuotaScope::Unknown => RateLimitScope::Key(scoping.public_key.clone()),
+            QuotaScope::Unknown => RateLimitScope::Key(scoping.public_key),
         }
     }
 
@@ -285,6 +286,21 @@ impl RateLimits {
     pub fn longest(&self) -> Option<&RateLimit> {
         self.iter().max_by_key(|limit| limit.retry_after)
     }
+
+    /// Returns the longest rate limit that is error releated.
+    ///
+    /// The most relevant rate limit from the point of view of an error generating an outcome
+    /// is the longest rate limit for error messages.
+    pub fn longest_error(&self) -> Option<&RateLimit> {
+        let is_event_related = |rate_limit: &&RateLimit| {
+            rate_limit.categories.is_empty()
+                || rate_limit.categories.iter().any(|cat| cat.is_error())
+        };
+
+        self.iter()
+            .filter(is_event_related)
+            .max_by_key(|limit| limit.retry_after)
+    }
 }
 
 /// Immutable rate limits iterator.
@@ -379,7 +395,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             }
         }));
@@ -389,7 +405,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             }
         }));
@@ -409,7 +425,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             }
         }));
@@ -419,7 +435,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 0,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             }
         }));
@@ -439,7 +455,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             }
         }));
@@ -449,7 +465,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(0),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             }
         }));
@@ -459,7 +475,9 @@ mod tests {
     fn test_rate_limit_matches_key() {
         let rate_limit = RateLimit {
             categories: DataCategories::new(),
-            scope: RateLimitScope::Key("a94ae32be2584e0bbd7a4cbb95971fee".to_owned()),
+            scope: RateLimitScope::Key(
+                ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
         };
@@ -469,7 +487,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             }
         }));
@@ -479,7 +497,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 0,
                 project_id: ProjectId::new(21),
-                public_key: "deadbeefdeadbeefdeadbeefdeadbeef".to_owned(),
+                public_key: ProjectKey::parse("deadbeefdeadbeefdeadbeefdeadbeef").unwrap(),
                 key_id: None,
             }
         }));
@@ -649,6 +667,68 @@ mod tests {
     }
 
     #[test]
+    fn test_rate_limits_longest_error_none() {
+        let mut rate_limits = RateLimits::new();
+
+        rate_limits.add(RateLimit {
+            categories: smallvec![DataCategory::Transaction],
+            scope: RateLimitScope::Organization(42),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(1),
+        });
+        rate_limits.add(RateLimit {
+            categories: smallvec![DataCategory::Attachment],
+            scope: RateLimitScope::Organization(42),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(1),
+        });
+        rate_limits.add(RateLimit {
+            categories: smallvec![DataCategory::Session],
+            scope: RateLimitScope::Organization(42),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(1),
+        });
+
+        // only non event rate limits so nothing relevant
+        assert_eq!(rate_limits.longest_error(), None)
+    }
+
+    #[test]
+    fn test_rate_limits_longest_error() {
+        let mut rate_limits = RateLimits::new();
+        rate_limits.add(RateLimit {
+            categories: smallvec![DataCategory::Transaction],
+            scope: RateLimitScope::Organization(40),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(100),
+        });
+        rate_limits.add(RateLimit {
+            categories: smallvec![DataCategory::Error],
+            scope: RateLimitScope::Organization(41),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(5),
+        });
+        rate_limits.add(RateLimit {
+            categories: smallvec![DataCategory::Error],
+            scope: RateLimitScope::Organization(42),
+            reason_code: None,
+            retry_after: RetryAfter::from_secs(7),
+        });
+
+        let rate_limit = rate_limits.longest().unwrap();
+        insta::assert_ron_snapshot!(rate_limit, @r###"
+        RateLimit(
+          categories: [
+            transaction,
+          ],
+          scope: Organization(40),
+          reason_code: None,
+          retry_after: RetryAfter(100),
+        )
+        "###);
+    }
+
+    #[test]
     fn test_rate_limits_clean_expired() {
         let mut rate_limits = RateLimits::new();
 
@@ -715,7 +795,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
         });
@@ -762,7 +842,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(21),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
         };

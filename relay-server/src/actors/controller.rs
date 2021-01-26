@@ -1,8 +1,6 @@
 //! Defines an actor to control system run and shutdown.
 //!
 //! See the [`Controller`] struct for more information.
-//!
-//! [`Controller`]: struct.Controller.html
 
 use std::fmt;
 use std::time::Duration;
@@ -56,9 +54,6 @@ pub use crate::service::ServerError;
 ///     # System::current().stop()
 /// })
 /// ```
-///
-/// [`Subscribe`]: struct.Subscribe.html
-/// [`Shutdown`]: struct.Shutdown.html
 pub struct Controller {
     /// Configured timeout for graceful shutdowns.
     timeout: Duration,
@@ -90,9 +85,9 @@ impl Controller {
 
         // All actors have started successfully. Run the system, which blocks the current thread
         // until a signal arrives or `Controller::stop` is called.
-        log::info!("relay server starting");
+        relay_log::info!("relay server starting");
         sys.run();
-        log::info!("relay shutdown complete");
+        relay_log::info!("relay shutdown complete");
 
         Ok(())
     }
@@ -180,16 +175,16 @@ impl Handler<signal::Signal> for Controller {
     fn handle(&mut self, message: signal::Signal, context: &mut Self::Context) -> Self::Result {
         match message.0 {
             signal::SignalType::Int => {
-                log::info!("SIGINT received, exiting");
+                relay_log::info!("SIGINT received, exiting");
                 self.shutdown(context, None);
             }
             signal::SignalType::Quit => {
-                log::info!("SIGQUIT received, exiting");
+                relay_log::info!("SIGQUIT received, exiting");
                 self.shutdown(context, None);
             }
             signal::SignalType::Term => {
                 let timeout = self.timeout;
-                log::info!("SIGTERM received, stopping in {}s", timeout.as_secs());
+                relay_log::info!("SIGTERM received, stopping in {}s", timeout.as_secs());
                 self.shutdown(context, Some(timeout));
             }
             _ => (),
@@ -198,8 +193,6 @@ impl Handler<signal::Signal> for Controller {
 }
 
 /// Configures the [`Controller`] with new parameters.
-///
-/// [`Controller`]: struct.Controller.html
 #[derive(Debug)]
 pub struct Configure {
     /// The maximum shutdown timeout before killing actors.
@@ -219,8 +212,6 @@ impl Handler<Configure> for Controller {
 }
 
 /// Subscribtion message for [`Shutdown`] events.
-///
-/// [`Shutdown`]: struct.Shutdown.html
 pub struct Subscribe(pub Recipient<Shutdown>);
 
 impl fmt::Debug for Subscribe {
@@ -252,8 +243,6 @@ impl Handler<Subscribe> for Controller {
 ///
 /// The return value is fully ignored. It is only `Result` such that futures can be executed inside
 /// a handler.
-///
-/// [`Controller`]: struct.Controller.html
 #[derive(Debug)]
 pub struct Shutdown {
     /// The timeout for this shutdown. `None` indicates an immediate forced shutdown.

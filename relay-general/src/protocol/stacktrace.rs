@@ -53,7 +53,7 @@ pub struct Frame {
     ///
     /// Note that this might also include a class name if that is something the
     /// language natively considers to be part of the stack (for instance in Java).
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty", pii = "maybe")]
     // TODO: Cap? This can be a FS path or a dotted path
     pub module: Annotated<String>,
 
@@ -125,6 +125,9 @@ pub struct Frame {
     /// [Debug Meta Interface]({%- link _documentation/development/sdk-dev/event-payloads/debugmeta.md -%}),
     /// then symbolication can take place.
     pub instruction_addr: Annotated<Addr>,
+
+    /// Defines the addressing mode for addresses.
+    pub addr_mode: Annotated<String>,
 
     /// (C/C++/Native) Start address of the frame's function.
     ///
@@ -361,6 +364,7 @@ fn test_frame_roundtrip() {
   },
   "image_addr": "0x400",
   "instruction_addr": "0x404",
+  "addr_mode": "abs",
   "symbol_addr": "0x404",
   "trust": "69",
   "lang": "rust",
@@ -395,6 +399,7 @@ fn test_frame_roundtrip() {
         }),
         image_addr: Annotated::new(Addr(0x400)),
         instruction_addr: Annotated::new(Addr(0x404)),
+        addr_mode: Annotated::new("abs".into()),
         symbol_addr: Annotated::new(Addr(0x404)),
         trust: Annotated::new("69".into()),
         lang: Annotated::new("rust".into()),

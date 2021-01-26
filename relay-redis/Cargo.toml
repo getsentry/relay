@@ -1,10 +1,10 @@
 [package]
 name = "relay-redis"
 authors = ["Sentry <oss@sentry.io>"]
-description = "Redis pool implementation for Relay"
+description = "Pooled Redis and Redis cluster abstraction for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "20.8.0"
+version = "21.1.0"
 edition = "2018"
 license-file = "../LICENSE"
 publish = false

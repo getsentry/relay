@@ -20,7 +20,7 @@ pub struct GlobOptions {
     pub case_insensitive: bool,
     /// Enables path normalization.
     pub path_normalize: bool,
-    /// Allows newlines
+    /// Allows newlines.
     pub allow_newline: bool,
 }
 

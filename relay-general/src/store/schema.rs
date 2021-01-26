@@ -12,9 +12,9 @@ impl Processor for SchemaProcessor {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        value_trim_whitespace(value, meta, &state)?;
+        value_trim_whitespace(value, meta, &state);
         verify_value_nonempty(value, meta, &state)?;
-        verify_value_pattern(value, meta, &state)?;
+        verify_value_characters(value, meta, &state)?;
         Ok(())
     }
 
@@ -60,18 +60,12 @@ impl Processor for SchemaProcessor {
     }
 }
 
-fn value_trim_whitespace(
-    value: &mut String,
-    _meta: &mut Meta,
-    state: &ProcessingState<'_>,
-) -> ProcessingResult {
+fn value_trim_whitespace(value: &mut String, _meta: &mut Meta, state: &ProcessingState<'_>) {
     if state.attrs().trim_whitespace {
         let new_value = value.trim().to_owned();
         value.clear();
         value.push_str(&new_value);
     }
-
-    Ok(())
 }
 
 fn verify_value_nonempty<T>(
@@ -90,15 +84,17 @@ where
     }
 }
 
-fn verify_value_pattern(
+fn verify_value_characters(
     value: &mut String,
     meta: &mut Meta,
     state: &ProcessingState<'_>,
 ) -> ProcessingResult {
-    if let Some(ref regex) = state.attrs().match_regex {
-        if !regex.is_match(value) {
-            meta.add_error(Error::invalid("invalid characters in string"));
-            return Err(ProcessingAction::DeleteValueSoft);
+    if let Some(ref character_set) = state.attrs().characters {
+        for c in value.chars() {
+            if !(character_set.char_is_valid)(c) {
+                meta.add_error(Error::invalid(format!("invalid character {:?}", c)));
+                return Err(ProcessingAction::DeleteValueSoft);
+            }
         }
     }
 
@@ -167,7 +163,7 @@ mod tests {
             event,
             Annotated::new(Event {
                 release: Annotated::from_error(
-                    Error::invalid("invalid characters in string"),
+                    Error::invalid("invalid character \'\\n\'"),
                     Some(Value::String("a\nb".into())),
                 ),
                 ..Default::default()

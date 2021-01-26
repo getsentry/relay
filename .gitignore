@@ -10,9 +10,6 @@ target
 # Runtime files
 /.relay/
 
-# Docs
-/site
-
 # Editors
 /.idea/
 .DS_Store

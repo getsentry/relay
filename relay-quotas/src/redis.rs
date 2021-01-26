@@ -4,8 +4,8 @@ use std::sync::Arc;
 use failure::Fail;
 
 use relay_common::UnixTimestamp;
+use relay_log::protocol::value;
 use relay_redis::{redis::Script, RedisError, RedisPool};
-use sentry::protocol::value;
 
 use crate::quota::{ItemScoping, Quota, QuotaScope};
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
@@ -93,7 +93,7 @@ impl<'a> RedisQuota<'a> {
     fn expiry(&self) -> UnixTimestamp {
         let next_slot = self.slot() + 1;
         let next_start = next_slot * self.window + self.shift();
-        UnixTimestamp::from_secs(next_start + GRACE)
+        UnixTimestamp::from_secs(next_start)
     }
 
     fn key(&self) -> String {
@@ -197,16 +197,16 @@ impl RedisRateLimiter {
                 invocation.key(refund_key);
 
                 invocation.arg(quota.limit());
-                invocation.arg(quota.expiry().as_secs());
+                invocation.arg(quota.expiry().as_secs() + GRACE);
                 invocation.arg(quantity);
 
                 tracked_quotas.push(quota);
             } else {
                 // This quota is neither a static reject-all, nor can it be tracked in Redis due to
                 // missing fields. We're skipping this for forward-compatibility.
-                sentry::with_scope(
+                relay_log::with_scope(
                     |scope| scope.set_extra("quota", value::to_value(quota).unwrap()),
-                    || log::warn!("skipping unsupported quota"),
+                    || relay_log::warn!("skipping unsupported quota"),
                 )
             }
         }
@@ -248,7 +248,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use relay_common::ProjectId;
+    use relay_common::{ProjectId, ProjectKey};
     use relay_redis::redis::Commands;
 
     use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
@@ -256,12 +256,15 @@ mod tests {
 
     use super::*;
 
-    lazy_static::lazy_static! {
-        static ref RATE_LIMITER: RedisRateLimiter = RedisRateLimiter {
-            pool: RedisPool::single("redis://127.0.0.1").unwrap(),
+    fn build_rate_limiter() -> RedisRateLimiter {
+        let url = std::env::var("RELAY_REDIS_URL")
+            .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
+
+        RedisRateLimiter {
+            pool: RedisPool::single(&url).unwrap(),
             script: Arc::new(load_lua_script()),
             max_limit: None,
-        };
+        }
     }
 
     #[test]
@@ -292,12 +295,12 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
         };
 
-        let rate_limits: Vec<RateLimit> = RATE_LIMITER
+        let rate_limits: Vec<RateLimit> = build_rate_limiter()
             .is_rate_limited(quotas, scoping, 1)
             .expect("rate limiting failed")
             .into_iter()
@@ -331,13 +334,15 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
         };
 
+        let rate_limiter = build_rate_limiter();
+
         for i in 0..10 {
-            let rate_limits: Vec<RateLimit> = RATE_LIMITER
+            let rate_limits: Vec<RateLimit> = rate_limiter
                 .is_rate_limited(quotas, scoping, 1)
                 .expect("rate limiting failed")
                 .into_iter()
@@ -366,12 +371,12 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
         };
 
-        let rate_limits: Vec<RateLimit> = RATE_LIMITER
+        let rate_limits: Vec<RateLimit> = build_rate_limiter()
             .is_rate_limited(&[], scoping, 1)
             .expect("rate limiting failed")
             .into_iter()
@@ -408,13 +413,15 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
         };
 
+        let rate_limiter = build_rate_limiter();
+
         for i in 0..1 {
-            let rate_limits: Vec<RateLimit> = RATE_LIMITER
+            let rate_limits: Vec<RateLimit> = rate_limiter
                 .is_rate_limited(quotas, scoping, 1)
                 .expect("rate limiting failed")
                 .into_iter()
@@ -453,13 +460,15 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
         };
 
+        let rate_limiter = build_rate_limiter();
+
         for i in 0..10 {
-            let rate_limits: Vec<RateLimit> = RATE_LIMITER
+            let rate_limits: Vec<RateLimit> = rate_limiter
                 .is_rate_limited(quotas, scoping, 100)
                 .expect("rate limiting failed")
                 .into_iter()
@@ -498,7 +507,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 69420,
                 project_id: ProjectId::new(42),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
         };
@@ -525,7 +534,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 69420,
                 project_id: ProjectId::new(42),
-                public_key: "a94ae32be2584e0bbd7a4cbb95971fee".to_owned(),
+                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
         };
@@ -543,7 +552,8 @@ mod tests {
             .map(|duration| duration.as_secs())
             .unwrap();
 
-        let mut client = RATE_LIMITER.pool.client().expect("get client");
+        let rate_limiter = build_rate_limiter();
+        let mut client = rate_limiter.pool.client().expect("get client");
         let mut conn = client.connection();
 
         // define a few keys with random seed such that they do not collide with repeated test runs

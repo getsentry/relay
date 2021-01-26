@@ -9,8 +9,8 @@ mod size;
 mod traits;
 
 pub use self::attrs::{
-    BagSize, FieldAttrs, MaxChars, Path, Pii, PiiMatch, ProcessingState, UnknownValueTypeError,
-    ValueType,
+    BagSize, CharacterSet, FieldAttrs, MaxChars, Path, Pii, PiiMatch, ProcessingState,
+    UnknownValueTypeError, ValueType,
 };
 pub use self::chunks::{join_chunks, process_chunked_value, split_chunks, Chunk};
 pub use self::funcs::process_value;

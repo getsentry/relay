@@ -17,13 +17,11 @@ __all__ = [
     "meta_with_chunks",
     "StoreNormalizer",
     "GeoIpLookup",
-    "scrub_event",
     "is_glob_match",
     "parse_release",
     "validate_pii_config",
     "convert_datascrubbing_config",
     "pii_strip_event",
-    "pii_selectors_from_event",
     "pii_selector_suggestions_from_event",
     "VALID_PLATFORMS",
 ]
@@ -130,19 +128,6 @@ def _encode_raw_event(raw_event):
     return event
 
 
-def scrub_event(config, data):
-    if not config:
-        return data
-
-    config = json.dumps(config)
-
-    raw_event = _serialize_event(data)
-    event = _encode_raw_event(raw_event)
-
-    rv = rustcall(lib.relay_scrub_event, encode_str(config), event)
-    return json.loads(decode_str(rv, free=True))
-
-
 def is_glob_match(
     value,
     pat,
@@ -201,15 +186,6 @@ def pii_strip_event(config, event):
     raw_config = encode_str(json.dumps(config))
     raw_event = encode_str(json.dumps(event))
     raw_rv = rustcall(lib.relay_pii_strip_event, raw_config, raw_event)
-    return json.loads(decode_str(raw_rv, free=True))
-
-
-def pii_selectors_from_event(event):
-    """
-    DEPRECATED: Use relay_pii_selector_suggestions_from_event
-    """
-    raw_event = encode_str(json.dumps(event))
-    raw_rv = rustcall(lib.relay_pii_selectors_from_event, raw_event)
     return json.loads(decode_str(raw_rv, free=True))
 
 
