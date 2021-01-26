@@ -735,10 +735,11 @@ impl<'a> fmt::Display for Path<'a> {
     }
 }
 
-#[allow(clippy::cognitive_complexity)]
-#[test]
-fn test_selector_matching() {
+#[cfg(test)]
+mod tests {
     use itertools::Itertools;
+
+    use super::*;
 
     macro_rules! assert_matches_raw {
         ($state:expr, $selector:expr, $expected:expr) => {{
@@ -801,72 +802,104 @@ fn test_selector_matching() {
         }}
     }
 
-    let event_state = ProcessingState::new_root(None, Some(ValueType::Event)); // .
-    let user_state = event_state.enter_static("user", None, Some(ValueType::User)); // .user
-    let extra_state = user_state.enter_static("extra", None, Some(ValueType::Object)); // .user.extra
-    let foo_state = extra_state.enter_static("foo", None, Some(ValueType::Array)); // .user.extra.foo
-    let zero_state = foo_state.enter_index(0, None, None); // .user.extra.foo.0
+    #[test]
+    fn test_matching() {
+        let event_state = ProcessingState::new_root(None, Some(ValueType::Event)); // .
+        let user_state = event_state.enter_static("user", None, Some(ValueType::User)); // .user
+        let extra_state = user_state.enter_static("extra", None, Some(ValueType::Object)); // .user.extra
+        let foo_state = extra_state.enter_static("foo", None, Some(ValueType::Array)); // .user.extra.foo
+        let zero_state = foo_state.enter_index(0, None, None); // .user.extra.foo.0
 
-    assert_matches!(
-        extra_state,
-        "user.extra",  // this is an exact match to the state
-        "$user.extra", // this is a match below a type
-        "(** || user.*) && !(foo.bar.baz || a.b.c)",
-    );
+        assert_matches!(
+            extra_state,
+            "user.extra",  // this is an exact match to the state
+            "$user.extra", // this is a match below a type
+            "(** || user.*) && !(foo.bar.baz || a.b.c)",
+        );
 
-    assert_matches_non_specific!(
-        extra_state,
-        // known limitation: double-negations *could* be specific (I'd expect this as a user), but
-        // right now we don't support it
-        "!(!user.extra)",
-        "!(!$user.extra)",
-    );
+        assert_matches_non_specific!(
+            extra_state,
+            // known limitation: double-negations *could* be specific (I'd expect this as a user), but
+            // right now we don't support it
+            "!(!user.extra)",
+            "!(!$user.extra)",
+        );
 
-    assert_matches!(
-        foo_state,
-        "$user.extra.*", // this is a wildcard match into a type
-    );
+        assert_matches!(
+            foo_state,
+            "$user.extra.*", // this is a wildcard match into a type
+        );
 
-    assert_matches!(
-        zero_state,
-        "$user.extra.foo.*", // a wildcard match into an array
-        "$user.extra.foo.0", // a direct match into an array
-    );
+        assert_matches!(
+            zero_state,
+            "$user.extra.foo.*", // a wildcard match into an array
+            "$user.extra.foo.0", // a direct match into an array
+        );
 
-    assert_matches_non_specific!(
-        zero_state,
-        // deep matches are wild
-        "$user.extra.foo.**",
-        "$user.extra.**",
-        "$user.**",
-        "$event.**",
-        "$user.**.0",
-        // types are anywhere
-        "$user.$object.**.0",
-        "(**.0 | absolutebogus)",
-        "(~$object)",
-        "($object.** & (~absolutebogus))",
-        "($object.** & (~absolutebogus))",
-    );
+        assert_matches_non_specific!(
+            zero_state,
+            // deep matches are wild
+            "$user.extra.foo.**",
+            "$user.extra.**",
+            "$user.**",
+            "$event.**",
+            "$user.**.0",
+            // types are anywhere
+            "$user.$object.**.0",
+            "(**.0 | absolutebogus)",
+            "(~$object)",
+            "($object.** & (~absolutebogus))",
+            "($object.** & (~absolutebogus))",
+        );
 
-    assert_not_matches!(
-        zero_state,
-        "$user.extra.foo.1", // direct mismatch in an array
-        // deep matches are wild
-        "$user.extra.bar.**",
-        "$user.**.1",
-        "($object | absolutebogus)",
-        "($object & absolutebogus)",
-        "(~$object.**)",
-        "($object | (**.0 & absolutebogus))",
-    );
+        assert_not_matches!(
+            zero_state,
+            "$user.extra.foo.1", // direct mismatch in an array
+            // deep matches are wild
+            "$user.extra.bar.**",
+            "$user.**.1",
+            "($object | absolutebogus)",
+            "($object & absolutebogus)",
+            "(~$object.**)",
+            "($object | (**.0 & absolutebogus))",
+        );
 
-    assert_matches_non_specific!(
-        foo_state,
-        "($array & $object.*)",
-        "(** & $object.*)",
-        "**.$array",
-    );
+        assert_matches_non_specific!(
+            foo_state,
+            "($array & $object.*)",
+            "(** & $object.*)",
+            "**.$array",
+        );
 
-    assert_not_matches!(foo_state, "($object & $object.*)",);
+        assert_not_matches!(foo_state, "($object & $object.*)",);
+    }
+
+    #[test]
+    fn test_attachments_matching() {
+        let event_state = ProcessingState::new_root(None, None);
+        let attachments_state = event_state.enter_static("", None, Some(ValueType::Attachments)); // .
+        let txt_state = attachments_state.enter_static("file.txt", None, Some(ValueType::Binary)); // .'file.txt'
+        let minidump_state =
+            attachments_state.enter_static("file.dmp", None, Some(ValueType::Minidump)); // .'file.txt'
+        let minidump_state_inner = minidump_state.enter_static("", None, Some(ValueType::Binary)); // .'file.txt'
+
+        assert_matches!(attachments_state, "$attachments",);
+        assert_matches!(txt_state, "$attachments.'file.txt'",);
+
+        assert_matches_non_specific!(txt_state, "$binary",);
+        // WAT.  All entire attachments are binary, so why not be able to select them (specific)
+        // like this?  Especially since we can select them with wildcard.
+        assert_matches_non_specific!(txt_state, "$attachments.$binary",);
+
+        // WAT.  This is not problematic but rather... weird?
+        assert_matches!(txt_state, "$attachments.*",);
+        assert_matches_non_specific!(txt_state, "$attachments.**",);
+
+        assert_matches!(minidump_state, "$minidump",);
+        // WAT.  This should not behave differently from plain $minidump
+        assert_matches_non_specific!(minidump_state, "$attachments.$minidump",);
+
+        // WAT.  We have the full path to a field here.
+        assert_matches_non_specific!(minidump_state_inner, "$attachments.$minidump.$binary",);
+    }
 }
