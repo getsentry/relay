@@ -12,6 +12,7 @@
 - Add missing fields for Expect-CT reports. ([#865](https://github.com/getsentry/relay/pull/865))
 - Support more directives in CSP reports, such as `block-all-mixed-content` and `require-trusted-types-for`. ([#876](https://github.com/getsentry/relay/pull/876))
 - Fix a long-standing bug where log messages were not addressible as `$string`. ([#882](https://github.com/getsentry/relay/pull/882))
+- Use manylinux2010 to build releases instead of manylinux1 to fix issues with newer Rust. ([#917](https://github.com/getsentry/relay/pull/917))
 
 ## 0.8.1
 
