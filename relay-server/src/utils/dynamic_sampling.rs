@@ -15,6 +15,7 @@ use relay_general::protocol::{Event, EventId};
 use crate::actors::project::{GetCachedProjectState, GetProjectState, Project, ProjectState};
 use crate::envelope::{Envelope, ItemType};
 
+/// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum RuleType {
@@ -34,48 +35,112 @@ pub enum FieldValue<'a> {
     None,
 }
 
+impl FieldValue<'_> {
+    fn as_str(&self) -> Option<&str> {
+        if let FieldValue::String(s) = self {
+            Some(s)
+        } else {
+            None
+        }
+    }
+}
+
+/// A condition that checks for equality
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct EqCondData {
+pub struct EqCondition {
     pub name: String,
     pub value: Vec<String>,
     #[serde(default)]
     pub ignore_case: bool,
 }
 
+impl EqCondition {
+    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
+        value_provider
+            .get_value(self.name.as_str())
+            .as_str()
+            .map_or(false, |fv| {
+                if self.ignore_case {
+                    self.value.iter().any(|val| unicase::eq(val.as_str(), fv))
+                } else {
+                    self.value.iter().any(|v| v == fv)
+                }
+            })
+    }
+}
+
+/// A condition that uses glob matching  
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GlobCondData {
+pub struct GlobCondition {
     pub name: String,
     pub value: GlobPatterns,
 }
 
-/// Keeps inner conditions for combinator conditions
-/// This structure is used to aid the serialisation of Rules.
-/// Since we use internally tagged serialisation for RuleConditions
-/// We need to add an inner level when serializing in order not to have a
-/// clash fo the tag operator between the inner and the outer Conditions
+impl GlobCondition {
+    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
+        value_provider
+            .get_value(self.name.as_str())
+            .as_str()
+            .map_or(false, |fv| self.value.is_match(fv))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InnerConditions {
+pub struct OrCondition {
     inner: Vec<RuleCondition>,
 }
 
-/// Keeps inner conditions for combinator conditions with one element (i.e. Not)
-/// This structure is used to aid the serialisation of Rules.
-/// See [InnerConditions] for further explanations.
+impl OrCondition {
+    fn supported(&self) -> bool {
+        self.inner.iter().all(RuleCondition::supported)
+    }
+    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
+        self.inner.iter().any(|cond| cond.matches(value_provider))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InnerNotCondition {
+pub struct AndCondition {
+    inner: Vec<RuleCondition>,
+}
+
+impl AndCondition {
+    fn supported(&self) -> bool {
+        self.inner.iter().all(RuleCondition::supported)
+    }
+    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
+        self.inner.iter().all(|cond| cond.matches(value_provider))
+    }
+}
+
+/// Negates a wrapped condition.
+///
+/// This structure is used to aid the serialization of Rules.
+/// See [Conditions] for further explanations.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotCondition {
     inner: Box<RuleCondition>,
+}
+
+impl NotCondition {
+    fn supported(&self) -> bool {
+        self.inner.supported()
+    }
+    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
+        !self.inner.matches(value_provider)
+    }
 }
 
 /// A condition from a sampling rule
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "op")]
 pub enum RuleCondition {
-    Eq(EqCondData),
-    Glob(GlobCondData),
-    Or(InnerConditions),
-    And(InnerConditions),
-    Not(InnerNotCondition),
+    Eq(EqCondition),
+    Glob(GlobCondition),
+    Or(OrCondition),
+    And(AndCondition),
+    Not(NotCondition),
     #[serde(other)]
     Unsupported,
 }
@@ -84,39 +149,25 @@ impl RuleCondition {
     /// Checks if Relay supports this condition (in other words if the condition had any unknown configuration
     /// which was serialized as "Unsupported" (because the configuration is either faulty or was created for a
     /// newer relay that supports some other condition types)
-    fn is_not_supported(&self) -> bool {
+    fn supported(&self) -> bool {
         match self {
-            RuleCondition::Unsupported => true,
-            // dig down for embedded conditions
-            RuleCondition::And(rules) => rules.inner.iter().any(RuleCondition::is_not_supported),
-            RuleCondition::Or(rules) => rules.inner.iter().any(RuleCondition::is_not_supported),
-            RuleCondition::Not(rule) => rule.inner.is_not_supported(),
+            RuleCondition::Unsupported => false,
             // we have a known condition
-            _ => false,
+            RuleCondition::Eq(_) | RuleCondition::Glob(_) => true,
+            // dig down for embedded conditions
+            RuleCondition::And(rules) => rules.supported(),
+            RuleCondition::Or(rules) => rules.supported(),
+            RuleCondition::Not(rule) => rule.supported(),
         }
     }
     fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
         match self {
-            RuleCondition::Eq(cond) => {
-                if cond.ignore_case {
-                    str_eq_no_case(&cond.value, &value_provider.get_value(cond.name.as_str()))
-                } else {
-                    equal(&cond.value, &value_provider.get_value(cond.name.as_str()))
-                }
-            }
-            RuleCondition::Glob(cond) => {
-                match_glob(&cond.value, &value_provider.get_value(cond.name.as_str()))
-            }
-            RuleCondition::And(conditions) => conditions
-                .inner
-                .iter()
-                .all(|cond| cond.matches(value_provider)),
-            RuleCondition::Or(conditions) => conditions
-                .inner
-                .iter()
-                .any(|cond| cond.matches(value_provider)),
-            RuleCondition::Not(condition) => !condition.inner.matches(value_provider),
-            _ => false,
+            RuleCondition::Eq(condition) => condition.matches(value_provider),
+            RuleCondition::Glob(condition) => condition.matches(value_provider),
+            RuleCondition::And(conditions) => conditions.matches(value_provider),
+            RuleCondition::Or(conditions) => conditions.matches(value_provider),
+            RuleCondition::Not(condition) => condition.matches(value_provider),
+            RuleCondition::Unsupported => false,
         }
     }
 }
@@ -132,8 +183,8 @@ pub struct SamplingRule {
 }
 
 impl SamplingRule {
-    fn is_not_supported(&self) -> bool {
-        self.condition.is_not_supported()
+    fn supported(&self) -> bool {
+        self.condition.supported()
     }
 }
 
@@ -194,38 +245,6 @@ impl FieldValueProvider for TraceContext {
     }
 }
 
-//TODO make this more efficient
-fn matches<T: FieldValueProvider>(value_provider: &T, rule: &SamplingRule, ty: RuleType) -> bool {
-    if ty != rule.ty {
-        return false;
-    }
-    rule.condition.matches(value_provider)
-}
-
-fn match_glob(rule_val: &GlobPatterns, field_val: &FieldValue) -> bool {
-    match field_val {
-        FieldValue::String(fv) => rule_val.is_match(fv),
-        _ => false,
-    }
-}
-
-fn equal(rule_val: &[String], field_val: &FieldValue) -> bool {
-    match field_val {
-        FieldValue::String(fv) => rule_val.iter().any(|v| v == fv),
-        _ => false,
-    }
-}
-
-// Note: this is horrible (we allocate strings at every comparison, when we
-// move to an 'compiled' version where the rule value is already processed
-// things should improve
-fn str_eq_no_case(rule_val: &[String], field_val: &FieldValue) -> bool {
-    match field_val {
-        FieldValue::String(fv) => rule_val.iter().any(|val| unicase::eq(val.as_str(), fv)),
-        _ => false,
-    }
-}
-
 /// Represents the dynamic sampling configuration available to a project.
 /// Note: This comes from the organization data
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -237,7 +256,7 @@ pub struct SamplingConfig {
 
 impl SamplingConfig {
     pub fn has_unsupported_rules(&self) -> bool {
-        self.rules.iter().any(SamplingRule::is_not_supported)
+        !self.rules.iter().all(SamplingRule::supported)
     }
 }
 
@@ -414,13 +433,16 @@ pub fn sample_transaction(
 
 fn get_matching_rule<'a, T>(
     config: &'a SamplingConfig,
-    context: &T,
+    value_provider: &T,
     ty: RuleType,
 ) -> Option<&'a SamplingRule>
 where
     T: FieldValueProvider,
 {
-    config.rules.iter().find(|rule| matches(context, rule, ty))
+    config
+        .rules
+        .iter()
+        .find(|rule| rule.ty == ty && rule.condition.matches(value_provider))
 }
 
 /// Generates a pseudo random number by seeding the generator with the given id.
@@ -442,7 +464,7 @@ mod tests {
     use std::str::FromStr;
 
     fn eq(name: &str, value: &[&str], ignore_case: bool) -> RuleCondition {
-        RuleCondition::Eq(EqCondData {
+        RuleCondition::Eq(EqCondition {
             name: name.to_owned(),
             value: value.iter().map(|s| s.to_string()).collect(),
             ignore_case,
@@ -450,22 +472,22 @@ mod tests {
     }
 
     fn glob(name: &str, value: &[&str]) -> RuleCondition {
-        RuleCondition::Glob(GlobCondData {
+        RuleCondition::Glob(GlobCondition {
             name: name.to_owned(),
             value: GlobPatterns::new(value.iter().map(|s| s.to_string()).collect()),
         })
     }
 
     fn and(conds: Vec<RuleCondition>) -> RuleCondition {
-        RuleCondition::And(InnerConditions { inner: conds })
+        RuleCondition::And(AndCondition { inner: conds })
     }
 
     fn or(conds: Vec<RuleCondition>) -> RuleCondition {
-        RuleCondition::Or(InnerConditions { inner: conds })
+        RuleCondition::Or(OrCondition { inner: conds })
     }
 
     fn not(cond: RuleCondition) -> RuleCondition {
-        RuleCondition::Not(InnerNotCondition {
+        RuleCondition::Not(NotCondition {
             inner: Box::new(cond),
         })
     }
@@ -473,125 +495,82 @@ mod tests {
     #[test]
     /// test matching for various rules
     fn test_matches() {
-        let rules = [
+        let conditions = [
             (
                 "simple",
-                SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["1.1.1"]),
-                        eq("trace.environment", &["debug"], true),
-                        eq("trace.user_segment", &["vip"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user_segment", &["vip"], true),
+                ]),
             ),
             (
                 "glob releases",
-                SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["1.*"]),
-                        eq("trace.environment", &["debug"], true),
-                        eq("trace.user_segment", &["vip"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                and(vec![
+                    glob("trace.release", &["1.*"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user_segment", &["vip"], true),
+                ]),
             ),
             (
                 "multiple releases",
-                SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["2.1.1", "1.1.*"]),
-                        eq("trace.environment", &["debug"], true),
-                        eq("trace.user_segment", &["vip"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                and(vec![
+                    glob("trace.release", &["2.1.1", "1.1.*"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user_segment", &["vip"], true),
+                ]),
             ),
             (
                 "multiple user segments",
-                SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["1.1.1"]),
-                        eq("trace.environment", &["debug"], true),
-                        eq("trace.user_segment", &["paid", "vip", "free"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user_segment", &["paid", "vip", "free"], true),
+                ]),
             ),
             (
                 "case insensitive user segments",
-                SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["1.1.1"]),
-                        eq("trace.environment", &["debug"], true),
-                        eq("trace.user_segment", &["ViP", "FrEe"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user_segment", &["ViP", "FrEe"], true),
+                ]),
             ),
             (
                 "multiple user environments",
-                SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["1.1.1"]),
-                        eq(
-                            "trace.environment",
-                            &["integration", "debug", "production"],
-                            true,
-                        ),
-                        eq("trace.user_segment", &["vip"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq(
+                        "trace.environment",
+                        &["integration", "debug", "production"],
+                        true,
+                    ),
+                    eq("trace.user_segment", &["vip"], true),
+                ]),
             ),
             (
                 "case insensitive environments",
-                SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["1.1.1"]),
-                        eq("trace.environment", &["DeBuG", "PrOd"], true),
-                        eq("trace.user_segment", &["vip"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["DeBuG", "PrOd"], true),
+                    eq("trace.user_segment", &["vip"], true),
+                ]),
             ),
             (
                 "all environments",
-                SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["1.1.1"]),
-                        eq("trace.user_segment", &["vip"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.user_segment", &["vip"], true),
+                ]),
             ),
             (
                 "undefined environments",
-                SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["1.1.1"]),
-                        eq("trace.user_segment", &["vip"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.user_segment", &["vip"], true),
+                ]),
             ),
-            (
-                "match no conditions",
-                SamplingRule {
-                    condition: and(vec![]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
-            ),
+            ("match no conditions", and(vec![])),
         ];
 
         let tc = TraceContext {
@@ -602,72 +581,48 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        for (rule_test_name, rule) in rules.iter() {
+        for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(matches(&tc, rule, RuleType::Trace), failure_name);
+            assert!(condition.matches(&tc), failure_name);
         }
     }
 
     #[test]
     fn test_or_combinator() {
-        let rules = [
+        let conditions = [
             (
                 "both",
                 true,
-                SamplingRule {
-                    condition: or(vec![
-                        eq("trace.environment", &["debug"], true),
-                        eq("trace.user_segment", &["vip"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                or(vec![
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user_segment", &["vip"], true),
+                ]),
             ),
             (
                 "first",
                 true,
-                SamplingRule {
-                    condition: or(vec![
-                        eq("trace.environment", &["debug"], true),
-                        eq("trace.user_segment", &["all"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                or(vec![
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user_segment", &["all"], true),
+                ]),
             ),
             (
                 "second",
                 true,
-                SamplingRule {
-                    condition: or(vec![
-                        eq("trace.environment", &["prod"], true),
-                        eq("trace.user_segment", &["vip"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                or(vec![
+                    eq("trace.environment", &["prod"], true),
+                    eq("trace.user_segment", &["vip"], true),
+                ]),
             ),
             (
                 "none",
                 false,
-                SamplingRule {
-                    condition: or(vec![
-                        eq("trace.environment", &["prod"], true),
-                        eq("trace.user_segment", &["all"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                or(vec![
+                    eq("trace.environment", &["prod"], true),
+                    eq("trace.user_segment", &["all"], true),
+                ]),
             ),
-            (
-                "empty",
-                false,
-                SamplingRule {
-                    condition: or(vec![]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
-            ),
+            ("empty", false, or(vec![])),
         ];
 
         let tc = TraceContext {
@@ -678,75 +633,48 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        for (rule_test_name, expected, rule) in rules.iter() {
+        for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(
-                matches(&tc, rule, RuleType::Trace) == *expected,
-                failure_name
-            );
+            assert!(condition.matches(&tc) == *expected, failure_name);
         }
     }
 
     #[test]
     fn test_and_combinator() {
-        let rules = [
+        let conditions = [
             (
                 "both",
                 true,
-                SamplingRule {
-                    condition: and(vec![
-                        eq("trace.environment", &["debug"], true),
-                        eq("trace.user_segment", &["vip"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                and(vec![
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user_segment", &["vip"], true),
+                ]),
             ),
             (
                 "first",
                 false,
-                SamplingRule {
-                    condition: and(vec![
-                        eq("trace.environment", &["debug"], true),
-                        eq("trace.user_segment", &["all"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                and(vec![
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user_segment", &["all"], true),
+                ]),
             ),
             (
                 "second",
                 false,
-                SamplingRule {
-                    condition: and(vec![
-                        eq("trace.environment", &["prod"], true),
-                        eq("trace.user_segment", &["vip"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                and(vec![
+                    eq("trace.environment", &["prod"], true),
+                    eq("trace.user_segment", &["vip"], true),
+                ]),
             ),
             (
                 "none",
                 false,
-                SamplingRule {
-                    condition: and(vec![
-                        eq("trace.environment", &["prod"], true),
-                        eq("trace.user_segment", &["all"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                and(vec![
+                    eq("trace.environment", &["prod"], true),
+                    eq("trace.user_segment", &["all"], true),
+                ]),
             ),
-            (
-                "empty",
-                true,
-                SamplingRule {
-                    condition: and(vec![]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
-            ),
+            ("empty", true, and(vec![])),
         ];
 
         let tc = TraceContext {
@@ -757,35 +685,24 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        for (rule_test_name, expected, rule) in rules.iter() {
+        for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(
-                matches(&tc, rule, RuleType::Trace) == *expected,
-                failure_name
-            );
+            assert!(condition.matches(&tc) == *expected, failure_name);
         }
     }
 
     #[test]
     fn test_not_combinator() {
-        let rules = [
+        let conditions = [
             (
                 "not true",
                 false,
-                SamplingRule {
-                    condition: not(eq("trace.environment", &["debug"], true)),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                not(eq("trace.environment", &["debug"], true)),
             ),
             (
                 "not false",
                 true,
-                SamplingRule {
-                    condition: not(eq("trace.environment", &["prod"], true)),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                not(eq("trace.environment", &["prod"], true)),
             ),
         ];
 
@@ -797,66 +714,39 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        for (rule_test_name, expected, rule) in rules.iter() {
+        for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(
-                matches(&tc, rule, RuleType::Trace) == *expected,
-                failure_name
-            );
+            assert!(condition.matches(&tc) == *expected, failure_name);
         }
     }
 
     #[test]
     // /// test various rules that do not match
     fn test_does_not_match() {
-        let rules = [
+        let conditions = [
             (
                 "release",
-                SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["1.1.2"]),
-                        eq("trace.environment", &["debug"], true),
-                        eq("trace.user_segment", &["vip"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                and(vec![
+                    glob("trace.release", &["1.1.2"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user_segment", &["vip"], true),
+                ]),
             ),
             (
                 "user segment",
-                SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["1.1.1"]),
-                        eq("trace.environment", &["debug"], true),
-                        eq("trace.user_segment", &["all"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user_segment", &["all"], true),
+                ]),
             ),
             (
                 "environment",
-                SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["1.1.1"]),
-                        eq("trace.environment", &["prod"], true),
-                        eq("trace.user_segment", &["vip"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Trace,
-                },
-            ),
-            (
-                "category",
-                SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["1.1.1"]),
-                        eq("trace.environment", &["debug"], true),
-                        eq("trace.user_segment", &["vip"], true),
-                    ]),
-                    sample_rate: 1.0,
-                    ty: RuleType::Error,
-                },
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["prod"], true),
+                    eq("trace.user_segment", &["vip"], true),
+                ]),
             ),
         ];
 
@@ -868,9 +758,9 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        for (rule_test_name, rule) in rules.iter() {
+        for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(!matches(&tc, rule, RuleType::Trace), failure_name);
+            assert!(!condition.matches(&tc), failure_name);
         }
     }
 
@@ -925,7 +815,7 @@ mod tests {
         let rules = rules.unwrap();
         assert_ron_snapshot!(rules, @r###"
             [
-              EqCondData(
+              EqCondition(
                 op: "eq",
                 name: "field_1",
                 value: [
@@ -934,7 +824,7 @@ mod tests {
                 ],
                 ignoreCase: true,
               ),
-              EqCondData(
+              EqCondition(
                 op: "eq",
                 name: "field_2",
                 value: [
@@ -943,7 +833,7 @@ mod tests {
                 ],
                 ignoreCase: false,
               ),
-              GlobCondData(
+              GlobCondition(
                 op: "glob",
                 name: "field_3",
                 value: [
@@ -951,9 +841,9 @@ mod tests {
                   "2.*",
                 ],
               ),
-              InnerNotCondition(
+              NotCondition(
                 op: "not",
-                inner: GlobCondData(
+                inner: GlobCondition(
                   op: "glob",
                   name: "field_4",
                   value: [
@@ -961,10 +851,10 @@ mod tests {
                   ],
                 ),
               ),
-              InnerConditions(
+              AndCondition(
                 op: "and",
                 inner: [
-                  GlobCondData(
+                  GlobCondition(
                     op: "glob",
                     name: "field_5",
                     value: [
@@ -973,10 +863,10 @@ mod tests {
                   ),
                 ],
               ),
-              InnerConditions(
+              OrCondition(
                 op: "or",
                 inner: [
-                  GlobCondData(
+                  GlobCondition(
                     op: "glob",
                     name: "field_6",
                     value: [
@@ -1011,14 +901,10 @@ mod tests {
 
     #[test]
     fn test_partial_trace_matches() {
-        let rule = SamplingRule {
-            condition: and(vec![
-                eq("trace.environment", &["debug"], true),
-                eq("trace.user_segment", &["vip"], true),
-            ]),
-            sample_rate: 1.0,
-            ty: RuleType::Trace,
-        };
+        let condition = and(vec![
+            eq("trace.environment", &["debug"], true),
+            eq("trace.user_segment", &["vip"], true),
+        ]);
         let tc = TraceContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
@@ -1027,19 +913,12 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        assert!(
-            matches(&tc, &rule, RuleType::Trace),
-            "did not match with missing release"
-        );
+        assert!(condition.matches(&tc), "did not match with missing release");
 
-        let rule = SamplingRule {
-            condition: and(vec![
-                glob("trace.release", &["1.1.1"]),
-                eq("trace.environment", &["debug"], true),
-            ]),
-            sample_rate: 1.0,
-            ty: RuleType::Trace,
-        };
+        let condition = and(vec![
+            glob("trace.release", &["1.1.1"]),
+            eq("trace.environment", &["debug"], true),
+        ]);
         let tc = TraceContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
@@ -1049,18 +928,14 @@ mod tests {
         };
 
         assert!(
-            matches(&tc, &rule, RuleType::Trace),
+            condition.matches(&tc),
             "did not match with missing user segment"
         );
 
-        let rule = SamplingRule {
-            condition: and(vec![
-                glob("trace.release", &["1.1.1"]),
-                eq("trace.user_segment", &["vip"], true),
-            ]),
-            sample_rate: 1.0,
-            ty: RuleType::Trace,
-        };
+        let condition = and(vec![
+            glob("trace.release", &["1.1.1"]),
+            eq("trace.user_segment", &["vip"], true),
+        ]);
         let tc = TraceContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
@@ -1070,15 +945,11 @@ mod tests {
         };
 
         assert!(
-            matches(&tc, &rule, RuleType::Trace),
+            condition.matches(&tc),
             "did not match with missing environment"
         );
 
-        let rule = SamplingRule {
-            condition: and(vec![]),
-            sample_rate: 1.0,
-            ty: RuleType::Trace,
-        };
+        let condition = and(vec![]);
         let tc = TraceContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
@@ -1088,7 +959,7 @@ mod tests {
         };
 
         assert!(
-            matches(&tc, &rule, RuleType::Trace),
+            condition.matches(&tc),
             "did not match with missing release, user segment and environment"
         );
     }
@@ -1142,7 +1013,7 @@ mod tests {
                 },
                 // no user segments releases or environments
                 SamplingRule {
-                    condition: RuleCondition::And(InnerConditions { inner: vec![] }),
+                    condition: RuleCondition::And(AndCondition { inner: vec![] }),
                     sample_rate: 0.5,
                     ty: RuleType::Trace,
                 },

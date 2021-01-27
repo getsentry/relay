@@ -1113,17 +1113,16 @@ impl EventProcessor {
     }
 
     /// Run dynamic sampling rules to see if we keep the event or remove it.
-    fn sample_event(
-        &self,
-        state: &mut ProcessEnvelopeState,
-        processing_enabled: bool,
-    ) -> Result<(), ProcessingError> {
+    fn sample_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let event = match &state.event.0 {
             None => return Ok(()), // can't process without an event
             Some(event) => event,
         };
-
-        match utils::should_keep_event(event, &state.project_state, processing_enabled) {
+        match utils::should_keep_event(
+            event,
+            &state.project_state,
+            self.config.processing_enabled(),
+        ) {
             Some(false) => Err(ProcessingError::EventSampled),
             Some(true) => Ok(()),
             None => Ok(()), // Not enough info to make a definite evaluation, keep the event
@@ -1161,7 +1160,7 @@ impl EventProcessor {
             });
 
             self.finalize_event(&mut state)?;
-            self.sample_event(&mut state, self.config.processing_enabled())?;
+            self.sample_event(&mut state)?;
 
             if_processing!({
                 self.store_process_event(&mut state)?;
