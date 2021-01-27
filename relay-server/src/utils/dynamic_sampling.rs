@@ -340,7 +340,7 @@ pub fn sample_transaction(
         });
         Box::new(fut) as ResponseFuture<_, _>
     } else {
-        let fut = project.send(GetProjectState).then(|project_state| {
+        let fut = project.send(GetProjectState::new()).then(|project_state| {
             let project_state = match project_state {
                 // error getting the project, give up and return envelope unchanged
                 Err(_) => return Ok(envelope),

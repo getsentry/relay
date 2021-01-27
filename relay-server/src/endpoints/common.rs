@@ -19,7 +19,7 @@ use relay_quotas::RateLimits;
 
 use crate::actors::events::{QueueEnvelope, QueueEnvelopeError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::{CheckEnvelope, Project, RefreshProjectState};
+use crate::actors::project::{CheckEnvelope, Project};
 use crate::actors::project_cache::{GetProject, ProjectError};
 use crate::body::StorePayloadError;
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
@@ -404,7 +404,6 @@ where
     let project_manager = request.state().project_cache();
     let outcome_producer = request.state().outcome_producer();
     let remote_addr = meta.client_addr();
-    let should_refresh = meta.no_cache();
 
     let scoping = Rc::new(RefCell::new(meta.get_partial_scoping()));
     let event_id = Rc::new(RefCell::new(None));
@@ -413,27 +412,7 @@ where
     let future = project_manager
         .send(GetProject { public_key })
         .map_err(BadStoreRequest::ScheduleFailed)
-        .and_then(clone!(should_refresh, |project| {
-            type RetVal = ResponseFuture<Addr<Project>, BadStoreRequest>;
-            if should_refresh {
-                Box::new(
-                    project
-                        .send(RefreshProjectState)
-                        .map_err(BadStoreRequest::ScheduleFailed)
-                        .and_then(|result| {
-                            // we actually do not care about the project state here.
-                            // we just want to know it's refreshed.  The real state
-                            // is fetched again further down.
-                            result
-                                .map(|_| project)
-                                .map_err(BadStoreRequest::ProjectFailed)
-                        }),
-                ) as RetVal
-            } else {
-                Box::new(Ok(project).into_future()) as RetVal
-            }
-        }))
-        .and_then(clone!(event_id, scoping, should_refresh, |project| {
+        .and_then(clone!(event_id, scoping, |project| {
             extract_envelope(&request, meta)
                 .into_future()
                 .and_then(clone!(project, event_id, |envelope| {

@@ -368,6 +368,9 @@ impl PartialMeta {
         if self.user_agent.is_some() {
             complete.user_agent = self.user_agent;
         }
+        if self.no_cache {
+            complete.no_cache = true;
+        }
 
         complete
     }

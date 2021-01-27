@@ -383,6 +383,7 @@ pub struct Project {
     state: Option<Arc<ProjectState>>,
     state_channel: Option<Shared<oneshot::Receiver<Arc<ProjectState>>>>,
     rate_limits: RateLimits,
+    no_cache: bool,
 }
 
 impl Project {
@@ -394,6 +395,7 @@ impl Project {
             state: None,
             state_channel: None,
             rate_limits: RateLimits::new(),
+            no_cache: false,
         }
     }
 
@@ -403,6 +405,7 @@ impl Project {
 
     fn get_or_fetch_state(
         &mut self,
+        no_cache: bool,
         context: &mut Context<Self>,
     ) -> Response<Arc<ProjectState>, ProjectError> {
         // count number of times we are looking for the project state
@@ -414,6 +417,9 @@ impl Project {
             .unwrap_or(Outdated::HardOutdated);
 
         let cached_state = match (state, outdated) {
+            // Never use the cached state if `no_cache` is set.
+            _ if no_cache => None,
+
             // There is no project state that can be used, fetch a state and return it.
             (None, _) | (_, Outdated::HardOutdated) => None,
 
@@ -424,14 +430,20 @@ impl Project {
             (Some(state), Outdated::Updated) => return Response::ok(state.clone()),
         };
 
+        // Check if we are already fetching with `no_cache` enabled. Otherwise, replace the current
+        // channel with one that has the flag enabled. All envelopes that are already in-flight will
+        // still receive the potentially cached upstream state, but subsequent envelopes will amend
+        // to the new channel.
+        let replace_channel = no_cache && !self.no_cache;
+
         let channel = match self.state_channel {
-            Some(ref channel) => {
+            Some(ref channel) if !replace_channel => {
                 relay_log::debug!("project {} state request amended", self.public_key);
                 channel.clone()
             }
-            None => {
+            _ => {
                 relay_log::debug!("project {} state requested", self.public_key);
-                let channel = self.fetch_state(context);
+                let channel = self.fetch_state(no_cache, context).shared();
                 self.state_channel = Some(channel.clone());
                 channel
             }
@@ -448,42 +460,19 @@ impl Project {
         Response::future(future)
     }
 
-    /// This refreshes the underlying state and waits for that.
-    ///
-    /// Note that this currently has the limitation that it does not promote the
-    /// refresh through a chain of relays.  This means that it can only ask for a
-    /// local refresh, but if the next in line relay is outdated this won't do
-    /// anything.
-    fn refresh_state(
-        &mut self,
-        context: &mut Context<Self>,
-    ) -> Response<Arc<ProjectState>, ProjectError> {
-        // count number of times we are looking for the project state
-        metric!(counter(RelayCounters::ProjectStateGet) += 1);
-
-        relay_log::debug!(
-            "project {} state requested (force refresh)",
-            self.public_key
-        );
-        let channel = self.fetch_state(context);
-        self.state_channel = Some(channel.clone());
-
-        let future = channel
-            .map(|shared| (*shared).clone())
-            .map_err(|_| ProjectError::FetchFailed);
-
-        Response::future(future)
-    }
-
     fn fetch_state(
         &mut self,
+        no_cache: bool,
         context: &mut Context<Self>,
-    ) -> Shared<oneshot::Receiver<Arc<ProjectState>>> {
+    ) -> oneshot::Receiver<Arc<ProjectState>> {
         let (sender, receiver) = oneshot::channel();
         let public_key = self.public_key;
 
         self.manager
-            .send(FetchProjectState { public_key })
+            .send(FetchProjectState {
+                public_key,
+                no_cache,
+            })
             .into_actor(self)
             .map(move |state_result, slf, _ctx| {
                 slf.state_channel = None;
@@ -497,7 +486,7 @@ impl Project {
             .drop_err()
             .spawn(context);
 
-        receiver.shared()
+        receiver
     }
 
     fn get_scoping(&mut self, meta: &RequestMeta) -> Scoping {
@@ -559,7 +548,7 @@ impl Actor for Project {
 ///
 /// This is used for cases when we only want to perform operations that do
 /// not require waiting for network requests.
-///
+#[derive(Debug)]
 pub struct GetCachedProjectState;
 
 impl Message for GetCachedProjectState {
@@ -578,31 +567,26 @@ impl Handler<GetCachedProjectState> for Project {
     }
 }
 
-/// Returns the up to date project state.
-///
-/// The project state is always fetched if it is missing or outdated.
-pub struct RefreshProjectState;
-
-impl Message for RefreshProjectState {
-    type Result = Result<Arc<ProjectState>, ProjectError>;
-}
-
-impl Handler<RefreshProjectState> for Project {
-    type Result = Response<Arc<ProjectState>, ProjectError>;
-
-    fn handle(
-        &mut self,
-        _message: RefreshProjectState,
-        context: &mut Context<Self>,
-    ) -> Self::Result {
-        self.refresh_state(context)
-    }
-}
-
 /// Returns the project state.
 ///
-/// The project state is fetched if it is missing or outdated.
-pub struct GetProjectState;
+/// The project state is fetched if it is missing or outdated. If `no_cache` is specified, then the
+/// state is always refreshed.
+#[derive(Debug)]
+pub struct GetProjectState {
+    no_cache: bool,
+}
+
+impl GetProjectState {
+    /// Fetches the project state and uses the cached version if up-to-date.
+    pub fn new() -> Self {
+        Self { no_cache: false }
+    }
+
+    /// Fetches the project state and conditionally skips the cache.
+    pub fn no_cache(no_cache: bool) -> Self {
+        Self { no_cache }
+    }
+}
 
 impl Message for GetProjectState {
     type Result = Result<Arc<ProjectState>, ProjectError>;
@@ -611,8 +595,8 @@ impl Message for GetProjectState {
 impl Handler<GetProjectState> for Project {
     type Result = Response<Arc<ProjectState>, ProjectError>;
 
-    fn handle(&mut self, _message: GetProjectState, context: &mut Context<Self>) -> Self::Result {
-        self.get_or_fetch_state(context)
+    fn handle(&mut self, message: GetProjectState, context: &mut Context<Self>) -> Self::Result {
+        self.get_or_fetch_state(message.no_cache, context)
     }
 }
 
@@ -677,13 +661,17 @@ impl Handler<CheckEnvelope> for Project {
         if message.fetch {
             // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
             // This will return synchronously if the state is still cached.
-            self.get_or_fetch_state(context)
+            self.get_or_fetch_state(message.envelope.meta().no_cache(), context)
                 .into_actor()
                 .map(self, context, move |_, slf, _ctx| {
                     slf.check_envelope_scoped(message)
                 })
         } else {
-            self.get_or_fetch_state(context);
+            // Preload the project cache so that it arrives a little earlier in processing. However,
+            // do not pass `no_cache`. In case the project is rate limited, we do not want to force
+            // a full reload.
+            self.get_or_fetch_state(false, context);
+
             // message.fetch == false: Fetching must not block the store request. The EventManager
             // will later fetch the project state.
             ActorResponse::ok(self.check_envelope_scoped(message))

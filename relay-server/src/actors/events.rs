@@ -1489,9 +1489,11 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
             })
             .and_then(clone!(project, |envelope| {
-                // get the state for the current project
+                // get the state for the current project. we can always fetch the cached version
+                // even if the no_cache flag was passed, as the cache was updated prior in
+                // `CheckEnvelope`.
                 project
-                    .send(GetProjectState)
+                    .send(GetProjectState::new())
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
                     .map(|state| (envelope, state))
