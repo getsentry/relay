@@ -33,9 +33,9 @@ jobs:
           components: clippy
 
       - name: Run clippy
-        uses: actions-rs/clippy-check@v1
+        uses: actions-rs/cargo@v1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          command: clippy
           args: --all-features --workspace --tests --examples -- -D clippy::all
 
       - uses: actions-rs/cargo@v1

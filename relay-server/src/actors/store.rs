@@ -168,11 +168,12 @@ impl StoreForwarder {
                     Ok(session) => session,
                     Err(_) => return Ok(()),
                 };
+
                 if session.status == SessionStatus::Errored {
                     // Individual updates should never have the status `errored`
                     session.status = SessionStatus::Exited;
                 }
-                self.produce_session_update(org_id, project_id, event_retention, client, session)?;
+                self.produce_session_update(org_id, project_id, event_retention, client, session)
             }
             ItemType::Sessions => {
                 let aggregates = match SessionAggregates::parse(&item.payload()) {
@@ -180,33 +181,16 @@ impl StoreForwarder {
                     Err(_) => return Ok(()),
                 };
 
-                if self.config.explode_session_aggregates() {
-                    if aggregates.num_sessions() as usize > MAX_EXPLODED_SESSIONS {
-                        relay_log::warn!("exploded session items from aggregate exceed threshold");
-                    }
-
-                    for session in aggregates.into_updates_iter().take(MAX_EXPLODED_SESSIONS) {
-                        self.produce_session_update(
-                            org_id,
-                            project_id,
-                            event_retention,
-                            client,
-                            session,
-                        )?;
-                    }
-                } else {
-                    self.produce_sessions_from_aggregate(
-                        org_id,
-                        project_id,
-                        event_retention,
-                        client,
-                        aggregates,
-                    )?
-                }
+                self.produce_sessions_from_aggregate(
+                    org_id,
+                    project_id,
+                    event_retention,
+                    client,
+                    aggregates,
+                )
             }
-            _ => {}
+            _ => Ok(()),
         }
-        Ok(())
     }
 
     fn produce_sessions_from_aggregate(
