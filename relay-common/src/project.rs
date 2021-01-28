@@ -56,6 +56,13 @@ impl ProjectKey {
         Ok(project_key)
     }
 
+    /// Parses a `ProjectKey` from a string with flags.
+    pub fn parse_with_flags(key: &str) -> Result<(Self, Vec<&str>), ParseProjectKeyError> {
+        let mut iter = key.split('.');
+        let key = ProjectKey::parse(iter.next().ok_or(ParseProjectKeyError)?)?;
+        Ok((key, iter.collect()))
+    }
+
     /// Returns the string representation of the project key.
     #[inline]
     pub fn as_str(&self) -> &str {
