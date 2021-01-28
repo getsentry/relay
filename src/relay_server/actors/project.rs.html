@@ -660,9 +660,95 @@
 <span id="657">657</span>
 <span id="658">658</span>
 <span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
+<span id="688">688</span>
+<span id="689">689</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
+<span id="694">694</span>
+<span id="695">695</span>
+<span id="696">696</span>
+<span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
+<span id="700">700</span>
+<span id="701">701</span>
+<span id="702">702</span>
+<span id="703">703</span>
+<span id="704">704</span>
+<span id="705">705</span>
+<span id="706">706</span>
+<span id="707">707</span>
+<span id="708">708</span>
+<span id="709">709</span>
+<span id="710">710</span>
+<span id="711">711</span>
+<span id="712">712</span>
+<span id="713">713</span>
+<span id="714">714</span>
+<span id="715">715</span>
+<span id="716">716</span>
+<span id="717">717</span>
+<span id="718">718</span>
+<span id="719">719</span>
+<span id="720">720</span>
+<span id="721">721</span>
+<span id="722">722</span>
+<span id="723">723</span>
+<span id="724">724</span>
+<span id="725">725</span>
+<span id="726">726</span>
+<span id="727">727</span>
+<span id="728">728</span>
+<span id="729">729</span>
+<span id="730">730</span>
+<span id="731">731</span>
+<span id="732">732</span>
+<span id="733">733</span>
+<span id="734">734</span>
+<span id="735">735</span>
+<span id="736">736</span>
+<span id="737">737</span>
+<span id="738">738</span>
+<span id="739">739</span>
+<span id="740">740</span>
+<span id="741">741</span>
+<span id="742">742</span>
+<span id="743">743</span>
+<span id="744">744</span>
+<span id="745">745</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::<span class="ident">Instant</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
 
 <span class="kw">use</span> <span class="ident">actix</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Utc</span>};
@@ -1035,6 +1121,36 @@
     <span class="kw">pub</span> <span class="ident">numeric_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
 }
 
+<span class="kw">struct</span> <span class="ident">StateChannel</span> {
+    <span class="ident">sender</span>: <span class="ident">oneshot</span>::<span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">receiver</span>: <span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">oneshot</span>::<span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">no_cache</span>: <span class="ident">bool</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">StateChannel</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="kw">let</span> (<span class="ident">sender</span>, <span class="ident">receiver</span>) <span class="op">=</span> <span class="ident">oneshot</span>::<span class="ident">channel</span>();
+        <span class="self">Self</span> {
+            <span class="ident">sender</span>,
+            <span class="ident">receiver</span>: <span class="ident">receiver</span>.<span class="ident">shared</span>(),
+            <span class="ident">no_cache</span>: <span class="bool-val">false</span>,
+        }
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">no_cache</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">no_cache</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
+        <span class="self">self</span>.<span class="ident">no_cache</span> <span class="op">=</span> <span class="ident">no_cache</span>;
+        <span class="self">self</span>
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">receiver</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">oneshot</span>::<span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">receiver</span>.<span class="ident">clone</span>()
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">send</span>(<span class="self">self</span>, <span class="ident">state</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>) {
+        <span class="self">self</span>.<span class="ident">sender</span>.<span class="ident">send</span>(<span class="ident">state</span>).<span class="ident">ok</span>();
+    }
+}
+
 <span class="doccomment">/// Actor representing organization and project configuration for a project key.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// This actor no longer uniquely identifies a project. Instead, it identifies a project key.</span>
@@ -1044,8 +1160,9 @@
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
     <span class="ident">manager</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">ProjectCache</span><span class="op">&gt;</span>,
     <span class="ident">state</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">state_channel</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">oneshot</span>::<span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">state_channel</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">StateChannel</span><span class="op">&gt;</span>,
     <span class="ident">rate_limits</span>: <span class="ident">RateLimits</span>,
+    <span class="ident">last_no_cache</span>: <span class="ident">Instant</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Project</span> {
@@ -1057,6 +1174,7 @@
             <span class="ident">state</span>: <span class="prelude-val">None</span>,
             <span class="ident">state_channel</span>: <span class="prelude-val">None</span>,
             <span class="ident">rate_limits</span>: <span class="ident">RateLimits</span>::<span class="ident">new</span>(),
+            <span class="ident">last_no_cache</span>: <span class="ident">Instant</span>::<span class="ident">now</span>(),
         }
     }
 
@@ -1066,10 +1184,21 @@
 
     <span class="kw">fn</span> <span class="ident">get_or_fetch_state</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+        <span class="kw-2">mut</span> <span class="ident">no_cache</span>: <span class="ident">bool</span>,
         <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Response</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>, <span class="ident">ProjectError</span><span class="op">&gt;</span> {
         <span class="comment">// count number of times we are looking for the project state</span>
         <span class="macro">metric</span><span class="macro">!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">ProjectStateGet</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
+
+        <span class="comment">// Allow at most 1 no_cache request per second. Gracefully degrade to cached requests.</span>
+        <span class="kw">if</span> <span class="ident">no_cache</span> {
+            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">last_no_cache</span>.<span class="ident">elapsed</span>() <span class="op">&lt;</span> <span class="ident">Duration</span>::<span class="ident">from_secs</span>(<span class="number">1</span>) {
+                <span class="ident">no_cache</span> <span class="op">=</span> <span class="bool-val">false</span>;
+            } <span class="kw">else</span> {
+                <span class="macro">metric</span><span class="macro">!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">ProjectStateNoCache</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
+                <span class="self">self</span>.<span class="ident">last_no_cache</span> <span class="op">=</span> <span class="ident">Instant</span>::<span class="ident">now</span>();
+            }
+        }
 
         <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">as_ref</span>();
         <span class="kw">let</span> <span class="ident">outdated</span> <span class="op">=</span> <span class="ident">state</span>
@@ -1077,6 +1206,9 @@
             .<span class="ident">unwrap_or</span>(<span class="ident">Outdated</span>::<span class="ident">HardOutdated</span>);
 
         <span class="kw">let</span> <span class="ident">cached_state</span> <span class="op">=</span> <span class="kw">match</span> (<span class="ident">state</span>, <span class="ident">outdated</span>) {
+            <span class="comment">// Never use the cached state if `no_cache` is set.</span>
+            <span class="kw">_</span> <span class="kw">if</span> <span class="ident">no_cache</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+
             <span class="comment">// There is no project state that can be used, fetch a state and return it.</span>
             (<span class="prelude-val">None</span>, <span class="kw">_</span>) <span class="op">|</span> (<span class="kw">_</span>, <span class="ident">Outdated</span>::<span class="ident">HardOutdated</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
 
@@ -1087,16 +1219,26 @@
             (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="ident">Outdated</span>::<span class="ident">Updated</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">Response</span>::<span class="ident">ok</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
         };
 
-        <span class="kw">let</span> <span class="ident">channel</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state_channel</span> {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">channel</span>) <span class="op">=</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state_channel</span> {
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">channel</span>) <span class="kw">if</span> <span class="ident">channel</span>.<span class="ident">no_cache</span> <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">no_cache</span> <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project {} state request amended&quot;</span>, <span class="self">self</span>.<span class="ident">public_key</span>);
-                <span class="ident">channel</span>.<span class="ident">clone</span>()
+                <span class="ident">channel</span>.<span class="ident">receiver</span>()
             }
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project {} state requested&quot;</span>, <span class="self">self</span>.<span class="ident">public_key</span>);
-                <span class="kw">let</span> <span class="ident">channel</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fetch_state</span>(<span class="ident">context</span>);
-                <span class="self">self</span>.<span class="ident">state_channel</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">channel</span>.<span class="ident">clone</span>());
-                <span class="ident">channel</span>
+
+                <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="self">self</span>
+                    .<span class="ident">state_channel</span>
+                    .<span class="ident">get_or_insert_with</span>(<span class="ident">StateChannel</span>::<span class="ident">new</span>)
+                    .<span class="ident">no_cache</span>(<span class="ident">no_cache</span>)
+                    .<span class="ident">receiver</span>();
+
+                <span class="comment">// Either there is no running request, or the current request does not have</span>
+                <span class="comment">// `no_cache` set. In both cases, start a new request. All in-flight receivers will</span>
+                <span class="comment">// get the latest state.</span>
+                <span class="self">self</span>.<span class="ident">fetch_state</span>(<span class="ident">no_cache</span>, <span class="ident">context</span>);
+
+                <span class="ident">receiver</span>
             }
         };
 
@@ -1104,36 +1246,46 @@
             <span class="kw">return</span> <span class="ident">Response</span>::<span class="ident">ok</span>(<span class="ident">rv</span>);
         }
 
-        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">channel</span>
+        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">receiver</span>
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">shared</span><span class="op">|</span> (<span class="kw-2">*</span><span class="ident">shared</span>).<span class="ident">clone</span>())
             .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ProjectError</span>::<span class="ident">FetchFailed</span>);
 
         <span class="ident">Response</span>::<span class="ident">future</span>(<span class="ident">future</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">fetch_state</span>(
-        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
-        <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">oneshot</span>::<span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> (<span class="ident">sender</span>, <span class="ident">receiver</span>) <span class="op">=</span> <span class="ident">oneshot</span>::<span class="ident">channel</span>();
+    <span class="kw">fn</span> <span class="ident">fetch_state</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">no_cache</span>: <span class="ident">bool</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">state_channel</span>.<span class="ident">is_some</span>());
         <span class="kw">let</span> <span class="ident">public_key</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">public_key</span>;
 
         <span class="self">self</span>.<span class="ident">manager</span>
-            .<span class="ident">send</span>(<span class="ident">FetchProjectState</span> { <span class="ident">public_key</span> })
+            .<span class="ident">send</span>(<span class="ident">FetchProjectState</span> {
+                <span class="ident">public_key</span>,
+                <span class="ident">no_cache</span>,
+            })
             .<span class="ident">into_actor</span>(<span class="self">self</span>)
             .<span class="ident">map</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">state_result</span>, <span class="ident">slf</span>, <span class="ident">_ctx</span><span class="op">|</span> {
+                <span class="kw">let</span> <span class="ident">channel</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">slf</span>.<span class="ident">state_channel</span>.<span class="ident">take</span>() {
+                    <span class="prelude-val">Some</span>(<span class="ident">channel</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">channel</span>,
+                    <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span>,
+                };
+
+                <span class="comment">// If the channel has `no_cache` set but we are not a `no_cache` request, we have</span>
+                <span class="comment">// been superseeded. Put it back and let the other request take precedence.</span>
+                <span class="kw">if</span> <span class="ident">channel</span>.<span class="ident">no_cache</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">no_cache</span> {
+                    <span class="ident">slf</span>.<span class="ident">state_channel</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">channel</span>);
+                    <span class="kw">return</span>;
+                }
+
                 <span class="ident">slf</span>.<span class="ident">state_channel</span> <span class="op">=</span> <span class="prelude-val">None</span>;
                 <span class="ident">slf</span>.<span class="ident">state</span> <span class="op">=</span> <span class="ident">state_result</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">resp</span><span class="op">|</span> <span class="ident">resp</span>.<span class="ident">state</span>).<span class="ident">ok</span>();
 
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">state</span>) <span class="op">=</span> <span class="ident">slf</span>.<span class="ident">state</span> {
                     <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project state {} updated&quot;</span>, <span class="ident">public_key</span>);
-                    <span class="ident">sender</span>.<span class="ident">send</span>(<span class="ident">state</span>.<span class="ident">clone</span>()).<span class="ident">ok</span>();
+                    <span class="ident">channel</span>.<span class="ident">send</span>(<span class="ident">state</span>.<span class="ident">clone</span>());
                 }
             })
             .<span class="ident">drop_err</span>()
             .<span class="ident">spawn</span>(<span class="ident">context</span>);
-
-        <span class="ident">receiver</span>.<span class="ident">shared</span>()
     }
 
     <span class="kw">fn</span> <span class="ident">get_scoping</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="ident">RequestMeta</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Scoping</span> {
@@ -1195,7 +1347,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// This is used for cases when we only want to perform operations that do</span>
 <span class="doccomment">/// not require waiting for network requests.</span>
-<span class="doccomment">///</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GetCachedProjectState</span>;
 
 <span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">GetCachedProjectState</span> {
@@ -1216,8 +1368,24 @@
 
 <span class="doccomment">/// Returns the project state.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// The project state is fetched if it is missing or outdated.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GetProjectState</span>;
+<span class="doccomment">/// The project state is fetched if it is missing or outdated. If `no_cache` is specified, then the</span>
+<span class="doccomment">/// state is always refreshed.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GetProjectState</span> {
+    <span class="ident">no_cache</span>: <span class="ident">bool</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">GetProjectState</span> {
+    <span class="doccomment">/// Fetches the project state and uses the cached version if up-to-date.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="self">Self</span> { <span class="ident">no_cache</span>: <span class="bool-val">false</span> }
+    }
+
+    <span class="doccomment">/// Fetches the project state and conditionally skips the cache.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">no_cache</span>(<span class="ident">no_cache</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="self">Self</span> { <span class="ident">no_cache</span> }
+    }
+}
 
 <span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">GetProjectState</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>, <span class="ident">ProjectError</span><span class="op">&gt;</span>;
@@ -1226,8 +1394,8 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">GetProjectState</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Project</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">Response</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>, <span class="ident">ProjectError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_message</span>: <span class="ident">GetProjectState</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
-        <span class="self">self</span>.<span class="ident">get_or_fetch_state</span>(<span class="ident">context</span>)
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">GetProjectState</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+        <span class="self">self</span>.<span class="ident">get_or_fetch_state</span>(<span class="ident">message</span>.<span class="ident">no_cache</span>, <span class="ident">context</span>)
     }
 }
 
@@ -1292,13 +1460,17 @@
         <span class="kw">if</span> <span class="ident">message</span>.<span class="ident">fetch</span> {
             <span class="comment">// Project state fetching is allowed, so ensure the state is fetched and up-to-date.</span>
             <span class="comment">// This will return synchronously if the state is still cached.</span>
-            <span class="self">self</span>.<span class="ident">get_or_fetch_state</span>(<span class="ident">context</span>)
+            <span class="self">self</span>.<span class="ident">get_or_fetch_state</span>(<span class="ident">message</span>.<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">no_cache</span>(), <span class="ident">context</span>)
                 .<span class="ident">into_actor</span>()
                 .<span class="ident">map</span>(<span class="self">self</span>, <span class="ident">context</span>, <span class="kw">move</span> <span class="op">|</span><span class="kw">_</span>, <span class="ident">slf</span>, <span class="ident">_ctx</span><span class="op">|</span> {
                     <span class="ident">slf</span>.<span class="ident">check_envelope_scoped</span>(<span class="ident">message</span>)
                 })
         } <span class="kw">else</span> {
-            <span class="self">self</span>.<span class="ident">get_or_fetch_state</span>(<span class="ident">context</span>);
+            <span class="comment">// Preload the project cache so that it arrives a little earlier in processing. However,</span>
+            <span class="comment">// do not pass `no_cache`. In case the project is rate limited, we do not want to force</span>
+            <span class="comment">// a full reload.</span>
+            <span class="self">self</span>.<span class="ident">get_or_fetch_state</span>(<span class="bool-val">false</span>, <span class="ident">context</span>);
+
             <span class="comment">// message.fetch == false: Fetching must not block the store request. The EventManager</span>
             <span class="comment">// will later fetch the project state.</span>
             <span class="ident">ActorResponse</span>::<span class="ident">ok</span>(<span class="self">self</span>.<span class="ident">check_envelope_scoped</span>(<span class="ident">message</span>))

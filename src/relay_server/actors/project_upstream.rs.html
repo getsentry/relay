@@ -350,6 +350,27 @@
 <span id="347">347</span>
 <span id="348">348</span>
 <span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
@@ -393,6 +414,8 @@
     <span class="kw">pub</span> <span class="ident">public_keys</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ProjectKey</span><span class="op">&gt;</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
     <span class="kw">pub</span> <span class="ident">full_config</span>: <span class="ident">bool</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">no_cache</span>: <span class="ident">bool</span>,
 }
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
@@ -430,6 +453,7 @@
     <span class="ident">sender</span>: <span class="ident">oneshot</span>::<span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">receiver</span>: <span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">oneshot</span>::<span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">deadline</span>: <span class="ident">Instant</span>,
+    <span class="ident">no_cache</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">ProjectStateChannel</span> {
@@ -440,7 +464,12 @@
             <span class="ident">sender</span>,
             <span class="ident">receiver</span>: <span class="ident">receiver</span>.<span class="ident">shared</span>(),
             <span class="ident">deadline</span>: <span class="ident">Instant</span>::<span class="ident">now</span>() <span class="op">+</span> <span class="ident">timeout</span>,
+            <span class="ident">no_cache</span>: <span class="bool-val">false</span>,
         }
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">no_cache</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">no_cache</span> <span class="op">=</span> <span class="bool-val">true</span>;
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">send</span>(<span class="self">self</span>, <span class="ident">state</span>: <span class="ident">ProjectState</span>) {
@@ -536,6 +565,8 @@
         <span class="comment">// num_batches. Worst case, we&#39;re left with one project per request, but that&#39;s fine.</span>
         <span class="kw">let</span> <span class="ident">actual_batch_size</span> <span class="op">=</span> (<span class="ident">total_count</span> <span class="op">+</span> (<span class="ident">total_count</span> <span class="op">%</span> <span class="ident">num_batches</span>)) <span class="op">/</span> <span class="ident">num_batches</span>;
 
+        <span class="comment">// TODO(ja): This mixes requests with no_cache. Separate out channels with no_cache: true?</span>
+
         <span class="kw">let</span> <span class="ident">requests</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">channels</span>
             .<span class="ident">into_iter</span>()
             .<span class="ident">chunks</span>(<span class="ident">actual_batch_size</span>)
@@ -551,6 +582,7 @@
                 <span class="kw">let</span> <span class="ident">query</span> <span class="op">=</span> <span class="ident">GetProjectStates</span> {
                     <span class="ident">public_keys</span>: <span class="ident">channels_batch</span>.<span class="ident">keys</span>().<span class="ident">copied</span>().<span class="ident">collect</span>(),
                     <span class="ident">full_config</span>: <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>(),
+                    <span class="ident">no_cache</span>: <span class="ident">channels_batch</span>.<span class="ident">values</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">no_cache</span>),
                 };
 
                 <span class="comment">// count number of http requests for project states</span>
@@ -677,6 +709,10 @@
         }
 
         <span class="kw">let</span> <span class="ident">query_timeout</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">query_timeout</span>();
+        <span class="kw">let</span> <span class="ident">FetchProjectState</span> {
+            <span class="ident">public_key</span>,
+            <span class="ident">no_cache</span>,
+        } <span class="op">=</span> <span class="ident">message</span>;
 
         <span class="comment">// There&#39;s an edge case where a project is represented by two Project actors. This can</span>
         <span class="comment">// happen if our project eviction logic removes an actor from `project_cache.projects`</span>
@@ -689,8 +725,14 @@
         <span class="comment">// channel for our current `message.id`.</span>
         <span class="kw">let</span> <span class="ident">channel</span> <span class="op">=</span> <span class="self">self</span>
             .<span class="ident">state_channels</span>
-            .<span class="ident">entry</span>(<span class="ident">message</span>.<span class="ident">public_key</span>)
+            .<span class="ident">entry</span>(<span class="ident">public_key</span>)
             .<span class="ident">or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">ProjectStateChannel</span>::<span class="ident">new</span>(<span class="ident">query_timeout</span>));
+
+        <span class="comment">// Ensure upstream skips caches if one of the recipients requests an uncached response. This</span>
+        <span class="comment">// operation is additive across requests.</span>
+        <span class="kw">if</span> <span class="ident">no_cache</span> {
+            <span class="ident">channel</span>.<span class="ident">no_cache</span>();
+        }
 
         <span class="ident">Box</span>::<span class="ident">new</span>(
             <span class="ident">channel</span>

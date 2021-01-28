@@ -455,6 +455,16 @@
 <span id="452">452</span>
 <span id="453">453</span>
 <span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">metrics</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
@@ -793,6 +803,15 @@
     <span class="doccomment">/// Note that after an update loop has completed, there may be more projects pending updates.</span>
     <span class="doccomment">/// This is indicated by `project_state.pending`.</span>
     <span class="ident">ProjectStateRequest</span>,
+    <span class="doccomment">/// Number of times a project config was requested with `.no-cache`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This effectively counts the number of envelopes or events that have been sent with a</span>
+    <span class="doccomment">/// corresponding DSN. Actual queries to the upstream may still be deduplicated for these</span>
+    <span class="doccomment">/// project state requests.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// A maximum of 1 such requests per second is allowed per project key. This metric counts only</span>
+    <span class="doccomment">/// permitted requests.</span>
+    <span class="ident">ProjectStateNoCache</span>,
     <span class="doccomment">/// Number of times a project is looked up from the cache.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// The cache may contain and outdated or expired project state. In that case, the project state</span>
@@ -891,6 +910,7 @@
             <span class="ident">RelayCounters</span>::<span class="ident">Outcomes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;events.outcomes&quot;</span>,
             <span class="ident">RelayCounters</span>::<span class="ident">ProjectStateGet</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.get&quot;</span>,
             <span class="ident">RelayCounters</span>::<span class="ident">ProjectStateRequest</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.request&quot;</span>,
+            <span class="ident">RelayCounters</span>::<span class="ident">ProjectStateNoCache</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.no_cache&quot;</span>,
             <span class="ident">RelayCounters</span>::<span class="ident">ProjectCacheHit</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_cache.hit&quot;</span>,
             <span class="ident">RelayCounters</span>::<span class="ident">ProjectCacheMiss</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_cache.miss&quot;</span>,
             <span class="ident">RelayCounters</span>::<span class="ident">ServerStarting</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;server.starting&quot;</span>,
