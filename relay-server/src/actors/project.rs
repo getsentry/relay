@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
@@ -383,7 +383,8 @@ pub struct Project {
     state: Option<Arc<ProjectState>>,
     state_channel: Option<Shared<oneshot::Receiver<Arc<ProjectState>>>>,
     rate_limits: RateLimits,
-    no_cache: bool,
+    last_no_cache: Instant,
+    fetching_no_cache: bool,
 }
 
 impl Project {
@@ -395,7 +396,8 @@ impl Project {
             state: None,
             state_channel: None,
             rate_limits: RateLimits::new(),
-            no_cache: false,
+            last_no_cache: Instant::now(),
+            fetching_no_cache: false,
         }
     }
 
@@ -405,11 +407,20 @@ impl Project {
 
     fn get_or_fetch_state(
         &mut self,
-        no_cache: bool,
+        mut no_cache: bool,
         context: &mut Context<Self>,
     ) -> Response<Arc<ProjectState>, ProjectError> {
         // count number of times we are looking for the project state
         metric!(counter(RelayCounters::ProjectStateGet) += 1);
+
+        // Allow at most 1 no_cache request per second. Gracefully degrade to cached requests.
+        if no_cache {
+            if self.last_no_cache.elapsed() < Duration::from_secs(1) {
+                no_cache = false;
+            } else {
+                self.last_no_cache = Instant::now();
+            }
+        }
 
         let state = self.state.as_ref();
         let outdated = state
@@ -434,10 +445,14 @@ impl Project {
         // channel with one that has the flag enabled. All envelopes that are already in-flight will
         // still receive the potentially cached upstream state, but subsequent envelopes will amend
         // to the new channel.
-        let replace_channel = no_cache && !self.no_cache;
+        let reuse_channel = self.fetching_no_cache || !no_cache;
 
         let channel = match self.state_channel {
-            Some(ref channel) if !replace_channel => {
+            // Check if we are already fetching with `no_cache` enabled. Otherwise, replace the
+            // current channel with one that has the flag enabled. All envelopes that are already
+            // in-flight will still receive the potentially cached upstream state, but subsequent
+            // envelopes will amend to the new channel.
+            Some(ref channel) if reuse_channel => {
                 relay_log::debug!("project {} state request amended", self.public_key);
                 channel.clone()
             }
@@ -468,6 +483,8 @@ impl Project {
         let (sender, receiver) = oneshot::channel();
         let public_key = self.public_key;
 
+        self.fetching_no_cache = no_cache;
+
         self.manager
             .send(FetchProjectState {
                 public_key,
@@ -475,8 +492,10 @@ impl Project {
             })
             .into_actor(self)
             .map(move |state_result, slf, _ctx| {
-                slf.state_channel = None;
-                slf.state = state_result.map(|resp| resp.state).ok();
+                if !slf.fetching_no_cache || no_cache {
+                    slf.state_channel = None;
+                    slf.state = state_result.map(|resp| resp.state).ok();
+                }
 
                 if let Some(ref state) = slf.state {
                     relay_log::debug!("project state {} updated", public_key);
