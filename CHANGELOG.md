@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- By adding `.no-cache` to the DSN key, Relay refreshes project configuration caches immediately. This allows to apply changed settings instantly, such as updates to data scrubbing or inbound filter rules. ([#911](https://github.com/getsentry/relay/pull/911))
+
 **Bug Fixes**:
 
 - Log on INFO level when recovering from network outages. ([#918](https://github.com/getsentry/relay/pull/918))
