@@ -446,6 +446,7 @@ impl Project {
             if self.last_no_cache.elapsed() < Duration::from_secs(1) {
                 no_cache = false;
             } else {
+                metric!(counter(RelayCounters::ProjectStateNoCache) += 1);
                 self.last_no_cache = Instant::now();
             }
         }
