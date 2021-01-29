@@ -9,6 +9,7 @@
 **Bug Fixes**:
 
 - Log on INFO level when recovering from network outages. ([#918](https://github.com/getsentry/relay/pull/918))
+- Fix a panic in processing minidumps with invalid location descriptors. ([#919](https://github.com/getsentry/relay/pull/919))
 
 **Internal**:
 
