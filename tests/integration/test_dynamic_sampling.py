@@ -89,7 +89,7 @@ def _add_sampling_config(
         conditions.append(
             {
                 "op": "eq",
-                "name": field_prefix + "user_segment",
+                "name": field_prefix + "user",
                 "value": user_segments,
                 "ignoreCase": True,
             }
@@ -127,7 +127,7 @@ def _add_trace_info(envelope, trace_id, public_key, release=None, user_segment=N
         trace_info["release"] = release
 
     if user_segment is not None:
-        trace_info["user_segment"] = user_segment
+        trace_info["user"] = user_segment
 
 
 def test_it_removes_transactions(mini_sentry, relay):
