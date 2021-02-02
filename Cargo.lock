@@ -1936,7 +1936,7 @@ dependencies = [
 [[package]]
 name = "minidump"
 version = "0.2.0"
-source = "git+https://github.com/luser/rust-minidump?rev=7a03c548837ea3006e74c8e8c809afe243bec655#7a03c548837ea3006e74c8e8c809afe243bec655"
+source = "git+https://github.com/luser/rust-minidump?rev=20070798b5e9216474013341ed80c5272558d9ee#20070798b5e9216474013341ed80c5272558d9ee"
 dependencies = [
  "chrono",
  "encoding",
@@ -1952,7 +1952,7 @@ dependencies = [
 [[package]]
 name = "minidump-common"
 version = "0.2.0"
-source = "git+https://github.com/luser/rust-minidump?rev=7a03c548837ea3006e74c8e8c809afe243bec655#7a03c548837ea3006e74c8e8c809afe243bec655"
+source = "git+https://github.com/luser/rust-minidump?rev=20070798b5e9216474013341ed80c5272558d9ee#20070798b5e9216474013341ed80c5272558d9ee"
 dependencies = [
  "bitflags",
  "enum-primitive-derive",
@@ -2937,7 +2937,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "chrono",
  "failure",

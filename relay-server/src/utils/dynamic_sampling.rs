@@ -70,7 +70,7 @@ impl EqCondition {
     }
 }
 
-/// A condition that uses glob matching  
+/// A condition that uses glob matching
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GlobCondition {
     pub name: String,
@@ -172,7 +172,7 @@ impl RuleCondition {
     }
 }
 
-/// A sampling rule as it is deserialized from the project configuration  
+/// A sampling rule as it is deserialized from the project configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SamplingRule {
@@ -416,18 +416,20 @@ pub fn sample_transaction(
             });
         Box::new(fut) as ResponseFuture<_, _>
     } else {
-        let fut = project.send(GetProjectState).then(move |project_state| {
-            let project_state = match project_state {
-                // error getting the project, give up and return envelope unchanged
-                Err(_) => return Ok(envelope),
-                Ok(project_state) => project_state,
-            };
-            Ok(sample_transaction_internal(
-                envelope,
-                project_state.ok().as_deref(),
-                processing_enabled,
-            ))
-        });
+        let fut = project
+            .send(GetProjectState::new())
+            .then(move |project_state| {
+                let project_state = match project_state {
+                    // error getting the project, give up and return envelope unchanged
+                    Err(_) => return Ok(envelope),
+                    Ok(project_state) => project_state,
+                };
+                Ok(sample_transaction_internal(
+                    envelope,
+                    project_state.ok().as_deref(),
+                    processing_enabled,
+                ))
+            });
         Box::new(fut) as ResponseFuture<_, _>
     }
 }
@@ -791,7 +793,7 @@ mod tests {
                 "name": "field_4",
                 "value": ["1.*"]
             }
-        },        
+        },
         {
             "op":"and",
             "inner": [{
@@ -799,7 +801,7 @@ mod tests {
                 "name": "field_5",
                 "value": ["2.*"]
             }]
-        },        
+        },
         {
             "op":"or",
             "inner": [{
@@ -807,7 +809,7 @@ mod tests {
                 "name": "field_6",
                 "value": ["3.*"]
             }]
-        }        
+        }
         ]
         "#;
         let rules: Result<Vec<RuleCondition>, _> = serde_json::from_str(serialized_rules);
@@ -888,7 +890,7 @@ mod tests {
                 "inner": [
                     { "op" : "glob", "name": "releases", "value":["1.1.1", "1.1.2"]}
                 ]
-            },                
+            },
             "sampleRate": 0.7,
             "type": "trace"
         }"#;

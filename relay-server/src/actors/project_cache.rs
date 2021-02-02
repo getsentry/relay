@@ -170,7 +170,11 @@ impl Handler<GetProject> for ProjectCache {
 /// individual requests.
 #[derive(Clone)]
 pub struct FetchProjectState {
+    /// The public key to fetch the project by.
     pub public_key: ProjectKey,
+
+    /// If true, all caches should be skipped and a fresh state should be computed.
+    pub no_cache: bool,
 }
 
 #[derive(Debug)]
@@ -201,7 +205,8 @@ impl Handler<FetchProjectState> for ProjectCache {
     type Result = Response<ProjectStateResponse, ()>;
 
     fn handle(&mut self, message: FetchProjectState, _context: &mut Self::Context) -> Self::Result {
-        let FetchProjectState { public_key } = message;
+        let public_key = message.public_key;
+
         if let Some(mut entry) = self.projects.get_mut(&public_key) {
             // Bump the update time of the project in our hashmap to evade eviction. Eviction is a
             // sequential scan over self.projects, so this needs to be as fast as possible and
