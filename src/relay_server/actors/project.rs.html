@@ -811,7 +811,7 @@
     <span class="kw">pub</span> <span class="ident">quotas</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Quota</span><span class="op">&gt;</span>,
     <span class="doccomment">/// Configuration for sampling traces, if not present there will be no sampling.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">sampling</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SamplingConfig</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">dynamic_sampling</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SamplingConfig</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">ProjectConfig</span> {
@@ -825,7 +825,7 @@
             <span class="ident">datascrubbing_settings</span>: <span class="ident">DataScrubbingConfig</span>::<span class="ident">default</span>(),
             <span class="ident">event_retention</span>: <span class="prelude-val">None</span>,
             <span class="ident">quotas</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
-            <span class="ident">sampling</span>: <span class="prelude-val">None</span>,
+            <span class="ident">dynamic_sampling</span>: <span class="prelude-val">None</span>,
         }
     }
 }

@@ -652,6 +652,11 @@
 <span id="649">649</span>
 <span id="650">650</span>
 <span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.</span>
 
@@ -1063,6 +1068,7 @@
     <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="ident">meta</span>.<span class="ident">get_partial_scoping</span>()));
     <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="prelude-val">None</span>));
     <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">state</span>().<span class="ident">config</span>();
+    <span class="kw">let</span> <span class="ident">processing_enabled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">processing_enabled</span>();
 
     <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">project_manager</span>
         .<span class="ident">send</span>(<span class="ident">GetProject</span> { <span class="ident">public_key</span> })
@@ -1130,20 +1136,24 @@
                         .<span class="ident">map</span>(<span class="op">|</span><span class="ident">project</span><span class="op">|</span> (<span class="ident">envelope</span>, <span class="ident">rate_limits</span>, <span class="prelude-val">Some</span>(<span class="ident">project</span>)));
                     <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">response</span>) <span class="kw">as</span> <span class="ident">RetVal</span>
                 }))
-                .<span class="ident">and_then</span>(<span class="op">|</span>(<span class="ident">envelope</span>, <span class="ident">rate_limits</span>, <span class="ident">sampling_project</span>)<span class="op">|</span> {
+                .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span>(<span class="ident">envelope</span>, <span class="ident">rate_limits</span>, <span class="ident">sampling_project</span>)<span class="op">|</span> {
                     <span class="comment">// do the fast path transaction sampling (if we can&#39;t do it here</span>
                     <span class="comment">// we&#39;ll try again after the envelope is queued)</span>
                     <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>();
 
-                    <span class="ident">utils</span>::<span class="ident">sample_transaction</span>(<span class="ident">envelope</span>, <span class="ident">sampling_project</span>.<span class="ident">clone</span>(), <span class="bool-val">true</span>).<span class="ident">then</span>(
-                        <span class="kw">move</span> <span class="op">|</span><span class="ident">result</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">result</span> {
-                            <span class="prelude-val">Err</span>(()) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">BadStoreRequest</span>::<span class="ident">TraceSampled</span>(<span class="ident">event_id</span>)),
-                            <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>) <span class="kw">if</span> <span class="ident">envelope</span>.<span class="ident">is_empty</span>() <span class="op">=</span><span class="op">&gt;</span> {
-                                <span class="prelude-val">Err</span>(<span class="ident">BadStoreRequest</span>::<span class="ident">TraceSampled</span>(<span class="ident">event_id</span>))
-                            }
-                            <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>((<span class="ident">envelope</span>, <span class="ident">rate_limits</span>, <span class="ident">sampling_project</span>)),
-                        },
+                    <span class="ident">utils</span>::<span class="ident">sample_transaction</span>(
+                        <span class="ident">envelope</span>,
+                        <span class="ident">sampling_project</span>.<span class="ident">clone</span>(),
+                        <span class="bool-val">true</span>,
+                        <span class="ident">processing_enabled</span>,
                     )
+                    .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">result</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">result</span> {
+                        <span class="prelude-val">Err</span>(()) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">BadStoreRequest</span>::<span class="ident">TraceSampled</span>(<span class="ident">event_id</span>)),
+                        <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>) <span class="kw">if</span> <span class="ident">envelope</span>.<span class="ident">is_empty</span>() <span class="op">=</span><span class="op">&gt;</span> {
+                            <span class="prelude-val">Err</span>(<span class="ident">BadStoreRequest</span>::<span class="ident">TraceSampled</span>(<span class="ident">event_id</span>))
+                        }
+                        <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>((<span class="ident">envelope</span>, <span class="ident">rate_limits</span>, <span class="ident">sampling_project</span>)),
+                    })
                 })
                 .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span>(<span class="ident">envelope</span>, <span class="ident">rate_limits</span>, <span class="ident">sampling_project</span>)<span class="op">|</span> {
                     <span class="ident">event_manager</span>
