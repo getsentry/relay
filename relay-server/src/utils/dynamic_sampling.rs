@@ -9,7 +9,7 @@ use rand_pcg::Pcg32;
 use serde::{Deserialize, Serialize};
 
 use relay_common::{EventType, ProjectKey, Uuid};
-use relay_filter::GlobPatterns;
+use relay_filter::{has_bad_browser_extensions, is_local_host, GlobPatterns};
 use relay_general::protocol::{Event, EventId};
 
 use crate::actors::project::{GetCachedProjectState, GetProjectState, Project, ProjectState};
@@ -32,6 +32,7 @@ pub enum RuleType {
 #[derive(Debug, Clone)]
 pub enum FieldValue<'a> {
     String(&'a str),
+    Bool(bool),
     None,
 }
 
@@ -39,6 +40,14 @@ impl FieldValue<'_> {
     fn as_str(&self) -> Option<&str> {
         if let FieldValue::String(s) = self {
             Some(s)
+        } else {
+            None
+        }
+    }
+
+    fn as_bool(&self) -> Option<&bool> {
+        if let FieldValue::Bool(b) = &self {
+            Some(b)
         } else {
             None
         }
@@ -83,6 +92,23 @@ impl GlobCondition {
             .get_value(self.name.as_str())
             .as_str()
             .map_or(false, |fv| self.value.is_match(fv))
+    }
+}
+
+/// Has some property, used for any boolean condition that doesn't need configuration.
+///
+/// The field provider should return a boolean signifying if it has the property or not.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HasCondition {
+    pub name: String,
+}
+
+impl HasCondition {
+    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
+        value_provider
+            .get_value(self.name.as_str())
+            .as_bool()
+            .map_or(false, |b| *b)
     }
 }
 
@@ -141,6 +167,7 @@ pub enum RuleCondition {
     Or(OrCondition),
     And(AndCondition),
     Not(NotCondition),
+    Has(HasCondition),
     #[serde(other)]
     Unsupported,
 }
@@ -153,7 +180,7 @@ impl RuleCondition {
         match self {
             RuleCondition::Unsupported => false,
             // we have a known condition
-            RuleCondition::Eq(_) | RuleCondition::Glob(_) => true,
+            RuleCondition::Eq(_) | RuleCondition::Glob(_) | RuleCondition::Has(_) => true,
             // dig down for embedded conditions
             RuleCondition::And(rules) => rules.supported(),
             RuleCondition::Or(rules) => rules.supported(),
@@ -164,6 +191,7 @@ impl RuleCondition {
         match self {
             RuleCondition::Eq(condition) => condition.matches(value_provider),
             RuleCondition::Glob(condition) => condition.matches(value_provider),
+            RuleCondition::Has(condition) => condition.matches(value_provider),
             RuleCondition::And(conditions) => conditions.matches(value_provider),
             RuleCondition::Or(conditions) => conditions.matches(value_provider),
             RuleCondition::Not(condition) => condition.matches(value_provider),
@@ -209,6 +237,10 @@ impl FieldValueProvider for Event {
                 Some(s) => FieldValue::String(s),
             },
             "event.user" => FieldValue::None, // Not available at this time
+            "event.is_local_ip" => FieldValue::Bool(is_local_host(&self)),
+            "event.has_bad_browser_extensions" => {
+                FieldValue::Bool(has_bad_browser_extensions(&self))
+            }
             _ => FieldValue::None,
         }
     }
@@ -478,6 +510,12 @@ mod tests {
         RuleCondition::Glob(GlobCondition {
             name: name.to_owned(),
             value: GlobPatterns::new(value.iter().map(|s| s.to_string()).collect()),
+        })
+    }
+
+    fn has(name: &str) -> RuleCondition {
+        RuleCondition::Has(HasCondition {
+            name: name.to_owned(),
         })
     }
 
@@ -787,6 +825,10 @@ mod tests {
             "value": ["1.2.*","2.*"]
         },
         {
+            "op":"has",
+            "name": "has_field"
+        },
+        {
             "op":"not",
             "inner": {
                 "op":"glob",
@@ -843,6 +885,10 @@ mod tests {
                   "1.2.*",
                   "2.*",
                 ],
+              ),
+              HasCondition(
+                op: "has",
+                name: "has_field",
               ),
               NotCondition(
                 op: "not",

@@ -7,24 +7,32 @@ use relay_general::protocol::{Event, Exception};
 
 use crate::{FilterConfig, FilterStatKey};
 
+/// Check if the event originates from known problematic browser extensions.
+pub fn has_bad_browser_extensions(event: &Event) -> bool {
+    if let Some(ex_val) = get_exception_value(event) {
+        if EXTENSION_EXC_VALUES.is_match(ex_val) {
+            return true;
+        }
+    }
+    if let Some(ex_source) = get_exception_source(event) {
+        if EXTENSION_EXC_SOURCES.is_match(ex_source) {
+            return true;
+        }
+    }
+    false
+}
+
 /// Filters events originating from known problematic browser extensions.
 pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterStatKey> {
     if !config.is_enabled {
         return Ok(());
     }
 
-    if let Some(ex_val) = get_exception_value(event) {
-        if EXTENSION_EXC_VALUES.is_match(ex_val) {
-            return Err(FilterStatKey::BrowserExtensions);
-        }
+    if has_bad_browser_extensions(event) {
+        Err(FilterStatKey::BrowserExtensions)
+    } else {
+        Ok(())
     }
-    if let Some(ex_source) = get_exception_source(event) {
-        if EXTENSION_EXC_SOURCES.is_match(ex_source) {
-            return Err(FilterStatKey::BrowserExtensions);
-        }
-    }
-
-    Ok(())
 }
 
 fn get_first_exception(event: &Event) -> Option<&Exception> {
