@@ -1118,9 +1118,11 @@ impl EventProcessor {
             None => return Ok(()), // can't process without an event
             Some(event) => event,
         };
-
-        let project_id = state.project_id;
-        match utils::should_keep_event(event, &state.project_state, project_id) {
+        match utils::should_keep_event(
+            event,
+            &state.project_state,
+            self.config.processing_enabled(),
+        ) {
             Some(false) => Err(ProcessingError::EventSampled),
             Some(true) => Ok(()),
             None => Ok(()), // Not enough info to make a definite evaluation, keep the event
@@ -1438,6 +1440,7 @@ impl Handler<HandleEnvelope> for EventManager {
         let outcome_producer = self.outcome_producer.clone();
         let capture = self.config.relay_mode() == RelayMode::Capture;
         let http_encoding = self.config.http_encoding();
+        let processing_enabled = self.config.processing_enabled();
 
         #[cfg(feature = "processing")]
         let store_forwarder = self.store_forwarder.clone();
@@ -1477,8 +1480,8 @@ impl Handler<HandleEnvelope> for EventManager {
                     None => Err(ProcessingError::RateLimited(checked.rate_limits)),
                 }
             }))
-            .and_then(|envelope| {
-                utils::sample_transaction(envelope, sampling_project, false)
+            .and_then(move |envelope| {
+                utils::sample_transaction(envelope, sampling_project, false, processing_enabled)
                     .map_err(|()| (ProcessingError::TransactionSampled))
             })
             .and_then(|envelope| {

@@ -12,8 +12,9 @@ def _create_transaction_item():
     :return: a tuple (transaction_item, trace_id)
     """
     trace_id = uuid.uuid4().hex
+    event_id = uuid.uuid4().hex
     item = {
-        "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+        "event_id": event_id,
         "type": "transaction",
         "transaction": "tr1",
         "start_timestamp": 1597976392.6542819,
@@ -26,8 +27,9 @@ def _create_transaction_item():
             }
         },
         "spans": [],
+        "extra": {"id": event_id},
     }
-    return item, trace_id
+    return item, trace_id, event_id
 
 
 def _create_event_item(environment=None, release=None):
@@ -36,6 +38,7 @@ def _create_event_item(environment=None, release=None):
     :return: a tuple (event_item, event_id)
     """
     event_id = uuid.uuid4().hex
+    trace_id = uuid.uuid4().hex
     item = {
         "event_id": event_id,
         "message": "Hello, World!",
@@ -45,7 +48,7 @@ def _create_event_item(environment=None, release=None):
         item["environment"] = environment
     if release is not None:
         item["release"] = release
-    return item, event_id
+    return item, trace_id, event_id
 
 
 def _outcomes_enabled_config():
@@ -64,9 +67,8 @@ def _outcomes_enabled_config():
 
 def _add_sampling_config(
     config,
-    project_ids,
     sample_rate,
-    strategy,
+    rule_type,
     releases=None,
     user_segments=None,
     environments=None,
@@ -74,21 +76,38 @@ def _add_sampling_config(
     """
     Adds a sampling configuration rule to a project configuration
     """
-    rules = config["config"].setdefault("sampling", {}).setdefault("rules", [])
-    if releases is None:
-        releases = []
-    if user_segments is None:
-        user_segments = []
-    if environments is None:
-        environments = []
+    rules = config["config"].setdefault("dynamicSampling", {}).setdefault("rules", [])
+    if rule_type is None:
+        rule_type = "trace"
+    conditions = []
+    field_prefix = "trace." if rule_type == "trace" else "event."
+    if releases is not None:
+        conditions.append(
+            {"op": "glob", "name": field_prefix + "release", "value": releases,}
+        )
+    if user_segments is not None:
+        conditions.append(
+            {
+                "op": "eq",
+                "name": field_prefix + "user",
+                "value": user_segments,
+                "ignoreCase": True,
+            }
+        )
+    if environments is not None:
+        conditions.append(
+            {
+                "op": "eq",
+                "name": field_prefix + "environment",
+                "value": environments,
+                "ignoreCase": True,
+            }
+        )
 
     rule = {
-        "projectIds": project_ids,
         "sampleRate": sample_rate,
-        "userSegments": user_segments,
-        "releases": releases,
-        "environments": environments,
-        "strategy": strategy,
+        "type": rule_type,
+        "condition": {"op": "and", "inner": conditions},
     }
     rules.append(rule)
     return rules
@@ -108,7 +127,7 @@ def _add_trace_info(envelope, trace_id, public_key, release=None, user_segment=N
         trace_info["release"] = release
 
     if user_segment is not None:
-        trace_info["user_segment"] = user_segment
+        trace_info["user"] = user_segment
 
 
 def test_it_removes_transactions(mini_sentry, relay):
@@ -122,13 +141,11 @@ def test_it_removes_transactions(mini_sentry, relay):
     config = mini_sentry.add_basic_project_config(project_id)
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
     public_key = config["publicKeys"][0]["publicKey"]
-    _add_sampling_config(
-        config, project_ids=[project_id], sample_rate=0, strategy="trace"
-    )
+    _add_sampling_config(config, sample_rate=0, rule_type="trace")
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
     envelope = Envelope()
-    transaction, trace_id = _create_transaction_item()
+    transaction, trace_id, event_id = _create_transaction_item()
     envelope.add_transaction(transaction)
     _add_trace_info(envelope, trace_id=trace_id, public_key=public_key)
 
@@ -156,13 +173,11 @@ def test_it_keeps_transactions(mini_sentry, relay):
     config = mini_sentry.add_basic_project_config(project_id)
     # add a sampling rule to project config that keeps all transactions (sample_rate=1)
     public_key = config["publicKeys"][0]["publicKey"]
-    _add_sampling_config(
-        config, project_ids=[project_id], sample_rate=1, strategy="trace"
-    )
+    _add_sampling_config(config, sample_rate=1, rule_type="trace")
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
     envelope = Envelope()
-    transaction, trace_id = _create_transaction_item()
+    transaction, trace_id, event_id = _create_transaction_item()
     envelope.add_transaction(transaction)
     _add_trace_info(envelope, trace_id=trace_id, public_key=public_key)
 
@@ -182,7 +197,28 @@ def test_it_keeps_transactions(mini_sentry, relay):
         mini_sentry.captured_outcomes.get(timeout=2)
 
 
-def test_it_removes_events(mini_sentry, relay):
+def _create_event_envelope(public_key):
+    envelope = Envelope()
+    event, trace_id, event_id = _create_event_item()
+    envelope.add_event(event)
+    _add_trace_info(envelope, trace_id=trace_id, public_key=public_key)
+
+    return envelope, trace_id, event_id
+
+
+def _create_transaction_envelope(public_key):
+    envelope = Envelope()
+    transaction, trace_id, event_id = _create_transaction_item()
+    envelope.add_transaction(transaction)
+    _add_trace_info(envelope, trace_id=trace_id, public_key=public_key)
+    return envelope, trace_id, event_id
+
+
+@pytest.mark.parametrize(
+    "rule_type, event_factory",
+    [("error", _create_event_envelope), ("transaction", _create_transaction_envelope)],
+)
+def test_it_removes_events(mini_sentry, relay, rule_type, event_factory):
     """
     Tests that when sampling is set to 0% for the trace context project the events are removed
     """
@@ -191,16 +227,13 @@ def test_it_removes_events(mini_sentry, relay):
 
     # create a basic project config
     config = mini_sentry.add_basic_project_config(project_id)
-    # add a sampling rule to project config that removes all transactions (sample_rate=0)
     public_key = config["publicKeys"][0]["publicKey"]
-    _add_sampling_config(
-        config, project_ids=[project_id], sample_rate=0, strategy="event"
-    )
+
+    # add a sampling rule to project config that removes all transactions (sample_rate=0)
+    _add_sampling_config(config, sample_rate=0, rule_type=rule_type)
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
-    envelope = Envelope()
-    event, event_id = _create_event_item()
-    envelope.add_event(event)
+    envelope, trace_id, event_id = event_factory(public_key)
 
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id, envelope)
@@ -215,7 +248,11 @@ def test_it_removes_events(mini_sentry, relay):
     assert outcome.get("reason") == "event_sampled"
 
 
-def test_it_keeps_events(mini_sentry, relay):
+@pytest.mark.parametrize(
+    "rule_type, event_factory",
+    [("error", _create_event_envelope), ("transaction", _create_transaction_envelope)],
+)
+def test_it_keeps_events(mini_sentry, relay, rule_type, event_factory):
     """
     Tests that when sampling is set to 100% for the trace context project the events are kept
     """
@@ -224,26 +261,131 @@ def test_it_keeps_events(mini_sentry, relay):
 
     # create a basic project config
     config = mini_sentry.add_basic_project_config(project_id)
-    # add a sampling rule to project config that keeps all transactions (sample_rate=1)
     public_key = config["publicKeys"][0]["publicKey"]
-    _add_sampling_config(
-        config, project_ids=[project_id], sample_rate=1, strategy="event"
-    )
+
+    # add a sampling rule to project config that keeps all events (sample_rate=1)
+    _add_sampling_config(config, sample_rate=1, rule_type=rule_type)
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
-    envelope = Envelope()
-    event, event_id = _create_event_item()
-    envelope.add_event(event)
+    envelope, trace_id, event_id = event_factory(public_key)
 
     # send the event, the transaction should be removed.
     relay.send_envelope(project_id, envelope)
     # the event should be left alone by Relay sampling
-    evt = mini_sentry.captured_events.get(timeout=1).get_event()
-    assert evt is not None
-    # double check that we get back our trace object (check the trace_id from the object)
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    assert envelope is not None
+    # double check that we get back our object
     # we put the id in extra since Relay overrides the initial event_id
+    items = [item for item in envelope]
+    assert len(items) == 1
+    evt = items[0].payload.json
     evt_id = evt.setdefault("extra", {}).get("id")
+    assert evt_id == event_id
 
+    # no outcome should be generated since we forward the event to upstream
+    with pytest.raises(queue.Empty):
+        mini_sentry.captured_outcomes.get(timeout=2)
+
+
+@pytest.mark.parametrize("should_remove", [True, False])
+@pytest.mark.parametrize(
+    "rule_type, event_factory",
+    [
+        ("error", _create_event_envelope),
+        ("transaction", _create_transaction_envelope),
+        ("trace", _create_transaction_envelope),
+    ],
+)
+def test_bad_dynamic_rules_in_processing_relays(
+    mini_sentry,
+    relay_with_processing,
+    events_consumer,
+    transactions_consumer,
+    should_remove,
+    rule_type,
+    event_factory,
+):
+    """
+    Configurations that contain bad (unrecognized) rules should be handled by
+    removing the offending rules and sampling using the correct rules
+    """
+
+    sample_rate = 0 if should_remove else 1
+
+    relay = relay_with_processing()
+    project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    if rule_type == "error":
+        consumer = events_consumer()
+    else:
+        consumer = transactions_consumer()
+
+    # add a bad condition (with the opposite sample rate to make it evident it is not applied)
+    rules = _add_sampling_config(
+        config, sample_rate=1 - sample_rate, rule_type=rule_type
+    )
+    last_rule = rules[-1]
+    last_rule["condition"]["inner"].append(
+        {"op": "BadOperator", "name": "foo", "value": "bar",}
+    )
+    _add_sampling_config(config, sample_rate=sample_rate, rule_type=rule_type)
+    envelope, trace_id, event_id = event_factory(public_key)
+    relay.send_envelope(project_id, envelope)
+
+    event, _ = consumer.try_get_event()
+    if should_remove:
+        assert event is None
+    else:
+        assert event is not None
+
+
+@pytest.mark.parametrize(
+    "rule_type, event_factory",
+    [
+        ("error", _create_event_envelope),
+        ("transaction", _create_transaction_envelope),
+        ("trace", _create_transaction_envelope),
+    ],
+)
+def test_bad_dynamic_rules_in_non_processing_relays(
+    mini_sentry, relay, rule_type, event_factory
+):
+    """
+    Configurations that contain bad (unrecognized) rules should effectively disable
+    any sampling (everything passes through)
+    """
+    project_id = 42
+    relay = relay(mini_sentry, _outcomes_enabled_config())
+
+    # create a basic project config
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    rules = _add_sampling_config(config, sample_rate=0, rule_type=rule_type)
+    last_rule = rules[-1]
+    last_rule["condition"]["inner"].append(
+        {"op": "BadOperator", "name": "foo", "value": "bar",}
+    )
+    # add a sampling rule to project config that drops all events (sample_rate=0), it should be ignored
+    # because there is an invalid rule in the configuration
+    _add_sampling_config(config, sample_rate=0, rule_type=rule_type)
+
+    # create an envelope with a trace context that is initiated by this project (for simplicity)
+    envelope, trace_id, event_id = event_factory(public_key)
+
+    # send the event, the transaction should be removed.
+    relay.send_envelope(project_id, envelope)
+    # the event should be left alone by Relay sampling
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    assert envelope is not None
+    # double check that we get back our object
+    # we put the id in extra since Relay overrides the initial event_id
+    items = [item for item in envelope]
+    assert len(items) == 1
+    evt = items[0].payload.json
+    evt_id = evt.setdefault("extra", {}).get("id")
     assert evt_id == event_id
 
     # no outcome should be generated since we forward the event to upstream
@@ -277,21 +419,17 @@ def test_uses_trace_public_key(mini_sentry, relay):
     project_id1 = 42
     config1 = mini_sentry.add_basic_project_config(project_id1)
     public_key1 = config1["publicKeys"][0]["publicKey"]
-    _add_sampling_config(
-        config1, project_ids=[project_id1], sample_rate=0, strategy="trace"
-    )
+    _add_sampling_config(config1, sample_rate=0, rule_type="trace")
 
     project_id2 = 43
     config2 = mini_sentry.add_basic_project_config(project_id2)
     public_key2 = config2["publicKeys"][0]["publicKey"]
-    _add_sampling_config(
-        config2, project_ids=[project_id1], sample_rate=1, strategy="trace"
-    )
+    _add_sampling_config(config2, sample_rate=1, rule_type="trace")
 
     # First
     # send trace with project_id1 context (should be removed)
     envelope = Envelope()
-    transaction, trace_id = _create_transaction_item()
+    transaction, trace_id, event_id = _create_transaction_item()
     envelope.add_transaction(transaction)
     _add_trace_info(envelope, trace_id=trace_id, public_key=public_key1)
 
@@ -308,7 +446,7 @@ def test_uses_trace_public_key(mini_sentry, relay):
     # Second
     # send trace with project_id2 context (should go through)
     envelope = Envelope()
-    transaction, trace_id = _create_transaction_item()
+    transaction, trace_id, event_id = _create_transaction_item()
     envelope.add_transaction(transaction)
     _add_trace_info(envelope, trace_id=trace_id, public_key=public_key2)
 
@@ -342,14 +480,12 @@ def test_fast_path(mini_sentry, relay):
     config = mini_sentry.add_basic_project_config(project_id)
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
     public_key = config["publicKeys"][0]["publicKey"]
-    _add_sampling_config(
-        config, project_ids=[project_id], sample_rate=0, strategy="trace"
-    )
+    _add_sampling_config(config, sample_rate=0, rule_type="trace")
 
     for i in range(2):
         # create an envelope with a trace context that is initiated by this project (for simplicity)
         envelope = Envelope()
-        transaction, trace_id = _create_transaction_item()
+        transaction, trace_id, event_id = _create_transaction_item()
         envelope.add_transaction(transaction)
         _add_trace_info(envelope, trace_id=trace_id, public_key=public_key)
 
@@ -379,15 +515,13 @@ def test_multi_item_envelope(mini_sentry, relay):
     config = mini_sentry.add_basic_project_config(project_id)
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
     public_key = config["publicKeys"][0]["publicKey"]
-    _add_sampling_config(
-        config, project_ids=[project_id], sample_rate=0, strategy="trace"
-    )
+    _add_sampling_config(config, sample_rate=0, rule_type="trace")
 
     # we'll run the test twice to make sure that the fast path works as well
     for i in range(2):
         # create an envelope with a trace context that is initiated by this project (for simplicity)
         envelope = Envelope()
-        transaction, trace_id = _create_transaction_item()
+        transaction, trace_id, event_id = _create_transaction_item()
         envelope.add_transaction(transaction)
         envelope.add_event({"message": "Hello"})
         _add_trace_info(envelope, trace_id=trace_id, public_key=public_key)

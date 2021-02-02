@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+**Features**:
+
+- Improve dynamic sampling rule configuration. ([#907](https://github.com/getsentry/relay/pull/907))
 
 **Features**:
 

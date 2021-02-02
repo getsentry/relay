@@ -62,7 +62,7 @@ pub struct ProjectConfig {
     pub quotas: Vec<Quota>,
     /// Configuration for sampling traces, if not present there will be no sampling.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sampling: Option<SamplingConfig>,
+    pub dynamic_sampling: Option<SamplingConfig>,
 }
 
 impl Default for ProjectConfig {
@@ -76,7 +76,7 @@ impl Default for ProjectConfig {
             datascrubbing_settings: DataScrubbingConfig::default(),
             event_retention: None,
             quotas: Vec::new(),
-            sampling: None,
+            dynamic_sampling: None,
         }
     }
 }
