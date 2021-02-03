@@ -10,7 +10,8 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::{
-    has_bad_browser_extensions, is_legacy_browser, is_local_host, GlobPatterns, LegacyBrowser,
+    has_bad_browser_extensions, is_csp_disallowed, is_legacy_browser, is_local_host, GlobPatterns,
+    LegacyBrowser,
 };
 use relay_general::protocol::{Event, EventId};
 
@@ -209,8 +210,8 @@ pub struct CspCondition {
 }
 
 impl CspCondition {
-    fn matches_event(&self, _event: &Event) -> bool {
-        unimplemented!()
+    fn matches_event(&self, event: &Event) -> bool {
+        is_csp_disallowed(event, &self.value)
     }
 }
 

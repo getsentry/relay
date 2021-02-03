@@ -6,11 +6,10 @@ use relay_general::protocol::{Event, EventType};
 
 use crate::{CspFilterConfig, FilterStatKey};
 
-/// Filters CSP events based on disallowed sources.
-pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), FilterStatKey> {
-    let disallowed_sources = &config.disallowed_sources;
+/// Checks if the event is a CSP Event from one of the configured disallowed sources
+pub fn is_csp_disallowed(event: &Event, disallowed_sources: &[String]) -> bool {
     if disallowed_sources.is_empty() || event.ty.value() != Some(&EventType::Csp) {
-        return Ok(());
+        return false;
     }
 
     // parse the sources for easy processing
@@ -21,14 +20,22 @@ pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), Filt
 
     if let Some(csp) = event.csp.value() {
         if matches_any_origin(csp.blocked_uri.as_str(), &disallowed_sources) {
-            return Err(FilterStatKey::InvalidCsp);
+            return true;
         }
         if matches_any_origin(csp.source_file.as_str(), &disallowed_sources) {
-            return Err(FilterStatKey::InvalidCsp);
+            return true;
         }
     }
+    false
+}
 
-    Ok(())
+/// Filters CSP events based on disallowed sources.
+pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), FilterStatKey> {
+    if is_csp_disallowed(event, &config.disallowed_sources) {
+        Err(FilterStatKey::InvalidCsp)
+    } else {
+        Ok(())
+    }
 }
 
 /// A pattern used to match allowed paths
