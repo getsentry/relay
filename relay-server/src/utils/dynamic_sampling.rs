@@ -9,11 +9,12 @@ use rand_pcg::Pcg32;
 use serde::{Deserialize, Serialize};
 
 use relay_common::{EventType, ProjectKey, Uuid};
-use relay_filter::{has_bad_browser_extensions, is_local_host, GlobPatterns};
+use relay_filter::{has_bad_browser_extensions, is_local_host, GlobPatterns, LegacyBrowser};
 use relay_general::protocol::{Event, EventId};
 
 use crate::actors::project::{GetCachedProjectState, GetProjectState, Project, ProjectState};
 use crate::envelope::{Envelope, ItemType};
+use std::collections::BTreeSet;
 
 /// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -65,6 +66,13 @@ pub struct EqCondition {
 }
 
 impl EqCondition {
+    fn matches_event(&self, event: &Event) -> bool {
+        self.matches(event)
+    }
+    fn matches_trace(&self, trace: &TraceContext) -> bool {
+        self.matches(trace)
+    }
+
     fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
         value_provider
             .get_value(self.name.as_str())
@@ -87,6 +95,13 @@ pub struct GlobCondition {
 }
 
 impl GlobCondition {
+    fn matches_event(&self, event: &Event) -> bool {
+        self.matches(event)
+    }
+    fn matches_trace(&self, trace: &TraceContext) -> bool {
+        self.matches(trace)
+    }
+
     fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
         value_provider
             .get_value(self.name.as_str())
@@ -104,6 +119,13 @@ pub struct HasCondition {
 }
 
 impl HasCondition {
+    fn matches_event(&self, event: &Event) -> bool {
+        self.matches(event)
+    }
+    fn matches_trace(&self, trace: &TraceContext) -> bool {
+        self.matches(trace)
+    }
+
     fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
         value_provider
             .get_value(self.name.as_str())
@@ -121,8 +143,11 @@ impl OrCondition {
     fn supported(&self) -> bool {
         self.inner.iter().all(RuleCondition::supported)
     }
-    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
-        self.inner.iter().any(|cond| cond.matches(value_provider))
+    fn matches_event(&self, event: &Event) -> bool {
+        self.inner.iter().any(|cond| cond.matches_event(event))
+    }
+    fn matches_trace(&self, trace: &TraceContext) -> bool {
+        self.inner.iter().any(|cond| cond.matches_trace(trace))
     }
 }
 
@@ -135,8 +160,11 @@ impl AndCondition {
     fn supported(&self) -> bool {
         self.inner.iter().all(RuleCondition::supported)
     }
-    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
-        self.inner.iter().all(|cond| cond.matches(value_provider))
+    fn matches_event(&self, event: &Event) -> bool {
+        self.inner.iter().all(|cond| cond.matches_event(event))
+    }
+    fn matches_trace(&self, trace: &TraceContext) -> bool {
+        self.inner.iter().all(|cond| cond.matches_trace(trace))
     }
 }
 
@@ -153,8 +181,56 @@ impl NotCondition {
     fn supported(&self) -> bool {
         self.inner.supported()
     }
-    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
-        !self.inner.matches(value_provider)
+    fn matches_event(&self, event: &Event) -> bool {
+        !self.inner.matches_event(event)
+    }
+    fn matches_trace(&self, trace: &TraceContext) -> bool {
+        !self.inner.matches_trace(trace)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyBrowserCondition {
+    pub value: BTreeSet<LegacyBrowser>,
+}
+
+impl LegacyBrowserCondition {
+    fn matches_event(&self, _event: &Event) -> bool {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CspCondition {
+    pub value: Vec<String>,
+}
+
+impl CspCondition {
+    fn matches_event(&self, _event: &Event) -> bool {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClientIpCondition {
+    pub value: Vec<String>,
+}
+
+impl ClientIpCondition {
+    fn matches_event(&self, _event: &Event) -> bool {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ErrorMessagesCondition {
+    pub value: GlobPatterns,
+}
+
+impl ErrorMessagesCondition {
+    fn matches_event(&self, _event: &Event) -> bool {
+        unimplemented!()
     }
 }
 
@@ -168,6 +244,10 @@ pub enum RuleCondition {
     And(AndCondition),
     Not(NotCondition),
     Has(HasCondition),
+    LegacyBrowser(LegacyBrowserCondition),
+    Csp(CspCondition),
+    ClientIp(ClientIpCondition),
+    ErrorMessages(ErrorMessagesCondition),
     #[serde(other)]
     Unsupported,
 }
@@ -180,22 +260,47 @@ impl RuleCondition {
         match self {
             RuleCondition::Unsupported => false,
             // we have a known condition
-            RuleCondition::Eq(_) | RuleCondition::Glob(_) | RuleCondition::Has(_) => true,
+            RuleCondition::Eq(_)
+            | RuleCondition::Glob(_)
+            | RuleCondition::Has(_)
+            | RuleCondition::LegacyBrowser(_)
+            | RuleCondition::ClientIp(_)
+            | RuleCondition::Csp(_) => true,
+            RuleCondition::ErrorMessages(_) => true,
             // dig down for embedded conditions
             RuleCondition::And(rules) => rules.supported(),
             RuleCondition::Or(rules) => rules.supported(),
             RuleCondition::Not(rule) => rule.supported(),
         }
     }
-    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
+    fn matches_event(&self, event: &Event) -> bool {
         match self {
-            RuleCondition::Eq(condition) => condition.matches(value_provider),
-            RuleCondition::Glob(condition) => condition.matches(value_provider),
-            RuleCondition::Has(condition) => condition.matches(value_provider),
-            RuleCondition::And(conditions) => conditions.matches(value_provider),
-            RuleCondition::Or(conditions) => conditions.matches(value_provider),
-            RuleCondition::Not(condition) => condition.matches(value_provider),
+            RuleCondition::Eq(condition) => condition.matches_event(event),
+            RuleCondition::Glob(condition) => condition.matches_event(event),
+            RuleCondition::Has(condition) => condition.matches_event(event),
+            RuleCondition::And(conditions) => conditions.matches_event(event),
+            RuleCondition::Or(conditions) => conditions.matches_event(event),
+            RuleCondition::Not(condition) => condition.matches_event(event),
+            RuleCondition::ClientIp(condition) => condition.matches_event(event),
+            RuleCondition::LegacyBrowser(condition) => condition.matches_event(event),
+            RuleCondition::Csp(condition) => condition.matches_event(event),
+            RuleCondition::ErrorMessages(condition) => condition.matches_event(event),
             RuleCondition::Unsupported => false,
+        }
+    }
+    fn matches_trace(&self, trace: &TraceContext) -> bool {
+        match self {
+            RuleCondition::Eq(condition) => condition.matches_trace(trace),
+            RuleCondition::Glob(condition) => condition.matches_trace(trace),
+            RuleCondition::Has(condition) => condition.matches_trace(trace),
+            RuleCondition::And(conditions) => conditions.matches_trace(trace),
+            RuleCondition::Or(conditions) => conditions.matches_trace(trace),
+            RuleCondition::Not(condition) => condition.matches_trace(trace),
+            RuleCondition::ClientIp(_)
+            | RuleCondition::LegacyBrowser(_)
+            | RuleCondition::Csp(_)
+            | RuleCondition::ErrorMessages(_)
+            | RuleCondition::Unsupported => false,
         }
     }
 }
@@ -316,7 +421,7 @@ impl TraceContext {
     /// If None then a decision can't be made either because of an invalid of missing trace context or
     /// because no applicable sampling rule could be found.
     fn should_sample(&self, config: &SamplingConfig) -> Option<bool> {
-        let rule = get_matching_rule(config, self, RuleType::Trace)?;
+        let rule = get_matching_trace_rule(config, self, RuleType::Trace)?;
         let rate = pseudo_random_from_uuid(self.trace_id)?;
         Some(rate < rule.sample_rate)
     }
@@ -344,7 +449,7 @@ pub fn should_keep_event(
     };
 
     let ty = rule_type_for_event(&event);
-    if let Some(rule) = get_matching_rule(sampling_config, event, ty) {
+    if let Some(rule) = get_matching_event_rule(sampling_config, event, ty) {
         if let Some(random_number) = pseudo_random_from_uuid(event_id) {
             return Some(rule.sample_rate > random_number);
         }
@@ -466,18 +571,25 @@ pub fn sample_transaction(
     }
 }
 
-fn get_matching_rule<'a, T>(
+fn get_matching_event_rule<'a>(
     config: &'a SamplingConfig,
-    value_provider: &T,
+    event: &Event,
     ty: RuleType,
-) -> Option<&'a SamplingRule>
-where
-    T: FieldValueProvider,
-{
+) -> Option<&'a SamplingRule> {
     config
         .rules
         .iter()
-        .find(|rule| rule.ty == ty && rule.condition.matches(value_provider))
+        .find(|rule| rule.ty == ty && rule.condition.matches_event(event))
+}
+fn get_matching_trace_rule<'a>(
+    config: &'a SamplingConfig,
+    trace: &TraceContext,
+    ty: RuleType,
+) -> Option<&'a SamplingRule> {
+    config
+        .rules
+        .iter()
+        .find(|rule| rule.ty == ty && rule.condition.matches_trace(trace))
 }
 
 /// Generates a pseudo random number by seeding the generator with the given id.
@@ -624,7 +736,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(condition.matches(&tc), failure_name);
+            assert!(condition.matches_trace(&tc), failure_name);
         }
     }
 
@@ -676,7 +788,7 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(condition.matches(&tc) == *expected, failure_name);
+            assert!(condition.matches_trace(&tc) == *expected, failure_name);
         }
     }
 
@@ -728,7 +840,7 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(condition.matches(&tc) == *expected, failure_name);
+            assert!(condition.matches_trace(&tc) == *expected, failure_name);
         }
     }
 
@@ -757,7 +869,7 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(condition.matches(&tc) == *expected, failure_name);
+            assert!(condition.matches_trace(&tc) == *expected, failure_name);
         }
     }
 
@@ -801,7 +913,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(!condition.matches(&tc), failure_name);
+            assert!(!condition.matches_trace(&tc), failure_name);
         }
     }
 
@@ -962,7 +1074,10 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        assert!(condition.matches(&tc), "did not match with missing release");
+        assert!(
+            condition.matches_trace(&tc),
+            "did not match with missing release"
+        );
 
         let condition = and(vec![
             glob("trace.release", &["1.1.1"]),
@@ -977,7 +1092,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches(&tc),
+            condition.matches_trace(&tc),
             "did not match with missing user segment"
         );
 
@@ -994,7 +1109,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches(&tc),
+            condition.matches_trace(&tc),
             "did not match with missing environment"
         );
 
@@ -1008,7 +1123,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches(&tc),
+            condition.matches_trace(&tc),
             "did not match with missing release, user segment and environment"
         );
     }
@@ -1077,7 +1192,7 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, RuleType::Trace);
+        let result = get_matching_trace_rule(&rules, &trace_context, RuleType::Trace);
         // complete match with first rule
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.1),
@@ -1092,7 +1207,7 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, RuleType::Trace);
+        let result = get_matching_trace_rule(&rules, &trace_context, RuleType::Trace);
         // should mach the second rule because of the release
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.2),
@@ -1107,7 +1222,7 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, RuleType::Trace);
+        let result = get_matching_trace_rule(&rules, &trace_context, RuleType::Trace);
         // should match the third rule because of the unknown release
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.3),
@@ -1122,7 +1237,7 @@ mod tests {
             environment: Some("production".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, RuleType::Trace);
+        let result = get_matching_trace_rule(&rules, &trace_context, RuleType::Trace);
         // should match the fourth rule because of the unknown environment
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.4),
@@ -1137,7 +1252,7 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, RuleType::Trace);
+        let result = get_matching_trace_rule(&rules, &trace_context, RuleType::Trace);
         // should match the fourth rule because of the unknown user segment
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.5),
