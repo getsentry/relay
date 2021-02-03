@@ -30,6 +30,7 @@ pub use crate::common::*;
 pub use crate::config::*;
 pub use crate::csp::matches_any_origin;
 pub use browser_extensions::has_bad_browser_extensions;
+pub use legacy_browsers::is_legacy_browser;
 pub use localhost::is_local_host;
 
 /// Checks whether an event should be filtered for a particular configuration.
