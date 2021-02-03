@@ -7,18 +7,19 @@ use std::borrow::Cow;
 
 use relay_general::protocol::Event;
 
-use crate::{ErrorMessagesFilterConfig, FilterStatKey};
+use crate::{ErrorMessagesFilterConfig, FilterStatKey, GlobPatterns};
 
 /// Filters events by patterns in their error messages.
-pub fn should_filter(
-    event: &Event,
-    config: &ErrorMessagesFilterConfig,
-) -> Result<(), FilterStatKey> {
+pub fn contains_known_error_messages(event: &Event, patterns: &GlobPatterns) -> bool {
     if let Some(logentry) = event.logentry.value() {
         if let Some(message) = logentry.formatted.value() {
-            should_filter_impl(message.as_ref(), config)?;
+            if patterns.is_match(message.as_ref()) {
+                return true;
+            }
         } else if let Some(message) = logentry.message.value() {
-            should_filter_impl(message.as_ref(), config)?;
+            if patterns.is_match(message.as_ref()) {
+                return true;
+            }
         }
     }
 
@@ -33,21 +34,22 @@ pub fn should_filter(
                         (ty, "") => Cow::Borrowed(ty),
                         (ty, value) => Cow::Owned(format!("{}: {}", ty, value)),
                     };
-
-                    should_filter_impl(&message, config)?;
+                    if patterns.is_match(message.as_ref()) {
+                        return true;
+                    }
                 }
             }
         }
     }
-
-    Ok(())
+    false
 }
 
-fn should_filter_impl(
-    message: &str,
+/// Filters events by patterns in their error messages.
+pub fn should_filter(
+    event: &Event,
     config: &ErrorMessagesFilterConfig,
 ) -> Result<(), FilterStatKey> {
-    if config.patterns.is_match(message) {
+    if contains_known_error_messages(event, &config.patterns) {
         Err(FilterStatKey::ErrorMessage)
     } else {
         Ok(())

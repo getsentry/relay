@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::{
-    has_bad_browser_extensions, is_csp_disallowed, is_legacy_browser, is_local_host, GlobPatterns,
-    LegacyBrowser,
+    contains_known_error_messages, has_bad_browser_extensions, is_csp_disallowed,
+    is_legacy_browser, is_local_host, GlobPatterns, LegacyBrowser,
 };
 use relay_general::protocol::{Event, EventId};
 
@@ -232,8 +232,8 @@ pub struct ErrorMessagesCondition {
 }
 
 impl ErrorMessagesCondition {
-    fn matches_event(&self, _event: &Event) -> bool {
-        unimplemented!()
+    fn matches_event(&self, event: &Event) -> bool {
+        contains_known_error_messages(event, &self.value)
     }
 }
 
