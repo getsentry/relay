@@ -584,6 +584,7 @@ fn get_matching_event_rule<'a>(
         .iter()
         .find(|rule| rule.ty == ty && rule.condition.matches_event(event))
 }
+
 fn get_matching_trace_rule<'a>(
     config: &'a SamplingConfig,
     trace: &TraceContext,
@@ -611,6 +612,11 @@ fn pseudo_random_from_uuid(id: Uuid) -> Option<f64> {
 mod tests {
     use super::*;
     use insta::assert_ron_snapshot;
+    use relay_general::protocol::{
+        Csp, Exception, Headers, IpAddr, JsonLenientString, LenientString, LogEntry, PairList,
+        Request, User, Values,
+    };
+    use relay_general::types::Annotated;
     use std::str::FromStr;
 
     fn eq(name: &str, value: &[&str], ignore_case: bool) -> RuleCondition {
@@ -645,6 +651,24 @@ mod tests {
     fn not(cond: RuleCondition) -> RuleCondition {
         RuleCondition::Not(NotCondition {
             inner: Box::new(cond),
+        })
+    }
+
+    fn legacy_browser(browsers: Vec<LegacyBrowser>) -> RuleCondition {
+        let mut vals = BTreeSet::new();
+        for browser in browsers {
+            vals.insert(browser.clone());
+        }
+        RuleCondition::LegacyBrowser(LegacyBrowserCondition { value: vals })
+    }
+
+    fn csp(value: Vec<String>) -> RuleCondition {
+        RuleCondition::Csp(CspCondition { value })
+    }
+
+    fn error_messages(value: &[&str]) -> RuleCondition {
+        RuleCondition::ErrorMessages(ErrorMessagesCondition {
+            value: GlobPatterns::new(value.iter().map(|s| s.to_string()).collect()),
         })
     }
 
@@ -741,6 +765,82 @@ mod tests {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(condition.matches_trace(&tc), failure_name);
         }
+    }
+
+    #[test]
+    /// test matching for various rules
+    fn test_matches_events() {
+        let conditions = [
+            ("release", and(vec![glob("event.release", &["1.1.1"])])),
+            (
+                "environment",
+                or(vec![eq("event.environment", &["prod"], true)]),
+            ),
+            ("local ip", has("event.is_local_ip")),
+            (
+                "bad browser extensions",
+                has("event.has_bad_browser_extensions"),
+            ),
+            (
+                "legacy browsers",
+                legacy_browser(vec![LegacyBrowser::Ie10, LegacyBrowser::SafariPre6]),
+            ),
+            //("csp", csp(vec!["bbc.com".to_owned()])),
+            ("error messages", error_messages(&["abc"])),
+        ];
+
+        let evt = Event {
+            release: Annotated::new(LenientString("1.1.1".to_owned())),
+            environment: Annotated::new("prod".to_owned()),
+            user: Annotated::new(User {
+                ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+                ..Default::default()
+            }),
+            exceptions: Annotated::new(Values {
+                values: Annotated::new(vec![Annotated::new(Exception {
+                    value: Annotated::new(JsonLenientString::from(
+                        "canvas.contentDocument".to_owned(),
+                    )),
+                    ..Default::default()
+                })]),
+                ..Default::default()
+            }),
+            request: Annotated::new(Request {
+                headers: Annotated::new(Headers(
+                    PairList(vec![Annotated::new((
+                        Annotated::new("user-agent".into()),
+                        Annotated::new("Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 7.0; InfoPath.3; .NET CLR 3.1.40767; Trident/6.0; en-IN)".into()),
+                    ))]))),
+                ..Default::default()
+            }),
+            logentry: Annotated::new(LogEntry {
+                formatted: Annotated::new("abc".to_owned().into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        for (rule_test_name, condition) in conditions.iter() {
+            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            assert!(condition.matches_event(&evt), failure_name);
+        }
+    }
+
+    #[test]
+    /// test matching for various rules
+    fn test_matches_csp_events() {
+        let blocked_url = "bbc.com";
+        let condition = csp(vec![blocked_url.to_owned()]);
+
+        let evt = Event {
+            ty: Annotated::from(EventType::Csp),
+            csp: Annotated::from(Csp {
+                blocked_uri: Annotated::from(blocked_url.to_string()),
+                ..Csp::default()
+            }),
+            ..Event::default()
+        };
+        assert!(condition.matches_event(&evt));
     }
 
     #[test]
@@ -966,6 +1066,23 @@ mod tests {
                 "name": "field_6",
                 "value": ["3.*"]
             }]
+        },
+        {
+            "op":"legacyBrowser",
+            "value":["default","ie_pre_9","ie9","ie10","ie11","opera_pre_15","opera_mini_pre_8", 
+                     "android_pre_4","safari_pre_6"]
+        },
+        {
+            "op":"csp",
+            "value":["v1","v2"]
+        },
+        {
+            "op":"clientIp",
+            "value":["ci1","ci2"]
+        },
+        {
+            "op":"errorMessages",
+            "value":["error.*", "some other error"]
         }
         ]
         "#;
@@ -1037,6 +1154,41 @@ mod tests {
                       "3.*",
                     ],
                   ),
+                ],
+              ),
+              LegacyBrowserCondition(
+                op: "legacyBrowser",
+                value: [
+                  "default",
+                  "ie_pre_9",
+                  "ie9",
+                  "ie10",
+                  "ie11",
+                  "opera_pre_15",
+                  "opera_mini_pre_8",
+                  "android_pre_4",
+                  "safari_pre_6",
+                ],
+              ),
+              CspCondition(
+                op: "csp",
+                value: [
+                  "v1",
+                  "v2",
+                ],
+              ),
+              ClientIpCondition(
+                op: "clientIp",
+                value: [
+                  "ci1",
+                  "ci2",
+                ],
+              ),
+              ErrorMessagesCondition(
+                op: "errorMessages",
+                value: [
+                  "error.*",
+                  "some other error",
                 ],
               ),
             ]"###);
