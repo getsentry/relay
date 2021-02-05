@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::{
-    contains_known_error_messages, has_bad_browser_extensions, is_csp_disallowed,
+    contains_known_error_messages, has_bad_browser_extensions, is_blacklisted, is_csp_disallowed,
     is_legacy_browser, is_local_host, GlobPatterns, LegacyBrowser,
 };
 use relay_general::protocol::{Event, EventId};
@@ -18,6 +18,7 @@ use relay_general::protocol::{Event, EventId};
 use crate::actors::project::{GetCachedProjectState, GetProjectState, Project, ProjectState};
 use crate::envelope::{Envelope, ItemType};
 use std::collections::BTreeSet;
+use std::net::IpAddr;
 
 /// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -146,8 +147,10 @@ impl OrCondition {
     fn supported(&self) -> bool {
         self.inner.iter().all(RuleCondition::supported)
     }
-    fn matches_event(&self, event: &Event) -> bool {
-        self.inner.iter().any(|cond| cond.matches_event(event))
+    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
+        self.inner
+            .iter()
+            .any(|cond| cond.matches_event(event, ip_addr))
     }
     fn matches_trace(&self, trace: &TraceContext) -> bool {
         self.inner.iter().any(|cond| cond.matches_trace(trace))
@@ -163,8 +166,10 @@ impl AndCondition {
     fn supported(&self) -> bool {
         self.inner.iter().all(RuleCondition::supported)
     }
-    fn matches_event(&self, event: &Event) -> bool {
-        self.inner.iter().all(|cond| cond.matches_event(event))
+    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
+        self.inner
+            .iter()
+            .all(|cond| cond.matches_event(event, ip_addr))
     }
     fn matches_trace(&self, trace: &TraceContext) -> bool {
         self.inner.iter().all(|cond| cond.matches_trace(trace))
@@ -184,8 +189,8 @@ impl NotCondition {
     fn supported(&self) -> bool {
         self.inner.supported()
     }
-    fn matches_event(&self, event: &Event) -> bool {
-        !self.inner.matches_event(event)
+    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
+        !self.inner.matches_event(event, ip_addr)
     }
     fn matches_trace(&self, trace: &TraceContext) -> bool {
         !self.inner.matches_trace(trace)
@@ -221,8 +226,8 @@ pub struct ClientIpCondition {
 }
 
 impl ClientIpCondition {
-    fn matches_event(&self, _event: &Event) -> bool {
-        unimplemented!()
+    fn matches_event(&self, ip_addr: Option<IpAddr>) -> bool {
+        is_blacklisted(ip_addr, self.value.as_ref())
     }
 }
 
@@ -276,15 +281,15 @@ impl RuleCondition {
             RuleCondition::Not(rule) => rule.supported(),
         }
     }
-    fn matches_event(&self, event: &Event) -> bool {
+    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
         match self {
             RuleCondition::Eq(condition) => condition.matches_event(event),
             RuleCondition::Glob(condition) => condition.matches_event(event),
             RuleCondition::Has(condition) => condition.matches_event(event),
-            RuleCondition::And(conditions) => conditions.matches_event(event),
-            RuleCondition::Or(conditions) => conditions.matches_event(event),
-            RuleCondition::Not(condition) => condition.matches_event(event),
-            RuleCondition::ClientIp(condition) => condition.matches_event(event),
+            RuleCondition::And(conditions) => conditions.matches_event(event, ip_addr),
+            RuleCondition::Or(conditions) => conditions.matches_event(event, ip_addr),
+            RuleCondition::Not(condition) => condition.matches_event(event, ip_addr),
+            RuleCondition::ClientIp(condition) => condition.matches_event(ip_addr),
             RuleCondition::LegacyBrowser(condition) => condition.matches_event(event),
             RuleCondition::Csp(condition) => condition.matches_event(event),
             RuleCondition::ErrorMessages(condition) => condition.matches_event(event),
@@ -433,6 +438,7 @@ impl TraceContext {
 // Checks whether an event should be kept or removed by dynamic sampling
 pub fn should_keep_event(
     event: &Event,
+    ip_addr: Option<IpAddr>,
     project_state: &ProjectState,
     processing_enabled: bool,
 ) -> Option<bool> {
@@ -452,7 +458,7 @@ pub fn should_keep_event(
     };
 
     let ty = rule_type_for_event(&event);
-    if let Some(rule) = get_matching_event_rule(sampling_config, event, ty) {
+    if let Some(rule) = get_matching_event_rule(sampling_config, event, ip_addr, ty) {
         if let Some(random_number) = pseudo_random_from_uuid(event_id) {
             return Some(rule.sample_rate > random_number);
         }
@@ -577,12 +583,13 @@ pub fn sample_transaction(
 fn get_matching_event_rule<'a>(
     config: &'a SamplingConfig,
     event: &Event,
+    ip_addr: Option<IpAddr>,
     ty: RuleType,
 ) -> Option<&'a SamplingRule> {
     config
         .rules
         .iter()
-        .find(|rule| rule.ty == ty && rule.condition.matches_event(event))
+        .find(|rule| rule.ty == ty && rule.condition.matches_event(event, ip_addr))
 }
 
 fn get_matching_trace_rule<'a>(
@@ -617,6 +624,7 @@ mod tests {
         Request, User, Values,
     };
     use relay_general::types::Annotated;
+    use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
     use std::str::FromStr;
 
     fn eq(name: &str, value: &[&str], ignore_case: bool) -> RuleCondition {
@@ -669,6 +677,12 @@ mod tests {
     fn error_messages(value: &[&str]) -> RuleCondition {
         RuleCondition::ErrorMessages(ErrorMessagesCondition {
             value: GlobPatterns::new(value.iter().map(|s| s.to_string()).collect()),
+        })
+    }
+
+    fn client_ip(value: &[&str]) -> RuleCondition {
+        RuleCondition::ClientIp(ClientIpCondition {
+            value: value.iter().map(|s| s.to_string()).collect(),
         })
     }
 
@@ -785,7 +799,7 @@ mod tests {
                 "legacy browsers",
                 legacy_browser(vec![LegacyBrowser::Ie10, LegacyBrowser::SafariPre6]),
             ),
-            //("csp", csp(vec!["bbc.com".to_owned()])),
+            ("client_ip", client_ip(&["127.0.0.1"])),
             ("error messages", error_messages(&["abc"])),
         ];
 
@@ -822,7 +836,8 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(condition.matches_event(&evt), failure_name);
+            let ip_addr = Some(NetIpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
+            assert!(condition.matches_event(&evt, ip_addr), failure_name);
         }
     }
 
@@ -840,7 +855,7 @@ mod tests {
             }),
             ..Event::default()
         };
-        assert!(condition.matches_event(&evt));
+        assert!(condition.matches_event(&evt, None));
     }
 
     #[test]

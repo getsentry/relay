@@ -10,6 +10,27 @@ use ipnetwork::IpNetwork;
 
 use crate::{ClientIpsFilterConfig, FilterStatKey};
 
+/// Checks if an ip address is in a list of blacklisted ip addresses
+pub fn is_blacklisted(client_ip: Option<IpAddr>, blacklisted_ips: &[String]) -> bool {
+    if blacklisted_ips.is_empty() {
+        return false;
+    }
+
+    let client_ip = match client_ip {
+        Some(client_ip) => client_ip,
+        None => return false,
+    };
+
+    for blacklisted_ip in blacklisted_ips {
+        if let Ok(blacklisted_network) = blacklisted_ip.parse::<IpNetwork>() {
+            if blacklisted_network.contains(client_ip) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// Filters events by blacklisted client IP ranges.
 ///
 /// The client IP is the address of the originator of the event. If it was forwarded through
@@ -20,21 +41,9 @@ pub fn should_filter(
     config: &ClientIpsFilterConfig,
 ) -> Result<(), FilterStatKey> {
     let blacklisted_ips = &config.blacklisted_ips;
-    if blacklisted_ips.is_empty() {
-        return Ok(());
-    }
 
-    let client_ip = match client_ip {
-        Some(client_ip) => client_ip,
-        None => return Ok(()),
-    };
-
-    for blacklisted_ip in blacklisted_ips {
-        if let Ok(blacklisted_network) = blacklisted_ip.parse::<IpNetwork>() {
-            if blacklisted_network.contains(client_ip) {
-                return Err(FilterStatKey::IpAddress);
-            }
-        }
+    if is_blacklisted(client_ip, blacklisted_ips.as_ref()) {
+        return Err(FilterStatKey::IpAddress);
     }
 
     Ok(())

@@ -1118,8 +1118,10 @@ impl EventProcessor {
             None => return Ok(()), // can't process without an event
             Some(event) => event,
         };
+        let client_ip = state.envelope.meta().client_addr();
         match utils::should_keep_event(
             event,
+            client_ip,
             &state.project_state,
             self.config.processing_enabled(),
         ) {
