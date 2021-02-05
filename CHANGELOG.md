@@ -4,6 +4,7 @@
 **Features**:
 
 - Improve dynamic sampling rule configuration. ([#907](https://github.com/getsentry/relay/pull/907))
+- Add inbound filters functionality to dynamic sampling rules. ([#920](https://github.com/getsentry/relay/pull/920))
 
 **Features**:
 
