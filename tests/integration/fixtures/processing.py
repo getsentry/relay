@@ -41,6 +41,7 @@ def processing_config(get_topic_name):
         if processing.get("kafka_config") is None:
             processing["kafka_config"] = [
                 {"name": "bootstrap.servers", "value": bootstrap_servers},
+                {"name": "broker.address.family", "value": "v4"},
                 # {'name': 'batch.size', 'value': '0'}  # do not batch messages
             ]
         if processing.get("topics") is None:

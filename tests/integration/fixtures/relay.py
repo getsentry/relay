@@ -65,7 +65,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, request):
             "http": {"timeout": 2, "_client": request.param},
             "processing": {
                 "enabled": False,
-                "kafka_config": [],
+                "kafka_config": [{"name": "broker.address.family", "value": "v4"}],
                 "topics": {
                     "events": "",
                     "attachments": "",
