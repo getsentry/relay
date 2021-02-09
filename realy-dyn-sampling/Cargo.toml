@@ -1,0 +1,24 @@
+[package]
+name = "relay-dyn-sampling"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Dynamic sampling functionality for Relay"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "21.1.0"
+edition = "2018"
+license-file = "../LICENSE"
+publish = false
+
+[dependencies]
+relay-general = { path = "../relay-general" }
+relay-common = { path = "../relay-common" }
+serde = { version = "1.0.114", features = ["derive"] }
+relay-filter = { path = "../relay-filter" }
+rand= "0.6.5"
+rand_pcg="0.1.2"
+unicase="2.6.0"
+
+
+[dev-dependencies]
+serde_json = "1.0.55"
+insta = {version="0.16.0", features=["ron"]}

@@ -41,12 +41,13 @@ use failure::Fail;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
+use relay_dyn_sampling::TraceContext;
 use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
-use crate::utils::{ErrorBoundary, TraceContext};
+use crate::utils::ErrorBoundary;
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
