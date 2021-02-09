@@ -199,6 +199,37 @@ purposes. It comes in two formats: Once as a `(.pem, .cert)`-pair, once as
 
 The password for the `.pfx` file is `password`.
 
+### Usage with Sentry
+
+To use Relay with an existing Sentry devserver, Sentry onpremise installation,
+or Sentry SaaS, configure the upstream to the URL of the Sentry server in
+`.relay/config.yml`. For example, in local development set `relay.upstream` to
+`http://localhost:8000/`.
+
+To test processing mode with a local development Sentry, use this configuration:
+
+```yaml
+relay:
+  # Point to your Sentry devserver URL:
+  upstream: http://localhost:8000/
+  # Listen to a port other than 3000:
+  port: 3001
+logging:
+  # Enable full logging and backraces:
+  level: trace
+  enable_backtraces: true
+limits:
+  # Speed up shutdown on ^C
+  shutdown_timeout: 0
+processing:
+  # Enable processing mode with store normalization and post data to Kafka:
+  enabled: true
+  kafka_config:
+    - { name: "bootstrap.servers", value: "127.0.0.1:9092" }
+    - { name: "message.max.bytes", value: 2097176 }
+  redis: "redis://127.0.0.1"
+```
+
 ### Release Management
 
 We use [craft](https://github.com/getsentry/craft) to release new versions.
