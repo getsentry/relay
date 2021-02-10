@@ -135,6 +135,7 @@ impl HasCondition {
     }
 }
 
+/// Or condition aggregator
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrCondition {
     inner: Vec<RuleCondition>,
@@ -154,6 +155,7 @@ impl OrCondition {
     }
 }
 
+// And condition aggregator
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AndCondition {
     inner: Vec<RuleCondition>,
@@ -174,9 +176,6 @@ impl AndCondition {
 }
 
 /// Negates a wrapped condition.
-///
-/// This structure is used to aid the serialization of Rules.
-/// See [Conditions] for further explanations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotCondition {
     inner: Box<RuleCondition>,
@@ -194,6 +193,7 @@ impl NotCondition {
     }
 }
 
+/// Legacy browsers sampling
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LegacyBrowserCondition {
@@ -206,6 +206,7 @@ impl LegacyBrowserCondition {
     }
 }
 
+/// CSP sampling
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CspCondition {
     pub value: Vec<String>,
@@ -217,6 +218,7 @@ impl CspCondition {
     }
 }
 
+/// Client IP sampling
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientIpCondition {
     pub value: Vec<String>,
@@ -228,6 +230,7 @@ impl ClientIpCondition {
     }
 }
 
+/// Error messages sampling
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErrorMessagesCondition {
     pub value: GlobPatterns,
