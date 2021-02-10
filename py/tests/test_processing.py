@@ -190,7 +190,19 @@ def test_parse_release_error():
         '{"op": "clientIp", "value": ["ci1", "ci2"]}',
         '{"op": "errorMessages", "value": ["error.*", "some other error"]}',
     ],
-    ids=("eq with case", "eq", "glob", "has", "not", "and", "or", "legacyBrowser", "csp", "clientIp", "errorMessages")
+    ids=(
+        "eq with case",
+        "eq",
+        "glob",
+        "has",
+        "not",
+        "and",
+        "or",
+        "legacyBrowser",
+        "csp",
+        "clientIp",
+        "errorMessages",
+    ),
 )
 def test_validate_dynamic_rule_condition(condition):
     """
@@ -208,7 +220,7 @@ def test_validate_dynamic_rule_condition(condition):
         '{"op": "legacyBrowser", "value": [1,2,3]}',
         '{"op": "csp", "value": ["v1, "v2"]}',
     ],
-    ids=("bad operator","missing field", "bad value", "bad json")
+    ids=("bad operator", "missing field", "bad value", "bad json"),
 )
 def test_invalid_dynamic_rule_condition(condition):
     """

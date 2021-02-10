@@ -214,7 +214,9 @@ def validate_dynamic_rule_condition(condition):
     The parameter is a JSON-encoded string.
     """
     assert isinstance(condition, string_types)
-    raw_error = rustcall(lib.relay_validate_dynamic_rule_condition, encode_str(condition))
+    raw_error = rustcall(
+        lib.relay_validate_dynamic_rule_condition, encode_str(condition)
+    )
     error = decode_str(raw_error, free=True)
     if error:
         raise ValueError(error)
