@@ -173,3 +173,47 @@ def test_parse_release():
 def test_parse_release_error():
     with pytest.raises(sentry_relay.InvalidReleaseErrorBadCharacters):
         sentry_relay.parse_release("/var/foo/foo")
+
+
+@pytest.mark.parametrize(
+    "condition",
+    [
+        '{"op": "eq", "name": "field_1", "value": ["UPPER", "lower"], "ignoreCase": true}',
+        '{"op": "eq", "name": "field_2", "value": ["UPPER", "lower"]}',
+        '{"op": "glob", "name": "field_3", "value": ["1.2.*", "2.*"]}',
+        '{"op": "has", "name": "has_field"}',
+        '{"op": "not", "inner": {"op": "glob", "name": "field_4", "value": ["1.*"]}}',
+        '{"op": "and", "inner": [{"op": "glob", "name": "field_5", "value": ["2.*"]}]}',
+        '{"op": "or", "inner": [{"op": "glob", "name": "field_6", "value": ["3.*"]}]}',
+        '{"op": "legacyBrowser", "value": ["ie9", "ie10", "ie11"]}',
+        '{"op": "csp", "value": ["v1", "v2"]}',
+        '{"op": "clientIp", "value": ["ci1", "ci2"]}',
+        '{"op": "errorMessages", "value": ["error.*", "some other error"]}',
+    ],
+    ids=("eq with case", "eq", "glob", "has", "not", "and", "or", "legacyBrowser", "csp", "clientIp", "errorMessages")
+)
+def test_validate_dynamic_rule_condition(condition):
+    """
+    Validates various condition types
+    """
+    # Should not throw
+    sentry_relay.validate_dynamic_rule_condition(condition)
+
+
+@pytest.mark.parametrize(
+    "condition",
+    [
+        '{"op2": "eq", "name": "field_1", "value": ["UPPER", "lower"], "ignoreCase": true}',
+        '{"op": "eq", "value": ["UPPER", "lower"]}',
+        '{"op": "legacyBrowser", "value": [1,2,3]}',
+        '{"op": "csp", "value": ["v1, "v2"]}',
+    ],
+    ids=("bad operator","missing field", "bad value", "bad json")
+)
+def test_invalid_dynamic_rule_condition(condition):
+    """
+    Tests that invalid conditions are caught
+    """
+    # Should not throw
+    with pytest.raises(ValueError):
+        sentry_relay.validate_dynamic_rule_condition(condition)

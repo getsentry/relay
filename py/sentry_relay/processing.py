@@ -24,6 +24,7 @@ __all__ = [
     "pii_strip_event",
     "pii_selector_suggestions_from_event",
     "VALID_PLATFORMS",
+    "validate_dynamic_rule_condition",
 ]
 
 
@@ -204,3 +205,16 @@ def parse_release(release):
     return json.loads(
         decode_str(rustcall(lib.relay_parse_release, encode_str(release)), free=True)
     )
+
+
+def validate_dynamic_rule_condition(condition):
+    """
+    Validate a dynamic rule condition. Used in dynamic sampling serializer.
+
+    The parameter is a JSON-encoded string.
+    """
+    assert isinstance(condition, string_types)
+    raw_error = rustcall(lib.relay_validate_dynamic_rule_condition, encode_str(condition))
+    error = decode_str(raw_error, free=True)
+    if error:
+        raise ValueError(error)

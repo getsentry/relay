@@ -23,4 +23,5 @@ relay-auth = { path = "../relay-auth" }
 relay-common = { path = "../relay-common" }
 relay-ffi = { path = "../relay-ffi" }
 relay-general = { path = "../relay-general" }
+relay-dyn-sampling = { path = "../realy-dyn-sampling" }
 sentry-release-parser = { version = "0.6.0", features = ["serde"] }
