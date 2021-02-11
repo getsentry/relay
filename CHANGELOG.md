@@ -5,9 +5,6 @@
 
 - Improve dynamic sampling rule configuration. ([#907](https://github.com/getsentry/relay/pull/907))
 - Add inbound filters functionality to dynamic sampling rules. ([#920](https://github.com/getsentry/relay/pull/920))
-
-**Features**:
-
 - By adding `.no-cache` to the DSN key, Relay refreshes project configuration caches immediately. This allows to apply changed settings instantly, such as updates to data scrubbing or inbound filter rules. ([#911](https://github.com/getsentry/relay/pull/911))
 
 **Bug Fixes**:
