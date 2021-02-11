@@ -2251,6 +2251,14 @@ expression: event_json_schema()
                   }
                 ]
               }
+            },
+            "snapshot": {
+              "description": " Indicates that this stack trace is a snapshot triggered by an external signal.\n\n If this field is `false`, then the stack trace points to the code that caused this stack\n trace to be created. This can be the location of a raised exception, as well as an exception\n or signal handler.\n\n If this field is `true`, then the stack trace was captured as part of creating an unrelated\n event. For example, a thread other than the crashing thread, or a stack trace computed as a\n result of an external kill signal.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
             }
           }
         }
