@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/mechanism.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mechanism.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../../favicon.svg">
 <link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png">
-<link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container rust-logo'><img src='../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
+<link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container rust-logo'><img src='../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
                 <a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -426,6 +426,30 @@
 <span id="423">423</span>
 <span id="424">424</span>
 <span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::{<span class="ident">Annotated</span>, <span class="ident">Error</span>, <span class="ident">FromValue</span>, <span class="ident">Object</span>, <span class="ident">Value</span>};
 
@@ -460,6 +484,17 @@
 
     <span class="doccomment">/// Optional name of the mach exception.</span>
     <span class="kw">pub</span> <span class="ident">name</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+}
+
+<span class="doccomment">/// NSError informaiton.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">ToValue</span>, <span class="ident">ProcessValue</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NsError</span> {
+    <span class="doccomment">/// The error code.</span>
+    <span class="kw">pub</span> <span class="ident">code</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// A string containing the error domain.</span>
+    <span class="kw">pub</span> <span class="ident">domain</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
 }
 
 <span class="doccomment">/// POSIX signal with optional extended data.</span>
@@ -500,6 +535,9 @@
 
     <span class="doccomment">/// A Mach Exception on Apple systems comprising a code triple and optional descriptions.</span>
     <span class="kw">pub</span> <span class="ident">mach_exception</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">MachException</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// An NSError on Apple systems comprising code and signal.</span>
+    <span class="kw">pub</span> <span class="ident">ns_error</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">NsError</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>)]</span>
@@ -654,6 +692,7 @@
                                     <span class="ident">name</span>: <span class="ident">legacy</span>.<span class="ident">exception_name</span>,
                                 }
                             }),
+                            <span class="ident">ns_error</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
                             <span class="ident">other</span>: <span class="ident">Object</span>::<span class="ident">default</span>(),
                         }),
                         <span class="ident">other</span>: <span class="ident">Object</span>::<span class="ident">default</span>(),
@@ -698,6 +737,10 @@
       &quot;subcode&quot;: 8,
       &quot;name&quot;: &quot;EXC_BAD_ACCESS&quot;
     },
+    &quot;ns_error&quot;: {
+      &quot;code&quot;: -42,
+      &quot;domain&quot;: &quot;SqlException&quot;
+    },
     &quot;other&quot;: &quot;value&quot;
   },
   &quot;other&quot;: &quot;value&quot;
@@ -734,6 +777,10 @@
                 <span class="ident">code</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="number">0</span>),
                 <span class="ident">name</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;SIGSEGV&quot;</span>.<span class="ident">to_string</span>()),
                 <span class="ident">code_name</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;SEGV_NOOP&quot;</span>.<span class="ident">to_string</span>()),
+            }),
+            <span class="ident">ns_error</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">NsError</span> {
+                <span class="ident">code</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="op">-</span><span class="number">42</span>),
+                <span class="ident">domain</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;SqlException&quot;</span>.<span class="ident">to_string</span>()),
             }),
             <span class="ident">other</span>: {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
@@ -844,6 +891,7 @@
                 <span class="ident">name</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;SIGSEGV&quot;</span>.<span class="ident">to_string</span>()),
                 <span class="ident">code_name</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;SEGV_NOOP&quot;</span>.<span class="ident">to_string</span>()),
             }),
+            <span class="ident">ns_error</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
             <span class="ident">other</span>: <span class="ident">Object</span>::<span class="ident">default</span>(),
         }),
         <span class="ident">other</span>: <span class="ident">Object</span>::<span class="ident">default</span>(),

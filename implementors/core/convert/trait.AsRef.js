@@ -1,5 +1,5 @@
 (function() {var implementors = {};
 implementors["relay_common"] = [{"text":"impl&lt;'a, T&gt; AsRef&lt;T&gt; for LazyCellRef&lt;'a, T&gt;","synthetic":false,"types":[]}];
 implementors["relay_general"] = [{"text":"impl AsRef&lt;str&gt; for Message","synthetic":false,"types":[]},{"text":"impl AsRef&lt;str&gt; for HeaderName","synthetic":false,"types":[]},{"text":"impl AsRef&lt;str&gt; for HeaderValue","synthetic":false,"types":[]},{"text":"impl AsRef&lt;str&gt; for IpAddr","synthetic":false,"types":[]},{"text":"impl AsRef&lt;str&gt; for LenientString","synthetic":false,"types":[]},{"text":"impl AsRef&lt;str&gt; for JsonLenientString","synthetic":false,"types":[]}];
-implementors["relay_quotas"] = [{"text":"impl&lt;'_&gt; AsRef&lt;Scoping&gt; for ItemScoping&lt;'_&gt;","synthetic":false,"types":[]}];
+implementors["relay_quotas"] = [{"text":"impl AsRef&lt;Scoping&gt; for ItemScoping&lt;'_&gt;","synthetic":false,"types":[]}];
 if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
