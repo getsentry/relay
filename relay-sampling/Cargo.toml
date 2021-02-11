@@ -1,5 +1,5 @@
 [package]
-name = "relay-dyn-sampling"
+name = "relay-sampling"
 authors = ["Sentry <oss@sentry.io>"]
 description = "Dynamic sampling functionality for Relay"
 homepage = "https://getsentry.github.io/relay/"

@@ -41,9 +41,9 @@ use failure::Fail;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use relay_dyn_sampling::TraceContext;
 use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
+use relay_sampling::TraceContext;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};

@@ -4,8 +4,8 @@
 use actix::prelude::*;
 use futures::{future, prelude::*};
 
-use relay_dyn_sampling::{get_matching_event_rule, pseudo_random_from_uuid, rule_type_for_event};
 use relay_general::protocol::{Event, EventId};
+use relay_sampling::{get_matching_event_rule, pseudo_random_from_uuid, rule_type_for_event};
 
 use crate::actors::project::{GetCachedProjectState, GetProjectState, Project, ProjectState};
 use crate::envelope::{Envelope, ItemType};

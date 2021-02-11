@@ -2991,21 +2991,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "relay-dyn-sampling"
-version = "21.1.0"
-dependencies = [
- "insta 0.16.0",
- "rand 0.6.5",
- "rand_pcg 0.1.2",
- "relay-common",
- "relay-filter",
- "relay-general",
- "serde",
- "serde_json",
- "unicase",
-]
-
-[[package]]
 name = "relay-ffi"
 version = "21.1.0"
 dependencies = [
@@ -3129,6 +3114,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-sampling"
+version = "21.1.0"
+dependencies = [
+ "insta 0.16.0",
+ "rand 0.6.5",
+ "rand_pcg 0.1.2",
+ "relay-common",
+ "relay-filter",
+ "relay-general",
+ "serde",
+ "serde_json",
+ "unicase",
+]
+
+[[package]]
 name = "relay-server"
 version = "21.1.0"
 dependencies = [
@@ -3159,12 +3159,12 @@ dependencies = [
  "relay-auth",
  "relay-common",
  "relay-config",
- "relay-dyn-sampling",
  "relay-filter",
  "relay-general",
  "relay-log",
  "relay-quotas",
  "relay-redis",
+ "relay-sampling",
  "reqwest",
  "rmp-serde",
  "serde",
