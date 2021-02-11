@@ -42,15 +42,6 @@ pub fn should_keep_event(
     None // if no matching rule there is not enough info to make a decision
 }
 
-/*// Returns the type of rule that applies to a particular event
-fn rule_type_for_event(event: &Event) -> RuleType {
-    if let Some(EventType::Transaction) = &event.ty.0 {
-        RuleType::Transaction
-    } else {
-        RuleType::Error
-    }
-}
-*/
 /// Takes an envelope and potentially removes the transaction item from it if that
 /// transaction item should be sampled out according to the dynamic sampling configuration
 /// and the trace context.
