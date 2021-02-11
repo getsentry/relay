@@ -201,10 +201,10 @@ The password for the `.pfx` file is `password`.
 
 ### Usage with Sentry
 
-To use Relay with an existing Sentry devserver, Sentry onpremise installation,
-or Sentry SaaS, configure the upstream to the URL of the Sentry server in
-`.relay/config.yml`. For example, in local development set `relay.upstream` to
-`http://localhost:8000/`.
+To develop Relay with an existing Sentry devserver, Sentry onpremise
+installation, or Sentry SaaS, configure the upstream to the URL of the Sentry
+server in `.relay/config.yml`. For example, in local development set
+`relay.upstream` to `http://localhost:8000/`.
 
 To test processing mode with a local development Sentry, use this configuration:
 
@@ -228,6 +228,15 @@ processing:
     - { name: "bootstrap.servers", value: "127.0.0.1:9092" }
     - { name: "message.max.bytes", value: 2097176 }
   redis: "redis://127.0.0.1"
+```
+
+Note that the Sentry devserver also starts a Relay in processing mode on port
+`3000` with similar configuration. That Relay does not interfere with your
+development build. To ensure SDKs send to your development instance, update the
+port in the DSN:
+
+```
+http://<key>@localhost:3001/<id>
 ```
 
 ### Release Management
