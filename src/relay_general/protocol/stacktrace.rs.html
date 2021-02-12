@@ -590,6 +590,19 @@
 <span id="587">587</span>
 <span id="588">588</span>
 <span id="589">589</span>
+<span id="590">590</span>
+<span id="591">591</span>
+<span id="592">592</span>
+<span id="593">593</span>
+<span id="594">594</span>
+<span id="595">595</span>
+<span id="596">596</span>
+<span id="597">597</span>
+<span id="598">598</span>
+<span id="599">599</span>
+<span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::{<span class="ident">Deref</span>, <span class="ident">DerefMut</span>};
 
@@ -890,6 +903,17 @@
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;enumlike&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">lang</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
 
+    <span class="doccomment">/// Indicates that this stack trace is a snapshot triggered by an external signal.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If this field is `false`, then the stack trace points to the code that caused this stack</span>
+    <span class="doccomment">/// trace to be created. This can be the location of a raised exception, as well as an exception</span>
+    <span class="doccomment">/// or signal handler.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If this field is `true`, then the stack trace was captured as part of creating an unrelated</span>
+    <span class="doccomment">/// event. For example, a thread other than the crashing thread, or a stack trace computed as a</span>
+    <span class="doccomment">/// result of an external kill signal.</span>
+    <span class="kw">pub</span> <span class="ident">snapshot</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>)]</span>
     <span class="kw">pub</span> <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
@@ -1034,6 +1058,7 @@
     &quot;sp&quot;: &quot;0x16fd75060&quot;
   },
   &quot;lang&quot;: &quot;rust&quot;,
+  &quot;snapshot&quot;: false,
   &quot;other&quot;: &quot;value&quot;
 }&quot;#</span>;
     <span class="kw">let</span> <span class="ident">stack</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">RawStacktrace</span> {
@@ -1050,6 +1075,7 @@
             <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">registers</span>)
         },
         <span class="ident">lang</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;rust&quot;</span>.<span class="ident">into</span>()),
+        <span class="ident">snapshot</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="bool-val">false</span>),
         <span class="ident">other</span>: {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
             <span class="ident">other</span>.<span class="ident">insert</span>(
