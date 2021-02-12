@@ -18,7 +18,6 @@
 - Improve dynamic sampling rule configuration. ([#907](https://github.com/getsentry/relay/pull/907))
 - Compatibility mode for pre-aggregated sessions was removed. The feature is now enabled by default in full fidelity. ([#913](https://github.com/getsentry/relay/pull/913))
 
-
 ## 21.1.0
 
 **Features**:
