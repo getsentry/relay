@@ -75,7 +75,7 @@ def test_normalize_measurement_interface(
     envelope.add_transaction(transaction_item)
     relay.send_envelope(42, envelope)
 
-    event, _ = events_consumer.try_get_event()
+    event, _ = events_consumer.get_event()
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     assert "trace" in event["contexts"]
     assert "measurements" in event, event
@@ -110,6 +110,8 @@ def test_empty_measurement_interface(mini_sentry, relay_chain):
 def test_strip_measurement_interface(
     mini_sentry, relay_with_processing, events_consumer
 ):
+    events_consumer = events_consumer()
+
     relay = relay_with_processing()
     mini_sentry.add_basic_project_config(42)
 
@@ -126,9 +128,7 @@ def test_strip_measurement_interface(
     )
     relay.send_envelope(42, envelope)
 
-    events_consumer = events_consumer()
-    event, _ = events_consumer.try_get_event()
-
+    event, _ = events_consumer.get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
     # expect measurements interface object to be stripped out since it's attached to a non-transaction event
     assert "measurements" not in event, event
@@ -153,6 +153,8 @@ def test_sample_rates(mini_sentry, relay_chain):
 
 
 def test_sample_rates_metrics(mini_sentry, relay_with_processing, events_consumer):
+    events_consumer = events_consumer()
+
     relay = relay_with_processing()
     mini_sentry.add_basic_project_config(42)
 
@@ -166,7 +168,5 @@ def test_sample_rates_metrics(mini_sentry, relay_with_processing, events_consume
     envelope.items[0].headers["sample_rates"] = sample_rates
     relay.send_envelope(42, envelope)
 
-    events_consumer = events_consumer()
-    event, _ = events_consumer.try_get_event()
-
+    event, _ = events_consumer.get_event()
     assert event["_metrics"]["sample_rates"] == sample_rates

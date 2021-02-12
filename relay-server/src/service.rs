@@ -270,18 +270,19 @@ where
 }
 
 #[cfg(not(feature = "ssl"))]
-fn listen_ssl<H>(
-    server: server::HttpServer<H>,
+fn listen_ssl<H, F>(
+    server: server::HttpServer<H, F>,
     config: &Config,
-) -> Result<server::HttpServer<H>, ServerError>
+) -> Result<server::HttpServer<H, F>, ServerError>
 where
     H: server::IntoHttpHandler + 'static,
+    F: Fn() -> H + Send + Clone + 'static,
 {
     if config.tls_listen_addr().is_some()
         || config.tls_identity_path().is_some()
         || config.tls_identity_password().is_some()
     {
-        Err(ServerErrorKind::TlsNotSupported)
+        Err(ServerErrorKind::TlsNotSupported.into())
     } else {
         Ok(server)
     }
