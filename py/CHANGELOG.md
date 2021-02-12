@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.3
 
 - Add NSError to mechanism. ([#925](https://github.com/getsentry/relay/pull/925))
 - Add snapshot to the stack trace interface. ([#927](https://github.com/getsentry/relay/pull/927))
