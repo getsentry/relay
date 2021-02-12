@@ -30,7 +30,7 @@ def test_forced_shutdown(mini_sentry, relay):
 
     @mini_sentry.app.endpoint("get_project_config")
     def get_project_config():
-        sleep(1)  # Causes the process to wait for one second before shutting down
+        sleep(1)  # Ensures the event is stuck in the queue when we send SIGINT
         return get_project_config_original()
 
     relay = relay(mini_sentry)
@@ -41,21 +41,18 @@ def test_forced_shutdown(mini_sentry, relay):
         relay.send_event(project_id)
 
         relay.shutdown(sig=signal.SIGINT)
-        pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1.5))
+        pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
         failures = mini_sentry.test_failures
-        assert len(failures) == 2
-        # we are expecting a tracked future error and dropped unfinished future error
+        assert failures
+
+        # we are expecting at least a dropped unfinished future error
         dropped_unfinished_error_found = False
-        tracked_future_error_found = False
         for (route, error) in failures:
             assert route == "/api/666/envelope/"
             if "Dropped unfinished future" in str(error):
                 dropped_unfinished_error_found = True
-            if "TrackedFuture" in str(error):
-                tracked_future_error_found = True
         assert dropped_unfinished_error_found
-        assert tracked_future_error_found
     finally:
         mini_sentry.test_failures.clear()
 
