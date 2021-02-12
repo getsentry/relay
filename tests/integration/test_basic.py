@@ -13,7 +13,7 @@ def test_graceful_shutdown(mini_sentry, relay):
         sleep(1)  # Causes the process to wait for one second before shutting down
         return get_project_config_original()
 
-    relay = relay(mini_sentry)
+    relay = relay(mini_sentry, {"limits": {"shutdown_timeout": 2}})
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
     relay.send_event(project_id)

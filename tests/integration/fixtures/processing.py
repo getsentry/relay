@@ -184,7 +184,9 @@ class ConsumerBase(object):
 
 @pytest.fixture
 def outcomes_consumer(kafka_consumer):
-    return lambda: OutcomesConsumer(*kafka_consumer("outcomes"))
+    return lambda timeout=None: OutcomesConsumer(
+        timeout=timeout, *kafka_consumer("outcomes")
+    )
 
 
 class OutcomesConsumer(ConsumerBase):

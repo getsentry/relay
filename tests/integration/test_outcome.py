@@ -245,11 +245,7 @@ def test_outcome_source(relay, mini_sentry):
 
 @pytest.mark.parametrize("num_intermediate_relays", [1, 3])
 def test_outcome_forwarding(
-    mini_sentry,
-    relay,
-    relay_with_processing,
-    outcomes_consumer,
-    num_intermediate_relays,
+    relay, relay_with_processing, outcomes_consumer, num_intermediate_relays,
 ):
     """
     Tests that Relay forwards outcomes from a chain of relays
@@ -258,7 +254,7 @@ def test_outcome_forwarding(
     and verify that the outcomes sent by  the first (downstream relay)
     are properly forwarded up to sentry.
     """
-    outcomes_consumer = outcomes_consumer()
+    outcomes_consumer = outcomes_consumer(timeout=2)
 
     processing_config = {
         "outcomes": {
