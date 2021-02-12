@@ -1450,6 +1450,7 @@
 <span id="1447">1447</span>
 <span id="1448">1448</span>
 <span id="1449">1449</span>
+<span id="1450">1450</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">env</span>;
@@ -2140,6 +2141,7 @@
     <span class="string">&quot;relayconfig&quot;</span>.<span class="ident">to_owned</span>()
 }
 
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy</span>::<span class="ident">unnecessary_wraps</span>)]</span>
 <span class="kw">fn</span> <span class="ident">default_max_rate_limit</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
     <span class="prelude-val">Some</span>(<span class="number">300</span>) <span class="comment">// 5 minutes</span>
 }

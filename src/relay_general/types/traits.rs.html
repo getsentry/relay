@@ -126,6 +126,8 @@
 <span id="123">123</span>
 <span id="124">124</span>
 <span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Debug</span>;
@@ -215,8 +217,10 @@
 }
 
 <span class="doccomment">/// Implemented for all meta structures.</span>
+<span class="comment">// TODO: This trait should be named `IntoValue`.</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">ToValue</span>: <span class="ident">Debug</span> <span class="op">+</span> <span class="ident">Empty</span> {
     <span class="doccomment">/// Boxes the meta structure back into a value.</span>
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy</span>::<span class="ident">wrong_self_convention</span>)]</span>
     <span class="kw">fn</span> <span class="ident">to_value</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Value</span>
     <span class="kw">where</span>
         <span class="self">Self</span>: <span class="ident">Sized</span>;
