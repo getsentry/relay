@@ -1,4 +1,5 @@
 import json
+import math
 import queue
 import redis
 import socket
@@ -134,15 +135,18 @@ def test_query_retry(failure_type, mini_sentry, relay):
             return original_endpoint()
 
     relay = relay(mini_sentry)
-    relay.send_event(42)
 
-    event = mini_sentry.captured_events.get(timeout=8).get_event()
-    assert event["logentry"] == {"formatted": "Hello, World!"}
-    assert retry_count == 2
+    try:
+        relay.send_event(42)
 
-    if mini_sentry.test_failures:
-        for (_, error) in mini_sentry.test_failures:
-            assert isinstance(error, (socket.error, AssertionError))
+        event = mini_sentry.captured_events.get(timeout=8).get_event()
+        assert event["logentry"] == {"formatted": "Hello, World!"}
+        assert retry_count == 2
+
+        if mini_sentry.test_failures:
+            for (_, error) in mini_sentry.test_failures:
+                assert isinstance(error, (socket.error, AssertionError))
+    finally:
         mini_sentry.test_failures.clear()
 
 
@@ -165,25 +169,35 @@ def test_query_retry_maxed_out(
     def get_project_config():
         nonlocal request_count
         request_count += 1
-        time.sleep(1)
         print("RETRY", request_count)
         return "no", 500
 
-    relay = relay_with_processing({"limits": {"query_timeout": 10}})
-    relay.send_event(42)
-    time.sleep(10)  # Wait for 4 retries with backoff
+    RETRIES = 1
+    query_timeout = 0.5  # Initial grace period
 
-    outcomes_consumer.assert_dropped_internal()
-    assert request_count == 4
+    # Relay's exponential backoff: INITIAL_INTERVAL = 1s; DEFAULT_MULTIPLIER = 1.5;
+    for retry in range(RETRIES):  # 1 retry
+        query_timeout += 1 * 1.5 ** (retry + 1)
 
-    for (_, error) in mini_sentry.test_failures[:-1]:
-        assert isinstance(error, AssertionError)
-        assert "error fetching project states" in str(error)
+    relay = relay_with_processing(
+        {"limits": {"query_timeout": math.ceil(query_timeout)}}
+    )
 
-    _, last_error = mini_sentry.test_failures[-1]
-    assert "failed to resolve project information" in str(last_error)
+    try:
+        relay.send_event(42)
+        time.sleep(query_timeout)
 
-    mini_sentry.test_failures.clear()
+        outcomes_consumer.assert_dropped_internal()
+        assert request_count == 1 + RETRIES
+
+        for (_, error) in mini_sentry.test_failures[:-1]:
+            assert isinstance(error, AssertionError)
+            assert "error fetching project states" in str(error)
+
+        _, last_error = mini_sentry.test_failures[-1]
+        assert "failed to resolve project information" in str(last_error)
+    finally:
+        mini_sentry.test_failures.clear()
 
 
 @pytest.mark.parametrize("disabled", (True, False))

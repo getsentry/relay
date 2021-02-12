@@ -90,24 +90,15 @@ def kafka_producer(options):
         for elm in options["processing"]["kafka_config"]
         if elm["name"] == "bootstrap.servers"
     ]
-    if len(servers) < 1:
+
+    if not servers:
         raise ValueError(
             "Bad kafka_config, could not find 'bootstrap.servers'.\n"
             "The configuration should have an entry of the format \n"
             "{name:'bootstrap.servers', value:'127.0.0.1'} at path 'processing.kafka_config'"
         )
 
-    servers = servers[0]
-
-    settings = {
-        "bootstrap.servers": servers,
-        "group.id": "test-consumer-%s" % uuid.uuid4().hex,
-        "enable.auto.commit": True,
-        "auto.offset.reset": "earliest",
-    }
-    producer = kafka.Producer(settings)
-
-    return producer
+    return kafka.Producer({"bootstrap.servers": servers[0]})
 
 
 @pytest.fixture
@@ -155,17 +146,22 @@ def kafka_consumer(request, get_topic_name, processing_config):
 
 
 class ConsumerBase(object):
-    def __init__(self, consumer, options, topic_name):
+    def __init__(self, consumer, options, topic_name, timeout=None):
         self.consumer = consumer
         self.test_producer = kafka_producer(options)
         self.topic_name = topic_name
+        self.timeout = timeout or 1
 
-    # First poll takes forever, the next ones are fast
-    def poll(self):
-        rv = self.consumer.poll(timeout=5)
-        return rv
+        # Connect to the topic and poll a first test message.
+        # First poll takes forever, the next ones are fast.
+        self.assert_empty(timeout=5)
 
-    def produce_test_message(self, message):
+    def poll(self, timeout=None):
+        if timeout is None:
+            timeout = self.timeout
+        return self.consumer.poll(timeout=timeout)
+
+    def assert_empty(self, timeout=None):
         """
         An associated producer, that can send message on the same topic as the
         consumer used for tests when we don't expect anything to come back we
@@ -173,9 +169,17 @@ class ConsumerBase(object):
         only message on the queue (care must be taken to make sure that the
         test message ends up in the same partition as the message we are checking).
         """
-        message_str = json.dumps(message)
-        self.test_producer.produce(self.topic_name, message_str)
+        # First, give Relay a bit of time to process
+        assert self.poll(timeout=0.2) is None
+
+        # Then, send a custom message to ensure we're not just timing out
+        message = json.dumps({"__test__": uuid.uuid4().hex}).encode("utf8")
+        self.test_producer.produce(self.topic_name, message)
         self.test_producer.flush()
+
+        rv = self.poll(timeout=timeout)
+        assert rv.error() is None
+        assert rv.value() == message, rv.value()
 
 
 @pytest.fixture
@@ -210,7 +214,9 @@ class OutcomesConsumer(ConsumerBase):
 
 @pytest.fixture
 def events_consumer(kafka_consumer):
-    return lambda: EventsConsumer(*kafka_consumer("events"))
+    return lambda timeout=None: EventsConsumer(
+        timeout=timeout, *kafka_consumer("events")
+    )
 
 
 @pytest.fixture
@@ -253,16 +259,6 @@ class EventsConsumer(ConsumerBase):
         assert message.error() is None
 
         return message, msgpack.unpackb(message.value(), raw=False, use_list=False)
-
-    def try_get_event(self):
-        message = self.poll()
-        if message is None:
-            return None, None
-        assert message.error() is None
-
-        event = msgpack.unpackb(message.value(), raw=False, use_list=False)
-        assert event["type"] == "event"
-        return json.loads(event["payload"].decode("utf8")), event
 
 
 class AttachmentsConsumer(EventsConsumer):

@@ -36,25 +36,28 @@ def test_forced_shutdown(mini_sentry, relay):
     relay = relay(mini_sentry)
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
-    relay.send_event(project_id)
 
-    relay.shutdown(sig=signal.SIGINT)
-    pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
+    try:
+        relay.send_event(project_id)
 
-    failures = mini_sentry.test_failures
-    assert len(failures) == 2
-    # we are expecting a tracked future error and dropped unfinished future error
-    dropped_unfinished_error_found = False
-    tracked_future_error_found = False
-    for (route, error) in failures:
-        assert route == "/api/666/envelope/"
-        if "Dropped unfinished future" in str(error):
-            dropped_unfinished_error_found = True
-        if "TrackedFuture" in str(error):
-            tracked_future_error_found = True
-    assert dropped_unfinished_error_found
-    assert tracked_future_error_found
-    mini_sentry.test_failures.clear()
+        relay.shutdown(sig=signal.SIGINT)
+        pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1.5))
+
+        failures = mini_sentry.test_failures
+        assert len(failures) == 2
+        # we are expecting a tracked future error and dropped unfinished future error
+        dropped_unfinished_error_found = False
+        tracked_future_error_found = False
+        for (route, error) in failures:
+            assert route == "/api/666/envelope/"
+            if "Dropped unfinished future" in str(error):
+                dropped_unfinished_error_found = True
+            if "TrackedFuture" in str(error):
+                tracked_future_error_found = True
+        assert dropped_unfinished_error_found
+        assert tracked_future_error_found
+    finally:
+        mini_sentry.test_failures.clear()
 
 
 @pytest.mark.parametrize("trailing_slash", [True, False])
