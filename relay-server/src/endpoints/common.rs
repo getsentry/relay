@@ -526,6 +526,7 @@ where
                         outcome,
                         event_id: *event_id.borrow(),
                         remote_addr,
+                        data_category: None,
                     });
                 }
             }

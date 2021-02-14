@@ -38,6 +38,8 @@ use std::io::{self, Write};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use failure::Fail;
+use itertools::Itertools;
+use relay_common::DataCategory;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -105,6 +107,18 @@ impl ItemType {
             EventType::Csp | EventType::Hpkp | EventType::ExpectCT | EventType::ExpectStaple => {
                 ItemType::Security
             }
+        }
+    }
+
+    /// Returns the data category type corresponding to this item type, if one exists.
+    fn as_data_category(&self) -> Option<DataCategory> {
+        match self {
+            ItemType::Event => Some(DataCategory::Error),
+            ItemType::Transaction => Some(DataCategory::Transaction),
+            ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
+            ItemType::Attachment => Some(DataCategory::Attachment),
+            ItemType::Session | ItemType::Sessions => Some(DataCategory::Session),
+            ItemType::FormData | ItemType::UnrealReport | ItemType::UserReport => None,
         }
     }
 }
@@ -953,6 +967,27 @@ impl Envelope {
         writer
             .write_all(buf)
             .map_err(EnvelopeError::PayloadIoFailed)
+    }
+
+    /// Returns the data category type corresponding to this envelope, if one exists.
+    ///
+    /// An envelope has a clear data category if one or more items has a type corresponding to one
+    /// of the data categories, and no two items have types that conflict in this way. Items with
+    /// the types that don't cleanly correspond to a data category are ignored.
+    pub fn get_data_category(&self) -> Option<DataCategory> {
+        let data_categories: Vec<DataCategory> = self
+            .items()
+            .filter_map(|item| item.ty().as_data_category())
+            .unique()
+            .collect();
+        if data_categories.len() == 1 {
+            Some(data_categories[0])
+        } else {
+            if data_categories.len() > 1 {
+                relay_log::warn!("Items with conflicting data categories in the same envelope");
+            }
+            None
+        }
     }
 }
 
