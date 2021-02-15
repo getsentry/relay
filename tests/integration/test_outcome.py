@@ -245,11 +245,7 @@ def test_outcome_source(relay, mini_sentry):
 
 @pytest.mark.parametrize("num_intermediate_relays", [1, 3])
 def test_outcome_forwarding(
-    mini_sentry,
-    relay,
-    relay_with_processing,
-    outcomes_consumer,
-    num_intermediate_relays,
+    relay, relay_with_processing, outcomes_consumer, num_intermediate_relays,
 ):
     """
     Tests that Relay forwards outcomes from a chain of relays
@@ -258,6 +254,7 @@ def test_outcome_forwarding(
     and verify that the outcomes sent by  the first (downstream relay)
     are properly forwarded up to sentry.
     """
+    outcomes_consumer = outcomes_consumer(timeout=2)
 
     processing_config = {
         "outcomes": {
@@ -292,7 +289,6 @@ def test_outcome_forwarding(
 
     event_id = _send_event(downstream_relay)
 
-    outcomes_consumer = outcomes_consumer()
     outcome = outcomes_consumer.get_outcome()
 
     expected_outcome = {
@@ -323,6 +319,8 @@ def test_outcomes_forwarding_rate_limited(
     - The second one is emittedy by the downstream, and then sent to the upstream that writes it
       to Kafka.
     """
+    outcomes_consumer = outcomes_consumer()
+
     processing_config = {
         "outcomes": {
             "emit_outcomes": True,
@@ -358,13 +356,11 @@ def test_outcomes_forwarding_rate_limited(
         }
     ]
 
-    outcomes_consumer_instance = outcomes_consumer()
-
     # Send an event, it should be dropped in the upstream (processing) relay
     result = downstream_relay.send_event(project_id, _get_message(category))
     event_id = result["id"]
 
-    outcome = outcomes_consumer_instance.get_outcome()
+    outcome = outcomes_consumer.get_outcome()
     outcome.pop("timestamp")
     expected_outcome = {
         "reason": "rate_limited",
@@ -387,31 +383,13 @@ def test_outcomes_forwarding_rate_limited(
     expected_outcome_from_downstream["source"] = "downstream-layer"
     expected_outcome_from_downstream.pop("event_id")
 
-    outcome = outcomes_consumer_instance.get_outcome()
+    outcome = outcomes_consumer.get_outcome()
     outcome.pop("timestamp")
     outcome.pop("event_id")
 
     assert outcome == expected_outcome_from_downstream
 
-    _assert_outcomes_topic_empty(outcomes_consumer_instance)
-
-
-def _assert_outcomes_topic_empty(outcomes_consumer_instance):
-    """
-    To prove there's nothing in the topic, we send a randomized message and then
-    immediately consume it.
-    """
-    event_id = "".join(random.choice("0123456789abcdef") for _ in range(32))
-    print(event_id)
-    dummy_outcome = {
-        "org_id": 0,
-        "project_id": 0,
-        "reason": "fake",
-        "event_id": event_id,
-    }
-    outcomes_consumer_instance.produce_test_message(dummy_outcome)
-    outcome = outcomes_consumer_instance.get_outcome()
-    assert outcome == dummy_outcome
+    outcomes_consumer.assert_empty()
 
 
 def _get_message(message_type):
@@ -487,5 +465,5 @@ def test_no_outcomes_rate_limit(
     # give relay some to handle the message (and send any outcomes it needs to send)
     time.sleep(1)
 
-    # we should not have anything on the outcome topic,
-    _assert_outcomes_topic_empty(outcomes_consumer)
+    # we should not have anything on the outcome topic
+    outcomes_consumer.assert_empty()

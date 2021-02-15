@@ -687,6 +687,7 @@ fn default_projectconfig_cache_prefix() -> String {
     "relayconfig".to_owned()
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn default_max_rate_limit() -> Option<u32> {
     Some(300) // 5 minutes
 }

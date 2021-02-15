@@ -293,7 +293,7 @@ def test_session_age_discard(mini_sentry, relay_with_processing, sessions_consum
         },
     )
 
-    assert sessions_consumer.poll() is None
+    sessions_consumer.assert_empty()
 
 
 def test_session_force_errors_on_crash(
@@ -355,18 +355,20 @@ def test_session_release_required(
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(days=5, hours=1)
 
-    relay.send_session(
-        project_id,
-        {
-            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
-            "timestamp": timestamp.isoformat(),
-            "started": started.isoformat(),
-        },
-    )
+    try:
+        relay.send_session(
+            project_id,
+            {
+                "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+                "timestamp": timestamp.isoformat(),
+                "started": started.isoformat(),
+            },
+        )
 
-    assert sessions_consumer.poll() is None
-    assert mini_sentry.test_failures
-    mini_sentry.test_failures.clear()
+        sessions_consumer.assert_empty()
+        assert mini_sentry.test_failures
+    finally:
+        mini_sentry.test_failures.clear()
 
 
 def test_session_quotas(mini_sentry, relay_with_processing, sessions_consumer):
@@ -404,11 +406,11 @@ def test_session_quotas(mini_sentry, relay_with_processing, sessions_consumer):
 
     # Rate limited, but responds with 200 because of deferred processing
     relay.send_session(project_id, session)
-    assert sessions_consumer.poll() is None
+    sessions_consumer.assert_empty()
 
     with pytest.raises(HTTPError):
         relay.send_session(project_id, session)
-    assert sessions_consumer.poll() is None
+    sessions_consumer.assert_empty()
 
 
 def test_session_disabled(mini_sentry, relay_with_processing, sessions_consumer):
@@ -441,7 +443,7 @@ def test_session_disabled(mini_sentry, relay_with_processing, sessions_consumer)
         },
     )
 
-    assert sessions_consumer.poll() is None
+    sessions_consumer.assert_empty()
 
 
 def test_session_auto_ip(mini_sentry, relay_with_processing, sessions_consumer):

@@ -334,11 +334,10 @@ def test_bad_dynamic_rules_in_processing_relays(
     envelope, trace_id, event_id = event_factory(public_key)
     relay.send_envelope(project_id, envelope)
 
-    event, _ = consumer.try_get_event()
     if should_remove:
-        assert event is None
+        consumer.assert_empty()
     else:
-        assert event is not None
+        consumer.get_event()
 
 
 @pytest.mark.parametrize(
