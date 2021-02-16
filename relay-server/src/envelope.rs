@@ -969,25 +969,12 @@ impl Envelope {
             .map_err(EnvelopeError::PayloadIoFailed)
     }
 
-    /// Returns the data category type corresponding to this envelope, if one exists.
-    ///
-    /// An envelope has a clear data category if one or more items has a type corresponding to one
-    /// of the data categories, and no two items have types that conflict in this way. Items with
-    /// the types that don't cleanly correspond to a data category are ignored.
-    pub fn get_data_category(&self) -> Option<DataCategory> {
-        let data_categories: Vec<DataCategory> = self
-            .items()
+    /// Returns the data category types, if any, corresponding to items in this envelope.
+    pub fn get_data_categories(&self) -> Vec<DataCategory> {
+        self.items()
             .filter_map(|item| item.ty().as_data_category())
             .unique()
-            .collect();
-        if data_categories.len() == 1 {
-            Some(data_categories[0])
-        } else {
-            if data_categories.len() > 1 {
-                relay_log::warn!("Items with conflicting data categories in the same envelope");
-            }
-            None
-        }
+            .collect()
     }
 }
 

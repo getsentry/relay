@@ -1451,7 +1451,7 @@ impl Handler<HandleEnvelope> for EventManager {
             start_time,
             sampling_project,
         } = message;
-        let data_category = envelope.get_data_category();
+        let data_categories = envelope.get_data_categories();
 
         let event_id = envelope.event_id();
         let remote_addr = envelope.meta().client_addr();
@@ -1482,7 +1482,6 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
             }))
             .and_then(move |envelope| {
-                envelope.get_data_category();
                 utils::sample_transaction(envelope, sampling_project, false, processing_enabled)
                     .map_err(|()| (ProcessingError::TransactionSampled))
             })
@@ -1679,7 +1678,7 @@ impl Handler<HandleEnvelope> for EventManager {
                         outcome,
                         event_id,
                         remote_addr,
-                        data_category,
+                        data_categories,
                     })
                 }
             })
