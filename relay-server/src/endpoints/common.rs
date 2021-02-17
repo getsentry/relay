@@ -526,7 +526,7 @@ where
                         outcome,
                         event_id: *event_id.borrow(),
                         remote_addr,
-                        data_categories: Vec::new(),
+                        event_category: None,
                     });
                 }
             }

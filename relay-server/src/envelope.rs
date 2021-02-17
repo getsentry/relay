@@ -46,9 +46,9 @@ use smallvec::SmallVec;
 use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
 
-use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
 use crate::utils::{ErrorBoundary, TraceContext};
+use crate::{constants::DEFAULT_EVENT_RETENTION, utils::infer_event_category};
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
@@ -107,18 +107,6 @@ impl ItemType {
             EventType::Csp | EventType::Hpkp | EventType::ExpectCT | EventType::ExpectStaple => {
                 ItemType::Security
             }
-        }
-    }
-
-    /// Returns the data category type corresponding to this item type, if one exists.
-    fn as_data_category(&self) -> Option<DataCategory> {
-        match self {
-            ItemType::Event => Some(DataCategory::Error),
-            ItemType::Transaction => Some(DataCategory::Transaction),
-            ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
-            ItemType::Attachment => Some(DataCategory::Attachment),
-            ItemType::Session | ItemType::Sessions => Some(DataCategory::Session),
-            ItemType::FormData | ItemType::UnrealReport | ItemType::UserReport => None,
         }
     }
 }
@@ -969,12 +957,21 @@ impl Envelope {
             .map_err(EnvelopeError::PayloadIoFailed)
     }
 
-    /// Returns the data category types, if any, corresponding to items in this envelope.
-    pub fn get_data_categories(&self) -> Vec<DataCategory> {
-        self.items()
-            .filter_map(|item| item.ty().as_data_category())
+    /// Return the data category type of the event item, if any, in this envelope.
+    pub fn get_event_category(&self) -> Option<DataCategory> {
+        let event_categories: Vec<DataCategory> = self
+            .items()
+            .filter_map(infer_event_category)
             .unique()
-            .collect()
+            .collect();
+        if event_categories.len() == 1 {
+            Some(event_categories[0])
+        } else {
+            if event_categories.len() > 1 {
+                relay_log::warn!("Conflicting event categories in the same envelope");
+            }
+            None
+        }
     }
 }
 

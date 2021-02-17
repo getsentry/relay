@@ -1451,7 +1451,7 @@ impl Handler<HandleEnvelope> for EventManager {
             start_time,
             sampling_project,
         } = message;
-        let data_categories = envelope.get_data_categories();
+        let event_category = envelope.get_event_category();
 
         let event_id = envelope.event_id();
         let remote_addr = envelope.meta().client_addr();
@@ -1678,7 +1678,7 @@ impl Handler<HandleEnvelope> for EventManager {
                         outcome,
                         event_id,
                         remote_addr,
-                        data_categories,
+                        event_category,
                     })
                 }
             })
