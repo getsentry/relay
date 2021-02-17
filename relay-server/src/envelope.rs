@@ -38,7 +38,6 @@ use std::io::{self, Write};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use failure::Fail;
-use itertools::Itertools;
 use relay_common::DataCategory;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -959,19 +958,9 @@ impl Envelope {
 
     /// Return the data category type of the event item, if any, in this envelope.
     pub fn get_event_category(&self) -> Option<DataCategory> {
-        let event_categories: Vec<DataCategory> = self
-            .items()
-            .filter_map(infer_event_category)
-            .unique()
-            .collect();
-        if event_categories.len() == 1 {
-            Some(event_categories[0])
-        } else {
-            if event_categories.len() > 1 {
-                relay_log::warn!("Conflicting event categories in the same envelope");
-            }
-            None
-        }
+        self.items().find_map(infer_event_category)
+        // There are some cases where multiple items may have different categories, but returning
+        // the first is good enough for now.
     }
 }
 
