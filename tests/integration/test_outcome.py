@@ -373,6 +373,7 @@ def test_outcomes_forwarding_rate_limited(
         "remote_addr": "127.0.0.1",
         "event_id": event_id,
         "source": "processing-layer",
+        "event_category": "error",
     }
     assert outcome == expected_outcome
 

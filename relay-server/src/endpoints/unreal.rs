@@ -42,7 +42,6 @@ fn store_unreal(
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     common::handle_store_like_request(
         meta,
-        true,
         request,
         extract_envelope,
         // The return here is only useful for consistency because the UE4 crash reporter doesn't
