@@ -101,6 +101,7 @@ def test_outcomes_non_processing(relay, mini_sentry):
         "reason": "project_id",  # missing project id
         "event_id": event_id,
         "remote_addr": "127.0.0.1",
+        "data_categories": ["error"],
     }
     assert outcome == expected_outcome
 
@@ -245,7 +246,10 @@ def test_outcome_source(relay, mini_sentry):
 
 @pytest.mark.parametrize("num_intermediate_relays", [1, 3])
 def test_outcome_forwarding(
-    relay, relay_with_processing, outcomes_consumer, num_intermediate_relays,
+    relay,
+    relay_with_processing,
+    outcomes_consumer,
+    num_intermediate_relays,
 ):
     """
     Tests that Relay forwards outcomes from a chain of relays
@@ -298,6 +302,7 @@ def test_outcome_forwarding(
         "reason": "project_id",
         "event_id": event_id,
         "remote_addr": "127.0.0.1",
+        "data_categories": ["error"],
     }
     outcome.pop("timestamp")
 
@@ -371,6 +376,7 @@ def test_outcomes_forwarding_rate_limited(
         "remote_addr": "127.0.0.1",
         "event_id": event_id,
         "source": "processing-layer",
+        "data_categories": [],
     }
     assert outcome == expected_outcome
 
