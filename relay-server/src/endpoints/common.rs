@@ -519,8 +519,7 @@ where
         .or_else(move |error: BadStoreRequest| {
             metric!(counter(RelayCounters::EnvelopeRejected) += 1);
 
-            let event_category = *event_category.borrow();
-            if event_category.is_some() {
+            if let Some(event_category) = *event_category.borrow() {
                 if let Some(outcome) = error.to_outcome() {
                     outcome_producer.do_send(TrackOutcome {
                         timestamp: start_time,
@@ -528,7 +527,7 @@ where
                         outcome,
                         event_id: *event_id.borrow(),
                         remote_addr,
-                        event_category,
+                        event_category: Some(event_category),
                     });
                 }
             }

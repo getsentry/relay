@@ -38,16 +38,16 @@ use std::io::{self, Write};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use failure::Fail;
-use relay_common::DataCategory;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
+use relay_common::DataCategory;
 use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
 
+use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
-use crate::utils::{ErrorBoundary, TraceContext};
-use crate::{constants::DEFAULT_EVENT_RETENTION, utils::infer_event_category};
+use crate::utils::{infer_event_category, ErrorBoundary, TraceContext};
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 

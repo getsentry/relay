@@ -1459,7 +1459,7 @@ impl Handler<HandleEnvelope> for EventManager {
         // Compute whether this envelope contains an event. This is used in error handling to
         // appropriately emit an outcome. Envelopes not containing events (such as standalone
         // attachment uploads or user reports) should never create outcomes.
-        let is_event = envelope.items().any(Item::creates_event);
+        let is_event = envelope.get_event_category().is_some();
 
         let scoping = Rc::new(RefCell::new(envelope.meta().get_partial_scoping()));
         let is_received = Rc::new(AtomicBool::from(false));
