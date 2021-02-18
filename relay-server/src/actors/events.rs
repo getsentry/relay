@@ -1645,7 +1645,7 @@ impl Handler<HandleEnvelope> for EventManager {
 
                 // Envelopes not containing events (such as standalone attachment uploads or user
                 // reports) should never create outcomes.
-                let event_category = match event_category {
+                let category = match event_category {
                     Some(event_category) => event_category,
                     None => return,
                 };
@@ -1674,7 +1674,7 @@ impl Handler<HandleEnvelope> for EventManager {
                         outcome,
                         event_id,
                         remote_addr,
-                        category: Some(event_category),
+                        category,
                     })
                 }
             })
