@@ -1674,7 +1674,7 @@ impl Handler<HandleEnvelope> for EventManager {
                         outcome,
                         event_id,
                         remote_addr,
-                        event_category: Some(event_category),
+                        category: Some(event_category),
                     })
                 }
             })

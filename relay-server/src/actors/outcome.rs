@@ -82,7 +82,7 @@ pub struct TrackOutcome {
     /// The client ip address.
     pub remote_addr: Option<IpAddr>,
     /// The data category of the envelope's event.
-    pub event_category: Option<DataCategory>,
+    pub category: Option<DataCategory>,
 }
 
 impl Message for TrackOutcome {
@@ -306,9 +306,9 @@ pub struct TrackRawOutcome {
     /// The source of the outcome (which Relay sent it)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     source: Option<String>,
-    /// The data categories of the events
+    /// The data category of the event
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub event_category: Option<DataCategory>,
+    pub category: Option<DataCategory>,
 }
 
 impl TrackRawOutcome {
@@ -343,7 +343,7 @@ impl TrackRawOutcome {
             event_id: msg.event_id,
             remote_addr: msg.remote_addr.map(|addr| addr.to_string()),
             source,
-            event_category: msg.event_category,
+            category: msg.category,
         }
     }
 }
