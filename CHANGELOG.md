@@ -6,6 +6,10 @@
 
 - Relay now picks up HTTP proxies from environment variables. This is made possible by switching to a different HTTP client library.
 
+**Internal**:
+
+- Emit operation name breakdowns for transactions. ([#934](https://github.com/getsentry/relay/pull/934))
+
 **Bug Fixes**:
 
 - Deny backslashes in release names. ([#904](https://github.com/getsentry/relay/pull/904))
