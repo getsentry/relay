@@ -23,6 +23,7 @@ use crate::types::{
 
 mod contexts;
 mod logentry;
+mod measurements;
 mod mechanism;
 mod request;
 mod stacktrace;
@@ -106,10 +107,7 @@ impl<'a> NormalizeProcessor<'a> {
 
     /// Ensure measurements interface is only present for transaction events
     fn normalize_measurements(&self, event: &mut Event) {
-        if event.ty.value() != Some(&EventType::Transaction) {
-            // Only transaction events may have a measurements interface
-            event.measurements = Annotated::empty();
-        }
+        measurements::normalize_measurements(event);
     }
 
     /// Ensures that the `release` and `dist` fields match up.
