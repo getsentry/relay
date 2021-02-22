@@ -29,9 +29,7 @@ type OperationName = String;
 
 type OperationNameIntervals = HashMap<OperationName, Vec<TimeWindowSpan>>;
 
-fn merge_intervals(intervals: &Vec<TimeWindowSpan>) -> Vec<TimeWindowSpan> {
-    let mut intervals = intervals.clone();
-
+fn merge_intervals(mut intervals: Vec<TimeWindowSpan>) -> Vec<TimeWindowSpan> {
     // sort by start_timestamp in ascending order
     intervals.sort_unstable_by(|a, b| a.start_timestamp.partial_cmp(&b.start_timestamp).unwrap());
 
@@ -113,7 +111,6 @@ pub fn normalize_measurements(
 
                         if let Some(operation_name_interval) = intervals.get_mut(&operation_name) {
                             operation_name_interval.push(cover);
-                            *operation_name_interval = merge_intervals(operation_name_interval);
                         }
 
                         return intervals;
@@ -132,15 +129,18 @@ pub fn normalize_measurements(
         let mut total_time_spent: f64 = 0.0;
 
         for (operation_name, intervals) in intervals {
-            let op_time_spent: f64 = intervals.iter().fold(0.0, |sum, interval| {
-                let delta: f64 = (interval.end_timestamp.timestamp_nanos()
-                    - interval.start_timestamp.timestamp_nanos())
-                    as f64;
-                // convert to milliseconds (1 ms = 1,000,000 nanoseconds)
-                let duration: f64 = (delta / 1_000_000.00).abs();
+            let op_time_spent: f64 =
+                merge_intervals(intervals)
+                    .into_iter()
+                    .fold(0.0, |sum, interval| {
+                        let delta: f64 = (interval.end_timestamp.timestamp_nanos()
+                            - interval.start_timestamp.timestamp_nanos())
+                            as f64;
+                        // convert to milliseconds (1 ms = 1,000,000 nanoseconds)
+                        let duration: f64 = (delta / 1_000_000.00).abs();
 
-                return sum + duration;
-            });
+                        return sum + duration;
+                    });
 
             total_time_spent += op_time_spent;
 
