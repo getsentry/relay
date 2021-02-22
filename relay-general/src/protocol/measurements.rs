@@ -1,3 +1,5 @@
+use std::ops::{Deref, DerefMut};
+
 use crate::types::{Annotated, Error, FromValue, Object, Value};
 
 /// An individual observed measurement.
@@ -48,6 +50,20 @@ impl FromValue for Measurements {
         }
 
         measurements
+    }
+}
+
+impl Deref for Measurements {
+    type Target = Object<Measurement>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Measurements {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
