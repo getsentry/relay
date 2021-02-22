@@ -38,7 +38,7 @@ fn merge_intervals(mut intervals: Vec<TimeWindowSpan>) -> Vec<TimeWindowSpan> {
         |mut merged, current_interval| -> Vec<TimeWindowSpan> {
             // merged is a vector of disjoint intervals
 
-            if merged.len() == 0 {
+            if merged.is_empty() {
                 merged.push(current_interval);
                 return merged;
             }
@@ -86,38 +86,34 @@ pub fn normalize_measurements(
             spans
                 .iter()
                 .fold(HashMap::new(), |mut intervals, span| match span.value() {
-                    None => return intervals,
+                    None => intervals,
                     Some(span) => {
                         let cover = TimeWindowSpan::new(
-                            span.start_timestamp.value().unwrap().clone(),
-                            span.timestamp.value().unwrap().clone(),
+                            *span.start_timestamp.value().unwrap(),
+                            *span.timestamp.value().unwrap(),
                         );
 
                         let operation_name = span.op.value().unwrap();
 
-                        let results = operation_name_breakdown_list.iter().find(|maybe| {
-                            return operation_name.starts_with(*maybe);
-                        });
+                        let results = operation_name_breakdown_list
+                            .iter()
+                            .find(|maybe| operation_name.starts_with(*maybe));
 
                         let operation_name = match results {
                             None => return intervals,
                             Some(operation_name) => operation_name.clone(),
                         };
 
-                        if !intervals.contains_key(&operation_name) {
-                            intervals.insert(operation_name, vec![cover]);
-                            return intervals;
-                        }
+                        intervals
+                            .entry(operation_name)
+                            .or_insert_with(Vec::new)
+                            .push(cover);
 
-                        if let Some(operation_name_interval) = intervals.get_mut(&operation_name) {
-                            operation_name_interval.push(cover);
-                        }
-
-                        return intervals;
+                        intervals
                     }
                 });
 
-        if intervals.len() == 0 {
+        if intervals.is_empty() {
             return;
         }
 
@@ -139,7 +135,7 @@ pub fn normalize_measurements(
                         // convert to milliseconds (1 ms = 1,000,000 nanoseconds)
                         let duration: f64 = (delta / 1_000_000.00).abs();
 
-                        return sum + duration;
+                        sum + duration
                     });
 
             total_time_spent += op_time_spent;
