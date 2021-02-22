@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Fix a problem with Data Scrubbing source names (PII selectors) that caused `$frame.abs_path` to match, but not `$frame.abs_path || **` or `$frame.abs_path && **`. ([#726](https://github.com/getsentry/relay/pull/726))
+
 ## 21.2.0
 
 **Features**:
@@ -139,10 +145,6 @@
 **Bug Fixes**:
 
 - Send requests to the `/envelope/` endpoint instead of the older `/store/` endpoint. This particularly fixes spurious `413 Payload Too Large` errors returned when using Relay with Sentry SaaS. ([#746](https://github.com/getsentry/relay/pull/746))
-
-**Bug Fixes**:
-
-- Fix a problem with Data Scrubbing source names (PII selectors) that caused `$frame.abs_path` to match, but not `$frame.abs_path || **` or `$frame.abs_path && **`. ([#726](https://github.com/getsentry/relay/pull/726))
 
 **Internal**:
 
