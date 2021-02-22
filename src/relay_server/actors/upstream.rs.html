@@ -1327,6 +1327,11 @@
 <span id="1324">1324</span>
 <span id="1325">1325</span>
 <span id="1326">1326</span>
+<span id="1327">1327</span>
+<span id="1328">1328</span>
+<span id="1329">1329</span>
+<span id="1330">1330</span>
+<span id="1331">1331</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -1727,11 +1732,16 @@
         <span class="kw">let</span> <span class="ident">reqwest_client</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">http_client</span>() {
             <span class="ident">HttpClient</span>::<span class="ident">Actix</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
             <span class="ident">HttpClient</span>::<span class="ident">Reqwest</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>((
-                <span class="ident">tokio</span>::<span class="ident">runtime</span>::<span class="ident">Runtime</span>::<span class="ident">new</span>().<span class="ident">unwrap</span>(),
+                <span class="ident">tokio</span>::<span class="ident">runtime</span>::<span class="ident">Builder</span>::<span class="ident">new_multi_thread</span>()
+                    .<span class="ident">worker_threads</span>(<span class="number">1</span>)
+                    .<span class="ident">enable_all</span>()
+                    .<span class="ident">build</span>()
+                    .<span class="ident">unwrap</span>(),
                 <span class="ident">reqwest</span>::<span class="ident">ClientBuilder</span>::<span class="ident">new</span>()
                     .<span class="ident">connect_timeout</span>(<span class="ident">config</span>.<span class="ident">http_connection_timeout</span>())
                     .<span class="ident">timeout</span>(<span class="ident">config</span>.<span class="ident">http_timeout</span>())
                     .<span class="ident">gzip</span>(<span class="bool-val">true</span>)
+                    .<span class="ident">trust_dns</span>(<span class="bool-val">true</span>)
                     .<span class="ident">build</span>()
                     .<span class="ident">unwrap</span>(),
             )),
