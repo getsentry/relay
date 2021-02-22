@@ -360,6 +360,14 @@ impl EventProcessor {
             }
 
             let max_age = SignedDuration::seconds(self.config.max_session_secs_in_past());
+
+            // log session updates that are more than one hour in the past.
+            if (received - session.started) > SignedDuration::hours(1)
+                || (received - session.timestamp) > SignedDuration::hours(1)
+            {
+                metric!(counter(RelayCounters::OldSessionUpdateReceived) += 1);
+            }
+
             if (received - session.started) > max_age || (received - session.timestamp) > max_age {
                 relay_log::trace!("skipping session older than {} days", max_age.num_days());
                 return false;
@@ -793,6 +801,13 @@ impl EventProcessor {
             (Annotated::empty(), 0)
         };
 
+        // log session updates that are more than one hour in the past.
+        if let Some(timestamp) = event.value().and_then(|x| x.timestamp.value()) {
+            if state.received_at - timestamp.into_inner() > SignedDuration::hours(1) {
+                metric!(counter(RelayCounters::OldEventReceived) += 1);
+            }
+        }
+
         state.event = event;
         state.metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
@@ -1141,7 +1156,7 @@ impl EventProcessor {
             };
         }
 
-        self.process_sessions(&mut state);
+        selfprocess_sessions(&mut state);
         self.process_user_reports(&mut state);
 
         if state.creates_event() {

@@ -299,6 +299,13 @@ pub enum RelayCounters {
     ///
     /// To check the rejection reason, check `events.outcomes`, instead.
     EnvelopeRejected,
+    /// An event older than one hour was received.
+    ///
+    /// This is any event that after time drift correction was determined to be more than one hour
+    /// before the receive timestamp.
+    OldEventReceived,
+    /// A session update older than one hour was received.
+    OldSessionUpdateReceived,
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
     /// This metric is tagged with:
@@ -438,6 +445,8 @@ impl CounterMetric for RelayCounters {
         match self {
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
+            RelayCounters::OldEventReceived => "old_event.received",
+            RelayCounters::OldSessionUpdateReceived => "old_session_update.received",
             #[cfg(feature = "processing")]
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
