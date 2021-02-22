@@ -14,7 +14,7 @@ chrono = { version = "0.4.11", features = ["serde"] }
 cookie = { version = "0.12.0", features = ["percent-encode"] }
 debugid = { version = "0.7.2", features = ["serde"] }
 dynfmt = { version = "0.1.4", features = ["python", "curly"] }
-enumset = "1.0.1"
+enumset = "1.0.4"
 failure = "0.1.8"
 hmac = "0.7.1"
 itertools = "0.8.2"
