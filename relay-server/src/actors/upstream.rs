@@ -488,9 +488,12 @@ impl UpstreamRelay {
 
     /// Called when a message to the upstream goes through without a network error.
     fn reset_network_error(&mut self) {
+        if self.outage_backoff.started() {
+            relay_log::info!("Recovering from network outage.")
+        }
+
         self.first_error = None;
         self.outage_backoff.reset();
-        relay_log::debug!("Recovering from network outage.")
     }
 
     fn upstream_connection_check(&mut self, ctx: &mut Context<Self>) {

@@ -1640,6 +1640,7 @@ dependencies = [
  "console",
  "difference",
  "lazy_static",
+ "ron",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -1958,7 +1959,7 @@ dependencies = [
 [[package]]
 name = "minidump"
 version = "0.2.0"
-source = "git+https://github.com/luser/rust-minidump?rev=7a03c548837ea3006e74c8e8c809afe243bec655#7a03c548837ea3006e74c8e8c809afe243bec655"
+source = "git+https://github.com/luser/rust-minidump?rev=20070798b5e9216474013341ed80c5272558d9ee#20070798b5e9216474013341ed80c5272558d9ee"
 dependencies = [
  "chrono",
  "encoding",
@@ -1974,7 +1975,7 @@ dependencies = [
 [[package]]
 name = "minidump-common"
 version = "0.2.0"
-source = "git+https://github.com/luser/rust-minidump?rev=7a03c548837ea3006e74c8e8c809afe243bec655#7a03c548837ea3006e74c8e8c809afe243bec655"
+source = "git+https://github.com/luser/rust-minidump?rev=20070798b5e9216474013341ed80c5272558d9ee#20070798b5e9216474013341ed80c5272558d9ee"
 dependencies = [
  "bitflags",
  "enum-primitive-derive",
@@ -3039,7 +3040,7 @@ checksum = "b5eb417147ba9860a96cfe72a0b93bf88fee1744b5636ec99ab20c1aa9376581"
 
 [[package]]
 name = "relay"
-version = "20.12.1"
+version = "21.2.0"
 dependencies = [
  "clap",
  "console",
@@ -3057,7 +3058,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "20.12.1"
+version = "21.2.0"
 dependencies = [
  "base64 0.10.1",
  "chrono",
@@ -3073,7 +3074,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.1"
+version = "0.8.3"
 dependencies = [
  "chrono",
  "failure",
@@ -3090,7 +3091,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "20.12.1"
+version = "21.2.0"
 dependencies = [
  "backoff",
  "cadence",
@@ -3111,7 +3112,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "20.12.1"
+version = "21.2.0"
 dependencies = [
  "failure",
  "human-size",
@@ -3128,7 +3129,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi"
-version = "20.12.1"
+version = "21.2.0"
 dependencies = [
  "failure",
  "relay-ffi-macros",
@@ -3136,7 +3137,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "20.12.1"
+version = "21.2.0"
 dependencies = [
  "quote 1.0.7",
  "syn 1.0.58",
@@ -3144,7 +3145,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "20.12.1"
+version = "21.2.0"
 dependencies = [
  "globset",
  "insta 0.15.0",
@@ -3160,7 +3161,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general"
-version = "20.12.1"
+version = "21.2.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3201,7 +3202,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general-derive"
-version = "20.12.1"
+version = "21.2.0"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.7",
@@ -3211,7 +3212,7 @@ dependencies = [
 
 [[package]]
 name = "relay-log"
-version = "20.12.1"
+version = "21.2.0"
 dependencies = [
  "chrono",
  "console",
@@ -3226,7 +3227,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "20.12.1"
+version = "21.2.0"
 dependencies = [
  "failure",
  "insta 0.15.0",
@@ -3241,7 +3242,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "20.12.1"
+version = "21.2.0"
 dependencies = [
  "failure",
  "r2d2",
@@ -3251,7 +3252,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "20.12.1"
+version = "21.2.0"
 dependencies = [
  "actix",
  "actix-web",
@@ -3297,6 +3298,7 @@ dependencies = [
  "take_mut",
  "tokio 1.0.1",
  "tokio-timer",
+ "unicase",
  "url 2.2.0",
  "uuid 0.8.1",
 ]

@@ -2,10 +2,33 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Fix a problem with Data Scrubbing source names (PII selectors) that caused `$frame.abs_path` to match, but not `$frame.abs_path || **` or `$frame.abs_path && **`. ([#932](https://github.com/getsentry/relay/pull/932))
+
+## 21.2.0
+
+**Features**:
+
+- By adding `.no-cache` to the DSN key, Relay refreshes project configuration caches immediately. This allows to apply changed settings instantly, such as updates to data scrubbing or inbound filter rules. ([#911](https://github.com/getsentry/relay/pull/911))
+- Add NSError to mechanism. ([#925](https://github.com/getsentry/relay/pull/925))
+- Add snapshot to the stack trace interface. ([#927](https://github.com/getsentry/relay/pull/927))
+
+**Bug Fixes**:
+
+- Log on INFO level when recovering from network outages. ([#918](https://github.com/getsentry/relay/pull/918))
+- Fix a panic in processing minidumps with invalid location descriptors. ([#919](https://github.com/getsentry/relay/pull/919))
+
+**Internal**:
+
+- Improve dynamic sampling rule configuration. ([#907](https://github.com/getsentry/relay/pull/907))
+- Compatibility mode for pre-aggregated sessions was removed. The feature is now enabled by default in full fidelity. ([#913](https://github.com/getsentry/relay/pull/913))
+
+## 21.1.0
+
 **Features**:
 
 - Support dynamic sampling for error events. ([#883](https://github.com/getsentry/relay/pull/883))
-
 
 **Bug Fixes**:
 
@@ -16,6 +39,8 @@
 **Internal**:
 
 - Extract crashpad annotations into contexts. ([#892](https://github.com/getsentry/relay/pull/892))
+- Normalize user reports during ingestion and create empty fields. ([#903](https://github.com/getsentry/relay/pull/903))
+- Ingest and normalize sample rates from envelope item headers. ([#910](https://github.com/getsentry/relay/pull/910))
 
 ## 20.12.1
 
@@ -44,7 +69,7 @@
 
 **Internal**:
 
-- Add *experimental* support for picking up HTTP proxies from the regular environment variables. This feature needs to be enabled by setting `http: client: "reqwest"` in your `config.yml`. ([#839](https://github.com/getsentry/relay/pull/839))
+- Add _experimental_ support for picking up HTTP proxies from the regular environment variables. This feature needs to be enabled by setting `http: client: "reqwest"` in your `config.yml`. ([#839](https://github.com/getsentry/relay/pull/839))
 - Refactor transparent request forwarding for unknown endpoints. Requests are now entirely buffered in memory and occupy the same queues and actors as other requests. This should not cause issues but may change behavior under load. ([#839](https://github.com/getsentry/relay/pull/839))
 - Add reason codes to the `X-Sentry-Rate-Limits` header in store responses. This allows external Relays to emit outcomes with the proper reason codes. ([#850](https://github.com/getsentry/relay/pull/850))
 - Emit metrics for outcomes in external relays. ([#851](https://github.com/getsentry/relay/pull/851))

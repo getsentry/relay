@@ -40,6 +40,8 @@ pub struct GetProjectStates {
     pub public_keys: Vec<ProjectKey>,
     #[serde(default)]
     pub full_config: bool,
+    #[serde(default)]
+    pub no_cache: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -77,6 +79,7 @@ struct ProjectStateChannel {
     sender: oneshot::Sender<Arc<ProjectState>>,
     receiver: Shared<oneshot::Receiver<Arc<ProjectState>>>,
     deadline: Instant,
+    no_cache: bool,
 }
 
 impl ProjectStateChannel {
@@ -87,7 +90,12 @@ impl ProjectStateChannel {
             sender,
             receiver: receiver.shared(),
             deadline: Instant::now() + timeout,
+            no_cache: false,
         }
+    }
+
+    pub fn no_cache(&mut self) {
+        self.no_cache = true;
     }
 
     pub fn send(self, state: ProjectState) {
@@ -183,6 +191,8 @@ impl UpstreamProjectSource {
         // num_batches. Worst case, we're left with one project per request, but that's fine.
         let actual_batch_size = (total_count + (total_count % num_batches)) / num_batches;
 
+        // TODO(ja): This mixes requests with no_cache. Separate out channels with no_cache: true?
+
         let requests: Vec<_> = channels
             .into_iter()
             .chunks(actual_batch_size)
@@ -198,6 +208,7 @@ impl UpstreamProjectSource {
                 let query = GetProjectStates {
                     public_keys: channels_batch.keys().copied().collect(),
                     full_config: self.config.processing_enabled(),
+                    no_cache: channels_batch.values().any(|c| c.no_cache),
                 };
 
                 // count number of http requests for project states
@@ -324,6 +335,10 @@ impl Handler<FetchProjectState> for UpstreamProjectSource {
         }
 
         let query_timeout = self.config.query_timeout();
+        let FetchProjectState {
+            public_key,
+            no_cache,
+        } = message;
 
         // There's an edge case where a project is represented by two Project actors. This can
         // happen if our project eviction logic removes an actor from `project_cache.projects`
@@ -336,8 +351,14 @@ impl Handler<FetchProjectState> for UpstreamProjectSource {
         // channel for our current `message.id`.
         let channel = self
             .state_channels
-            .entry(message.public_key)
+            .entry(public_key)
             .or_insert_with(|| ProjectStateChannel::new(query_timeout));
+
+        // Ensure upstream skips caches if one of the recipients requests an uncached response. This
+        // operation is additive across requests.
+        if no_cache {
+            channel.no_cache();
+        }
 
         Box::new(
             channel

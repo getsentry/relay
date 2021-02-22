@@ -86,8 +86,10 @@ pub trait FromValue: Debug {
 }
 
 /// Implemented for all meta structures.
+// TODO: This trait should be named `IntoValue`.
 pub trait ToValue: Debug + Empty {
     /// Boxes the meta structure back into a value.
+    #[allow(clippy::wrong_self_convention)]
     fn to_value(self) -> Value
     where
         Self: Sized;
