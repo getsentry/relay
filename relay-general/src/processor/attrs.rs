@@ -2,9 +2,9 @@ use std::borrow::Cow;
 use std::fmt;
 use std::ops::RangeInclusive;
 
+use enumset::{EnumSet, EnumSetType};
 use failure::Fail;
 use smallvec::SmallVec;
-use wasmer_enumset::{EnumSet, EnumSetType};
 
 use crate::processor::{ProcessValue, SelectorPathItem, SelectorSpec};
 use crate::types::Annotated;
@@ -383,7 +383,7 @@ static ROOT_STATE: ProcessingState = ProcessingState {
     parent: None,
     path_item: None,
     attrs: None,
-    value_type: wasmer_enumset::enum_set!(),
+    value_type: enumset::enum_set!(),
     depth: 0,
 };
 

@@ -135,20 +135,20 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
                 .value_type
                 .iter()
                 .map(|value_name| Ident::new(value_name, Span::call_site()));
-            quote!(wasmer_enumset::enum_set!( #(crate::processor::ValueType::#value_names)|* ))
+            quote!(enumset::enum_set!( #(crate::processor::ValueType::#value_names)|* ))
         } else if is_newtype(variant) {
             let bi = &variant.bindings()[0];
             let ident = &bi.binding;
             quote!(crate::processor::ProcessValue::value_type(#ident))
         } else {
-            quote!(wasmer_enumset::EnumSet::empty())
+            quote!(enumset::EnumSet::empty())
         }
     });
 
     s.gen_impl(quote! {
         #[automatically_derived]
         gen impl crate::processor::ProcessValue for @Self {
-            fn value_type(&self) -> wasmer_enumset::EnumSet<crate::processor::ValueType> {
+            fn value_type(&self) -> enumset::EnumSet<crate::processor::ValueType> {
                 match *self {
                     #value_type_arms
                 }
