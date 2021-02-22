@@ -102,7 +102,7 @@ pub fn normalize_measurements(
                         });
 
                         let operation_name = match results {
-                            None => "other".to_string(),
+                            None => return intervals,
                             Some(operation_name) => operation_name.clone(),
                         };
 
