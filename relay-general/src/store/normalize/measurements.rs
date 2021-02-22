@@ -148,7 +148,7 @@ pub fn normalize_measurements(
                 value: Annotated::new(op_time_spent),
             };
 
-            let op_breakdown_name = format!("ops.breakdown.{}", operation_name.to_string());
+            let op_breakdown_name = format!("ops.time.{}", operation_name.to_string());
 
             measurements.insert(op_breakdown_name, Annotated::new(time_spent_measurement));
         }
@@ -157,7 +157,7 @@ pub fn normalize_measurements(
             value: Annotated::new(total_time_spent),
         };
         measurements.insert(
-            "ops.total.breakdown".to_string(),
+            "ops.total.time".to_string(),
             Annotated::new(total_time_spent_measurement),
         );
     }
