@@ -946,10 +946,6 @@
 <span id="943">943</span>
 <span id="944">944</span>
 <span id="945">945</span>
-<span id="946">946</span>
-<span id="947">947</span>
-<span id="948">948</span>
-<span id="949">949</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
@@ -1002,10 +998,6 @@
         }
 
         <span class="kw">for</span> (<span class="ident">selector</span>, <span class="ident">rules</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">compiled_config</span>.<span class="ident">applications</span>.<span class="ident">iter</span>() {
-            <span class="kw">if</span> <span class="ident">pii</span> <span class="op">=</span><span class="op">=</span> <span class="ident">Pii</span>::<span class="ident">Maybe</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">selector</span>.<span class="ident">is_specific</span>() {
-                <span class="kw">continue</span>;
-            }
-
             <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">path</span>().<span class="ident">matches_selector</span>(<span class="ident">selector</span>) {
                 <span class="kw">for</span> <span class="ident">rule</span> <span class="kw">in</span> <span class="ident">rules</span> {
                     <span class="kw">let</span> <span class="ident">reborrowed_value</span> <span class="op">=</span> <span class="ident">value</span>.<span class="ident">as_deref_mut</span>();
