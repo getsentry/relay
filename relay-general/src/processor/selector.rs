@@ -6,7 +6,7 @@ use pest::error::Error;
 use pest::iterators::Pair;
 use pest::Parser;
 
-use crate::processor::{ProcessingState, ValueType};
+use crate::processor::{Pii, ProcessingState, ValueType};
 
 /// Error for invalid selectors
 #[derive(Debug, Fail)]
@@ -68,13 +68,61 @@ impl fmt::Display for SelectorPathItem {
 }
 
 impl SelectorPathItem {
-    pub(super) fn matches_state(&self, state: &ProcessingState<'_>) -> bool {
-        match *self {
-            SelectorPathItem::Wildcard => true,
-            SelectorPathItem::DeepWildcard => true,
-            SelectorPathItem::Type(ty) => state.value_type().contains(ty),
-            SelectorPathItem::Index(idx) => state.path().index() == Some(idx),
-            SelectorPathItem::Key(ref key) => state
+    /// Determine whether a path item matches the respective processing state.
+    ///
+    /// `pii` is not the same as `state.attrs().pii`, but rather the PII flag of the state we're
+    /// actually trying to match against. `i` is the position of the path item within the path.
+    pub(super) fn matches_state(&self, pii: Pii, i: usize, state: &ProcessingState<'_>) -> bool {
+        match (self, pii) {
+            (_, Pii::False) => false,
+
+            // necessary because of array indices
+            (SelectorPathItem::Wildcard, _) => true,
+
+            // a deep wildcard is too sweeping to be specific
+            (SelectorPathItem::DeepWildcard, Pii::True) => true,
+            (SelectorPathItem::DeepWildcard, Pii::Maybe) => false,
+
+            (SelectorPathItem::Type(ty), Pii::True) => state.value_type().contains(*ty),
+            (SelectorPathItem::Type(ty), Pii::Maybe) => {
+                state.value_type().contains(*ty)
+                    && match ty {
+                        // Basic value types cannot be part of a specific path
+                        ValueType::String
+                        | ValueType::Binary
+                        | ValueType::Number
+                        | ValueType::Boolean
+                        | ValueType::DateTime
+                        | ValueType::Array
+                        | ValueType::Object => false,
+
+                        // Other schema-specific value types can be if they are on the first
+                        // position. This list is explicitly typed out such that the decision
+                        // to add new value types to this list has to be made consciously.
+                        //
+                        // It's easy to change a `false` to `true` later, but a breaking change
+                        // to go the other direction. If you're not sure, return `false` for
+                        // your new value type.
+                        ValueType::Event
+                        | ValueType::Attachments
+                        | ValueType::Exception
+                        | ValueType::Stacktrace
+                        | ValueType::Frame
+                        | ValueType::Request
+                        | ValueType::User
+                        | ValueType::LogEntry
+                        | ValueType::Message
+                        | ValueType::Thread
+                        | ValueType::Breadcrumb
+                        | ValueType::Span
+                        | ValueType::Minidump
+                        | ValueType::HeapMemory
+                        | ValueType::StackMemory
+                        | ValueType::ClientSdkInfo => i == 0,
+                    }
+            }
+            (SelectorPathItem::Index(idx), _) => state.path().index() == Some(*idx),
+            (SelectorPathItem::Key(ref key), _) => state
                 .path()
                 .key()
                 .map(|k| k.to_lowercase() == key.to_lowercase())
@@ -89,64 +137,6 @@ pub enum SelectorSpec {
     Or(Vec<SelectorSpec>),
     Not(Box<SelectorSpec>),
     Path(Vec<SelectorPathItem>),
-}
-
-impl SelectorSpec {
-    /// A selector is specific if it directly addresses a single event location by path. We use
-    /// this distinction in the PII processor to decide whether pii=maybe should be scrubbed.
-    pub fn is_specific(&self) -> bool {
-        match *self {
-            SelectorSpec::And(ref selectors) => selectors.iter().any(SelectorSpec::is_specific),
-            SelectorSpec::Or(ref selectors) => selectors.iter().all(SelectorSpec::is_specific),
-            SelectorSpec::Not(_) => false,
-            SelectorSpec::Path(ref path) => {
-                path.iter().enumerate().all(|(i, item)| {
-                    match *item {
-                        SelectorPathItem::Type(ty) => match ty {
-                            // Basic value types cannot be part of a specific path
-                            ValueType::String
-                            | ValueType::Binary
-                            | ValueType::Number
-                            | ValueType::Boolean
-                            | ValueType::DateTime
-                            | ValueType::Array
-                            | ValueType::Object => false,
-
-                            // Other schema-specific value types can be if they are on the first
-                            // position. This list is explicitly typed out such that the decision
-                            // to add new value types to this list has to be made consciously.
-                            //
-                            // It's easy to change a `false` to `true` later, but a breaking change
-                            // to go the other direction. If you're not sure, return `false` for
-                            // your new value type.
-                            ValueType::Event
-                            | ValueType::Attachments
-                            | ValueType::Exception
-                            | ValueType::Stacktrace
-                            | ValueType::Frame
-                            | ValueType::Request
-                            | ValueType::User
-                            | ValueType::LogEntry
-                            | ValueType::Message
-                            | ValueType::Thread
-                            | ValueType::Breadcrumb
-                            | ValueType::Span
-                            | ValueType::Minidump
-                            | ValueType::HeapMemory
-                            | ValueType::StackMemory
-                            | ValueType::ClientSdkInfo => i == 0,
-                        },
-                        SelectorPathItem::Index(_) => true,
-                        SelectorPathItem::Key(_) => true,
-                        // necessary because of array indices
-                        SelectorPathItem::Wildcard => true,
-                        // a deep wildcard is too sweeping to be specific
-                        SelectorPathItem::DeepWildcard => false,
-                    }
-                })
-            }
-        }
-    }
 }
 
 impl fmt::Display for SelectorSpec {
