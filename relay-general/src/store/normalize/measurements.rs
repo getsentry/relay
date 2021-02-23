@@ -65,20 +65,25 @@ fn merge_intervals(mut intervals: Vec<TimeWindowSpan>) -> Vec<TimeWindowSpan> {
 }
 
 /// Ensure measurements interface is only present for transaction events, and emit operation breakdown measurements
-pub fn normalize_measurements(
-    event: &mut Event,
-    operation_name_breakdown_list: &Option<Vec<String>>,
-) {
+pub fn normalize_measurements(event: &mut Event, operation_name_breakdown: &Option<Vec<String>>) {
     if event.ty.value() != Some(&EventType::Transaction) {
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
         return;
     }
 
-    let operation_name_breakdown_list = match operation_name_breakdown_list {
+    let operation_name_breakdown: Vec<String> = match operation_name_breakdown {
         None => return,
-        Some(operation_name_breakdown_list) => operation_name_breakdown_list,
+        Some(operation_name_breakdown) => operation_name_breakdown
+            .iter()
+            .map(|name| name.trim().to_string())
+            .filter(|name| !name.is_empty())
+            .collect(),
     };
+
+    if operation_name_breakdown.is_empty() {
+        return;
+    }
 
     // Generate operation breakdowns
     if let Some(spans) = event.spans.value() {
@@ -95,7 +100,7 @@ pub fn normalize_measurements(
 
                         let operation_name = span.op.value().unwrap();
 
-                        let results = operation_name_breakdown_list
+                        let results = operation_name_breakdown
                             .iter()
                             .find(|maybe| operation_name.starts_with(*maybe));
 

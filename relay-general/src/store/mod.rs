@@ -52,7 +52,7 @@ pub struct StoreConfig {
 
     /// Emit operation breakdown as measurements for any span operations that match the given list.
     /// A span's operation matches if it starts with any entry.
-    pub operation_name_breakdown_list: Option<Vec<String>>,
+    pub operation_name_breakdown: Option<Vec<String>>,
 }
 
 /// The processor that normalizes events for store.
