@@ -376,14 +376,6 @@
 <span id="373">373</span>
 <span id="374">374</span>
 <span id="375">375</span>
-<span id="376">376</span>
-<span id="377">377</span>
-<span id="378">378</span>
-<span id="379">379</span>
-<span id="380">380</span>
-<span id="381">381</span>
-<span id="382">382</span>
-<span id="383">383</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">symbolic</span>::<span class="ident">unreal</span>::{
     <span class="ident">Unreal4Context</span>, <span class="ident">Unreal4Crash</span>, <span class="ident">Unreal4Error</span>, <span class="ident">Unreal4FileType</span>, <span class="ident">Unreal4LogEntry</span>,
@@ -592,14 +584,6 @@
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Context</span>::<span class="ident">Os</span>(<span class="ident">os_context</span>) <span class="op">=</span> <span class="ident">os_context</span> {
             <span class="ident">os_context</span>.<span class="ident">name</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">os_major</span>);
         }
-    }
-
-    <span class="comment">// Clear this property. It&#39;s a duplicate of misc_primary_gpu_brand and only exists because</span>
-    <span class="comment">// somebody made a typo once while mapping the GPU data from unrealcontext in symbolic, and we</span>
-    <span class="comment">// tried to fix this in a backwards-compatible way by retaining both properties.</span>
-    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">deprecated</span>)]</span>
-    {
-        <span class="ident">runtime_props</span>.<span class="ident">misc_primary_cpu_brand</span> <span class="op">=</span> <span class="prelude-val">None</span>;
     }
 
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">gpu_brand</span>) <span class="op">=</span> <span class="ident">runtime_props</span>.<span class="ident">misc_primary_gpu_brand</span>.<span class="ident">take</span>() {
