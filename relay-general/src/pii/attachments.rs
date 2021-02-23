@@ -391,10 +391,6 @@ impl<'a> PiiAttachmentsProcessor<'a> {
         let mut changed = false;
 
         for (selector, rules) in &self.compiled_config.applications {
-            if pii == Pii::Maybe && !selector.is_specific() {
-                continue;
-            }
-
             if state.path().matches_selector(&selector) {
                 for rule in rules {
                     // Note:

@@ -135,7 +135,14 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
                 .value_type
                 .iter()
                 .map(|value_name| Ident::new(value_name, Span::call_site()));
-            quote!(enumset::enum_set!( #(crate::processor::ValueType::#value_names)|* ))
+            quote! {
+                // enumset produces a deprecation warning because it thinks we use its internals
+                // directly, but we do actually use the macro
+                #[allow(deprecated)]
+                {
+                    enumset::enum_set!( #(crate::processor::ValueType::#value_names)|* )
+                }
+            }
         } else if is_newtype(variant) {
             let bi = &variant.bindings()[0];
             let ident = &bi.binding;
