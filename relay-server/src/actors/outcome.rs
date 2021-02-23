@@ -16,7 +16,7 @@ use chrono::SecondsFormat;
 use futures::future::Future;
 use serde::{Deserialize, Serialize};
 
-use relay_common::ProjectId;
+use relay_common::{DataCategory, ProjectId};
 use relay_config::Config;
 use relay_filter::FilterStatKey;
 use relay_general::protocol::EventId;
@@ -81,6 +81,8 @@ pub struct TrackOutcome {
     pub event_id: Option<EventId>,
     /// The client ip address.
     pub remote_addr: Option<IpAddr>,
+    /// The event's data category.
+    pub category: DataCategory,
 }
 
 impl Message for TrackOutcome {
@@ -304,6 +306,9 @@ pub struct TrackRawOutcome {
     /// The source of the outcome (which Relay sent it)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     source: Option<String>,
+    /// The event's data category.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<DataCategory>,
 }
 
 impl TrackRawOutcome {
@@ -338,6 +343,7 @@ impl TrackRawOutcome {
             event_id: msg.event_id,
             remote_addr: msg.remote_addr.map(|addr| addr.to_string()),
             source,
+            category: Some(msg.category),
         }
     }
 }

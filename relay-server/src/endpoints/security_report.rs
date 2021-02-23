@@ -65,7 +65,6 @@ fn store_security_report(
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     common::handle_store_like_request(
         meta,
-        true,
         request,
         move |data, meta| extract_envelope(data, meta, params.into_inner()),
         |_| create_response(),
