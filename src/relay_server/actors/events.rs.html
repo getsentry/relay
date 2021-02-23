@@ -1901,8 +1901,6 @@
 <span id="1898">1898</span>
 <span id="1899">1899</span>
 <span id="1900">1900</span>
-<span id="1901">1901</span>
-<span id="1902">1902</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -3357,14 +3355,10 @@
             <span class="ident">start_time</span>,
             <span class="ident">sampling_project</span>,
         } <span class="op">=</span> <span class="ident">message</span>;
+        <span class="kw">let</span> <span class="ident">event_category</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">get_event_category</span>();
 
         <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>();
         <span class="kw">let</span> <span class="ident">remote_addr</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client_addr</span>();
-
-        <span class="comment">// Compute whether this envelope contains an event. This is used in error handling to</span>
-        <span class="comment">// appropriately emit an outcome. Envelopes not containing events (such as standalone</span>
-        <span class="comment">// attachment uploads or user reports) should never create outcomes.</span>
-        <span class="kw">let</span> <span class="ident">is_event</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">items</span>().<span class="ident">any</span>(<span class="ident">Item</span>::<span class="ident">creates_event</span>);
 
         <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">get_partial_scoping</span>()));
         <span class="kw">let</span> <span class="ident">is_received</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">AtomicBool</span>::<span class="ident">from</span>(<span class="bool-val">false</span>));
@@ -3553,11 +3547,12 @@
                     }
                 }
 
-                <span class="comment">// Do not track outcomes or capture events for non-event envelopes (such as</span>
-                <span class="comment">// individual attachments)</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">is_event</span> {
-                    <span class="kw">return</span>;
-                }
+                <span class="comment">// Envelopes not containing events (such as standalone attachment uploads or user</span>
+                <span class="comment">// reports) should never create outcomes.</span>
+                <span class="kw">let</span> <span class="ident">category</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">event_category</span> {
+                    <span class="prelude-val">Some</span>(<span class="ident">event_category</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">event_category</span>,
+                    <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span>,
+                };
 
                 <span class="kw">let</span> <span class="ident">outcome</span> <span class="op">=</span> <span class="ident">error</span>.<span class="ident">to_outcome</span>();
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">DiscardReason</span>::<span class="ident">Internal</span>)) <span class="op">=</span> <span class="ident">outcome</span> {
@@ -3583,6 +3578,7 @@
                         <span class="ident">outcome</span>,
                         <span class="ident">event_id</span>,
                         <span class="ident">remote_addr</span>,
+                        <span class="ident">category</span>,
                     })
                 }
             })

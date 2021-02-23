@@ -616,6 +616,12 @@
 <span id="613">613</span>
 <span id="614">614</span>
 <span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module contains the actor that tracks event outcomes.</span>
 <span class="doccomment">//!</span>
@@ -635,7 +641,7 @@
 <span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">future</span>::<span class="ident">Future</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
-<span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">ProjectId</span>;
+<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">DataCategory</span>, <span class="ident">ProjectId</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::<span class="ident">Config</span>;
 <span class="kw">use</span> <span class="ident">relay_filter</span>::<span class="ident">FilterStatKey</span>;
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">protocol</span>::<span class="ident">EventId</span>;
@@ -700,6 +706,8 @@
     <span class="kw">pub</span> <span class="ident">event_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>,
     <span class="doccomment">/// The client ip address.</span>
     <span class="kw">pub</span> <span class="ident">remote_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The event&#39;s data category.</span>
+    <span class="kw">pub</span> <span class="ident">category</span>: <span class="ident">DataCategory</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">TrackOutcome</span> {
@@ -923,6 +931,9 @@
     <span class="doccomment">/// The source of the outcome (which Relay sent it)</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
     <span class="ident">source</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The event&#39;s data category.</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">category</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DataCategory</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TrackRawOutcome</span> {
@@ -957,6 +968,7 @@
             <span class="ident">event_id</span>: <span class="ident">msg</span>.<span class="ident">event_id</span>,
             <span class="ident">remote_addr</span>: <span class="ident">msg</span>.<span class="ident">remote_addr</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">addr</span><span class="op">|</span> <span class="ident">addr</span>.<span class="ident">to_string</span>()),
             <span class="ident">source</span>,
+            <span class="ident">category</span>: <span class="prelude-val">Some</span>(<span class="ident">msg</span>.<span class="ident">category</span>),
         }
     }
 }

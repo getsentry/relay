@@ -109,7 +109,7 @@
     <span class="ident">meta</span>: <span class="ident">RequestMeta</span>,
     <span class="ident">request</span>: <span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">ServiceState</span><span class="op">&gt;</span>,
 ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">HttpResponse</span>, <span class="ident">BadStoreRequest</span><span class="op">&gt;</span> {
-    <span class="ident">common</span>::<span class="ident">handle_store_like_request</span>(<span class="ident">meta</span>, <span class="bool-val">true</span>, <span class="ident">request</span>, <span class="ident">extract_envelope</span>, <span class="ident">create_response</span>, <span class="bool-val">true</span>)
+    <span class="ident">common</span>::<span class="ident">handle_store_like_request</span>(<span class="ident">meta</span>, <span class="ident">request</span>, <span class="ident">extract_envelope</span>, <span class="ident">create_response</span>, <span class="bool-val">true</span>)
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">configure_app</span>(<span class="ident">app</span>: <span class="ident">ServiceApp</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ServiceApp</span> {

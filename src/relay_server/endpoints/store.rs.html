@@ -156,7 +156,6 @@
 <span id="153">153</span>
 <span id="154">154</span>
 <span id="155">155</span>
-<span id="156">156</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Handles event store requests.</span>
 
@@ -286,7 +285,6 @@
         <span class="comment">// XXX: This is wrong. In case of external relays, store can receive event-less envelopes.</span>
         <span class="comment">// We need to fix this before external relays go live or we will create outcomes and rate</span>
         <span class="comment">// limits for individual attachment requests.</span>
-        <span class="bool-val">true</span>,
         <span class="ident">request</span>,
         <span class="ident">extract_envelope</span>,
         <span class="kw">move</span> <span class="op">|</span><span class="ident">id</span><span class="op">|</span> <span class="ident">create_response</span>(<span class="ident">id</span>, <span class="ident">is_get_request</span>),

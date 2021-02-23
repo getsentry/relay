@@ -256,7 +256,7 @@
     <span class="kw">pub</span> <span class="ident">ip_address</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// Username of the user.</span>
-    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;false&quot;</span>, <span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;enumlike&quot;</span>, <span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;enumlike&quot;</span>, <span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">username</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// Human readable name of the user.</span>

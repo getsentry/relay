@@ -118,7 +118,6 @@
 <span id="115">115</span>
 <span id="116">116</span>
 <span id="117">117</span>
-<span id="118">118</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Endpoints for security reports.</span>
 
@@ -187,7 +186,6 @@
 ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">HttpResponse</span>, <span class="ident">BadStoreRequest</span><span class="op">&gt;</span> {
     <span class="ident">common</span>::<span class="ident">handle_store_like_request</span>(
         <span class="ident">meta</span>,
-        <span class="bool-val">true</span>,
         <span class="ident">request</span>,
         <span class="kw">move</span> <span class="op">|</span><span class="ident">data</span>, <span class="ident">meta</span><span class="op">|</span> <span class="ident">extract_envelope</span>(<span class="ident">data</span>, <span class="ident">meta</span>, <span class="ident">params</span>.<span class="ident">into_inner</span>()),
         <span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">create_response</span>(),
