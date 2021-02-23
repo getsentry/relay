@@ -1,10 +1,14 @@
 # Changelog
 
 ## Unreleased
+
+**Features**:
+- Add inbound filters functionality to dynamic sampling rules. ([#920](https://github.com/getsentry/relay/pull/920))
+
+## 21.2.0
+
 **Features**:
 
-- Improve dynamic sampling rule configuration. ([#907](https://github.com/getsentry/relay/pull/907))
-- Add inbound filters functionality to dynamic sampling rules. ([#920](https://github.com/getsentry/relay/pull/920))
 - By adding `.no-cache` to the DSN key, Relay refreshes project configuration caches immediately. This allows to apply changed settings instantly, such as updates to data scrubbing or inbound filter rules. ([#911](https://github.com/getsentry/relay/pull/911))
 - Add NSError to mechanism. ([#925](https://github.com/getsentry/relay/pull/925))
 - Add snapshot to the stack trace interface. ([#927](https://github.com/getsentry/relay/pull/927))
@@ -16,6 +20,7 @@
 
 **Internal**:
 
+- Improve dynamic sampling rule configuration. ([#907](https://github.com/getsentry/relay/pull/907))
 - Compatibility mode for pre-aggregated sessions was removed. The feature is now enabled by default in full fidelity. ([#913](https://github.com/getsentry/relay/pull/913))
 
 ## 21.1.0
