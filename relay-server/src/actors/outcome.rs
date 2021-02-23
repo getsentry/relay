@@ -308,7 +308,7 @@ pub struct TrackRawOutcome {
     source: Option<String>,
     /// The event's data category.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub category: Option<DataCategory>,
+    pub category: Option<u8>,
 }
 
 impl TrackRawOutcome {
@@ -343,7 +343,7 @@ impl TrackRawOutcome {
             event_id: msg.event_id,
             remote_addr: msg.remote_addr.map(|addr| addr.to_string()),
             source,
-            category: Some(msg.category),
+            category: msg.category.value(),
         }
     }
 }
