@@ -51,7 +51,7 @@ def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consum
     assert start <= event_emission <= end
 
 
-def _send_event(relay, project_id=42):
+def _send_event(relay, project_id=42, event_type="error"):
     """
     Send an event to the given project.
 
@@ -63,6 +63,7 @@ def _send_event(relay, project_id=42):
         "event_id": event_id,
         "message": message_text,
         "extra": {"msg_text": message_text},
+        "type": event_type,
     }
 
     try:
@@ -72,7 +73,8 @@ def _send_event(relay, project_id=42):
     return event_id
 
 
-def test_outcomes_non_processing(relay, mini_sentry):
+@pytest.mark.parametrize("event_type", ["error", "transaction"])
+def test_outcomes_non_processing(relay, mini_sentry, event_type):
     """
     Test basic outcome functionality.
 
@@ -83,7 +85,7 @@ def test_outcomes_non_processing(relay, mini_sentry):
 
     relay = relay(mini_sentry, config)
 
-    event_id = _send_event(relay)
+    event_id = _send_event(relay, event_type=event_type)
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
@@ -101,7 +103,7 @@ def test_outcomes_non_processing(relay, mini_sentry):
         "reason": "project_id",  # missing project id
         "event_id": event_id,
         "remote_addr": "127.0.0.1",
-        "category": "error",
+        "category": event_type,
     }
     assert outcome == expected_outcome
 
@@ -245,8 +247,9 @@ def test_outcome_source(relay, mini_sentry):
 
 
 @pytest.mark.parametrize("num_intermediate_relays", [1, 3])
+@pytest.mark.parametrize("event_type", ["error", "transaction"])
 def test_outcome_forwarding(
-    relay, relay_with_processing, outcomes_consumer, num_intermediate_relays,
+    relay, relay_with_processing, outcomes_consumer, num_intermediate_relays, event_type
 ):
     """
     Tests that Relay forwards outcomes from a chain of relays
@@ -288,7 +291,7 @@ def test_outcome_forwarding(
 
     downstream_relay = relay(upstream, config_downstream)
 
-    event_id = _send_event(downstream_relay)
+    event_id = _send_event(downstream_relay, event_type=event_type)
 
     outcome = outcomes_consumer.get_outcome()
 
@@ -299,7 +302,7 @@ def test_outcome_forwarding(
         "reason": "project_id",
         "event_id": event_id,
         "remote_addr": "127.0.0.1",
-        "category": "error",
+        "category": event_type,
     }
     outcome.pop("timestamp")
 
