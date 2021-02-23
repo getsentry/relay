@@ -189,6 +189,22 @@ def outcomes_consumer(kafka_consumer):
     )
 
 
+def category_value(category):
+    if category == "default":
+        return 0
+    if category == "error":
+        return 1
+    if category == "transaction":
+        return 2
+    if category == "security":
+        return 3
+    if category == "attachment":
+        return 4
+    if category == "session":
+        return 5
+    assert False, "invalid category"
+
+
 class OutcomesConsumer(ConsumerBase):
     def get_outcome(self):
         outcome = self.poll()
@@ -203,9 +219,10 @@ class OutcomesConsumer(ConsumerBase):
         if key_id is not None:
             assert outcome["key_id"] == key_id
         if category is not None:
-            assert outcome["category"] == category, outcome["category"]
+            value = category_value(category)
+            assert outcome["category"] == value, outcome["category"]
         else:
-            assert outcome["category"] is not None
+            assert isinstance(outcome["category"], int)
 
     def assert_dropped_internal(self):
         outcome = self.get_outcome()
