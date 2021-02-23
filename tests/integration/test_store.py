@@ -537,7 +537,9 @@ def test_processing_quotas(
     relay.send_event(project_id, transform({"message": "some_message"}), dsn_key_idx=0)
 
     if outcomes_consumer is not None:
-        outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
+        outcomes_consumer.assert_rate_limited(
+            "get_lost", key_id=key_id, category=category
+        )
     else:
         # since we don't wait for the outcome, wait a little for the event to go through
         sleep(0.1)
@@ -555,7 +557,9 @@ def test_processing_quotas(
         assert int(retry_after2) == int(retry_after)
         assert rest == "%s:key:get_lost" % category
         if outcomes_consumer is not None:
-            outcomes_consumer.assert_rate_limited("get_lost", key_id=key_id)
+            outcomes_consumer.assert_rate_limited(
+                "get_lost", key_id=key_id, category=category
+            )
 
     for i in range(10):
         # now send using the second key

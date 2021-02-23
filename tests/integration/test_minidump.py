@@ -464,11 +464,11 @@ def test_minidump_ratelimit(
 
     # First minidump returns 200 but is rate limited in processing
     relay.send_minidump(project_id=project_id, files=attachments)
-    outcomes_consumer.assert_rate_limited("static_disabled_quota")
+    outcomes_consumer.assert_rate_limited("static_disabled_quota", category="error")
 
     # Minidumps never return rate limits
     relay.send_minidump(project_id=project_id, files=attachments)
-    outcomes_consumer.assert_rate_limited("static_disabled_quota")
+    outcomes_consumer.assert_rate_limited("static_disabled_quota", category="error")
 
 
 def test_crashpad_annotations(mini_sentry, relay_with_processing, attachments_consumer):
