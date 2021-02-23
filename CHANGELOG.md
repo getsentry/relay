@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Fix a problem with Data Scrubbing source names (PII selectors) that caused `$frame.abs_path` to match, but not `$frame.abs_path || **` or `$frame.abs_path && **`. ([#932](https://github.com/getsentry/relay/pull/932))
+- Make username pii-strippable. ([#935](https://github.com/getsentry/relay/pull/935))
 
 ## 21.2.0
 
