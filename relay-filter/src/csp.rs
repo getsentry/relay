@@ -7,15 +7,19 @@ use relay_general::protocol::{Event, EventType};
 use crate::{CspFilterConfig, FilterStatKey};
 
 /// Checks if the event is a CSP Event from one of the configured disallowed sources
-pub fn is_csp_disallowed(event: &Event, disallowed_sources: &[String]) -> bool {
-    if disallowed_sources.is_empty() || event.ty.value() != Some(&EventType::Csp) {
+pub fn matches<It, S>(event: &Event, disallowed_sources: It) -> bool
+where
+    It: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    if event.ty.value() != Some(&EventType::Csp) {
         return false;
     }
 
     // parse the sources for easy processing
     let disallowed_sources: Vec<SchemeDomainPort> = disallowed_sources
-        .iter()
-        .map(|origin| -> SchemeDomainPort { origin.as_str().into() })
+        .into_iter()
+        .map(|origin| -> SchemeDomainPort { origin.as_ref().into() })
         .collect();
 
     if let Some(csp) = event.csp.value() {
@@ -31,7 +35,7 @@ pub fn is_csp_disallowed(event: &Event, disallowed_sources: &[String]) -> bool {
 
 /// Filters CSP events based on disallowed sources.
 pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), FilterStatKey> {
-    if is_csp_disallowed(event, &config.disallowed_sources) {
+    if matches(event, &config.disallowed_sources) {
         Err(FilterStatKey::InvalidCsp)
     } else {
         Ok(())
@@ -45,8 +49,11 @@ pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), Filt
 /// or None (matches anything in the respective position)
 #[derive(Hash, PartialEq, Eq)]
 pub struct SchemeDomainPort {
+    /// the scheme of the url
     pub scheme: Option<String>,
+    /// the domain of the url
     pub domain: Option<String>,
+    /// the port of the url
     pub port: Option<String>,
 }
 

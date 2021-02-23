@@ -10,7 +10,7 @@ use relay_general::user_agent::{self, UserAgent};
 use crate::{FilterStatKey, LegacyBrowser, LegacyBrowsersFilterConfig};
 
 /// Checks if the event originates from one of the specified legacy browsers
-pub fn is_legacy_browser(event: &Event, browsers: &BTreeSet<LegacyBrowser>) -> bool {
+pub fn matches(event: &Event, browsers: &BTreeSet<LegacyBrowser>) -> bool {
     if let Some(user_agent_string) = user_agent::get_user_agent(event) {
         let user_agent = user_agent::parse_user_agent(user_agent_string);
 
@@ -66,7 +66,7 @@ pub fn should_filter(
     }
 
     let browsers = &config.browsers;
-    if is_legacy_browser(event, browsers) {
+    if matches(event, browsers) {
         Err(FilterStatKey::LegacyBrowsers)
     } else {
         Ok(())

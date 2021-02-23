@@ -10,7 +10,7 @@ use relay_general::protocol::Event;
 use crate::{ErrorMessagesFilterConfig, FilterStatKey, GlobPatterns};
 
 /// Filters events by patterns in their error messages.
-pub fn contains_known_error_messages(event: &Event, patterns: &GlobPatterns) -> bool {
+pub fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
     if let Some(logentry) = event.logentry.value() {
         if let Some(message) = logentry.formatted.value() {
             if patterns.is_match(message.as_ref()) {
@@ -49,7 +49,7 @@ pub fn should_filter(
     event: &Event,
     config: &ErrorMessagesFilterConfig,
 ) -> Result<(), FilterStatKey> {
-    if contains_known_error_messages(event, &config.patterns) {
+    if matches(event, &config.patterns) {
         Err(FilterStatKey::ErrorMessage)
     } else {
         Ok(())

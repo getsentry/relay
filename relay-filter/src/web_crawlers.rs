@@ -8,16 +8,23 @@ use relay_general::user_agent;
 
 use crate::{FilterConfig, FilterStatKey};
 
+/// Checks if event contains a user agent from a web crawler
+pub fn matches(event: &Event) -> bool {
+    if let Some(user_agent) = user_agent::get_user_agent(event) {
+        WEB_CRAWLERS.is_match(user_agent)
+    } else {
+        false
+    }
+}
+
 /// Filters events originating from a known web crawler.
 pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterStatKey> {
     if !config.is_enabled {
         return Ok(());
     }
 
-    if let Some(user_agent) = user_agent::get_user_agent(event) {
-        if WEB_CRAWLERS.is_match(user_agent) {
-            return Err(FilterStatKey::WebCrawlers);
-        }
+    if matches(event) {
+        return Err(FilterStatKey::WebCrawlers);
     }
 
     Ok(())

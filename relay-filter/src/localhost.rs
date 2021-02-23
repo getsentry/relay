@@ -9,7 +9,7 @@ const LOCAL_IPS: &[&str] = &["127.0.0.1", "::1"];
 const LOCAL_DOMAINS: &[&str] = &["127.0.0.1", "localhost"];
 
 /// check if the event originates from the local host.
-pub fn is_local_host(event: &Event) -> bool {
+pub fn matches(event: &Event) -> bool {
     if let Some(ip_addr) = get_ip_addr(event) {
         for &local_ip in LOCAL_IPS {
             if local_ip == ip_addr {
@@ -36,7 +36,7 @@ pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterS
     if !config.is_enabled {
         return Ok(());
     }
-    if is_local_host(event) {
+    if matches(event) {
         return Err(FilterStatKey::Localhost);
     }
     Ok(())

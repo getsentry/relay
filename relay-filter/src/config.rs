@@ -47,14 +47,9 @@ pub enum LegacyBrowser {
     Unknown(String),
 }
 
-impl<'de> Deserialize<'de> for LegacyBrowser {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::de::Deserializer<'de>,
-    {
-        let string = Cow::<str>::deserialize(deserializer)?;
-
-        Ok(match string.as_ref() {
+impl From<&str> for LegacyBrowser {
+    fn from(val: &str) -> Self {
+        match val {
             "default" => LegacyBrowser::Default,
             "ie_pre_9" => LegacyBrowser::IePre9,
             "ie9" => LegacyBrowser::Ie9,
@@ -64,8 +59,18 @@ impl<'de> Deserialize<'de> for LegacyBrowser {
             "opera_mini_pre_8" => LegacyBrowser::OperaMiniPre8,
             "android_pre_4" => LegacyBrowser::AndroidPre4,
             "safari_pre_6" => LegacyBrowser::SafariPre6,
-            _ => LegacyBrowser::Unknown(string.into_owned()),
-        })
+            _ => LegacyBrowser::Unknown(val.to_owned()),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for LegacyBrowser {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        let string = Cow::<str>::deserialize(deserializer)?;
+        Ok(string.as_ref().into())
     }
 }
 

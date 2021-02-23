@@ -12,16 +12,17 @@ use std::net::IpAddr;
 
 use relay_general::protocol::Event;
 
-mod browser_extensions;
-mod client_ips;
+pub mod browser_extensions;
+pub mod client_ips;
+pub mod csp;
+pub mod error_messages;
+pub mod legacy_browsers;
+pub mod localhost;
+pub mod web_crawlers;
+
 mod common;
 mod config;
-mod csp;
-mod error_messages;
-mod legacy_browsers;
-mod localhost;
 mod releases;
-mod web_crawlers;
 
 #[cfg(test)]
 mod testutils;
@@ -29,12 +30,6 @@ mod testutils;
 pub use crate::common::*;
 pub use crate::config::*;
 pub use crate::csp::matches_any_origin;
-pub use browser_extensions::has_bad_browser_extensions;
-pub use client_ips::is_blacklisted;
-pub use csp::is_csp_disallowed;
-pub use error_messages::contains_known_error_messages;
-pub use legacy_browsers::is_legacy_browser;
-pub use localhost::is_local_host;
 
 /// Checks whether an event should be filtered for a particular configuration.
 ///
