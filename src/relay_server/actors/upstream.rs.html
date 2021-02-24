@@ -1298,40 +1298,6 @@
 <span id="1295">1295</span>
 <span id="1296">1296</span>
 <span id="1297">1297</span>
-<span id="1298">1298</span>
-<span id="1299">1299</span>
-<span id="1300">1300</span>
-<span id="1301">1301</span>
-<span id="1302">1302</span>
-<span id="1303">1303</span>
-<span id="1304">1304</span>
-<span id="1305">1305</span>
-<span id="1306">1306</span>
-<span id="1307">1307</span>
-<span id="1308">1308</span>
-<span id="1309">1309</span>
-<span id="1310">1310</span>
-<span id="1311">1311</span>
-<span id="1312">1312</span>
-<span id="1313">1313</span>
-<span id="1314">1314</span>
-<span id="1315">1315</span>
-<span id="1316">1316</span>
-<span id="1317">1317</span>
-<span id="1318">1318</span>
-<span id="1319">1319</span>
-<span id="1320">1320</span>
-<span id="1321">1321</span>
-<span id="1322">1322</span>
-<span id="1323">1323</span>
-<span id="1324">1324</span>
-<span id="1325">1325</span>
-<span id="1326">1326</span>
-<span id="1327">1327</span>
-<span id="1328">1328</span>
-<span id="1329">1329</span>
-<span id="1330">1330</span>
-<span id="1331">1331</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -1361,7 +1327,6 @@
 
 <span class="kw">use</span> ::<span class="ident">actix</span>::<span class="ident">fut</span>;
 <span class="kw">use</span> ::<span class="ident">actix</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">client</span>::{<span class="ident">ClientRequest</span>, <span class="ident">SendRequestError</span>};
 <span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">http</span>::{<span class="ident">header</span>, <span class="ident">Method</span>, <span class="ident">StatusCode</span>};
 <span class="kw">use</span> <span class="ident">failure</span>::<span class="ident">Fail</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">future</span>, <span class="ident">prelude</span>::<span class="kw-2">*</span>, <span class="ident">sync</span>::<span class="ident">oneshot</span>};
@@ -1371,7 +1336,7 @@
 
 <span class="kw">use</span> <span class="ident">relay_auth</span>::{<span class="ident">RegisterChallenge</span>, <span class="ident">RegisterRequest</span>, <span class="ident">RegisterResponse</span>, <span class="ident">Registration</span>};
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">tryf</span>, <span class="ident">RetryBackoff</span>};
-<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">HttpClient</span>, <span class="ident">RelayMode</span>};
+<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
 <span class="kw">use</span> <span class="ident">relay_log</span>::<span class="ident">LogError</span>;
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{
     <span class="ident">DataCategories</span>, <span class="ident">QuotaScope</span>, <span class="ident">RateLimit</span>, <span class="ident">RateLimitScope</span>, <span class="ident">RateLimits</span>, <span class="ident">RetryAfter</span>, <span class="ident">Scoping</span>,
@@ -1382,12 +1347,8 @@
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">utils</span>::{<span class="self">self</span>, <span class="ident">ApiErrorResponse</span>, <span class="ident">IntoTracked</span>, <span class="ident">RelayErrorAction</span>, <span class="ident">TrackedFutureFinished</span>};
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Fail</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">UpstreamSendRequestError</span> {
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not send request using reqwest&quot;</span>)]</span>
-    <span class="ident">Reqwest</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">reqwest</span>::<span class="ident">Error</span>),
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not send request using actix-web client&quot;</span>)]</span>
-    <span class="ident">Actix</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">SendRequestError</span>),
-}
+<span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not send request using reqwest&quot;</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">UpstreamSendRequestError</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">reqwest</span>::<span class="ident">Error</span>);
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Fail</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">UpstreamRequestError</span> {
@@ -1665,7 +1626,10 @@
     <span class="ident">high_prio_requests</span>: <span class="ident">VecDeque</span><span class="op">&lt;</span><span class="ident">UpstreamRequest</span><span class="op">&gt;</span>,
     <span class="ident">low_prio_requests</span>: <span class="ident">VecDeque</span><span class="op">&lt;</span><span class="ident">UpstreamRequest</span><span class="op">&gt;</span>,
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-    <span class="ident">reqwest_client</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">tokio</span>::<span class="ident">runtime</span>::<span class="ident">Runtime</span>, <span class="ident">reqwest</span>::<span class="ident">Client</span>)<span class="op">&gt;</span>,
+    <span class="ident">reqwest_client</span>: <span class="ident">reqwest</span>::<span class="ident">Client</span>,
+    <span class="doccomment">/// &quot;reqwest runtime&quot; as this tokio runtime is currently only spawned such that reqwest can</span>
+    <span class="doccomment">/// run.</span>
+    <span class="ident">reqwest_runtime</span>: <span class="ident">tokio</span>::<span class="ident">runtime</span>::<span class="ident">Runtime</span>,
 }
 
 <span class="doccomment">/// Handles a response returned from the upstream.</span>
@@ -1729,23 +1693,25 @@
 <span class="kw">impl</span> <span class="ident">UpstreamRelay</span> {
     <span class="doccomment">/// Creates a new `UpstreamRelay` instance.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="ident">reqwest_client</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">http_client</span>() {
-            <span class="ident">HttpClient</span>::<span class="ident">Actix</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-            <span class="ident">HttpClient</span>::<span class="ident">Reqwest</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>((
-                <span class="ident">tokio</span>::<span class="ident">runtime</span>::<span class="ident">Builder</span>::<span class="ident">new_multi_thread</span>()
-                    .<span class="ident">worker_threads</span>(<span class="number">1</span>)
-                    .<span class="ident">enable_all</span>()
-                    .<span class="ident">build</span>()
-                    .<span class="ident">unwrap</span>(),
-                <span class="ident">reqwest</span>::<span class="ident">ClientBuilder</span>::<span class="ident">new</span>()
-                    .<span class="ident">connect_timeout</span>(<span class="ident">config</span>.<span class="ident">http_connection_timeout</span>())
-                    .<span class="ident">timeout</span>(<span class="ident">config</span>.<span class="ident">http_timeout</span>())
-                    .<span class="ident">gzip</span>(<span class="bool-val">true</span>)
-                    .<span class="ident">trust_dns</span>(<span class="bool-val">true</span>)
-                    .<span class="ident">build</span>()
-                    .<span class="ident">unwrap</span>(),
-            )),
-        };
+        <span class="kw">let</span> <span class="ident">reqwest_runtime</span> <span class="op">=</span> <span class="ident">tokio</span>::<span class="ident">runtime</span>::<span class="ident">Builder</span>::<span class="ident">new_multi_thread</span>()
+            .<span class="ident">worker_threads</span>(<span class="number">1</span>)
+            .<span class="ident">enable_all</span>()
+            .<span class="ident">build</span>()
+            .<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="ident">reqwest_client</span> <span class="op">=</span> <span class="ident">reqwest</span>::<span class="ident">ClientBuilder</span>::<span class="ident">new</span>()
+            .<span class="ident">connect_timeout</span>(<span class="ident">config</span>.<span class="ident">http_connection_timeout</span>())
+            .<span class="ident">timeout</span>(<span class="ident">config</span>.<span class="ident">http_timeout</span>())
+            <span class="comment">// In actix-web client this option could be set on a per-request basis.  In reqwest</span>
+            <span class="comment">// this option can only be set per-client. For non-forwarded upstream requests that is</span>
+            <span class="comment">// desirable, so we have it enabled.</span>
+            <span class="comment">//</span>
+            <span class="comment">// In the forward endpoint, this means that content negotiation is done twice, and the</span>
+            <span class="comment">// response body is first decompressed by reqwest, then re-compressed by actix-web.</span>
+            .<span class="ident">gzip</span>(<span class="bool-val">true</span>)
+            .<span class="ident">trust_dns</span>(<span class="bool-val">true</span>)
+            .<span class="ident">build</span>()
+            .<span class="ident">unwrap</span>();
 
         <span class="ident">UpstreamRelay</span> {
             <span class="ident">auth_backoff</span>: <span class="ident">RetryBackoff</span>::<span class="ident">new</span>(<span class="ident">config</span>.<span class="ident">http_max_retry_interval</span>()),
@@ -1757,6 +1723,8 @@
             <span class="ident">low_prio_requests</span>: <span class="ident">VecDeque</span>::<span class="ident">new</span>(),
             <span class="ident">first_error</span>: <span class="prelude-val">None</span>,
             <span class="ident">config</span>,
+            <span class="ident">reqwest_runtime</span>,
+
             <span class="ident">reqwest_client</span>,
         }
     }
@@ -1873,21 +1841,9 @@
             .<span class="ident">http_host_header</span>()
             .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">upstream_descriptor</span>().<span class="ident">host</span>());
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">builder</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">reqwest_client</span> {
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">builder</span> <span class="op">=</span> <span class="ident">ClientRequest</span>::<span class="ident">build</span>();
-                <span class="ident">builder</span>.<span class="ident">method</span>(<span class="ident">request</span>.<span class="ident">method</span>.<span class="ident">clone</span>()).<span class="ident">uri</span>(<span class="ident">uri</span>);
-
-                <span class="ident">RequestBuilder</span>::<span class="ident">actix</span>(<span class="ident">builder</span>)
-            }
-            <span class="prelude-val">Some</span>((<span class="kw-2">ref</span> <span class="ident">_runtime</span>, <span class="kw-2">ref</span> <span class="ident">client</span>)) <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="kw">let</span> <span class="ident">method</span> <span class="op">=</span>
-                    <span class="ident">reqwest</span>::<span class="ident">Method</span>::<span class="ident">from_bytes</span>(<span class="ident">request</span>.<span class="ident">method</span>.<span class="ident">as_ref</span>().<span class="ident">as_bytes</span>()).<span class="ident">unwrap</span>();
-                <span class="kw">let</span> <span class="ident">builder</span> <span class="op">=</span> <span class="ident">client</span>.<span class="ident">request</span>(<span class="ident">method</span>, <span class="ident">uri</span>);
-
-                <span class="ident">RequestBuilder</span>::<span class="ident">reqwest</span>(<span class="ident">builder</span>)
-            }
-        };
+        <span class="kw">let</span> <span class="ident">method</span> <span class="op">=</span> <span class="ident">reqwest</span>::<span class="ident">Method</span>::<span class="ident">from_bytes</span>(<span class="ident">request</span>.<span class="ident">method</span>.<span class="ident">as_ref</span>().<span class="ident">as_bytes</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">builder</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reqwest_client</span>.<span class="ident">request</span>(<span class="ident">method</span>, <span class="ident">uri</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">builder</span> <span class="op">=</span> <span class="ident">RequestBuilder</span>::<span class="ident">reqwest</span>(<span class="ident">builder</span>);
 
         <span class="ident">builder</span>.<span class="ident">header</span>(<span class="string">&quot;Host&quot;</span>, <span class="ident">host_header</span>.<span class="ident">as_bytes</span>());
 
@@ -1913,46 +1869,22 @@
 
         <span class="ident">request</span>.<span class="ident">send_start</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Instant</span>::<span class="ident">now</span>());
 
-        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">client_request</span> {
-            <span class="ident">Request</span>::<span class="ident">Actix</span>(<span class="ident">client_request</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">client_request</span>
-                    .<span class="ident">send</span>()
-                    .<span class="ident">wait_timeout</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">event_buffer_expiry</span>())
-                    .<span class="ident">conn_timeout</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">http_connection_timeout</span>())
-                    <span class="comment">// This is the timeout after wait + connect.</span>
-                    .<span class="ident">timeout</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">http_timeout</span>())
-                    .<span class="ident">map_err</span>(<span class="ident">UpstreamSendRequestError</span>::<span class="ident">Actix</span>)
-                    .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">SendFailed</span>)
-                    .<span class="ident">map</span>(<span class="ident">Response</span>::<span class="ident">Actix</span>);
+        <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reqwest_client</span>.<span class="ident">clone</span>();
 
-                <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">future</span>) <span class="kw">as</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="kw">_</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>
-            }
-            <span class="ident">Request</span>::<span class="ident">Reqwest</span>(<span class="ident">client_request</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="kw">let</span> (<span class="ident">runtime</span>, <span class="ident">client</span>) <span class="op">=</span> <span class="self">self</span>
-                    .<span class="ident">reqwest_client</span>
-                    .<span class="ident">as_ref</span>()
-                    .<span class="ident">expect</span>(<span class="string">&quot;Constructed request request without having a client.&quot;</span>);
+        <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">oneshot</span>::<span class="ident">channel</span>();
+        <span class="self">self</span>.<span class="ident">reqwest_runtime</span>.<span class="ident">spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
+            <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">client</span>
+                .<span class="ident">execute</span>(<span class="ident">client_request</span>.<span class="number">0</span>)
+                .<span class="kw">await</span>
+                .<span class="ident">map_err</span>(<span class="ident">UpstreamSendRequestError</span>)
+                .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">SendFailed</span>);
+            <span class="ident">tx</span>.<span class="ident">send</span>(<span class="ident">res</span>)
+        });
 
-                <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">client</span>.<span class="ident">clone</span>();
-
-                <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">oneshot</span>::<span class="ident">channel</span>();
-                <span class="ident">runtime</span>.<span class="ident">spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
-                    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">client</span>
-                        .<span class="ident">execute</span>(<span class="ident">client_request</span>)
-                        .<span class="kw">await</span>
-                        .<span class="ident">map_err</span>(<span class="ident">UpstreamSendRequestError</span>::<span class="ident">Reqwest</span>)
-                        .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">SendFailed</span>);
-                    <span class="ident">tx</span>.<span class="ident">send</span>(<span class="ident">res</span>)
-                });
-
-                <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">rx</span>
-                    .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">UpstreamRequestError</span>::<span class="ident">ChannelClosed</span>)
-                    .<span class="ident">flatten</span>()
-                    .<span class="ident">map</span>(<span class="ident">Response</span>::<span class="ident">Reqwest</span>);
-
-                <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">future</span>) <span class="kw">as</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="kw">_</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>
-            }
-        };
+        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">rx</span>
+            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">UpstreamRequestError</span>::<span class="ident">ChannelClosed</span>)
+            .<span class="ident">flatten</span>()
+            .<span class="ident">map</span>(<span class="ident">Response</span>);
 
         <span class="kw">let</span> <span class="ident">max_response_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_api_payload_size</span>();
 

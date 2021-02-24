@@ -1429,28 +1429,6 @@
 <span id="1426">1426</span>
 <span id="1427">1427</span>
 <span id="1428">1428</span>
-<span id="1429">1429</span>
-<span id="1430">1430</span>
-<span id="1431">1431</span>
-<span id="1432">1432</span>
-<span id="1433">1433</span>
-<span id="1434">1434</span>
-<span id="1435">1435</span>
-<span id="1436">1436</span>
-<span id="1437">1437</span>
-<span id="1438">1438</span>
-<span id="1439">1439</span>
-<span id="1440">1440</span>
-<span id="1441">1441</span>
-<span id="1442">1442</span>
-<span id="1443">1443</span>
-<span id="1444">1444</span>
-<span id="1445">1445</span>
-<span id="1446">1446</span>
-<span id="1447">1447</span>
-<span id="1448">1448</span>
-<span id="1449">1449</span>
-<span id="1450">1450</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">env</span>;
@@ -1942,17 +1920,6 @@
     <span class="ident">Br</span>,
 }
 
-<span class="doccomment">/// (unstable) Http client to use for upstream store requests.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;snake_case&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">HttpClient</span> {
-    <span class="doccomment">/// Use actix http client, the default.</span>
-    <span class="ident">Actix</span>,
-    <span class="doccomment">/// Use reqwest. Necessary for HTTP proxy support (standard envvars are picked up</span>
-    <span class="doccomment">/// automatically)</span>
-    <span class="ident">Reqwest</span>,
-}
-
 <span class="doccomment">/// Controls authentication with upstream.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
@@ -2001,11 +1968,6 @@
     <span class="doccomment">///  - `gzip` (default): Compression using gzip.</span>
     <span class="doccomment">///  - `br`: Compression using the brotli algorithm.</span>
     <span class="ident">encoding</span>: <span class="ident">HttpEncoding</span>,
-    <span class="doccomment">/// (unstable) Which HTTP client to use. Can be &quot;actix&quot; or &quot;reqwest&quot;, with &quot;actix&quot; being the</span>
-    <span class="doccomment">/// default. Switching to &quot;reqwest&quot; is required to get experimental HTTP proxy support.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Note that this option will be removed in the future once &quot;reqwest&quot; is the default.</span>
-    <span class="ident">_client</span>: <span class="ident">HttpClient</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Http</span> {
@@ -2018,7 +1980,6 @@
             <span class="ident">auth_interval</span>: <span class="prelude-val">Some</span>(<span class="number">600</span>), <span class="comment">// 10 minutes</span>
             <span class="ident">outage_grace_period</span>: <span class="ident">DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD</span>,
             <span class="ident">encoding</span>: <span class="ident">HttpEncoding</span>::<span class="ident">Gzip</span>,
-            <span class="ident">_client</span>: <span class="ident">HttpClient</span>::<span class="ident">Actix</span>,
         }
     }
 }
@@ -2591,11 +2552,6 @@
     <span class="doccomment">/// Content encoding of upstream requests.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">HttpEncoding</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">http</span>.<span class="ident">encoding</span>
-    }
-
-    <span class="doccomment">/// (unstable) HTTP client to use for upstream requests.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_client</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">HttpClient</span> {
-        <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">http</span>.<span class="ident">_client</span>
     }
 
     <span class="doccomment">/// Returns whether this Relay should emit outcomes.</span>
