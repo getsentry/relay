@@ -46,7 +46,7 @@ fn store_envelope(
     meta: RequestMeta,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
-    common::handle_store_like_request(meta, true, request, extract_envelope, create_response, true)
+    common::handle_store_like_request(meta, request, extract_envelope, create_response, true)
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {

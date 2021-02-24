@@ -189,6 +189,22 @@ def outcomes_consumer(kafka_consumer):
     )
 
 
+def category_value(category):
+    if category == "default":
+        return 0
+    if category == "error":
+        return 1
+    if category == "transaction":
+        return 2
+    if category == "security":
+        return 3
+    if category == "attachment":
+        return 4
+    if category == "session":
+        return 5
+    assert False, "invalid category"
+
+
 class OutcomesConsumer(ConsumerBase):
     def get_outcome(self):
         outcome = self.poll()
@@ -196,12 +212,17 @@ class OutcomesConsumer(ConsumerBase):
         assert outcome.error() is None
         return json.loads(outcome.value())
 
-    def assert_rate_limited(self, reason, key_id=None):
+    def assert_rate_limited(self, reason, key_id=None, category=None):
         outcome = self.get_outcome()
         assert outcome["outcome"] == 2, outcome
         assert outcome["reason"] == reason
         if key_id is not None:
             assert outcome["key_id"] == key_id
+        if category is not None:
+            value = category_value(category)
+            assert outcome["category"] == value, outcome["category"]
+        else:
+            assert isinstance(outcome["category"], int)
 
     def assert_dropped_internal(self):
         outcome = self.get_outcome()

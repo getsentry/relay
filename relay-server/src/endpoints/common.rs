@@ -42,6 +42,9 @@ pub enum BadStoreRequest {
     #[fail(display = "empty request body")]
     EmptyBody,
 
+    #[fail(display = "empty envelope")]
+    EmptyEnvelope,
+
     #[fail(display = "invalid JSON data")]
     InvalidJson(#[cause] serde_json::Error),
 
@@ -94,6 +97,7 @@ impl BadStoreRequest {
             }
 
             BadStoreRequest::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
+            BadStoreRequest::EmptyEnvelope => Outcome::Invalid(DiscardReason::EmptyEnvelope),
             BadStoreRequest::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
             BadStoreRequest::InvalidMsgpack(_) => Outcome::Invalid(DiscardReason::InvalidMsgpack),
             BadStoreRequest::InvalidMultipart(_) => {
@@ -373,7 +377,6 @@ fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool {
 /// it will try to create a store_body from the request.
 pub fn handle_store_like_request<F, R, I>(
     meta: RequestMeta,
-    is_event: bool,
     request: HttpRequest<ServiceState>,
     extract_envelope: F,
     create_response: R,
@@ -407,18 +410,27 @@ where
 
     let scoping = Rc::new(RefCell::new(meta.get_partial_scoping()));
     let event_id = Rc::new(RefCell::new(None));
+    let event_category = Rc::new(RefCell::new(None));
     let config = request.state().config();
     let processing_enabled = config.processing_enabled();
 
     let future = project_manager
         .send(GetProject { public_key })
         .map_err(BadStoreRequest::ScheduleFailed)
-        .and_then(clone!(event_id, scoping, |project| {
+        .and_then(clone!(event_id, event_category, scoping, |project| {
             extract_envelope(&request, meta)
                 .into_future()
-                .and_then(clone!(project, event_id, |envelope| {
+                .and_then(clone!(event_id, event_category, |envelope| {
                     event_id.replace(envelope.event_id());
+                    event_category.replace(envelope.get_event_category());
 
+                    if envelope.is_empty() {
+                        Err(BadStoreRequest::EmptyEnvelope)
+                    } else {
+                        Ok(envelope)
+                    }
+                }))
+                .and_then(clone!(project, |envelope| {
                     project
                         .send(CheckEnvelope::cached(envelope))
                         .map_err(BadStoreRequest::ScheduleFailed)
@@ -518,7 +530,7 @@ where
         .or_else(move |error: BadStoreRequest| {
             metric!(counter(RelayCounters::EnvelopeRejected) += 1);
 
-            if is_event {
+            if let Some(category) = *event_category.borrow() {
                 if let Some(outcome) = error.to_outcome() {
                     outcome_producer.do_send(TrackOutcome {
                         timestamp: start_time,
@@ -526,6 +538,7 @@ where
                         outcome,
                         event_id: *event_id.borrow(),
                         remote_addr,
+                        category,
                     });
                 }
             }

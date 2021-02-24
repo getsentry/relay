@@ -86,22 +86,7 @@ def test_attachments_with_processing(
         "project_id": project_id,
     }
 
-    # We want to check that no outcome has been created for the attachment
-    # upload.
-    #
-    # Send an unrelated event in, and assert that it is the first item we can
-    # poll from outcomes for. While not 100% correct due to partitioning, it's
-    # way faster than waiting n seconds to see if nothing else is in outcomes.
-    #
-    # We need to send in an invalid event because successful ones do not
-    # produce outcomes (not in Relay)
-    with pytest.raises(HTTPError):
-        relay.send_event(project_id, b"bogus")
-
-    outcome = outcomes_consumer.get_outcome()
-    assert outcome.get("event_id", None) is None, outcome
-    assert outcome["outcome"] == 3
-    assert outcome["reason"] == "payload"
+    outcomes_consumer.assert_empty()
 
 
 def test_empty_attachments_with_processing(

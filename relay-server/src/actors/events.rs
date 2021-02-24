@@ -1453,14 +1453,10 @@ impl Handler<HandleEnvelope> for EventManager {
             start_time,
             sampling_project,
         } = message;
+        let event_category = envelope.get_event_category();
 
         let event_id = envelope.event_id();
         let remote_addr = envelope.meta().client_addr();
-
-        // Compute whether this envelope contains an event. This is used in error handling to
-        // appropriately emit an outcome. Envelopes not containing events (such as standalone
-        // attachment uploads or user reports) should never create outcomes.
-        let is_event = envelope.items().any(Item::creates_event);
 
         let scoping = Rc::new(RefCell::new(envelope.meta().get_partial_scoping()));
         let is_received = Rc::new(AtomicBool::from(false));
@@ -1649,11 +1645,12 @@ impl Handler<HandleEnvelope> for EventManager {
                     }
                 }
 
-                // Do not track outcomes or capture events for non-event envelopes (such as
-                // individual attachments)
-                if !is_event {
-                    return;
-                }
+                // Envelopes not containing events (such as standalone attachment uploads or user
+                // reports) should never create outcomes.
+                let category = match event_category {
+                    Some(event_category) => event_category,
+                    None => return,
+                };
 
                 let outcome = error.to_outcome();
                 if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome {
@@ -1679,6 +1676,7 @@ impl Handler<HandleEnvelope> for EventManager {
                         outcome,
                         event_id,
                         remote_addr,
+                        category,
                     })
                 }
             })

@@ -41,7 +41,7 @@ impl Processor for GenerateSelectorsProcessor {
         }
 
         let mut insert_path = |path: SelectorSpec| {
-            if state.attrs().pii != Pii::Maybe || path.is_specific() {
+            if state.path().matches_selector(&path) {
                 let mut string_value = None;
                 if let Some(value) = value {
                     if let Value::String(s) = value.clone().to_value() {
