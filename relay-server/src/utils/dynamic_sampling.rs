@@ -678,6 +678,14 @@ mod tests {
         })
     }
 
+    fn eq_bool(name: &str, value: bool) -> RuleCondition {
+        RuleCondition::Eq(EqCondition {
+            name: name.to_owned(),
+            value: Value::Bool(value),
+            options: EqCondOptions::default(),
+        })
+    }
+
     fn glob(name: &str, value: &[&str]) -> RuleCondition {
         RuleCondition::Glob(GlobCondition {
             name: name.to_owned(),
@@ -811,18 +819,30 @@ mod tests {
                 "environment",
                 or(vec![eq("event.environment", &["prod"], true)]),
             ),
-            // TODO addapt to custom
-            // ("local ip", has("event.is_local_ip")),
-            // (
-            //     "bad browser extensions",
-            //     has("event.has_bad_browser_extensions"),
-            // ),
-            // (
-            //     "legacy browsers",
-            //     legacy_browser(vec![LegacyBrowser::Ie10, LegacyBrowser::SafariPre6]),
-            // ),
-            // ("client_ip", client_ip(&["127.0.0.1"])),
-            // ("error messages", error_messages(&["abc"])),
+            ("local ip", eq_bool("event.is_local_ip", true)),
+            (
+                "bad browser extensions",
+                eq_bool("event.has_bad_browser_extensions", true),
+            ),
+            (
+                "error messages",
+                custom(
+                    "event.error_messages",
+                    Value::Array(vec![Value::String("abc".to_string())]),
+                    HashMap::new(),
+                ),
+            ),
+            (
+                "legacy browsers",
+                custom(
+                    "event.legacy_browser",
+                    Value::Array(vec![
+                        Value::String("ie10".to_string()),
+                        Value::String("safari_pre_6".to_string()),
+                    ]),
+                    HashMap::new(),
+                ),
+            ),
         ];
 
         let evt = Event {
@@ -861,6 +881,24 @@ mod tests {
             let ip_addr = Some(NetIpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
             assert!(condition.matches_event(&evt, ip_addr), failure_name);
         }
+    }
+
+    #[test]
+    /// test matching web crawlers
+    fn test_matches_web_crawlers() {
+        let condition = eq_bool("event.web_crawlers", true);
+
+        let evt = Event {
+            request: Annotated::new(Request {
+                headers: Annotated::new(Headers(PairList(vec![Annotated::new((
+                    Annotated::new("user-agent".into()),
+                    Annotated::new("some crawler user agent: BingBot".into()),
+                ))]))),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(condition.matches_event(&evt, None));
     }
 
     #[test]
