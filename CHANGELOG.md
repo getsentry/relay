@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Relay now picks up HTTP proxies from environment variables. This is made possible by switching to a different HTTP client library. The undocumented `http._client` option has been removed. ([#938](https://github.com/getsentry/relay/pull/938))
+
 **Bug Fixes**:
 
 - Fix a problem with Data Scrubbing source names (PII selectors) that caused `$frame.abs_path` to match, but not `$frame.abs_path || **` or `$frame.abs_path && **`. ([#932](https://github.com/getsentry/relay/pull/932))
