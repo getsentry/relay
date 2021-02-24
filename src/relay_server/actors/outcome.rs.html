@@ -622,6 +622,10 @@
 <span id="619">619</span>
 <span id="620">620</span>
 <span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module contains the actor that tracks event outcomes.</span>
 <span class="doccomment">//!</span>
@@ -786,6 +790,9 @@
     <span class="doccomment">/// [Relay] The store request was missing an event payload.</span>
     <span class="ident">NoData</span>,
 
+    <span class="doccomment">/// [Relay] The envelope contains no items.</span>
+    <span class="ident">EmptyEnvelope</span>,
+
     <span class="doccomment">/// [Relay] The event payload exceeds the maximum size limit for the respective endpoint.</span>
     <span class="ident">TooLarge</span>,
 
@@ -899,6 +906,7 @@
             <span class="ident">DiscardReason</span>::<span class="ident">Internal</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;internal&quot;</span>,
             <span class="ident">DiscardReason</span>::<span class="ident">TransactionSampled</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;transaction_sampled&quot;</span>,
             <span class="ident">DiscardReason</span>::<span class="ident">EventSampled</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_sampled&quot;</span>,
+            <span class="ident">DiscardReason</span>::<span class="ident">EmptyEnvelope</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;empty_envelope&quot;</span>,
         }
     }
 }
@@ -933,7 +941,7 @@
     <span class="ident">source</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="doccomment">/// The event&#39;s data category.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">category</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DataCategory</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">category</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TrackRawOutcome</span> {
@@ -968,7 +976,7 @@
             <span class="ident">event_id</span>: <span class="ident">msg</span>.<span class="ident">event_id</span>,
             <span class="ident">remote_addr</span>: <span class="ident">msg</span>.<span class="ident">remote_addr</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">addr</span><span class="op">|</span> <span class="ident">addr</span>.<span class="ident">to_string</span>()),
             <span class="ident">source</span>,
-            <span class="ident">category</span>: <span class="prelude-val">Some</span>(<span class="ident">msg</span>.<span class="ident">category</span>),
+            <span class="ident">category</span>: <span class="ident">msg</span>.<span class="ident">category</span>.<span class="ident">value</span>(),
         }
     }
 }
