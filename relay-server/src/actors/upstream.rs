@@ -401,6 +401,12 @@ impl UpstreamRelay {
         let reqwest_client = reqwest::ClientBuilder::new()
             .connect_timeout(config.http_connection_timeout())
             .timeout(config.http_timeout())
+            // In actix-web client this option could be set on a per-request basis.  In reqwest
+            // this option can only be set per-client. For non-forwarded upstream requests that is
+            // desirable, so we have it enabled.
+            //
+            // In the forward endpoint, this means that content negotiation is done twice, and the
+            // response body is first decompressed by reqwest, then re-compressed by actix-web.
             .gzip(true)
             .trust_dns(true)
             .build()
@@ -534,12 +540,9 @@ impl UpstreamRelay {
             .http_host_header()
             .unwrap_or_else(|| self.config.upstream_descriptor().host());
 
-        let mut builder = {
-            let method = reqwest::Method::from_bytes(request.method.as_ref().as_bytes()).unwrap();
-            let builder = self.reqwest_client.request(method, uri);
-
-            RequestBuilder::reqwest(builder)
-        };
+        let method = reqwest::Method::from_bytes(request.method.as_ref().as_bytes()).unwrap();
+        let builder = self.reqwest_client.request(method, uri);
+        let mut builder = RequestBuilder::reqwest(builder);
 
         builder.header("Host", host_header.as_bytes());
 
@@ -565,26 +568,22 @@ impl UpstreamRelay {
 
         request.send_start = Some(Instant::now());
 
-        let future = {
-            let client = self.reqwest_client.clone();
+        let client = self.reqwest_client.clone();
 
-            let (tx, rx) = oneshot::channel();
-            self.reqwest_runtime.spawn(async move {
-                let res = client
-                    .execute(client_request.0)
-                    .await
-                    .map_err(UpstreamSendRequestError)
-                    .map_err(UpstreamRequestError::SendFailed);
-                tx.send(res)
-            });
+        let (tx, rx) = oneshot::channel();
+        self.reqwest_runtime.spawn(async move {
+            let res = client
+                .execute(client_request.0)
+                .await
+                .map_err(UpstreamSendRequestError)
+                .map_err(UpstreamRequestError::SendFailed);
+            tx.send(res)
+        });
 
-            let future = rx
-                .map_err(|_| UpstreamRequestError::ChannelClosed)
-                .flatten()
-                .map(Response);
-
-            Box::new(future) as Box<dyn Future<Item = _, Error = _>>
-        };
+        let future = rx
+            .map_err(|_| UpstreamRequestError::ChannelClosed)
+            .flatten()
+            .map(Response);
 
         let max_response_size = self.config.max_api_payload_size();
 

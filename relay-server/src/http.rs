@@ -178,7 +178,7 @@ impl Response {
             serde_json::from_slice(&bytes)
                 .map_err(|e| HttpError::ActixJson(JsonPayloadError::Deserialize(e)))
         });
-        Box::new(future) as Box<dyn Future<Item = _, Error = _>>
+        Box::new(future)
     }
 
     pub fn consume(mut self) -> ResponseFuture<Self, HttpError> {
@@ -241,6 +241,6 @@ impl Response {
                 )
                 .boxed_local()
                 .compat(),
-        ) as Box<dyn Future<Item = _, Error = _>>
+        )
     }
 }

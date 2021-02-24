@@ -195,6 +195,13 @@ pub fn forward_upstream(
                 forwarded_response.header(&key, &*value);
             }
 
+            // For reqwest the option to disable automatic response decompression can only be
+            // set per-client. For non-forwarded upstream requests that is desirable, so we
+            // keep it enabled.
+            //
+            // Essentially this means that content negotiation is done twice, and the response
+            // body is first decompressed by reqwest, then re-compressed by actix-web.
+
             Ok(if has_content_type {
                 forwarded_response.body(body)
             } else {
