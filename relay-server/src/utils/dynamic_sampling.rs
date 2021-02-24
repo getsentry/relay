@@ -329,7 +329,7 @@ impl FieldValueProvider for Event {
     ) -> fn(condition: &CustomCondition, slf: &Self, ip_addr: Option<IpAddr>) -> bool {
         match name {
             "event.client_ip" => client_ips_matcher,
-            "event.legacy_browser" => legacy_browser_matcher,
+            "event.legacy_browser" => legacy_browsers_matcher,
             "event.error_messages" => error_messages_matcher,
             "event.csp" => csp_matcher,
             _ => no_match,
@@ -354,7 +354,7 @@ fn client_ips_matcher(
     }
 }
 
-fn legacy_browser_matcher(
+fn legacy_browsers_matcher(
     condition: &CustomCondition,
     event: &Event,
     _ip_addr: Option<IpAddr>,
