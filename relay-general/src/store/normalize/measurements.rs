@@ -169,3 +169,61 @@ pub fn normalize_measurements(event: &mut Event, operation_name_breakdown: &Opti
         );
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{Annotated, Object};
+
+    #[test]
+    fn test_skip_no_measurements() {
+        let mut event = Event::default();
+        normalize_measurements(&mut event, &None);
+        assert_eq!(event.measurements.value(), None);
+    }
+
+    #[test]
+    fn test_remove_measurements_for_non_transaction_events() {
+        let measurements = Annotated::new(Measurements({
+            let mut measurements = Object::new();
+            measurements.insert(
+                "lcp".to_owned(),
+                Annotated::new(Measurement {
+                    value: Annotated::new(420.69),
+                }),
+            );
+
+            measurements
+        }));
+
+        let mut event = Event {
+            measurements,
+            ..Default::default()
+        };
+        normalize_measurements(&mut event, &None);
+        assert_eq!(event.measurements.value(), None);
+    }
+
+    #[test]
+    fn test_noop_measurements_transaction_events() {
+        let measurements = Measurements({
+            let mut measurements = Object::new();
+            measurements.insert(
+                "lcp".to_owned(),
+                Annotated::new(Measurement {
+                    value: Annotated::new(420.69),
+                }),
+            );
+
+            measurements
+        });
+
+        let mut event = Event {
+            ty: EventType::Transaction.into(),
+            measurements: measurements.clone().into(),
+            ..Default::default()
+        };
+        normalize_measurements(&mut event, &None);
+        assert_eq!(event.measurements.into_value().unwrap(), measurements);
+    }
+}
