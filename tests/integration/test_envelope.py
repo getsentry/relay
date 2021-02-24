@@ -4,8 +4,8 @@ from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope
 
 
-def test_envelope(mini_sentry, relay):
-    relay = relay()
+def test_envelope(mini_sentry, relay_chain):
+    relay = relay_chain()
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
@@ -18,8 +18,8 @@ def test_envelope(mini_sentry, relay):
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
-def test_envelope_empty(mini_sentry, relay_chain):
-    relay = relay_chain()
+def test_envelope_empty(mini_sentry, relay):
+    relay = relay(mini_sentry)
     PROJECT_ID = 42
     mini_sentry.add_basic_project_config(PROJECT_ID)
 
