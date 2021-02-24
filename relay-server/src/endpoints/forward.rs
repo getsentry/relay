@@ -5,7 +5,7 @@
 
 use ::actix::prelude::*;
 use actix_web::error::ResponseError;
-use actix_web::http::{header, header::HeaderName, uri::PathAndQuery, ContentEncoding, StatusCode};
+use actix_web::http::{header, header::HeaderName, uri::PathAndQuery, StatusCode};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use failure::Fail;
 use futures::prelude::*;
@@ -155,17 +155,6 @@ pub fn forward_upstream(
                         builder.header(key, value);
                     }
 
-                    // actix-web specific workarounds. We don't remember why no_default_headers was
-                    // necessary, but we suspect that actix sends out headers twice instead of
-                    // having them be overridden (user-agent?)
-                    //
-                    // Need for disabling decompression is demonstrated by the
-                    // `test_forwarding_content_encoding` integration test.
-                    if let RequestBuilder::Actix(ref mut builder) = builder {
-                        builder.no_default_headers();
-                        builder.disable_decompress();
-                    }
-
                     builder.header("X-Forwarded-For", forwarded_for.as_ref());
 
                     builder
@@ -175,10 +164,9 @@ pub fn forward_upstream(
                 .transform(move |response: Response| {
                     let status = response.status();
                     let headers = response.clone_headers();
-                    let is_actix = matches!(response, Response::Actix(_));
                     response
                         .bytes(max_response_size)
-                        .and_then(move |body| Ok((is_actix, status, headers, body)))
+                        .and_then(move |body| Ok((status, headers, body)))
                         .map_err(UpstreamRequestError::Http)
                 });
 
@@ -189,28 +177,8 @@ pub fn forward_upstream(
             })
         })
         .and_then(move |result: Result<_, UpstreamRequestError>| {
-            let (is_actix, status, headers, body) =
-                result.map_err(ForwardedUpstreamRequestError::from)?;
+            let (status, headers, body) = result.map_err(ForwardedUpstreamRequestError::from)?;
             let mut forwarded_response = HttpResponse::build(status);
-
-            if is_actix {
-                // For actix-web we called ClientRequestBuilder::disable_decompress(), therefore
-                // the response body is already compressed and the headers contain the correct
-                // content-encoding
-                //
-                // The content negotiation has effectively happened between *our* upstream and
-                // *our* client, with us just forwarding raw bytes.
-                //
-                // Set content-encoding to identity such that actix-web will not to compress again
-                forwarded_response.content_encoding(ContentEncoding::Identity);
-            } else {
-                // For reqwest the option to disable automatic response decompression can only be
-                // set per-client. For non-forwarded upstream requests that is desirable, so we
-                // keep it enabled.
-                //
-                // Essentially this means that content negotiation is done twice, and the response
-                // body is first decompressed by reqwest, then re-compressed by actix-web.
-            }
 
             let mut has_content_type = false;
 
@@ -226,6 +194,13 @@ pub fn forward_upstream(
 
                 forwarded_response.header(&key, &*value);
             }
+
+            // For reqwest the option to disable automatic response decompression can only be
+            // set per-client. For non-forwarded upstream requests that is desirable, so we
+            // keep it enabled.
+            //
+            // Essentially this means that content negotiation is done twice, and the response
+            // body is first decompressed by reqwest, then re-compressed by actix-web.
 
             Ok(if has_content_type {
                 forwarded_response.body(body)
