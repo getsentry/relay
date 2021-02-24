@@ -11,10 +11,9 @@
 use std::io;
 use std::io::Write;
 
-use actix_web::client::{ClientRequest, ClientRequestBuilder, ClientResponse};
 use actix_web::error::{JsonPayloadError, PayloadError};
-use actix_web::http::{ContentEncoding, StatusCode};
-use actix_web::{Binary, Error as ActixError, HttpMessage};
+use actix_web::http::StatusCode;
+use actix_web::{Binary, Error as ActixError};
 use brotli2::write::BrotliEncoder;
 use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
@@ -87,25 +86,19 @@ impl From<PayloadError> for HttpError {
     }
 }
 
-pub enum Request {
-    Actix(ClientRequest),
-    Reqwest(reqwest::Request),
-}
+pub struct Request(pub reqwest::Request);
 
-pub enum RequestBuilder {
-    Actix(ClientRequestBuilder),
-    Reqwest {
-        builder: reqwest::RequestBuilder,
+pub struct RequestBuilder {
+    builder: reqwest::RequestBuilder,
 
-        /// The content encoding that this builder object implements on top of reqwest, which does
-        /// not support request encoding at all.
-        http_encoding: HttpEncoding,
-    },
+    /// The content encoding that this builder object implements on top of reqwest, which does
+    /// not support request encoding at all.
+    http_encoding: HttpEncoding,
 }
 
 impl RequestBuilder {
     pub fn reqwest(builder: reqwest::RequestBuilder) -> Self {
-        RequestBuilder::Reqwest {
+        RequestBuilder {
             builder,
 
             // very few endpoints can actually deal with request body content-encoding. Outside of
@@ -115,35 +108,19 @@ impl RequestBuilder {
         }
     }
 
-    pub fn actix(builder: ClientRequestBuilder) -> Self {
-        RequestBuilder::Actix(builder)
-    }
-
     pub fn finish(self) -> Result<Request, HttpError> {
-        match self {
-            RequestBuilder::Actix(mut builder) => Ok(Request::Actix(builder.finish()?)),
-            RequestBuilder::Reqwest {
-                builder,
-                http_encoding: _,
-            } => Ok(Request::Reqwest(builder.build()?)),
-        }
+        Ok(Request(self.builder.build()?))
     }
 
     /// Add a new header, not replacing existing ones.
     pub fn header(&mut self, key: impl AsRef<str>, value: impl AsRef<[u8]>) -> &mut Self {
-        match self {
-            RequestBuilder::Actix(builder) => {
-                builder.header(key.as_ref(), value.as_ref());
-            }
-            RequestBuilder::Reqwest { builder, .. } => {
-                take_mut::take(builder, |b| b.header(key.as_ref(), value.as_ref()))
-            }
-        }
-
+        take_mut::take(&mut self.builder, |b| {
+            b.header(key.as_ref(), value.as_ref())
+        });
         self
     }
 
-    pub fn body(self, body: Binary) -> Result<Request, HttpError> {
+    pub fn body(mut self, body: Binary) -> Result<Request, HttpError> {
         // actix-web's Binary is used as argument here because the type can be constructed from
         // almost anything and then the actix-web codepath is minimally affected.
         //
@@ -152,206 +129,118 @@ impl RequestBuilder {
         // version split between actix-web's Bytes dependency and reqwest's Bytes dependency. A
         // real zero-copy abstraction over both would force us to downgrade reqwest to a version
         // that uses Bytes 0.4.
-        match self {
-            RequestBuilder::Actix(mut builder) => Ok(Request::Actix(builder.body(body)?)),
-            RequestBuilder::Reqwest {
-                builder,
-                http_encoding,
-            } => {
-                let builder = match http_encoding {
-                    HttpEncoding::Identity => builder.body(body.as_ref().to_vec()),
-                    HttpEncoding::Deflate => {
-                        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-                        encoder.write_all(body.as_ref())?;
-                        builder
-                            .header("Content-Encoding", "deflate")
-                            .body(encoder.finish()?)
-                    }
-                    HttpEncoding::Gzip => {
-                        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-                        encoder.write_all(body.as_ref())?;
-                        builder
-                            .header("Content-Encoding", "gzip")
-                            .body(encoder.finish()?)
-                    }
-                    HttpEncoding::Br => {
-                        let mut encoder = BrotliEncoder::new(Vec::new(), 5);
-                        encoder.write_all(body.as_ref())?;
-                        builder
-                            .header("Content-Encoding", "br")
-                            .body(encoder.finish()?)
-                    }
-                };
-
-                RequestBuilder::Reqwest {
-                    builder,
-                    http_encoding,
-                }
-                .finish()
+        self.builder = match self.http_encoding {
+            HttpEncoding::Identity => self.builder.body(body.as_ref().to_vec()),
+            HttpEncoding::Deflate => {
+                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+                encoder.write_all(body.as_ref())?;
+                self.builder
+                    .header("Content-Encoding", "deflate")
+                    .body(encoder.finish()?)
             }
-        }
+            HttpEncoding::Gzip => {
+                let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+                encoder.write_all(body.as_ref())?;
+                self.builder
+                    .header("Content-Encoding", "gzip")
+                    .body(encoder.finish()?)
+            }
+            HttpEncoding::Br => {
+                let mut encoder = BrotliEncoder::new(Vec::new(), 5);
+                encoder.write_all(body.as_ref())?;
+                self.builder
+                    .header("Content-Encoding", "br")
+                    .body(encoder.finish()?)
+            }
+        };
+
+        self.finish()
     }
 
     pub fn content_encoding(&mut self, encoding: HttpEncoding) -> &mut Self {
-        match self {
-            RequestBuilder::Actix(builder) => {
-                let content_encoding = match encoding {
-                    HttpEncoding::Identity => ContentEncoding::Identity,
-                    HttpEncoding::Deflate => ContentEncoding::Deflate,
-                    HttpEncoding::Gzip => ContentEncoding::Gzip,
-                    HttpEncoding::Br => ContentEncoding::Br,
-                };
-
-                builder.content_encoding(content_encoding);
-            }
-            RequestBuilder::Reqwest {
-                ref mut http_encoding,
-                ..
-            } => {
-                *http_encoding = encoding;
-            }
-        }
-
+        self.http_encoding = encoding;
         self
     }
 }
 
-#[allow(clippy::large_enum_variant)]
-pub enum Response {
-    Actix(ClientResponse),
-    Reqwest(reqwest::Response),
-}
+pub struct Response(pub reqwest::Response);
 
 impl Response {
     pub fn status(&self) -> StatusCode {
-        match self {
-            Response::Actix(response) => response.status(),
-            Response::Reqwest(response) => {
-                StatusCode::from_u16(response.status().as_u16()).unwrap()
-            }
-        }
+        StatusCode::from_u16(self.0.status().as_u16()).unwrap()
     }
 
     pub fn json<T: 'static + DeserializeOwned>(
         self,
         limit: usize,
     ) -> Box<dyn Future<Item = T, Error = HttpError>> {
-        match self {
-            Response::Actix(response) => {
-                let future = response.json().limit(limit).map_err(HttpError::ActixJson);
-                Box::new(future) as Box<dyn Future<Item = _, Error = _>>
-            }
-            slf @ Response::Reqwest(_) => {
-                let future = slf.bytes(limit).and_then(|bytes| {
-                    serde_json::from_slice(&bytes)
-                        .map_err(|e| HttpError::ActixJson(JsonPayloadError::Deserialize(e)))
-                });
-                Box::new(future) as Box<dyn Future<Item = _, Error = _>>
-            }
-        }
+        let future = self.bytes(limit).and_then(|bytes| {
+            serde_json::from_slice(&bytes)
+                .map_err(|e| HttpError::ActixJson(JsonPayloadError::Deserialize(e)))
+        });
+        Box::new(future) as Box<dyn Future<Item = _, Error = _>>
     }
 
     pub fn consume(mut self) -> ResponseFuture<Self, HttpError> {
-        // consume response bodies to allow connection keep-alive
-        match self {
-            Response::Actix(ref response) => Box::new(
-                response
-                    .payload()
-                    .for_each(|_| Ok(()))
-                    .map(|_| self)
-                    .map_err(HttpError::ActixPayload),
-            ),
-            Response::Reqwest(_) => {
-                // Consume the request payload such that the underlying connection returns to a
-                // "clean state".
-                //
-                // We do not understand if this is strictly necessary for reqwest. It was ported
-                // from actix-web where it was clearly necessary to un-break keepalive connections,
-                // but no testcase has been written for this and we are unsure on how to reproduce
-                // outside of prod. I (markus) have not found code in reqwest that would explicitly
-                // deal with this.
-                Box::new(
-                    // Note: The reqwest codepath is impossible to write with streams due to
-                    // borrowing issues. You *have* to use `chunk()`.
-                    async move {
-                        if let Response::Reqwest(ref mut response) = self {
-                            while response.chunk().await?.is_some() {}
-                        }
-                        Ok(self)
-                    }
-                    .boxed_local()
-                    .compat(),
-                )
+        // Consume the request payload such that the underlying connection returns to a
+        // "clean state".
+        //
+        // We do not understand if this is strictly necessary for reqwest. It was ported
+        // from actix-web where it was clearly necessary to un-break keepalive connections,
+        // but no testcase has been written for this and we are unsure on how to reproduce
+        // outside of prod. I (markus) have not found code in reqwest that would explicitly
+        // deal with this.
+        Box::new(
+            // Note: The reqwest codepath is impossible to write with streams due to
+            // borrowing issues. You *have* to use `chunk()`.
+            async move {
+                while self.0.chunk().await?.is_some() {}
+                Ok(self)
             }
-        }
+            .boxed_local()
+            .compat(),
+        )
     }
 
     pub fn get_header(&self, key: impl AsRef<str>) -> Option<&[u8]> {
-        match self {
-            Response::Actix(response) => Some(response.headers().get(key.as_ref())?.as_bytes()),
-            Response::Reqwest(response) => Some(response.headers().get(key.as_ref())?.as_bytes()),
-        }
+        Some(self.0.headers().get(key.as_ref())?.as_bytes())
     }
 
     pub fn get_all_headers(&self, key: impl AsRef<str>) -> Vec<&[u8]> {
-        match self {
-            Response::Actix(response) => response
-                .headers()
-                .get_all(key.as_ref())
-                .into_iter()
-                .map(|value| value.as_bytes())
-                .collect(),
-            Response::Reqwest(response) => response
-                .headers()
-                .get_all(key.as_ref())
-                .into_iter()
-                .map(|value| value.as_bytes())
-                .collect(),
-        }
+        self.0
+            .headers()
+            .get_all(key.as_ref())
+            .into_iter()
+            .map(|value| value.as_bytes())
+            .collect()
     }
 
     pub fn clone_headers(&self) -> Vec<(String, Vec<u8>)> {
-        match self {
-            Response::Actix(response) => response
-                .headers()
-                .iter()
-                .map(|(k, v)| (k.as_str().to_owned(), v.as_bytes().to_owned()))
-                .collect(),
-            Response::Reqwest(response) => response
-                .headers()
-                .iter()
-                .map(|(k, v)| (k.as_str().to_owned(), v.as_bytes().to_owned()))
-                .collect(),
-        }
+        self.0
+            .headers()
+            .iter()
+            .map(|(k, v)| (k.as_str().to_owned(), v.as_bytes().to_owned()))
+            .collect()
     }
 
     pub fn bytes(self, limit: usize) -> ResponseFuture<Vec<u8>, HttpError> {
-        match self {
-            Response::Actix(response) => Box::new(
-                response
-                    .body()
-                    .limit(limit)
-                    .map(|body| body.to_vec())
-                    .map_err(HttpError::ActixPayload),
-            ) as Box<dyn Future<Item = _, Error = _>>,
-            Response::Reqwest(response) => Box::new(
-                response
-                    .bytes_stream()
-                    .map_err(HttpError::Reqwest)
-                    .try_fold(
-                        Vec::with_capacity(8192),
-                        move |mut body, chunk| async move {
-                            if (body.len() + chunk.len()) > limit {
-                                Err(HttpError::Overflow)
-                            } else {
-                                body.extend_from_slice(&chunk);
-                                Ok(body)
-                            }
-                        },
-                    )
-                    .boxed_local()
-                    .compat(),
-            ) as Box<dyn Future<Item = _, Error = _>>,
-        }
+        Box::new(
+            self.0
+                .bytes_stream()
+                .map_err(HttpError::Reqwest)
+                .try_fold(
+                    Vec::with_capacity(8192),
+                    move |mut body, chunk| async move {
+                        if (body.len() + chunk.len()) > limit {
+                            Err(HttpError::Overflow)
+                        } else {
+                            body.extend_from_slice(&chunk);
+                            Ok(body)
+                        }
+                    },
+                )
+                .boxed_local()
+                .compat(),
+        ) as Box<dyn Future<Item = _, Error = _>>
     }
 }

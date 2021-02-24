@@ -26,7 +26,6 @@ use std::time::Instant;
 
 use ::actix::fut;
 use ::actix::prelude::*;
-use actix_web::client::{ClientRequest, SendRequestError};
 use actix_web::http::{header, Method, StatusCode};
 use failure::Fail;
 use futures::{future, prelude::*, sync::oneshot};
@@ -36,7 +35,7 @@ use serde::ser::Serialize;
 
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 use relay_common::{metric, tryf, RetryBackoff};
-use relay_config::{Config, HttpClient, RelayMode};
+use relay_config::{Config, RelayMode};
 use relay_log::LogError;
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
@@ -47,12 +46,8 @@ use crate::metrics::{RelayHistograms, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, IntoTracked, RelayErrorAction, TrackedFutureFinished};
 
 #[derive(Fail, Debug)]
-pub enum UpstreamSendRequestError {
-    #[fail(display = "could not send request using reqwest")]
-    Reqwest(#[cause] reqwest::Error),
-    #[fail(display = "could not send request using actix-web client")]
-    Actix(#[cause] SendRequestError),
-}
+#[fail(display = "could not send request using reqwest")]
+pub struct UpstreamSendRequestError(#[cause] reqwest::Error);
 
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
@@ -330,7 +325,10 @@ pub struct UpstreamRelay {
     high_prio_requests: VecDeque<UpstreamRequest>,
     low_prio_requests: VecDeque<UpstreamRequest>,
     config: Arc<Config>,
-    reqwest_client: Option<(tokio::runtime::Runtime, reqwest::Client)>,
+    reqwest_client: reqwest::Client,
+    /// "reqwest runtime" as this tokio runtime is currently only spawned such that reqwest can
+    /// run.
+    reqwest_runtime: tokio::runtime::Runtime,
 }
 
 /// Handles a response returned from the upstream.
@@ -394,23 +392,19 @@ fn handle_response(
 impl UpstreamRelay {
     /// Creates a new `UpstreamRelay` instance.
     pub fn new(config: Arc<Config>) -> Self {
-        let reqwest_client = match config.http_client() {
-            HttpClient::Actix => None,
-            HttpClient::Reqwest => Some((
-                tokio::runtime::Builder::new_multi_thread()
-                    .worker_threads(1)
-                    .enable_all()
-                    .build()
-                    .unwrap(),
-                reqwest::ClientBuilder::new()
-                    .connect_timeout(config.http_connection_timeout())
-                    .timeout(config.http_timeout())
-                    .gzip(true)
-                    .trust_dns(true)
-                    .build()
-                    .unwrap(),
-            )),
-        };
+        let reqwest_runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let reqwest_client = reqwest::ClientBuilder::new()
+            .connect_timeout(config.http_connection_timeout())
+            .timeout(config.http_timeout())
+            .gzip(true)
+            .trust_dns(true)
+            .build()
+            .unwrap();
 
         UpstreamRelay {
             auth_backoff: RetryBackoff::new(config.http_max_retry_interval()),
@@ -422,6 +416,8 @@ impl UpstreamRelay {
             low_prio_requests: VecDeque::new(),
             first_error: None,
             config,
+            reqwest_runtime,
+
             reqwest_client,
         }
     }
@@ -538,20 +534,11 @@ impl UpstreamRelay {
             .http_host_header()
             .unwrap_or_else(|| self.config.upstream_descriptor().host());
 
-        let mut builder = match self.reqwest_client {
-            None => {
-                let mut builder = ClientRequest::build();
-                builder.method(request.method.clone()).uri(uri);
+        let mut builder = {
+            let method = reqwest::Method::from_bytes(request.method.as_ref().as_bytes()).unwrap();
+            let builder = self.reqwest_client.request(method, uri);
 
-                RequestBuilder::actix(builder)
-            }
-            Some((ref _runtime, ref client)) => {
-                let method =
-                    reqwest::Method::from_bytes(request.method.as_ref().as_bytes()).unwrap();
-                let builder = client.request(method, uri);
-
-                RequestBuilder::reqwest(builder)
-            }
+            RequestBuilder::reqwest(builder)
         };
 
         builder.header("Host", host_header.as_bytes());
@@ -578,45 +565,25 @@ impl UpstreamRelay {
 
         request.send_start = Some(Instant::now());
 
-        let future = match client_request {
-            Request::Actix(client_request) => {
-                let future = client_request
-                    .send()
-                    .wait_timeout(self.config.event_buffer_expiry())
-                    .conn_timeout(self.config.http_connection_timeout())
-                    // This is the timeout after wait + connect.
-                    .timeout(self.config.http_timeout())
-                    .map_err(UpstreamSendRequestError::Actix)
-                    .map_err(UpstreamRequestError::SendFailed)
-                    .map(Response::Actix);
+        let future = {
+            let client = self.reqwest_client.clone();
 
-                Box::new(future) as Box<dyn Future<Item = _, Error = _>>
-            }
-            Request::Reqwest(client_request) => {
-                let (runtime, client) = self
-                    .reqwest_client
-                    .as_ref()
-                    .expect("Constructed request request without having a client.");
+            let (tx, rx) = oneshot::channel();
+            self.reqwest_runtime.spawn(async move {
+                let res = client
+                    .execute(client_request.0)
+                    .await
+                    .map_err(UpstreamSendRequestError)
+                    .map_err(UpstreamRequestError::SendFailed);
+                tx.send(res)
+            });
 
-                let client = client.clone();
+            let future = rx
+                .map_err(|_| UpstreamRequestError::ChannelClosed)
+                .flatten()
+                .map(Response);
 
-                let (tx, rx) = oneshot::channel();
-                runtime.spawn(async move {
-                    let res = client
-                        .execute(client_request)
-                        .await
-                        .map_err(UpstreamSendRequestError::Reqwest)
-                        .map_err(UpstreamRequestError::SendFailed);
-                    tx.send(res)
-                });
-
-                let future = rx
-                    .map_err(|_| UpstreamRequestError::ChannelClosed)
-                    .flatten()
-                    .map(Response::Reqwest);
-
-                Box::new(future) as Box<dyn Future<Item = _, Error = _>>
-            }
+            Box::new(future) as Box<dyn Future<Item = _, Error = _>>
         };
 
         let max_response_size = self.config.max_api_payload_size();
