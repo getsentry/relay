@@ -1,3 +1,9 @@
+//! Contains the measurements normalization code
+//!
+//! This module is responsible for ensuring the measurements interface is only present for transaction
+//! events, and generating operation breakdown measurements.
+//!
+
 use std::collections::HashMap;
 
 use crate::protocol::{Event, EventType, Measurement, Measurements, Timestamp};
