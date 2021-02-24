@@ -1,9 +1,7 @@
-import json
+import pytest
 
-from datetime import datetime
-
-from sentry_sdk.envelope import Envelope, PayloadRef, Item
-from sentry_sdk.utils import format_timestamp
+from requests.exceptions import HTTPError
+from sentry_sdk.envelope import Envelope
 
 
 def test_envelope(mini_sentry, relay_chain):
@@ -18,6 +16,19 @@ def test_envelope(mini_sentry, relay_chain):
     event = mini_sentry.captured_events.get(timeout=1).get_event()
 
     assert event["logentry"] == {"formatted": "Hello, World!"}
+
+
+def test_envelope_empty(mini_sentry, relay):
+    relay = relay(mini_sentry)
+    PROJECT_ID = 42
+    mini_sentry.add_basic_project_config(PROJECT_ID)
+
+    envelope = Envelope()
+
+    with pytest.raises(HTTPError) as excinfo:
+        relay.send_envelope(PROJECT_ID, envelope)
+
+    assert excinfo.value.response.status_code == 400
 
 
 def generate_transaction_item():

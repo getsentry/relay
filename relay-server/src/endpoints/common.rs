@@ -42,6 +42,9 @@ pub enum BadStoreRequest {
     #[fail(display = "empty request body")]
     EmptyBody,
 
+    #[fail(display = "empty envelope")]
+    EmptyEnvelope,
+
     #[fail(display = "invalid JSON data")]
     InvalidJson(#[cause] serde_json::Error),
 
@@ -94,6 +97,7 @@ impl BadStoreRequest {
             }
 
             BadStoreRequest::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
+            BadStoreRequest::EmptyEnvelope => Outcome::Invalid(DiscardReason::EmptyEnvelope),
             BadStoreRequest::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
             BadStoreRequest::InvalidMsgpack(_) => Outcome::Invalid(DiscardReason::InvalidMsgpack),
             BadStoreRequest::InvalidMultipart(_) => {
@@ -416,10 +420,17 @@ where
         .and_then(clone!(event_id, event_category, scoping, |project| {
             extract_envelope(&request, meta)
                 .into_future()
-                .and_then(clone!(project, event_id, event_category, |envelope| {
+                .and_then(clone!(event_id, event_category, |envelope| {
                     event_id.replace(envelope.event_id());
                     event_category.replace(envelope.get_event_category());
 
+                    if envelope.is_empty() {
+                        Err(BadStoreRequest::EmptyEnvelope)
+                    } else {
+                        Ok(envelope)
+                    }
+                }))
+                .and_then(clone!(project, |envelope| {
                     project
                         .send(CheckEnvelope::cached(envelope))
                         .map_err(BadStoreRequest::ScheduleFailed)
