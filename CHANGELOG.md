@@ -6,6 +6,7 @@
 
 - Fix a problem with Data Scrubbing source names (PII selectors) that caused `$frame.abs_path` to match, but not `$frame.abs_path || **` or `$frame.abs_path && **`. ([#932](https://github.com/getsentry/relay/pull/932))
 - Make username pii-strippable. ([#935](https://github.com/getsentry/relay/pull/935))
+- Respond with `400 Bad Request` and an error message `"empty envelope"` instead of `429` when envelopes without items are sent to the envelope endpoint. ([#937](https://github.com/getsentry/relay/pull/937))
 
 **Internal**:
 
