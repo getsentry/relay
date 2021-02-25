@@ -1,6 +1,8 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 //!
+use std::collections::HashMap;
 use std::convert::TryInto;
+use std::net::IpAddr;
 
 use actix::prelude::*;
 use futures::{future, prelude::*};
@@ -8,8 +10,6 @@ use rand::{distributions::Uniform, Rng};
 use rand_pcg::Pcg32;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
-use std::net::IpAddr;
 
 use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::{
