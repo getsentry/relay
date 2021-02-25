@@ -516,7 +516,7 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">parsed</span> <span class="op">=</span> <span class="ident">SessionUpdate</span>::<span class="ident">parse</span>(<span class="ident">json</span>.<span class="ident">as_bytes</span>()).<span class="ident">unwrap</span>();
 
         <span class="comment">// Sequence is defaulted to the current timestamp. Override for snapshot.</span>
-        <span class="macro">assert</span><span class="macro">!</span>((<span class="ident">parsed</span>.<span class="ident">sequence</span> <span class="op">-</span> <span class="ident">default_sequence</span>()) <span class="op">&lt;</span><span class="op">=</span> <span class="number">1</span>);
+        <span class="macro">assert</span><span class="macro">!</span>((<span class="ident">default_sequence</span>() <span class="op">-</span> <span class="ident">parsed</span>.<span class="ident">sequence</span>) <span class="op">&lt;</span><span class="op">=</span> <span class="number">1</span>);
         <span class="ident">parsed</span>.<span class="ident">sequence</span> <span class="op">=</span> <span class="number">4711</span>;
 
         <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">update</span>, <span class="ident">parsed</span>);
