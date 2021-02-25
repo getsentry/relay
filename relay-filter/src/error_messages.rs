@@ -9,7 +9,7 @@ use relay_general::protocol::Event;
 
 use crate::{ErrorMessagesFilterConfig, FilterStatKey, GlobPatterns};
 
-/// Filters events by patterns in their error messages.
+/// Checks events by patterns in their error messages.
 pub fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
     if let Some(logentry) = event.logentry.value() {
         if let Some(message) = logentry.formatted.value() {

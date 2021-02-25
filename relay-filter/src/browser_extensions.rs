@@ -8,7 +8,7 @@ use relay_general::protocol::{Event, Exception};
 use crate::{FilterConfig, FilterStatKey};
 
 /// Check if the event originates from known problematic browser extensions.
-pub fn mathces(event: &Event) -> bool {
+pub fn matches(event: &Event) -> bool {
     if let Some(ex_val) = get_exception_value(event) {
         if EXTENSION_EXC_VALUES.is_match(ex_val) {
             return true;
@@ -28,7 +28,7 @@ pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterS
         return Ok(());
     }
 
-    if mathces(event) {
+    if matches(event) {
         Err(FilterStatKey::BrowserExtensions)
     } else {
         Ok(())

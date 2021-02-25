@@ -10,7 +10,11 @@ use ipnetwork::IpNetwork;
 
 use crate::{ClientIpsFilterConfig, FilterStatKey};
 
-/// Checks if an ip address is in a list of blacklisted ip addresses
+/// Checks if the event is part of the blacklisted client IP ranges.
+///
+/// The client IP is the address of the originator of the event. If it was forwarded through
+/// multiple proxies, this address should be derived from the `X-Forwarded-For` header. Otherwise,
+/// it is the remote socket address.
 pub fn matches<It, S>(client_ip: Option<IpAddr>, blacklisted_ips: It) -> bool
 where
     It: IntoIterator<Item = S>,

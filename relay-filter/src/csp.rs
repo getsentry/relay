@@ -6,7 +6,7 @@ use relay_general::protocol::{Event, EventType};
 
 use crate::{CspFilterConfig, FilterStatKey};
 
-/// Checks if the event is a CSP Event from one of the configured disallowed sources
+/// Checks if the event is a CSP Event from one of the disallowed sources.
 pub fn matches<It, S>(event: &Event, disallowed_sources: It) -> bool
 where
     It: IntoIterator<Item = S>,
@@ -42,18 +42,18 @@ pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), Filt
     }
 }
 
-/// A pattern used to match allowed paths
+/// A pattern used to match allowed paths.
 ///
-/// scheme, domain and port are extracted from an url
+/// Scheme, domain and port are extracted from an url,
 /// they may be either a string (to be matched exactly, case insensitive)
-/// or None (matches anything in the respective position)
+/// or None (matches anything in the respective position).
 #[derive(Hash, PartialEq, Eq)]
 pub struct SchemeDomainPort {
-    /// the scheme of the url
+    /// The scheme of the url.
     pub scheme: Option<String>,
-    /// the domain of the url
+    /// The domain of the url.
     pub domain: Option<String>,
-    /// the port of the url
+    /// The port of the url.
     pub port: Option<String>,
 }
 

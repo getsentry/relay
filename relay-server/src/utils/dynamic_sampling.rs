@@ -311,7 +311,7 @@ impl FieldValueProvider for Event {
             },
             "event.user" => Value::Null, // Not available at this time
             "event.is_local_ip" => Value::Bool(localhost::matches(&self)),
-            "event.has_bad_browser_extensions" => Value::Bool(browser_extensions::mathces(&self)),
+            "event.has_bad_browser_extensions" => Value::Bool(browser_extensions::matches(&self)),
             "event.web_crawlers" => Value::Bool(web_crawlers::matches(&self)),
             _ => Value::Null,
         }

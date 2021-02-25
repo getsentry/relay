@@ -8,7 +8,7 @@ use crate::{FilterConfig, FilterStatKey};
 const LOCAL_IPS: &[&str] = &["127.0.0.1", "::1"];
 const LOCAL_DOMAINS: &[&str] = &["127.0.0.1", "localhost"];
 
-/// check if the event originates from the local host.
+/// Check if the event originates from the local host.
 pub fn matches(event: &Event) -> bool {
     if let Some(ip_addr) = get_ip_addr(event) {
         for &local_ip in LOCAL_IPS {
