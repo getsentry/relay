@@ -2,6 +2,8 @@
 
 use std::borrow::Cow;
 use std::collections::BTreeSet;
+use std::convert::Infallible;
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
@@ -47,9 +49,11 @@ pub enum LegacyBrowser {
     Unknown(String),
 }
 
-impl From<&str> for LegacyBrowser {
-    fn from(val: &str) -> Self {
-        match val {
+impl FromStr for LegacyBrowser {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let v = match s {
             "default" => LegacyBrowser::Default,
             "ie_pre_9" => LegacyBrowser::IePre9,
             "ie9" => LegacyBrowser::Ie9,
@@ -59,8 +63,9 @@ impl From<&str> for LegacyBrowser {
             "opera_mini_pre_8" => LegacyBrowser::OperaMiniPre8,
             "android_pre_4" => LegacyBrowser::AndroidPre4,
             "safari_pre_6" => LegacyBrowser::SafariPre6,
-            _ => LegacyBrowser::Unknown(val.to_owned()),
-        }
+            _ => LegacyBrowser::Unknown(s.to_owned()),
+        };
+        Ok(v)
     }
 }
 
@@ -69,8 +74,8 @@ impl<'de> Deserialize<'de> for LegacyBrowser {
     where
         D: serde::de::Deserializer<'de>,
     {
-        let string = Cow::<str>::deserialize(deserializer)?;
-        Ok(string.as_ref().into())
+        let s = Cow::<str>::deserialize(deserializer)?;
+        Ok(LegacyBrowser::from_str(s.as_ref()).unwrap())
     }
 }
 

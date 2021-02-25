@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::net::IpAddr;
+use std::str::FromStr;
 
 use actix::prelude::*;
 use futures::{future, prelude::*};
@@ -361,7 +362,7 @@ fn legacy_browsers_matcher(
 ) -> bool {
     let browsers = condition.value.as_array().map(|v| {
         v.iter()
-            .map(|s| LegacyBrowser::from(s.as_str().unwrap_or("")))
+            .map(|s| LegacyBrowser::from_str(s.as_str().unwrap_or("")).unwrap())
     });
     if let Some(browsers) = browsers {
         legacy_browsers::matches(event, &browsers.collect())
