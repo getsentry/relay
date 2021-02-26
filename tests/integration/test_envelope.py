@@ -194,7 +194,7 @@ def test_ops_breakdown_measurements(
                     "parent_span_id": "8f5a2b8768cafb4f",
                     "span_id": "bd429c44b67a3eb7",
                     "start_timestamp": 500.001,
-                    "timestamp": 600.002005,
+                    "timestamp": 600.002003,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                 },
                 {
@@ -221,8 +221,8 @@ def test_ops_breakdown_measurements(
     assert event["measurements"] == {
         "lcp": {"value": 202.1},
         "ops.time.http": {"value": 2000000.0},
-        "ops.time.resource": {"value": 100001.005001},
-        "ops.total.time": {"value": 2200001.005001},
+        "ops.time.resource": {"value": 100001.003},
+        "ops.total.time": {"value": 2200001.003},
     }
 
 
