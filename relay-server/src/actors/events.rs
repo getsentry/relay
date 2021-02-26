@@ -22,7 +22,7 @@ use relay_general::protocol::{
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
-use relay_quotas::RateLimits;
+use relay_quotas::{DataCategory, RateLimits};
 use relay_redis::RedisPool;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
@@ -45,7 +45,7 @@ use {
     failure::ResultExt,
     relay_filter::FilterStatKey,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    relay_quotas::{DataCategory, RateLimitingError, RedisRateLimiter},
+    relay_quotas::{RateLimitingError, RedisRateLimiter},
 };
 
 /// The minimum clock drift for correction to apply.
