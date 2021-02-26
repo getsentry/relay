@@ -106,6 +106,15 @@ pub fn normalize_measurements(event: &mut Event, operation_name_breakdown: &Opti
 
                         let operation_name = span.op.value().unwrap().clone();
 
+                        let results = operation_name_breakdown
+                            .iter()
+                            .find(|maybe| operation_name.starts_with(*maybe));
+
+                        let operation_name = match results {
+                            None => operation_name,
+                            Some(operation_name) => operation_name.clone(),
+                        };
+
                         intervals
                             .entry(operation_name)
                             .or_insert_with(Vec::new)
@@ -148,9 +157,10 @@ pub fn normalize_measurements(event: &mut Event, operation_name_breakdown: &Opti
                 .iter()
                 .find(|maybe| operation_name.starts_with(*maybe));
 
-            if results.is_none() {
-                continue;
-            }
+            let operation_name = match results {
+                None => continue,
+                Some(operation_name) => operation_name.clone(),
+            };
 
             let time_spent_measurement = Measurement {
                 value: Annotated::new(op_time_spent),
@@ -264,12 +274,12 @@ mod tests {
             make_span(
                 Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(2, 30, 0, 0).into()),
                 Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(3, 30, 0, 0).into()),
-                "db".to_string(),
+                "db.postgres".to_string(),
             ),
             make_span(
                 Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(4, 0, 0, 0).into()),
                 Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(4, 30, 0, 0).into()),
-                "db".to_string(),
+                "db.mongo".to_string(),
             ),
             make_span(
                 Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(5, 0, 0, 0).into()),
