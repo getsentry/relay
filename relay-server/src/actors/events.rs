@@ -1158,7 +1158,7 @@ impl EventProcessor {
             };
         }
 
-        selfprocess_sessions(&mut state);
+        self.process_sessions(&mut state);
         self.process_user_reports(&mut state);
 
         if state.creates_event() {
