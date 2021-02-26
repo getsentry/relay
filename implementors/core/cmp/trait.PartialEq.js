@@ -8,4 +8,5 @@ implementors["relay_general"] = [{"text":"impl PartialEq&lt;Pattern&gt; for Patt
 implementors["relay_log"] = [{"text":"impl PartialEq&lt;LogFormat&gt; for LogFormat","synthetic":false,"types":[]}];
 implementors["relay_quotas"] = [{"text":"impl PartialEq&lt;QuotaScope&gt; for QuotaScope","synthetic":false,"types":[]},{"text":"impl PartialEq&lt;ReasonCode&gt; for ReasonCode","synthetic":false,"types":[]},{"text":"impl PartialEq&lt;RetryAfter&gt; for RetryAfter","synthetic":false,"types":[]},{"text":"impl PartialEq&lt;RateLimitScope&gt; for RateLimitScope","synthetic":false,"types":[]},{"text":"impl PartialEq&lt;RateLimit&gt; for RateLimit","synthetic":false,"types":[]}];
 implementors["relay_redis"] = [{"text":"impl PartialEq&lt;RedisConfig&gt; for RedisConfig","synthetic":false,"types":[]}];
+implementors["relay_sampling"] = [{"text":"impl PartialEq&lt;RuleType&gt; for RuleType","synthetic":false,"types":[]}];
 if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

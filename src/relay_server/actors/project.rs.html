@@ -746,6 +746,7 @@
 <span id="743">743</span>
 <span id="744">744</span>
 <span id="745">745</span>
+<span id="746">746</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
@@ -764,13 +765,14 @@
 <span class="kw">use</span> <span class="ident">relay_filter</span>::{<span class="ident">matches_any_origin</span>, <span class="ident">FiltersConfig</span>};
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">pii</span>::{<span class="ident">DataScrubbingConfig</span>, <span class="ident">PiiConfig</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">Quota</span>, <span class="ident">RateLimits</span>, <span class="ident">Scoping</span>};
+<span class="kw">use</span> <span class="ident">relay_sampling</span>::<span class="ident">SamplingConfig</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">outcome</span>::<span class="ident">DiscardReason</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">project_cache</span>::{<span class="ident">FetchProjectState</span>, <span class="ident">ProjectCache</span>, <span class="ident">ProjectError</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">envelope</span>::<span class="ident">Envelope</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">extractors</span>::<span class="ident">RequestMeta</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">metrics</span>::<span class="ident">RelayCounters</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">utils</span>::{<span class="ident">ActorResponse</span>, <span class="ident">EnvelopeLimiter</span>, <span class="ident">Response</span>, <span class="ident">SamplingConfig</span>};
+<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">utils</span>::{<span class="ident">ActorResponse</span>, <span class="ident">EnvelopeLimiter</span>, <span class="ident">Response</span>};
 
 <span class="doccomment">/// The current status of a project state. Return value of `ProjectState::outdated`.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
