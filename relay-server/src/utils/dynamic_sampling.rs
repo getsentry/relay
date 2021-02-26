@@ -362,7 +362,7 @@ fn legacy_browsers_matcher(
 ) -> bool {
     let browsers = condition.value.as_array().map(|v| {
         v.iter()
-            .map(|s| LegacyBrowser::from_str(s.as_str().unwrap_or("")).unwrap())
+            .map(|s| s.as_str().unwrap_or("").parse().unwrap())
     });
     if let Some(browsers) = browsers {
         legacy_browsers::matches(event, &browsers.collect())
