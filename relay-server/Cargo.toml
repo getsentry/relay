@@ -73,5 +73,5 @@ uuid = { version = "0.8.1", features = ["v5"] }
 libc = "0.2.71"
 
 [dev-dependencies]
-insta = {version="0.16.0", features=["ron"]}
+insta = "1.1.0"
 relay-log = { path = "../relay-log", features = ["test"] }

@@ -153,14 +153,7 @@ fn test_remove_nested_other() {
     )
     .unwrap();
 
-    assert!(event
-        .value()
-        .unwrap()
-        .user
-        .value()
-        .unwrap()
-        .other
-        .is_empty());
+    assert!(get_value!(event.user!).other.is_empty());
 }
 
 #[test]
@@ -189,10 +182,7 @@ fn test_retain_context_other() {
     )
     .unwrap();
 
-    assert_eq_dbg!(
-        &event.value().unwrap().contexts.value().unwrap().0,
-        &contexts
-    );
+    assert_eq_dbg!(get_value!(event.contexts!).0, contexts);
 }
 
 #[test]
