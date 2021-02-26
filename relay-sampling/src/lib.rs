@@ -1,5 +1,5 @@
 //! Functionality for calculating if a trace should be processed or dropped.
-//!
+
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::net::IpAddr;
@@ -31,7 +31,7 @@ pub enum RuleType {
 
 /// A condition that checks the values using the equality operator.
 ///
-/// For string values it supports case-insensitive comparison.  
+/// For string values it supports case-insensitive comparison.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct EqCondOptions {

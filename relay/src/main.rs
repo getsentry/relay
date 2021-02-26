@@ -41,6 +41,7 @@
 //!  - [`relay-log`]: Error reporting and logging.
 //!  - [`relay-quotas`]: Sentry quotas and rate limiting.
 //!  - [`relay-redis`]: Pooled Redis and Redis cluster abstraction.
+//!  - [`relay-sampling`]: Dynamic sampling functionality.
 //!  - [`relay-server`]: Endpoints and services.
 //!
 //! # Tools
@@ -65,6 +66,7 @@
 //! [`relay-log`]: ../relay_log/index.html
 //! [`relay-quotas`]: ../relay_quotas/index.html
 //! [`relay-redis`]: ../relay_redis/index.html
+//! [`relay-sampling`]: ../relay_sampling/index.html
 //! [`relay-server`]: ../relay_server/index.html
 //! [`document-metrics`]: ../document_metrics/index.html
 //! [`generate-schema`]: ../generate_schema/index.html
