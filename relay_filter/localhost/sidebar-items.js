@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["matches","Check if the event originates from the local host."],["should_filter","Filters events originating from the local host."]]});

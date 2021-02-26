@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["matches","Check if the event originates from known problematic browser extensions."],["should_filter","Filters events originating from known problematic browser extensions."]]});

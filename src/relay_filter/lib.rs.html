@@ -56,6 +56,7 @@
 <span id="53">53</span>
 <span id="54">54</span>
 <span id="55">55</span>
+<span id="56">56</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Implements event filtering.</span>
 <span class="doccomment">//!</span>
@@ -71,16 +72,17 @@
 
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">protocol</span>::<span class="ident">Event</span>;
 
-<span class="kw">mod</span> <span class="ident">browser_extensions</span>;
-<span class="kw">mod</span> <span class="ident">client_ips</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">browser_extensions</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">client_ips</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">csp</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">error_messages</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">legacy_browsers</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">localhost</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">web_crawlers</span>;
+
 <span class="kw">mod</span> <span class="ident">common</span>;
 <span class="kw">mod</span> <span class="ident">config</span>;
-<span class="kw">mod</span> <span class="ident">csp</span>;
-<span class="kw">mod</span> <span class="ident">error_messages</span>;
-<span class="kw">mod</span> <span class="ident">legacy_browsers</span>;
-<span class="kw">mod</span> <span class="ident">localhost</span>;
 <span class="kw">mod</span> <span class="ident">releases</span>;
-<span class="kw">mod</span> <span class="ident">web_crawlers</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">testutils</span>;
