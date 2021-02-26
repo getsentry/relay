@@ -1582,58 +1582,6 @@
 <span id="1579">1579</span>
 <span id="1580">1580</span>
 <span id="1581">1581</span>
-<span id="1582">1582</span>
-<span id="1583">1583</span>
-<span id="1584">1584</span>
-<span id="1585">1585</span>
-<span id="1586">1586</span>
-<span id="1587">1587</span>
-<span id="1588">1588</span>
-<span id="1589">1589</span>
-<span id="1590">1590</span>
-<span id="1591">1591</span>
-<span id="1592">1592</span>
-<span id="1593">1593</span>
-<span id="1594">1594</span>
-<span id="1595">1595</span>
-<span id="1596">1596</span>
-<span id="1597">1597</span>
-<span id="1598">1598</span>
-<span id="1599">1599</span>
-<span id="1600">1600</span>
-<span id="1601">1601</span>
-<span id="1602">1602</span>
-<span id="1603">1603</span>
-<span id="1604">1604</span>
-<span id="1605">1605</span>
-<span id="1606">1606</span>
-<span id="1607">1607</span>
-<span id="1608">1608</span>
-<span id="1609">1609</span>
-<span id="1610">1610</span>
-<span id="1611">1611</span>
-<span id="1612">1612</span>
-<span id="1613">1613</span>
-<span id="1614">1614</span>
-<span id="1615">1615</span>
-<span id="1616">1616</span>
-<span id="1617">1617</span>
-<span id="1618">1618</span>
-<span id="1619">1619</span>
-<span id="1620">1620</span>
-<span id="1621">1621</span>
-<span id="1622">1622</span>
-<span id="1623">1623</span>
-<span id="1624">1624</span>
-<span id="1625">1625</span>
-<span id="1626">1626</span>
-<span id="1627">1627</span>
-<span id="1628">1628</span>
-<span id="1629">1629</span>
-<span id="1630">1630</span>
-<span id="1631">1631</span>
-<span id="1632">1632</span>
-<span id="1633">1633</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">hash_map</span>::<span class="ident">DefaultHasher</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">hash</span>::{<span class="ident">Hash</span>, <span class="ident">Hasher</span>};
@@ -2454,15 +2402,7 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">NormalizeProcessor</span>::<span class="ident">new</span>(<span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">config</span>), <span class="prelude-val">None</span>);
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">event</span>
-        .<span class="ident">value</span>()
-        .<span class="ident">unwrap</span>()
-        .<span class="ident">user</span>
-        .<span class="ident">value</span>()
-        .<span class="ident">expect</span>(<span class="string">&quot;user was not created&quot;</span>);
-
-    <span class="kw">let</span> <span class="ident">ip_addr</span> <span class="op">=</span> <span class="ident">user</span>.<span class="ident">ip_address</span>.<span class="ident">value</span>().<span class="ident">expect</span>(<span class="string">&quot;ip address was not created&quot;</span>);
-
+    <span class="kw">let</span> <span class="ident">ip_addr</span> <span class="op">=</span> <span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">user</span>.<span class="macro">ip_address</span><span class="macro">!</span>);
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">ip_addr</span>, <span class="kw-2">&amp;</span><span class="ident">IpAddr</span>(<span class="string">&quot;2.125.160.216&quot;</span>.<span class="ident">to_string</span>()));
 }
 
@@ -2506,15 +2446,7 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">NormalizeProcessor</span>::<span class="ident">new</span>(<span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">config</span>), <span class="prelude-val">None</span>);
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">event</span>
-        .<span class="ident">value</span>()
-        .<span class="ident">unwrap</span>()
-        .<span class="ident">user</span>
-        .<span class="ident">value</span>()
-        .<span class="ident">expect</span>(<span class="string">&quot;user was not created&quot;</span>);
-
-    <span class="kw">let</span> <span class="ident">ip_addr</span> <span class="op">=</span> <span class="ident">user</span>.<span class="ident">ip_address</span>.<span class="ident">value</span>().<span class="ident">expect</span>(<span class="string">&quot;ip address was not created&quot;</span>);
-
+    <span class="kw">let</span> <span class="ident">ip_addr</span> <span class="op">=</span> <span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">user</span>.<span class="macro">ip_address</span><span class="macro">!</span>);
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">ip_addr</span>, <span class="kw-2">&amp;</span><span class="ident">IpAddr</span>(<span class="string">&quot;2.125.160.216&quot;</span>.<span class="ident">to_string</span>()));
 }
 
@@ -2537,8 +2469,7 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">NormalizeProcessor</span>::<span class="ident">new</span>(<span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">config</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">geo</span>));
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">user</span>.<span class="ident">value</span>().<span class="ident">expect</span>(<span class="string">&quot;user missing&quot;</span>);
-
+    <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="macro">user</span><span class="macro">!</span>);
     <span class="kw">let</span> <span class="ident">ip_addr</span> <span class="op">=</span> <span class="ident">user</span>.<span class="ident">ip_address</span>.<span class="ident">value</span>().<span class="ident">expect</span>(<span class="string">&quot;ip address missing&quot;</span>);
 
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">ip_addr</span>, <span class="kw-2">&amp;</span><span class="ident">IpAddr</span>(<span class="string">&quot;2.125.160.216&quot;</span>.<span class="ident">to_string</span>()));
@@ -2558,8 +2489,7 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">NormalizeProcessor</span>::<span class="ident">new</span>(<span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">config</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">geo</span>));
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">user</span>.<span class="ident">value</span>().<span class="ident">expect</span>(<span class="string">&quot;user missing&quot;</span>);
-
+    <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="macro">user</span><span class="macro">!</span>);
     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">user</span>.<span class="ident">ip_address</span>.<span class="ident">value</span>().<span class="ident">is_none</span>());
     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">user</span>.<span class="ident">geo</span>.<span class="ident">value</span>().<span class="ident">is_none</span>());
 }
@@ -2570,9 +2500,7 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Event</span>::<span class="ident">default</span>());
 
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">level</span>.<span class="ident">value</span>(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">Level</span>::<span class="ident">Error</span>));
+    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">level</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">Level</span>::<span class="ident">Error</span>));
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -2584,9 +2512,7 @@
     });
 
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">level</span>.<span class="ident">value</span>(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">Level</span>::<span class="ident">Info</span>));
+    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">level</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">Level</span>::<span class="ident">Info</span>));
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -2637,9 +2563,7 @@
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">NormalizeProcessor</span>::<span class="ident">default</span>();
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">environment</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
+    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">environment</span>), <span class="prelude-val">None</span>);
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -2652,7 +2576,7 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">NormalizeProcessor</span>::<span class="ident">default</span>();
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">environment</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">environment</span>;
+    <span class="kw">let</span> <span class="ident">environment</span> <span class="op">=</span> <span class="macro">get_path</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="macro">environment</span><span class="macro">!</span>);
     <span class="kw">let</span> <span class="ident">expected_original</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;none&quot;</span>.<span class="ident">to_string</span>());
 
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
@@ -2678,7 +2602,7 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">NormalizeProcessor</span>::<span class="ident">default</span>();
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">release</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">release</span>;
+    <span class="kw">let</span> <span class="ident">release</span> <span class="op">=</span> <span class="macro">get_path</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="macro">release</span><span class="macro">!</span>);
     <span class="kw">let</span> <span class="ident">expected_original</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;Latest&quot;</span>.<span class="ident">to_string</span>());
 
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
@@ -2710,14 +2634,12 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">NormalizeProcessor</span>::<span class="ident">default</span>();
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
-
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">site</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">server_name</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
+    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">site</span>), <span class="prelude-val">None</span>);
+    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">server_name</span>), <span class="prelude-val">None</span>);
 
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
-        <span class="ident">event</span>.<span class="ident">tags</span>.<span class="ident">value</span>(),
-        <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">Tags</span>(<span class="ident">PairList</span>(<span class="macro">vec</span><span class="macro">!</span>[
+        <span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="macro">tags</span><span class="macro">!</span>),
+        <span class="kw-2">&amp;</span><span class="ident">Tags</span>(<span class="ident">PairList</span>(<span class="macro">vec</span><span class="macro">!</span>[
             <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
                 <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;site&quot;</span>.<span class="ident">to_string</span>()),
                 <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()),
@@ -2726,7 +2648,7 @@
                 <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;server_name&quot;</span>.<span class="ident">to_string</span>()),
                 <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()),
             )),
-        ])))
+        ]))
     );
 }
 
@@ -2765,7 +2687,7 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">NormalizeProcessor</span>::<span class="ident">default</span>();
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
 
-    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">tags</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">len</span>(), <span class="number">1</span>);
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="macro">tags</span><span class="macro">!</span>).<span class="ident">len</span>(), <span class="number">1</span>);
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -2791,10 +2713,8 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">NormalizeProcessor</span>::<span class="ident">default</span>();
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">tags</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">tags</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
-
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
-        <span class="ident">tags</span>,
+        <span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="macro">tags</span><span class="macro">!</span>),
         <span class="kw-2">&amp;</span><span class="ident">Tags</span>(<span class="ident">PairList</span>(<span class="macro">vec</span><span class="macro">!</span>[
             <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
                 <span class="ident">Annotated</span>::<span class="ident">from_error</span>(<span class="ident">Error</span>::<span class="ident">nonempty</span>(), <span class="prelude-val">None</span>),
@@ -2845,7 +2765,7 @@
 
     <span class="comment">// should keep the first occurrence of every tag</span>
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
-        <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">tags</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(),
+        <span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="macro">tags</span><span class="macro">!</span>),
         <span class="kw-2">&amp;</span><span class="ident">Tags</span>(<span class="ident">PairList</span>(<span class="macro">vec</span><span class="macro">!</span>[
             <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
                 <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()),
@@ -2905,15 +2825,16 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">NormalizeProcessor</span>::<span class="ident">default</span>();
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">DebugMeta</span> {
-        <span class="ident">images</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Annotated</span>::<span class="ident">from_error</span>(
-            <span class="ident">Error</span>::<span class="ident">invalid</span>(<span class="string">&quot;unsupported debug image type&quot;</span>),
-            <span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">Object</span>(<span class="ident">Object</span>::<span class="ident">default</span>())),
-        )]),
-        ..<span class="ident">DebugMeta</span>::<span class="ident">default</span>()
-    });
-
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">expected</span>, <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">debug_meta</span>);
+    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
+        <span class="macro">get_path</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="macro">debug_meta</span><span class="macro">!</span>),
+        <span class="kw-2">&amp;</span><span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">DebugMeta</span> {
+            <span class="ident">images</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Annotated</span>::<span class="ident">from_error</span>(
+                <span class="ident">Error</span>::<span class="ident">invalid</span>(<span class="string">&quot;unsupported debug image type&quot;</span>),
+                <span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">Object</span>(<span class="ident">Object</span>::<span class="ident">default</span>())),
+            )]),
+            ..<span class="ident">DebugMeta</span>::<span class="ident">default</span>()
+        })
+    );
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -2958,16 +2879,15 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">NormalizeProcessor</span>::<span class="ident">default</span>();
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">frame</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">frame</span> <span class="op">=</span> <span class="ident">frame</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
-        <span class="kw-2">*</span><span class="ident">frame</span>.<span class="ident">pre_context</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(),
+        <span class="kw-2">*</span><span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">frame</span>.<span class="macro">pre_context</span><span class="macro">!</span>),
         <span class="macro">vec</span><span class="macro">!</span>[
             <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;&quot;</span>.<span class="ident">to_string</span>()),
             <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;&quot;</span>.<span class="ident">to_string</span>())
         ],
     );
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
-        <span class="kw-2">*</span><span class="ident">frame</span>.<span class="ident">post_context</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(),
+        <span class="kw-2">*</span><span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">frame</span>.<span class="macro">post_context</span><span class="macro">!</span>),
         <span class="macro">vec</span><span class="macro">!</span>[
             <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;&quot;</span>.<span class="ident">to_string</span>()),
             <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;&quot;</span>.<span class="ident">to_string</span>())
@@ -2993,10 +2913,8 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">NormalizeProcessor</span>::<span class="ident">default</span>();
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">tags</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">tags</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
-
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
-        <span class="ident">tags</span>,
+        <span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="macro">tags</span><span class="macro">!</span>),
         <span class="kw-2">&amp;</span><span class="ident">Tags</span>(<span class="ident">PairList</span>(<span class="macro">vec</span><span class="macro">!</span>[
             <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
                 <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;foobar&quot;</span>.<span class="ident">to_string</span>()),
@@ -3039,8 +2957,9 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">NormalizeProcessor</span>::<span class="ident">default</span>();
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(
-        <span class="ident">RawStacktrace</span> {
+    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
+        <span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">exceptions</span>.<span class="ident">values</span>[<span class="number">0</span>].<span class="macro">stacktrace</span><span class="macro">!</span>),
+        <span class="kw-2">&amp;</span><span class="ident">Stacktrace</span>(<span class="ident">RawStacktrace</span> {
             <span class="ident">frames</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Frame</span> {
                 <span class="ident">module</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;MyModule&quot;</span>.<span class="ident">to_string</span>()),
                 <span class="ident">filename</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;MyFilename&quot;</span>.<span class="ident">into</span>()),
@@ -3049,26 +2968,7 @@
                 ..<span class="ident">Frame</span>::<span class="ident">default</span>()
             })]),
             ..<span class="ident">RawStacktrace</span>::<span class="ident">default</span>()
-        }
-        .<span class="ident">into</span>(),
-    );
-
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
-        <span class="ident">event</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">exceptions</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">values</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">get</span>(<span class="number">0</span>)
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">stacktrace</span>,
-        <span class="ident">expected</span>
+        })
     );
 }
 
@@ -3085,8 +2985,8 @@
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
 
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
-        <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">client_sdk</span>,
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">ClientSdkInfo</span> {
+        <span class="macro">get_path</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="macro">client_sdk</span><span class="macro">!</span>),
+        <span class="kw-2">&amp;</span><span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">ClientSdkInfo</span> {
             <span class="ident">name</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;_fooBar&quot;</span>.<span class="ident">to_string</span>()),
             <span class="ident">version</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;0.0.0&quot;</span>.<span class="ident">to_string</span>()),
             ..<span class="ident">ClientSdkInfo</span>::<span class="ident">default</span>()
@@ -3106,11 +3006,7 @@
 
     <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
 
-    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">timestamp</span>.<span class="ident">value</span>().<span class="ident">is_some</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
-        <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">received</span>,
-        <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">timestamp</span>,
-    );
+    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="macro">received</span><span class="macro">!</span>), <span class="macro">get_value</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="macro">timestamp</span><span class="macro">!</span>));
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
