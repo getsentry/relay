@@ -53,7 +53,7 @@ pub struct User {
     pub ip_address: Annotated<IpAddr>,
 
     /// Username of the user.
-    #[metastructure(pii = "false", max_chars = "enumlike", skip_serialization = "empty")]
+    #[metastructure(pii = "true", max_chars = "enumlike", skip_serialization = "empty")]
     pub username: Annotated<String>,
 
     /// Human readable name of the user.

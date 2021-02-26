@@ -41,12 +41,13 @@ use failure::Fail;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
+use relay_common::DataCategory;
 use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
-use crate::utils::{ErrorBoundary, TraceContext};
+use crate::utils::{infer_event_category, ErrorBoundary, TraceContext};
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
@@ -349,6 +350,13 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     rate_limited: bool,
 
+    /// A list of cumulative sample rates applied to this event.
+    ///
+    /// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The
+    /// effective sample rate is multiplied.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sample_rates: Option<Value>,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -371,6 +379,7 @@ impl Item {
                 content_type: None,
                 filename: None,
                 rate_limited: false,
+                sample_rates: None,
                 other: BTreeMap::new(),
             },
             payload: Bytes::new(),
@@ -454,6 +463,18 @@ impl Item {
     /// Sets whether this item should be rate limited.
     pub fn set_rate_limited(&mut self, rate_limited: bool) {
         self.headers.rate_limited = rate_limited;
+    }
+
+    /// Removes sample rates from the headers, if any.
+    pub fn take_sample_rates(&mut self) -> Option<Value> {
+        self.headers.sample_rates.take()
+    }
+
+    /// Sets sample rates for this item.
+    pub fn set_sample_rates(&mut self, sample_rates: Value) {
+        if matches!(sample_rates, Value::Array(ref a) if !a.is_empty()) {
+            self.headers.sample_rates = Some(sample_rates);
+        }
     }
 
     /// Returns the specified header value, if present.
@@ -933,6 +954,13 @@ impl Envelope {
         writer
             .write_all(buf)
             .map_err(EnvelopeError::PayloadIoFailed)
+    }
+
+    /// Return the data category type of the event item, if any, in this envelope.
+    pub fn get_event_category(&self) -> Option<DataCategory> {
+        self.items().find_map(infer_event_category)
+        // There are some cases where multiple items may have different categories, but returning
+        // the first is good enough for now.
     }
 }
 

@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "The Relay binary, a proxy server for Sentry"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "20.12.1"
+version = "21.2.0"
 edition = "2018"
 build = "build.rs"
 license-file = "../LICENSE"
@@ -26,11 +26,8 @@ hostname = "0.3.1"
 lazy_static = "1.4.0"
 relay-common = { path = "../relay-common" }
 relay-config = { path = "../relay-config" }
-relay-log = { path = "../relay-log" }
+relay-log = { path = "../relay-log", features = ["init"] }
 relay-server = { path = "../relay-server" }
-
-[target."cfg(not(windows))".dependencies]
-openssl-probe = "0.1.2"
 
 [build-dependencies]
 clap = { version = "2.33.1", default-features = false }

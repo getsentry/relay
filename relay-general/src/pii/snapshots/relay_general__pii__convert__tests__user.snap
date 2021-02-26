@@ -5,7 +5,7 @@ expression: data
 {
   "user": {
     "ip_address": null,
-    "username": "secret",
+    "username": "[Filtered]",
     "data": {
       "a_password_here": "[Filtered]",
       "apiKey": "[Filtered]",
@@ -92,6 +92,19 @@ expression: data
               "x"
             ]
           ]
+        }
+      },
+      "username": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 6
         }
       }
     }

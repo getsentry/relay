@@ -166,55 +166,6 @@ impl SessionAggregates {
     pub fn serialize(&self) -> Result<Vec<u8>, serde_json::Error> {
         serde_json::to_vec(self)
     }
-
-    /// The total number of sessions in this aggregate.
-    pub fn num_sessions(&self) -> u32 {
-        self.aggregates
-            .iter()
-            .map(|i| i.exited + i.errored + i.abnormal + i.crashed)
-            .sum()
-    }
-
-    /// Creates individual session updates from the aggregates.
-    pub fn into_updates_iter(self) -> impl Iterator<Item = SessionUpdate> {
-        let attributes = self.attributes;
-        let mut items = self.aggregates;
-        let mut item_opt = items.pop();
-        std::iter::from_fn(move || loop {
-            let item = item_opt.as_mut()?;
-
-            let (status, errors) = if item.exited > 0 {
-                item.exited -= 1;
-                (SessionStatus::Exited, 0)
-            } else if item.errored > 0 {
-                item.errored -= 1;
-                // when exploding, we create "legacy" session updates that have no `errored` state
-                (SessionStatus::Exited, 1)
-            } else if item.abnormal > 0 {
-                item.abnormal -= 1;
-                (SessionStatus::Abnormal, 1)
-            } else if item.crashed > 0 {
-                item.crashed -= 1;
-                (SessionStatus::Crashed, 1)
-            } else {
-                item_opt = items.pop();
-                continue;
-            };
-            let attributes = attributes.clone();
-            return Some(SessionUpdate {
-                session_id: Uuid::new_v4(),
-                distinct_id: item.distinct_id.clone(),
-                sequence: 0,
-                init: true,
-                timestamp: Utc::now(),
-                started: item.started,
-                duration: None,
-                status,
-                errors,
-                attributes,
-            });
-        })
-    }
 }
 
 #[cfg(test)]
@@ -266,7 +217,7 @@ mod tests {
         let mut parsed = SessionUpdate::parse(json.as_bytes()).unwrap();
 
         // Sequence is defaulted to the current timestamp. Override for snapshot.
-        assert!((parsed.sequence - default_sequence()) <= 1);
+        assert!((default_sequence() - parsed.sequence) <= 1);
         parsed.sequence = 4711;
 
         assert_eq_dbg!(update, parsed);
@@ -340,100 +291,5 @@ mod tests {
 
         let update = SessionUpdate::parse(json.as_bytes()).unwrap();
         assert_eq_dbg!(update.attributes.ip_address, Some(IpAddr::auto()));
-    }
-
-    #[test]
-    fn test_session_aggregates() {
-        let json = r#"{
-  "aggregates": [{
-    "started": "2020-02-07T14:16:00Z",
-    "exited": 2,
-    "abnormal": 1
-  },{
-    "started": "2020-02-07T14:17:00Z",
-    "did": "some-user",
-    "errored": 1
-  }],
-  "attrs": {
-    "release": "sentry-test@1.0.0",
-    "environment": "production",
-    "ip_address": "::1",
-    "user_agent": "Firefox/72.0"
-  }
-}"#;
-        let aggregates = SessionAggregates::parse(json.as_bytes()).unwrap();
-        let mut iter = aggregates.into_updates_iter();
-
-        let mut settings = insta::Settings::new();
-        settings.add_redaction(".timestamp", "[TS]");
-        settings.add_redaction(".sid", "[SID]");
-        settings.bind(|| {
-            insta::assert_yaml_snapshot!(iter.next().unwrap(), @r###"
-            ---
-            sid: "[SID]"
-            did: some-user
-            seq: 0
-            init: true
-            timestamp: "[TS]"
-            started: "2020-02-07T14:17:00Z"
-            status: exited
-            errors: 1
-            attrs:
-              release: sentry-test@1.0.0
-              environment: production
-              ip_address: "::1"
-              user_agent: Firefox/72.0
-            "###);
-            insta::assert_yaml_snapshot!(iter.next().unwrap(), @r###"
-            ---
-            sid: "[SID]"
-            did: ~
-            seq: 0
-            init: true
-            timestamp: "[TS]"
-            started: "2020-02-07T14:16:00Z"
-            status: exited
-            errors: 0
-            attrs:
-              release: sentry-test@1.0.0
-              environment: production
-              ip_address: "::1"
-              user_agent: Firefox/72.0
-            "###);
-            insta::assert_yaml_snapshot!(iter.next().unwrap(), @r###"
-            ---
-            sid: "[SID]"
-            did: ~
-            seq: 0
-            init: true
-            timestamp: "[TS]"
-            started: "2020-02-07T14:16:00Z"
-            status: exited
-            errors: 0
-            attrs:
-              release: sentry-test@1.0.0
-              environment: production
-              ip_address: "::1"
-              user_agent: Firefox/72.0
-            "###);
-            insta::assert_yaml_snapshot!(iter.next().unwrap(), @r###"
-            ---
-            sid: "[SID]"
-            did: ~
-            seq: 0
-            init: true
-            timestamp: "[TS]"
-            started: "2020-02-07T14:16:00Z"
-            status: abnormal
-            errors: 1
-            attrs:
-              release: sentry-test@1.0.0
-              environment: production
-              ip_address: "::1"
-              user_agent: Firefox/72.0
-            "###);
-        });
-
-        assert_eq!(iter.next(), None);
     }
 }

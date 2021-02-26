@@ -3,6 +3,7 @@
 // FIXME: Workaround for https://github.com/GREsau/schemars/pull/65
 #![allow(clippy::field_reassign_with_default)]
 
+use std::convert::TryInto;
 use std::fmt;
 use std::str::FromStr;
 
@@ -133,6 +134,11 @@ impl DataCategory {
     /// Returns true if the DataCategory refers to an error (i.e an error event).
     pub fn is_error(self) -> bool {
         matches!(self, Self::Error | Self::Default | Self::Security)
+    }
+
+    /// Returns the numeric value for this outcome.
+    pub fn value(self) -> Option<u8> {
+        (self as i8).try_into().ok()
     }
 }
 

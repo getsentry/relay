@@ -2,7 +2,27 @@
 
 ## Unreleased
 
+- Remove dependencies on `openssl` and `zlib`. ([#914](https://github.com/getsentry/relay/pull/914))
+
+## 0.8.3
+
+- Add NSError to mechanism. ([#925](https://github.com/getsentry/relay/pull/925))
+- Add snapshot to the stack trace interface. ([#927](https://github.com/getsentry/relay/pull/927))
+- Drop python 2.7 support. ([#929](https://github.com/getsentry/relay/pull/929))
+
+## 0.8.2
+
+- Fix compile errors in the sdist with Rust 1.47 and later. ([#801](https://github.com/getsentry/relay/pull/801))
 - Emit more useful normalization meta data for invalid tags. ([#808](https://github.com/getsentry/relay/pull/808))
+- Internal refactoring such that validating of characters in tags no longer uses regexes internally. ([#814](https://github.com/getsentry/relay/pull/814))
+- Normalize `breadcrumb.ty` into `breadcrumb.type` for broken Python SDK versions. ([#824](https://github.com/getsentry/relay/pull/824))
+- Emit event errors and normalization errors for unknown breadcrumb keys. ([#824](https://github.com/getsentry/relay/pull/824))
+- Make `$error.value` `pii=true`. ([#837](https://github.com/getsentry/relay/pull/837))
+- Add protocol support for WASM. ([#852](https://github.com/getsentry/relay/pull/852))
+- Add missing fields for Expect-CT reports. ([#865](https://github.com/getsentry/relay/pull/865))
+- Support more directives in CSP reports, such as `block-all-mixed-content` and `require-trusted-types-for`. ([#876](https://github.com/getsentry/relay/pull/876))
+- Fix a long-standing bug where log messages were not addressible as `$string`. ([#882](https://github.com/getsentry/relay/pull/882))
+- Use manylinux2010 to build releases instead of manylinux1 to fix issues with newer Rust. ([#917](https://github.com/getsentry/relay/pull/917))
 
 ## 0.8.1
 

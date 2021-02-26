@@ -488,17 +488,6 @@ pub enum HttpEncoding {
     Br,
 }
 
-/// (unstable) Http client to use for upstream store requests.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum HttpClient {
-    /// Use actix http client, the default.
-    Actix,
-    /// Use reqwest. Necessary for HTTP proxy support (standard envvars are picked up
-    /// automatically)
-    Reqwest,
-}
-
 /// Controls authentication with upstream.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -547,11 +536,6 @@ struct Http {
     ///  - `gzip` (default): Compression using gzip.
     ///  - `br`: Compression using the brotli algorithm.
     encoding: HttpEncoding,
-    /// (unstable) Which HTTP client to use. Can be "actix" or "reqwest", with "actix" being the
-    /// default. Switching to "reqwest" is required to get experimental HTTP proxy support.
-    ///
-    /// Note that this option will be removed in the future once "reqwest" is the default.
-    _client: HttpClient,
 }
 
 impl Default for Http {
@@ -564,7 +548,6 @@ impl Default for Http {
             auth_interval: Some(600), // 10 minutes
             outage_grace_period: DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
             encoding: HttpEncoding::Gzip,
-            _client: HttpClient::Actix,
         }
     }
 }
@@ -687,12 +670,9 @@ fn default_projectconfig_cache_prefix() -> String {
     "relayconfig".to_owned()
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn default_max_rate_limit() -> Option<u32> {
     Some(300) // 5 minutes
-}
-
-fn default_explode_session_aggregates() -> bool {
-    true
 }
 
 /// Controls Sentry-internal event processing.
@@ -700,9 +680,6 @@ fn default_explode_session_aggregates() -> bool {
 pub struct Processing {
     /// True if the Relay should do processing. Defaults to `false`.
     pub enabled: bool,
-    /// Indicates if session aggregates should be exploded into individual session updates.
-    #[serde(default = "default_explode_session_aggregates")]
-    pub explode_session_aggregates: bool,
     /// GeoIp DB file source.
     #[serde(default)]
     pub geoip_path: Option<PathBuf>,
@@ -739,7 +716,6 @@ impl Default for Processing {
     fn default() -> Self {
         Self {
             enabled: false,
-            explode_session_aggregates: default_explode_session_aggregates(),
             geoip_path: None,
             max_secs_in_future: default_max_secs_in_future(),
             max_secs_in_past: default_max_secs_in_past(),
@@ -1146,11 +1122,6 @@ impl Config {
         self.values.http.encoding
     }
 
-    /// (unstable) HTTP client to use for upstream requests.
-    pub fn http_client(&self) -> HttpClient {
-        self.values.http._client
-    }
-
     /// Returns whether this Relay should emit outcomes.
     ///
     /// This is `true` either if `outcomes.emit_outcomes` is explicitly enabled, or if this Relay is
@@ -1383,11 +1354,6 @@ impl Config {
     /// True if the Relay should do processing.
     pub fn processing_enabled(&self) -> bool {
         self.values.processing.enabled
-    }
-
-    /// Indicates if session aggregates should be exploded into individual session updates.
-    pub fn explode_session_aggregates(&self) -> bool {
-        self.values.processing.explode_session_aggregates
     }
 
     /// The path to the GeoIp database required for event processing.
