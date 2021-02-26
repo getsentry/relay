@@ -361,11 +361,13 @@ impl EventProcessor {
 
             let max_age = SignedDuration::seconds(self.config.max_session_secs_in_past());
 
-            // log session updates that are more than one hour in the past.
-            if (received - session.started) > SignedDuration::hours(1)
-                || (received - session.timestamp) > SignedDuration::hours(1)
-            {
-                metric!(counter(RelayCounters::OldSessionUpdateReceived) += 1);
+            // Log the timestamp delay for all sessions after clock drift correction.
+            let session_delay = received - session.timestamp;
+            if session_delay > SignedDuration::minutes(1) {
+                metric!(
+                    timer(RelayTimers::TimestampDelay) = session_delay.to_std().unwrap(),
+                    category = "session",
+                );
             }
 
             if (received - session.started) > max_age || (received - session.timestamp) > max_age {
@@ -801,13 +803,6 @@ impl EventProcessor {
             (Annotated::empty(), 0)
         };
 
-        // log session updates that are more than one hour in the past.
-        if let Some(timestamp) = event.value().and_then(|x| x.timestamp.value()) {
-            if state.received_at - timestamp.into_inner() > SignedDuration::hours(1) {
-                metric!(counter(RelayCounters::OldEventReceived) += 1);
-            }
-        }
-
         state.event = event;
         state.metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
@@ -912,6 +907,20 @@ impl EventProcessor {
             ClockDriftProcessor::new(sent_at, state.received_at).at_least(MINIMUM_CLOCK_DRIFT);
         process_value(&mut state.event, &mut processor, ProcessingState::root())
             .map_err(|_| ProcessingError::InvalidTransaction)?;
+
+        // Log timestamp delays for all events after clock drift correction. This happens before
+        // store processing, which could modify the timestamp if it exceeds a threshold. We are
+        // interested in the actual delay before this correction.
+        if let Some(timestamp) = state.event.value().and_then(|e| e.timestamp.value()) {
+            let event_delay = state.received_at - timestamp.into_inner();
+            if event_delay > SignedDuration::minutes(1) {
+                let category = state.event_category().unwrap_or(DataCategory::Unknown);
+                metric!(
+                    timer(RelayTimers::TimestampDelay) = event_delay.to_std().unwrap(),
+                    category = category.name(),
+                );
+            }
+        }
 
         Ok(())
     }
