@@ -66,6 +66,7 @@ fn get_project_configs(
 ) -> ResponseFuture<Json<GetProjectStatesResponseWrapper>, Error> {
     let relay = body.relay;
     let full = relay.internal && body.inner.full_config;
+    let no_cache = body.inner.no_cache;
 
     let futures = body.inner.public_keys.into_iter().map(move |public_key| {
         let relay = relay.clone();
@@ -73,7 +74,11 @@ fn get_project_configs(
             .project_cache()
             .send(GetProject { public_key })
             .map_err(Error::from)
-            .and_then(|project| project.send(GetProjectState).map_err(Error::from))
+            .and_then(move |project| {
+                project
+                    .send(GetProjectState::no_cache(no_cache))
+                    .map_err(Error::from)
+            })
             .map(move |project_state| {
                 let project_state = project_state.ok()?;
                 // If public key is known (even if rate-limited, which is Some(false)), it has
@@ -86,7 +91,7 @@ fn get_project_configs(
                 {
                     Some((*project_state).clone())
                 } else {
-                    log::debug!(
+                    relay_log::debug!(
                         "Relay {} does not have access to project key {}",
                         relay.public_key,
                         public_key

@@ -16,10 +16,11 @@ use chrono::SecondsFormat;
 use futures::future::Future;
 use serde::{Deserialize, Serialize};
 
-use relay_common::{LogError, ProjectId};
+use relay_common::{DataCategory, ProjectId};
 use relay_config::Config;
 use relay_filter::FilterStatKey;
 use relay_general::protocol::EventId;
+use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 
 use crate::actors::upstream::SendQuery;
@@ -80,6 +81,8 @@ pub struct TrackOutcome {
     pub event_id: Option<EventId>,
     /// The client ip address.
     pub remote_addr: Option<IpAddr>,
+    /// The event's data category.
+    pub category: DataCategory,
 }
 
 impl Message for TrackOutcome {
@@ -158,6 +161,9 @@ pub enum DiscardReason {
     /// [Relay] The store request was missing an event payload.
     NoData,
 
+    /// [Relay] The envelope contains no items.
+    EmptyEnvelope,
+
     /// [Relay] The event payload exceeds the maximum size limit for the respective endpoint.
     TooLarge,
 
@@ -229,6 +235,14 @@ pub enum DiscardReason {
     /// [Relay] Symbolic failed to extract an Unreal Crash report from a request sent to the
     /// Unreal endpoint
     ProcessUnreal,
+
+    /// [Relay] The envelope, which contained only a transaction, was discarded by the
+    /// dynamic sampling rules.
+    TransactionSampled,
+
+    /// [Relay] The envelope, which contained an event, was discarded by the
+    /// dynamic sampling rules.
+    EventSampled,
 }
 
 impl DiscardReason {
@@ -261,6 +275,9 @@ impl DiscardReason {
             DiscardReason::DuplicateItem => "duplicate_item",
             DiscardReason::NoEventPayload => "no_event_payload",
             DiscardReason::Internal => "internal",
+            DiscardReason::TransactionSampled => "transaction_sampled",
+            DiscardReason::EventSampled => "event_sampled",
+            DiscardReason::EmptyEnvelope => "empty_envelope",
         }
     }
 }
@@ -293,6 +310,9 @@ pub struct TrackRawOutcome {
     /// The source of the outcome (which Relay sent it)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     source: Option<String>,
+    /// The event's data category.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<u8>,
 }
 
 impl TrackRawOutcome {
@@ -327,6 +347,7 @@ impl TrackRawOutcome {
             event_id: msg.event_id,
             remote_addr: msg.remote_addr.map(|addr| addr.to_string()),
             source,
+            category: msg.category.value(),
         }
     }
 }
@@ -398,7 +419,7 @@ mod processing {
                 let http_producer = HttpOutcomeProducer::create(config.clone(), upstream)
                     .map(|producer| producer.start())
                     .map_err(|error| {
-                        log::error!("Failed to start http producer: {}", LogError(&error));
+                        relay_log::error!("Failed to start http producer: {}", LogError(&error));
                         error
                     })
                     .ok();
@@ -413,7 +434,7 @@ mod processing {
         }
 
         fn send_kafka_message(&self, message: TrackRawOutcome) -> Result<(), OutcomeError> {
-            log::trace!("Tracking kafka outcome: {:?}", message);
+            relay_log::trace!("Tracking kafka outcome: {:?}", message);
 
             let producer = match self.producer {
                 Some(ref producer) => producer,
@@ -427,6 +448,7 @@ mod processing {
                 counter(RelayCounters::Outcomes) += 1,
                 reason = message.reason.as_deref().unwrap_or(""),
                 outcome = message.tag_name(),
+                to = "kafka",
             );
 
             // At the moment, we support outcomes with optional EventId.
@@ -445,20 +467,25 @@ mod processing {
             }
         }
 
-        fn send_http_message(&self, message: TrackRawOutcome) -> Result<(), OutcomeError> {
-            log::trace!("Tracking http outcome: {:?}", message);
+        fn send_http_message(&self, message: TrackRawOutcome) {
+            relay_log::trace!("Tracking http outcome: {:?}", message);
 
             let producer = match self.http_producer {
                 Some(ref producer) => producer,
                 None => {
-                    log::error!("send_http_message called with invalid http_producer");
-                    return Ok(());
+                    relay_log::error!("send_http_message called with invalid http_producer");
+                    return;
                 }
             };
 
-            producer.do_send(message);
+            metric!(
+                counter(RelayCounters::Outcomes) += 1,
+                reason = message.reason.as_deref().unwrap_or(""),
+                outcome = message.tag_name(),
+                to = "http",
+            );
 
-            Ok(())
+            producer.do_send(message);
         }
     }
 
@@ -471,11 +498,11 @@ mod processing {
             let mailbox_size = self.config.event_buffer_size() as usize;
             context.set_mailbox_capacity(mailbox_size);
 
-            log::info!("OutcomeProducer started.");
+            relay_log::info!("OutcomeProducer started.");
         }
 
         fn stopped(&mut self, _ctx: &mut Self::Context) {
-            log::info!("OutcomeProducer stopped.");
+            relay_log::info!("OutcomeProducer stopped.");
         }
     }
 
@@ -490,11 +517,12 @@ mod processing {
     impl Handler<TrackRawOutcome> for ProcessingOutcomeProducer {
         type Result = Result<(), OutcomeError>;
         fn handle(&mut self, message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            log::trace!("handling outcome");
+            relay_log::trace!("handling outcome");
             if self.config.processing_enabled() {
                 self.send_kafka_message(message)
             } else if self.config.emit_outcomes() {
-                self.send_http_message(message)
+                self.send_http_message(message);
+                Ok(())
             } else {
                 Ok(()) // processing not enabled and emit_outcomes disabled
             }
@@ -533,10 +561,10 @@ impl HttpOutcomeProducer {
         self.pending_flush_handle = None;
 
         if self.unsent_outcomes.is_empty() {
-            log::warn!("unexpected send_batch scheduled with no outcomes to send.");
+            relay_log::warn!("unexpected send_batch scheduled with no outcomes to send.");
             return;
         } else {
-            log::trace!(
+            relay_log::trace!(
                 "sending outcome batch of size:{}",
                 self.unsent_outcomes.len()
             );
@@ -548,30 +576,28 @@ impl HttpOutcomeProducer {
 
         self.upstream
             .send(SendQuery(request))
-            .map(|_| log::trace!("outcome batch sent."))
-            .map_err(|error| log::error!("outcome batch sending failed with: {}", LogError(&error)))
+            .map(|_| relay_log::trace!("outcome batch sent."))
+            .map_err(|error| {
+                relay_log::error!("outcome batch sending failed with: {}", LogError(&error))
+            })
             .into_actor(self)
             .spawn(context);
     }
 
-    fn send_http_message(
-        &mut self,
-        message: TrackRawOutcome,
-        context: &mut Context<Self>,
-    ) -> Result<(), OutcomeError> {
-        log::trace!("Batching outcome");
+    fn send_http_message(&mut self, message: TrackRawOutcome, context: &mut Context<Self>) {
+        relay_log::trace!("Batching outcome");
         self.unsent_outcomes.push(message);
+
         if self.unsent_outcomes.len() >= self.config.outcome_batch_size() {
             if let Some(pending_flush_handle) = self.pending_flush_handle {
                 context.cancel_future(pending_flush_handle);
             }
+
             self.send_batch(context)
         } else if self.pending_flush_handle.is_none() {
             self.pending_flush_handle =
                 Some(context.run_later(self.config.outcome_batch_interval(), Self::send_batch));
         }
-
-        Ok(())
     }
 }
 
@@ -583,10 +609,10 @@ impl Handler<TrackRawOutcome> for HttpOutcomeProducer {
     type Result = Result<(), OutcomeError>;
     fn handle(&mut self, message: TrackRawOutcome, ctx: &mut Self::Context) -> Self::Result {
         if self.config.emit_outcomes() {
-            self.send_http_message(message, ctx)
-        } else {
-            Ok(()) // processing not enabled and emit_outcomes disabled
+            self.send_http_message(message, ctx);
         }
+
+        Ok(())
     }
 }
 

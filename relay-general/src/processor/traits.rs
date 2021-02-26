@@ -3,6 +3,8 @@
 
 use std::fmt::Debug;
 
+use enumset::EnumSet;
+
 use crate::processor::{process_value, ProcessingState, ValueType};
 use crate::types::{FromValue, Meta, ProcessingResult, ToValue};
 
@@ -115,8 +117,8 @@ pub trait Processor: Sized {
 pub trait ProcessValue: FromValue + ToValue + Debug + Clone {
     /// Returns the type of the value.
     #[inline]
-    fn value_type(&self) -> Option<ValueType> {
-        None
+    fn value_type(&self) -> EnumSet<ValueType> {
+        EnumSet::empty()
     }
 
     /// Executes a processor on this value.

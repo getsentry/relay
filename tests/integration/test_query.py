@@ -1,4 +1,5 @@
 import json
+import math
 import queue
 import redis
 import socket
@@ -13,7 +14,8 @@ from requests.exceptions import HTTPError
 
 
 def test_local_project_config(mini_sentry, relay):
-    config = mini_sentry.basic_project_config()
+    project_id = 42
+    config = mini_sentry.basic_project_config(project_id)
     relay_config = {
         "cache": {"file_interval": 1, "project_expiry": 0, "project_grace_period": 0}
     }
@@ -31,9 +33,13 @@ def test_local_project_config(mini_sentry, relay):
             }
         )
     )
+    # get the dsn key from the config
+    # we need to provide it manually to Relay since it is not in the config (of MiniSentry) and
+    # we don't look on the file system
+    dsn_key = config["publicKeys"][0]["publicKey"]
 
     relay.wait_relay_healthcheck()
-    relay.send_event(42)
+    relay.send_event(project_id, dsn_key=dsn_key)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
@@ -45,7 +51,7 @@ def test_local_project_config(mini_sentry, relay):
     try:
         # This may or may not respond with 403, depending on how quickly the future to fetch project
         # states executes.
-        relay.send_event(42)
+        relay.send_event(project_id, dsn_key=dsn_key)
     except HTTPError:
         pass
 
@@ -54,7 +60,7 @@ def test_local_project_config(mini_sentry, relay):
 
 @pytest.mark.parametrize("grace_period", [0, 5])
 def test_project_grace_period(mini_sentry, relay, grace_period):
-    config = mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+    config = mini_sentry.add_basic_project_config(42)
     config["disabled"] = True
     fetched_project_config = threading.Event()
 
@@ -107,7 +113,7 @@ def test_project_grace_period(mini_sentry, relay, grace_period):
 def test_query_retry(failure_type, mini_sentry, relay):
     retry_count = 0
 
-    mini_sentry.project_configs[42] = mini_sentry.basic_project_config()
+    mini_sentry.add_basic_project_config(42)
     original_endpoint = mini_sentry.app.view_functions["get_project_config"]
 
     @mini_sentry.app.endpoint("get_project_config")
@@ -129,15 +135,18 @@ def test_query_retry(failure_type, mini_sentry, relay):
             return original_endpoint()
 
     relay = relay(mini_sentry)
-    relay.send_event(42)
 
-    event = mini_sentry.captured_events.get(timeout=8).get_event()
-    assert event["logentry"] == {"formatted": "Hello, World!"}
-    assert retry_count == 2
+    try:
+        relay.send_event(42)
 
-    if mini_sentry.test_failures:
-        for (_, error) in mini_sentry.test_failures:
-            assert isinstance(error, (socket.error, AssertionError))
+        event = mini_sentry.captured_events.get(timeout=8).get_event()
+        assert event["logentry"] == {"formatted": "Hello, World!"}
+        assert retry_count == 2
+
+        if mini_sentry.test_failures:
+            for (_, error) in mini_sentry.test_failures:
+                assert isinstance(error, (socket.error, AssertionError))
+    finally:
         mini_sentry.test_failures.clear()
 
 
@@ -160,25 +169,35 @@ def test_query_retry_maxed_out(
     def get_project_config():
         nonlocal request_count
         request_count += 1
-        time.sleep(1)
         print("RETRY", request_count)
         return "no", 500
 
-    relay = relay_with_processing({"limits": {"query_timeout": 10}})
-    relay.send_event(42)
-    time.sleep(10)  # Wait for 4 retries with backoff
+    RETRIES = 1
+    query_timeout = 0.5  # Initial grace period
 
-    outcomes_consumer.assert_dropped_internal()
-    assert request_count == 4
+    # Relay's exponential backoff: INITIAL_INTERVAL = 1s; DEFAULT_MULTIPLIER = 1.5;
+    for retry in range(RETRIES):  # 1 retry
+        query_timeout += 1 * 1.5 ** (retry + 1)
 
-    for (_, error) in mini_sentry.test_failures[:-1]:
-        assert isinstance(error, AssertionError)
-        assert "error fetching project states" in str(error)
+    relay = relay_with_processing(
+        {"limits": {"query_timeout": math.ceil(query_timeout)}}
+    )
 
-    _, last_error = mini_sentry.test_failures[-1]
-    assert "failed to resolve project information" in str(last_error)
+    try:
+        relay.send_event(42)
+        time.sleep(query_timeout)
 
-    mini_sentry.test_failures.clear()
+        outcomes_consumer.assert_dropped_internal()
+        assert request_count == 1 + RETRIES
+
+        for (_, error) in mini_sentry.test_failures[:-1]:
+            assert isinstance(error, AssertionError)
+            assert "error fetching project states" in str(error)
+
+        _, last_error = mini_sentry.test_failures[-1]
+        assert "failed to resolve project information" in str(last_error)
+    finally:
+        mini_sentry.test_failures.clear()
 
 
 @pytest.mark.parametrize("disabled", (True, False))
@@ -189,17 +208,18 @@ def test_processing_redis_query(
     events_consumer = events_consumer()
 
     relay = relay_with_processing({"limits": {"query_timeout": 10}})
-    cfg = mini_sentry.full_project_config()
+    project_id = 42
+    cfg = mini_sentry.add_full_project_config(project_id)
     cfg["disabled"] = disabled
 
-    key = mini_sentry.dsn_public_key
+    key = mini_sentry.get_dsn_public_key(project_id)
     redis_client = redis.Redis(host="127.0.0.1", port=6379, db=0)
     projectconfig_cache_prefix = relay.options["processing"][
         "projectconfig_cache_prefix"
     ]
     redis_client.setex(f"{projectconfig_cache_prefix}:{key}", 3600, json.dumps(cfg))
 
-    relay.send_event(42)
+    relay.send_event(project_id)
 
     if disabled:
         outcomes_consumer.assert_dropped_unknown_project()

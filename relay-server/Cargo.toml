@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "20.10.1"
+version = "21.2.0"
 edition = "2018"
 build = "build.rs"
 license-file = "../LICENSE"
@@ -28,18 +28,20 @@ processing = [
 actix = "0.7.9"
 actix-web = { version = "0.7.19", default-features = false, features = ["brotli", "flate2-c"] }
 base64 = "0.10.1"
+brotli2 = "0.3.2"
 bytes = { version = "0.4.12", features = ["serde"] }
 chrono = { version = "0.4.11", features = ["serde"] }
 clap = "2.33.1"
 failure = "0.1.8"
-flate2 = "1.0.14"
+flate2 = "1.0.19"
+fragile = "1.0.0" # used for vendoring sentry-actix
 futures = "0.1.28"
+futures03 = { version = "0.3", package = "futures", features = ["compat"] }
 itertools = "0.8.2"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
 lazy_static = "1.4.0"
 listenfd = "0.3.3"
-log = "0.4.8"
-minidump = { git = "https://github.com/luser/rust-minidump", rev = "f8a18211dbb0bf7dca5dd41e578af4b366fcb9be", optional = true }
+minidump = { git = "https://github.com/luser/rust-minidump", rev = "20070798b5e9216474013341ed80c5272558d9ee", optional = true }
 native-tls = { version = "0.2.4", optional = true }
 parking_lot = "0.10.0"
 rdkafka = { version = "0.24", optional = true }
@@ -50,16 +52,19 @@ relay-common = { path = "../relay-common" }
 relay-config = { path = "../relay-config" }
 relay-filter = { path = "../relay-filter" }
 relay-general = { path = "../relay-general" }
+relay-log = { path = "../relay-log" }
 relay-quotas = { path = "../relay-quotas" }
 relay-redis = { path = "../relay-redis" }
+relay-sampling = { path = "../relay-sampling" }
+reqwest = { version = "0.11.1", features = ["gzip", "stream", "trust-dns", "native-tls-vendored"] }
 rmp-serde = "0.14.3"
-sentry = "0.20.1"
-sentry-actix = "0.20.1"
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
 serde_urlencoded = "0.7.0"
 smallvec = { version = "1.4.0", features = ["serde"] }
-symbolic = { version = "7.5.0", optional = true, default-features=false, features=["unreal-serde"] }
+symbolic = { version = "8.0.4", optional = true, default-features=false, features=["unreal-serde"] }
+take_mut = "0.2.2"
+tokio = { version = "1.0", features = ["rt-multi-thread"] } # in sync with reqwest
 tokio-timer = "0.2.13"
 url = { version = "2.1.1", features = ["serde"] }
 uuid = { version = "0.8.1", features = ["v5"] }
@@ -69,4 +74,4 @@ libc = "0.2.71"
 
 [dev-dependencies]
 insta = "1.1.0"
-env_logger = "0.7.1"
+relay-log = { path = "../relay-log", features = ["test"] }

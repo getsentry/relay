@@ -12,7 +12,7 @@ use failure::{Backtrace, Context, Fail};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
-use relay_common::{Dsn, Uuid};
+use relay_common::Uuid;
 use relay_redis::RedisConfig;
 
 use crate::byte_size::ByteSize;
@@ -251,7 +251,7 @@ pub struct Credentials {
 impl Credentials {
     /// Generates new random credentials.
     pub fn generate() -> Self {
-        log::info!("generating new relay credentials");
+        relay_log::info!("generating new relay credentials");
         let (sk, pk) = generate_key_pair();
         Self {
             secret_key: sk,
@@ -323,9 +323,7 @@ fn is_docker() -> bool {
         return true;
     }
 
-    fs::read_to_string("/proc/self/cgroup")
-        .map(|s| s.find("/docker").is_some())
-        .unwrap_or(false)
+    fs::read_to_string("/proc/self/cgroup").map_or(false, |s| s.contains("/docker"))
 }
 
 /// Default value for the "bind" configuration.
@@ -368,45 +366,6 @@ impl Default for Relay {
             tls_port: None,
             tls_identity_path: None,
             tls_identity_password: None,
-        }
-    }
-}
-
-/// Controls the log format
-#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum LogFormat {
-    /// Auto detect (pretty for tty, simplified for other)
-    Auto,
-    /// With colors
-    Pretty,
-    /// Simplified log output
-    Simplified,
-    /// Dump out JSON lines
-    Json,
-}
-
-/// Controls the logging system.
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
-struct Logging {
-    /// The log level for the relay.
-    level: log::LevelFilter,
-    /// If set to true this emits log messages for failed event payloads.
-    log_failed_payloads: bool,
-    /// Controls the log format.
-    format: LogFormat,
-    /// When set to true, backtraces are forced on.
-    enable_backtraces: bool,
-}
-
-impl Default for Logging {
-    fn default() -> Self {
-        Logging {
-            level: log::LevelFilter::Info,
-            log_failed_payloads: false,
-            format: LogFormat::Auto,
-            enable_backtraces: false,
         }
     }
 }
@@ -639,25 +598,6 @@ impl Default for Cache {
     }
 }
 
-/// Controls interal reporting to Sentry.
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
-struct Sentry {
-    dsn: Option<Dsn>,
-    enabled: bool,
-}
-
-impl Default for Sentry {
-    fn default() -> Self {
-        Sentry {
-            dsn: "https://0cc4a37e5aab4da58366266a87a95740@sentry.io/1269704"
-                .parse()
-                .ok(),
-            enabled: false,
-        }
-    }
-}
-
 /// Define the topics over which Relay communicates with Sentry.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum KafkaTopic {
@@ -730,6 +670,7 @@ fn default_projectconfig_cache_prefix() -> String {
     "relayconfig".to_owned()
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn default_max_rate_limit() -> Option<u32> {
     Some(300) // 5 minutes
 }
@@ -776,9 +717,9 @@ impl Default for Processing {
         Self {
             enabled: false,
             geoip_path: None,
-            max_secs_in_future: 0,
-            max_secs_in_past: 0,
-            max_session_secs_in_past: 0,
+            max_secs_in_future: default_max_secs_in_future(),
+            max_secs_in_past: default_max_secs_in_past(),
+            max_session_secs_in_past: default_max_session_secs_in_past(),
             kafka_config: Vec::new(),
             topics: TopicNames::default(),
             redis: None,
@@ -858,11 +799,11 @@ struct ConfigValues {
     #[serde(default)]
     limits: Limits,
     #[serde(default)]
-    logging: Logging,
+    logging: relay_log::LogConfig,
     #[serde(default)]
     metrics: Metrics,
     #[serde(default)]
-    sentry: Sentry,
+    sentry: relay_log::SentryConfig,
     #[serde(default)]
     processing: Processing,
     #[serde(default)]
@@ -1204,24 +1145,14 @@ impl Config {
         self.values.outcomes.source.as_deref()
     }
 
-    /// Returns the log level.
-    pub fn log_level_filter(&self) -> log::LevelFilter {
-        self.values.logging.level
+    /// Returns logging configuration.
+    pub fn logging(&self) -> &relay_log::LogConfig {
+        &self.values.logging
     }
 
-    /// Should backtraces be enabled?
-    pub fn enable_backtraces(&self) -> bool {
-        self.values.logging.enable_backtraces
-    }
-
-    /// Should we debug log bad payloads?
-    pub fn log_failed_payloads(&self) -> bool {
-        self.values.logging.log_failed_payloads
-    }
-
-    /// Which log format should be used?
-    pub fn log_format(&self) -> LogFormat {
-        self.values.logging.format
+    /// Returns logging configuration.
+    pub fn sentry(&self) -> &relay_log::SentryConfig {
+        &self.values.sentry
     }
 
     /// Returns the socket addresses for statsd.
@@ -1413,15 +1344,6 @@ impl Config {
     /// Returns the maximum size of a project config query.
     pub fn query_batch_size(&self) -> usize {
         self.values.cache.batch_size
-    }
-
-    /// Return the Sentry DSN if reporting to Sentry is enabled.
-    pub fn sentry_dsn(&self) -> Option<&Dsn> {
-        if self.values.sentry.enabled {
-            self.values.sentry.dsn.as_ref()
-        } else {
-            None
-        }
     }
 
     /// Get filename for static project config.

@@ -49,10 +49,6 @@ impl<'a> PiiProcessor<'a> {
         }
 
         for (selector, rules) in self.compiled_config.applications.iter() {
-            if pii == Pii::Maybe && !selector.is_specific() {
-                continue;
-            }
-
             if state.path().matches_selector(selector) {
                 for rule in rules {
                     let reborrowed_value = value.as_deref_mut();
@@ -73,7 +69,9 @@ impl<'a> Processor for PiiProcessor<'a> {
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         // booleans cannot be PII, and strings are handled in process_string
-        if let Some(ValueType::Boolean) | Some(ValueType::String) = state.value_type() {
+        if state.value_type().contains(ValueType::Boolean)
+            || state.value_type().contains(ValueType::String)
+        {
             return Ok(());
         }
 
@@ -836,6 +834,7 @@ fn test_logentry_value_types() {
         "$logentry.formatted",
         "$message",
         "$logentry.formatted && $message",
+        "$string",
     ] {
         let config = PiiConfig::from_json(&format!(
             r##"

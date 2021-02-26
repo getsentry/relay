@@ -41,11 +41,14 @@ use failure::Fail;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
+use relay_common::DataCategory;
 use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
+use relay_sampling::TraceContext;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
+use crate::utils::{infer_event_category, ErrorBoundary};
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
@@ -91,6 +94,8 @@ pub enum ItemType {
     UserReport,
     /// Session update data.
     Session,
+    /// Aggregated session data.
+    Sessions,
 }
 
 impl ItemType {
@@ -118,6 +123,7 @@ impl fmt::Display for ItemType {
             Self::UnrealReport => write!(f, "unreal report"),
             Self::UserReport => write!(f, "user feedback"),
             Self::Session => write!(f, "session"),
+            Self::Sessions => write!(f, "aggregated sessions"),
         }
     }
 }
@@ -345,6 +351,13 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     rate_limited: bool,
 
+    /// A list of cumulative sample rates applied to this event.
+    ///
+    /// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The
+    /// effective sample rate is multiplied.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sample_rates: Option<Value>,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -367,6 +380,7 @@ impl Item {
                 content_type: None,
                 filename: None,
                 rate_limited: false,
+                sample_rates: None,
                 other: BTreeMap::new(),
             },
             payload: Bytes::new(),
@@ -452,6 +466,18 @@ impl Item {
         self.headers.rate_limited = rate_limited;
     }
 
+    /// Removes sample rates from the headers, if any.
+    pub fn take_sample_rates(&mut self) -> Option<Value> {
+        self.headers.sample_rates.take()
+    }
+
+    /// Sets sample rates for this item.
+    pub fn set_sample_rates(&mut self, sample_rates: Value) {
+        if matches!(sample_rates, Value::Array(ref a) if !a.is_empty()) {
+            self.headers.sample_rates = Some(sample_rates);
+        }
+    }
+
     /// Returns the specified header value, if present.
     pub fn get_header<K>(&self, name: &K) -> Option<&Value>
     where
@@ -500,7 +526,7 @@ impl Item {
             ItemType::FormData => false,
 
             // The remaining item types cannot carry event payloads.
-            ItemType::UserReport | ItemType::Session => false,
+            ItemType::UserReport | ItemType::Session | ItemType::Sessions => false,
         }
     }
 
@@ -518,6 +544,7 @@ impl Item {
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
             ItemType::Session => false,
+            ItemType::Sessions => false,
         }
     }
 }
@@ -551,6 +578,10 @@ pub struct EnvelopeHeaders<M = RequestMeta> {
     /// This can be used to perform drift correction.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sent_at: Option<DateTime<Utc>>,
+
+    /// Trace context associated with the request
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    trace: Option<ErrorBoundary<TraceContext>>,
 
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
@@ -591,6 +622,7 @@ impl EnvelopeHeaders<PartialMeta> {
             meta: meta.copy_to(request_meta),
             retention: self.retention,
             sent_at: self.sent_at,
+            trace: self.trace,
             other: self.other,
         })
     }
@@ -612,6 +644,7 @@ impl Envelope {
                 retention: None,
                 sent_at: None,
                 other: BTreeMap::new(),
+                trace: None,
             },
             items: Items::new(),
         }
@@ -791,6 +824,14 @@ impl Envelope {
         })
     }
 
+    pub fn trace_context(&self) -> Option<&TraceContext> {
+        match &self.headers.trace {
+            Option::None => None,
+            Option::Some(ErrorBoundary::Err(_)) => None,
+            Option::Some(ErrorBoundary::Ok(t)) => Some(t),
+        }
+    }
+
     /// Retains only the items specified by the predicate.
     ///
     /// In other words, remove all elements where `f(&item)` returns `false`. This method operates
@@ -873,7 +914,9 @@ impl Envelope {
         let headers_end = stream.byte_offset();
         Self::require_termination(slice, headers_end)?;
 
-        let payload_start = headers_end + 1;
+        // The last header does not require a trailing newline, so `payload_start` may point
+        // past the end of the buffer.
+        let payload_start = std::cmp::min(headers_end + 1, bytes.len());
         let payload_end = match headers.length {
             Some(len) => {
                 let payload_end = payload_start + len as usize;
@@ -912,6 +955,13 @@ impl Envelope {
         writer
             .write_all(buf)
             .map_err(EnvelopeError::PayloadIoFailed)
+    }
+
+    /// Return the data category type of the event item, if any, in this envelope.
+    pub fn get_event_category(&self) -> Option<DataCategory> {
+        self.items().find_map(infer_event_category)
+        // There are some cases where multiple items may have different categories, but returning
+        // the first is good enough for now.
     }
 }
 
@@ -1079,6 +1129,26 @@ mod tests {
     }
 
     #[test]
+    fn test_deserialize_envelope_empty_item_eof() {
+        // With terminating newline after item payload
+        let bytes = Bytes::from(
+            "\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"attachment\",\"length\":0}\n\
+             \n\
+             {\"type\":\"attachment\",\"length\":0}\
+             ",
+        );
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        assert_eq!(envelope.len(), 2);
+
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items[0].len(), 0);
+        assert_eq!(items[1].len(), 0);
+    }
+
+    #[test]
     fn test_deserialize_envelope_implicit_length() {
         // With terminating newline after item payload
         let bytes = Bytes::from(
@@ -1112,6 +1182,24 @@ mod tests {
 
         let items: Vec<_> = envelope.items().collect();
         assert_eq!(items[0].len(), 10);
+    }
+
+    #[test]
+    fn test_deserialize_envelope_implicit_length_empty_eof() {
+        // Empty item with implicit length ending the envelope
+        // Panic regression test.
+        let bytes = Bytes::from(
+            "\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"attachment\"}\
+             ",
+        );
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        assert_eq!(envelope.len(), 1);
+
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items[0].len(), 0);
     }
 
     #[test]

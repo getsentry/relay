@@ -24,7 +24,7 @@ impl Cookies {
         pairs.map(Cookies)
     }
 
-    fn iter_cookies<'a>(string: &'a str) -> impl Iterator<Item = Result<CookieEntry, Error>> + 'a {
+    fn iter_cookies(string: &str) -> impl Iterator<Item = Result<CookieEntry, Error>> + '_ {
         string
             .split(';')
             .filter(|cookie| !cookie.trim().is_empty())
@@ -321,12 +321,14 @@ where
     where
         T: IntoIterator<Item = (K, V)>,
     {
-        Query(PairList::from_iter(iter.into_iter().map(|(key, value)| {
+        let pairs = iter.into_iter().map(|(key, value)| {
             Annotated::new((
                 Annotated::new(key.into()),
                 Annotated::new(value.into().into()),
             ))
-        })))
+        });
+
+        Query(pairs.collect())
     }
 }
 

@@ -51,9 +51,10 @@ def haproxy(background_process, random_port, config_dir):
             )
 
         config.write("\n".join(config_lines))
+        config.write("\n")
 
         process = background_process(HAPROXY_BIN + ["-f", str(config)])
 
-        return HAProxy((host, port), process, upstreams)
+        return HAProxy((host, port), process, upstreams[0])
 
     return inner

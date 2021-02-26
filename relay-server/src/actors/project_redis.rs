@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use actix::prelude::*;
 use failure::Fail;
-use relay_common::{LogError, ProjectKey};
+use relay_common::ProjectKey;
 use relay_config::Config;
+use relay_log::LogError;
 use relay_redis::{RedisError, RedisPool};
 
 use crate::actors::project::ProjectState;
@@ -63,11 +64,11 @@ impl Actor for RedisProjectSource {
     type Context = SyncContext<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        log::info!("redis project cache started");
+        relay_log::info!("redis project cache started");
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::info!("redis project cache stopped");
+        relay_log::info!("redis project cache stopped");
     }
 }
 
@@ -82,7 +83,7 @@ impl Handler<FetchOptionalProjectState> for RedisProjectSource {
         match self.get_config(message.public_key) {
             Ok(x) => x.map(ProjectState::sanitize).map(Arc::new),
             Err(e) => {
-                log::error!("Failed to fetch project from Redis: {}", LogError(&e));
+                relay_log::error!("Failed to fetch project from Redis: {}", LogError(&e));
                 None
             }
         }

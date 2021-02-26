@@ -543,7 +543,7 @@ fn parse_bag_size(name: &str) -> TokenStream {
 #[derive(Default)]
 struct TypeAttrs {
     process_func: Option<String>,
-    value_type: Option<String>,
+    value_type: Vec<String>,
     tag_key: Option<String>,
 }
 
@@ -600,7 +600,7 @@ fn parse_type_attributes(s: &synstructure::Structure<'_>) -> TypeAttrs {
                             } else if ident == "value_type" {
                                 match name_value.lit {
                                     Lit::Str(litstr) => {
-                                        rv.value_type = Some(litstr.value());
+                                        rv.value_type.push(litstr.value());
                                     }
                                     _ => {
                                         panic!("Got non string literal for value type");
@@ -661,7 +661,7 @@ struct FieldAttrs {
     trim_whitespace: Option<bool>,
     pii: Option<Pii>,
     retain: bool,
-    match_regex: Option<String>,
+    characters: Option<TokenStream>,
     max_chars: Option<TokenStream>,
     bag_size: Option<TokenStream>,
     legacy_aliases: Vec<String>,
@@ -727,10 +727,10 @@ impl FieldAttrs {
             quote!(None)
         };
 
-        let match_regex = if let Some(ref match_regex) = self.match_regex {
-            quote!(Some(#match_regex))
+        let characters = if let Some(ref characters) = self.characters {
+            quote!(Some(#characters))
         } else if let Some(ref parent_attrs) = inherit_from_field_attrs {
-            quote!(#parent_attrs.match_regex)
+            quote!(#parent_attrs.characters)
         } else {
             quote!(None)
         };
@@ -741,8 +741,8 @@ impl FieldAttrs {
                 required: #required,
                 nonempty: #nonempty,
                 trim_whitespace: #trim_whitespace,
-                match_regex: #match_regex,
                 max_chars: #max_chars,
+                characters: #characters,
                 bag_size: #bag_size,
                 pii: #pii,
                 retain: #retain,
@@ -885,12 +885,20 @@ fn parse_field_attributes(
                                         panic!("Got non string literal for trim_whitespace");
                                     }
                                 }
-                            } else if ident == "match_regex" {
+                            } else if ident == "allow_chars" || ident == "deny_chars" {
+                                if rv.characters.is_some() {
+                                    panic!("allow_chars and deny_chars are mutually exclusive");
+                                }
+
                                 match name_value.lit {
                                     Lit::Str(litstr) => {
-                                        rv.match_regex = Some(litstr.value().clone())
+                                        let attr =
+                                            parse_character_set(ident, litstr.value().as_str());
+                                        rv.characters = Some(attr);
                                     }
-                                    _ => panic!("Got non string literal for match_regex"),
+                                    _ => {
+                                        panic!("Got non string literal for max_chars");
+                                    }
                                 }
                             } else if ident == "max_chars" {
                                 match name_value.lit {
@@ -1032,4 +1040,55 @@ fn parse_variant_attributes(attrs: &[syn::Attribute]) -> VariantAttrs {
 
 fn is_newtype(variant: &synstructure::VariantInfo) -> bool {
     variant.bindings().len() == 1 && variant.bindings()[0].ast().ident.is_none()
+}
+
+fn parse_character_set(ident: &Ident, value: &str) -> TokenStream {
+    #[derive(Clone, Copy)]
+    enum State {
+        Blank,
+        OpenRange(char),
+        MidRange(char),
+    }
+
+    let mut state = State::Blank;
+    let mut ranges = Vec::new();
+
+    for c in value.chars() {
+        match (state, c) {
+            (State::Blank, a) => state = State::OpenRange(a),
+            (State::OpenRange(a), '-') => state = State::MidRange(a),
+            (State::OpenRange(a), c) => {
+                state = State::OpenRange(c);
+                ranges.push(quote!(#a..=#a));
+            }
+            (State::MidRange(a), b) => {
+                ranges.push(quote!(#a..=#b));
+                state = State::Blank;
+            }
+        }
+    }
+
+    match state {
+        State::OpenRange(a) => ranges.push(quote!(#a..=#a)),
+        State::MidRange(a) => {
+            ranges.push(quote!(#a..=#a));
+            ranges.push(quote!('-'..='-'));
+        }
+        State::Blank => {}
+    }
+
+    let is_negative = ident == "deny_chars";
+
+    quote! {
+        crate::processor::CharacterSet {
+            char_is_valid: |c: char| -> bool {
+                match c {
+                    #((#ranges) => !#is_negative,)*
+                    _ => #is_negative,
+                }
+            },
+            ranges: &[ #(#ranges,)* ],
+            is_negative: #is_negative,
+        }
+    }
 }

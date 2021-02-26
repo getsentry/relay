@@ -40,7 +40,7 @@ def assert_only_minidump(envelope, assert_payload=True):
 def test_minidump(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
 
     attachments = [
         (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content"),
@@ -64,7 +64,7 @@ def test_minidump(mini_sentry, relay):
 def test_minidump_attachments(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
 
     event = {"event_id": "2dd132e467174db48dbaddabd3cbed57", "user": {"id": "123"}}
     breadcrumbs1 = {
@@ -132,7 +132,7 @@ def test_minidump_attachments(mini_sentry, relay):
 def test_minidump_multipart(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
 
     attachments = [
         (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content"),
@@ -161,7 +161,7 @@ def test_minidump_multipart(mini_sentry, relay):
 def test_minidump_sentry_json(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
 
     attachments = [
         (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content"),
@@ -190,7 +190,7 @@ def test_minidump_sentry_json(mini_sentry, relay):
 def test_minidump_sentry_json_chunked(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
 
     attachments = [
         (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content"),
@@ -225,7 +225,7 @@ def test_minidump_sentry_json_chunked(mini_sentry, relay):
 def test_minidump_invalid_json(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
 
     attachments = [
         (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content"),
@@ -245,7 +245,7 @@ def test_minidump_invalid_json(mini_sentry, relay):
 def test_minidump_invalid_magic(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
 
     attachments = [
         (MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "content without MDMP magic"),
@@ -258,7 +258,7 @@ def test_minidump_invalid_magic(mini_sentry, relay):
 def test_minidump_invalid_field(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
 
     attachments = [
         ("unknown_field_name", "minidump.dmp", "MDMP content"),
@@ -274,11 +274,13 @@ def test_minidump_invalid_field(mini_sentry, relay):
 def test_minidump_raw(mini_sentry, relay, content_type):
     project_id = 42
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
 
     relay.request(
         "post",
-        "/api/42/minidump?sentry_key={}".format(relay.dsn_public_key),
+        "/api/{}/minidump?sentry_key={}".format(
+            project_id, mini_sentry.get_dsn_public_key(project_id)
+        ),
         headers={"Content-Type": content_type},
         data="MDMP content",
     )
@@ -293,7 +295,7 @@ def test_minidump_raw(mini_sentry, relay, content_type):
 def test_minidump_nested_formdata(mini_sentry, relay, test_file_name):
     project_id = 42
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
 
     dmp_path = os.path.join(
         os.path.dirname(__file__), "fixtures", "native", test_file_name
@@ -314,7 +316,7 @@ def test_minidump_nested_formdata(mini_sentry, relay, test_file_name):
 def test_minidump_invalid_nested_formdata(mini_sentry, relay):
     project_id = 42
     relay = relay(mini_sentry)
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
 
     dmp_path = os.path.join(
         os.path.dirname(__file__), "fixtures", "native", "bad_electron_simple.dmp"
@@ -344,7 +346,8 @@ def test_minidump_with_processing(
         }
     )
 
-    project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
 
     # Disable scurbbing, the basic and full project configs from the mini_sentry fixture
     # will modify the minidump since it contains user paths in the module list.  This breaks
@@ -366,7 +369,7 @@ def test_minidump_with_processing(
     attachments_consumer = attachments_consumer()
 
     attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
-    relay.send_minidump(project_id=42, files=attachments)
+    relay.send_minidump(project_id=project_id, files=attachments)
 
     attachment = b""
     num_chunks = 0
@@ -407,7 +410,8 @@ def test_minidump_with_processing_invalid(
 
     relay = relay_with_processing()
 
-    mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
 
     attachments_consumer = attachments_consumer()
 
@@ -449,7 +453,8 @@ def test_minidump_ratelimit(
 ):
     relay = relay_with_processing()
 
-    project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["quotas"] = [
         {"categories": rate_limits, "limit": 0, "reasonCode": "static_disabled_quota"}
     ]
@@ -458,9 +463,47 @@ def test_minidump_ratelimit(
     attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", "MDMP content")]
 
     # First minidump returns 200 but is rate limited in processing
-    relay.send_minidump(project_id=42, files=attachments)
-    outcomes_consumer.assert_rate_limited("static_disabled_quota")
+    relay.send_minidump(project_id=project_id, files=attachments)
+    outcomes_consumer.assert_rate_limited("static_disabled_quota", category="error")
 
     # Minidumps never return rate limits
-    relay.send_minidump(project_id=42, files=attachments)
-    outcomes_consumer.assert_rate_limited("static_disabled_quota")
+    relay.send_minidump(project_id=project_id, files=attachments)
+    outcomes_consumer.assert_rate_limited("static_disabled_quota", category="error")
+
+
+def test_crashpad_annotations(mini_sentry, relay_with_processing, attachments_consumer):
+    dmp_path = os.path.join(
+        os.path.dirname(__file__), "fixtures/native/annotations.dmp"
+    )
+    with open(dmp_path, "rb") as f:
+        content = f.read()
+
+    relay = relay_with_processing(
+        {
+            # Prevent normalization from overwriting the minidump timestamp
+            "processing": {"max_secs_in_past": 2 ** 32 - 1}
+        }
+    )
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+
+    # Disable scurbbing, the basic and full project configs from the mini_sentry fixture
+    # will modify the minidump since it contains user paths in the module list.  This breaks
+    # get_attachment_chunk() below.
+    del project_config["config"]["piiConfig"]
+
+    attachments_consumer = attachments_consumer()
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
+    relay.send_minidump(project_id=project_id, files=attachments)
+
+    # Only one attachment chunk expected
+    attachments_consumer.get_attachment_chunk()
+    event, _ = attachments_consumer.get_event()
+
+    # Check the placeholder payload
+    assert event["contexts"]["crashpad"] == {"hello": "world"}
+    assert event["contexts"]["dyld"] == {
+        "annotations": ["dyld2 mode"],
+        "type": "crashpad",
+    }

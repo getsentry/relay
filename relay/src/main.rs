@@ -38,8 +38,10 @@
 //!  - [`relay-ffi-macros`]: Macros for error handling in FFI bindings.
 //!  - [`relay-filter`]: Inbound data filters.
 //!  - [`relay-general`]: Event protocol, normalization and data scrubbing.
+//!  - [`relay-log`]: Error reporting and logging.
 //!  - [`relay-quotas`]: Sentry quotas and rate limiting.
 //!  - [`relay-redis`]: Pooled Redis and Redis cluster abstraction.
+//!  - [`relay-sampling`]: Dynamic sampling functionality.
 //!  - [`relay-server`]: Endpoints and services.
 //!
 //! # Tools
@@ -61,8 +63,10 @@
 //! [`relay-ffi-macros`]: ../relay_ffi_macros/index.html
 //! [`relay-filter`]: ../relay_filter/index.html
 //! [`relay-general`]: ../relay_general/index.html
+//! [`relay-log`]: ../relay_log/index.html
 //! [`relay-quotas`]: ../relay_quotas/index.html
 //! [`relay-redis`]: ../relay_redis/index.html
+//! [`relay-sampling`]: ../relay_sampling/index.html
 //! [`relay-server`]: ../relay_server/index.html
 //! [`document-metrics`]: ../document_metrics/index.html
 //! [`generate-schema`]: ../generate_schema/index.html
@@ -79,23 +83,15 @@ mod cliapp;
 mod setup;
 mod utils;
 
-use sentry::Hub;
 use std::process;
 
-pub fn main() {
-    // on non windows machines we want to initialize the openssl envvars based on
-    // what openssl probe tells us.  We will eventually stop doing that if we
-    // kill openssl.
-    #[cfg(not(windows))]
-    {
-        use openssl_probe::init_ssl_cert_env_vars;
-        init_ssl_cert_env_vars();
-    }
+use relay_log::Hub;
 
+pub fn main() {
     let exit_code = match cli::execute() {
         Ok(()) => 0,
         Err(err) => {
-            cli::ensure_log_error(&err);
+            relay_log::ensure_error(&err);
             1
         }
     };

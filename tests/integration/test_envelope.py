@@ -1,22 +1,34 @@
-import json
+import pytest
 
-from datetime import datetime
-
-from sentry_sdk.envelope import Envelope, PayloadRef, Item
-from sentry_sdk.utils import format_timestamp
+from requests.exceptions import HTTPError
+from sentry_sdk.envelope import Envelope
 
 
 def test_envelope(mini_sentry, relay_chain):
     relay = relay_chain()
-    mini_sentry.project_configs[42] = relay.basic_project_config()
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
 
     envelope = Envelope()
     envelope.add_event({"message": "Hello, World!"})
-    relay.send_envelope(42, envelope)
+    relay.send_envelope(project_id, envelope)
 
     event = mini_sentry.captured_events.get(timeout=1).get_event()
 
     assert event["logentry"] == {"formatted": "Hello, World!"}
+
+
+def test_envelope_empty(mini_sentry, relay):
+    relay = relay(mini_sentry)
+    PROJECT_ID = 42
+    mini_sentry.add_basic_project_config(PROJECT_ID)
+
+    envelope = Envelope()
+
+    with pytest.raises(HTTPError) as excinfo:
+        relay.send_envelope(PROJECT_ID, envelope)
+
+    assert excinfo.value.response.status_code == 400
 
 
 def generate_transaction_item():
@@ -50,18 +62,12 @@ def generate_transaction_item():
 def test_normalize_measurement_interface(
     mini_sentry, relay_with_processing, transactions_consumer
 ):
-
-    # set up relay
-
     relay = relay_with_processing()
-    mini_sentry.project_configs[42] = relay.basic_project_config()
+    mini_sentry.add_basic_project_config(42)
 
     events_consumer = transactions_consumer()
 
-    # construct envelope
-
     transaction_item = generate_transaction_item()
-
     transaction_item.update(
         {
             "measurements": {
@@ -78,15 +84,9 @@ def test_normalize_measurement_interface(
 
     envelope = Envelope()
     envelope.add_transaction(transaction_item)
-
-    # ingest envelope
-
     relay.send_envelope(42, envelope)
 
-    event, _ = events_consumer.try_get_event()
-
-    # test actual output
-
+    event, _ = events_consumer.get_event()
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     assert "trace" in event["contexts"]
     assert "measurements" in event, event
@@ -101,30 +101,18 @@ def test_normalize_measurement_interface(
 
 
 def test_empty_measurement_interface(mini_sentry, relay_chain):
-
-    # set up relay
-
     relay = relay_chain()
-    mini_sentry.project_configs[42] = relay.basic_project_config()
-
-    # construct envelope
+    mini_sentry.add_basic_project_config(42)
 
     transaction_item = generate_transaction_item()
-
     transaction_item.update({"measurements": {}})
 
     envelope = Envelope()
     envelope.add_transaction(transaction_item)
-
-    # ingest envelope
-
     relay.send_envelope(42, envelope)
 
     envelope = mini_sentry.captured_events.get(timeout=1)
-
     event = envelope.get_transaction_event()
-
-    # test actual output
 
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     assert "measurements" not in event, event
@@ -133,15 +121,10 @@ def test_empty_measurement_interface(mini_sentry, relay_chain):
 def test_strip_measurement_interface(
     mini_sentry, relay_with_processing, events_consumer
 ):
-
-    # set up relay
-
-    relay = relay_with_processing()
-    mini_sentry.project_configs[42] = relay.basic_project_config()
-
     events_consumer = events_consumer()
 
-    # construct envelope
+    relay = relay_with_processing()
+    mini_sentry.add_basic_project_config(42)
 
     envelope = Envelope()
     envelope.add_event(
@@ -154,16 +137,47 @@ def test_strip_measurement_interface(
             },
         }
     )
-
-    # ingest envelope
-
     relay.send_envelope(42, envelope)
 
-    event, _ = events_consumer.try_get_event()
-
-    # test actual output
-
+    event, _ = events_consumer.get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
-
     # expect measurements interface object to be stripped out since it's attached to a non-transaction event
     assert "measurements" not in event, event
+
+
+def test_sample_rates(mini_sentry, relay_chain):
+    relay = relay_chain()
+    mini_sentry.add_basic_project_config(42)
+
+    sample_rates = [
+        {"id": "client_sampler", "rate": 0.01},
+        {"id": "dyanmic_user", "rate": 0.5},
+    ]
+
+    envelope = Envelope()
+    envelope.add_event({"message": "hello, world!"})
+    envelope.items[0].headers["sample_rates"] = sample_rates
+    relay.send_envelope(42, envelope)
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    assert envelope.items[0].headers["sample_rates"] == sample_rates
+
+
+def test_sample_rates_metrics(mini_sentry, relay_with_processing, events_consumer):
+    events_consumer = events_consumer()
+
+    relay = relay_with_processing()
+    mini_sentry.add_basic_project_config(42)
+
+    sample_rates = [
+        {"id": "client_sampler", "rate": 0.01},
+        {"id": "dyanmic_user", "rate": 0.5},
+    ]
+
+    envelope = Envelope()
+    envelope.add_event({"message": "hello, world!"})
+    envelope.items[0].headers["sample_rates"] = sample_rates
+    relay.send_envelope(42, envelope)
+
+    event, _ = events_consumer.get_event()
+    assert event["_metrics"]["sample_rates"] == sample_rates

@@ -1,10 +1,13 @@
 ---
-minVersion: "0.11.1"
+minVersion: "0.14.0"
 github:
   owner: getsentry
   repo: relay
 changelogPolicy: auto
+
 statusProvider:
+  name: github
+artifactProvider:
   name: github
 
 targets:
@@ -33,7 +36,7 @@ targets:
     name: docker
     source: us.gcr.io/sentryio/relay
     target: getsentry/relay
-    targetFormat: '{{{target}}}:latest'
+    targetFormat: "{{{target}}}:latest"
 
 requireNames:
   - /^relay-Darwin-x86_64$/

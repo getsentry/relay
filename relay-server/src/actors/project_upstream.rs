@@ -10,8 +10,9 @@ use futures::{future, future::Shared, sync::oneshot, Future};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use relay_common::{metric, LogError, ProjectKey, RetryBackoff};
+use relay_common::{metric, ProjectKey, RetryBackoff};
 use relay_config::Config;
+use relay_log::LogError;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{FetchProjectState, ProjectError, ProjectStateResponse};
@@ -39,6 +40,8 @@ pub struct GetProjectStates {
     pub public_keys: Vec<ProjectKey>,
     #[serde(default)]
     pub full_config: bool,
+    #[serde(default)]
+    pub no_cache: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -76,6 +79,7 @@ struct ProjectStateChannel {
     sender: oneshot::Sender<Arc<ProjectState>>,
     receiver: Shared<oneshot::Receiver<Arc<ProjectState>>>,
     deadline: Instant,
+    no_cache: bool,
 }
 
 impl ProjectStateChannel {
@@ -86,7 +90,12 @@ impl ProjectStateChannel {
             sender,
             receiver: receiver.shared(),
             deadline: Instant::now() + timeout,
+            no_cache: false,
         }
+    }
+
+    pub fn no_cache(&mut self) {
+        self.no_cache = true;
     }
 
     pub fn send(self, state: ProjectState) {
@@ -138,7 +147,7 @@ impl UpstreamProjectSource {
     /// channels are pushed in the meanwhile, this will reschedule automatically.
     fn fetch_states(&mut self, context: &mut Context<Self>) {
         if self.state_channels.is_empty() {
-            log::error!("project state update scheduled without projects");
+            relay_log::error!("project state update scheduled without projects");
             return;
         }
 
@@ -167,7 +176,7 @@ impl UpstreamProjectSource {
 
         metric!(histogram(RelayHistograms::ProjectStatePending) = self.state_channels.len() as u64);
 
-        log::debug!(
+        relay_log::debug!(
             "updating project states for {}/{} projects (attempt {})",
             channels.len(),
             channels.len() + self.state_channels.len(),
@@ -182,13 +191,15 @@ impl UpstreamProjectSource {
         // num_batches. Worst case, we're left with one project per request, but that's fine.
         let actual_batch_size = (total_count + (total_count % num_batches)) / num_batches;
 
+        // TODO(ja): This mixes requests with no_cache. Separate out channels with no_cache: true?
+
         let requests: Vec<_> = channels
             .into_iter()
             .chunks(actual_batch_size)
             .into_iter()
             .map(|channels_batch| {
                 let channels_batch: BTreeMap<_, _> = channels_batch.collect();
-                log::debug!("sending request of size {}", channels_batch.len());
+                relay_log::debug!("sending request of size {}", channels_batch.len());
                 metric!(
                     histogram(RelayHistograms::ProjectStateRequestBatchSize) =
                         channels_batch.len() as u64
@@ -197,6 +208,7 @@ impl UpstreamProjectSource {
                 let query = GetProjectStates {
                     public_keys: channels_batch.keys().copied().collect(),
                     full_config: self.config.processing_enabled(),
+                    no_cache: channels_batch.values().any(|c| c.no_cache),
                 };
 
                 // count number of http requests for project states
@@ -239,7 +251,11 @@ impl UpstreamProjectSource {
                                     .unwrap_or(ErrorBoundary::Ok(None))
                                     .unwrap_or_else(|error| {
                                         let e = LogError(error);
-                                        log::error!("error fetching project state {}: {}", key, e);
+                                        relay_log::error!(
+                                            "error fetching project state {}: {}",
+                                            key,
+                                            e
+                                        );
                                         Some(ProjectState::err())
                                     })
                                     .unwrap_or_else(ProjectState::missing);
@@ -248,7 +264,10 @@ impl UpstreamProjectSource {
                             }
                         }
                         Err(error) => {
-                            log::error!("error fetching project states: {}", LogError(&error));
+                            relay_log::error!(
+                                "error fetching project states: {}",
+                                LogError(&error)
+                            );
 
                             // Put the channels back into the queue, in addition to channels that
                             // have been pushed in the meanwhile. We will retry again shortly.
@@ -298,11 +317,11 @@ impl Actor for UpstreamProjectSource {
         let mailbox_size = self.config.event_buffer_size() as usize;
         context.set_mailbox_capacity(mailbox_size);
 
-        log::info!("project upstream cache started");
+        relay_log::info!("project upstream cache started");
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        log::info!("project upstream cache stopped");
+        relay_log::info!("project upstream cache stopped");
     }
 }
 
@@ -316,6 +335,10 @@ impl Handler<FetchProjectState> for UpstreamProjectSource {
         }
 
         let query_timeout = self.config.query_timeout();
+        let FetchProjectState {
+            public_key,
+            no_cache,
+        } = message;
 
         // There's an edge case where a project is represented by two Project actors. This can
         // happen if our project eviction logic removes an actor from `project_cache.projects`
@@ -328,8 +351,14 @@ impl Handler<FetchProjectState> for UpstreamProjectSource {
         // channel for our current `message.id`.
         let channel = self
             .state_channels
-            .entry(message.public_key)
+            .entry(public_key)
             .or_insert_with(|| ProjectStateChannel::new(query_timeout));
+
+        // Ensure upstream skips caches if one of the recipients requests an uncached response. This
+        // operation is additive across requests.
+        if no_cache {
+            channel.no_cache();
+        }
 
         Box::new(
             channel

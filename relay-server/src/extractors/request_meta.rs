@@ -153,6 +153,14 @@ const fn default_version() -> u16 {
     relay_common::PROTOCOL_VERSION
 }
 
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
+fn make_false() -> bool {
+    false
+}
+
 /// Request information for sentry ingest data, such as events, envelopes or metrics.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RequestMeta<D = PartialDsn> {
@@ -182,6 +190,10 @@ pub struct RequestMeta<D = PartialDsn> {
     /// The user agent that sent this event.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     user_agent: Option<String>,
+
+    /// A flag that indicates that project options caching should be bypassed.
+    #[serde(default = "make_false", skip_serializing_if = "is_false")]
+    no_cache: bool,
 
     /// The time at which the request started.
     //
@@ -234,6 +246,11 @@ impl<D> RequestMeta<D> {
         self.user_agent.as_deref()
     }
 
+    /// Indicates that caches should be bypassed.
+    pub fn no_cache(&self) -> bool {
+        self.no_cache
+    }
+
     /// The time at which the request started.
     pub fn start_time(&self) -> Instant {
         self.start_time
@@ -252,6 +269,7 @@ impl RequestMeta {
             remote_addr: Some("192.168.0.1".parse().unwrap()),
             forwarded_for: String::new(),
             user_agent: Some("sentry/agent".to_string()),
+            no_cache: false,
             start_time: Instant::now(),
         }
     }
@@ -350,6 +368,9 @@ impl PartialMeta {
         if self.user_agent.is_some() {
             complete.user_agent = self.user_agent;
         }
+        if self.no_cache {
+            complete.no_cache = true;
+        }
 
         complete
     }
@@ -436,9 +457,12 @@ impl FromRequest<ServiceState> for RequestMeta {
         let config = request.state().config();
         let upstream = config.upstream_descriptor();
 
+        let (public_key, key_flags) =
+            ProjectKey::parse_with_flags(auth.public_key()).map_err(BadEventMeta::BadPublicKey)?;
+
         let dsn = PartialDsn {
             scheme: upstream.scheme(),
-            public_key: ProjectKey::parse(auth.public_key()).map_err(BadEventMeta::BadPublicKey)?,
+            public_key,
             host: upstream.host().to_owned(),
             port: upstream.port(),
             path: String::new(),
@@ -458,6 +482,7 @@ impl FromRequest<ServiceState> for RequestMeta {
                 .get(header::USER_AGENT)
                 .and_then(|h| h.to_str().ok())
                 .map(str::to_owned),
+            no_cache: key_flags.contains(&"no-cache"),
             start_time,
         })
     }

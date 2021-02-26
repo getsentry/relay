@@ -1,6 +1,13 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::protocol::Event;
+use crate::protocol::{Breadcrumb, Event};
 use crate::types::{Annotated, ErrorKind, Meta, Object, ProcessingResult, Value};
+
+/// Replace remaining values and all existing meta with an errors.
+fn create_errors(other: &mut Object<Value>) {
+    for value in other.values_mut() {
+        *value = Annotated::from_error(ErrorKind::InvalidAttribute, None);
+    }
+}
 
 pub struct RemoveOtherProcessor;
 
@@ -16,6 +23,22 @@ impl Processor for RemoveOtherProcessor {
             other.clear();
         }
 
+        Ok(())
+    }
+
+    fn process_breadcrumb(
+        &mut self,
+        breadcrumb: &mut Breadcrumb,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        // Move the current map out so we don't clear it in `process_other`
+        let mut other = std::mem::take(&mut breadcrumb.other);
+        create_errors(&mut other);
+
+        // Recursively clean all `other`s now. Note that this won't touch the event's other
+        breadcrumb.process_child_values(self, state)?;
+        breadcrumb.other = other;
         Ok(())
     }
 
@@ -39,9 +62,7 @@ impl Processor for RemoveOtherProcessor {
         other.remove("query");
 
         // Replace remaining values and all existing meta with an errors
-        for value in other.values_mut() {
-            *value = Annotated::from_error(ErrorKind::InvalidAttribute, None);
-        }
+        create_errors(&mut other);
 
         // Recursively clean all `other`s now. Note that this won't touch the event's other
         event.process_child_values(self, state)?;
@@ -162,4 +183,51 @@ fn test_retain_context_other() {
     .unwrap();
 
     assert_eq_dbg!(get_value!(event.contexts!).0, contexts);
+}
+
+#[test]
+fn test_breadcrumb_errors() {
+    use crate::protocol::Values;
+
+    let mut event = Annotated::new(Event {
+        breadcrumbs: Annotated::new(Values::new(vec![Annotated::new(Breadcrumb {
+            other: {
+                let mut other = Object::new();
+                other.insert("foo".to_string(), Value::U64(42).into());
+                other.insert("bar".to_string(), Value::U64(42).into());
+                other
+            },
+            ..Breadcrumb::default()
+        })])),
+        ..Default::default()
+    });
+
+    process_value(
+        &mut event,
+        &mut RemoveOtherProcessor,
+        ProcessingState::root(),
+    )
+    .unwrap();
+
+    let other = &event
+        .value()
+        .unwrap()
+        .breadcrumbs
+        .value()
+        .unwrap()
+        .values
+        .value()
+        .unwrap()[0]
+        .value()
+        .unwrap()
+        .other;
+
+    assert_eq_dbg!(
+        *other.get("foo").unwrap(),
+        Annotated::from_error(ErrorKind::InvalidAttribute, None)
+    );
+    assert_eq_dbg!(
+        *other.get("bar").unwrap(),
+        Annotated::from_error(ErrorKind::InvalidAttribute, None)
+    );
 }

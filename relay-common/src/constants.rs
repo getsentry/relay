@@ -1,9 +1,12 @@
 //! Constants shared with the C-ABI and Sentry.
 
+// FIXME: Workaround for https://github.com/GREsau/schemars/pull/65
+#![allow(clippy::field_reassign_with_default)]
+
+use std::convert::TryInto;
 use std::fmt;
 use std::str::FromStr;
 
-use failure::Fail;
 #[cfg(feature = "jsonschema")]
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -31,9 +34,16 @@ pub enum EventType {
 }
 
 /// An error used when parsing `EventType`.
-#[derive(Debug, Fail)]
-#[fail(display = "invalid event type")]
+#[derive(Clone, Copy, Debug)]
 pub struct ParseEventTypeError;
+
+impl fmt::Display for ParseEventTypeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid event type")
+    }
+}
+
+impl std::error::Error for ParseEventTypeError {}
 
 impl Default for EventType {
     fn default() -> Self {
@@ -125,6 +135,11 @@ impl DataCategory {
     pub fn is_error(self) -> bool {
         matches!(self, Self::Error | Self::Default | Self::Security)
     }
+
+    /// Returns the numeric value for this outcome.
+    pub fn value(self) -> Option<u8> {
+        (self as i8).try_into().ok()
+    }
 }
 
 impl fmt::Display for DataCategory {
@@ -155,8 +170,8 @@ impl From<EventType> for DataCategory {
 
 /// Trace status.
 ///
-/// Values from https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/api-tracing.md#status
-/// Mapping to HTTP from https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/data-http.md#status
+/// Values from <https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/api-tracing.md#status>
+/// Mapping to HTTP from <https://github.com/open-telemetry/opentelemetry-specification/blob/8fb6c14e4709e75a9aaa64b0dbbdf02a6067682a/specification/data-http.md#status>
 //
 // Note: This type is represented as a u8 in Snuba/Clickhouse, with Unknown being the default
 // value. We use repr(u8) to statically validate that the trace status has 255 variants at most.
@@ -242,9 +257,16 @@ pub enum SpanStatus {
 }
 
 /// Error parsing a `SpanStatus`.
-#[derive(Debug, Fail)]
-#[fail(display = "invalid span status")]
+#[derive(Clone, Copy, Debug)]
 pub struct ParseSpanStatusError;
+
+impl fmt::Display for ParseSpanStatusError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid span status")
+    }
+}
+
+impl std::error::Error for ParseSpanStatusError {}
 
 impl FromStr for SpanStatus {
     type Err = ParseSpanStatusError;

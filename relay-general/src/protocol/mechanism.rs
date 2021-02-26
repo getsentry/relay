@@ -33,6 +33,17 @@ pub struct MachException {
     pub name: Annotated<String>,
 }
 
+/// NSError informaiton.
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct NsError {
+    /// The error code.
+    pub code: Annotated<i64>,
+
+    /// A string containing the error domain.
+    pub domain: Annotated<String>,
+}
+
 /// POSIX signal with optional extended data.
 ///
 /// On Apple systems, signals also carry a code in addition to the signal number describing the
@@ -71,6 +82,9 @@ pub struct MechanismMeta {
 
     /// A Mach Exception on Apple systems comprising a code triple and optional descriptions.
     pub mach_exception: Annotated<MachException>,
+
+    /// An NSError on Apple systems comprising code and signal.
+    pub ns_error: Annotated<NsError>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
@@ -225,6 +239,7 @@ impl FromValue for Mechanism {
                                     name: legacy.exception_name,
                                 }
                             }),
+                            ns_error: Annotated::empty(),
                             other: Object::default(),
                         }),
                         other: Object::default(),
@@ -269,6 +284,10 @@ fn test_mechanism_roundtrip() {
       "subcode": 8,
       "name": "EXC_BAD_ACCESS"
     },
+    "ns_error": {
+      "code": -42,
+      "domain": "SqlException"
+    },
     "other": "value"
   },
   "other": "value"
@@ -305,6 +324,10 @@ fn test_mechanism_roundtrip() {
                 code: Annotated::new(0),
                 name: Annotated::new("SIGSEGV".to_string()),
                 code_name: Annotated::new("SEGV_NOOP".to_string()),
+            }),
+            ns_error: Annotated::new(NsError {
+                code: Annotated::new(-42),
+                domain: Annotated::new("SqlException".to_string()),
             }),
             other: {
                 let mut map = Object::new();
@@ -415,6 +438,7 @@ fn test_mechanism_legacy_conversion() {
                 name: Annotated::new("SIGSEGV".to_string()),
                 code_name: Annotated::new("SEGV_NOOP".to_string()),
             }),
+            ns_error: Annotated::empty(),
             other: Object::default(),
         }),
         other: Object::default(),

@@ -147,7 +147,8 @@ def test_pii_strip_event():
 def test_pii_selector_suggestions_from_event():
     event = {"logentry": {"formatted": "hi"}}
     assert sentry_relay.pii_selector_suggestions_from_event(event) == [
-        {"path": "$message", "value": "hi"}
+        {"path": "$string", "value": "hi"},
+        {"path": "$message", "value": "hi"},
     ]
 
 

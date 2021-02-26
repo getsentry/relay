@@ -8,7 +8,7 @@ from requests.exceptions import HTTPError
 def test_attachments_400(mini_sentry, relay_with_processing, attachments_consumer):
     proj_id = 42
     relay = relay_with_processing()
-    mini_sentry.project_configs[proj_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(proj_id)
     attachments_consumer = attachments_consumer()
 
     event_id = "123abc"
@@ -26,7 +26,7 @@ def test_attachments_with_processing(
     event_id = "515539018c9b4260a6f999572f1661ee"
 
     relay = relay_with_processing()
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
     attachments_consumer = attachments_consumer()
     outcomes_consumer = outcomes_consumer()
 
@@ -86,22 +86,7 @@ def test_attachments_with_processing(
         "project_id": project_id,
     }
 
-    # We want to check that no outcome has been created for the attachment
-    # upload.
-    #
-    # Send an unrelated event in, and assert that it is the first item we can
-    # poll from outcomes for. While not 100% correct due to partitioning, it's
-    # way faster than waiting n seconds to see if nothing else is in outcomes.
-    #
-    # We need to send in an invalid event because successful ones do not
-    # produce outcomes (not in Relay)
-    with pytest.raises(HTTPError):
-        relay.send_event(project_id, b"bogus")
-
-    outcome = outcomes_consumer.get_outcome()
-    assert outcome.get("event_id", None) is None, outcome
-    assert outcome["outcome"] == 3
-    assert outcome["reason"] == "payload"
+    outcomes_consumer.assert_empty()
 
 
 def test_empty_attachments_with_processing(
@@ -111,7 +96,7 @@ def test_empty_attachments_with_processing(
     event_id = "515539018c9b4260a6f999572f1661ee"
 
     relay = relay_with_processing()
-    mini_sentry.project_configs[project_id] = mini_sentry.full_project_config()
+    mini_sentry.add_full_project_config(project_id)
     attachments_consumer = attachments_consumer()
 
     attachments = [("att_1", "foo.txt", b"")]
@@ -144,7 +129,8 @@ def test_attachments_ratelimit(
     event_id = "515539018c9b4260a6f999572f1661ee"
 
     relay = relay_with_processing()
-    project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["quotas"] = [
         {"categories": rate_limits, "limit": 0, "reasonCode": "static_disabled_quota"}
     ]
@@ -153,7 +139,7 @@ def test_attachments_ratelimit(
     attachments = [("att_1", "foo.txt", b"")]
 
     # First attachment returns 200 but is rate limited in processing
-    relay.send_attachments(42, event_id, attachments)
+    relay.send_attachments(project_id, event_id, attachments)
     # TODO: There are no outcomes emitted for attachments yet. Instead, sleep to allow Relay to
     # process the event and cache the rate limit
     # outcomes_consumer.assert_rate_limited("static_disabled_quota")
@@ -161,7 +147,7 @@ def test_attachments_ratelimit(
 
     # Second attachment returns 429 in endpoint
     with pytest.raises(HTTPError) as excinfo:
-        relay.send_attachments(42, event_id, attachments)
+        relay.send_attachments(project_id, event_id, attachments)
     assert excinfo.value.response.status_code == 429
     # outcomes_consumer.assert_rate_limited("static_disabled_quota")
 
@@ -173,7 +159,8 @@ def test_attachments_quotas(
     attachment_body = b"blabla"
 
     relay = relay_with_processing()
-    project_config = mini_sentry.project_configs[42] = mini_sentry.full_project_config()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["quotas"] = [
         {
             "id": "test_rate_limiting_{}".format(uuid.uuid4().hex),
@@ -189,14 +176,16 @@ def test_attachments_quotas(
     attachments = [("att_1", "foo.txt", attachment_body)]
 
     for i in range(5):
-        relay.send_attachments(42, event_id, [("att_1", "%s.txt" % i, attachment_body)])
+        relay.send_attachments(
+            project_id, event_id, [("att_1", "%s.txt" % i, attachment_body)]
+        )
         chunk, _ = attachments_consumer.get_attachment_chunk()
         assert chunk == attachment_body
         attachment = attachments_consumer.get_individual_attachment()
         assert attachment["attachment"]["name"] == "%s.txt" % i
 
     # First attachment returns 200 but is rate limited in processing
-    relay.send_attachments(42, event_id, attachments)
+    relay.send_attachments(project_id, event_id, attachments)
     # TODO: There are no outcomes emitted for attachments yet. Instead, sleep to allow Relay to
     # process the event and cache the rate limit
     # outcomes_consumer.assert_rate_limited("static_disabled_quota")

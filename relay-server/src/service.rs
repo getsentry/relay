@@ -6,7 +6,6 @@ use actix_web::{server, App};
 use failure::ResultExt;
 use failure::{Backtrace, Context, Fail};
 use listenfd::ListenFd;
-use sentry_actix::SentryMiddleware;
 
 use relay_common::clone;
 use relay_config::Config;
@@ -21,7 +20,9 @@ use crate::actors::project_cache::ProjectCache;
 use crate::actors::relays::RelayCache;
 use crate::actors::upstream::UpstreamRelay;
 use crate::endpoints;
-use crate::middlewares::{AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware};
+use crate::middlewares::{
+    AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
+};
 
 /// Common error type for the relay server.
 #[derive(Debug)]
@@ -180,6 +181,11 @@ impl ServiceState {
     pub fn healthcheck(&self) -> Addr<Healthcheck> {
         self.healthcheck.clone()
     }
+
+    /// Returns an actor for making raw HTTP requests against upstream.
+    pub fn upstream_relay(&self) -> Addr<UpstreamRelay> {
+        self.upstream_relay.clone()
+    }
 }
 
 /// The actix app type for the relay web service.
@@ -200,9 +206,9 @@ where
     H: server::IntoHttpHandler + 'static,
     F: Fn() -> H + Send + Clone + 'static,
 {
-    log::info!("spawning http server");
+    relay_log::info!("spawning http server");
     for (addr, scheme) in server.addrs_with_scheme() {
-        log::info!("  listening on: {}://{}/", scheme, addr);
+        relay_log::info!("  listening on: {}://{}/", scheme, addr);
     }
 }
 
@@ -264,18 +270,19 @@ where
 }
 
 #[cfg(not(feature = "ssl"))]
-fn listen_ssl<H>(
-    server: server::HttpServer<H>,
+fn listen_ssl<H, F>(
+    server: server::HttpServer<H, F>,
     config: &Config,
-) -> Result<server::HttpServer<H>, ServerError>
+) -> Result<server::HttpServer<H, F>, ServerError>
 where
     H: server::IntoHttpHandler + 'static,
+    F: Fn() -> H + Send + Clone + 'static,
 {
     if config.tls_listen_addr().is_some()
         || config.tls_identity_path().is_some()
         || config.tls_identity_password().is_some()
     {
-        Err(ServerErrorKind::TlsNotSupported)
+        Err(ServerErrorKind::TlsNotSupported.into())
     } else {
         Ok(server)
     }

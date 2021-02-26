@@ -369,7 +369,7 @@ impl<'a> PiiAttachmentsProcessor<'a> {
     ) -> ProcessingState<'s> {
         self.root_state.enter_borrowed(
             filename,
-            Some(Cow::Owned(FieldAttrs::new().pii(Pii::Maybe))),
+            Some(Cow::Owned(FieldAttrs::new().pii(Pii::True))),
             Some(value_type),
         )
     }
@@ -383,6 +383,11 @@ impl<'a> PiiAttachmentsProcessor<'a> {
         state: &ProcessingState<'_>,
         encodings: ScrubEncodings,
     ) -> bool {
+        let pii = state.attrs().pii;
+        if pii == Pii::False {
+            return false;
+        }
+
         let mut changed = false;
 
         for (selector, rules) in &self.compiled_config.applications {
@@ -740,7 +745,7 @@ mod tests {
             rule: "@anything:remove",
             filename: "foo.txt",
             value_type: ValueType::Binary,
-            input: (0..255 as u8).collect::<Vec<_>>().as_slice(),
+            input: (0..255u8).collect::<Vec<_>>().as_slice(),
             output: &[b'*'; 255],
             changed: true,
         }

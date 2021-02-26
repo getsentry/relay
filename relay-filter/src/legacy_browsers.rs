@@ -1,6 +1,6 @@
 //! Implements filtering for events originating from legacy browsers.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use lazy_static::lazy_static;
 
@@ -8,6 +8,53 @@ use relay_general::protocol::Event;
 use relay_general::user_agent::{self, UserAgent};
 
 use crate::{FilterStatKey, LegacyBrowser, LegacyBrowsersFilterConfig};
+
+/// Checks if the event originates from legacy browsers.
+pub fn matches(event: &Event, browsers: &BTreeSet<LegacyBrowser>) -> bool {
+    if let Some(user_agent_string) = user_agent::get_user_agent(event) {
+        let user_agent = user_agent::parse_user_agent(user_agent_string);
+
+        // remap IE Mobile to IE (sentry python, filter compatibility)
+        let family = match user_agent.family.as_str() {
+            "IE Mobile" => "IE",
+            other => other,
+        };
+
+        if browsers.contains(&LegacyBrowser::Default) {
+            return default_filter(family, &user_agent);
+        }
+
+        for browser_type in browsers {
+            let should_filter = match browser_type {
+                LegacyBrowser::IePre9 => filter_browser(family, &user_agent, "IE", |x| x <= 8),
+                LegacyBrowser::Ie9 => filter_browser(family, &user_agent, "IE", |x| x == 9),
+                LegacyBrowser::Ie10 => filter_browser(family, &user_agent, "IE", |x| x == 10),
+                LegacyBrowser::Ie11 => filter_browser(family, &user_agent, "IE", |x| x == 11),
+                LegacyBrowser::OperaMiniPre8 => {
+                    filter_browser(family, &user_agent, "Opera Mini", |x| x < 8)
+                }
+                LegacyBrowser::OperaPre15 => {
+                    filter_browser(family, &user_agent, "Opera", |x| x < 15)
+                }
+                LegacyBrowser::AndroidPre4 => {
+                    filter_browser(family, &user_agent, "Android", |x| x < 4)
+                }
+                LegacyBrowser::SafariPre6 => {
+                    filter_browser(family, &user_agent, "Safari", |x| x < 6)
+                }
+                LegacyBrowser::Unknown(_) => {
+                    // unknown browsers should not be filtered
+                    false
+                }
+                LegacyBrowser::Default => unreachable!(),
+            };
+            if should_filter {
+                return true;
+            }
+        }
+    }
+    false
+}
 
 /// Filters events originating from legacy browsers.
 pub fn should_filter(
@@ -18,46 +65,12 @@ pub fn should_filter(
         return Ok(()); // globally disabled or no individual browser enabled
     }
 
-    if let Some(user_agent_string) = user_agent::get_user_agent(event) {
-        let user_agent = user_agent::parse_user_agent(user_agent_string);
-
-        // remap IE Mobile to IE (sentry python, filter compatibility)
-        let family = match user_agent.family.as_str() {
-            "IE Mobile" => "IE",
-            other => other,
-        };
-
-        let browsers = &config.browsers;
-        if browsers.contains(&LegacyBrowser::Default) {
-            return default_filter(family, &user_agent);
-        }
-
-        for browser_type in browsers {
-            match browser_type {
-                LegacyBrowser::IePre9 => filter_browser(family, &user_agent, "IE", |x| x <= 8)?,
-                LegacyBrowser::Ie9 => filter_browser(family, &user_agent, "IE", |x| x == 9)?,
-                LegacyBrowser::Ie10 => filter_browser(family, &user_agent, "IE", |x| x == 10)?,
-                LegacyBrowser::Ie11 => filter_browser(family, &user_agent, "IE", |x| x == 11)?,
-                LegacyBrowser::OperaMiniPre8 => {
-                    filter_browser(family, &user_agent, "Opera Mini", |x| x < 8)?
-                }
-                LegacyBrowser::OperaPre15 => {
-                    filter_browser(family, &user_agent, "Opera", |x| x < 15)?
-                }
-                LegacyBrowser::AndroidPre4 => {
-                    filter_browser(family, &user_agent, "Android", |x| x < 4)?
-                }
-                LegacyBrowser::SafariPre6 => {
-                    filter_browser(family, &user_agent, "Safari", |x| x < 6)?
-                }
-                LegacyBrowser::Unknown(_) => {
-                    // unknown browsers should not be filtered
-                }
-                LegacyBrowser::Default => unreachable!(),
-            }
-        }
+    let browsers = &config.browsers;
+    if matches(event, browsers) {
+        Err(FilterStatKey::LegacyBrowsers)
+    } else {
+        Ok(())
     }
-    Ok(())
 }
 
 lazy_static! {
@@ -85,16 +98,15 @@ fn get_browser_major_version(user_agent: &UserAgent) -> Option<i32> {
     None
 }
 
-fn default_filter(mapped_family: &str, user_agent: &UserAgent) -> Result<(), FilterStatKey> {
+fn default_filter(mapped_family: &str, user_agent: &UserAgent) -> bool {
     if let Some(browser_major_version) = get_browser_major_version(user_agent) {
         if let Some(&min_version) = MIN_VERSIONS.get(mapped_family) {
             if min_version > browser_major_version {
-                return Err(FilterStatKey::LegacyBrowsers);
+                return true;
             }
         }
     }
-
-    Ok(())
+    false
 }
 
 fn filter_browser<F>(
@@ -102,19 +114,18 @@ fn filter_browser<F>(
     user_agent: &UserAgent,
     family: &str,
     should_filter: F,
-) -> Result<(), FilterStatKey>
+) -> bool
 where
     F: FnOnce(i32) -> bool,
 {
     if mapped_family == family {
         if let Some(browser_major_version) = get_browser_major_version(user_agent) {
             if should_filter(browser_major_version) {
-                return Err(FilterStatKey::LegacyBrowsers);
+                return true;
             }
         }
     }
-
-    Ok(())
+    false
 }
 
 #[cfg(test)]

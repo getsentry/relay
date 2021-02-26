@@ -5,10 +5,12 @@ use actix::prelude::*;
 use futures::future;
 use futures::prelude::*;
 
+use relay_common::metric;
 use relay_config::{Config, RelayMode};
 
 use crate::actors::controller::{Controller, Shutdown};
-use crate::actors::upstream::{IsAuthenticated, UpstreamRelay};
+use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
+use crate::metrics::RelayGauges;
 
 pub struct Healthcheck {
     is_shutting_down: bool,
@@ -58,7 +60,20 @@ impl Message for IsHealthy {
 impl Handler<IsHealthy> for Healthcheck {
     type Result = ResponseFuture<bool, ()>;
 
-    fn handle(&mut self, message: IsHealthy, _context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: IsHealthy, context: &mut Self::Context) -> Self::Result {
+        if self.config.relay_mode() == RelayMode::Managed {
+            self.upstream
+                .send(IsNetworkOutage)
+                .map_err(|_| ())
+                .map(|is_network_outage| {
+                    metric!(
+                        gauge(RelayGauges::NetworkOutage) = if is_network_outage { 1 } else { 0 }
+                    );
+                })
+                .into_actor(self)
+                .spawn(context);
+        }
+
         match message {
             IsHealthy::Liveness => Box::new(future::ok(true)),
             IsHealthy::Readiness => {

@@ -1,0 +1,30 @@
+---
+source: relay-server/src/utils/unreal.rs
+expression: "Annotated::new(event).to_json_pretty().unwrap()"
+---
+{
+  "breadcrumbs": {
+    "values": [
+      {
+        "timestamp": 1540832198.0,
+        "category": "LogGameplayTags",
+        "message": "Display: UGameplayTagsManager::DoneAddingNativeTags. DelegateIsBound: 0"
+      },
+      {
+        "timestamp": 1540832199.0,
+        "category": "LogStats",
+        "message": "UGameplayTagsManager::ConstructGameplayTagTree: ImportINI prefixes -  0.000 s"
+      },
+      {
+        "timestamp": 1540832200.0,
+        "category": "LogStats",
+        "message": "UGameplayTagsManager::ConstructGameplayTagTree: Construct from data asset -  0.000 s"
+      },
+      {
+        "timestamp": 1540832201.0,
+        "category": "LogStats",
+        "message": "UGameplayTagsManager::ConstructGameplayTagTree: ImportINI -  0.000 s"
+      }
+    ]
+  }
+}

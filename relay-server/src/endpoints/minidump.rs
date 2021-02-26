@@ -33,7 +33,7 @@ const MINIDUMP_RAW_CONTENT_TYPES: &[&str] = &["application/octet-stream", "appli
 
 fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
     if !data.starts_with(MINIDUMP_MAGIC_HEADER_LE) && !data.starts_with(MINIDUMP_MAGIC_HEADER_BE) {
-        log::trace!("invalid minidump file");
+        relay_log::trace!("invalid minidump file");
         return Err(BadStoreRequest::InvalidMinidump);
     }
 
@@ -183,7 +183,6 @@ fn store_minidump(
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     common::handle_store_like_request(
         meta,
-        true,
         request,
         extract_envelope,
         common::create_text_event_id_response,

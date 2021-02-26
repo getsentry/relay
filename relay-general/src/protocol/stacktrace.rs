@@ -126,6 +126,9 @@ pub struct Frame {
     /// then symbolication can take place.
     pub instruction_addr: Annotated<Addr>,
 
+    /// Defines the addressing mode for addresses.
+    pub addr_mode: Annotated<String>,
+
     /// (C/C++/Native) Start address of the frame's function.
     ///
     /// We use the instruction address for symbolication, but this can be used to calculate
@@ -294,6 +297,17 @@ pub struct RawStacktrace {
     #[metastructure(max_chars = "enumlike")]
     pub lang: Annotated<String>,
 
+    /// Indicates that this stack trace is a snapshot triggered by an external signal.
+    ///
+    /// If this field is `false`, then the stack trace points to the code that caused this stack
+    /// trace to be created. This can be the location of a raised exception, as well as an exception
+    /// or signal handler.
+    ///
+    /// If this field is `true`, then the stack trace was captured as part of creating an unrelated
+    /// event. For example, a thread other than the crashing thread, or a stack trace computed as a
+    /// result of an external kill signal.
+    pub snapshot: Annotated<bool>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
@@ -361,6 +375,7 @@ fn test_frame_roundtrip() {
   },
   "image_addr": "0x400",
   "instruction_addr": "0x404",
+  "addr_mode": "abs",
   "symbol_addr": "0x404",
   "trust": "69",
   "lang": "rust",
@@ -395,6 +410,7 @@ fn test_frame_roundtrip() {
         }),
         image_addr: Annotated::new(Addr(0x400)),
         instruction_addr: Annotated::new(Addr(0x404)),
+        addr_mode: Annotated::new("abs".into()),
         symbol_addr: Annotated::new(Addr(0x404)),
         trust: Annotated::new("69".into()),
         lang: Annotated::new("rust".into()),
@@ -436,6 +452,7 @@ fn test_stacktrace_roundtrip() {
     "sp": "0x16fd75060"
   },
   "lang": "rust",
+  "snapshot": false,
   "other": "value"
 }"#;
     let stack = Annotated::new(RawStacktrace {
@@ -452,6 +469,7 @@ fn test_stacktrace_roundtrip() {
             Annotated::new(registers)
         },
         lang: Annotated::new("rust".into()),
+        snapshot: Annotated::new(false),
         other: {
             let mut other = Object::new();
             other.insert(

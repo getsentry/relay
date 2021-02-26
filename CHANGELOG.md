@@ -4,12 +4,117 @@
 
 **Features**:
 
+- Relay now picks up HTTP proxies from environment variables. This is made possible by switching to a different HTTP client library.
+
+**Bug Fixes**:
+
+- Deny backslashes in release names. ([#904](https://github.com/getsentry/relay/pull/904))
+- Fix a problem with Data Scrubbing source names (PII selectors) that caused `$frame.abs_path` to match, but not `$frame.abs_path || **` or `$frame.abs_path && **`. ([#932](https://github.com/getsentry/relay/pull/932))
+- Make username pii-strippable. ([#935](https://github.com/getsentry/relay/pull/935))
+- Respond with `400 Bad Request` and an error message `"empty envelope"` instead of `429` when envelopes without items are sent to the envelope endpoint. ([#937](https://github.com/getsentry/relay/pull/937))
+
+**Internal**:
+
+- Emit the `category` field for outcomes of events. This field disambiguates error events, security events and transactions. As a side-effect, Relay no longer emits outcomes for broken JSON payloads or network errors. ([#931](https://github.com/getsentry/relay/pull/931))
+- Add inbound filters functionality to dynamic sampling rules. ([#920](https://github.com/getsentry/relay/pull/920))
+- The undocumented `http._client` option has been removed. ([#938](https://github.com/getsentry/relay/pull/938))
+
+## 21.2.0
+
+**Features**:
+
+- By adding `.no-cache` to the DSN key, Relay refreshes project configuration caches immediately. This allows to apply changed settings instantly, such as updates to data scrubbing or inbound filter rules. ([#911](https://github.com/getsentry/relay/pull/911))
+- Add NSError to mechanism. ([#925](https://github.com/getsentry/relay/pull/925))
+- Add snapshot to the stack trace interface. ([#927](https://github.com/getsentry/relay/pull/927))
+
+**Bug Fixes**:
+
+- Log on INFO level when recovering from network outages. ([#918](https://github.com/getsentry/relay/pull/918))
+- Fix a panic in processing minidumps with invalid location descriptors. ([#919](https://github.com/getsentry/relay/pull/919))
+
+**Internal**:
+
+- Improve dynamic sampling rule configuration. ([#907](https://github.com/getsentry/relay/pull/907))
+- Compatibility mode for pre-aggregated sessions was removed. The feature is now enabled by default in full fidelity. ([#913](https://github.com/getsentry/relay/pull/913))
+
+## 21.1.0
+
+**Features**:
+
+- Support dynamic sampling for error events. ([#883](https://github.com/getsentry/relay/pull/883))
+
+**Bug Fixes**:
+
+- Make all fields but event-id optional to fix regressions in user feedback ingestion. ([#886](https://github.com/getsentry/relay/pull/886))
+- Remove `kafka-ssl` feature because it breaks development workflow on macOS. ([#889](https://github.com/getsentry/relay/pull/889))
+- Accept envelopes where their last item is empty and trailing newlines are omitted. This also fixes a panic in some cases. ([#894](https://github.com/getsentry/relay/pull/894))
+
+**Internal**:
+
+- Extract crashpad annotations into contexts. ([#892](https://github.com/getsentry/relay/pull/892))
+- Normalize user reports during ingestion and create empty fields. ([#903](https://github.com/getsentry/relay/pull/903))
+- Ingest and normalize sample rates from envelope item headers. ([#910](https://github.com/getsentry/relay/pull/910))
+
+## 20.12.1
+
+- No documented changes.
+
+## 20.12.0
+
+**Features**:
+
+- Add `kafka-ssl` compilation feature that builds Kafka linked against OpenSSL. This feature is enabled in Docker containers only. This is only relevant for Relays running as part of on-premise Sentry. ([#881](https://github.com/getsentry/relay/pull/881))
+- Relay is now able to ingest pre-aggregated sessions, which will make it possible to efficiently handle applications that produce thousands of sessions per second. ([#815](https://github.com/getsentry/relay/pull/815))
+- Add protocol support for WASM. ([#852](https://github.com/getsentry/relay/pull/852))
+- Add dynamic sampling for transactions. ([#835](https://github.com/getsentry/relay/pull/835))
+- Send network outage metric on healthcheck endpoint hit. ([#856](https://github.com/getsentry/relay/pull/856))
+
+**Bug Fixes**:
+
+- Fix a long-standing bug where log messages were not addressible as `$string`. ([#882](https://github.com/getsentry/relay/pull/882))
+- Allow params in content-type for security requests to support content types like `"application/expect-ct-report+json; charset=utf-8"`. ([#844](https://github.com/getsentry/relay/pull/844))
+- Fix a panic in CSP filters. ([#848](https://github.com/getsentry/relay/pull/848))
+- Do not drop sessions due to an invalid age constraint set to `0`. ([#855](https://github.com/getsentry/relay/pull/855))
+- Do not emit outcomes after forwarding envelopes to the upstream, even if that envelope is rate limited, rejected, or dropped. Since the upstream logs an outcome, it would be a duplicate. ([#857](https://github.com/getsentry/relay/pull/857))
+- Fix status code for security report. ([#864](https://github.com/getsentry/relay/pull/864))
+- Add missing fields for Expect-CT reports. ([#865](https://github.com/getsentry/relay/pull/865))
+- Support more directives in CSP reports, such as `block-all-mixed-content` and `require-trusted-types-for`. ([#876](https://github.com/getsentry/relay/pull/876))
+
+**Internal**:
+
+- Add _experimental_ support for picking up HTTP proxies from the regular environment variables. This feature needs to be enabled by setting `http: client: "reqwest"` in your `config.yml`. ([#839](https://github.com/getsentry/relay/pull/839))
+- Refactor transparent request forwarding for unknown endpoints. Requests are now entirely buffered in memory and occupy the same queues and actors as other requests. This should not cause issues but may change behavior under load. ([#839](https://github.com/getsentry/relay/pull/839))
+- Add reason codes to the `X-Sentry-Rate-Limits` header in store responses. This allows external Relays to emit outcomes with the proper reason codes. ([#850](https://github.com/getsentry/relay/pull/850))
+- Emit metrics for outcomes in external relays. ([#851](https://github.com/getsentry/relay/pull/851))
+- Make `$error.value` `pii=true`. ([#837](https://github.com/getsentry/relay/pull/837))
+- Send `key_id` in partial project config. ([#854](https://github.com/getsentry/relay/pull/854))
+- Add stack traces to Sentry error reports. ([#872](https://github.com/getsentry/relay/pull/872))
+
+## 20.11.1
+
+- No documented changes.
+
+## 20.11.0
+
+**Features**:
+
 - Rename upstream retries histogram metric and add upstream requests duration metric. ([#816](https://github.com/getsentry/relay/pull/816))
 - Add options for metrics buffering (`metrics.buffering`) and sampling (`metrics.sample_rate`). ([#821](https://github.com/getsentry/relay/pull/821))
+
+**Bug Fixes**:
+
+- Accept sessions with IP address set to `{{auto}}`. This was previously rejected and silently dropped. ([#827](https://github.com/getsentry/relay/pull/827))
+- Fix an issue where every retry-after response would be too large by one minute. ([#829](https://github.com/getsentry/relay/pull/829))
 
 **Internal**:
 
 - Always apply cache debouncing for project states. This reduces pressure on the Redis and file system cache. ([#819](https://github.com/getsentry/relay/pull/819))
+- Internal refactoring such that validating of characters in tags no longer uses regexes internally. ([#814](https://github.com/getsentry/relay/pull/814))
+- Discard invalid user feedback sent as part of envelope. ([#823](https://github.com/getsentry/relay/pull/823))
+- Emit event errors and normalization errors for unknown breadcrumb keys. ([#824](https://github.com/getsentry/relay/pull/824))
+- Normalize `breadcrumb.ty` into `breadcrumb.type` for broken Python SDK versions. ([#824](https://github.com/getsentry/relay/pull/824))
+- Add the client SDK interface for unreal crashes and set the name to `unreal.crashreporter`. ([#828](https://github.com/getsentry/relay/pull/828))
+- Fine-tune the selectors for minidump PII scrubbing. ([#818](https://github.com/getsentry/relay/pull/818), [#830](https://github.com/getsentry/relay/pull/830))
 
 ## 20.10.1
 

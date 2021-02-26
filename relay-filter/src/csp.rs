@@ -6,40 +6,54 @@ use relay_general::protocol::{Event, EventType};
 
 use crate::{CspFilterConfig, FilterStatKey};
 
-/// Filters CSP events based on disallowed sources.
-pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), FilterStatKey> {
-    let disallowed_sources = &config.disallowed_sources;
-    if disallowed_sources.is_empty() || event.ty.value() != Some(&EventType::Csp) {
-        return Ok(());
+/// Checks if the event is a CSP Event from one of the disallowed sources.
+pub fn matches<It, S>(event: &Event, disallowed_sources: It) -> bool
+where
+    It: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    if event.ty.value() != Some(&EventType::Csp) {
+        return false;
     }
 
     // parse the sources for easy processing
     let disallowed_sources: Vec<SchemeDomainPort> = disallowed_sources
-        .iter()
-        .map(|origin| -> SchemeDomainPort { origin.as_str().into() })
+        .into_iter()
+        .map(|origin| -> SchemeDomainPort { origin.as_ref().into() })
         .collect();
 
     if let Some(csp) = event.csp.value() {
         if matches_any_origin(csp.blocked_uri.as_str(), &disallowed_sources) {
-            return Err(FilterStatKey::InvalidCsp);
+            return true;
         }
         if matches_any_origin(csp.source_file.as_str(), &disallowed_sources) {
-            return Err(FilterStatKey::InvalidCsp);
+            return true;
         }
     }
-
-    Ok(())
+    false
 }
 
-/// A pattern used to match allowed paths
+/// Filters CSP events based on disallowed sources.
+pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), FilterStatKey> {
+    if matches(event, &config.disallowed_sources) {
+        Err(FilterStatKey::InvalidCsp)
+    } else {
+        Ok(())
+    }
+}
+
+/// A pattern used to match allowed paths.
 ///
-/// scheme, domain and port are extracted from an url
+/// Scheme, domain and port are extracted from an url,
 /// they may be either a string (to be matched exactly, case insensitive)
-/// or None (matches anything in the respective position)
+/// or None (matches anything in the respective position).
 #[derive(Hash, PartialEq, Eq)]
 pub struct SchemeDomainPort {
+    /// The scheme of the url.
     pub scheme: Option<String>,
+    /// The domain of the url.
     pub domain: Option<String>,
+    /// The port of the url.
     pub port: Option<String>,
 }
 
@@ -125,8 +139,8 @@ pub fn matches_any_origin(url: Option<&str>, origins: &[SchemeDomainPort]) -> bo
                 // no direct match for domain, look for  partial patterns (e.g. "*.domain.com")
                 if let (Some(origin_domain), Some(domain)) = (&origin.domain, &url.domain) {
                     if origin_domain.starts_with('*')
-                        && ((*domain).ends_with(&origin_domain[1..])
-                            || domain.as_str() == &origin_domain[2..])
+                        && ((*domain).ends_with(origin_domain.get(1..).unwrap_or(""))
+                            || domain.as_str() == origin_domain.get(2..).unwrap_or(""))
                     {
                         return true; // partial domain pattern match
                     }
@@ -197,6 +211,7 @@ mod tests {
                 Some("x.y.z"),
                 Some("4000"),
             ),
+            ("http://", Some("http"), Some(""), None),
         ];
 
         for (url, scheme, domain, port) in examples {
@@ -268,6 +283,8 @@ mod tests {
                 vec!["http://abc13.com:8080", "bbc.com"],
                 false,
             ),
+            // this used to crash
+            ("http://y:80", vec!["http://x"], false),
         ];
 
         for (url, origins, expected) in examples {

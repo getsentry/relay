@@ -2,9 +2,9 @@ use std::fmt;
 use std::sync::Arc;
 
 use failure::Fail;
-use sentry::protocol::value;
 
 use relay_common::UnixTimestamp;
+use relay_log::protocol::value;
 use relay_redis::{redis::Script, RedisError, RedisPool};
 
 use crate::quota::{ItemScoping, Quota, QuotaScope};
@@ -93,7 +93,7 @@ impl<'a> RedisQuota<'a> {
     fn expiry(&self) -> UnixTimestamp {
         let next_slot = self.slot() + 1;
         let next_start = next_slot * self.window + self.shift();
-        UnixTimestamp::from_secs(next_start + GRACE)
+        UnixTimestamp::from_secs(next_start)
     }
 
     fn key(&self) -> String {
@@ -197,16 +197,16 @@ impl RedisRateLimiter {
                 invocation.key(refund_key);
 
                 invocation.arg(quota.limit());
-                invocation.arg(quota.expiry().as_secs());
+                invocation.arg(quota.expiry().as_secs() + GRACE);
                 invocation.arg(quantity);
 
                 tracked_quotas.push(quota);
             } else {
                 // This quota is neither a static reject-all, nor can it be tracked in Redis due to
                 // missing fields. We're skipping this for forward-compatibility.
-                sentry::with_scope(
+                relay_log::with_scope(
                     |scope| scope.set_extra("quota", value::to_value(quota).unwrap()),
-                    || log::warn!("skipping unsupported quota"),
+                    || relay_log::warn!("skipping unsupported quota"),
                 )
             }
         }

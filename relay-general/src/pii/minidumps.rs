@@ -256,32 +256,39 @@ impl PiiAttachmentsProcessor<'_> {
         let mut changed = false;
 
         for item in items {
-            // IMPORTANT: Minidump sections are always classified as Pii:Maybe. This avoids to
-            // accidentally scrub stack memory with highly generic selectors. TODO: Update the PII
-            // system with a better approach.
-            let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::Maybe));
-
             match item {
                 MinidumpItem::StackMemory(range) => {
+                    // IMPORTANT: The stack is PII::Maybe to avoid accidentally scrubbing it
+                    // with highly generic selectors.
                     let slice = data
                         .get_mut(range)
                         .ok_or(ScrubMinidumpError::InvalidAddress)?;
-                    let state =
-                        file_state.enter_static("", Some(attrs), Some(ValueType::StackMemory));
+
+                    let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::Maybe));
+                    let state = file_state.enter_static(
+                        "stack_memory",
+                        Some(attrs),
+                        ValueType::Binary | ValueType::StackMemory,
+                    );
                     changed |= self.scrub_bytes(slice, &state, ScrubEncodings::All);
                 }
                 MinidumpItem::NonStackMemory(range) => {
                     let slice = data
                         .get_mut(range)
                         .ok_or(ScrubMinidumpError::InvalidAddress)?;
-                    let state =
-                        file_state.enter_static("", Some(attrs), Some(ValueType::HeapMemory));
+                    let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
+                    let state = file_state.enter_static(
+                        "heap_memory",
+                        Some(attrs),
+                        ValueType::Binary | ValueType::HeapMemory,
+                    );
                     changed |= self.scrub_bytes(slice, &state, ScrubEncodings::All);
                 }
                 MinidumpItem::LinuxEnviron(range) | MinidumpItem::LinuxCmdLine(range) => {
                     let slice = data
                         .get_mut(range)
                         .ok_or(ScrubMinidumpError::InvalidAddress)?;
+                    let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
                     let state = file_state.enter_static("", Some(attrs), Some(ValueType::Binary));
                     changed |= self.scrub_bytes(slice, &state, ScrubEncodings::All);
                 }
@@ -289,6 +296,7 @@ impl PiiAttachmentsProcessor<'_> {
                     let slice = data
                         .get_mut(range)
                         .ok_or(ScrubMinidumpError::InvalidAddress)?;
+                    let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
                     // Mirrors decisions made on NativeImagePath type
                     let state =
                         file_state.enter_static("code_file", Some(attrs), Some(ValueType::String));
@@ -299,6 +307,7 @@ impl PiiAttachmentsProcessor<'_> {
                     let slice = data
                         .get_mut(range)
                         .ok_or(ScrubMinidumpError::InvalidAddress)?;
+                    let attrs = Cow::Owned(FieldAttrs::new().pii(Pii::True));
                     // Mirrors decisions made on NativeImagePath type
                     let state =
                         file_state.enter_static("debug_file", Some(attrs), Some(ValueType::String));
@@ -357,6 +366,11 @@ mod tests {
         Scrubbed,
     }
 
+    enum MemRegion {
+        Stack,
+        Heap,
+    }
+
     impl TestScrubber {
         fn main_module(&self, which: Which) -> MinidumpModule {
             let dump = match which {
@@ -376,6 +390,57 @@ mod tests {
             let mut iter = modules.iter();
             iter.next(); // remove main module
             iter.cloned().collect()
+        }
+
+        /// Returns the raw stack or heap memory regions.
+        fn memory_regions<'slf>(&'slf self, which: Which, region: MemRegion) -> Vec<&'slf [u8]> {
+            let dump: &'slf Minidump<&'static [u8]> = match which {
+                Which::Original => &self.orig_dump,
+                Which::Scrubbed => &self.scrubbed_dump,
+            };
+
+            let thread_list: MinidumpThreadList = dump.get_stream().unwrap();
+            let stack_rvas: Vec<RVA> = thread_list
+                .threads
+                .iter()
+                .map(|t| t.raw.stack.memory.rva)
+                .collect();
+
+            // These bytes are kept alive by our struct itself, so returning them with the
+            // lifetime of our struct is fine.  The lifetimes on the Minidump::MemoryRegions
+            // iterator are currenty wrong and assumes we keep a reference to the
+            // MinidumpMemoryList, hence we need to transmute this.  See
+            // https://github.com/luser/rust-minidump/pull/111
+            let mem_list: MinidumpMemoryList<'slf> = dump.get_stream().unwrap();
+            mem_list
+                .iter()
+                .filter(|mem| match region {
+                    MemRegion::Stack => stack_rvas.contains(&mem.desc.memory.rva),
+                    MemRegion::Heap => !stack_rvas.contains(&mem.desc.memory.rva),
+                })
+                .map(|mem| unsafe { std::mem::transmute(mem.bytes) })
+                .collect()
+        }
+
+        /// Returns the raw stack memory regions.
+        fn stacks(&self, which: Which) -> Vec<&[u8]> {
+            self.memory_regions(which, MemRegion::Stack)
+        }
+
+        /// Returns the raw heap memory regions.
+        fn heaps(&self, which: Which) -> Vec<&[u8]> {
+            self.memory_regions(which, MemRegion::Heap)
+        }
+
+        /// Returns the Linux environ region.
+        ///
+        /// Panics if there is no such region.
+        fn environ(&self, which: Which) -> &[u8] {
+            let dump = match which {
+                Which::Original => &self.orig_dump,
+                Which::Scrubbed => &self.scrubbed_dump,
+            };
+            dump.get_raw_stream(StreamType::LinuxEnviron).unwrap()
         }
     }
 
@@ -541,5 +606,197 @@ mod tests {
                 "scrubbed debug file contains a path"
             );
         }
+    }
+
+    #[test]
+    fn test_module_list_selectors() {
+        // Since scrubbing the module list is safe, it should be scrubbed by valuetype.
+        let scrubber = TestScrubber::new(
+            "linux.dmp",
+            include_bytes!("../../../tests/fixtures/linux.dmp"),
+            serde_json::json!(
+                {
+                    "applications": {
+                        "$string": ["@anything:mask"],
+                    }
+                }
+            ),
+        );
+        let main = scrubber.main_module(Which::Scrubbed);
+        assert_eq!(main.code_file(), "*****************/crash");
+        assert_eq!(main.debug_file().unwrap(), "*****************/crash");
+    }
+
+    #[test]
+    fn test_stack_scrubbing_backwards_compatible_selector() {
+        // Some users already use this bare selector, that's all we care about for backwards
+        // compatibility.
+        let scrubber = TestScrubber::new(
+            "linux.dmp",
+            include_bytes!("../../../tests/fixtures/linux.dmp"),
+            serde_json::json!(
+                {
+                    "applications": {
+                        "$stack_memory": ["@anything:mask"],
+                    }
+                }
+            ),
+        );
+        for stack in scrubber.stacks(Which::Scrubbed) {
+            assert!(stack.iter().all(|b| *b == b'*'));
+        }
+    }
+
+    #[test]
+    fn test_stack_scrubbing_path_item_selector() {
+        let scrubber = TestScrubber::new(
+            "linux.dmp",
+            include_bytes!("../../../tests/fixtures/linux.dmp"),
+            serde_json::json!(
+                {
+                    "applications": {
+                        "$minidump.stack_memory": ["@anything:mask"],
+                    }
+                }
+            ),
+        );
+        for stack in scrubber.stacks(Which::Scrubbed) {
+            assert!(stack.iter().all(|b| *b == b'*'));
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_stack_scrubbing_valuetype_selector() {
+        // This should work, but is known to fail currently because the selector logic never
+        // considers a selector containing $binary as specific.
+        let scrubber = TestScrubber::new(
+            "linux.dmp",
+            include_bytes!("../../../tests/fixtures/linux.dmp"),
+            serde_json::json!(
+                {
+                    "applications": {
+                        "$minidump.$binary": ["@anything:mask"],
+                    }
+                }
+            ),
+        );
+        for stack in scrubber.stacks(Which::Scrubbed) {
+            assert!(stack.iter().all(|b| *b == b'*'));
+        }
+    }
+
+    #[test]
+    fn test_stack_scrubbing_valuetype_not_fully_qualified() {
+        // Not fully qualified valuetype should not touch the stack
+        let scrubber = TestScrubber::new(
+            "linux.dmp",
+            include_bytes!("../../../tests/fixtures/linux.dmp"),
+            serde_json::json!(
+                {
+                    "applications": {
+                        "$binary": ["@anything:mask"],
+                    }
+                }
+            ),
+        );
+        for (scrubbed_stack, original_stack) in scrubber
+            .stacks(Which::Scrubbed)
+            .iter()
+            .zip(scrubber.stacks(Which::Original).iter())
+        {
+            assert_eq!(scrubbed_stack, original_stack);
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_stack_scrubbing_wildcard() {
+        // Wildcard should not touch the stack.  However currently wildcards are considered
+        // specific selectors so they do.  This is a known issue.
+        let scrubber = TestScrubber::new(
+            "linux.dmp",
+            include_bytes!("../../../tests/fixtures/linux.dmp"),
+            serde_json::json!(
+                {
+                    "applications": {
+                        "$minidump.*": ["@anything:mask"],
+                    }
+                }
+            ),
+        );
+        for (scrubbed_stack, original_stack) in scrubber
+            .stacks(Which::Scrubbed)
+            .iter()
+            .zip(scrubber.stacks(Which::Original).iter())
+        {
+            assert_eq!(scrubbed_stack, original_stack);
+        }
+    }
+
+    #[test]
+    fn test_stack_scrubbing_deep_wildcard() {
+        // Wildcard should not touch the stack
+        let scrubber = TestScrubber::new(
+            "linux.dmp",
+            include_bytes!("../../../tests/fixtures/linux.dmp"),
+            serde_json::json!(
+                {
+                    "applications": {
+                        "$attachments.**": ["@anything:mask"],
+                    }
+                }
+            ),
+        );
+        for (scrubbed_stack, original_stack) in scrubber
+            .stacks(Which::Scrubbed)
+            .iter()
+            .zip(scrubber.stacks(Which::Original).iter())
+        {
+            assert_eq!(scrubbed_stack, original_stack);
+        }
+    }
+
+    #[test]
+    fn test_stack_scrubbing_binary_not_stack() {
+        let scrubber = TestScrubber::new(
+            "linux.dmp",
+            include_bytes!("../../../tests/fixtures/linux.dmp"),
+            serde_json::json!(
+                {
+                    "applications": {
+                        "$binary && !stack_memory": ["@anything:mask"],
+                    }
+                }
+            ),
+        );
+        for (scrubbed_stack, original_stack) in scrubber
+            .stacks(Which::Scrubbed)
+            .iter()
+            .zip(scrubber.stacks(Which::Original).iter())
+        {
+            assert_eq!(scrubbed_stack, original_stack);
+        }
+        for heap in scrubber.heaps(Which::Scrubbed) {
+            assert!(heap.iter().all(|b| *b == b'*'));
+        }
+    }
+
+    #[test]
+    fn test_linux_environ_valuetype() {
+        // The linux environ should be scrubbed for any $binary
+        let scrubber = TestScrubber::new(
+            "linux.dmp",
+            include_bytes!("../../../tests/fixtures/linux.dmp"),
+            serde_json::json!(
+                {
+                    "applications": {
+                        "$binary": ["@anything:mask"],
+                    }
+                }
+            ),
+        );
+        let environ = scrubber.environ(Which::Scrubbed);
+        assert!(environ.iter().all(|b| *b == b'*'));
     }
 }

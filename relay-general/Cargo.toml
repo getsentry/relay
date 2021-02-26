@@ -1,6 +1,6 @@
 [package]
 name = "relay-general"
-version = "20.10.1"
+version = "21.2.0"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
@@ -14,21 +14,22 @@ chrono = { version = "0.4.11", features = ["serde"] }
 cookie = { version = "0.12.0", features = ["percent-encode"] }
 debugid = { version = "0.7.2", features = ["serde"] }
 dynfmt = { version = "0.1.4", features = ["python", "curly"] }
+enumset = "1.0.4"
 failure = "0.1.8"
 hmac = "0.7.1"
 itertools = "0.8.2"
 lazy_static = "1.4.0"
 maxminddb = "0.13.0"
 memmap = { version = "0.7.0", optional = true }
-minidump = { git = "https://github.com/luser/rust-minidump", rev = "f8a18211dbb0bf7dca5dd41e578af4b366fcb9be" }
+minidump = { git = "https://github.com/luser/rust-minidump", rev = "20070798b5e9216474013341ed80c5272558d9ee" }
 num-traits = "0.2.12"
 pest = "2.1.3"
 pest_derive = "2.1.0"
 regex = "1.3.9"
 relay-common = { path = "../relay-common" }
 relay-general-derive = { path = "derive" }
-schemars = { version = "0.8.0-alpha-4", features = ["uuid", "chrono"], optional = true }
-scroll = "0.9.0"
+schemars = { version = "0.8.0", features = ["uuid", "chrono"], optional = true }
+scroll = "0.10.2"
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
 serde_urlencoded = "0.5.5"

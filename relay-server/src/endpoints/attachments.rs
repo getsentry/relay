@@ -46,14 +46,7 @@ fn store_attachment(
     meta: RequestMeta,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
-    common::handle_store_like_request(
-        meta,
-        false,
-        request,
-        extract_envelope,
-        create_response,
-        true,
-    )
+    common::handle_store_like_request(meta, request, extract_envelope, create_response, true)
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {

@@ -1,4 +1,19 @@
-use relay_common::metrics::{CounterMetric, HistogramMetric, SetMetric, TimerMetric};
+use relay_common::metrics::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
+
+/// Gauge metrics used by Relay
+pub enum RelayGauges {
+    /// The state of Relay with respect to the upstream connection.
+    /// Possible values are `0` for normal operations and `1` for a network outage.
+    NetworkOutage,
+}
+
+impl GaugeMetric for RelayGauges {
+    fn name(&self) -> &'static str {
+        match self {
+            RelayGauges::NetworkOutage => "upstream.network_outage",
+        }
+    }
+}
 
 /// Set metrics used by Relay
 pub enum RelaySets {
@@ -290,6 +305,8 @@ pub enum RelayCounters {
     ///  - `outcome`: The basic cause for rejecting the event.
     ///  - `reason`: A more detailed identifier describing the rule or mechanism leading to the
     ///    outcome.
+    ///  - `to`: Describes the destination of the outcome. Can be either 'kafka' (when in
+    ///    processing mode) or 'http' (when outcomes are enabled in an external relay).
     ///
     /// Possible outcomes are:
     ///  - `filtered`: Dropped by inbound data filters. The reason specifies the filter that
@@ -318,6 +335,15 @@ pub enum RelayCounters {
     /// Note that after an update loop has completed, there may be more projects pending updates.
     /// This is indicated by `project_state.pending`.
     ProjectStateRequest,
+    /// Number of times a project config was requested with `.no-cache`.
+    ///
+    /// This effectively counts the number of envelopes or events that have been sent with a
+    /// corresponding DSN. Actual queries to the upstream may still be deduplicated for these
+    /// project state requests.
+    ///
+    /// A maximum of 1 such requests per second is allowed per project key. This metric counts only
+    /// permitted requests.
+    ProjectStateNoCache,
     /// Number of times a project is looked up from the cache.
     ///
     /// The cache may contain and outdated or expired project state. In that case, the project state
@@ -416,6 +442,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
+            RelayCounters::ProjectStateNoCache => "project_state.no_cache",
             RelayCounters::ProjectCacheHit => "project_cache.hit",
             RelayCounters::ProjectCacheMiss => "project_cache.miss",
             RelayCounters::ServerStarting => "server.starting",
