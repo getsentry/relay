@@ -237,7 +237,7 @@ mod tests {
             end_timestamp: Annotated<Timestamp>,
             op_name: String,
         ) -> Annotated<Span> {
-            return Annotated::new(Span {
+            Annotated::new(Span {
                 timestamp: end_timestamp,
                 start_timestamp,
                 description: Annotated::new("desc".to_owned()),
@@ -246,7 +246,7 @@ mod tests {
                 span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
                 status: Annotated::new(SpanStatus::Ok),
                 ..Default::default()
-            });
+            })
         }
 
         let spans = vec![
