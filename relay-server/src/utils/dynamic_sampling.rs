@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::net::IpAddr;
-use std::str::FromStr;
 
 use actix::prelude::*;
 use futures::{future, prelude::*};
@@ -15,7 +14,7 @@ use serde_json::Value;
 use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::{
     browser_extensions, client_ips, csp, error_messages, legacy_browsers, localhost, web_crawlers,
-    GlobPatterns, LegacyBrowser,
+    GlobPatterns,
 };
 use relay_general::protocol::{Event, EventId};
 
