@@ -144,6 +144,85 @@ def test_strip_measurement_interface(
     # expect measurements interface object to be stripped out since it's attached to a non-transaction event
     assert "measurements" not in event, event
 
+def test_ops_breakdown_measurements(
+    mini_sentry, relay_with_processing, transactions_consumer
+):
+    relay = relay_with_processing()
+    config = mini_sentry.add_basic_project_config(42)
+    config["config"].setdefault("operationNameBreakdown", ["http", "db", "browser", "resource"])
+
+    events_consumer = transactions_consumer()
+
+    transaction_item = generate_transaction_item()
+    transaction_item.update(
+        {
+            "measurements": {
+                "lcp": {"value": 202.1},
+            },
+        "spans": [
+            {
+                "description": "GET /api/0/organizations/?member=1",
+                "op": "http",
+                "parent_span_id": "8f5a2b8768cafb4e",
+                "span_id": "bd429c44b67a3eb4",
+                "start_timestamp": 1000.5,
+                "timestamp": 2000.5,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            },
+            {
+                "description": "GET /api/0/organizations/?member=1",
+                "op": "http",
+                "parent_span_id": "8f5a2b8768cafb4e",
+                "span_id": "bd429c44b67a3eb5",
+                "start_timestamp": 1500.5,
+                "timestamp": 2500.5,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            },
+            {
+                "description": "GET /api/0/organizations/?member=1",
+                "op": "http.secure",
+                "parent_span_id": "8f5a2b8768cafb4e",
+                "span_id": "bd429c44b67a3eb6",
+                "start_timestamp": 3500,
+                "timestamp": 4000,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            },
+            {
+                "description": "sentry-cdn.com/dist.js",
+                "op": "resource.link",
+                "parent_span_id": "8f5a2b8768cafb4f",
+                "span_id": "bd429c44b67a3eb7",
+                "start_timestamp": 500.001,
+                "timestamp": 600.002005,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            },
+            {
+                "description": "sentry.middleware.env.SentryEnvMiddleware.process_request",
+                "op": "django.middleware",
+                "parent_span_id": "8f5a2b8768cafb4e",
+                "span_id": "bd429c44b67a3eb8",
+                "start_timestamp": 100,
+                "timestamp": 200,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            },
+        ],
+        }
+    )
+
+    envelope = Envelope()
+    envelope.add_transaction(transaction_item)
+    relay.send_envelope(42, envelope)
+
+    event, _ = events_consumer.get_event()
+    assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
+    assert "trace" in event["contexts"]
+    assert "measurements" in event, event
+    assert event["measurements"] == {
+        "lcp": {"value": 202.1},
+        "ops.time.http": {"value": 2000000.0},
+        "ops.time.resource": {"value": 100001.005001},
+        "ops.total.time": {"value": 2200001.005001},
+    }
 
 def test_sample_rates(mini_sentry, relay_chain):
     relay = relay_chain()
