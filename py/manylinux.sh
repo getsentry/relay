@@ -3,7 +3,7 @@ set -e
 
 # Install dependencies needed by our wheel
 echo "Installing packages..."
-yum -y -q install gcc libffi-devel openssl-devel
+yum -y -q install gcc libffi-devel
 
 export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig/
 
