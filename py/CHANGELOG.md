@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Remove dependencies on `openssl` and `zlib`. ([#914](https://github.com/getsentry/relay/pull/914))
+
 ## 0.8.3
 
 - Add NSError to mechanism. ([#925](https://github.com/getsentry/relay/pull/925))

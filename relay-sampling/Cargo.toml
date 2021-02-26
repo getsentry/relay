@@ -20,6 +20,5 @@ rand = "0.6.5"
 rand_pcg = "0.1.2"
 unicase = "2.6.0"
 
-
 [dev-dependencies]
 insta = { version = "0.16.0", features = ["ron"] }
