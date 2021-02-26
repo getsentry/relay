@@ -173,7 +173,9 @@ pub fn normalize_measurements(event: &mut Event, operation_name_breakdown: &Opti
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protocol::{Span, SpanId, SpanStatus, TraceId};
     use crate::types::{Annotated, Object};
+    use chrono::{TimeZone, Utc};
 
     #[test]
     fn test_skip_no_measurements() {
@@ -225,5 +227,116 @@ mod tests {
         };
         normalize_measurements(&mut event, &None);
         assert_eq!(event.measurements.into_value().unwrap(), measurements);
+    }
+
+    #[test]
+    fn test_emit_ops_breakdown_measurements() {
+        fn make_span(
+            start_timestamp: Annotated<Timestamp>,
+            end_timestamp: Annotated<Timestamp>,
+            op_name: String,
+        ) -> Annotated<Span> {
+            return Annotated::new(Span {
+                timestamp: end_timestamp,
+                start_timestamp,
+                description: Annotated::new("desc".to_owned()),
+                op: Annotated::new(op_name),
+                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+                status: Annotated::new(SpanStatus::Ok),
+                ..Default::default()
+            });
+        }
+
+        let spans = vec![
+            make_span(
+                Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(0, 0, 0, 0).into()),
+                Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(1, 0, 0, 0).into()),
+                "http".to_string(),
+            ),
+            // overlapping spans
+            make_span(
+                Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(2, 0, 0, 0).into()),
+                Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(3, 0, 0, 0).into()),
+                "db".to_string(),
+            ),
+            make_span(
+                Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(2, 30, 0, 0).into()),
+                Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(3, 30, 0, 0).into()),
+                "db".to_string(),
+            ),
+            make_span(
+                Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(4, 0, 0, 0).into()),
+                Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(4, 30, 0, 0).into()),
+                "db".to_string(),
+            ),
+            make_span(
+                Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(5, 0, 0, 0).into()),
+                Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(6, 0, 0, 10_000).into()),
+                "browser".to_string(),
+            ),
+        ];
+
+        let mut event = Event {
+            ty: EventType::Transaction.into(),
+            spans: spans.into(),
+            measurements: Measurements({
+                let mut measurements = Object::new();
+                measurements.insert(
+                    "lcp".to_owned(),
+                    Annotated::new(Measurement {
+                        value: Annotated::new(420.69),
+                    }),
+                );
+
+                measurements
+            })
+            .into(),
+            ..Default::default()
+        };
+
+        let ops_breakdown_config = vec!["http".to_string(), "db".to_string()];
+
+        normalize_measurements(&mut event, &ops_breakdown_config.into());
+
+        let expected_measurements = Measurements({
+            let mut measurements = Object::new();
+            measurements.insert(
+                "lcp".to_owned(),
+                Annotated::new(Measurement {
+                    value: Annotated::new(420.69),
+                }),
+            );
+            measurements.insert(
+                "ops.time.http".to_owned(),
+                Annotated::new(Measurement {
+                    // 1 hour in milliseconds
+                    value: Annotated::new(3_600_000.0),
+                }),
+            );
+
+            measurements.insert(
+                "ops.time.db".to_owned(),
+                Annotated::new(Measurement {
+                    // 2 hours in milliseconds
+                    value: Annotated::new(7_200_000.0),
+                }),
+            );
+
+            measurements.insert(
+                "ops.total.time".to_owned(),
+                Annotated::new(Measurement {
+                    // 3 hours and 10 microseconds in milliseconds
+                    value: Annotated::new(10_800_000.01),
+                }),
+            );
+
+            measurements
+        });
+
+        assert_eq!(
+            event.measurements.into_value().unwrap(),
+            expected_measurements
+        );
     }
 }
