@@ -3,10 +3,8 @@ set -eux
 
 if [ "${BUILD_ARCH}" = "x86_64" ]; then
   DOCKER_ARCH="amd64"
-  OPENSSL_ARCH="linux-x86_64"
 elif [ "${BUILD_ARCH}" = "i686" ]; then
   DOCKER_ARCH="i386"
-  OPENSSL_ARCH="linux-generic32"
 else
   echo "Invalid architecture: ${BUILD_ARCH}"
   exit 1
@@ -19,7 +17,6 @@ BUILD_IMAGE="us.gcr.io/sentryio/relay:deps"
 docker pull $BUILD_IMAGE || true
 docker build --build-arg DOCKER_ARCH=${DOCKER_ARCH} \
              --build-arg BUILD_ARCH=${BUILD_ARCH} \
-             --build-arg OPENSSL_ARCH=${OPENSSL_ARCH} \
              --cache-from=${BUILD_IMAGE} \
              --target relay-deps \
              -t "${BUILD_IMAGE}" .

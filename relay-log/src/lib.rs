@@ -105,10 +105,18 @@
 
 #![warn(missing_docs)]
 
+#[cfg(feature = "sentry")]
 mod sentry_failure;
 
+#[cfg(feature = "init")]
 mod setup;
+#[cfg(feature = "init")]
 pub use setup::*;
+
+#[cfg(feature = "test")]
+mod test;
+#[cfg(feature = "test")]
+pub use test::*;
 
 mod utils;
 pub use utils::*;
@@ -119,8 +127,9 @@ pub use log::{debug, error, info, log, trace, warn};
 
 // Expose the minimal error reporting API.
 #[doc(inline)]
-pub use sentry::{capture_error, configure_scope, protocol, with_scope, Hub};
+pub use sentry_core::{capture_error, configure_scope, protocol, with_scope, Hub};
 
 // Required for the temporarily vendored actix integration.
 #[doc(hidden)]
+#[cfg(feature = "sentry")]
 pub use {sentry as _sentry, sentry_failure::exception_from_single_fail};

@@ -310,7 +310,7 @@ pub struct Event {
     /// can be the git SHA for the given project, or a product identifier with a semantic version.
     #[metastructure(
         max_chars = "tag_value",  // release ends in tag
-        deny_chars = "\r\n\x0c\t/",
+        deny_chars = "\r\n\x0c\t/\\",
         required = "false",
         trim_whitespace = "true",
         nonempty = "true",

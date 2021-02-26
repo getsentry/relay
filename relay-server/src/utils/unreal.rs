@@ -207,14 +207,6 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
         }
     }
 
-    // Clear this property. It's a duplicate of misc_primary_gpu_brand and only exists because
-    // somebody made a typo once while mapping the GPU data from unrealcontext in symbolic, and we
-    // tried to fix this in a backwards-compatible way by retaining both properties.
-    #[allow(deprecated)]
-    {
-        runtime_props.misc_primary_cpu_brand = None;
-    }
-
     if let Some(gpu_brand) = runtime_props.misc_primary_gpu_brand.take() {
         let gpu_context = contexts.get_or_insert_with(GpuContext::default_key(), || {
             Context::Gpu(Box::new(GpuContext::default()))

@@ -183,7 +183,6 @@ fn store_minidump(
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     common::handle_store_like_request(
         meta,
-        true,
         request,
         extract_envelope,
         common::create_text_event_id_response,

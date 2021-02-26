@@ -217,7 +217,7 @@ mod tests {
         let mut parsed = SessionUpdate::parse(json.as_bytes()).unwrap();
 
         // Sequence is defaulted to the current timestamp. Override for snapshot.
-        assert!((parsed.sequence - default_sequence()) <= 1);
+        assert!((default_sequence() - parsed.sequence) <= 1);
         parsed.sequence = 4711;
 
         assert_eq_dbg!(update, parsed);

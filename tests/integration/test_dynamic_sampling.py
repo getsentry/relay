@@ -91,7 +91,7 @@ def _add_sampling_config(
                 "op": "eq",
                 "name": field_prefix + "user",
                 "value": user_segments,
-                "ignoreCase": True,
+                "options": {"ignoreCase": True,},
             }
         )
     if environments is not None:
@@ -100,7 +100,7 @@ def _add_sampling_config(
                 "op": "eq",
                 "name": field_prefix + "environment",
                 "value": environments,
-                "ignoreCase": True,
+                "options": {"ignoreCase": True,},
             }
         )
 

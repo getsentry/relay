@@ -41,6 +41,7 @@
 //!  - [`relay-log`]: Error reporting and logging.
 //!  - [`relay-quotas`]: Sentry quotas and rate limiting.
 //!  - [`relay-redis`]: Pooled Redis and Redis cluster abstraction.
+//!  - [`relay-sampling`]: Dynamic sampling functionality.
 //!  - [`relay-server`]: Endpoints and services.
 //!
 //! # Tools
@@ -65,6 +66,7 @@
 //! [`relay-log`]: ../relay_log/index.html
 //! [`relay-quotas`]: ../relay_quotas/index.html
 //! [`relay-redis`]: ../relay_redis/index.html
+//! [`relay-sampling`]: ../relay_sampling/index.html
 //! [`relay-server`]: ../relay_server/index.html
 //! [`document-metrics`]: ../document_metrics/index.html
 //! [`generate-schema`]: ../generate_schema/index.html
@@ -86,15 +88,6 @@ use std::process;
 use relay_log::Hub;
 
 pub fn main() {
-    // on non windows machines we want to initialize the openssl envvars based on
-    // what openssl probe tells us.  We will eventually stop doing that if we
-    // kill openssl.
-    #[cfg(not(windows))]
-    {
-        use openssl_probe::init_ssl_cert_env_vars;
-        init_ssl_cert_env_vars();
-    }
-
     let exit_code = match cli::execute() {
         Ok(()) => 0,
         Err(err) => {

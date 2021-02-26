@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Deny backslashes in release names. ([#904](https://github.com/getsentry/relay/pull/904))
+- Remove dependencies on `openssl` and `zlib`. ([#914](https://github.com/getsentry/relay/pull/914))
+
+## 0.8.3
+
 - Add NSError to mechanism. ([#925](https://github.com/getsentry/relay/pull/925))
 - Add snapshot to the stack trace interface. ([#927](https://github.com/getsentry/relay/pull/927))
 - Drop python 2.7 support. ([#929](https://github.com/getsentry/relay/pull/929))
