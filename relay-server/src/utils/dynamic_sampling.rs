@@ -360,10 +360,10 @@ fn legacy_browsers_matcher(
     event: &Event,
     _ip_addr: Option<IpAddr>,
 ) -> bool {
-    let browsers = condition.value.as_array().map(|v| {
-        v.iter()
-            .map(|s| s.as_str().unwrap_or("").parse().unwrap())
-    });
+    let browsers = condition
+        .value
+        .as_array()
+        .map(|v| v.iter().map(|s| s.as_str().unwrap_or("").parse().unwrap()));
     if let Some(browsers) = browsers {
         legacy_browsers::matches(event, &browsers.collect())
     } else {
