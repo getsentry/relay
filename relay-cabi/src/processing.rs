@@ -14,6 +14,7 @@ use relay_general::processor::{process_value, split_chunks, ProcessingState};
 use relay_general::protocol::{Event, VALID_PLATFORMS};
 use relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
 use relay_general::types::{Annotated, Remark};
+use relay_sampling::RuleCondition;
 
 use crate::core::{RelayBuf, RelayStr};
 
@@ -219,4 +220,23 @@ pub unsafe extern "C" fn relay_is_glob_match(
 pub unsafe extern "C" fn relay_parse_release(value: *const RelayStr) -> RelayStr {
     let release = sentry_release_parser::Release::parse((*value).as_str())?;
     RelayStr::from_string(serde_json::to_string(&release)?)
+}
+
+/// Validate a dynamic rule condition.
+/// We only validate conditions in Relay since conditions are the only part of the rules that are
+/// volatile and need constant updating to keep in sync between Relay and Sentry
+#[no_mangle]
+#[relay_ffi::catch_unwind]
+pub unsafe extern "C" fn relay_validate_dynamic_rule_condition(value: *const RelayStr) -> RelayStr {
+    let ret_val = match serde_json::from_str::<RuleCondition>((*value).as_str()) {
+        Ok(condition) => {
+            if condition.supported() {
+                "".to_string()
+            } else {
+                "invalid condition".to_string()
+            }
+        }
+        Err(e) => e.to_string(),
+    };
+    RelayStr::from_string(ret_val)
 }

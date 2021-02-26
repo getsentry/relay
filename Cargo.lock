@@ -3086,6 +3086,7 @@ dependencies = [
  "relay-common",
  "relay-ffi",
  "relay-general",
+ "relay-sampling",
  "sentry-release-parser",
  "serde",
  "serde_json",
