@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "21.1.0"
+version = "21.2.0"
 edition = "2018"
 build = "build.rs"
 license-file = "../LICENSE"
@@ -41,7 +41,7 @@ itertools = "0.8.2"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
 lazy_static = "1.4.0"
 listenfd = "0.3.3"
-minidump = { git = "https://github.com/luser/rust-minidump", rev = "7a03c548837ea3006e74c8e8c809afe243bec655", optional = true }
+minidump = { git = "https://github.com/luser/rust-minidump", rev = "20070798b5e9216474013341ed80c5272558d9ee", optional = true }
 native-tls = { version = "0.2.4", optional = true }
 parking_lot = "0.10.0"
 rand_pcg="0.1.2"
@@ -57,21 +57,23 @@ relay-general = { path = "../relay-general" }
 relay-log = { path = "../relay-log" }
 relay-quotas = { path = "../relay-quotas" }
 relay-redis = { path = "../relay-redis" }
-reqwest = { version = "0.10.8", features = ["gzip", "stream", "native-tls-vendored"] }
+reqwest = { version = "0.11.1", features = ["gzip", "stream", "trust-dns", "native-tls-vendored"] }
 rmp-serde = "0.14.3"
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
 serde_urlencoded = "0.7.0"
 smallvec = { version = "1.4.0", features = ["serde"] }
-symbolic = { version = "7.5.0", optional = true, default-features=false, features=["unreal-serde"] }
+symbolic = { version = "8.0.4", optional = true, default-features=false, features=["unreal-serde"] }
 take_mut = "0.2.2"
-tokio = "0.2" # in sync with reqwest
+tokio = { version = "1.0", features = ["rt-multi-thread"] } # in sync with reqwest
 tokio-timer = "0.2.13"
 url = { version = "2.1.1", features = ["serde"] }
 uuid = { version = "0.8.1", features = ["v5"] }
+unicase="2.6.0"
 
 [target."cfg(not(windows))".dependencies]
 libc = "0.2.71"
 
 [dev-dependencies]
-insta = "0.16.0"
+insta = {version="0.16.0", features=["ron"]}
+

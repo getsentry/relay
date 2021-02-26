@@ -488,17 +488,6 @@ pub enum HttpEncoding {
     Br,
 }
 
-/// (unstable) Http client to use for upstream store requests.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum HttpClient {
-    /// Use actix http client, the default.
-    Actix,
-    /// Use reqwest. Necessary for HTTP proxy support (standard envvars are picked up
-    /// automatically)
-    Reqwest,
-}
-
 /// Controls authentication with upstream.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -547,11 +536,6 @@ struct Http {
     ///  - `gzip` (default): Compression using gzip.
     ///  - `br`: Compression using the brotli algorithm.
     encoding: HttpEncoding,
-    /// (unstable) Which HTTP client to use. Can be "actix" or "reqwest", with "actix" being the
-    /// default. Switching to "reqwest" is required to get experimental HTTP proxy support.
-    ///
-    /// Note that this option will be removed in the future once "reqwest" is the default.
-    _client: HttpClient,
 }
 
 impl Default for Http {
@@ -564,7 +548,6 @@ impl Default for Http {
             auth_interval: Some(600), // 10 minutes
             outage_grace_period: DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
             encoding: HttpEncoding::Gzip,
-            _client: HttpClient::Actix,
         }
     }
 }
@@ -687,6 +670,7 @@ fn default_projectconfig_cache_prefix() -> String {
     "relayconfig".to_owned()
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn default_max_rate_limit() -> Option<u32> {
     Some(300) // 5 minutes
 }
@@ -1136,11 +1120,6 @@ impl Config {
     /// Content encoding of upstream requests.
     pub fn http_encoding(&self) -> HttpEncoding {
         self.values.http.encoding
-    }
-
-    /// (unstable) HTTP client to use for upstream requests.
-    pub fn http_client(&self) -> HttpClient {
-        self.values.http._client
     }
 
     /// Returns whether this Relay should emit outcomes.

@@ -51,7 +51,7 @@ def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consum
     assert start <= event_emission <= end
 
 
-def _send_event(relay, project_id=42):
+def _send_event(relay, project_id=42, event_type="error"):
     """
     Send an event to the given project.
 
@@ -63,6 +63,7 @@ def _send_event(relay, project_id=42):
         "event_id": event_id,
         "message": message_text,
         "extra": {"msg_text": message_text},
+        "type": event_type,
     }
 
     try:
@@ -72,7 +73,8 @@ def _send_event(relay, project_id=42):
     return event_id
 
 
-def test_outcomes_non_processing(relay, mini_sentry):
+@pytest.mark.parametrize("event_type", ["error", "transaction"])
+def test_outcomes_non_processing(relay, mini_sentry, event_type):
     """
     Test basic outcome functionality.
 
@@ -83,7 +85,7 @@ def test_outcomes_non_processing(relay, mini_sentry):
 
     relay = relay(mini_sentry, config)
 
-    event_id = _send_event(relay)
+    event_id = _send_event(relay, event_type=event_type)
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
@@ -101,6 +103,7 @@ def test_outcomes_non_processing(relay, mini_sentry):
         "reason": "project_id",  # missing project id
         "event_id": event_id,
         "remote_addr": "127.0.0.1",
+        "category": 2 if event_type == "transaction" else 1,
     }
     assert outcome == expected_outcome
 
@@ -244,12 +247,9 @@ def test_outcome_source(relay, mini_sentry):
 
 
 @pytest.mark.parametrize("num_intermediate_relays", [1, 3])
+@pytest.mark.parametrize("event_type", ["error", "transaction"])
 def test_outcome_forwarding(
-    mini_sentry,
-    relay,
-    relay_with_processing,
-    outcomes_consumer,
-    num_intermediate_relays,
+    relay, relay_with_processing, outcomes_consumer, num_intermediate_relays, event_type
 ):
     """
     Tests that Relay forwards outcomes from a chain of relays
@@ -258,6 +258,7 @@ def test_outcome_forwarding(
     and verify that the outcomes sent by  the first (downstream relay)
     are properly forwarded up to sentry.
     """
+    outcomes_consumer = outcomes_consumer(timeout=2)
 
     processing_config = {
         "outcomes": {
@@ -290,9 +291,8 @@ def test_outcome_forwarding(
 
     downstream_relay = relay(upstream, config_downstream)
 
-    event_id = _send_event(downstream_relay)
+    event_id = _send_event(downstream_relay, event_type=event_type)
 
-    outcomes_consumer = outcomes_consumer()
     outcome = outcomes_consumer.get_outcome()
 
     expected_outcome = {
@@ -302,6 +302,7 @@ def test_outcome_forwarding(
         "reason": "project_id",
         "event_id": event_id,
         "remote_addr": "127.0.0.1",
+        "category": 2 if event_type == "transaction" else 1,
     }
     outcome.pop("timestamp")
 
@@ -323,6 +324,8 @@ def test_outcomes_forwarding_rate_limited(
     - The second one is emittedy by the downstream, and then sent to the upstream that writes it
       to Kafka.
     """
+    outcomes_consumer = outcomes_consumer()
+
     processing_config = {
         "outcomes": {
             "emit_outcomes": True,
@@ -358,13 +361,11 @@ def test_outcomes_forwarding_rate_limited(
         }
     ]
 
-    outcomes_consumer_instance = outcomes_consumer()
-
     # Send an event, it should be dropped in the upstream (processing) relay
     result = downstream_relay.send_event(project_id, _get_message(category))
     event_id = result["id"]
 
-    outcome = outcomes_consumer_instance.get_outcome()
+    outcome = outcomes_consumer.get_outcome()
     outcome.pop("timestamp")
     expected_outcome = {
         "reason": "rate_limited",
@@ -375,6 +376,7 @@ def test_outcomes_forwarding_rate_limited(
         "remote_addr": "127.0.0.1",
         "event_id": event_id,
         "source": "processing-layer",
+        "category": 1,
     }
     assert outcome == expected_outcome
 
@@ -387,31 +389,13 @@ def test_outcomes_forwarding_rate_limited(
     expected_outcome_from_downstream["source"] = "downstream-layer"
     expected_outcome_from_downstream.pop("event_id")
 
-    outcome = outcomes_consumer_instance.get_outcome()
+    outcome = outcomes_consumer.get_outcome()
     outcome.pop("timestamp")
     outcome.pop("event_id")
 
     assert outcome == expected_outcome_from_downstream
 
-    _assert_outcomes_topic_empty(outcomes_consumer_instance)
-
-
-def _assert_outcomes_topic_empty(outcomes_consumer_instance):
-    """
-    To prove there's nothing in the topic, we send a randomized message and then
-    immediately consume it.
-    """
-    event_id = "".join(random.choice("0123456789abcdef") for _ in range(32))
-    print(event_id)
-    dummy_outcome = {
-        "org_id": 0,
-        "project_id": 0,
-        "reason": "fake",
-        "event_id": event_id,
-    }
-    outcomes_consumer_instance.produce_test_message(dummy_outcome)
-    outcome = outcomes_consumer_instance.get_outcome()
-    assert outcome == dummy_outcome
+    outcomes_consumer.assert_empty()
 
 
 def _get_message(message_type):
@@ -487,5 +471,5 @@ def test_no_outcomes_rate_limit(
     # give relay some to handle the message (and send any outcomes it needs to send)
     time.sleep(1)
 
-    # we should not have anything on the outcome topic,
-    _assert_outcomes_topic_empty(outcomes_consumer)
+    # we should not have anything on the outcome topic
+    outcomes_consumer.assert_empty()

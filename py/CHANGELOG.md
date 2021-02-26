@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.3
+
+- Add NSError to mechanism. ([#925](https://github.com/getsentry/relay/pull/925))
+- Add snapshot to the stack trace interface. ([#927](https://github.com/getsentry/relay/pull/927))
+- Drop python 2.7 support. ([#929](https://github.com/getsentry/relay/pull/929))
+
 ## 0.8.2
 
 - Fix compile errors in the sdist with Rust 1.47 and later. ([#801](https://github.com/getsentry/relay/pull/801))

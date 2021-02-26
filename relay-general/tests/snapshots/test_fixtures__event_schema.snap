@@ -1896,6 +1896,18 @@ expression: event_json_schema()
                 }
               ]
             },
+            "ns_error": {
+              "description": " An NSError on Apple systems comprising code and signal.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/NsError"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "signal": {
               "description": " Information on the POSIX signal.",
               "default": null,
@@ -2035,6 +2047,33 @@ expression: event_json_schema()
       "anyOf": [
         {
           "type": "string"
+        }
+      ]
+    },
+    "NsError": {
+      "description": " NSError informaiton.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "code": {
+              "description": " The error code.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            },
+            "domain": {
+              "description": " A string containing the error domain.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
         }
       ]
     },
@@ -2212,6 +2251,14 @@ expression: event_json_schema()
                   }
                 ]
               }
+            },
+            "snapshot": {
+              "description": " Indicates that this stack trace is a snapshot triggered by an external signal.\n\n If this field is `false`, then the stack trace points to the code that caused this stack\n trace to be created. This can be the location of a raised exception, as well as an exception\n or signal handler.\n\n If this field is `true`, then the stack trace was captured as part of creating an unrelated\n event. For example, a thread other than the crashing thread, or a stack trace computed as a\n result of an external kill signal.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
             }
           }
         }

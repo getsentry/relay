@@ -2,16 +2,39 @@
 
 ## Unreleased
 
+
+**Features**:
+
+- Relay now picks up HTTP proxies from environment variables. This is made possible by switching to a different HTTP client library.
+
+**Bug Fixes**:
+
+- Fix a problem with Data Scrubbing source names (PII selectors) that caused `$frame.abs_path` to match, but not `$frame.abs_path || **` or `$frame.abs_path && **`. ([#932](https://github.com/getsentry/relay/pull/932))
+- Make username pii-strippable. ([#935](https://github.com/getsentry/relay/pull/935))
+- Respond with `400 Bad Request` and an error message `"empty envelope"` instead of `429` when envelopes without items are sent to the envelope endpoint. ([#937](https://github.com/getsentry/relay/pull/937))
+
+**Internal**:
+
+- Emit the `category` field for outcomes of events. This field disambiguates error events, security events and transactions. As a side-effect, Relay no longer emits outcomes for broken JSON payloads or network errors. ([#931](https://github.com/getsentry/relay/pull/931))
+- Add inbound filters functionality to dynamic sampling rules. ([#920](https://github.com/getsentry/relay/pull/920))
+- The undocumented `http._client` option has been removed. ([#938](https://github.com/getsentry/relay/pull/938))
+
+## 21.2.0
+
 **Features**:
 
 - By adding `.no-cache` to the DSN key, Relay refreshes project configuration caches immediately. This allows to apply changed settings instantly, such as updates to data scrubbing or inbound filter rules. ([#911](https://github.com/getsentry/relay/pull/911))
+- Add NSError to mechanism. ([#925](https://github.com/getsentry/relay/pull/925))
+- Add snapshot to the stack trace interface. ([#927](https://github.com/getsentry/relay/pull/927))
 
 **Bug Fixes**:
 
 - Log on INFO level when recovering from network outages. ([#918](https://github.com/getsentry/relay/pull/918))
+- Fix a panic in processing minidumps with invalid location descriptors. ([#919](https://github.com/getsentry/relay/pull/919))
 
 **Internal**:
 
+- Improve dynamic sampling rule configuration. ([#907](https://github.com/getsentry/relay/pull/907))
 - Compatibility mode for pre-aggregated sessions was removed. The feature is now enabled by default in full fidelity. ([#913](https://github.com/getsentry/relay/pull/913))
 
 ## 21.1.0

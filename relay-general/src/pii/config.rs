@@ -57,6 +57,7 @@ impl PartialEq for Pattern {
     }
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn replace_groups_default() -> Option<BTreeSet<u8>> {
     let mut set = BTreeSet::new();
     set.insert(0);

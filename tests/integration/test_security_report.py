@@ -57,13 +57,14 @@ def test_security_report_with_processing(
     test_case,
     json_fixture_provider,
 ):
+    events_consumer = events_consumer(timeout=5)
+
     fixture_provider = json_fixture_provider(__file__)
     test_name, ignored_properties = test_case
     proj_id = 42
     relay = relay_with_processing()
     report = fixture_provider.load(test_name, ".input")
     mini_sentry.add_full_project_config(proj_id)
-    events_consumer = events_consumer()
 
     relay.send_security_report(
         project_id=proj_id,

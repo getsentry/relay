@@ -1118,9 +1118,13 @@ impl EventProcessor {
             None => return Ok(()), // can't process without an event
             Some(event) => event,
         };
-
-        let project_id = state.project_id;
-        match utils::should_keep_event(event, &state.project_state, project_id) {
+        let client_ip = state.envelope.meta().client_addr();
+        match utils::should_keep_event(
+            event,
+            client_ip,
+            &state.project_state,
+            self.config.processing_enabled(),
+        ) {
             Some(false) => Err(ProcessingError::EventSampled),
             Some(true) => Ok(()),
             None => Ok(()), // Not enough info to make a definite evaluation, keep the event
@@ -1438,6 +1442,7 @@ impl Handler<HandleEnvelope> for EventManager {
         let outcome_producer = self.outcome_producer.clone();
         let capture = self.config.relay_mode() == RelayMode::Capture;
         let http_encoding = self.config.http_encoding();
+        let processing_enabled = self.config.processing_enabled();
 
         #[cfg(feature = "processing")]
         let store_forwarder = self.store_forwarder.clone();
@@ -1448,14 +1453,10 @@ impl Handler<HandleEnvelope> for EventManager {
             start_time,
             sampling_project,
         } = message;
+        let event_category = envelope.get_event_category();
 
         let event_id = envelope.event_id();
         let remote_addr = envelope.meta().client_addr();
-
-        // Compute whether this envelope contains an event. This is used in error handling to
-        // appropriately emit an outcome. Envelopes not containing events (such as standalone
-        // attachment uploads or user reports) should never create outcomes.
-        let is_event = envelope.items().any(Item::creates_event);
 
         let scoping = Rc::new(RefCell::new(envelope.meta().get_partial_scoping()));
         let is_received = Rc::new(AtomicBool::from(false));
@@ -1477,8 +1478,8 @@ impl Handler<HandleEnvelope> for EventManager {
                     None => Err(ProcessingError::RateLimited(checked.rate_limits)),
                 }
             }))
-            .and_then(|envelope| {
-                utils::sample_transaction(envelope, sampling_project, false)
+            .and_then(move |envelope| {
+                utils::sample_transaction(envelope, sampling_project, false, processing_enabled)
                     .map_err(|()| (ProcessingError::TransactionSampled))
             })
             .and_then(|envelope| {
@@ -1644,11 +1645,12 @@ impl Handler<HandleEnvelope> for EventManager {
                     }
                 }
 
-                // Do not track outcomes or capture events for non-event envelopes (such as
-                // individual attachments)
-                if !is_event {
-                    return;
-                }
+                // Envelopes not containing events (such as standalone attachment uploads or user
+                // reports) should never create outcomes.
+                let category = match event_category {
+                    Some(event_category) => event_category,
+                    None => return,
+                };
 
                 let outcome = error.to_outcome();
                 if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome {
@@ -1674,6 +1676,7 @@ impl Handler<HandleEnvelope> for EventManager {
                         outcome,
                         event_id,
                         remote_addr,
+                        category,
                     })
                 }
             })
