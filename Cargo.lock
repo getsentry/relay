@@ -3245,6 +3245,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-sampling"
+version = "21.2.0"
+dependencies = [
+ "insta 0.16.0",
+ "rand 0.6.5",
+ "rand_pcg 0.1.2",
+ "relay-common",
+ "relay-filter",
+ "relay-general",
+ "relay-log",
+ "serde",
+ "serde_json",
+ "unicase",
+]
+
+[[package]]
 name = "relay-server"
 version = "21.2.0"
 dependencies = [
@@ -3269,8 +3285,6 @@ dependencies = [
  "minidump",
  "native-tls",
  "parking_lot 0.10.2",
- "rand 0.6.5",
- "rand_pcg 0.1.2",
  "rdkafka",
  "rdkafka-sys",
  "regex",
@@ -3282,6 +3296,7 @@ dependencies = [
  "relay-log",
  "relay-quotas",
  "relay-redis",
+ "relay-sampling",
  "reqwest",
  "rmp-serde",
  "serde",
@@ -3292,7 +3307,6 @@ dependencies = [
  "take_mut",
  "tokio 1.0.1",
  "tokio-timer",
- "unicase",
  "url 2.2.0",
  "uuid 0.8.1",
 ]
