@@ -4,6 +4,7 @@
 
 - Deny backslashes in release names. ([#904](https://github.com/getsentry/relay/pull/904))
 - Remove dependencies on `openssl` and `zlib`. ([#914](https://github.com/getsentry/relay/pull/914))
+- Expose dynamic rule condition validation. ([#941](https://github.com/getsentry/relay/pull/941))
 
 ## 0.8.3
 
