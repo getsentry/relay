@@ -44,10 +44,11 @@ use smallvec::SmallVec;
 use relay_common::DataCategory;
 use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
+use relay_sampling::TraceContext;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
-use crate::utils::{infer_event_category, ErrorBoundary, TraceContext};
+use crate::utils::{infer_event_category, ErrorBoundary};
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 

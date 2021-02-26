@@ -2,7 +2,6 @@
 
 ## Unreleased
 
-
 **Features**:
 
 - Relay now picks up HTTP proxies from environment variables. This is made possible by switching to a different HTTP client library.
