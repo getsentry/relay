@@ -104,16 +104,7 @@ pub fn normalize_measurements(event: &mut Event, operation_name_breakdown: &Opti
                             *span.timestamp.value().unwrap(),
                         );
 
-                        let operation_name = span.op.value().unwrap();
-
-                        let results = operation_name_breakdown
-                            .iter()
-                            .find(|maybe| operation_name.starts_with(*maybe));
-
-                        let operation_name = match results {
-                            None => return intervals,
-                            Some(operation_name) => operation_name.clone(),
-                        };
+                        let operation_name = span.op.value().unwrap().clone();
 
                         intervals
                             .entry(operation_name)
@@ -151,11 +142,21 @@ pub fn normalize_measurements(event: &mut Event, operation_name_breakdown: &Opti
 
             total_time_spent += op_time_spent;
 
+            // Only emit an operation breakdown measurement if the operation name matches any
+            // entries in operation_name_breakdown.
+            let results = operation_name_breakdown
+                .iter()
+                .find(|maybe| operation_name.starts_with(*maybe));
+
+            if results.is_none() {
+                continue;
+            }
+
             let time_spent_measurement = Measurement {
                 value: Annotated::new(op_time_spent),
             };
 
-            let op_breakdown_name = format!("ops.time.{}", operation_name.to_string());
+            let op_breakdown_name = format!("ops.time.{}", operation_name);
 
             measurements.insert(op_breakdown_name, Annotated::new(time_spent_measurement));
         }
@@ -326,8 +327,8 @@ mod tests {
             measurements.insert(
                 "ops.total.time".to_owned(),
                 Annotated::new(Measurement {
-                    // 3 hours and 10 microseconds in milliseconds
-                    value: Annotated::new(10_800_000.01),
+                    // 4 hours and 10 microseconds in milliseconds
+                    value: Annotated::new(14_400_000.01),
                 }),
             );
 
