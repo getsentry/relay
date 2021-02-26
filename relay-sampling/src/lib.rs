@@ -29,6 +29,9 @@ pub enum RuleType {
     Error,
 }
 
+/// A condition that checks the values using the equality operator.
+///
+/// For string values it supports case-insensitive comparison.  
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct EqCondOptions {
@@ -100,7 +103,7 @@ impl EqCondition {
     }
 }
 
-/// A condition that uses glob matching
+/// A condition that uses glob matching.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GlobCondition {
     pub name: String,
@@ -123,6 +126,9 @@ impl GlobCondition {
     }
 }
 
+/// Condition that cover custom operators which need
+/// special handling and have a custom implementation
+/// for each case.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomCondition {
     pub name: String,
@@ -141,6 +147,10 @@ impl CustomCondition {
     }
 }
 
+/// Or condition combinator.
+///
+/// Creates a condition that is true when any
+/// of the inner conditions are true
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrCondition {
     inner: Vec<RuleCondition>,
@@ -162,6 +172,10 @@ impl OrCondition {
     }
 }
 
+/// And condition combinator.
+///
+/// Creates a condition that is true when all
+/// inner conditions are true.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AndCondition {
     inner: Vec<RuleCondition>,
@@ -183,10 +197,10 @@ impl AndCondition {
     }
 }
 
-/// Negates a wrapped condition.
+/// Not condition combinator.
 ///
-/// This structure is used to aid the serialization of Rules.
-/// See [Conditions] for further explanations.
+/// Creates a condition that is true when the wrapped
+/// condition si false.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotCondition {
     inner: Box<RuleCondition>,
@@ -204,7 +218,7 @@ impl NotCondition {
     }
 }
 
-/// A condition from a sampling rule
+/// A condition from a sampling rule.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "op")]
 pub enum RuleCondition {
@@ -258,7 +272,7 @@ impl RuleCondition {
     }
 }
 
-/// A sampling rule as it is deserialized from the project configuration
+/// A sampling rule as it is deserialized from the project configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SamplingRule {
@@ -275,6 +289,7 @@ impl SamplingRule {
 }
 
 /// Trait implemented by providers of fields (Events and Trace Contexts).
+///
 /// The fields will be used by rules to check if they apply.
 trait FieldValueProvider {
     /// gets the value of a field
@@ -427,6 +442,7 @@ impl FieldValueProvider for TraceContext {
 }
 
 /// Represents the dynamic sampling configuration available to a project.
+///
 /// Note: This comes from the organization data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -441,12 +457,12 @@ impl SamplingConfig {
     }
 }
 
-/// TraceContext created by the first Sentry SDK in the call chain
+/// TraceContext created by the first Sentry SDK in the call chain.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraceContext {
     /// IID created by SDK to represent the current call flow
     pub trace_id: Uuid,
-    /// The project key
+    /// the project key
     pub public_key: ProjectKey,
     /// the release
     #[serde(default)]
@@ -461,7 +477,8 @@ pub struct TraceContext {
 }
 
 impl TraceContext {
-    /// Returns the decision of whether to sample or not a trace based on the configuration rules
+    /// Returns the decision of whether to sample or not a trace based on the configuration rules.
+    ///
     /// If None then a decision can't be made either because of an invalid of missing trace context or
     /// because no applicable sampling rule could be found.
     pub fn should_sample(&self, ip_addr: Option<IpAddr>, config: &SamplingConfig) -> Option<bool> {
@@ -471,7 +488,7 @@ impl TraceContext {
     }
 }
 
-// Returns the type of rule that applies to a particular event
+/// Returns the type of rule that applies to a particular event.
 pub fn rule_type_for_event(event: &Event) -> RuleType {
     if let Some(EventType::Transaction) = &event.ty.0 {
         RuleType::Transaction
@@ -480,6 +497,7 @@ pub fn rule_type_for_event(event: &Event) -> RuleType {
     }
 }
 
+/// Returns the first event rule that matches the event.
 pub fn get_matching_event_rule<'a>(
     config: &'a SamplingConfig,
     event: &Event,
@@ -505,6 +523,7 @@ fn get_matching_trace_rule<'a>(
 }
 
 /// Generates a pseudo random number by seeding the generator with the given id.
+///
 /// The return is deterministic, always generates the same number from the same id.
 /// If there's an error in parsing the id into an UUID it will return None.
 pub fn pseudo_random_from_uuid(id: Uuid) -> Option<f64> {
