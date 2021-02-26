@@ -76,4 +76,4 @@ libc = "0.2.71"
 
 [dev-dependencies]
 insta = {version="0.16.0", features=["ron"]}
-
+relay-log = { path = "../relay-log", features = ["test"] }
