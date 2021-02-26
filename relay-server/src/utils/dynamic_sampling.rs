@@ -1,15 +1,21 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 //!
+use std::collections::HashMap;
 use std::convert::TryInto;
+use std::net::IpAddr;
 
 use actix::prelude::*;
 use futures::{future, prelude::*};
 use rand::{distributions::Uniform, Rng};
 use rand_pcg::Pcg32;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use relay_common::{EventType, ProjectKey, Uuid};
-use relay_filter::GlobPatterns;
+use relay_filter::{
+    browser_extensions, client_ips, csp, error_messages, legacy_browsers, localhost, web_crawlers,
+    GlobPatterns,
+};
 use relay_general::protocol::{Event, EventId};
 
 use crate::actors::project::{GetCachedProjectState, GetProjectState, Project, ProjectState};
@@ -28,21 +34,11 @@ pub enum RuleType {
     Error,
 }
 
-/// The value of a field extracted from a FieldValueProvider (Event or TraceContext)
-#[derive(Debug, Clone)]
-pub enum FieldValue<'a> {
-    String(&'a str),
-    None,
-}
-
-impl FieldValue<'_> {
-    fn as_str(&self) -> Option<&str> {
-        if let FieldValue::String(s) = self {
-            Some(s)
-        } else {
-            None
-        }
-    }
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct EqCondOptions {
+    #[serde(default)]
+    pub ignore_case: bool,
 }
 
 /// A condition that checks for equality
@@ -50,23 +46,62 @@ impl FieldValue<'_> {
 #[serde(rename_all = "camelCase")]
 pub struct EqCondition {
     pub name: String,
-    pub value: Vec<String>,
+    pub value: Value,
     #[serde(default)]
-    pub ignore_case: bool,
+    pub options: EqCondOptions,
 }
 
 impl EqCondition {
+    fn matches_event(&self, event: &Event) -> bool {
+        self.matches(event)
+    }
+    fn matches_trace(&self, trace: &TraceContext) -> bool {
+        self.matches(trace)
+    }
+
     fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
-        value_provider
-            .get_value(self.name.as_str())
-            .as_str()
-            .map_or(false, |fv| {
-                if self.ignore_case {
-                    self.value.iter().any(|val| unicase::eq(val.as_str(), fv))
-                } else {
-                    self.value.iter().any(|v| v == fv)
+        let value = value_provider.get_value(self.name.as_str());
+
+        match value {
+            Value::Null => self.value == Value::Null,
+            Value::String(ref field) => match self.value {
+                Value::String(ref val) => {
+                    if self.options.ignore_case {
+                        unicase::eq(field.as_str(), val.as_str())
+                    } else {
+                        field == val
+                    }
                 }
-            })
+                Value::Array(ref val) => {
+                    if self.options.ignore_case {
+                        val.iter().any(|v| {
+                            if let Some(v) = v.as_str() {
+                                unicase::eq(v, field.as_str())
+                            } else {
+                                false
+                            }
+                        })
+                    } else {
+                        val.iter().any(|v| {
+                            if let Some(v) = v.as_str() {
+                                v == field.as_str()
+                            } else {
+                                false
+                            }
+                        })
+                    }
+                }
+                _ => false,
+            },
+            Value::Bool(field) => {
+                if let Value::Bool(val) = self.value {
+                    field == val
+                } else {
+                    false
+                }
+            }
+            _ => false, // unsupported types
+        }
     }
 }
 
@@ -78,11 +113,36 @@ pub struct GlobCondition {
 }
 
 impl GlobCondition {
+    fn matches_event(&self, event: &Event) -> bool {
+        self.matches(event)
+    }
+    fn matches_trace(&self, trace: &TraceContext) -> bool {
+        self.matches(trace)
+    }
+
     fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
         value_provider
             .get_value(self.name.as_str())
             .as_str()
             .map_or(false, |fv| self.value.is_match(fv))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomCondition {
+    pub name: String,
+    #[serde(default)]
+    pub value: Value,
+    #[serde(default)]
+    pub options: HashMap<String, Value>,
+}
+
+impl CustomCondition {
+    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
+        Event::get_custom_operator(&self.name)(self, event, ip_addr)
+    }
+    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
+        TraceContext::get_custom_operator(&self.name)(self, trace, ip_addr)
     }
 }
 
@@ -95,8 +155,15 @@ impl OrCondition {
     fn supported(&self) -> bool {
         self.inner.iter().all(RuleCondition::supported)
     }
-    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
-        self.inner.iter().any(|cond| cond.matches(value_provider))
+    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
+        self.inner
+            .iter()
+            .any(|cond| cond.matches_event(event, ip_addr))
+    }
+    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
+        self.inner
+            .iter()
+            .any(|cond| cond.matches_trace(trace, ip_addr))
     }
 }
 
@@ -109,8 +176,15 @@ impl AndCondition {
     fn supported(&self) -> bool {
         self.inner.iter().all(RuleCondition::supported)
     }
-    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
-        self.inner.iter().all(|cond| cond.matches(value_provider))
+    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
+        self.inner
+            .iter()
+            .all(|cond| cond.matches_event(event, ip_addr))
+    }
+    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
+        self.inner
+            .iter()
+            .all(|cond| cond.matches_trace(trace, ip_addr))
     }
 }
 
@@ -127,8 +201,11 @@ impl NotCondition {
     fn supported(&self) -> bool {
         self.inner.supported()
     }
-    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
-        !self.inner.matches(value_provider)
+    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
+        !self.inner.matches_event(event, ip_addr)
+    }
+    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
+        !self.inner.matches_trace(trace, ip_addr)
     }
 }
 
@@ -141,6 +218,7 @@ pub enum RuleCondition {
     Or(OrCondition),
     And(AndCondition),
     Not(NotCondition),
+    Custom(CustomCondition),
     #[serde(other)]
     Unsupported,
 }
@@ -158,16 +236,29 @@ impl RuleCondition {
             RuleCondition::And(rules) => rules.supported(),
             RuleCondition::Or(rules) => rules.supported(),
             RuleCondition::Not(rule) => rule.supported(),
+            RuleCondition::Custom(_) => true,
         }
     }
-    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
+    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
         match self {
-            RuleCondition::Eq(condition) => condition.matches(value_provider),
-            RuleCondition::Glob(condition) => condition.matches(value_provider),
-            RuleCondition::And(conditions) => conditions.matches(value_provider),
-            RuleCondition::Or(conditions) => conditions.matches(value_provider),
-            RuleCondition::Not(condition) => condition.matches(value_provider),
+            RuleCondition::Eq(condition) => condition.matches_event(event),
+            RuleCondition::Glob(condition) => condition.matches_event(event),
+            RuleCondition::And(conditions) => conditions.matches_event(event, ip_addr),
+            RuleCondition::Or(conditions) => conditions.matches_event(event, ip_addr),
+            RuleCondition::Not(condition) => condition.matches_event(event, ip_addr),
             RuleCondition::Unsupported => false,
+            RuleCondition::Custom(condition) => condition.matches_event(event, ip_addr),
+        }
+    }
+    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
+        match self {
+            RuleCondition::Eq(condition) => condition.matches_trace(trace),
+            RuleCondition::Glob(condition) => condition.matches_trace(trace),
+            RuleCondition::And(conditions) => conditions.matches_trace(trace, ip_addr),
+            RuleCondition::Or(conditions) => conditions.matches_trace(trace, ip_addr),
+            RuleCondition::Not(condition) => condition.matches_trace(trace, ip_addr),
+            RuleCondition::Unsupported => false,
+            RuleCondition::Custom(condition) => condition.matches_trace(trace, ip_addr),
         }
     }
 }
@@ -192,24 +283,37 @@ impl SamplingRule {
 /// The fields will be used by rules to check if they apply.
 trait FieldValueProvider {
     /// gets the value of a field
-    fn get_value(&self, path: &str) -> FieldValue;
+    fn get_value(&self, path: &str) -> Value;
     /// what type of rule can be applied to this provider
     fn get_rule_type(&self) -> RuleType;
+    /// returns a filtering function for custom operators.
+    /// The function returned takes the provider and a condition definition and
+    /// returns a match result
+    fn get_custom_operator(
+        name: &str,
+    ) -> fn(condition: &CustomCondition, slf: &Self, ip_addr: Option<IpAddr>) -> bool;
+}
+
+fn no_match<T>(_condition: &CustomCondition, _slf: &T, _ip_addr: Option<IpAddr>) -> bool {
+    false
 }
 
 impl FieldValueProvider for Event {
-    fn get_value(&self, field_name: &str) -> FieldValue {
+    fn get_value(&self, field_name: &str) -> Value {
         match field_name {
-            "event.release" => match self.release.as_str() {
-                None => FieldValue::None,
-                Some(s) => FieldValue::String(s),
+            "event.release" => match self.release.0 {
+                None => Value::Null,
+                Some(ref s) => Value::String(s.to_string()),
             },
-            "event.environment" => match self.environment.as_str() {
-                None => FieldValue::None,
-                Some(s) => FieldValue::String(s),
+            "event.environment" => match self.environment.0 {
+                None => Value::Null,
+                Some(ref s) => Value::String(s.into()),
             },
-            "event.user" => FieldValue::None, // Not available at this time
-            _ => FieldValue::None,
+            "event.user" => Value::Null, // Not available at this time
+            "event.is_local_ip" => Value::Bool(localhost::matches(&self)),
+            "event.has_bad_browser_extensions" => Value::Bool(browser_extensions::matches(&self)),
+            "event.web_crawlers" => Value::Bool(web_crawlers::matches(&self)),
+            _ => Value::Null,
         }
     }
     fn get_rule_type(&self) -> RuleType {
@@ -220,28 +324,110 @@ impl FieldValueProvider for Event {
         }
         RuleType::Error
     }
+    fn get_custom_operator(
+        name: &str,
+    ) -> fn(condition: &CustomCondition, slf: &Self, ip_addr: Option<IpAddr>) -> bool {
+        match name {
+            "event.client_ip" => client_ips_matcher,
+            "event.legacy_browser" => legacy_browsers_matcher,
+            "event.error_messages" => error_messages_matcher,
+            "event.csp" => csp_matcher,
+            _ => no_match,
+        }
+    }
+}
+
+fn client_ips_matcher(
+    condition: &CustomCondition,
+    _event: &Event,
+    ip_addr: Option<IpAddr>,
+) -> bool {
+    let ips = condition
+        .value
+        .as_array()
+        .map(|v| v.iter().map(|s| s.as_str().unwrap_or("")));
+
+    if let Some(ips) = ips {
+        client_ips::matches(ip_addr, ips)
+    } else {
+        false
+    }
+}
+
+fn legacy_browsers_matcher(
+    condition: &CustomCondition,
+    event: &Event,
+    _ip_addr: Option<IpAddr>,
+) -> bool {
+    let browsers = condition
+        .value
+        .as_array()
+        .map(|v| v.iter().map(|s| s.as_str().unwrap_or("").parse().unwrap()));
+    if let Some(browsers) = browsers {
+        legacy_browsers::matches(event, &browsers.collect())
+    } else {
+        false
+    }
+}
+
+fn error_messages_matcher(
+    condition: &CustomCondition,
+    event: &Event,
+    _ip_addr: Option<IpAddr>,
+) -> bool {
+    let patterns = condition
+        .value
+        .as_array()
+        .map(|v| v.iter().map(|s| s.as_str().unwrap_or("").to_owned()));
+
+    if let Some(patterns) = patterns {
+        let globs = GlobPatterns::new(patterns.collect());
+        error_messages::matches(event, &globs)
+    } else {
+        false
+    }
+}
+
+fn csp_matcher(condition: &CustomCondition, event: &Event, _ip_addr: Option<IpAddr>) -> bool {
+    let sources = condition
+        .value
+        .as_array()
+        .map(|v| v.iter().map(|s| s.as_str().unwrap_or("")));
+
+    if let Some(sources) = sources {
+        csp::matches(event, sources)
+    } else {
+        false
+    }
 }
 
 impl FieldValueProvider for TraceContext {
-    fn get_value(&self, field_name: &str) -> FieldValue {
+    fn get_value(&self, field_name: &str) -> Value {
         match field_name {
-            "trace.release" => match &self.release {
-                None => FieldValue::None,
-                Some(s) => FieldValue::String(s.as_ref()),
+            "trace.release" => match self.release {
+                None => Value::Null,
+                Some(ref s) => Value::String(s.into()),
             },
-            "trace.environment" => match &self.environment {
-                None => FieldValue::None,
-                Some(s) => FieldValue::String(s.as_ref()),
+            "trace.environment" => match self.environment {
+                None => Value::Null,
+                Some(ref s) => Value::String(s.into()),
             },
-            "trace.user" => match &self.user {
-                None => FieldValue::None,
-                Some(s) => FieldValue::String(s.as_ref()),
+            "trace.user" => match self.user {
+                None => Value::Null,
+                Some(ref s) => Value::String(s.into()),
             },
-            _ => FieldValue::None,
+            _ => Value::Null,
         }
     }
     fn get_rule_type(&self) -> RuleType {
         RuleType::Trace
+    }
+
+    fn get_custom_operator(
+        _name: &str,
+    ) -> fn(condition: &CustomCondition, slf: &Self, ip_addr: Option<IpAddr>) -> bool {
+        // no custom operators for trace
+        no_match
     }
 }
 
@@ -283,8 +469,8 @@ impl TraceContext {
     /// Returns the decision of whether to sample or not a trace based on the configuration rules
     /// If None then a decision can't be made either because of an invalid of missing trace context or
     /// because no applicable sampling rule could be found.
-    fn should_sample(&self, config: &SamplingConfig) -> Option<bool> {
-        let rule = get_matching_rule(config, self, RuleType::Trace)?;
+    fn should_sample(&self, ip_addr: Option<IpAddr>, config: &SamplingConfig) -> Option<bool> {
+        let rule = get_matching_trace_rule(config, self, ip_addr, RuleType::Trace)?;
         let rate = pseudo_random_from_uuid(self.trace_id)?;
         Some(rate < rule.sample_rate)
     }
@@ -293,6 +479,7 @@ impl TraceContext {
 // Checks whether an event should be kept or removed by dynamic sampling
 pub fn should_keep_event(
     event: &Event,
+    ip_addr: Option<IpAddr>,
     project_state: &ProjectState,
     processing_enabled: bool,
 ) -> Option<bool> {
@@ -312,7 +499,7 @@ pub fn should_keep_event(
     };
 
     let ty = rule_type_for_event(&event);
-    if let Some(rule) = get_matching_rule(sampling_config, event, ty) {
+    if let Some(rule) = get_matching_event_rule(sampling_config, event, ip_addr, ty) {
         if let Some(random_number) = pseudo_random_from_uuid(event_id) {
             return Some(rule.sample_rate > random_number);
         }
@@ -363,9 +550,11 @@ fn sample_transaction_internal(
         (Some(trace_context), Some(_)) => trace_context,
     };
 
+    let client_ip = envelope.meta().client_addr();
+
     let should_sample = trace_context
         // see if we should sample
-        .should_sample(sampling_config)
+        .should_sample(client_ip, sampling_config)
         // TODO verify that this is the desired behaviour (i.e. if we can't find a rule
         // for sampling, include the transaction)
         .unwrap_or(true);
@@ -390,7 +579,6 @@ pub fn sample_transaction(
         None => return Box::new(future::ok(envelope)),
         Some(project) => project,
     };
-
     let trace_context = envelope.trace_context();
     let transaction_item = envelope.get_item_by(|item| item.ty() == ItemType::Transaction);
 
@@ -434,18 +622,28 @@ pub fn sample_transaction(
     }
 }
 
-fn get_matching_rule<'a, T>(
+fn get_matching_event_rule<'a>(
     config: &'a SamplingConfig,
-    value_provider: &T,
+    event: &Event,
+    ip_addr: Option<IpAddr>,
     ty: RuleType,
-) -> Option<&'a SamplingRule>
-where
-    T: FieldValueProvider,
-{
+) -> Option<&'a SamplingRule> {
     config
         .rules
         .iter()
-        .find(|rule| rule.ty == ty && rule.condition.matches(value_provider))
+        .find(|rule| rule.ty == ty && rule.condition.matches_event(event, ip_addr))
+}
+
+fn get_matching_trace_rule<'a>(
+    config: &'a SamplingConfig,
+    trace: &TraceContext,
+    ip_addr: Option<IpAddr>,
+    ty: RuleType,
+) -> Option<&'a SamplingRule> {
+    config
+        .rules
+        .iter()
+        .find(|rule| rule.ty == ty && rule.condition.matches_trace(trace, ip_addr))
 }
 
 /// Generates a pseudo random number by seeding the generator with the given id.
@@ -464,13 +662,27 @@ fn pseudo_random_from_uuid(id: Uuid) -> Option<f64> {
 mod tests {
     use super::*;
     use insta::assert_ron_snapshot;
+    use relay_general::protocol::{
+        Csp, Exception, Headers, IpAddr, JsonLenientString, LenientString, LogEntry, PairList,
+        Request, User, Values,
+    };
+    use relay_general::types::Annotated;
+    use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
     use std::str::FromStr;
 
     fn eq(name: &str, value: &[&str], ignore_case: bool) -> RuleCondition {
         RuleCondition::Eq(EqCondition {
             name: name.to_owned(),
             value: value.iter().map(|s| s.to_string()).collect(),
-            ignore_case,
+            options: EqCondOptions { ignore_case },
+        })
+    }
+
+    fn eq_bool(name: &str, value: bool) -> RuleCondition {
+        RuleCondition::Eq(EqCondition {
+            name: name.to_owned(),
+            value: Value::Bool(value),
+            options: EqCondOptions::default(),
         })
     }
 
@@ -478,6 +690,14 @@ mod tests {
         RuleCondition::Glob(GlobCondition {
             name: name.to_owned(),
             value: GlobPatterns::new(value.iter().map(|s| s.to_string()).collect()),
+        })
+    }
+
+    fn custom(name: &str, value: Value, options: HashMap<String, Value>) -> RuleCondition {
+        RuleCondition::Custom(CustomCondition {
+            name: name.to_owned(),
+            value,
+            options,
         })
     }
 
@@ -586,8 +806,120 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(condition.matches(&tc), failure_name);
+            assert!(condition.matches_trace(&tc, None), failure_name);
         }
+    }
+
+    #[test]
+    /// test matching for various rules
+    fn test_matches_events() {
+        let conditions = [
+            ("release", and(vec![glob("event.release", &["1.1.1"])])),
+            (
+                "environment",
+                or(vec![eq("event.environment", &["prod"], true)]),
+            ),
+            ("local ip", eq_bool("event.is_local_ip", true)),
+            (
+                "bad browser extensions",
+                eq_bool("event.has_bad_browser_extensions", true),
+            ),
+            (
+                "error messages",
+                custom(
+                    "event.error_messages",
+                    Value::Array(vec![Value::String("abc".to_string())]),
+                    HashMap::new(),
+                ),
+            ),
+            (
+                "legacy browsers",
+                custom(
+                    "event.legacy_browser",
+                    Value::Array(vec![
+                        Value::String("ie10".to_string()),
+                        Value::String("safari_pre_6".to_string()),
+                    ]),
+                    HashMap::new(),
+                ),
+            ),
+        ];
+
+        let evt = Event {
+            release: Annotated::new(LenientString("1.1.1".to_owned())),
+            environment: Annotated::new("prod".to_owned()),
+            user: Annotated::new(User {
+                ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+                ..Default::default()
+            }),
+            exceptions: Annotated::new(Values {
+                values: Annotated::new(vec![Annotated::new(Exception {
+                    value: Annotated::new(JsonLenientString::from(
+                        "canvas.contentDocument".to_owned(),
+                    )),
+                    ..Default::default()
+                })]),
+                ..Default::default()
+            }),
+            request: Annotated::new(Request {
+                headers: Annotated::new(Headers(
+                    PairList(vec![Annotated::new((
+                        Annotated::new("user-agent".into()),
+                        Annotated::new("Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 7.0; InfoPath.3; .NET CLR 3.1.40767; Trident/6.0; en-IN)".into()),
+                    ))]))),
+                ..Default::default()
+            }),
+            logentry: Annotated::new(LogEntry {
+                formatted: Annotated::new("abc".to_owned().into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        for (rule_test_name, condition) in conditions.iter() {
+            let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
+            let ip_addr = Some(NetIpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
+            assert!(condition.matches_event(&evt, ip_addr), failure_name);
+        }
+    }
+
+    #[test]
+    /// test matching web crawlers
+    fn test_matches_web_crawlers() {
+        let condition = eq_bool("event.web_crawlers", true);
+
+        let evt = Event {
+            request: Annotated::new(Request {
+                headers: Annotated::new(Headers(PairList(vec![Annotated::new((
+                    Annotated::new("user-agent".into()),
+                    Annotated::new("some crawler user agent: BingBot".into()),
+                ))]))),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(condition.matches_event(&evt, None));
+    }
+
+    #[test]
+    /// test matching for csp
+    fn test_matches_csp_events() {
+        let blocked_url = "bbc.com";
+        let condition = custom(
+            "event.csp",
+            Value::Array(vec![Value::String(blocked_url.to_owned())]),
+            HashMap::new(),
+        );
+
+        let evt = Event {
+            ty: Annotated::from(EventType::Csp),
+            csp: Annotated::from(Csp {
+                blocked_uri: Annotated::from(blocked_url.to_string()),
+                ..Csp::default()
+            }),
+            ..Event::default()
+        };
+        assert!(condition.matches_event(&evt, None));
     }
 
     #[test]
@@ -638,7 +970,10 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(condition.matches(&tc) == *expected, failure_name);
+            assert!(
+                condition.matches_trace(&tc, None) == *expected,
+                failure_name
+            );
         }
     }
 
@@ -690,7 +1025,10 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(condition.matches(&tc) == *expected, failure_name);
+            assert!(
+                condition.matches_trace(&tc, None) == *expected,
+                failure_name
+            );
         }
     }
 
@@ -719,7 +1057,10 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(condition.matches(&tc) == *expected, failure_name);
+            assert!(
+                condition.matches_trace(&tc, None) == *expected,
+                failure_name
+            );
         }
     }
 
@@ -763,7 +1104,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(!condition.matches(&tc), failure_name);
+            assert!(!condition.matches_trace(&tc, None), failure_name);
         }
     }
 
@@ -774,7 +1115,9 @@ mod tests {
             "op":"eq",
             "name": "field_1",
             "value": ["UPPER","lower"],
-            "ignoreCase": true
+            "options":{
+                "ignoreCase": true
+            }
         },
         {
             "op":"eq",
@@ -809,6 +1152,22 @@ mod tests {
                 "name": "field_6",
                 "value": ["3.*"]
             }]
+        },
+        {
+            "op":"custom",
+            "name": "some_custom_op",
+            "value":["default","ie_pre_9"],
+            "options": { "o1": [1,2,3]}
+        },
+        {
+            "op": "custom",
+            "name": "some_custom_op",
+            "options": {"o1":[1,2,3]}
+        },
+        {
+            "op":"custom",
+            "name": "some_custom_op",
+            "value": "some val"
         }
         ]
         "#;
@@ -825,7 +1184,9 @@ mod tests {
                   "UPPER",
                   "lower",
                 ],
-                ignoreCase: true,
+                options: EqCondOptions(
+                  ignoreCase: true,
+                ),
               ),
               EqCondition(
                 op: "eq",
@@ -834,7 +1195,9 @@ mod tests {
                   "UPPER",
                   "lower",
                 ],
-                ignoreCase: false,
+                options: EqCondOptions(
+                  ignoreCase: false,
+                ),
               ),
               GlobCondition(
                 op: "glob",
@@ -878,6 +1241,39 @@ mod tests {
                   ),
                 ],
               ),
+              CustomCondition(
+                op: "custom",
+                name: "some_custom_op",
+                value: [
+                  "default",
+                  "ie_pre_9",
+                ],
+                options: {
+                  "o1": [
+                    1,
+                    2,
+                    3,
+                  ],
+                },
+              ),
+              CustomCondition(
+                op: "custom",
+                name: "some_custom_op",
+                value: (),
+                options: {
+                  "o1": [
+                    1,
+                    2,
+                    3,
+                  ],
+                },
+              ),
+              CustomCondition(
+                op: "custom",
+                name: "some_custom_op",
+                value: "some val",
+                options: {},
+              ),
             ]"###);
     }
 
@@ -916,7 +1312,10 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        assert!(condition.matches(&tc), "did not match with missing release");
+        assert!(
+            condition.matches_trace(&tc, None),
+            "did not match with missing release"
+        );
 
         let condition = and(vec![
             glob("trace.release", &["1.1.1"]),
@@ -931,7 +1330,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches(&tc),
+            condition.matches_trace(&tc, None),
             "did not match with missing user segment"
         );
 
@@ -948,7 +1347,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches(&tc),
+            condition.matches_trace(&tc, None),
             "did not match with missing environment"
         );
 
@@ -962,7 +1361,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches(&tc),
+            condition.matches_trace(&tc, None),
             "did not match with missing release, user segment and environment"
         );
     }
@@ -1031,7 +1430,7 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, RuleType::Trace);
+        let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
         // complete match with first rule
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.1),
@@ -1046,7 +1445,7 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, RuleType::Trace);
+        let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
         // should mach the second rule because of the release
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.2),
@@ -1061,7 +1460,7 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, RuleType::Trace);
+        let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
         // should match the third rule because of the unknown release
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.3),
@@ -1076,7 +1475,7 @@ mod tests {
             environment: Some("production".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, RuleType::Trace);
+        let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
         // should match the fourth rule because of the unknown environment
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.4),
@@ -1091,7 +1490,7 @@ mod tests {
             environment: Some("debug".to_string()),
         };
 
-        let result = get_matching_rule(&rules, &trace_context, RuleType::Trace);
+        let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
         // should match the fourth rule because of the unknown user segment
         assert!(
             approx_eq(result.unwrap().sample_rate, 0.5),

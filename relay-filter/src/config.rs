@@ -2,6 +2,8 @@
 
 use std::borrow::Cow;
 use std::collections::BTreeSet;
+use std::convert::Infallible;
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
@@ -47,14 +49,11 @@ pub enum LegacyBrowser {
     Unknown(String),
 }
 
-impl<'de> Deserialize<'de> for LegacyBrowser {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::de::Deserializer<'de>,
-    {
-        let string = Cow::<str>::deserialize(deserializer)?;
+impl FromStr for LegacyBrowser {
+    type Err = Infallible;
 
-        Ok(match string.as_ref() {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let v = match s {
             "default" => LegacyBrowser::Default,
             "ie_pre_9" => LegacyBrowser::IePre9,
             "ie9" => LegacyBrowser::Ie9,
@@ -64,8 +63,19 @@ impl<'de> Deserialize<'de> for LegacyBrowser {
             "opera_mini_pre_8" => LegacyBrowser::OperaMiniPre8,
             "android_pre_4" => LegacyBrowser::AndroidPre4,
             "safari_pre_6" => LegacyBrowser::SafariPre6,
-            _ => LegacyBrowser::Unknown(string.into_owned()),
-        })
+            _ => LegacyBrowser::Unknown(s.to_owned()),
+        };
+        Ok(v)
+    }
+}
+
+impl<'de> Deserialize<'de> for LegacyBrowser {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        let s = Cow::<str>::deserialize(deserializer)?;
+        Ok(LegacyBrowser::from_str(s.as_ref()).unwrap())
     }
 }
 
