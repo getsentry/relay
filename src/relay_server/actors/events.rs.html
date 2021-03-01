@@ -1903,6 +1903,29 @@
 <span id="1900">1900</span>
 <span id="1901">1901</span>
 <span id="1902">1902</span>
+<span id="1903">1903</span>
+<span id="1904">1904</span>
+<span id="1905">1905</span>
+<span id="1906">1906</span>
+<span id="1907">1907</span>
+<span id="1908">1908</span>
+<span id="1909">1909</span>
+<span id="1910">1910</span>
+<span id="1911">1911</span>
+<span id="1912">1912</span>
+<span id="1913">1913</span>
+<span id="1914">1914</span>
+<span id="1915">1915</span>
+<span id="1916">1916</span>
+<span id="1917">1917</span>
+<span id="1918">1918</span>
+<span id="1919">1919</span>
+<span id="1920">1920</span>
+<span id="1921">1921</span>
+<span id="1922">1922</span>
+<span id="1923">1923</span>
+<span id="1924">1924</span>
+<span id="1925">1925</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -1928,7 +1951,7 @@
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">store</span>::<span class="ident">ClockDriftProcessor</span>;
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">FromValue</span>, <span class="ident">Object</span>, <span class="ident">ProcessingAction</span>, <span class="ident">Value</span>};
 <span class="kw">use</span> <span class="ident">relay_log</span>::<span class="ident">LogError</span>;
-<span class="kw">use</span> <span class="ident">relay_quotas</span>::<span class="ident">RateLimits</span>;
+<span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">DataCategory</span>, <span class="ident">RateLimits</span>};
 <span class="kw">use</span> <span class="ident">relay_redis</span>::<span class="ident">RedisPool</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>, <span class="ident">OutcomeProducer</span>, <span class="ident">TrackOutcome</span>};
@@ -1951,7 +1974,7 @@
     <span class="ident">failure</span>::<span class="ident">ResultExt</span>,
     <span class="ident">relay_filter</span>::<span class="ident">FilterStatKey</span>,
     <span class="ident">relay_general</span>::<span class="ident">store</span>::{<span class="ident">GeoIpLookup</span>, <span class="ident">StoreConfig</span>, <span class="ident">StoreProcessor</span>},
-    <span class="ident">relay_quotas</span>::{<span class="ident">DataCategory</span>, <span class="ident">RateLimitingError</span>, <span class="ident">RedisRateLimiter</span>},
+    <span class="ident">relay_quotas</span>::{<span class="ident">RateLimitingError</span>, <span class="ident">RedisRateLimiter</span>},
 };
 
 <span class="doccomment">/// The minimum clock drift for correction to apply.</span>
@@ -2167,7 +2190,6 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// The data category is computed from the event type. Both `Default` and `Error` events map to</span>
     <span class="doccomment">/// the `Error` data category. If there is no Event, `None` is returned.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">event_category</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DataCategory</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">event_type</span>().<span class="ident">map</span>(<span class="ident">DataCategory</span>::<span class="ident">from</span>)
     }
@@ -2266,6 +2288,16 @@
             }
 
             <span class="kw">let</span> <span class="ident">max_age</span> <span class="op">=</span> <span class="ident">SignedDuration</span>::<span class="ident">seconds</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_session_secs_in_past</span>());
+
+            <span class="comment">// Log the timestamp delay for all sessions after clock drift correction.</span>
+            <span class="kw">let</span> <span class="ident">session_delay</span> <span class="op">=</span> <span class="ident">received</span> <span class="op">-</span> <span class="ident">session</span>.<span class="ident">timestamp</span>;
+            <span class="kw">if</span> <span class="ident">session_delay</span> <span class="op">&gt;</span> <span class="ident">SignedDuration</span>::<span class="ident">minutes</span>(<span class="number">1</span>) {
+                <span class="macro">metric</span><span class="macro">!</span>(
+                    <span class="ident">timer</span>(<span class="ident">RelayTimers</span>::<span class="ident">TimestampDelay</span>) <span class="op">=</span> <span class="ident">session_delay</span>.<span class="ident">to_std</span>().<span class="ident">unwrap</span>(),
+                    <span class="ident">category</span> <span class="op">=</span> <span class="string">&quot;session&quot;</span>,
+                );
+            }
+
             <span class="kw">if</span> (<span class="ident">received</span> <span class="op">-</span> <span class="ident">session</span>.<span class="ident">started</span>) <span class="op">&gt;</span> <span class="ident">max_age</span> <span class="op">|</span><span class="op">|</span> (<span class="ident">received</span> <span class="op">-</span> <span class="ident">session</span>.<span class="ident">timestamp</span>) <span class="op">&gt;</span> <span class="ident">max_age</span> {
                 <span class="ident">relay_log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;skipping session older than {} days&quot;</span>, <span class="ident">max_age</span>.<span class="ident">num_days</span>());
                 <span class="kw">return</span> <span class="bool-val">false</span>;
@@ -2803,6 +2835,20 @@
             <span class="ident">ClockDriftProcessor</span>::<span class="ident">new</span>(<span class="ident">sent_at</span>, <span class="ident">state</span>.<span class="ident">received_at</span>).<span class="ident">at_least</span>(<span class="ident">MINIMUM_CLOCK_DRIFT</span>);
         <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>())
             .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ProcessingError</span>::<span class="ident">InvalidTransaction</span>)<span class="question-mark">?</span>;
+
+        <span class="comment">// Log timestamp delays for all events after clock drift correction. This happens before</span>
+        <span class="comment">// store processing, which could modify the timestamp if it exceeds a threshold. We are</span>
+        <span class="comment">// interested in the actual delay before this correction.</span>
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">timestamp</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">e</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>()) {
+            <span class="kw">let</span> <span class="ident">event_delay</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">received_at</span> <span class="op">-</span> <span class="ident">timestamp</span>.<span class="ident">into_inner</span>();
+            <span class="kw">if</span> <span class="ident">event_delay</span> <span class="op">&gt;</span> <span class="ident">SignedDuration</span>::<span class="ident">minutes</span>(<span class="number">1</span>) {
+                <span class="kw">let</span> <span class="ident">category</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">event_category</span>().<span class="ident">unwrap_or</span>(<span class="ident">DataCategory</span>::<span class="ident">Unknown</span>);
+                <span class="macro">metric</span><span class="macro">!</span>(
+                    <span class="ident">timer</span>(<span class="ident">RelayTimers</span>::<span class="ident">TimestampDelay</span>) <span class="op">=</span> <span class="ident">event_delay</span>.<span class="ident">to_std</span>().<span class="ident">unwrap</span>(),
+                    <span class="ident">category</span> <span class="op">=</span> <span class="ident">category</span>.<span class="ident">name</span>(),
+                );
+            }
+        }
 
         <span class="prelude-val">Ok</span>(())
     }

@@ -465,6 +465,22 @@
 <span id="462">462</span>
 <span id="463">463</span>
 <span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
+<span id="480">480</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">metrics</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
@@ -726,6 +742,21 @@
     <span class="doccomment">///   - `status-code`: The status code of the request when available, otherwise &quot;-&quot;.</span>
     <span class="doccomment">///   - `retries`: Number of retries bucket 0, 1, 2, few (3 - 10), many (more than 10).</span>
     <span class="ident">UpstreamRequestsDuration</span>,
+    <span class="doccomment">/// The delay between the timestamp stated in a payload and the receive time.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// SDKs cannot transmit payloads immediately in all cases. Sometimes, crashes require that</span>
+    <span class="doccomment">/// events are sent after restarting the application. Similarly, SDKs buffer events during</span>
+    <span class="doccomment">/// network downtimes for later transmission. This metric measures the delay between the time of</span>
+    <span class="doccomment">/// the event and the time it arrives in Relay. The delay is measured after clock drift</span>
+    <span class="doccomment">/// correction is applied.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Only payloads with a delay of more than 1 minute are captured.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This metric is tagged with:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">///  - `category`: The data category of the payload. Can be one of: `event`, `transaction`,</span>
+    <span class="doccomment">///    `security`, or `session`.</span>
+    <span class="ident">TimestampDelay</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TimerMetric</span> <span class="kw">for</span> <span class="ident">RelayTimers</span> {
@@ -749,6 +780,7 @@
             <span class="ident">RelayTimers</span>::<span class="ident">MinidumpScrubbing</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;scrubbing.minidumps.duration&quot;</span>,
             <span class="ident">RelayTimers</span>::<span class="ident">AttachmentScrubbing</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;scrubbing.attachments.duration&quot;</span>,
             <span class="ident">RelayTimers</span>::<span class="ident">UpstreamRequestsDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;upstream.requests.duration&quot;</span>,
+            <span class="ident">RelayTimers</span>::<span class="ident">TimestampDelay</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;requests.timestamp_delay&quot;</span>,
         }
     }
 }
