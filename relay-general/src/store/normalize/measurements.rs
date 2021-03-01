@@ -33,7 +33,13 @@ impl TimeWindowSpan {
 
 type OperationName = String;
 
-type OperationNameIntervals = HashMap<OperationName, Vec<TimeWindowSpan>>;
+#[derive(PartialEq, Eq, Hash)]
+enum OperationBreakdown {
+    Emit(OperationName),
+    DoNotEmit(OperationName),
+}
+
+type OperationNameIntervals = HashMap<OperationBreakdown, Vec<TimeWindowSpan>>;
 
 fn merge_intervals(mut intervals: Vec<TimeWindowSpan>) -> Vec<TimeWindowSpan> {
     // sort by start_timestamp in ascending order
@@ -106,13 +112,17 @@ pub fn normalize_measurements(event: &mut Event, operation_name_breakdown: &Opti
 
                         let operation_name = span.op.value().unwrap().clone();
 
+                        // Only emit an operation breakdown measurement if the operation name matches any
+                        // entries in operation_name_breakdown.
                         let results = operation_name_breakdown
                             .iter()
                             .find(|maybe| operation_name.starts_with(*maybe));
 
                         let operation_name = match results {
-                            None => operation_name,
-                            Some(operation_name) => operation_name.clone(),
+                            None => OperationBreakdown::DoNotEmit(operation_name),
+                            Some(operation_name) => {
+                                OperationBreakdown::Emit(operation_name.clone())
+                            }
                         };
 
                         intervals
@@ -151,15 +161,9 @@ pub fn normalize_measurements(event: &mut Event, operation_name_breakdown: &Opti
 
             total_time_spent += op_time_spent;
 
-            // Only emit an operation breakdown measurement if the operation name matches any
-            // entries in operation_name_breakdown.
-            let results = operation_name_breakdown
-                .iter()
-                .find(|maybe| operation_name.starts_with(*maybe));
-
-            let operation_name = match results {
-                None => continue,
-                Some(operation_name) => operation_name.clone(),
+            let operation_name = match operation_name {
+                OperationBreakdown::DoNotEmit(_) => continue,
+                OperationBreakdown::Emit(operation_name) => operation_name,
             };
 
             let time_spent_measurement = Measurement {
