@@ -261,7 +261,6 @@ impl ProcessEnvelopeState {
     ///
     /// The data category is computed from the event type. Both `Default` and `Error` events map to
     /// the `Error` data category. If there is no Event, `None` is returned.
-    #[cfg(feature = "processing")]
     fn event_category(&self) -> Option<DataCategory> {
         self.event_type().map(DataCategory::from)
     }
