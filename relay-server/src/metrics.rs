@@ -258,6 +258,21 @@ pub enum RelayTimers {
     ///   - `status-code`: The status code of the request when available, otherwise "-".
     ///   - `retries`: Number of retries bucket 0, 1, 2, few (3 - 10), many (more than 10).
     UpstreamRequestsDuration,
+    /// The delay between the timestamp stated in a payload and the receive time.
+    ///
+    /// SDKs cannot transmit payloads immediately in all cases. Sometimes, crashes require that
+    /// events are sent after restarting the application. Similarly, SDKs buffer events during
+    /// network downtimes for later transmission. This metric measures the delay between the time of
+    /// the event and the time it arrives in Relay. The delay is measured after clock drift
+    /// correction is applied.
+    ///
+    /// Only payloads with a delay of more than 1 minute are captured.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `category`: The data category of the payload. Can be one of: `event`, `transaction`,
+    ///    `security`, or `session`.
+    TimestampDelay,
 }
 
 impl TimerMetric for RelayTimers {
@@ -281,6 +296,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::MinidumpScrubbing => "scrubbing.minidumps.duration",
             RelayTimers::AttachmentScrubbing => "scrubbing.attachments.duration",
             RelayTimers::UpstreamRequestsDuration => "upstream.requests.duration",
+            RelayTimers::TimestampDelay => "requests.timestamp_delay",
         }
     }
 }

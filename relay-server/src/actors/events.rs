@@ -22,7 +22,7 @@ use relay_general::protocol::{
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
-use relay_quotas::RateLimits;
+use relay_quotas::{DataCategory, RateLimits};
 use relay_redis::RedisPool;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
@@ -45,7 +45,7 @@ use {
     failure::ResultExt,
     relay_filter::FilterStatKey,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    relay_quotas::{DataCategory, RateLimitingError, RedisRateLimiter},
+    relay_quotas::{RateLimitingError, RedisRateLimiter},
 };
 
 /// The minimum clock drift for correction to apply.
@@ -261,7 +261,6 @@ impl ProcessEnvelopeState {
     ///
     /// The data category is computed from the event type. Both `Default` and `Error` events map to
     /// the `Error` data category. If there is no Event, `None` is returned.
-    #[cfg(feature = "processing")]
     fn event_category(&self) -> Option<DataCategory> {
         self.event_type().map(DataCategory::from)
     }
@@ -360,6 +359,16 @@ impl EventProcessor {
             }
 
             let max_age = SignedDuration::seconds(self.config.max_session_secs_in_past());
+
+            // Log the timestamp delay for all sessions after clock drift correction.
+            let session_delay = received - session.timestamp;
+            if session_delay > SignedDuration::minutes(1) {
+                metric!(
+                    timer(RelayTimers::TimestampDelay) = session_delay.to_std().unwrap(),
+                    category = "session",
+                );
+            }
+
             if (received - session.started) > max_age || (received - session.timestamp) > max_age {
                 relay_log::trace!("skipping session older than {} days", max_age.num_days());
                 return false;
@@ -897,6 +906,20 @@ impl EventProcessor {
             ClockDriftProcessor::new(sent_at, state.received_at).at_least(MINIMUM_CLOCK_DRIFT);
         process_value(&mut state.event, &mut processor, ProcessingState::root())
             .map_err(|_| ProcessingError::InvalidTransaction)?;
+
+        // Log timestamp delays for all events after clock drift correction. This happens before
+        // store processing, which could modify the timestamp if it exceeds a threshold. We are
+        // interested in the actual delay before this correction.
+        if let Some(timestamp) = state.event.value().and_then(|e| e.timestamp.value()) {
+            let event_delay = state.received_at - timestamp.into_inner();
+            if event_delay > SignedDuration::minutes(1) {
+                let category = state.event_category().unwrap_or(DataCategory::Unknown);
+                metric!(
+                    timer(RelayTimers::TimestampDelay) = event_delay.to_std().unwrap(),
+                    category = category.name(),
+                );
+            }
+        }
 
         Ok(())
     }
