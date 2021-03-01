@@ -233,7 +233,7 @@ pub unsafe extern "C" fn relay_validate_dynamic_rule_condition(value: *const Rel
             if condition.supported() {
                 "".to_string()
             } else {
-                "invalid condition".to_string()
+                "unsupported condition".to_string()
             }
         }
         Err(e) => e.to_string(),
