@@ -1713,7 +1713,7 @@ impl Handler<HandleEnvelope> for EventManager {
                             timestamp: start_time,
                             scoping: *scoping.borrow(),
                             outcome,
-                            event_id: event_id,
+                            event_id,
                             remote_addr,
                             category: DataCategory::Attachment,
                             quantity: envelope_summary.attachment_quantity,
