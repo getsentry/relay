@@ -1700,6 +1700,7 @@ impl Handler<HandleEnvelope> for EventManager {
                         event_id,
                         remote_addr,
                         category,
+                        quantity: 1,
                     })
                 }
             })
