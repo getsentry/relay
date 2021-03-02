@@ -104,6 +104,7 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
         "event_id": event_id,
         "remote_addr": "127.0.0.1",
         "category": 2 if event_type == "transaction" else 1,
+        "quantity": 1,
     }
     assert outcome == expected_outcome
 
@@ -303,6 +304,7 @@ def test_outcome_forwarding(
         "event_id": event_id,
         "remote_addr": "127.0.0.1",
         "category": 2 if event_type == "transaction" else 1,
+        "quantity": 1,
     }
     outcome.pop("timestamp")
 
@@ -377,6 +379,7 @@ def test_outcomes_forwarding_rate_limited(
         "event_id": event_id,
         "source": "processing-layer",
         "category": 1,
+        "quantity": 1,
     }
     assert outcome == expected_outcome
 

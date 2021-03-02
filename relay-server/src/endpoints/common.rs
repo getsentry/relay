@@ -446,7 +446,8 @@ where
                         Some(envelope) => envelope,
                         None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
                     };
-                    envelope_summary.replace(EnvelopeSummary::compute(&envelope));
+                    // TODO: Ensure that outcomes are emitted correctly for rate-limited attachments
+                    // so that it is safe to update envelope_summary here.
 
                     if check_envelope_size_limits(&config, &envelope) {
                         Ok((envelope, checked.rate_limits))
@@ -531,9 +532,9 @@ where
         .or_else(move |error: BadStoreRequest| {
             metric!(counter(RelayCounters::EnvelopeRejected) += 1);
 
-            let envelope_summary = *envelope_summary.borrow();
-            if let Some(category) = envelope_summary.event_category {
-                if let Some(outcome) = error.to_outcome() {
+            let envelope_summary = envelope_summary.borrow();
+            if let Some(outcome) = error.to_outcome() {
+                if let Some(category) = envelope_summary.event_category {
                     outcome_producer.do_send(TrackOutcome {
                         timestamp: start_time,
                         scoping: *scoping.borrow(),
@@ -543,18 +544,18 @@ where
                         category,
                         quantity: 1,
                     });
+                }
 
-                    if envelope_summary.attachment_quantity > 0 {
-                        outcome_producer.do_send(TrackOutcome {
-                            timestamp: start_time,
-                            scoping: *scoping.borrow(),
-                            outcome,
-                            event_id: *event_id.borrow(),
-                            remote_addr,
-                            category: DataCategory::Attachment,
-                            quantity: envelope_summary.attachment_quantity,
-                        });
-                    }
+                if envelope_summary.attachment_quantity > 0 {
+                    outcome_producer.do_send(TrackOutcome {
+                        timestamp: start_time,
+                        scoping: *scoping.borrow(),
+                        outcome,
+                        event_id: *event_id.borrow(),
+                        remote_addr,
+                        category: DataCategory::Attachment,
+                        quantity: envelope_summary.attachment_quantity,
+                    });
                 }
             }
 
