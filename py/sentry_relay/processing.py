@@ -25,6 +25,7 @@ __all__ = [
     "pii_selector_suggestions_from_event",
     "VALID_PLATFORMS",
     "validate_dynamic_rule_condition",
+    "validate_sampling_configuration",
 ]
 
 
@@ -210,11 +211,25 @@ def parse_release(release):
 def validate_dynamic_rule_condition(condition):
     """
     Validate a dynamic rule condition. Used in dynamic sampling serializer.
-    The parameter is a JSON-encoded string.
+    The parameter is a string containing the rule condition as JSON.
     """
     assert isinstance(condition, string_types)
     raw_error = rustcall(
         lib.relay_validate_dynamic_rule_condition, encode_str(condition)
+    )
+    error = decode_str(raw_error, free=True)
+    if error:
+        raise ValueError(error)
+
+
+def validate_sampling_configuration(condition):
+    """
+    Validate the whole sampling configuration. Used in dynamic sampling serializer.
+    The parameter is a string containing the rules configuration as JSON.
+    """
+    assert isinstance(condition, string_types)
+    raw_error = rustcall(
+        lib.relay_validate_sampling_configuration, encode_str(condition)
     )
     error = decode_str(raw_error, free=True)
     if error:

@@ -14,7 +14,7 @@ use relay_general::processor::{process_value, split_chunks, ProcessingState};
 use relay_general::protocol::{Event, VALID_PLATFORMS};
 use relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
 use relay_general::types::{Annotated, Remark};
-use relay_sampling::RuleCondition;
+use relay_sampling::{RuleCondition, SamplingConfig};
 
 use crate::core::{RelayBuf, RelayStr};
 
@@ -223,8 +223,6 @@ pub unsafe extern "C" fn relay_parse_release(value: *const RelayStr) -> RelayStr
 }
 
 /// Validate a dynamic rule condition.
-/// We only validate conditions in Relay since conditions are the only part of the rules that are
-/// volatile and need constant updating to keep in sync between Relay and Sentry
 #[no_mangle]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_validate_dynamic_rule_condition(value: *const RelayStr) -> RelayStr {
@@ -234,6 +232,32 @@ pub unsafe extern "C" fn relay_validate_dynamic_rule_condition(value: *const Rel
                 "".to_string()
             } else {
                 "unsupported condition".to_string()
+            }
+        }
+        Err(e) => e.to_string(),
+    };
+    RelayStr::from_string(ret_val)
+}
+
+/// Validate whole rule ( this will be also implemented in Sentry for better error messages)
+/// The implementation in relay is just to make sure that the Sentry implementation doesn't
+/// go out of sync.
+#[no_mangle]
+#[relay_ffi::catch_unwind]
+pub unsafe extern "C" fn relay_validate_sampling_configuration(value: *const RelayStr) -> RelayStr {
+    let ret_val = match serde_json::from_str::<SamplingConfig>((*value).as_str()) {
+        Ok(config) => {
+            let mut error_str: Option<String> = None;
+            for rule in config.rules {
+                if !rule.condition.supported() {
+                    error_str = Some("unsupported sampling rule".to_string());
+                    break;
+                }
+            }
+            if let Some(error_str) = error_str {
+                error_str
+            } else {
+                "".to_string()
             }
         }
         Err(e) => e.to_string(),

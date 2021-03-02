@@ -533,9 +533,14 @@ struct RelayStr relay_parse_release(const struct RelayStr *value);
 
 /**
  * Validate a dynamic rule condition.
- * We only validate conditions in Relay since conditions are the only part of the rules that are
- * volatile and need constant updating to keep in sync between Relay and Sentry
  */
 struct RelayStr relay_validate_dynamic_rule_condition(const struct RelayStr *value);
+
+/**
+ * Validate whole rule ( this will be also implemented in Sentry for better error messages)
+ * The implementation in relay is just to make sure that the Sentry implementation doesn't
+ * go out of sync.
+ */
+struct RelayStr relay_validate_sampling_configuration(const struct RelayStr *value);
 
 #endif /* RELAY_H_INCLUDED */

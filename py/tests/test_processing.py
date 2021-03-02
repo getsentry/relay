@@ -175,41 +175,51 @@ def test_parse_release_error():
         sentry_relay.parse_release("/var/foo/foo")
 
 
-@pytest.mark.parametrize(
-    "condition",
-    [
-        '{"op": "eq", "name": "field_1", "value": ["UPPER", "lower"], "options":{ "ignoreCase": true}}',
-        '{"op": "eq", "name": "field_2", "value": ["UPPER", "lower"]}',
-        '{"op": "glob", "name": "field_3", "value": ["1.2.*", "2.*"]}',
-        '{"op": "not", "inner": {"op": "glob", "name": "field_4", "value": ["1.*"]}}',
-        '{"op": "and", "inner": [{"op": "glob", "name": "field_5", "value": ["2.*"]}]}',
-        '{"op": "or", "inner": [{"op": "glob", "name": "field_6", "value": ["3.*"]}]}',
-        '{"op": "custom", "name": "event:legacy_browser", "value": ["ie9", "ie10", "ie11"]}',
-    ],
-    ids=("eq with case", "eq", "glob", "not", "and", "or", "custom"),
-)
-def test_validate_dynamic_rule_condition(condition):
+def test_validate_dynamic_rule_condition():
     """
-    Validates various condition types
+    Test that a valid condition passes
     """
     # Should not throw
+    condition = '{"op": "eq", "name": "field_2", "value": ["UPPER", "lower"]}'
     sentry_relay.validate_dynamic_rule_condition(condition)
 
 
-@pytest.mark.parametrize(
-    "condition",
-    [
-        '{"op2": "eq", "name": "field_1", "value": ["UPPER", "lower"], "ignoreCase": true}',
-        '{"op": "eq", "value": ["UPPER", "lower"]}',
-        '{"op": "legacyBrowser", "value": [1,2,3]}',
-        '{"op": "csp", "value": ["v1, "v2"]}',
-    ],
-    ids=("bad operator", "missing field", "bad value", "bad json"),
-)
-def test_invalid_dynamic_rule_condition(condition):
+def test_invalid_dynamic_rule_condition():
     """
     Tests that invalid conditions are caught
     """
-    # Should not throw
+    # Should throw
+    condition = '{"op": "legacyBrowser", "value": [1,2,3]}'
     with pytest.raises(ValueError):
         sentry_relay.validate_dynamic_rule_condition(condition)
+
+
+def test_validate_sampling_configuration():
+    """
+    Tests that a valid sampling rule configuration passes
+    """
+    config = """{
+        "rules": [
+            {
+                "type": "trace",
+                "sampleRate": 0.7,
+                "condition": {
+                    "op": "custom",
+                    "name": "event.legacy_browser",
+                    "value":["ie10"]
+                }
+            },
+            {
+                "type": "trace",
+                "sampleRate": 0.9,
+                "condition": {
+                    "op": "eq",
+                    "name": "event.release",
+                    "value":["1.1.*"],
+                    "options": {"ignoreCase": true}
+                }
+            }
+        ]
+    }"""
+    # Should NOT throw
+    sentry_relay.validate_sampling_configuration(config)
