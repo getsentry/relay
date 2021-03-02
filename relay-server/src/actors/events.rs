@@ -35,7 +35,7 @@ use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemTyp
 use crate::http::{HttpError, RequestBuilder};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
-use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, FutureExt};
+use crate::utils::{self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt};
 
 #[cfg(feature = "processing")]
 use {
@@ -1483,12 +1483,13 @@ impl Handler<HandleEnvelope> for EventManager {
 
         let scoping = Rc::new(RefCell::new(envelope.meta().get_partial_scoping()));
         let is_received = Rc::new(AtomicBool::from(false));
+        let envelope_summary = Rc::new(RefCell::new(EnvelopeSummary::empty()));
 
         let future = project
             .send(CheckEnvelope::fetched(envelope))
             .map_err(ProcessingError::ScheduleFailed)
             .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
-            .and_then(clone!(scoping, |response| {
+            .and_then(clone!(scoping, envelope_summary, |response| {
                 // Use the project id from the loaded project state to account for redirects.
                 let project_id = response.scoping.project_id.value();
                 metric!(set(RelaySets::UniqueProjects) = project_id as i64);
@@ -1497,7 +1498,10 @@ impl Handler<HandleEnvelope> for EventManager {
 
                 let checked = response.result.map_err(ProcessingError::EventRejected)?;
                 match checked.envelope {
-                    Some(envelope) => Ok(envelope),
+                    Some(envelope) => {
+                        envelope_summary.replace(EnvelopeSummary::compute(&envelope));
+                        Ok(envelope)
+                    }
                     None => Err(ProcessingError::RateLimited(checked.rate_limits)),
                 }
             }))
@@ -1696,12 +1700,25 @@ impl Handler<HandleEnvelope> for EventManager {
                     outcome_producer.do_send(TrackOutcome {
                         timestamp: Instant::now(),
                         scoping: *scoping.borrow(),
-                        outcome,
+                        outcome: outcome.clone(),
                         event_id,
                         remote_addr,
                         category,
                         quantity: 1,
-                    })
+                    });
+
+                    let envelope_summary = envelope_summary.borrow();
+                    if envelope_summary.attachment_quantity > 0 {
+                        outcome_producer.do_send(TrackOutcome {
+                            timestamp: start_time,
+                            scoping: *scoping.borrow(),
+                            outcome,
+                            event_id: event_id,
+                            remote_addr,
+                            category: DataCategory::Attachment,
+                            quantity: envelope_summary.attachment_quantity,
+                        });
+                    }
                 }
             })
             .then(move |x, slf, _| {
