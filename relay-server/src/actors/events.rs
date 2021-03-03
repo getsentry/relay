@@ -1476,7 +1476,6 @@ impl Handler<HandleEnvelope> for EventManager {
             start_time,
             sampling_project,
         } = message;
-        let event_category = envelope.get_event_category();
 
         let event_id = envelope.event_id();
         let remote_addr = envelope.meta().client_addr();
@@ -1690,8 +1689,9 @@ impl Handler<HandleEnvelope> for EventManager {
                     return;
                 }
 
+                let envelope_summary = envelope_summary.borrow();
                 if let Some(outcome) = outcome {
-                    if let Some(category) = event_category {
+                    if let Some(category) = envelope_summary.event_category {
                         outcome_producer.do_send(TrackOutcome {
                             timestamp: Instant::now(),
                             scoping: *scoping.borrow(),
@@ -1703,7 +1703,6 @@ impl Handler<HandleEnvelope> for EventManager {
                         });
                     }
 
-                    let envelope_summary = envelope_summary.borrow();
                     if envelope_summary.attachment_quantity > 0 {
                         outcome_producer.do_send(TrackOutcome {
                             timestamp: start_time,
