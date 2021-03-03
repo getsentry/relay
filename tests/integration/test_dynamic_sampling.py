@@ -108,6 +108,7 @@ def _add_sampling_config(
         "sampleRate": sample_rate,
         "type": rule_type,
         "condition": {"op": "and", "inner": conditions},
+        "id": len(rules) + 1,
     }
     rules.append(rule)
     return rules
@@ -230,7 +231,7 @@ def test_it_removes_events(mini_sentry, relay, rule_type, event_factory):
     public_key = config["publicKeys"][0]["publicKey"]
 
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
-    _add_sampling_config(config, sample_rate=0, rule_type=rule_type)
+    rules = _add_sampling_config(config, sample_rate=0, rule_type=rule_type)
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
     envelope, trace_id, event_id = event_factory(public_key)
@@ -244,8 +245,8 @@ def test_it_removes_events(mini_sentry, relay, rule_type, event_factory):
     outcomes = mini_sentry.captured_outcomes.get(timeout=2)
     assert outcomes is not None
     outcome = outcomes["outcomes"][0]
-    assert outcome.get("outcome") == 3
-    assert outcome.get("reason") == "event_sampled"
+    assert outcome.get("outcome") == 1
+    assert outcome.get("reason") == f"Sampled:{rules[0]['id']}"
 
 
 @pytest.mark.parametrize(

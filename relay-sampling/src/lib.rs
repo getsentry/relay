@@ -280,6 +280,7 @@ pub struct SamplingRule {
     pub sample_rate: f64,
     #[serde(rename = "type")]
     pub ty: RuleType,
+    pub id: u32,
 }
 
 impl SamplingRule {
@@ -449,6 +450,9 @@ impl FieldValueProvider for TraceContext {
 pub struct SamplingConfig {
     /// The sampling rules for the project
     pub rules: Vec<SamplingRule>,
+    /// The id of the next new Rule (used as a generator for unique rule ids)
+    #[serde(default)]
+    pub next_id: Option<u32>,
 }
 
 impl SamplingConfig {
@@ -1165,7 +1169,8 @@ mod tests {
                 ]
             },
             "sampleRate": 0.7,
-            "type": "trace"
+            "type": "trace",
+            "id": 1
         }"#;
         let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
 
@@ -1262,6 +1267,7 @@ mod tests {
                     ]),
                     sample_rate: 0.1,
                     ty: RuleType::Trace,
+                    id: 1,
                 },
                 // no user segments
                 SamplingRule {
@@ -1271,6 +1277,7 @@ mod tests {
                     ]),
                     sample_rate: 0.2,
                     ty: RuleType::Trace,
+                    id: 2,
                 },
                 // no releases
                 SamplingRule {
@@ -1280,6 +1287,7 @@ mod tests {
                     ]),
                     sample_rate: 0.3,
                     ty: RuleType::Trace,
+                    id: 3,
                 },
                 // no environments
                 SamplingRule {
@@ -1289,14 +1297,17 @@ mod tests {
                     ]),
                     sample_rate: 0.4,
                     ty: RuleType::Trace,
+                    id: 4,
                 },
                 // no user segments releases or environments
                 SamplingRule {
                     condition: RuleCondition::And(AndCondition { inner: vec![] }),
                     sample_rate: 0.5,
                     ty: RuleType::Trace,
+                    id: 5,
                 },
             ],
+            next_id: None,
         };
 
         let trace_context = TraceContext {
@@ -1309,8 +1320,9 @@ mod tests {
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
         // complete match with first rule
-        assert!(
-            approx_eq(result.unwrap().sample_rate, 0.1),
+        assert_eq!(
+            result.unwrap().id,
+            1,
             "did not match the expected first rule"
         );
 
@@ -1324,8 +1336,9 @@ mod tests {
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
         // should mach the second rule because of the release
-        assert!(
-            approx_eq(result.unwrap().sample_rate, 0.2),
+        assert_eq!(
+            result.unwrap().id,
+            2,
             "did not match the expected second rule"
         );
 
@@ -1339,8 +1352,9 @@ mod tests {
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
         // should match the third rule because of the unknown release
-        assert!(
-            approx_eq(result.unwrap().sample_rate, 0.3),
+        assert_eq!(
+            result.unwrap().id,
+            3,
             "did not match the expected third rule"
         );
 
@@ -1354,8 +1368,9 @@ mod tests {
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
         // should match the fourth rule because of the unknown environment
-        assert!(
-            approx_eq(result.unwrap().sample_rate, 0.4),
+        assert_eq!(
+            result.unwrap().id,
+            4,
             "did not match the expected fourth rule"
         );
 
@@ -1369,8 +1384,9 @@ mod tests {
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
         // should match the fourth rule because of the unknown user segment
-        assert!(
-            approx_eq(result.unwrap().sample_rate, 0.5),
+        assert_eq!(
+            result.unwrap().id,
+            5,
             "did not match the expected fourth rule"
         );
     }

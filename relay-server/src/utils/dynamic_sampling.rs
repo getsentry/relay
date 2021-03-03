@@ -11,35 +11,48 @@ use relay_sampling::{get_matching_event_rule, pseudo_random_from_uuid, rule_type
 use crate::actors::project::{GetCachedProjectState, GetProjectState, Project, ProjectState};
 use crate::envelope::{Envelope, ItemType};
 
+/// The result of a Sampling operation
+pub enum SamplingResult {
+    /// Keep event
+    Keep,
+    /// Drop event, due to rule with provided Id
+    Drop(u32),
+    /// No decision made  
+    NoDecision,
+}
+
 // Checks whether an event should be kept or removed by dynamic sampling
 pub fn should_keep_event(
     event: &Event,
     ip_addr: Option<IpAddr>,
     project_state: &ProjectState,
     processing_enabled: bool,
-) -> Option<bool> {
+) -> SamplingResult {
     let sampling_config = match &project_state.config.dynamic_sampling {
-        None => return None, // without config there is not enough info to make up my mind
+        None => return SamplingResult::NoDecision, // without config there is not enough info to make up my mind
         Some(config) => config,
     };
 
     // when we have unsupported rules disable sampling for non processing relays
     if !processing_enabled && sampling_config.has_unsupported_rules() {
-        return Some(true);
+        return SamplingResult::Keep;
     }
 
     let event_id = match event.id.0 {
-        None => return None, // if no eventID we can't really sample so keep everything
+        None => return SamplingResult::NoDecision, // if no eventID we can't really sample so keep everything
         Some(EventId(id)) => id,
     };
 
     let ty = rule_type_for_event(&event);
     if let Some(rule) = get_matching_event_rule(sampling_config, event, ip_addr, ty) {
         if let Some(random_number) = pseudo_random_from_uuid(event_id) {
-            return Some(rule.sample_rate > random_number);
+            if random_number < rule.sample_rate {
+                return SamplingResult::Keep;
+            }
+            return SamplingResult::Drop(rule.id);
         }
     }
-    None // if no matching rule there is not enough info to make a decision
+    SamplingResult::NoDecision // if no matching rule there is not enough info to make a decision
 }
 
 /// Takes an envelope and potentially removes the transaction item from it if that

@@ -35,7 +35,7 @@ use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemTyp
 use crate::http::{HttpError, RequestBuilder};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
-use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, FutureExt};
+use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, FutureExt, SamplingResult};
 
 #[cfg(feature = "processing")]
 use {
@@ -129,8 +129,8 @@ enum ProcessingError {
     #[fail(display = "envelope empty, transaction removed by sampling")]
     TransactionSampled,
 
-    #[fail(display = "envelope empty, event removed by sampling")]
-    EventSampled,
+    #[fail(display = "envelope empty, event removed by sampling rule:{}", _0)]
+    EventSampled(u32),
 }
 
 impl ProcessingError {
@@ -170,7 +170,7 @@ impl ProcessingError {
 
             // Dynamic sampling (not an error, just discarding messages that were removed by sampling)
             Self::TransactionSampled => Some(Outcome::Invalid(DiscardReason::TransactionSampled)),
-            Self::EventSampled => Some(Outcome::Invalid(DiscardReason::EventSampled)),
+            Self::EventSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
 
             // If we send to an upstream, we don't emit outcomes.
             Self::SendFailed(_) => None,
@@ -1148,9 +1148,10 @@ impl EventProcessor {
             &state.project_state,
             self.config.processing_enabled(),
         ) {
-            Some(false) => Err(ProcessingError::EventSampled),
-            Some(true) => Ok(()),
-            None => Ok(()), // Not enough info to make a definite evaluation, keep the event
+            SamplingResult::Drop(rule_id) => Err(ProcessingError::EventSampled(rule_id)),
+            SamplingResult::Keep => Ok(()),
+            // Not enough info to make a definite evaluation, keep the event
+            SamplingResult::NoDecision => Ok(()),
         }
     }
 
