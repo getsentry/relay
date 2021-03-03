@@ -208,7 +208,8 @@ def test_validate_sampling_configuration():
                     "op": "custom",
                     "name": "event.legacy_browser",
                     "value":["ie10"]
-                }
+                },
+                "id":1
             },
             {
                 "type": "trace",
@@ -218,7 +219,8 @@ def test_validate_sampling_configuration():
                     "name": "event.release",
                     "value":["1.1.*"],
                     "options": {"ignoreCase": true}
-                }
+                },
+                "id":2
             }
         ]
     }"""
