@@ -175,24 +175,24 @@ def test_parse_release_error():
         sentry_relay.parse_release("/var/foo/foo")
 
 
-def test_validate_dynamic_rule_condition():
+def test_validate_sampling_condition():
     """
     Test that a valid condition passes
     """
     # Should not throw
     condition = '{"op": "eq", "name": "field_2", "value": ["UPPER", "lower"]}'
-    sentry_relay.validate_dynamic_rule_condition(condition)
+    sentry_relay.validate_sampling_condition(condition)
 
 
-def test_invalid_dynamic_rule_condition():
+def test_invalid_sampling_condition():
     """
     Tests that invalid conditions are caught
     """
     # Should throw
     condition = '{"op": "legacyBrowser", "value": [1,2,3]}'
     with pytest.raises(ValueError):
-        sentry_relay.validate_dynamic_rule_condition(condition)
 
+        sentry_relay.validate_sampling_condition(condition)
 
 def test_validate_sampling_configuration():
     """

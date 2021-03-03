@@ -534,7 +534,7 @@ struct RelayStr relay_parse_release(const struct RelayStr *value);
 /**
  * Validate a dynamic rule condition.
  */
-struct RelayStr relay_validate_dynamic_rule_condition(const struct RelayStr *value);
+struct RelayStr relay_validate_sampling_condition(const struct RelayStr *value);
 
 /**
  * Validate whole rule ( this will be also implemented in Sentry for better error messages)

@@ -222,10 +222,10 @@ pub unsafe extern "C" fn relay_parse_release(value: *const RelayStr) -> RelayStr
     RelayStr::from_string(serde_json::to_string(&release)?)
 }
 
-/// Validate a dynamic rule condition.
+/// Validate a sampling rule condition.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn relay_validate_dynamic_rule_condition(value: *const RelayStr) -> RelayStr {
+pub unsafe extern "C" fn relay_validate_sampling_condition(value: *const RelayStr) -> RelayStr {
     let ret_val = match serde_json::from_str::<RuleCondition>((*value).as_str()) {
         Ok(condition) => {
             if condition.supported() {
@@ -245,22 +245,15 @@ pub unsafe extern "C" fn relay_validate_dynamic_rule_condition(value: *const Rel
 #[no_mangle]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_validate_sampling_configuration(value: *const RelayStr) -> RelayStr {
-    let ret_val = match serde_json::from_str::<SamplingConfig>((*value).as_str()) {
+    match serde_json::from_str::<SamplingConfig>((*value).as_str()) {
         Ok(config) => {
-            let mut error_str: Option<String> = None;
             for rule in config.rules {
                 if !rule.condition.supported() {
-                    error_str = Some("unsupported sampling rule".to_string());
-                    break;
+                    return Ok(RelayStr::new("unsupported sampling rule"));
                 }
             }
-            if let Some(error_str) = error_str {
-                error_str
-            } else {
-                "".to_string()
-            }
+            RelayStr::default()
         }
-        Err(e) => e.to_string(),
-    };
-    RelayStr::from_string(ret_val)
+        Err(e) => RelayStr::from_string(e.to_string()),
+    }
 }
