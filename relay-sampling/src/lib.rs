@@ -236,7 +236,7 @@ impl RuleCondition {
     /// Checks if Relay supports this condition (in other words if the condition had any unknown configuration
     /// which was serialized as "Unsupported" (because the configuration is either faulty or was created for a
     /// newer relay that supports some other condition types)
-    fn supported(&self) -> bool {
+    pub fn supported(&self) -> bool {
         match self {
             RuleCondition::Unsupported => false,
             // we have a known condition

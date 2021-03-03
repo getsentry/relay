@@ -173,3 +173,54 @@ def test_parse_release():
 def test_parse_release_error():
     with pytest.raises(sentry_relay.InvalidReleaseErrorBadCharacters):
         sentry_relay.parse_release("/var/foo/foo")
+
+
+def test_validate_sampling_condition():
+    """
+    Test that a valid condition passes
+    """
+    # Should not throw
+    condition = '{"op": "eq", "name": "field_2", "value": ["UPPER", "lower"]}'
+    sentry_relay.validate_sampling_condition(condition)
+
+
+def test_invalid_sampling_condition():
+    """
+    Tests that invalid conditions are caught
+    """
+    # Should throw
+    condition = '{"op": "legacyBrowser", "value": [1,2,3]}'
+    with pytest.raises(ValueError):
+
+        sentry_relay.validate_sampling_condition(condition)
+
+
+def test_validate_sampling_configuration():
+    """
+    Tests that a valid sampling rule configuration passes
+    """
+    config = """{
+        "rules": [
+            {
+                "type": "trace",
+                "sampleRate": 0.7,
+                "condition": {
+                    "op": "custom",
+                    "name": "event.legacy_browser",
+                    "value":["ie10"]
+                }
+            },
+            {
+                "type": "trace",
+                "sampleRate": 0.9,
+                "condition": {
+                    "op": "eq",
+                    "name": "event.release",
+                    "value":["1.1.*"],
+                    "options": {"ignoreCase": true}
+                }
+            }
+        ]
+    }"""
+    # Should NOT throw
+    sentry_relay.validate_sampling_configuration(config)
