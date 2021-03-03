@@ -214,9 +214,7 @@ def validate_sampling_condition(condition):
     The parameter is a string containing the rule condition as JSON.
     """
     assert isinstance(condition, string_types)
-    raw_error = rustcall(
-        lib.relay_validate_sampling_condition, encode_str(condition)
-    )
+    raw_error = rustcall(lib.relay_validate_sampling_condition, encode_str(condition))
     error = decode_str(raw_error, free=True)
     if error:
         raise ValueError(error)
