@@ -1642,7 +1642,7 @@
     <span class="doccomment">/// Checks if Relay supports this condition (in other words if the condition had any unknown configuration</span>
     <span class="doccomment">/// which was serialized as &quot;Unsupported&quot; (because the configuration is either faulty or was created for a</span>
     <span class="doccomment">/// newer relay that supports some other condition types)</span>
-    <span class="kw">fn</span> <span class="ident">supported</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">supported</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span> {
             <span class="ident">RuleCondition</span>::<span class="ident">Unsupported</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
             <span class="comment">// we have a known condition</span>
