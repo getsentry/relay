@@ -6,7 +6,9 @@ use actix::prelude::*;
 use futures::{future, prelude::*};
 
 use relay_general::protocol::{Event, EventId};
-use relay_sampling::{get_matching_event_rule, pseudo_random_from_uuid, rule_type_for_event};
+use relay_sampling::{
+    get_matching_event_rule, pseudo_random_from_uuid, rule_type_for_event, RuleId,
+};
 
 use crate::actors::project::{GetCachedProjectState, GetProjectState, Project, ProjectState};
 use crate::envelope::{Envelope, ItemType};
@@ -17,7 +19,7 @@ pub enum SamplingResult {
     /// Keep event
     Keep,
     /// Drop event, due to rule with provided Id
-    Drop(u32),
+    Drop(RuleId),
     /// No decision made  
     NoDecision,
 }
@@ -218,7 +220,7 @@ mod tests {
         let proj_state = get_project_state(Some(0.0));
 
         assert_eq!(
-            SamplingResult::Drop(1),
+            SamplingResult::Drop(RuleId(1)),
             should_keep_event(&event, None, &proj_state, true)
         );
         let proj_state = get_project_state(Some(1.0));

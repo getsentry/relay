@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::fmt::{self, Display, Formatter};
 use std::net::IpAddr;
 
 use rand::{distributions::Uniform, Rng};
@@ -272,6 +273,16 @@ impl RuleCondition {
     }
 }
 
+/// Sampling rule Id
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuleId(pub u32);
+
+impl Display for RuleId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// A sampling rule as it is deserialized from the project configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -280,7 +291,7 @@ pub struct SamplingRule {
     pub sample_rate: f64,
     #[serde(rename = "type")]
     pub ty: RuleType,
-    pub id: u32,
+    pub id: RuleId,
 }
 
 impl SamplingRule {
@@ -1267,7 +1278,7 @@ mod tests {
                     ]),
                     sample_rate: 0.1,
                     ty: RuleType::Trace,
-                    id: 1,
+                    id: RuleId(1),
                 },
                 // no user segments
                 SamplingRule {
@@ -1277,7 +1288,7 @@ mod tests {
                     ]),
                     sample_rate: 0.2,
                     ty: RuleType::Trace,
-                    id: 2,
+                    id: RuleId(2),
                 },
                 // no releases
                 SamplingRule {
@@ -1287,7 +1298,7 @@ mod tests {
                     ]),
                     sample_rate: 0.3,
                     ty: RuleType::Trace,
-                    id: 3,
+                    id: RuleId(3),
                 },
                 // no environments
                 SamplingRule {
@@ -1297,14 +1308,14 @@ mod tests {
                     ]),
                     sample_rate: 0.4,
                     ty: RuleType::Trace,
-                    id: 4,
+                    id: RuleId(4),
                 },
                 // no user segments releases or environments
                 SamplingRule {
                     condition: RuleCondition::And(AndCondition { inner: vec![] }),
                     sample_rate: 0.5,
                     ty: RuleType::Trace,
-                    id: 5,
+                    id: RuleId(5),
                 },
             ],
             next_id: None,
@@ -1322,7 +1333,7 @@ mod tests {
         // complete match with first rule
         assert_eq!(
             result.unwrap().id,
-            1,
+            RuleId(1),
             "did not match the expected first rule"
         );
 
@@ -1338,7 +1349,7 @@ mod tests {
         // should mach the second rule because of the release
         assert_eq!(
             result.unwrap().id,
-            2,
+            RuleId(2),
             "did not match the expected second rule"
         );
 
@@ -1354,7 +1365,7 @@ mod tests {
         // should match the third rule because of the unknown release
         assert_eq!(
             result.unwrap().id,
-            3,
+            RuleId(3),
             "did not match the expected third rule"
         );
 
@@ -1370,7 +1381,7 @@ mod tests {
         // should match the fourth rule because of the unknown environment
         assert_eq!(
             result.unwrap().id,
-            4,
+            RuleId(4),
             "did not match the expected fourth rule"
         );
 
@@ -1386,7 +1397,7 @@ mod tests {
         // should match the fourth rule because of the unknown user segment
         assert_eq!(
             result.unwrap().id,
-            5,
+            RuleId(5),
             "did not match the expected fourth rule"
         );
     }

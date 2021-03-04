@@ -22,6 +22,7 @@ use relay_filter::FilterStatKey;
 use relay_general::protocol::EventId;
 use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
+use relay_sampling::RuleId;
 
 use crate::actors::upstream::SendQuery;
 use crate::actors::upstream::{UpstreamQuery, UpstreamRelay};
@@ -104,7 +105,7 @@ pub enum Outcome {
     Filtered(FilterStatKey),
 
     /// The event has been filtered by a Sampling Rule
-    FilteredSampling(u32),
+    FilteredSampling(RuleId),
 
     /// The event has been rate limited.
     RateLimited(Option<ReasonCode>),

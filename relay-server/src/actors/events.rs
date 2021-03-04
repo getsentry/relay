@@ -24,6 +24,7 @@ use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction
 use relay_log::LogError;
 use relay_quotas::{DataCategory, RateLimits};
 use relay_redis::RedisPool;
+use relay_sampling::RuleId;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
@@ -130,7 +131,7 @@ enum ProcessingError {
     TransactionSampled,
 
     #[fail(display = "envelope empty, event removed by sampling rule:{}", _0)]
-    EventSampled(u32),
+    EventSampled(RuleId),
 }
 
 impl ProcessingError {
