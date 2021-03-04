@@ -1535,6 +1535,7 @@ impl Handler<HandleEnvelope> for EventManager {
                     })
                     .map_err(ProcessingError::ScheduleFailed)
                     .flatten()
+                // TODO: Update envelope_summary once the rate-limiting code emits its own outcomes.
             })
             .and_then(clone!(project, |processed| {
                 let rate_limits = processed.rate_limits;

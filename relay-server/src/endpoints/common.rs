@@ -446,8 +446,8 @@ where
                         Some(envelope) => envelope,
                         None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
                     };
-                    // TODO: Ensure that outcomes are emitted correctly for rate-limited attachments
-                    // so that it is safe to update envelope_summary here.
+                    // TODO: Update envelope_summary from checked.envelope, once the rate-limiting
+                    // code in CheckEnvelope emits its own outcomes.
 
                     if check_envelope_size_limits(&config, &envelope) {
                         Ok((envelope, checked.rate_limits))
