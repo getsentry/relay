@@ -206,23 +206,43 @@ def category_value(category):
 
 
 class OutcomesConsumer(ConsumerBase):
+    def _poll_all(self):
+        while True:
+            outcome = self.poll()
+            if outcome is None:
+                return
+            else:
+                yield outcome
+
+    def get_outcomes(self):
+        outcomes = list(self._poll_all())
+        for outcome in outcomes:
+            assert outcome.error() is None
+        return [json.loads(outcome.value()) for outcome in outcomes]
+
     def get_outcome(self):
-        outcome = self.poll()
-        assert outcome is not None
-        assert outcome.error() is None
-        return json.loads(outcome.value())
+        outcomes = self.get_outcomes()
+        assert len(outcomes) > 0, "No outcomes were consumed"
+        assert len(outcomes) == 1, "More than one outcome was consumed"
+        return outcomes[0]
 
     def assert_rate_limited(self, reason, key_id=None, category=None):
-        outcome = self.get_outcome()
+        if category is None:
+            outcome = self.get_outcome()
+            assert isinstance(outcome["category"], int)
+        else:
+            value = category_value(category)
+            outcomes = self.get_outcomes()
+            outcomes = [outcome for outcome in outcomes if outcome["category"] == value]
+            assert len(outcomes) == 1, "Categories are {!r} (expected {!r})".format(
+                [outcome["category"] for outcome in outcomes], value
+            )
+            outcome = outcomes[0]
+
         assert outcome["outcome"] == 2, outcome
         assert outcome["reason"] == reason
         if key_id is not None:
             assert outcome["key_id"] == key_id
-        if category is not None:
-            value = category_value(category)
-            assert outcome["category"] == value, outcome["category"]
-        else:
-            assert isinstance(outcome["category"], int)
 
     def assert_dropped_internal(self):
         outcome = self.get_outcome()
