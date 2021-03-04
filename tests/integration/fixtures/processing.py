@@ -226,23 +226,22 @@ class OutcomesConsumer(ConsumerBase):
         assert len(outcomes) == 1, "More than one outcome was consumed"
         return outcomes[0]
 
-    def assert_rate_limited(self, reason, key_id=None, category=None):
-        if category is None:
+    def assert_rate_limited(self, reason, key_id=None, categories=None):
+        if categories is None:
             outcome = self.get_outcome()
             assert isinstance(outcome["category"], int)
+            outcomes = [outcome]
         else:
-            value = category_value(category)
             outcomes = self.get_outcomes()
-            outcomes = [outcome for outcome in outcomes if outcome["category"] == value]
-            assert len(outcomes) == 1, "Categories are {!r} (expected {!r})".format(
-                [outcome["category"] for outcome in outcomes], value
-            )
-            outcome = outcomes[0]
+            expected = set(category_value(category) for category in categories)
+            actual = set(outcome["category"] for outcome in outcomes)
+            assert actual == expected, (actual, expected)
 
-        assert outcome["outcome"] == 2, outcome
-        assert outcome["reason"] == reason
-        if key_id is not None:
-            assert outcome["key_id"] == key_id
+        for outcome in outcomes:
+            assert outcome["outcome"] == 2, outcome
+            assert outcome["reason"] == reason
+            if key_id is not None:
+                assert outcome["key_id"] == key_id
 
     def assert_dropped_internal(self):
         outcome = self.get_outcome()
