@@ -12,6 +12,7 @@ use crate::actors::project::{GetCachedProjectState, GetProjectState, Project, Pr
 use crate::envelope::{Envelope, ItemType};
 
 /// The result of a Sampling operation
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SamplingResult {
     /// Keep event
     Keep,
@@ -158,5 +159,77 @@ pub fn sample_transaction(
                 ))
             });
         Box::new(fut) as ResponseFuture<_, _>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actors::project::ProjectConfig;
+    use relay_common::EventType;
+    use relay_general::types::Annotated;
+    use relay_sampling::SamplingConfig;
+    use smallvec::SmallVec;
+    use std::time::Instant;
+
+    fn get_project_state(sample_rate: Option<f64>) -> ProjectState {
+        let sampling_config_str = if let Some(sample_rate) = sample_rate {
+            format!(
+                r#"{{
+                "rules":[{{
+                    "condition": {{ "op": "and", "inner":[]}},
+                    "sampleRate": {},
+                    "type": "error",
+                    "id": 1
+                }}]
+            }}"#,
+                sample_rate
+            )
+        } else {
+            "{\"rules\":[]}".to_owned()
+        };
+        let sampling_config = serde_json::from_str::<SamplingConfig>(&sampling_config_str).ok();
+
+        ProjectState {
+            project_id: None,
+            disabled: false,
+            public_keys: SmallVec::new(),
+            slug: None,
+            config: ProjectConfig {
+                dynamic_sampling: sampling_config,
+                ..ProjectConfig::default()
+            },
+            organization_id: None,
+            last_change: None,
+            last_fetch: Instant::now(),
+            invalid: false,
+        }
+    }
+
+    #[test]
+    /// should_keep_event returns the expected results
+    fn test_should_keep_event() {
+        let event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Error),
+            ..Event::default()
+        };
+
+        let proj_state = get_project_state(Some(0.0));
+
+        assert_eq!(
+            SamplingResult::Drop(1),
+            should_keep_event(&event, None, &proj_state, true)
+        );
+        let proj_state = get_project_state(Some(1.0));
+        assert_eq!(
+            SamplingResult::Keep,
+            should_keep_event(&event, None, &proj_state, true)
+        );
+        let proj_state = get_project_state(None);
+        assert_eq!(
+            SamplingResult::NoDecision,
+            should_keep_event(&event, None, &proj_state, true)
+        );
     }
 }
