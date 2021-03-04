@@ -1673,13 +1673,6 @@ impl Handler<HandleEnvelope> for EventManager {
                     }
                 }
 
-                // Envelopes not containing events (such as standalone attachment uploads or user
-                // reports) should never create outcomes.
-                let category = match event_category {
-                    Some(event_category) => event_category,
-                    None => return,
-                };
-
                 let outcome = error.to_outcome();
                 if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome {
                     // Errors are only logged for what we consider an internal discard reason. These
@@ -1698,15 +1691,17 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
 
                 if let Some(outcome) = outcome {
-                    outcome_producer.do_send(TrackOutcome {
-                        timestamp: Instant::now(),
-                        scoping: *scoping.borrow(),
-                        outcome: outcome.clone(),
-                        event_id,
-                        remote_addr,
-                        category,
-                        quantity: 1,
-                    });
+                    if let Some(category) = event_category {
+                        outcome_producer.do_send(TrackOutcome {
+                            timestamp: Instant::now(),
+                            scoping: *scoping.borrow(),
+                            outcome: outcome.clone(),
+                            event_id,
+                            remote_addr,
+                            category,
+                            quantity: 1,
+                        });
+                    }
 
                     let envelope_summary = envelope_summary.borrow();
                     if envelope_summary.attachment_quantity > 0 {
