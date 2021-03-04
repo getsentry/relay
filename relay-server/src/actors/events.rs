@@ -1482,7 +1482,7 @@ impl Handler<HandleEnvelope> for EventManager {
 
         let scoping = Rc::new(RefCell::new(envelope.meta().get_partial_scoping()));
         let is_received = Rc::new(AtomicBool::from(false));
-        let envelope_summary = Rc::new(RefCell::new(EnvelopeSummary::empty()));
+        let envelope_summary = Rc::new(RefCell::new(EnvelopeSummary::compute(&envelope)));
 
         let future = project
             .send(CheckEnvelope::fetched(envelope))
