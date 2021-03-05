@@ -22,6 +22,7 @@ use relay_filter::FilterStatKey;
 use relay_general::protocol::EventId;
 use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
+use relay_sampling::RuleId;
 
 use crate::actors::upstream::SendQuery;
 use crate::actors::upstream::{UpstreamQuery, UpstreamRelay};
@@ -105,6 +106,9 @@ pub enum Outcome {
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     Filtered(FilterStatKey),
 
+    /// The event has been filtered by a Sampling Rule
+    FilteredSampling(RuleId),
+
     /// The event has been rate limited.
     RateLimited(Option<ReasonCode>),
 
@@ -120,19 +124,23 @@ impl Outcome {
     fn to_outcome_id(&self) -> u8 {
         match self {
             Outcome::Accepted => 0,
-            Outcome::Filtered(_) => 1,
+            Outcome::Filtered(_) | Outcome::FilteredSampling(_) => 1,
             Outcome::RateLimited(_) => 2,
             Outcome::Invalid(_) => 3,
             Outcome::Abuse => 4,
         }
     }
 
-    fn to_reason(&self) -> Option<&str> {
+    fn to_reason(&self) -> Option<Cow<str>> {
         match self {
             Outcome::Accepted => None,
-            Outcome::Invalid(discard_reason) => Some(discard_reason.name()),
-            Outcome::Filtered(filter_key) => Some(filter_key.name()),
-            Outcome::RateLimited(code_opt) => code_opt.as_ref().map(|code| code.as_str()),
+            Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
+            Outcome::Filtered(filter_key) => Some(Cow::Borrowed(filter_key.name())),
+            Outcome::FilteredSampling(rule_id) => Some(Cow::Owned(format!("Sampled:{}", rule_id))),
+            //TODO can we do better ? (not re copying the string )
+            Outcome::RateLimited(code_opt) => code_opt
+                .as_ref()
+                .map(|code| Cow::Owned(code.as_str().into())),
             Outcome::Abuse => None,
         }
     }
@@ -241,10 +249,6 @@ pub enum DiscardReason {
     /// [Relay] The envelope, which contained only a transaction, was discarded by the
     /// dynamic sampling rules.
     TransactionSampled,
-
-    /// [Relay] The envelope, which contained an event, was discarded by the
-    /// dynamic sampling rules.
-    EventSampled,
 }
 
 impl DiscardReason {
@@ -278,7 +282,6 @@ impl DiscardReason {
             DiscardReason::NoEventPayload => "no_event_payload",
             DiscardReason::Internal => "internal",
             DiscardReason::TransactionSampled => "transaction_sampled",
-            DiscardReason::EventSampled => "event_sampled",
             DiscardReason::EmptyEnvelope => "empty_envelope",
         }
     }

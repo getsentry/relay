@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::fmt::{self, Display, Formatter};
 use std::net::IpAddr;
 
 use rand::{distributions::Uniform, Rng};
@@ -236,7 +237,7 @@ impl RuleCondition {
     /// Checks if Relay supports this condition (in other words if the condition had any unknown configuration
     /// which was serialized as "Unsupported" (because the configuration is either faulty or was created for a
     /// newer relay that supports some other condition types)
-    fn supported(&self) -> bool {
+    pub fn supported(&self) -> bool {
         match self {
             RuleCondition::Unsupported => false,
             // we have a known condition
@@ -272,6 +273,16 @@ impl RuleCondition {
     }
 }
 
+/// Sampling rule Id
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuleId(pub u32);
+
+impl Display for RuleId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// A sampling rule as it is deserialized from the project configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -280,6 +291,7 @@ pub struct SamplingRule {
     pub sample_rate: f64,
     #[serde(rename = "type")]
     pub ty: RuleType,
+    pub id: RuleId,
 }
 
 impl SamplingRule {
@@ -449,6 +461,9 @@ impl FieldValueProvider for TraceContext {
 pub struct SamplingConfig {
     /// The sampling rules for the project
     pub rules: Vec<SamplingRule>,
+    /// The id of the next new Rule (used as a generator for unique rule ids)
+    #[serde(default)]
+    pub next_id: Option<u32>,
 }
 
 impl SamplingConfig {
@@ -1165,7 +1180,8 @@ mod tests {
                 ]
             },
             "sampleRate": 0.7,
-            "type": "trace"
+            "type": "trace",
+            "id": 1
         }"#;
         let rule: Result<SamplingRule, _> = serde_json::from_str(serialized_rule);
 
@@ -1262,6 +1278,7 @@ mod tests {
                     ]),
                     sample_rate: 0.1,
                     ty: RuleType::Trace,
+                    id: RuleId(1),
                 },
                 // no user segments
                 SamplingRule {
@@ -1271,6 +1288,7 @@ mod tests {
                     ]),
                     sample_rate: 0.2,
                     ty: RuleType::Trace,
+                    id: RuleId(2),
                 },
                 // no releases
                 SamplingRule {
@@ -1280,6 +1298,7 @@ mod tests {
                     ]),
                     sample_rate: 0.3,
                     ty: RuleType::Trace,
+                    id: RuleId(3),
                 },
                 // no environments
                 SamplingRule {
@@ -1289,14 +1308,17 @@ mod tests {
                     ]),
                     sample_rate: 0.4,
                     ty: RuleType::Trace,
+                    id: RuleId(4),
                 },
                 // no user segments releases or environments
                 SamplingRule {
                     condition: RuleCondition::And(AndCondition { inner: vec![] }),
                     sample_rate: 0.5,
                     ty: RuleType::Trace,
+                    id: RuleId(5),
                 },
             ],
+            next_id: None,
         };
 
         let trace_context = TraceContext {
@@ -1309,8 +1331,9 @@ mod tests {
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
         // complete match with first rule
-        assert!(
-            approx_eq(result.unwrap().sample_rate, 0.1),
+        assert_eq!(
+            result.unwrap().id,
+            RuleId(1),
             "did not match the expected first rule"
         );
 
@@ -1324,8 +1347,9 @@ mod tests {
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
         // should mach the second rule because of the release
-        assert!(
-            approx_eq(result.unwrap().sample_rate, 0.2),
+        assert_eq!(
+            result.unwrap().id,
+            RuleId(2),
             "did not match the expected second rule"
         );
 
@@ -1339,8 +1363,9 @@ mod tests {
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
         // should match the third rule because of the unknown release
-        assert!(
-            approx_eq(result.unwrap().sample_rate, 0.3),
+        assert_eq!(
+            result.unwrap().id,
+            RuleId(3),
             "did not match the expected third rule"
         );
 
@@ -1354,8 +1379,9 @@ mod tests {
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
         // should match the fourth rule because of the unknown environment
-        assert!(
-            approx_eq(result.unwrap().sample_rate, 0.4),
+        assert_eq!(
+            result.unwrap().id,
+            RuleId(4),
             "did not match the expected fourth rule"
         );
 
@@ -1369,8 +1395,9 @@ mod tests {
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
         // should match the fourth rule because of the unknown user segment
-        assert!(
-            approx_eq(result.unwrap().sample_rate, 0.5),
+        assert_eq!(
+            result.unwrap().id,
+            RuleId(5),
             "did not match the expected fourth rule"
         );
     }

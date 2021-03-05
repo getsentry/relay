@@ -1,6 +1,6 @@
 [package]
 name = "relay-cabi"
-version = "0.8.3"
+version = "0.8.4"
 authors = ["Sentry <oss@sentry.io>"]
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
@@ -23,4 +23,5 @@ relay-auth = { path = "../relay-auth" }
 relay-common = { path = "../relay-common" }
 relay-ffi = { path = "../relay-ffi" }
 relay-general = { path = "../relay-general" }
+relay-sampling = { path = "../relay-sampling" }
 sentry-release-parser = { version = "0.6.0", features = ["serde"] }
