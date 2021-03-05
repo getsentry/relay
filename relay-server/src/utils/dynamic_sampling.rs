@@ -13,18 +13,18 @@ use relay_sampling::{
 use crate::actors::project::{GetCachedProjectState, GetProjectState, Project, ProjectState};
 use crate::envelope::{Envelope, ItemType};
 
-/// The result of a Sampling operation
+/// The result of a Sampling operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SamplingResult {
-    /// Keep event
+    /// Keep the event.
     Keep,
-    /// Drop event, due to rule with provided Id
+    /// Drop the event, due to the rule with provided Id.
     Drop(RuleId),
-    /// No decision made  
+    /// No decision can be made.  
     NoDecision,
 }
 
-// Checks whether an event should be kept or removed by dynamic sampling
+/// Checks whether an event should be kept or removed by dynamic sampling.
 pub fn should_keep_event(
     event: &Event,
     ip_addr: Option<IpAddr>,
@@ -32,7 +32,8 @@ pub fn should_keep_event(
     processing_enabled: bool,
 ) -> SamplingResult {
     let sampling_config = match &project_state.config.dynamic_sampling {
-        None => return SamplingResult::NoDecision, // without config there is not enough info to make up my mind
+        // without config there is not enough info to make up my mind
+        None => return SamplingResult::NoDecision,
         Some(config) => config,
     };
 
@@ -42,7 +43,8 @@ pub fn should_keep_event(
     }
 
     let event_id = match event.id.0 {
-        None => return SamplingResult::NoDecision, // if no eventID we can't really sample so keep everything
+        // if no eventID we can't really do sampling so do not take a decision
+        None => return SamplingResult::NoDecision,
         Some(EventId(id)) => id,
     };
 
@@ -55,7 +57,8 @@ pub fn should_keep_event(
             return SamplingResult::Drop(rule.id);
         }
     }
-    SamplingResult::NoDecision // if no matching rule there is not enough info to make a decision
+    // if there are no matching rules there is not enough info to make a sampling decision
+    SamplingResult::NoDecision
 }
 
 /// Takes an envelope and potentially removes the transaction item from it if that
@@ -110,7 +113,7 @@ fn sample_transaction_internal(
 }
 
 /// Check if we should remove transactions from this envelope (because of trace sampling) and
-/// return what is left of the envelope
+/// return what is left of the envelope.
 pub fn sample_transaction(
     envelope: Envelope,
     project: Option<Addr<Project>>,
@@ -209,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    /// should_keep_event returns the expected results
+    /// Should_keep_event returns the expected results.
     fn test_should_keep_event() {
         let event = Event {
             id: Annotated::new(EventId::new()),
