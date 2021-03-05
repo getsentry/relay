@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.4
 
 - Deny backslashes in release names. ([#904](https://github.com/getsentry/relay/pull/904))
 - Remove dependencies on `openssl` and `zlib`. ([#914](https://github.com/getsentry/relay/pull/914))
