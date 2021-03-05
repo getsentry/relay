@@ -150,6 +150,97 @@
 <span id="147">147</span>
 <span id="148">148</span>
 <span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.</span>
 <span class="doccomment">//!</span>
@@ -159,40 +250,59 @@
 <span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">future</span>, <span class="ident">prelude</span>::<span class="kw-2">*</span>};
 
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">protocol</span>::{<span class="ident">Event</span>, <span class="ident">EventId</span>};
-<span class="kw">use</span> <span class="ident">relay_sampling</span>::{<span class="ident">get_matching_event_rule</span>, <span class="ident">pseudo_random_from_uuid</span>, <span class="ident">rule_type_for_event</span>};
+<span class="kw">use</span> <span class="ident">relay_sampling</span>::{
+    <span class="ident">get_matching_event_rule</span>, <span class="ident">pseudo_random_from_uuid</span>, <span class="ident">rule_type_for_event</span>, <span class="ident">RuleId</span>,
+};
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">project</span>::{<span class="ident">GetCachedProjectState</span>, <span class="ident">GetProjectState</span>, <span class="ident">Project</span>, <span class="ident">ProjectState</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">envelope</span>::{<span class="ident">Envelope</span>, <span class="ident">ItemType</span>};
 
-<span class="comment">// Checks whether an event should be kept or removed by dynamic sampling</span>
+<span class="doccomment">/// The result of a Sampling operation.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">SamplingResult</span> {
+    <span class="doccomment">/// Keep the event.</span>
+    <span class="ident">Keep</span>,
+    <span class="doccomment">/// Drop the event, due to the rule with provided Id.</span>
+    <span class="ident">Drop</span>(<span class="ident">RuleId</span>),
+    <span class="doccomment">/// No decision can be made.  </span>
+    <span class="ident">NoDecision</span>,
+}
+
+<span class="doccomment">/// Checks whether an event should be kept or removed by dynamic sampling.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">should_keep_event</span>(
     <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>,
     <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>,
     <span class="ident">project_state</span>: <span class="kw-2">&amp;</span><span class="ident">ProjectState</span>,
     <span class="ident">processing_enabled</span>: <span class="ident">bool</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> {
+) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">SamplingResult</span> {
     <span class="kw">let</span> <span class="ident">sampling_config</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="ident">project_state</span>.<span class="ident">config</span>.<span class="ident">dynamic_sampling</span> {
-        <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>, <span class="comment">// without config there is not enough info to make up my mind</span>
+        <span class="comment">// without config there is not enough info to make up my mind</span>
+        <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">SamplingResult</span>::<span class="ident">NoDecision</span>,
         <span class="prelude-val">Some</span>(<span class="ident">config</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">config</span>,
     };
 
     <span class="comment">// when we have unsupported rules disable sampling for non processing relays</span>
     <span class="kw">if</span> <span class="op">!</span><span class="ident">processing_enabled</span> <span class="op">&amp;&amp;</span> <span class="ident">sampling_config</span>.<span class="ident">has_unsupported_rules</span>() {
-        <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="bool-val">true</span>);
+        <span class="kw">return</span> <span class="ident">SamplingResult</span>::<span class="ident">Keep</span>;
     }
 
     <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">event</span>.<span class="ident">id</span>.<span class="number">0</span> {
-        <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>, <span class="comment">// if no eventID we can&#39;t really sample so keep everything</span>
+        <span class="comment">// if no eventID we can&#39;t really do sampling so do not take a decision</span>
+        <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">SamplingResult</span>::<span class="ident">NoDecision</span>,
         <span class="prelude-val">Some</span>(<span class="ident">EventId</span>(<span class="ident">id</span>)) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">id</span>,
     };
 
     <span class="kw">let</span> <span class="ident">ty</span> <span class="op">=</span> <span class="ident">rule_type_for_event</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>);
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rule</span>) <span class="op">=</span> <span class="ident">get_matching_event_rule</span>(<span class="ident">sampling_config</span>, <span class="ident">event</span>, <span class="ident">ip_addr</span>, <span class="ident">ty</span>) {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">random_number</span>) <span class="op">=</span> <span class="ident">pseudo_random_from_uuid</span>(<span class="ident">event_id</span>) {
-            <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">rule</span>.<span class="ident">sample_rate</span> <span class="op">&gt;</span> <span class="ident">random_number</span>);
+            <span class="kw">if</span> <span class="ident">random_number</span> <span class="op">&lt;</span> <span class="ident">rule</span>.<span class="ident">sample_rate</span> {
+                <span class="kw">return</span> <span class="ident">SamplingResult</span>::<span class="ident">Keep</span>;
+            }
+            <span class="kw">return</span> <span class="ident">SamplingResult</span>::<span class="ident">Drop</span>(<span class="ident">rule</span>.<span class="ident">id</span>);
         }
     }
-    <span class="prelude-val">None</span> <span class="comment">// if no matching rule there is not enough info to make a decision</span>
+    <span class="comment">// if there are no matching rules there is not enough info to make a sampling decision</span>
+    <span class="ident">SamplingResult</span>::<span class="ident">NoDecision</span>
 }
 
 <span class="doccomment">/// Takes an envelope and potentially removes the transaction item from it if that</span>
@@ -247,7 +357,7 @@
 }
 
 <span class="doccomment">/// Check if we should remove transactions from this envelope (because of trace sampling) and</span>
-<span class="doccomment">/// return what is left of the envelope</span>
+<span class="doccomment">/// return what is left of the envelope.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sample_transaction</span>(
     <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
     <span class="ident">project</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">Project</span><span class="op">&gt;</span><span class="op">&gt;</span>,
@@ -298,6 +408,78 @@
                 ))
             });
         <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">fut</span>) <span class="kw">as</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">project</span>::<span class="ident">ProjectConfig</span>;
+    <span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">EventType</span>;
+    <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">types</span>::<span class="ident">Annotated</span>;
+    <span class="kw">use</span> <span class="ident">relay_sampling</span>::<span class="ident">SamplingConfig</span>;
+    <span class="kw">use</span> <span class="ident">smallvec</span>::<span class="ident">SmallVec</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::<span class="ident">Instant</span>;
+
+    <span class="kw">fn</span> <span class="ident">get_project_state</span>(<span class="ident">sample_rate</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProjectState</span> {
+        <span class="kw">let</span> <span class="ident">sampling_config_str</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">sample_rate</span>) <span class="op">=</span> <span class="ident">sample_rate</span> {
+            <span class="macro">format</span><span class="macro">!</span>(
+                <span class="string">r#&quot;{{
+                &quot;rules&quot;:[{{
+                    &quot;condition&quot;: {{ &quot;op&quot;: &quot;and&quot;, &quot;inner&quot;:[]}},
+                    &quot;sampleRate&quot;: {},
+                    &quot;type&quot;: &quot;error&quot;,
+                    &quot;id&quot;: 1
+                }}]
+            }}&quot;#</span>,
+                <span class="ident">sample_rate</span>
+            )
+        } <span class="kw">else</span> {
+            <span class="string">&quot;{\&quot;rules\&quot;:[]}&quot;</span>.<span class="ident">to_owned</span>()
+        };
+        <span class="kw">let</span> <span class="ident">sampling_config</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">from_str</span>::<span class="op">&lt;</span><span class="ident">SamplingConfig</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">sampling_config_str</span>).<span class="ident">ok</span>();
+
+        <span class="ident">ProjectState</span> {
+            <span class="ident">project_id</span>: <span class="prelude-val">None</span>,
+            <span class="ident">disabled</span>: <span class="bool-val">false</span>,
+            <span class="ident">public_keys</span>: <span class="ident">SmallVec</span>::<span class="ident">new</span>(),
+            <span class="ident">slug</span>: <span class="prelude-val">None</span>,
+            <span class="ident">config</span>: <span class="ident">ProjectConfig</span> {
+                <span class="ident">dynamic_sampling</span>: <span class="ident">sampling_config</span>,
+                ..<span class="ident">ProjectConfig</span>::<span class="ident">default</span>()
+            },
+            <span class="ident">organization_id</span>: <span class="prelude-val">None</span>,
+            <span class="ident">last_change</span>: <span class="prelude-val">None</span>,
+            <span class="ident">last_fetch</span>: <span class="ident">Instant</span>::<span class="ident">now</span>(),
+            <span class="ident">invalid</span>: <span class="bool-val">false</span>,
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="doccomment">/// Should_keep_event returns the expected results.</span>
+    <span class="kw">fn</span> <span class="ident">test_should_keep_event</span>() {
+        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event</span> {
+            <span class="ident">id</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">EventId</span>::<span class="ident">new</span>()),
+            <span class="ident">ty</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">EventType</span>::<span class="ident">Error</span>),
+            ..<span class="ident">Event</span>::<span class="ident">default</span>()
+        };
+
+        <span class="kw">let</span> <span class="ident">proj_state</span> <span class="op">=</span> <span class="ident">get_project_state</span>(<span class="prelude-val">Some</span>(<span class="number">0.0</span>));
+
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+            <span class="ident">SamplingResult</span>::<span class="ident">Drop</span>(<span class="ident">RuleId</span>(<span class="number">1</span>)),
+            <span class="ident">should_keep_event</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="ident">proj_state</span>, <span class="bool-val">true</span>)
+        );
+        <span class="kw">let</span> <span class="ident">proj_state</span> <span class="op">=</span> <span class="ident">get_project_state</span>(<span class="prelude-val">Some</span>(<span class="number">1.0</span>));
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+            <span class="ident">SamplingResult</span>::<span class="ident">Keep</span>,
+            <span class="ident">should_keep_event</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="ident">proj_state</span>, <span class="bool-val">true</span>)
+        );
+        <span class="kw">let</span> <span class="ident">proj_state</span> <span class="op">=</span> <span class="ident">get_project_state</span>(<span class="prelude-val">None</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+            <span class="ident">SamplingResult</span>::<span class="ident">NoDecision</span>,
+            <span class="ident">should_keep_event</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="ident">proj_state</span>, <span class="bool-val">true</span>)
+        );
     }
 }
 </pre></div>

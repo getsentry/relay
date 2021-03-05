@@ -8,5 +8,5 @@ implementors["relay_general"] = [{"text":"impl StructuralEq for MultipleRule","s
 implementors["relay_log"] = [{"text":"impl StructuralEq for LogFormat","synthetic":false,"types":[]}];
 implementors["relay_quotas"] = [{"text":"impl StructuralEq for QuotaScope","synthetic":false,"types":[]},{"text":"impl StructuralEq for ReasonCode","synthetic":false,"types":[]},{"text":"impl StructuralEq for RetryAfter","synthetic":false,"types":[]},{"text":"impl StructuralEq for RateLimitScope","synthetic":false,"types":[]}];
 implementors["relay_redis"] = [{"text":"impl StructuralEq for RedisConfig","synthetic":false,"types":[]}];
-implementors["relay_sampling"] = [{"text":"impl StructuralEq for RuleType","synthetic":false,"types":[]}];
+implementors["relay_sampling"] = [{"text":"impl StructuralEq for RuleType","synthetic":false,"types":[]},{"text":"impl StructuralEq for RuleId","synthetic":false,"types":[]}];
 if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

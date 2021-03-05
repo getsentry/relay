@@ -626,6 +626,9 @@
 <span id="623">623</span>
 <span id="624">624</span>
 <span id="625">625</span>
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module contains the actor that tracks event outcomes.</span>
 <span class="doccomment">//!</span>
@@ -651,6 +654,7 @@
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">protocol</span>::<span class="ident">EventId</span>;
 <span class="kw">use</span> <span class="ident">relay_log</span>::<span class="ident">LogError</span>;
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">ReasonCode</span>, <span class="ident">Scoping</span>};
+<span class="kw">use</span> <span class="ident">relay_sampling</span>::<span class="ident">RuleId</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">upstream</span>::<span class="ident">SendQuery</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">upstream</span>::{<span class="ident">UpstreamQuery</span>, <span class="ident">UpstreamRelay</span>};
@@ -732,6 +736,9 @@
     <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>), <span class="ident">allow</span>(<span class="ident">dead_code</span>))]</span>
     <span class="ident">Filtered</span>(<span class="ident">FilterStatKey</span>),
 
+    <span class="doccomment">/// The event has been filtered by a Sampling Rule</span>
+    <span class="ident">FilteredSampling</span>(<span class="ident">RuleId</span>),
+
     <span class="doccomment">/// The event has been rate limited.</span>
     <span class="ident">RateLimited</span>(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ReasonCode</span><span class="op">&gt;</span>),
 
@@ -747,19 +754,23 @@
     <span class="kw">fn</span> <span class="ident">to_outcome_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u8</span> {
         <span class="kw">match</span> <span class="self">self</span> {
             <span class="ident">Outcome</span>::<span class="ident">Accepted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="number">0</span>,
-            <span class="ident">Outcome</span>::<span class="ident">Filtered</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="number">1</span>,
+            <span class="ident">Outcome</span>::<span class="ident">Filtered</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">Outcome</span>::<span class="ident">FilteredSampling</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="number">1</span>,
             <span class="ident">Outcome</span>::<span class="ident">RateLimited</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="number">2</span>,
             <span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="number">3</span>,
             <span class="ident">Outcome</span>::<span class="ident">Abuse</span> <span class="op">=</span><span class="op">&gt;</span> <span class="number">4</span>,
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">to_reason</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">to_reason</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="self">self</span> {
             <span class="ident">Outcome</span>::<span class="ident">Accepted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-            <span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">discard_reason</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">discard_reason</span>.<span class="ident">name</span>()),
-            <span class="ident">Outcome</span>::<span class="ident">Filtered</span>(<span class="ident">filter_key</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">filter_key</span>.<span class="ident">name</span>()),
-            <span class="ident">Outcome</span>::<span class="ident">RateLimited</span>(<span class="ident">code_opt</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">code_opt</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">code</span><span class="op">|</span> <span class="ident">code</span>.<span class="ident">as_str</span>()),
+            <span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">discard_reason</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Cow</span>::<span class="ident">Borrowed</span>(<span class="ident">discard_reason</span>.<span class="ident">name</span>())),
+            <span class="ident">Outcome</span>::<span class="ident">Filtered</span>(<span class="ident">filter_key</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Cow</span>::<span class="ident">Borrowed</span>(<span class="ident">filter_key</span>.<span class="ident">name</span>())),
+            <span class="ident">Outcome</span>::<span class="ident">FilteredSampling</span>(<span class="ident">rule_id</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Sampled:{}&quot;</span>, <span class="ident">rule_id</span>))),
+            <span class="comment">//TODO can we do better ? (not re copying the string )</span>
+            <span class="ident">Outcome</span>::<span class="ident">RateLimited</span>(<span class="ident">code_opt</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">code_opt</span>
+                .<span class="ident">as_ref</span>()
+                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">code</span><span class="op">|</span> <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">code</span>.<span class="ident">as_str</span>().<span class="ident">into</span>())),
             <span class="ident">Outcome</span>::<span class="ident">Abuse</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
         }
     }
@@ -868,10 +879,6 @@
     <span class="doccomment">/// [Relay] The envelope, which contained only a transaction, was discarded by the</span>
     <span class="doccomment">/// dynamic sampling rules.</span>
     <span class="ident">TransactionSampled</span>,
-
-    <span class="doccomment">/// [Relay] The envelope, which contained an event, was discarded by the</span>
-    <span class="doccomment">/// dynamic sampling rules.</span>
-    <span class="ident">EventSampled</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">DiscardReason</span> {
@@ -905,7 +912,6 @@
             <span class="ident">DiscardReason</span>::<span class="ident">NoEventPayload</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;no_event_payload&quot;</span>,
             <span class="ident">DiscardReason</span>::<span class="ident">Internal</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;internal&quot;</span>,
             <span class="ident">DiscardReason</span>::<span class="ident">TransactionSampled</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;transaction_sampled&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">EventSampled</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_sampled&quot;</span>,
             <span class="ident">DiscardReason</span>::<span class="ident">EmptyEnvelope</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;empty_envelope&quot;</span>,
         }
     }
