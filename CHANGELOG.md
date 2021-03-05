@@ -19,6 +19,7 @@
 - Add inbound filters functionality to dynamic sampling rules. ([#920](https://github.com/getsentry/relay/pull/920))
 - The undocumented `http._client` option has been removed. ([#938](https://github.com/getsentry/relay/pull/938))
 - Log old events and sessions in the `requests.timestamp_delay` metric. ([#933](https://github.com/getsentry/relay/pull/933))
+- Add rule id to outcomes coming from event sampling. ([#943](https://github.com/getsentry/relay/pull/943))
 
 ## 21.2.0
 
