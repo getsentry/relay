@@ -23,29 +23,27 @@ impl FromValue for Measurements {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         let mut processing_errors = Vec::new();
 
-        let mut measurements = Object::<Measurement>::from_value(value).map_value(
-            |measurements: Object<Measurement>| {
-                let measurements = measurements
-                    .into_iter()
-                    .filter_map(|(name, object)| {
-                        let name = name.trim();
+        let mut measurements = Object::from_value(value).map_value(|measurements| {
+            let measurements = measurements
+                .into_iter()
+                .filter_map(|(name, object)| {
+                    let name = name.trim();
 
-                        if is_valid_measurement_name(name) {
-                            return Some((name.to_lowercase(), object));
-                        } else {
-                            processing_errors.push(Error::invalid(format!(
-                                "measurement name '{}' can contain only characters a-z0-9.-_",
-                                name
-                            )));
-                        }
+                    if is_valid_measurement_name(name) {
+                        return Some((name.to_lowercase(), object));
+                    } else {
+                        processing_errors.push(Error::invalid(format!(
+                            "measurement name '{}' can contain only characters a-z0-9.-_",
+                            name
+                        )));
+                    }
 
-                        None
-                    })
-                    .collect();
+                    None
+                })
+                .collect();
 
-                Self(measurements)
-            },
-        );
+            Self(measurements)
+        });
 
         for error in processing_errors {
             measurements.meta_mut().add_error(error);
