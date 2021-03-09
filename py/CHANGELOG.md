@@ -1,9 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.8.4
 
 - Deny backslashes in release names. ([#904](https://github.com/getsentry/relay/pull/904))
 - Remove dependencies on `openssl` and `zlib`. ([#914](https://github.com/getsentry/relay/pull/914))
+- Fix `and` and `or` operators in PII selectors on fields declaring `pii=maybe`. ([#932](https://github.com/getsentry/relay/pull/932))
+- Enable PII stripping on `user.username`. ([#935](https://github.com/getsentry/relay/pull/935))
+- Expose dynamic rule condition validation. ([#941](https://github.com/getsentry/relay/pull/941))
 
 ## 0.8.3
 

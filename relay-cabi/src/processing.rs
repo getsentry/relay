@@ -14,6 +14,7 @@ use relay_general::processor::{process_value, split_chunks, ProcessingState};
 use relay_general::protocol::{Event, VALID_PLATFORMS};
 use relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
 use relay_general::types::{Annotated, Remark};
+use relay_sampling::{RuleCondition, SamplingConfig};
 
 use crate::core::{RelayBuf, RelayStr};
 
@@ -219,4 +220,40 @@ pub unsafe extern "C" fn relay_is_glob_match(
 pub unsafe extern "C" fn relay_parse_release(value: *const RelayStr) -> RelayStr {
     let release = sentry_release_parser::Release::parse((*value).as_str())?;
     RelayStr::from_string(serde_json::to_string(&release)?)
+}
+
+/// Validate a sampling rule condition.
+#[no_mangle]
+#[relay_ffi::catch_unwind]
+pub unsafe extern "C" fn relay_validate_sampling_condition(value: *const RelayStr) -> RelayStr {
+    let ret_val = match serde_json::from_str::<RuleCondition>((*value).as_str()) {
+        Ok(condition) => {
+            if condition.supported() {
+                "".to_string()
+            } else {
+                "unsupported condition".to_string()
+            }
+        }
+        Err(e) => e.to_string(),
+    };
+    RelayStr::from_string(ret_val)
+}
+
+/// Validate whole rule ( this will be also implemented in Sentry for better error messages)
+/// The implementation in relay is just to make sure that the Sentry implementation doesn't
+/// go out of sync.
+#[no_mangle]
+#[relay_ffi::catch_unwind]
+pub unsafe extern "C" fn relay_validate_sampling_configuration(value: *const RelayStr) -> RelayStr {
+    match serde_json::from_str::<SamplingConfig>((*value).as_str()) {
+        Ok(config) => {
+            for rule in config.rules {
+                if !rule.condition.supported() {
+                    return Ok(RelayStr::new("unsupported sampling rule"));
+                }
+            }
+            RelayStr::default()
+        }
+        Err(e) => RelayStr::from_string(e.to_string()),
+    }
 }
