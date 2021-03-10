@@ -65,8 +65,8 @@ pub struct ProjectConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dynamic_sampling: Option<SamplingConfig>,
     /// Configuration for operation breakdown. Will be emitted only if present.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub operation_name_breakdown: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub operation_name_breakdown: Vec<String>,
 }
 
 impl Default for ProjectConfig {
