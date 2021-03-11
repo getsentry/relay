@@ -96,7 +96,6 @@ mod tests {
             "spider ",
             "spider;",
             "spider)",
-            "Slack",
             "Calypso AppCrawler",
             "pingdom",
             "lyticsbot",
