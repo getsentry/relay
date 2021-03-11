@@ -46,7 +46,7 @@ lazy_static! {
         ia_archiver|                # Alexa
         bots?[/\s\);]|              # Generic bot
         spider[/\s\);]|             # Generic spider
-        Slack|                      # Slack - see https://api.slack.com/robots
+        Slack(?:bot)?-|             # Slack - see https://api.slack.com/robots
         Calypso\sAppCrawler|        # Google indexing bot
         pingdom|                    # Pingdom
         lyticsbot|                  # Lytics
@@ -104,7 +104,6 @@ mod tests {
             "Mozilla/5.0 (Linux; Android 6.0.1; Calypso AppCrawler Build/MMB30Y; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/53.0.2785.124 Mobile Safari/537.36",
             "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)",
             "Slack-ImgProxy 0.19 (+https://api.slack.com/robots)",
-            "Slackbot 1.0(+https://api.slack.com/robots)",
             "Twitterbot/1.0",
             "FeedFetcher-Google; (+http://www.google.com/feedfetcher.html)",
             "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
@@ -134,6 +133,7 @@ mod tests {
             "safari",
             "APIs-Google (+https://developers.google.com/webmasters/APIs-Google.html)",
             "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36",
+            "Slackbot 1.0(+https://api.slack.com/robots)",
         ];
         for user_agent in &normal_user_agents {
             let event = testutils::get_event_with_user_agent(user_agent);
