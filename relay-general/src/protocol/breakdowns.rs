@@ -13,6 +13,9 @@ type BreakdownName = String;
 
 /// Represents the breakdown configuration for a project.
 /// Generate a named (key) breakdown (value).
+///
+/// Breakdowns are product-defined numbers that are indirectly reported by the client, and are materialized
+/// during ingestion.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BreakdownsConfig(pub HashMap<BreakdownName, BreakdownConfig>);
 
