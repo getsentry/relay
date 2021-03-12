@@ -106,8 +106,11 @@ impl<'a> NormalizeProcessor<'a> {
     }
 
     /// Ensure measurements interface is only present for transaction events, and emit operation breakdown measurements
-    fn normalize_measurements(&self, event: &mut Event, breakdowns: &Option<Vec<String>>) {
-        measurements::normalize_measurements(event, breakdowns);
+    fn normalize_measurements(&self, event: &mut Event) {
+        if event.ty.value() != Some(&EventType::Transaction) {
+            // Only transaction events may have a measurements interface
+            event.measurements = Annotated::empty();
+        }
     }
 
     /// Ensures that the `release` and `dist` fields match up.
@@ -490,7 +493,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         self.normalize_event_tags(event)?;
         self.normalize_exceptions(event)?;
         self.normalize_user_agent(event);
-        self.normalize_measurements(event, &self.config.breakdowns);
+        self.normalize_measurements(event);
 
         Ok(())
     }
