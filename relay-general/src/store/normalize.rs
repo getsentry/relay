@@ -105,7 +105,7 @@ impl<'a> NormalizeProcessor<'a> {
         })
     }
 
-    /// Ensure measurements interface is only present for transaction events, and emit operation breakdown measurements
+    /// Ensure measurements interface is only present for transaction events
     fn normalize_measurements(&self, event: &mut Event) {
         if event.ty.value() != Some(&EventType::Transaction) {
             // Only transaction events may have a measurements interface
