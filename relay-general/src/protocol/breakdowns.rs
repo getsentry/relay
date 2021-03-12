@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
-use crate::types::{Annotated, Error, FromValue, Object, Value};
 use crate::protocol::Measurements;
+use crate::types::{Annotated, Error, FromValue, Object, Value};
 
 /// Configuration to define breakdown to be generated based on properties and breakdown type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
