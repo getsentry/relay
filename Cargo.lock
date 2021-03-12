@@ -3230,6 +3230,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-metrics"
+version = "21.2.0"
+dependencies = [
+ "relay-common",
+]
+
+[[package]]
 name = "relay-quotas"
 version = "21.2.0"
 dependencies = [
@@ -3304,6 +3311,7 @@ dependencies = [
  "relay-filter",
  "relay-general",
  "relay-log",
+ "relay-metrics",
  "relay-quotas",
  "relay-redis",
  "relay-sampling",

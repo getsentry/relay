@@ -1,0 +1,13 @@
+[package]
+name = "relay-metrics"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Metrics protocol and processing"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "21.2.0"
+edition = "2018"
+license-file = "../LICENSE"
+publish = false
+
+[dependencies]
+relay-common = { path = "../relay-common" }
