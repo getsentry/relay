@@ -14,6 +14,7 @@ use relay_common::{metric, ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
+use relay_general::protocol::BreakdownsConfig;
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 
@@ -66,7 +67,7 @@ pub struct ProjectConfig {
     pub dynamic_sampling: Option<SamplingConfig>,
     /// Configuration for operation breakdown. Will be emitted only if present.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub breakdowns: Option<Vec<String>>,
+    pub breakdowns: Option<BreakdownsConfig>,
 }
 
 impl Default for ProjectConfig {

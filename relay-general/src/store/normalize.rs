@@ -106,11 +106,7 @@ impl<'a> NormalizeProcessor<'a> {
     }
 
     /// Ensure measurements interface is only present for transaction events, and emit operation breakdown measurements
-    fn normalize_measurements(
-        &self,
-        event: &mut Event,
-        breakdowns: &Option<Vec<String>>,
-    ) {
+    fn normalize_measurements(&self, event: &mut Event, breakdowns: &Option<Vec<String>>) {
         measurements::normalize_measurements(event, breakdowns);
     }
 
