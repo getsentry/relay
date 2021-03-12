@@ -2,14 +2,55 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
+use crate::protocol::{Event, Measurement, Measurements};
 use crate::types::{Annotated, Error, FromValue, Object, Value};
-use crate::protocol::Measurements;
 
 /// Configuration to define breakdown to be generated based on properties and breakdown type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum BreakdownConfig {
     SpanOp { matches: Vec<String> },
+}
+
+impl BreakdownConfig {
+    pub fn parse_event(&self, event: &Event) -> Measurements {
+        let breakdown = Measurements({
+            let mut measurements = Object::new();
+            measurements.insert(
+                "lcp".to_owned(),
+                Annotated::new(Measurement {
+                    value: Annotated::new(420.69),
+                }),
+            );
+            measurements.insert(
+                "ops.time.http".to_owned(),
+                Annotated::new(Measurement {
+                    // 1 hour in milliseconds
+                    value: Annotated::new(3_600_000.0),
+                }),
+            );
+
+            measurements.insert(
+                "ops.time.db".to_owned(),
+                Annotated::new(Measurement {
+                    // 2 hours in milliseconds
+                    value: Annotated::new(7_200_000.0),
+                }),
+            );
+
+            measurements.insert(
+                "ops.total.time".to_owned(),
+                Annotated::new(Measurement {
+                    // 4 hours and 10 microseconds in milliseconds
+                    value: Annotated::new(14_400_000.01),
+                }),
+            );
+
+            measurements
+        });
+
+        breakdown
+    }
 }
 
 type BreakdownName = String;
@@ -44,6 +85,13 @@ impl DerefMut for BreakdownsConfig {
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Breakdowns(pub Object<Measurements>);
 
+impl Breakdowns {
+    pub fn is_valid_breakdown_name(name: &str) -> bool {
+        name.chars()
+            .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.'))
+    }
+}
+
 impl FromValue for Breakdowns {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         let mut processing_errors = Vec::new();
@@ -54,7 +102,7 @@ impl FromValue for Breakdowns {
                 .filter_map(|(name, object)| {
                     let name = name.trim();
 
-                    if is_valid_breakdown_name(name) {
+                    if Breakdowns::is_valid_breakdown_name(name) {
                         return Some((name.into(), object));
                     } else {
                         processing_errors.push(Error::invalid(format!(
@@ -76,9 +124,4 @@ impl FromValue for Breakdowns {
 
         breakdowns
     }
-}
-
-fn is_valid_breakdown_name(name: &str) -> bool {
-    name.chars()
-        .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.'))
 }
