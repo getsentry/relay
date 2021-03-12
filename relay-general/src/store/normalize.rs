@@ -109,9 +109,9 @@ impl<'a> NormalizeProcessor<'a> {
     fn normalize_measurements(
         &self,
         event: &mut Event,
-        operation_name_breakdown: &Option<Vec<String>>,
+        breakdowns: &Option<Vec<String>>,
     ) {
-        measurements::normalize_measurements(event, operation_name_breakdown);
+        measurements::normalize_measurements(event, breakdowns);
     }
 
     /// Ensures that the `release` and `dist` fields match up.
@@ -494,7 +494,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         self.normalize_event_tags(event)?;
         self.normalize_exceptions(event)?;
         self.normalize_user_agent(event);
-        self.normalize_measurements(event, &self.config.operation_name_breakdown);
+        self.normalize_measurements(event, &self.config.breakdowns);
 
         Ok(())
     }

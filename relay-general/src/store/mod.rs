@@ -50,9 +50,8 @@ pub struct StoreConfig {
     /// When `true` it adds context information extracted from the user agent
     pub normalize_user_agent: Option<bool>,
 
-    /// Emit operation breakdown as measurements for any span operations that match the given list.
-    /// A span's operation matches if it starts with any entry.
-    pub operation_name_breakdown: Option<Vec<String>>,
+    /// Emit breakdowns based on given configuration.
+    pub breakdowns: Option<Vec<String>>,
 }
 
 /// The processor that normalizes events for store.

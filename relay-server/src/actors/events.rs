@@ -962,7 +962,7 @@ impl EventProcessor {
             normalize_user_agent: Some(true),
             sent_at: envelope.sent_at(),
             received_at: Some(received_at),
-            operation_name_breakdown: project_state.config.operation_name_breakdown.clone(),
+            breakdowns: project_state.config.breakdowns.clone(),
         };
 
         let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_deref());
