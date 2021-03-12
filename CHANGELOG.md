@@ -17,11 +17,11 @@
 
 - Emit the `category` field for outcomes of events. This field disambiguates error events, security events and transactions. As a side-effect, Relay no longer emits outcomes for broken JSON payloads or network errors. ([#931](https://github.com/getsentry/relay/pull/931))
 - Add inbound filters functionality to dynamic sampling rules. ([#920](https://github.com/getsentry/relay/pull/920))
-- Emit operation name breakdowns for transactions. ([#934](https://github.com/getsentry/relay/pull/934))
 - The undocumented `http._client` option has been removed. ([#938](https://github.com/getsentry/relay/pull/938))
 - Log old events and sessions in the `requests.timestamp_delay` metric. ([#933](https://github.com/getsentry/relay/pull/933))
 - Add rule id to outcomes coming from event sampling. ([#943](https://github.com/getsentry/relay/pull/943))
 - Fix a bug in rate limiting that leads to accepting all events in the last second of a rate limiting window, regardless of whether the rate limit applies. ([#946](https://github.com/getsentry/relay/pull/946))
+- Add support for breakdowns ingestion. ([#934](https://github.com/getsentry/relay/pull/934))
 
 ## 21.2.0
 
