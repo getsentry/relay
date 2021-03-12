@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
-use crate::protocol::Measurements;
 use crate::types::{Annotated, Error, FromValue, Object, Value};
+use crate::protocol::Measurements;
 
 /// Configuration to define breakdown to be generated based on properties and breakdown type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,7 +55,7 @@ impl FromValue for Breakdowns {
                     let name = name.trim();
 
                     if is_valid_breakdown_name(name) {
-                        return Some((name.to_lowercase(), object));
+                        return Some((name.into(), object));
                     } else {
                         processing_errors.push(Error::invalid(format!(
                             "breakdown name '{}' can contain only characters a-z0-9.-_",
