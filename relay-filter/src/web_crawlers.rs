@@ -11,7 +11,7 @@ use crate::{FilterConfig, FilterStatKey};
 /// Checks if the event originates from a known web crawler.
 pub fn matches(event: &Event) -> bool {
     if let Some(user_agent) = user_agent::get_user_agent(event) {
-        WEB_CRAWLERS.is_match(user_agent)
+        !ALLOWED_WEB_CRAWLERS.is_match(user_agent) && WEB_CRAWLERS.is_match(user_agent)
     } else {
         false
     }
@@ -46,7 +46,7 @@ lazy_static! {
         ia_archiver|                # Alexa
         bots?[/\s\);]|              # Generic bot
         spider[/\s\);]|             # Generic spider
-        Slack(?:bot)?-|             # Slack - see https://api.slack.com/robots
+        Slack|                      # Slack - see https://api.slack.com/robots
         Calypso\sAppCrawler|        # Google indexing bot
         pingdom|                    # Pingdom
         lyticsbot|                  # Lytics
@@ -57,6 +57,13 @@ lazy_static! {
     "#
     )
     .expect("Invalid web crawlers filter Regex");
+
+    static ref ALLOWED_WEB_CRAWLERS: Regex = Regex::new(
+        r#"(?ix)
+        Slackbot\s1\.\d+             # Slack - see https://api.slack.com/robots
+    "#
+    )
+    .expect("Invalid allowed web crawlers filter Regex");
 }
 
 #[cfg(test)]
