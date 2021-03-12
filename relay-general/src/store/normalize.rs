@@ -21,9 +21,9 @@ use crate::types::{
     ProcessingResult, Value,
 };
 
+mod breakdowns;
 mod contexts;
 mod logentry;
-mod measurements;
 mod mechanism;
 mod request;
 mod stacktrace;
@@ -110,6 +110,14 @@ impl<'a> NormalizeProcessor<'a> {
         if event.ty.value() != Some(&EventType::Transaction) {
             // Only transaction events may have a measurements interface
             event.measurements = Annotated::empty();
+        }
+    }
+
+    /// Emit any breakdowns
+    fn normalize_breakdowns(&self, event: &mut Event) {
+        match self.config.breakdowns.clone() {
+            None => return,
+            Some(breakdowns_config) => breakdowns::normalize_breakdowns(event, breakdowns_config),
         }
     }
 
@@ -494,6 +502,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         self.normalize_exceptions(event)?;
         self.normalize_user_agent(event);
         self.normalize_measurements(event);
+        self.normalize_breakdowns(event);
 
         Ok(())
     }

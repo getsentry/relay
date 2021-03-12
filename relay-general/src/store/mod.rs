@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::processor::{ProcessingState, Processor};
-use crate::protocol::{Event, IpAddr};
+use crate::protocol::{BreakdownsConfig, Event, IpAddr};
 use crate::types::{Meta, ProcessingResult};
 
 mod clock_drift;
@@ -51,7 +51,7 @@ pub struct StoreConfig {
     pub normalize_user_agent: Option<bool>,
 
     /// Emit breakdowns based on given configuration.
-    pub breakdowns: Option<Vec<String>>,
+    pub breakdowns: Option<BreakdownsConfig>,
 }
 
 /// The processor that normalizes events for store.
