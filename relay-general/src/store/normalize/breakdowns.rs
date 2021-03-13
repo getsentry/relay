@@ -1,6 +1,7 @@
 //! Contains the breakdowns normalization code
 //!
 //! This module is responsible for generating breakdowns for events, such as span operation breakdowns.
+
 use crate::protocol::{Breakdowns, BreakdownsConfig, Event, Measurements};
 use crate::types::Annotated;
 
