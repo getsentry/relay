@@ -1,9 +1,7 @@
 //! Contains the breakdowns normalization code
 //!
 //! This module is responsible for generating breakdowns for events, such as span operation breakdowns.
-use crate::protocol::{
-    Breakdowns, BreakdownsConfig, Event, EventType, Measurement, Measurements, Timestamp,
-};
+use crate::protocol::{Breakdowns, BreakdownsConfig, Event};
 use crate::types::Annotated;
 
 pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: &BreakdownsConfig) {
@@ -16,7 +14,10 @@ pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: &BreakdownsCon
             continue;
         }
 
-        let breakdown = breakdown_config.parse_event(event);
+        let breakdown = match breakdown_config.parse_event(event) {
+            None => continue,
+            Some(breakdown) => breakdown,
+        };
 
         if breakdown.is_empty() {
             continue;
