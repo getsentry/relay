@@ -6,7 +6,7 @@ use crate::protocol::{
 };
 use crate::types::Annotated;
 
-pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: BreakdownsConfig) {
+pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: &BreakdownsConfig) {
     if breakdowns_config.is_empty() {
         return;
     }
