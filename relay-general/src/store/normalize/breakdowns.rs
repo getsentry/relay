@@ -60,17 +60,14 @@ mod tests {
     #[test]
     fn test_noop_breakdowns_with_empty_config() {
         let breakdowns = Breakdowns({
-            let span_ops_breakdown = Measurements({
-                let mut measurements = Object::new();
-                measurements.insert(
-                    "lcp".to_owned(),
-                    Annotated::new(Measurement {
-                        value: Annotated::new(420.69),
-                    }),
-                );
+            let mut span_ops_breakdown = Measurements::default();
 
-                measurements
-            });
+            span_ops_breakdown.insert(
+                "lcp".to_owned(),
+                Annotated::new(Measurement {
+                    value: Annotated::new(420.69),
+                }),
+            );
 
             let mut breakdowns = Object::new();
             breakdowns.insert("span_ops".to_owned(), Annotated::new(span_ops_breakdown));
@@ -139,17 +136,14 @@ mod tests {
             ty: EventType::Transaction.into(),
             spans: spans.into(),
             breakdowns: Breakdowns({
-                let span_ops_breakdown = Measurements({
-                    let mut measurements = Object::new();
-                    measurements.insert(
-                        "lcp".to_owned(),
-                        Annotated::new(Measurement {
-                            value: Annotated::new(420.69),
-                        }),
-                    );
+                let mut span_ops_breakdown = Measurements::default();
 
-                    measurements
-                });
+                span_ops_breakdown.insert(
+                    "lcp".to_owned(),
+                    Annotated::new(Measurement {
+                        value: Annotated::new(420.69),
+                    }),
+                );
 
                 let mut breakdowns = Object::new();
                 breakdowns.insert("span_ops".to_owned(), Annotated::new(span_ops_breakdown));
@@ -167,7 +161,8 @@ mod tests {
                 matches: vec!["http".to_string(), "db".to_string()],
             });
 
-            config.insert("span_ops".to_string(), span_ops_config);
+            config.insert("span_ops".to_string(), span_ops_config.clone());
+            config.insert("span_ops_2".to_string(), span_ops_config);
 
             config
         });
@@ -175,42 +170,44 @@ mod tests {
         normalize_breakdowns(&mut event, &breakdowns_config);
 
         let expected_breakdowns = Breakdowns({
-            let span_ops_breakdown = Measurements({
-                let mut measurements = Object::new();
-                measurements.insert(
-                    "lcp".to_owned(),
-                    Annotated::new(Measurement {
-                        value: Annotated::new(420.69),
-                    }),
-                );
-                measurements.insert(
-                    "ops.time.http".to_owned(),
-                    Annotated::new(Measurement {
-                        // 1 hour in milliseconds
-                        value: Annotated::new(3_600_000.0),
-                    }),
-                );
+            let mut span_ops_breakdown = Measurements::default();
 
-                measurements.insert(
-                    "ops.time.db".to_owned(),
-                    Annotated::new(Measurement {
-                        // 2 hours in milliseconds
-                        value: Annotated::new(7_200_000.0),
-                    }),
-                );
+            span_ops_breakdown.insert(
+                "ops.time.http".to_owned(),
+                Annotated::new(Measurement {
+                    // 1 hour in milliseconds
+                    value: Annotated::new(3_600_000.0),
+                }),
+            );
 
-                measurements.insert(
-                    "ops.total.time".to_owned(),
-                    Annotated::new(Measurement {
-                        // 4 hours and 10 microseconds in milliseconds
-                        value: Annotated::new(14_400_000.01),
-                    }),
-                );
+            span_ops_breakdown.insert(
+                "ops.time.db".to_owned(),
+                Annotated::new(Measurement {
+                    // 2 hours in milliseconds
+                    value: Annotated::new(7_200_000.0),
+                }),
+            );
 
-                measurements
-            });
+            span_ops_breakdown.insert(
+                "ops.total.time".to_owned(),
+                Annotated::new(Measurement {
+                    // 4 hours and 10 microseconds in milliseconds
+                    value: Annotated::new(14_400_000.01),
+                }),
+            );
 
             let mut breakdowns = Object::new();
+            breakdowns.insert(
+                "span_ops_2".to_owned(),
+                Annotated::new(span_ops_breakdown.clone()),
+            );
+
+            span_ops_breakdown.insert(
+                "lcp".to_owned(),
+                Annotated::new(Measurement {
+                    value: Annotated::new(420.69),
+                }),
+            );
             breakdowns.insert("span_ops".to_owned(), Annotated::new(span_ops_breakdown));
 
             breakdowns

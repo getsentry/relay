@@ -154,7 +154,11 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
             "span_ops": {
                 "type": "spanOperations",
                 "matches": ["http", "db", "browser", "resource"],
-            }
+            },
+            "span_ops_2": {
+                "type": "spanOperations",
+                "matches": ["http", "db", "browser", "resource"],
+            },
         },
     )
 
@@ -228,7 +232,12 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
             "ops.time.http": {"value": 2000000.0},
             "ops.time.resource": {"value": 100001.003},
             "ops.total.time": {"value": 2200001.003},
-        }
+        },
+        "span_ops_2": {
+            "ops.time.http": {"value": 2000000.0},
+            "ops.time.resource": {"value": 100001.003},
+            "ops.total.time": {"value": 2200001.003},
+        },
     }
 
 
