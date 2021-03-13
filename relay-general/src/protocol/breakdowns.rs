@@ -75,7 +75,7 @@ fn merge_intervals(mut intervals: Vec<TimeWindowSpan>) -> Vec<TimeWindowSpan> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub struct SpanOperationsConfig {
-    matches: Vec<String>,
+    pub matches: Vec<String>,
 }
 
 impl SpanOperationsConfig {
@@ -194,7 +194,7 @@ type BreakdownName = String;
 ///
 /// Breakdowns are product-defined numbers that are indirectly reported by the client, and are materialized
 /// during ingestion.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BreakdownsConfig(pub HashMap<BreakdownName, BreakdownConfig>);
 
 impl Deref for BreakdownsConfig {

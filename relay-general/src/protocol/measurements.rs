@@ -19,6 +19,12 @@ pub struct Measurement {
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Measurements(pub Object<Measurement>);
 
+impl Measurements {
+    pub fn take(self) -> Object<Measurement> {
+        self.0
+    }
+}
+
 impl FromValue for Measurements {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         let mut processing_errors = Vec::new();
