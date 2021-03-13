@@ -13,8 +13,7 @@ pub struct Measurement {
 
 /// A map of observed measurement values.
 ///
-/// Measurements are only available on transactions. They contain measurement values of observed
-/// values such as Largest Contentful Paint (LCP).
+/// They contain measurement values of observed values such as Largest Contentful Paint (LCP).
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Measurements(pub Object<Measurement>);
