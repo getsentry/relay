@@ -145,13 +145,17 @@ def test_strip_measurement_interface(
     assert "measurements" not in event, event
 
 
-def test_ops_breakdown_measurements(
-    mini_sentry, relay_with_processing, transactions_consumer
-):
+def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consumer):
     relay = relay_with_processing()
     config = mini_sentry.add_basic_project_config(42)
     config["config"].setdefault(
-        "operationNameBreakdown", ["http", "db", "browser", "resource"]
+        "breakdowns",
+        {
+            "span_ops": {
+                "type": "spanOperations",
+                "matches": ["http", "db", "browser", "resource"],
+            }
+        },
     )
 
     events_consumer = transactions_consumer()
@@ -159,7 +163,7 @@ def test_ops_breakdown_measurements(
     transaction_item = generate_transaction_item()
     transaction_item.update(
         {
-            "measurements": {"lcp": {"value": 202.1},},
+            "breakdowns": {"span_ops": {"lcp": {"value": 202.1},}},
             "spans": [
                 {
                     "description": "GET /api/0/organizations/?member=1",
@@ -217,12 +221,14 @@ def test_ops_breakdown_measurements(
     event, _ = events_consumer.get_event()
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     assert "trace" in event["contexts"]
-    assert "measurements" in event, event
-    assert event["measurements"] == {
-        "lcp": {"value": 202.1},
-        "ops.time.http": {"value": 2000000.0},
-        "ops.time.resource": {"value": 100001.003},
-        "ops.total.time": {"value": 2200001.003},
+    assert "breakdowns" in event, event
+    assert event["breakdowns"] == {
+        "span_ops": {
+            "lcp": {"value": 202.1},
+            "ops.time.http": {"value": 2000000.0},
+            "ops.time.resource": {"value": 100001.003},
+            "ops.total.time": {"value": 2200001.003},
+        }
     }
 
 
