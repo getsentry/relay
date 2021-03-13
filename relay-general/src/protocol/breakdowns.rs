@@ -5,14 +5,13 @@ use std::ops::{Deref, DerefMut};
 use crate::protocol::{Event, Measurement, Measurements};
 use crate::types::{Annotated, Error, FromValue, Object, Value};
 
-/// Configuration to define breakdown to be generated based on properties and breakdown type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum BreakdownConfig {
-    SpanOp { matches: Vec<String> },
+pub struct SpanOperationsConfig {
+    matches: Vec<String>,
 }
 
-impl BreakdownConfig {
+impl SpanOperationsConfig {
     pub fn parse_event(&self, event: &Event) -> Measurements {
         let breakdown = Measurements({
             let mut measurements = Object::new();
@@ -50,6 +49,21 @@ impl BreakdownConfig {
         });
 
         breakdown
+    }
+}
+
+/// Configuration to define breakdown to be generated based on properties and breakdown type.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum BreakdownConfig {
+    SpanOperations(SpanOperationsConfig),
+}
+
+impl BreakdownConfig {
+    pub fn parse_event(&self, event: &Event) -> Measurements {
+        match self {
+            BreakdownConfig::SpanOperations(config) => config.parse_event(event),
+        }
     }
 }
 
