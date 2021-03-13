@@ -16,8 +16,17 @@ pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: BreakdownsConf
             continue;
         }
 
-        let breakdowns = breakdown_config.parse_event(event);
+        let breakdown = breakdown_config.parse_event(event);
 
-        // TODO: implement
+        if breakdown.is_empty() {
+            continue;
+        }
+
+        let breakdowns = event
+            .breakdowns
+            .value_mut()
+            .get_or_insert_with(Breakdowns::default);
+
+        breakdowns.insert(breakdown_name.clone(), Annotated::new(breakdown));
     }
 }
