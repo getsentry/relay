@@ -41,35 +41,34 @@ fn merge_intervals(mut intervals: Vec<TimeWindowSpan>) -> Vec<TimeWindowSpan> {
     // sort by start_timestamp in ascending order
     intervals.sort_unstable_by(|a, b| a.start_timestamp.partial_cmp(&b.start_timestamp).unwrap());
 
-    intervals.into_iter().fold(
-        vec![],
-        |mut merged, current_interval| -> Vec<TimeWindowSpan> {
-            // merged is a vector of disjoint intervals
+    // merged is a vector of disjoint intervals
+    let mut merged = vec![];
 
-            if merged.is_empty() {
+    for current_interval in intervals.into_iter() {
+        let mut last_interval = match merged.last_mut() {
+            Some(last) => last,
+            None => {
                 merged.push(current_interval);
-                return merged;
+                continue;
             }
+        };
 
-            let mut last_interval = merged.last_mut().unwrap();
+        if last_interval.end_timestamp < current_interval.start_timestamp {
+            // if current_interval does not overlap with last_interval,
+            // then add current_interval
+            merged.push(current_interval);
+            continue;
+        }
 
-            if last_interval.end_timestamp < current_interval.start_timestamp {
-                // if current_interval does not overlap with last_interval,
-                // then add current_interval
-                merged.push(current_interval);
-                return merged;
-            }
+        // current_interval and last_interval overlaps; so we merge these intervals
 
-            // current_interval and last_interval overlaps; so we merge these intervals
+        // invariant: last_interval.start_timestamp <= current_interval.start_timestamp
 
-            // invariant: last_interval.start_timestamp <= current_interval.start_timestamp
+        last_interval.end_timestamp =
+            std::cmp::max(last_interval.end_timestamp, current_interval.end_timestamp);
+    }
 
-            last_interval.end_timestamp =
-                std::cmp::max(last_interval.end_timestamp, current_interval.end_timestamp);
-
-            merged
-        },
-    )
+    merged
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
