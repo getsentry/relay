@@ -30,7 +30,7 @@
 //!
 //! ```
 
-use std::borrow::{Borrow, Cow};
+use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{self, Write};
@@ -205,6 +205,14 @@ impl From<&'_ str> for ContentType {
     }
 }
 
+impl std::str::FromStr for ContentType {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(s.into())
+    }
+}
+
 impl PartialEq<str> for ContentType {
     fn eq(&self, other: &str) -> bool {
         // Take an indirection via ContentType::from_str to also check aliases. Do not allocate in
@@ -255,16 +263,7 @@ impl Serialize for ContentType {
     }
 }
 
-impl<'de> Deserialize<'de> for ContentType {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let content_type = Cow::<'_, str>::deserialize(deserializer)?;
-        Ok(Self::from_str(&content_type)
-            .unwrap_or_else(|| ContentType::Other(content_type.into_owned())))
-    }
-}
+relay_common::impl_str_de!(ContentType, "a content type string");
 
 /// The type of an event attachment.
 ///
