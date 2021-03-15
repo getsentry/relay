@@ -1,6 +1,7 @@
 //! This module contains the actor that forwards events and attachments to the Sentry store.
 //! The actor uses kafka topics to forward data to Sentry
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -10,6 +11,7 @@ use failure::{Fail, ResultExt};
 use rdkafka::error::KafkaError;
 use rdkafka::producer::BaseRecord;
 use rdkafka::ClientConfig;
+use relay_metrics::{Metric, MetricType, MetricUnit, MetricValue};
 use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
 
@@ -297,6 +299,43 @@ impl StoreForwarder {
         })
     }
 
+    fn send_metric_message(&self, message: MetricKafkaMessage) -> Result<(), StoreError> {
+        relay_log::trace!("Sending metric message to kafka");
+        self.produce(KafkaTopic::Metrics, KafkaMessage::Metric(message))?;
+        metric!(
+            counter(RelayCounters::ProcessingMessageProduced) += 1,
+            event_type = "metric"
+        );
+        Ok(())
+    }
+
+    fn produce_metrics(
+        &self,
+        org_id: u64,
+        project_id: ProjectId,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        let payload = item.payload();
+
+        // NB: Metrics are guaranteed to contain a timestamp at this point.
+        for metric_result in Metric::parse_all(&payload, UnixTimestamp::from_secs(0)) {
+            if let Ok(metric) = metric_result {
+                self.send_metric_message(MetricKafkaMessage {
+                    org_id,
+                    project_id,
+                    name: metric.name,
+                    unit: metric.unit,
+                    value: metric.value,
+                    ty: metric.ty,
+                    timestamp: metric.timestamp,
+                    tags: metric.tags,
+                })?;
+            }
+        }
+
+        Ok(())
+    }
+
     fn send_session_message(&self, message: SessionKafkaMessage) -> Result<(), StoreError> {
         relay_log::trace!("Sending session item to kafka");
         self.produce(KafkaTopic::Sessions, KafkaMessage::Session(message))?;
@@ -459,6 +498,20 @@ struct SessionKafkaMessage {
     retention_days: u16,
 }
 
+#[derive(Clone, Debug, Serialize)]
+struct MetricKafkaMessage {
+    org_id: u64,
+    project_id: ProjectId,
+    pub name: String,
+    pub unit: MetricUnit,
+    pub value: MetricValue,
+    #[serde(rename = "type")]
+    pub ty: MetricType,
+    pub timestamp: UnixTimestamp,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub tags: BTreeMap<String, String>,
+}
+
 /// An enum over all possible ingest messages.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -469,6 +522,7 @@ enum KafkaMessage {
     AttachmentChunk(AttachmentChunkKafkaMessage),
     UserReport(UserReportKafkaMessage),
     Session(SessionKafkaMessage),
+    Metric(MetricKafkaMessage),
 }
 
 impl KafkaMessage {
@@ -480,6 +534,7 @@ impl KafkaMessage {
             Self::AttachmentChunk(message) => &message.event_id.0,
             Self::UserReport(message) => &message.event_id.0,
             Self::Session(message) => &message.session_id,
+            Self::Metric(_message) => return &[], // TODO(ja): Determine a partitioning key
         };
 
         event_id.as_bytes()
@@ -487,11 +542,15 @@ impl KafkaMessage {
 
     /// Serializes the message into its binary format.
     fn serialize(&self) -> Result<Vec<u8>, StoreError> {
-        if let KafkaMessage::Session(ref message) = *self {
-            return serde_json::to_vec(&message).map_err(StoreError::InvalidJson);
+        match self {
+            KafkaMessage::Session(message) => {
+                serde_json::to_vec(message).map_err(StoreError::InvalidJson)
+            }
+            KafkaMessage::Metric(message) => {
+                serde_json::to_vec(message).map_err(StoreError::InvalidJson)
+            }
+            _ => rmp_serde::to_vec_named(&self).map_err(StoreError::InvalidMsgPack),
         }
-
-        rmp_serde::to_vec_named(&self).map_err(StoreError::InvalidMsgPack)
     }
 }
 
@@ -576,6 +635,9 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                         client,
                         item,
                     )?;
+                }
+                ItemType::Metrics => {
+                    self.produce_metrics(scoping.organization_id, scoping.project_id, item)?
                 }
                 _ => {}
             }

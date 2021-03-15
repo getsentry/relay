@@ -53,7 +53,7 @@ impl fmt::Display for MetricUnit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             MetricUnit::Duration(precision) => precision.fmt(f),
-            MetricUnit::None => f.write_str("none"),
+            MetricUnit::None => f.write_str(""),
         }
     }
 }
@@ -519,16 +519,16 @@ mod tests {
     #[test]
     fn test_serde_json() {
         let json = r#"{
-            "name": "foo",
-            "unit": "s",
-            "value": 42,
-            "type": "c",
-            "timestamp": 4711,
-            "tags": {
-              "empty": "",
-              "full": "value"
-            }
-        }"#;
+  "name": "foo",
+  "unit": "s",
+  "value": 42,
+  "type": "c",
+  "timestamp": 4711,
+  "tags": {
+    "empty": "",
+    "full": "value"
+  }
+}"#;
 
         let metric = serde_json::from_str::<Metric>(json).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"

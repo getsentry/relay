@@ -63,17 +63,7 @@ def relay(mini_sentry, random_port, background_process, config_dir):
             "cache": {"batch_interval": 0},
             "logging": {"level": "trace"},
             "http": {"timeout": 2},
-            "processing": {
-                "enabled": False,
-                "kafka_config": [],
-                "topics": {
-                    "events": "",
-                    "attachments": "",
-                    "transactions": "",
-                    "outcomes": "",
-                },
-                "redis": "",
-            },
+            "processing": {"enabled": False, "kafka_config": [], "redis": ""},
         }
 
         if options is not None:

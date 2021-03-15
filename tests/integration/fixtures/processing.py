@@ -50,6 +50,7 @@ def processing_config(get_topic_name):
                 "transactions": get_topic_name("transactions"),
                 "outcomes": get_topic_name("outcomes"),
                 "sessions": get_topic_name("sessions"),
+                "metrics": get_topic_name("metrics"),
             }
 
         if not processing.get("redis"):
@@ -255,6 +256,20 @@ def attachments_consumer(kafka_consumer):
 @pytest.fixture
 def sessions_consumer(kafka_consumer):
     return lambda: SessionsConsumer(*kafka_consumer("sessions"))
+
+
+@pytest.fixture
+def metrics_consumer(kafka_consumer):
+    return lambda: MetricsConsumer(*kafka_consumer("metrics"))
+
+
+class MetricsConsumer(ConsumerBase):
+    def get_metric(self):
+        message = self.poll()
+        assert message is not None
+        assert message.error() is None
+
+        return json.loads(message.value())
 
 
 class SessionsConsumer(ConsumerBase):
