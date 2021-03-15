@@ -265,6 +265,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_parse_garbage() {
+        let s = "x23-408j17z4232@#34d\nc3456y7^😎";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Metric::parse(s.as_bytes(), timestamp);
+        assert_eq!(metric, None);
+    }
+
+    #[test]
     fn test_parse_counter() {
         let s = "foo:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
