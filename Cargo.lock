@@ -3233,6 +3233,7 @@ dependencies = [
 name = "relay-metrics"
 version = "21.2.0"
 dependencies = [
+ "insta",
  "relay-common",
 ]
 

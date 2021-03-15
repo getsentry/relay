@@ -11,3 +11,6 @@ publish = false
 
 [dependencies]
 relay-common = { path = "../relay-common" }
+
+[dev-dependencies]
+insta = "1.1.0"

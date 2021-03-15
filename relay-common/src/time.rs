@@ -70,6 +70,18 @@ impl std::ops::Sub for UnixTimestamp {
     }
 }
 
+/// An error returned from parsing [`UnixTimestamp`].
+pub struct ParseUnixTimestampError(());
+
+impl std::str::FromStr for UnixTimestamp {
+    type Err = ParseUnixTimestampError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let ts = s.parse().or(Err(ParseUnixTimestampError(())))?;
+        Ok(Self(ts))
+    }
+}
+
 impl Serialize for UnixTimestamp {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
