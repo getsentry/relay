@@ -62,6 +62,12 @@ impl fmt::Debug for UnixTimestamp {
     }
 }
 
+impl fmt::Display for UnixTimestamp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_secs().fmt(f)
+    }
+}
+
 impl std::ops::Sub for UnixTimestamp {
     type Output = Duration;
 

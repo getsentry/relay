@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::fmt;
+use std::fmt::{self, Write};
 use std::iter::FusedIterator;
 
 use relay_common::UnixTimestamp;
@@ -15,6 +15,16 @@ pub enum DurationPrecision {
     Second,
 }
 
+impl fmt::Display for DurationPrecision {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DurationPrecision::NanoSecond => f.write_str("ns"),
+            DurationPrecision::MilliSecond => f.write_str("ms"),
+            DurationPrecision::Second => f.write_str("s"),
+        }
+    }
+}
+
 /// TODO: Doc
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MetricUnit {
@@ -27,6 +37,15 @@ pub enum MetricUnit {
 impl Default for MetricUnit {
     fn default() -> Self {
         MetricUnit::None
+    }
+}
+
+impl fmt::Display for MetricUnit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MetricUnit::Duration(precision) => precision.fmt(f),
+            MetricUnit::None => f.write_str("none"),
+        }
     }
 }
 
@@ -56,6 +75,16 @@ pub enum MetricValue {
     Custom(String),
 }
 
+impl fmt::Display for MetricValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MetricValue::Float(float) => float.fmt(f),
+            MetricValue::Integer(int) => int.fmt(f),
+            MetricValue::Custom(string) => string.fmt(f),
+        }
+    }
+}
+
 impl std::str::FromStr for MetricValue {
     type Err = ParseMetricError;
 
@@ -81,6 +110,17 @@ pub enum MetricType {
     Set,
     /// TODO: Doc
     Gauge,
+}
+
+impl fmt::Display for MetricType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MetricType::Counter => f.write_str("c"),
+            MetricType::Histogram => f.write_str("h"),
+            MetricType::Set => f.write_str("s"),
+            MetricType::Gauge => f.write_str("g"),
+        }
+    }
 }
 
 impl std::str::FromStr for MetricType {
@@ -210,6 +250,30 @@ impl Metric {
     pub fn parse_all(slice: &[u8], timestamp: UnixTimestamp) -> ParseMetrics<'_> {
         ParseMetrics { slice, timestamp }
     }
+
+    /// TODO: Doc
+    pub fn serialize(&self) -> String {
+        let mut string = self.name.clone();
+
+        if self.unit != MetricUnit::None {
+            write!(string, "@{}", self.unit).ok();
+        }
+
+        write!(string, ":{}|{}|'{}", self.value, self.ty, self.timestamp).ok();
+
+        for (index, (key, value)) in self.tags.iter().enumerate() {
+            match index {
+                0 => write!(string, "|#{}", key).ok(),
+                _ => write!(string, ",{}", key).ok(),
+            };
+
+            if !value.is_empty() {
+                write!(string, ":{}", value).ok();
+            }
+        }
+
+        string
+    }
 }
 
 /// TODO: Doc
@@ -253,25 +317,6 @@ impl Iterator for ParseMetrics<'_> {
         }
     }
 }
-// /// TODO: Doc
-// #[derive(Clone, Debug, Default)]
-// pub struct ParseMetrics<'a> {
-//     lines: Option<Result<std::str::Lines<'a>, ParseMetricError>>,
-// }
-
-// impl Iterator for ParseMetrics<'_> {
-//     type Item = Result<Metric, ParseMetricError>;
-
-//     fn next(&mut self) -> Option<Self::Item> {
-//         match self.lines {
-//             Some(Ok(ref mut lines)) => {
-//                 Some(Metric::parse_str(lines.next()?).ok_or(ParseMetricError(())))
-//             }
-//             Some(Err(err)) => Some(Err(err)),
-//             None => None,
-//         }
-//     }
-// }
 
 impl FusedIterator for ParseMetrics<'_> {}
 
@@ -401,27 +446,57 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_full() {
-        let s = "foo@s:17.5|h|'1337|#foo,bar:baz";
+    fn test_serialize_basic() {
+        let metric = Metric {
+            name: "foo".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Integer(42),
+            ty: MetricType::Counter,
+            timestamp: UnixTimestamp::from_secs(4711),
+            tags: BTreeMap::new(),
+        };
+
+        assert_eq!(metric.serialize(), "foo:42|c|'4711");
+    }
+
+    #[test]
+    fn test_serialize_unit() {
+        let metric = Metric {
+            name: "foo".to_owned(),
+            unit: MetricUnit::Duration(DurationPrecision::Second),
+            value: MetricValue::Integer(42),
+            ty: MetricType::Counter,
+            timestamp: UnixTimestamp::from_secs(4711),
+            tags: BTreeMap::new(),
+        };
+
+        assert_eq!(metric.serialize(), "foo@s:42|c|'4711");
+    }
+
+    #[test]
+    fn test_serialize_tags() {
+        let mut tags = BTreeMap::new();
+        tags.insert("empty".to_owned(), "".to_owned());
+        tags.insert("full".to_owned(), "value".to_owned());
+
+        let metric = Metric {
+            name: "foo".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Integer(42),
+            ty: MetricType::Counter,
+            timestamp: UnixTimestamp::from_secs(4711),
+            tags,
+        };
+
+        assert_eq!(metric.serialize(), "foo:42|c|'4711|#empty,full:value");
+    }
+
+    #[test]
+    fn test_roundtrip() {
+        let s = "foo@s:17.5|h|'1337|#bar,foo:baz";
         let timestamp = UnixTimestamp::from_secs(0xffff_ffff);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric, @r###"
-        Metric {
-            name: "foo",
-            unit: Duration(
-                Second,
-            ),
-            value: Float(
-                17.5,
-            ),
-            ty: Histogram,
-            timestamp: UnixTimestamp(1337),
-            tags: {
-                "bar": "baz",
-                "foo": "",
-            },
-        }
-        "###);
+        assert_eq!(metric.serialize(), s);
     }
 
     #[test]
