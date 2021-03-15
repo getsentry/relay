@@ -97,7 +97,7 @@ impl From<String> for Glob {
     }
 }
 
-impl_str_serialization!(Glob, "a glob pattern");
+impl_str_serde!(Glob, "a glob pattern");
 
 /// Helper for glob matching
 #[derive(Debug)]
