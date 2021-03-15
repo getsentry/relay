@@ -896,25 +896,7 @@
 <span id="893">893</span>
 <span id="894">894</span>
 <span id="895">895</span>
-<span id="896">896</span>
-<span id="897">897</span>
-<span id="898">898</span>
-<span id="899">899</span>
-<span id="900">900</span>
-<span id="901">901</span>
-<span id="902">902</span>
-<span id="903">903</span>
-<span id="904">904</span>
-<span id="905">905</span>
-<span id="906">906</span>
-<span id="907">907</span>
-<span id="908">908</span>
-<span id="909">909</span>
-<span id="910">910</span>
-<span id="911">911</span>
-<span id="912">912</span>
 </pre><div class="example-wrap"><pre class="rust ">
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">FromStr</span>;
 
@@ -1006,24 +988,8 @@
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RelayVersion</span> {
-    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">D</span>: <span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
-    {
-        <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="ident">Cow</span>::<span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span>::<span class="ident">deserialize</span>(<span class="ident">deserializer</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="ident">string</span>.<span class="ident">parse</span>().<span class="ident">map_err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">custom</span>)<span class="question-mark">?</span>)
-    }
-}
+<span class="ident">relay_common</span>::<span class="macro">impl_str_serde</span><span class="macro">!</span>(<span class="ident">RelayVersion</span>, <span class="string">&quot;a version string&quot;</span>);
 
-<span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">RelayVersion</span> {
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">S</span>: <span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">Serializer</span>,
-    {
-        <span class="ident">serializer</span>.<span class="ident">serialize_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">to_string</span>())
-    }
-}
 <span class="doccomment">/// Raised if a key could not be parsed.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Fail</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">KeyParseError</span> {
@@ -1213,7 +1179,7 @@
     }
 }
 
-<span class="ident">relay_common</span>::<span class="macro">impl_str_serialization</span><span class="macro">!</span>(<span class="ident">SecretKey</span>, <span class="string">&quot;a secret key&quot;</span>);
+<span class="ident">relay_common</span>::<span class="macro">impl_str_serde</span><span class="macro">!</span>(<span class="ident">SecretKey</span>, <span class="string">&quot;a secret key&quot;</span>);
 
 <span class="kw">impl</span> <span class="ident">PublicKey</span> {
     <span class="doccomment">/// Verifies the signature and returns the embedded signature</span>
@@ -1329,7 +1295,7 @@
     }
 }
 
-<span class="ident">relay_common</span>::<span class="macro">impl_str_serialization</span><span class="macro">!</span>(<span class="ident">PublicKey</span>, <span class="string">&quot;a public key&quot;</span>);
+<span class="ident">relay_common</span>::<span class="macro">impl_str_serde</span><span class="macro">!</span>(<span class="ident">PublicKey</span>, <span class="string">&quot;a public key&quot;</span>);
 
 <span class="doccomment">/// Generates an relay ID.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">generate_relay_id</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayId</span> {
@@ -1735,7 +1701,7 @@
 <span class="doccomment">/// This is a pseudo-test to easily generate the strings used by test_auth.py</span>
 <span class="doccomment">/// You can copy the output to the top of the test_auth.py when there are changes in the</span>
 <span class="doccomment">/// exchanged authentication structures.</span>
-<span class="doccomment">/// It follows test_registration but instead of asserting it prints the strings  </span>
+<span class="doccomment">/// It follows test_registration but instead of asserting it prints the strings</span>
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_generate_strings_for_test_auth_py</span>() {
     <span class="kw">let</span> <span class="ident">max_age</span> <span class="op">=</span> <span class="ident">Duration</span>::<span class="ident">minutes</span>(<span class="number">15</span>);

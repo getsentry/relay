@@ -102,58 +102,6 @@
 <span id="99"> 99</span>
 <span id="100">100</span>
 <span id="101">101</span>
-<span id="102">102</span>
-<span id="103">103</span>
-<span id="104">104</span>
-<span id="105">105</span>
-<span id="106">106</span>
-<span id="107">107</span>
-<span id="108">108</span>
-<span id="109">109</span>
-<span id="110">110</span>
-<span id="111">111</span>
-<span id="112">112</span>
-<span id="113">113</span>
-<span id="114">114</span>
-<span id="115">115</span>
-<span id="116">116</span>
-<span id="117">117</span>
-<span id="118">118</span>
-<span id="119">119</span>
-<span id="120">120</span>
-<span id="121">121</span>
-<span id="122">122</span>
-<span id="123">123</span>
-<span id="124">124</span>
-<span id="125">125</span>
-<span id="126">126</span>
-<span id="127">127</span>
-<span id="128">128</span>
-<span id="129">129</span>
-<span id="130">130</span>
-<span id="131">131</span>
-<span id="132">132</span>
-<span id="133">133</span>
-<span id="134">134</span>
-<span id="135">135</span>
-<span id="136">136</span>
-<span id="137">137</span>
-<span id="138">138</span>
-<span id="139">139</span>
-<span id="140">140</span>
-<span id="141">141</span>
-<span id="142">142</span>
-<span id="143">143</span>
-<span id="144">144</span>
-<span id="145">145</span>
-<span id="146">146</span>
-<span id="147">147</span>
-<span id="148">148</span>
-<span id="149">149</span>
-<span id="150">150</span>
-<span id="151">151</span>
-<span id="152">152</span>
-<span id="153">153</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">derive_string_meta_structure</span> {
     (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>:<span class="ident">expr</span>) <span class="op">=</span><span class="op">&gt;</span> {
@@ -204,58 +152,6 @@
     };
 }
 
-<span class="doccomment">/// Helper macro to implement string based serialization.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// If a type implements `Display` then this automatically</span>
-<span class="doccomment">/// implements a serializer for that type that dispatches</span>
-<span class="doccomment">/// appropriately.</span>
-<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">impl_str_ser</span> {
-    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ty</span>) <span class="op">=</span><span class="op">&gt;</span> {
-        <span class="kw">impl</span> ::<span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">Serialize</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-            <span class="kw">where</span>
-                <span class="ident">S</span>: ::<span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">Serializer</span>,
-            {
-                <span class="ident">serializer</span>.<span class="ident">serialize_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">to_string</span>())
-            }
-        }
-    };
-}
-
-<span class="doccomment">/// Helper macro to implement string based deserialization.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// If a type implements `FromStr` then this automatically</span>
-<span class="doccomment">/// implements a deserializer for that type that dispatches</span>
-<span class="doccomment">/// appropriately.</span>
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused_macros</span>)]</span>
-<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">impl_str_de</span> {
-    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ty</span>) <span class="op">=</span><span class="op">&gt;</span> {
-        <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> ::<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-            <span class="kw">where</span>
-                <span class="ident">D</span>: ::<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
-            {
-                <span class="op">&lt;</span>::<span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span>::<span class="ident">deserialize</span>(<span class="ident">deserializer</span>)<span class="question-mark">?</span>
-                    .<span class="ident">parse</span>()
-                    .<span class="ident">map_err</span>(::<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">custom</span>)
-            }
-        }
-    };
-}
-
-<span class="doccomment">/// Helper macro to implement string based serialization and deserialization.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// If a type implements `FromStr` and `Display` then this automatically</span>
-<span class="doccomment">/// implements a serializer/deserializer for that type that dispatches</span>
-<span class="doccomment">/// appropriately.</span>
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused_macros</span>)]</span>
-<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">impl_str_serde</span> {
-    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ty</span>) <span class="op">=</span><span class="op">&gt;</span> {
-        <span class="macro">impl_str_ser</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="kw">type</span>);
-        <span class="macro">impl_str_de</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="kw">type</span>);
-    };
-}
-
 <span class="doccomment">/// Implements FromStr and Display on a flat/C-like enum such that strings roundtrip correctly and</span>
 <span class="doccomment">/// all variants can be FromStr&#39;d.</span>
 <span class="doccomment">///</span>
@@ -276,7 +172,7 @@
 <span class="doccomment">///     ValueType::Bar =&gt; &quot;bar&quot;,</span>
 <span class="doccomment">/// });</span>
 <span class="doccomment">/// ```</span>
-<span class="macro">macro_rules</span><span class="macro">!</span> <span class="macro-nonterminal">derive_fromstr_and_display</span> {
+<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">derive_fromstr_and_display</span> {
     (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ty</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">error_type</span>:<span class="ident">tt</span>, { $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">variant</span>:<span class="ident">path</span> <span class="op">=</span><span class="op">&gt;</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">literal</span>)<span class="op">|</span><span class="kw-2">*</span>),<span class="op">+</span> $(,)<span class="question-mark">?</span> }) <span class="op">=</span><span class="op">&gt;</span> {
         <span class="kw">impl</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
             <span class="kw">pub</span> <span class="kw">fn</span> <span class="macro-nonterminal">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {

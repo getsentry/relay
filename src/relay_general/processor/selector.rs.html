@@ -612,7 +612,7 @@
     }
 }
 
-<span class="macro">impl_str_serde</span><span class="macro">!</span>(<span class="ident">SelectorSpec</span>);
+<span class="ident">relay_common</span>::<span class="macro">impl_str_serde</span><span class="macro">!</span>(<span class="ident">SelectorSpec</span>, <span class="string">&quot;a selector&quot;</span>);
 
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SelectorSpec</span> {
     <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value_type</span>: <span class="ident">ValueType</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
