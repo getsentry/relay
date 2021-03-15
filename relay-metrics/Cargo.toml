@@ -11,6 +11,8 @@ publish = false
 
 [dependencies]
 relay-common = { path = "../relay-common" }
+serde = { version = "1.0.114", features = ["derive"] }
 
 [dev-dependencies]
 insta = "1.1.0"
+serde_json = "1.0.55"

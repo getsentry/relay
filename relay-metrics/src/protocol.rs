@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 use std::fmt::{self, Write};
 use std::iter::FusedIterator;
 
+use serde::{Deserialize, Serialize};
+
 use relay_common::UnixTimestamp;
 
 /// TODO: Doc
@@ -34,6 +36,13 @@ pub enum MetricUnit {
     None,
 }
 
+impl MetricUnit {
+    /// Returns `true` if the metric_unit is [`None`].
+    pub fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+}
+
 impl Default for MetricUnit {
     fn default() -> Self {
         MetricUnit::None
@@ -63,13 +72,16 @@ impl std::str::FromStr for MetricUnit {
     }
 }
 
+relay_common::impl_str_serde!(MetricUnit, "a metric unit string");
+
 /// TODO: Doc
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(untagged)]
 pub enum MetricValue {
     /// TODO: Doc
-    Float(f64),
-    /// TODO: Doc
     Integer(i64),
+    /// TODO: Doc
+    Float(f64),
     // TODO: Uuid(Uuid),
     /// TODO: Doc
     Custom(String),
@@ -137,6 +149,8 @@ impl std::str::FromStr for MetricType {
     }
 }
 
+relay_common::impl_str_serde!(MetricType, "a metric type string");
+
 /// TODO: Doc
 #[derive(Clone, Copy, Debug)]
 pub struct ParseMetricError(());
@@ -197,19 +211,22 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 }
 
 /// TODO: Doc
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Metric {
     /// TODO: Doc
     pub name: String,
     /// TODO: Doc
+    #[serde(default, skip_serializing_if = "MetricUnit::is_none")]
     pub unit: MetricUnit,
     /// TODO: Doc
     pub value: MetricValue,
     /// TODO: Doc
+    #[serde(rename = "type")]
     pub ty: MetricType,
     /// TODO: Doc
     pub timestamp: UnixTimestamp,
     /// TODO: Doc
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tags: BTreeMap<String, String>,
 }
 
@@ -497,6 +514,68 @@ mod tests {
         let timestamp = UnixTimestamp::from_secs(0xffff_ffff);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         assert_eq!(metric.serialize(), s);
+    }
+
+    #[test]
+    fn test_serde_json() {
+        let json = r#"{
+            "name": "foo",
+            "unit": "s",
+            "value": 42,
+            "type": "c",
+            "timestamp": 4711,
+            "tags": {
+              "empty": "",
+              "full": "value"
+            }
+        }"#;
+
+        let metric = serde_json::from_str::<Metric>(json).unwrap();
+        insta::assert_debug_snapshot!(metric, @r###"
+        Metric {
+            name: "foo",
+            unit: Duration(
+                Second,
+            ),
+            value: Integer(
+                42,
+            ),
+            ty: Counter,
+            timestamp: UnixTimestamp(4711),
+            tags: {
+                "empty": "",
+                "full": "value",
+            },
+        }
+        "###);
+
+        let string = serde_json::to_string_pretty(&metric).unwrap();
+        assert_eq!(string, json);
+    }
+
+    #[test]
+    fn test_serde_json_defaults() {
+        // NB: timestamp is required in JSON as opposed to the text representation
+        let json = r#"{
+            "name": "foo",
+            "value": 42,
+            "type": "c",
+            "timestamp": 4711
+        }"#;
+
+        let metric = serde_json::from_str::<Metric>(json).unwrap();
+        insta::assert_debug_snapshot!(metric, @r###"
+        Metric {
+            name: "foo",
+            unit: None,
+            value: Integer(
+                42,
+            ),
+            ty: Counter,
+            timestamp: UnixTimestamp(4711),
+            tags: {},
+        }
+        "###);
     }
 
     #[test]
