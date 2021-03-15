@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use chrono::{DateTime, Duration as SignedDuration, Utc};
+use relay_common::UnixTimestamp;
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{Event, SessionUpdate, Timestamp};
@@ -88,6 +89,18 @@ impl ClockDriftProcessor {
     /// Returns `true` if the clocks are significantly drifted.
     pub fn is_drifted(&self) -> bool {
         self.correction.is_some()
+    }
+
+    /// Processes the given `UnixTimestamp` by applying clock drift correction.
+    pub fn process_timestamp(&self, timestamp: &mut UnixTimestamp) {
+        if let Some(correction) = self.correction {
+            let secs = correction.drift.num_seconds();
+            *timestamp = if secs > 0 {
+                UnixTimestamp::from_secs(timestamp.as_secs() + secs as u64)
+            } else {
+                UnixTimestamp::from_secs(timestamp.as_secs() - secs.saturating_abs() as u64)
+            }
+        }
     }
 
     /// Processes the given session.
@@ -258,5 +271,18 @@ mod tests {
         let event = event.value().unwrap();
         assert_eq!(*event.timestamp.value().unwrap(), now);
         assert_eq!(*event.start_timestamp.value().unwrap(), start + drift);
+    }
+
+    #[test]
+    fn test_clock_drift_unix() {
+        let sent_at = Utc.ymd(2000, 1, 2).and_hms(0, 0, 0);
+        let drift = SignedDuration::days(1);
+        let now = sent_at + drift;
+
+        let processor = ClockDriftProcessor::new(Some(sent_at), now);
+        let mut timestamp = UnixTimestamp::from_secs(sent_at.timestamp() as u64);
+        processor.process_timestamp(&mut timestamp);
+
+        assert_eq!(timestamp.as_secs(), now.timestamp() as u64);
     }
 }
