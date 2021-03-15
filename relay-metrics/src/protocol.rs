@@ -142,6 +142,21 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
 }
 
 /// TODO: Doc
+fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
+    if let Ok(int) = string.parse() {
+        Some(UnixTimestamp::from_secs(int))
+    } else if let Ok(float) = string.parse::<f64>() {
+        if float < 0f64 {
+            None
+        } else {
+            Some(UnixTimestamp::from_secs(float.trunc() as u64))
+        }
+    } else {
+        None
+    }
+}
+
+/// TODO: Doc
 #[derive(Clone, Debug, PartialEq)]
 pub struct Metric {
     /// TODO: Doc
@@ -177,7 +192,7 @@ impl Metric {
         for component in components {
             match component.chars().next() {
                 Some('#') => metric.tags = parse_tags(component.get(1..)?)?,
-                Some('\'') => metric.timestamp = component.get(1..)?.parse().ok()?,
+                Some('\'') => metric.timestamp = parse_timestamp(component.get(1..)?)?,
                 _ => (),
             }
         }
@@ -268,8 +283,8 @@ mod tests {
     fn test_parse_garbage() {
         let s = "x23-408j17z4232@#34d\nc3456y7^😎";
         let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Metric::parse(s.as_bytes(), timestamp);
-        assert_eq!(metric, None);
+        let result = Metric::parse(s.as_bytes(), timestamp);
+        assert!(result.is_err());
     }
 
     #[test]
@@ -359,6 +374,14 @@ mod tests {
     #[test]
     fn test_parse_timestamp() {
         let s = "foo:17.5|h|'1337";
+        let timestamp = UnixTimestamp::from_secs(0xffff_ffff);
+        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
+        assert_eq!(metric.timestamp, UnixTimestamp::from_secs(1337));
+    }
+
+    #[test]
+    fn test_parse_timestamp_float() {
+        let s = "foo:17.5|h|'1337.666";
         let timestamp = UnixTimestamp::from_secs(0xffff_ffff);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         assert_eq!(metric.timestamp, UnixTimestamp::from_secs(1337));
