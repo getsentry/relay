@@ -150,6 +150,12 @@
 <span id="147">147</span>
 <span id="148">148</span>
 <span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Filters events coming from user agents known to be web crawlers.</span>
 
@@ -164,7 +170,7 @@
 <span class="doccomment">/// Checks if the event originates from a known web crawler.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">matches</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">user_agent</span>) <span class="op">=</span> <span class="ident">user_agent</span>::<span class="ident">get_user_agent</span>(<span class="ident">event</span>) {
-        <span class="ident">WEB_CRAWLERS</span>.<span class="ident">is_match</span>(<span class="ident">user_agent</span>)
+        <span class="ident">WEB_CRAWLERS</span>.<span class="ident">is_match</span>(<span class="ident">user_agent</span>) <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">ALLOWED_WEB_CRAWLERS</span>.<span class="ident">is_match</span>(<span class="ident">user_agent</span>)
     } <span class="kw">else</span> {
         <span class="bool-val">false</span>
     }
@@ -210,6 +216,13 @@
     &quot;#</span>
     )
     .<span class="ident">expect</span>(<span class="string">&quot;Invalid web crawlers filter Regex&quot;</span>);
+
+    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">ALLOWED_WEB_CRAWLERS</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex</span>::<span class="ident">new</span>(
+        <span class="string">r#&quot;(?ix)
+        Slackbot\s1\.\d+             # Slack - see https://api.slack.com/robots
+    &quot;#</span>
+    )
+    .<span class="ident">expect</span>(<span class="string">&quot;Invalid allowed web crawlers filter Regex&quot;</span>);
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
@@ -249,7 +262,6 @@
             <span class="string">&quot;spider &quot;</span>,
             <span class="string">&quot;spider;&quot;</span>,
             <span class="string">&quot;spider)&quot;</span>,
-            <span class="string">&quot;Slack&quot;</span>,
             <span class="string">&quot;Calypso AppCrawler&quot;</span>,
             <span class="string">&quot;pingdom&quot;</span>,
             <span class="string">&quot;lyticsbot&quot;</span>,
@@ -257,7 +269,6 @@
             <span class="string">&quot;Mozilla/5.0 (Linux; Android 6.0.1; Calypso AppCrawler Build/MMB30Y; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/53.0.2785.124 Mobile Safari/537.36&quot;</span>,
             <span class="string">&quot;Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)&quot;</span>,
             <span class="string">&quot;Slack-ImgProxy 0.19 (+https://api.slack.com/robots)&quot;</span>,
-            <span class="string">&quot;Slackbot 1.0(+https://api.slack.com/robots)&quot;</span>,
             <span class="string">&quot;Twitterbot/1.0&quot;</span>,
             <span class="string">&quot;FeedFetcher-Google; (+http://www.google.com/feedfetcher.html)&quot;</span>,
             <span class="string">&quot;Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)&quot;</span>,
@@ -287,6 +298,7 @@
             <span class="string">&quot;safari&quot;</span>,
             <span class="string">&quot;APIs-Google (+https://developers.google.com/webmasters/APIs-Google.html)&quot;</span>,
             <span class="string">&quot;Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36&quot;</span>,
+            <span class="string">&quot;Slackbot 1.0(+https://api.slack.com/robots)&quot;</span>,
         ];
         <span class="kw">for</span> <span class="ident">user_agent</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">normal_user_agents</span> {
             <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">testutils</span>::<span class="ident">get_event_with_user_agent</span>(<span class="ident">user_agent</span>);
