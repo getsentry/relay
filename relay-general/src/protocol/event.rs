@@ -62,7 +62,7 @@ impl FromStr for EventId {
     }
 }
 
-impl_str_serde!(EventId);
+relay_common::impl_str_serde!(EventId, "an event identifier");
 
 #[doc(inline)]
 pub use relay_common::{EventType, ParseEventTypeError};

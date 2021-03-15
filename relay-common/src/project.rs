@@ -1,8 +1,5 @@
-use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
-
-use serde::{Deserialize, Serialize};
 
 #[doc(inline)]
 pub use sentry_types::ProjectId;
@@ -25,24 +22,7 @@ impl std::error::Error for ParseProjectKeyError {}
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialOrd, PartialEq)]
 pub struct ProjectKey([u8; 32]);
 
-impl Serialize for ProjectKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(self.as_str())
-    }
-}
-
-impl<'de> Deserialize<'de> for ProjectKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let cow = Cow::<str>::deserialize(deserializer)?;
-        Self::parse(&cow).map_err(serde::de::Error::custom)
-    }
-}
+impl_str_serde!(ProjectKey, "a project key string");
 
 impl ProjectKey {
     /// Parses a `ProjectKey` from a string.
