@@ -1429,6 +1429,12 @@
 <span id="1426">1426</span>
 <span id="1427">1427</span>
 <span id="1428">1428</span>
+<span id="1429">1429</span>
+<span id="1430">1430</span>
+<span id="1431">1431</span>
+<span id="1432">1432</span>
+<span id="1433">1433</span>
+<span id="1434">1434</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">env</span>;
@@ -2043,6 +2049,8 @@
     <span class="ident">Outcomes</span>,
     <span class="doccomment">/// Session health updates.</span>
     <span class="ident">Sessions</span>,
+    <span class="doccomment">/// Aggregate Metrics.</span>
+    <span class="ident">Metrics</span>,
 }
 
 <span class="doccomment">/// Configuration for topics.</span>
@@ -2059,6 +2067,8 @@
     <span class="kw">pub</span> <span class="ident">outcomes</span>: <span class="ident">String</span>,
     <span class="doccomment">/// Session health topic name.</span>
     <span class="kw">pub</span> <span class="ident">sessions</span>: <span class="ident">String</span>,
+    <span class="doccomment">/// Metrics topic name.</span>
+    <span class="kw">pub</span> <span class="ident">metrics</span>: <span class="ident">String</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">TopicNames</span> {
@@ -2069,6 +2079,7 @@
             <span class="ident">transactions</span>: <span class="string">&quot;ingest-transactions&quot;</span>.<span class="ident">to_owned</span>(),
             <span class="ident">outcomes</span>: <span class="string">&quot;outcomes&quot;</span>.<span class="ident">to_owned</span>(),
             <span class="ident">sessions</span>: <span class="string">&quot;ingest-sessions&quot;</span>.<span class="ident">to_owned</span>(),
+            <span class="ident">metrics</span>: <span class="string">&quot;ingest-metrics&quot;</span>.<span class="ident">to_owned</span>(),
         }
     }
 }
@@ -2824,6 +2835,7 @@
             <span class="ident">KafkaTopic</span>::<span class="ident">Transactions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">topics</span>.<span class="ident">transactions</span>.<span class="ident">as_str</span>(),
             <span class="ident">KafkaTopic</span>::<span class="ident">Outcomes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">topics</span>.<span class="ident">outcomes</span>.<span class="ident">as_str</span>(),
             <span class="ident">KafkaTopic</span>::<span class="ident">Sessions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">topics</span>.<span class="ident">sessions</span>.<span class="ident">as_str</span>(),
+            <span class="ident">KafkaTopic</span>::<span class="ident">Metrics</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">topics</span>.<span class="ident">metrics</span>.<span class="ident">as_str</span>(),
         }
     }
 

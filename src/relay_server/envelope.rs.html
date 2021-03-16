@@ -1386,6 +1386,12 @@
 <span id="1383">1383</span>
 <span id="1384">1384</span>
 <span id="1385">1385</span>
+<span id="1386">1386</span>
+<span id="1387">1387</span>
+<span id="1388">1388</span>
+<span id="1389">1389</span>
+<span id="1390">1390</span>
+<span id="1391">1391</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Implementation of event envelopes.</span>
 <span class="doccomment">//!</span>
@@ -1484,6 +1490,8 @@
     <span class="ident">Session</span>,
     <span class="doccomment">/// Aggregated session data.</span>
     <span class="ident">Sessions</span>,
+    <span class="doccomment">/// Metrics.</span>
+    <span class="ident">Metrics</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">ItemType</span> {
@@ -1512,6 +1520,7 @@
             <span class="self">Self</span>::<span class="ident">UserReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;user feedback&quot;</span>),
             <span class="self">Self</span>::<span class="ident">Session</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;session&quot;</span>),
             <span class="self">Self</span>::<span class="ident">Sessions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;aggregated sessions&quot;</span>),
+            <span class="self">Self</span>::<span class="ident">Metrics</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;metrics&quot;</span>),
         }
     }
 }
@@ -1913,7 +1922,9 @@
             <span class="ident">ItemType</span>::<span class="ident">FormData</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
 
             <span class="comment">// The remaining item types cannot carry event payloads.</span>
-            <span class="ident">ItemType</span>::<span class="ident">UserReport</span> <span class="op">|</span> <span class="ident">ItemType</span>::<span class="ident">Session</span> <span class="op">|</span> <span class="ident">ItemType</span>::<span class="ident">Sessions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">ItemType</span>::<span class="ident">UserReport</span> <span class="op">|</span> <span class="ident">ItemType</span>::<span class="ident">Session</span> <span class="op">|</span> <span class="ident">ItemType</span>::<span class="ident">Sessions</span> <span class="op">|</span> <span class="ident">ItemType</span>::<span class="ident">Metrics</span> <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="bool-val">false</span>
+            }
         }
     }
 
@@ -1932,6 +1943,7 @@
             <span class="ident">ItemType</span>::<span class="ident">UserReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
             <span class="ident">ItemType</span>::<span class="ident">Session</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
             <span class="ident">ItemType</span>::<span class="ident">Sessions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">ItemType</span>::<span class="ident">Metrics</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
         }
     }
 }
