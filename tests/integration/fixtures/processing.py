@@ -207,23 +207,42 @@ def category_value(category):
 
 
 class OutcomesConsumer(ConsumerBase):
-    def get_outcome(self):
-        outcome = self.poll()
-        assert outcome is not None
-        assert outcome.error() is None
-        return json.loads(outcome.value())
+    def _poll_all(self):
+        while True:
+            outcome = self.poll()
+            if outcome is None:
+                return
+            else:
+                yield outcome
 
-    def assert_rate_limited(self, reason, key_id=None, category=None):
-        outcome = self.get_outcome()
-        assert outcome["outcome"] == 2, outcome
-        assert outcome["reason"] == reason
-        if key_id is not None:
-            assert outcome["key_id"] == key_id
-        if category is not None:
-            value = category_value(category)
-            assert outcome["category"] == value, outcome["category"]
-        else:
+    def get_outcomes(self):
+        outcomes = list(self._poll_all())
+        for outcome in outcomes:
+            assert outcome.error() is None
+        return [json.loads(outcome.value()) for outcome in outcomes]
+
+    def get_outcome(self):
+        outcomes = self.get_outcomes()
+        assert len(outcomes) > 0, "No outcomes were consumed"
+        assert len(outcomes) == 1, "More than one outcome was consumed"
+        return outcomes[0]
+
+    def assert_rate_limited(self, reason, key_id=None, categories=None):
+        if categories is None:
+            outcome = self.get_outcome()
             assert isinstance(outcome["category"], int)
+            outcomes = [outcome]
+        else:
+            outcomes = self.get_outcomes()
+            expected = set(category_value(category) for category in categories)
+            actual = set(outcome["category"] for outcome in outcomes)
+            assert actual == expected, (actual, expected)
+
+        for outcome in outcomes:
+            assert outcome["outcome"] == 2, outcome
+            assert outcome["reason"] == reason
+            if key_id is not None:
+                assert outcome["key_id"] == key_id
 
     def assert_dropped_internal(self):
         outcome = self.get_outcome()

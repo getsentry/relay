@@ -41,14 +41,13 @@ use failure::Fail;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use relay_common::DataCategory;
 use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
 use relay_sampling::TraceContext;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
-use crate::utils::{infer_event_category, ErrorBoundary};
+use crate::utils::ErrorBoundary;
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
@@ -960,13 +959,6 @@ impl Envelope {
         writer
             .write_all(buf)
             .map_err(EnvelopeError::PayloadIoFailed)
-    }
-
-    /// Return the data category type of the event item, if any, in this envelope.
-    pub fn get_event_category(&self) -> Option<DataCategory> {
-        self.items().find_map(infer_event_category)
-        // There are some cases where multiple items may have different categories, but returning
-        // the first is good enough for now.
     }
 }
 
