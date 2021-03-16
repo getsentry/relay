@@ -90,7 +90,7 @@ relay_common::impl_str_serde!(MetricUnit, "a metric unit string");
 
 /// The [value](Metric::value) of a metric.
 ///
-/// [Histograms](MetricType::Histogram) and [counters](MetricType::Counter) require numeric values
+/// [Distributions](MetricType::Distribution) and [counters](MetricType::Counter) require numeric values
 /// which can either be integral or floating point. In contrast, [sets](MetricType::Set) and
 /// [gauges](MetricType::Gauge) can store any unique value including custom strings.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
@@ -143,10 +143,10 @@ pub enum MetricType {
     Counter,
     /// Builds a statistical distribution over values reported.
     ///
-    /// Based on individual reported values, histograms allow to query the maximum, minimum, or
+    /// Based on individual reported values, distributions allow to query the maximum, minimum, or
     /// average of the reported values, as well as statistical quantiles. With an increasing number
-    /// of values in the histogram, its accuracy becomes approximate.
-    Histogram,
+    /// of values in the distribution, its accuracy becomes approximate.
+    Distribution,
     /// Counts the number of unique reported values.
     ///
     /// Sets allow sending arbitrary discrete values and store the deduplicated count. With an
@@ -164,7 +164,7 @@ impl fmt::Display for MetricType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             MetricType::Counter => f.write_str("c"),
-            MetricType::Histogram => f.write_str("h"),
+            MetricType::Distribution => f.write_str("d"),
             MetricType::Set => f.write_str("s"),
             MetricType::Gauge => f.write_str("g"),
         }
@@ -177,7 +177,7 @@ impl std::str::FromStr for MetricType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             "c" | "m" => Self::Counter,
-            "h" | "d" | "ms" => Self::Histogram,
+            "h" | "d" | "ms" => Self::Distribution,
             "s" => Self::Set,
             "g" => Self::Gauge,
             _ => return Err(ParseMetricError(())),
@@ -286,7 +286,7 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 /// submission looks like this:
 ///
 /// ```text
-/// endpoint.response_time@ms:57|h|'1615889449|#route:user_index
+/// endpoint.response_time@ms:57|d|'1615889449|#route:user_index
 /// endpoint.hits:1|c|'1615889449|#route:user_index
 /// ```
 ///
@@ -302,7 +302,7 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 ///   "name": "endpoint.response_time",
 ///   "unit": "ms",
 ///   "value": 57,
-///   "type": "h",
+///   "type": "d",
 ///   "timestamp": 1615889449,
 ///   "tags": {
 ///     "route": "user_index"
@@ -326,7 +326,7 @@ pub struct Metric {
     pub unit: MetricUnit,
     /// The value of the metric.
     ///
-    /// [Histograms](MetricType::Histogram) and [counters](MetricType::Counter) require numeric
+    /// [Distributions](MetricType::Distribution) and [counters](MetricType::Counter) require numeric
     /// values which can either be integral or floating point. In contrast, [sets](MetricType::Set)
     /// and [gauges](MetricType::Gauge) can store any unique value including custom strings.
     pub value: MetricValue,
@@ -386,7 +386,7 @@ impl Metric {
     /// ```
     /// use relay_metrics::{Metric, UnixTimestamp};
     ///
-    /// let metric = Metric::parse(b"response_time@ms:57|h", UnixTimestamp::now())
+    /// let metric = Metric::parse(b"response_time@ms:57|d", UnixTimestamp::now())
     ///     .expect("metric should parse");
     /// ```
     pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseMetricError> {
@@ -409,7 +409,7 @@ impl Metric {
     /// use relay_metrics::{Metric, UnixTimestamp};
     ///
     /// let data = br#"
-    /// endpoint.response_time@ms:57|h
+    /// endpoint.response_time@ms:57|d
     /// endpoint.hits:1|c
     /// "#;
     ///
@@ -543,8 +543,8 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_histogram() {
-        let s = "foo:17.5|h";
+    fn test_parse_distribution() {
+        let s = "foo:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
@@ -554,11 +554,19 @@ mod tests {
             value: Float(
                 17.5,
             ),
-            ty: Histogram,
+            ty: Distribution,
             timestamp: UnixTimestamp(4711),
             tags: {},
         }
         "###);
+    }
+
+    #[test]
+    fn test_parse_histogram() {
+        let s = "foo:17.5|h"; // common alias for distribution
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
+        assert_eq!(metric.ty, MetricType::Distribution);
     }
 
     #[test]
@@ -601,7 +609,7 @@ mod tests {
 
     #[test]
     fn test_parse_unit() {
-        let s = "foo@s:17.5|h";
+        let s = "foo@s:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         assert_eq!(metric.unit, MetricUnit::Duration(DurationPrecision::Second));
@@ -609,7 +617,7 @@ mod tests {
 
     #[test]
     fn test_parse_timestamp() {
-        let s = "foo:17.5|h|'1337";
+        let s = "foo:17.5|d|'1337";
         let timestamp = UnixTimestamp::from_secs(0xffff_ffff);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         assert_eq!(metric.timestamp, UnixTimestamp::from_secs(1337));
@@ -617,7 +625,7 @@ mod tests {
 
     #[test]
     fn test_parse_timestamp_float() {
-        let s = "foo:17.5|h|'1337.666";
+        let s = "foo:17.5|d|'1337.666";
         let timestamp = UnixTimestamp::from_secs(0xffff_ffff);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         assert_eq!(metric.timestamp, UnixTimestamp::from_secs(1337));
@@ -625,7 +633,7 @@ mod tests {
 
     #[test]
     fn test_parse_tags() {
-        let s = "foo:17.5|h|#foo,bar:baz";
+        let s = "foo:17.5|d|#foo,bar:baz";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric.tags, @r###"
@@ -634,6 +642,14 @@ mod tests {
             "foo": "",
         }
         "###);
+    }
+
+    #[test]
+    fn test_parse_invalid_name() {
+        let s = "foo#bar:42|c";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Metric::parse(s.as_bytes(), timestamp);
+        assert!(metric.is_err());
     }
 
     #[test]
@@ -684,7 +700,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip() {
-        let s = "foo@s:17.5|h|'1337|#bar,foo:baz";
+        let s = "foo@s:17.5|d|'1337|#bar,foo:baz";
         let timestamp = UnixTimestamp::from_secs(0xffff_ffff);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         assert_eq!(metric.serialize(), s);

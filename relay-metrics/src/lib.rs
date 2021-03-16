@@ -11,7 +11,7 @@
 //! looks like this:
 //!
 //! ```text
-//! endpoint.response_time@ms:57|h|'1615889449|#route:user_index
+//! endpoint.response_time@ms:57|d|'1615889449|#route:user_index
 //! endpoint.hits:1|c|'1615889449|#route:user_index
 //! ```
 #![warn(missing_docs)]
