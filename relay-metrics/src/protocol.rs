@@ -4,35 +4,49 @@ use std::iter::FusedIterator;
 
 use serde::{Deserialize, Serialize};
 
-use relay_common::UnixTimestamp;
+pub use relay_common::UnixTimestamp;
 
-/// TODO: Doc
+/// Time duration units used in [`MetricUnit::Duration`].
+///
+/// Defaults to `ms`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DurationPrecision {
-    /// TODO: Doc
+    /// Nanosecond (`"ns"`).
     NanoSecond,
-    /// TODO: Doc
+    /// Millisecond (`"ms"`).
     MilliSecond,
-    /// TODO: Doc
+    /// Full second (`"s"`).
     Second,
+}
+
+impl Default for DurationPrecision {
+    fn default() -> Self {
+        Self::MilliSecond
+    }
 }
 
 impl fmt::Display for DurationPrecision {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DurationPrecision::NanoSecond => f.write_str("ns"),
-            DurationPrecision::MilliSecond => f.write_str("ms"),
-            DurationPrecision::Second => f.write_str("s"),
+            Self::NanoSecond => f.write_str("ns"),
+            Self::MilliSecond => f.write_str("ms"),
+            Self::Second => f.write_str("s"),
         }
     }
 }
 
-/// TODO: Doc
+/// The [unit](Metric::unit) of measurement of a metric [value](Metric::value).
+///
+/// Units augment metric values by giving them a magnitude and semantics. There are certain types of
+/// units that are subdivided in their precision, such as the [`DurationPrecision`] for time
+/// measurements.
+///
+/// Units and their precisions are uniquely represented by a string identifier.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MetricUnit {
-    /// TODO: Doc
+    /// A time duration, defaulting to milliseconds (`"ms"`).
     Duration(DurationPrecision),
-    /// TODO: Doc
+    /// Untyped value without a unit (`""`).
     None,
 }
 
@@ -74,17 +88,23 @@ impl std::str::FromStr for MetricUnit {
 
 relay_common::impl_str_serde!(MetricUnit, "a metric unit string");
 
-/// TODO: Doc
+/// The [value](Metric::value) of a metric.
+///
+/// [Histograms](MetricType::Histogram) and [counters](MetricType::Counter) require numeric values
+/// which can either be integral or floating point. In contrast, [sets](MetricType::Set) and
+/// [gauges](MetricType::Gauge) can store any unique value including custom strings.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum MetricValue {
-    /// TODO: Doc
+    /// A signed integral value.
     Integer(i64),
-    /// TODO: Doc
+    /// A signed floating point value.
     Float(f64),
-    // TODO: Uuid(Uuid),
-    /// TODO: Doc
+    /// A custom string value.
+    ///
+    /// This value cannot be used in numeric metrics.
     Custom(String),
+    // TODO: Uuid(Uuid),
 }
 
 impl fmt::Display for MetricValue {
@@ -111,16 +131,32 @@ impl std::str::FromStr for MetricValue {
     }
 }
 
-/// TODO: Doc
+/// The [type](Metric::ty) of a metric, determining its aggregation and evaluation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MetricType {
-    /// TODO: Doc
+    /// Counts instances of an event.
+    ///
+    /// Counters can be incremented and decremented. The default operation is to increment a counter
+    /// by `1`, although increments by larger values are equally possible.
+    ///
+    /// This metric requires numeric values.
     Counter,
-    /// TODO: Doc
+    /// Builds a statistical distribution over values reported.
+    ///
+    /// Based on individual reported values, histograms allow to query the maximum, minimum, or
+    /// average of the reported values, as well as statistical quantiles. With an increasing number
+    /// of values in the histogram, its accuracy becomes approximate.
     Histogram,
-    /// TODO: Doc
+    /// Counts the number of unique reported values.
+    ///
+    /// Sets allow sending arbitrary discrete values and store the deduplicated count. With an
+    /// increasing number of unique values in the set, its accuracy becomes approximate. It is not
+    /// possible to query individual values from a set.
     Set,
-    /// TODO: Doc
+    /// Stores absolute snapshots of values.
+    ///
+    /// Contrary to [counters](Self::Counter), which allow relative changes, gauges always store the
+    /// last absolute value submitted.
     Gauge,
 }
 
@@ -151,7 +187,7 @@ impl std::str::FromStr for MetricType {
 
 relay_common::impl_str_serde!(MetricType, "a metric type string");
 
-/// TODO: Doc
+/// An error returned by [`Metric::parse`] and [`Metric::parse_all`].
 #[derive(Clone, Copy, Debug)]
 pub struct ParseMetricError(());
 
@@ -161,19 +197,38 @@ impl fmt::Display for ParseMetricError {
     }
 }
 
-/// TODO: Doc
+/// Validates a metric name.
+///
+/// Metric names can consist of ASCII alphanumerics, underscores and periods.
+fn is_valid_name(name: &str) -> bool {
+    name.as_bytes()
+        .iter()
+        .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_'))
+}
+
+/// Parses the `name[@unit]` part of a metric string.
+///
+/// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if the name or value are
+/// invalid.
 fn parse_name_unit(string: &str) -> Option<(String, MetricUnit)> {
     let mut components = string.split('@');
-    let name = components.next()?.to_owned();
+    let name = components.next()?;
+    if !is_valid_name(name) {
+        return None;
+    }
+
     let unit = match components.next() {
         Some(s) => s.parse().ok()?,
         None => MetricUnit::default(),
     };
 
-    Some((name, unit))
+    Some((name.to_owned(), unit))
 }
 
-/// TODO: Doc
+/// Parses the `name[@unit]:value` part of a metric string.
+///
+/// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if any of the components is
+/// invalid.
 fn parse_name_unit_value(string: &str) -> Option<(String, MetricUnit, MetricValue)> {
     let mut components = string.splitn(2, ':');
     let (name, unit) = components.next().and_then(parse_name_unit)?;
@@ -181,7 +236,9 @@ fn parse_name_unit_value(string: &str) -> Option<(String, MetricUnit, MetricValu
     Some((name, unit, value))
 }
 
-/// TODO: Doc
+/// Parses tags in the format `tag1,tag2:value`.
+///
+/// Tag values are optional. For tags with missing values, an empty `""` value is assumed.
 fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
     let mut map = BTreeMap::new();
 
@@ -195,7 +252,9 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
     Some(map)
 }
 
-/// TODO: Doc
+/// Parses a UNIX timestamp from the given string.
+///
+/// The timestamp can be represented as floating point number, in which case it is truncated.
 fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
     if let Ok(int) = string.parse() {
         Some(UnixTimestamp::from_secs(int))
@@ -210,22 +269,83 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
     }
 }
 
-/// TODO: Doc
+/// A single metric value representing the payload sent from clients.
+///
+/// As opposed to bucketed metric aggregations, this single metrics always represent a single
+/// submission and cannot store multiple values.
+///
+/// See the [crate documentation](crate) for general information on Metrics.
+///
+/// # Submission Protocol
+///
+/// ```text
+/// <name>[@unit]:<value>|<type>|'<timestamp>|#<tag_key>:<tag_value>,<tag>
+/// ```
+///
+/// See the field documentation on this struct for more information on the components. An example
+/// submission looks like this:
+///
+/// ```text
+/// endpoint.response_time@ms:57|h|'1615889449|#route:user_index
+/// endpoint.hits:1|c|'1615889449|#route:user_index
+/// ```
+///
+/// To parse a submission payload, use [`Metric::parse_all`].
+///
+/// # JSON representation
+///
+/// In addition to the submission protocol, metrics can be represented as structured data in JSON.
+/// Field values are the same with a single exception: The timestamp is required in JSON notation.
+///
+/// ```json
+/// {
+///   "name": "endpoint.response_time",
+///   "unit": "ms",
+///   "value": 57,
+///   "type": "h",
+///   "timestamp": 1615889449,
+///   "tags": {
+///     "route": "user_index"
+///   }
+/// }
+/// ```
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Metric {
-    /// TODO: Doc
+    /// The name of the metric without its unit.
+    ///
+    /// Metric names can consist of ASCII alphanumerics, underscores and periods.
     pub name: String,
-    /// TODO: Doc
+    /// The unit of the metric value.
+    ///
+    /// Units augment metric values by giving them a magnitude and semantics. There are certain
+    /// types of units that are subdivided in their precision, such as the [`DurationPrecision`] for
+    /// time measurements.
+    ///
+    /// The unit can be omitted and defaults to [`MetricUnit::None`].
     #[serde(default, skip_serializing_if = "MetricUnit::is_none")]
     pub unit: MetricUnit,
-    /// TODO: Doc
+    /// The value of the metric.
+    ///
+    /// [Histograms](MetricType::Histogram) and [counters](MetricType::Counter) require numeric
+    /// values which can either be integral or floating point. In contrast, [sets](MetricType::Set)
+    /// and [gauges](MetricType::Gauge) can store any unique value including custom strings.
     pub value: MetricValue,
-    /// TODO: Doc
+    /// The type of the metric, determining its aggregation and evaluation.
     #[serde(rename = "type")]
     pub ty: MetricType,
-    /// TODO: Doc
+    /// The timestamp for this metric value.
+    ///
+    /// In the SDK protocol, timestamps are optional and preceded with a single quote `'`. Supply a
+    /// default timestamp to [`Metric::parse`] or [`Metric::parse_all`] to insert a default
+    /// timestamp.
     pub timestamp: UnixTimestamp,
-    /// TODO: Doc
+    /// A list of tags adding dimensions to the metric for filtering and aggregation.
+    ///
+    /// Tags are preceded with a hash `#` and specified in a comma (`,`) separated list. Each tag
+    /// can either be a tag name, or a `name:value` combination. For tags with missing values, an
+    /// empty `""` value is assumed.
+    ///
+    /// Tags are optional and can be omitted.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tags: BTreeMap<String, String>,
 }
@@ -257,18 +377,72 @@ impl Metric {
         Some(metric)
     }
 
-    /// TODO: Doc
+    /// Parses a single metric value from the raw protocol.
+    ///
+    /// See the [`Metric`] for more information on the protocol.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_metrics::{Metric, UnixTimestamp};
+    ///
+    /// let metric = Metric::parse(b"response_time@ms:57|h", UnixTimestamp::now())
+    ///     .expect("metric should parse");
+    /// ```
     pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseMetricError> {
         let string = std::str::from_utf8(slice).or(Err(ParseMetricError(())))?;
         Self::parse_str(string, timestamp).ok_or(ParseMetricError(()))
     }
 
-    /// TODO: Doc
+    /// Parses a set of metric values from the raw protocol.
+    ///
+    /// Returns a metric result for each line in `slice`, ignoring empty lines. Both UNIX newlines
+    /// (`\n`) and Windows newlines (`\r\n`) are supported.
+    ///
+    /// It is possible to continue consuming the iterator after `Err` is yielded.
+    ///
+    /// See the [`Metric`] for more information on the protocol.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_metrics::{Metric, UnixTimestamp};
+    ///
+    /// let data = br#"
+    /// endpoint.response_time@ms:57|h
+    /// endpoint.hits:1|c
+    /// "#;
+    ///
+    /// for metric_result in Metric::parse_all(data, UnixTimestamp::now()) {
+    ///     let metric = metric_result.expect("metric should parse");
+    ///     println!("Metric {}: {}", metric.name, metric.value);
+    /// }
+    /// ```
     pub fn parse_all(slice: &[u8], timestamp: UnixTimestamp) -> ParseMetrics<'_> {
         ParseMetrics { slice, timestamp }
     }
 
-    /// TODO: Doc
+    /// Serializes the metric to the raw protocol.
+    ///
+    /// See the [`Metric`] for more information on the protocol.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use std::collections::BTreeMap;
+    /// use relay_metrics::{Metric, MetricUnit, MetricValue, MetricType, UnixTimestamp};
+    ///
+    /// let metric = Metric {
+    ///     name: "hits".to_owned(),
+    ///     unit: MetricUnit::None,
+    ///     value: MetricValue::Integer(1),
+    ///     ty: MetricType::Counter,
+    ///     timestamp: UnixTimestamp::from_secs(1615889449),
+    ///     tags: BTreeMap::new(),
+    /// };
+    ///
+    /// assert_eq!(metric.serialize(), "hits:1|c|'1615889449");
+    /// ```
     pub fn serialize(&self) -> String {
         let mut string = self.name.clone();
 
@@ -293,7 +467,7 @@ impl Metric {
     }
 }
 
-/// TODO: Doc
+/// Iterator over parsed metrics returned from [`Metric::parse_all`].
 #[derive(Clone, Debug)]
 pub struct ParseMetrics<'a> {
     slice: &'a [u8],
