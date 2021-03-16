@@ -14,7 +14,7 @@ use relay_common::{metric, DataCategory, ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_quotas::{Quota, RateLimits, Scoping};
+use relay_quotas::{Quota, RateLimits, ReasonCode, Scoping};
 use relay_sampling::SamplingConfig;
 
 use crate::actors::outcome::DiscardReason;
@@ -560,6 +560,21 @@ impl Project {
         let envelope_summary = EnvelopeSummary::compute(&envelope);
         let outcome_producer = message.outcome_producer;
 
+        let emit_outcome = |category: &DataCategory, reason_code: &Option<ReasonCode>| {
+            outcome_producer.do_send(TrackOutcome {
+                timestamp: Instant::now(),
+                scoping: *scoping,
+                outcome: Outcome::RateLimited(reason_code.clone()),
+                event_id,
+                remote_addr,
+                category: *category,
+                quantity: match category {
+                    DataCategory::Attachment => envelope_summary.attachment_quantity,
+                    _ => 1,
+                },
+            })
+        };
+
         if let Some(state) = self.state() {
             state.check_request(envelope.meta(), &self.config)?;
         }
@@ -570,19 +585,18 @@ impl Project {
         let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
             let applied_limits = self.rate_limits.check_with_quotas(quotas, item_scoping);
             for applied_limit in applied_limits.iter() {
-                for category in applied_limit.categories.iter() {
-                    outcome_producer.do_send(TrackOutcome {
-                        timestamp: Instant::now(),
-                        scoping: *scoping,
-                        outcome: Outcome::RateLimited(applied_limit.reason_code.clone()),
-                        event_id,
-                        remote_addr,
-                        category: *category,
-                        quantity: match category {
-                            DataCategory::Attachment => envelope_summary.attachment_quantity,
-                            _ => 1,
-                        },
-                    })
+                if applied_limit.categories.is_empty() {
+                    // Empty categories value indicates that the rate limit applies to all data.
+                    if let Some(event_category) = envelope_summary.event_category {
+                        emit_outcome(&event_category, &applied_limit.reason_code);
+                    }
+                    if envelope_summary.attachment_quantity > 0 {
+                        emit_outcome(&DataCategory::Attachment, &applied_limit.reason_code);
+                    }
+                } else {
+                    for category in applied_limit.categories.iter() {
+                        emit_outcome(category, &applied_limit.reason_code);
+                    }
                 }
             }
             Ok(applied_limits)
