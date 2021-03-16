@@ -26,6 +26,13 @@ impl TimeWindowSpan {
             end_timestamp,
         }
     }
+
+    fn get_duration(&self) -> f64 {
+        let delta: f64 =
+            (self.end_timestamp.timestamp_nanos() - self.start_timestamp.timestamp_nanos()) as f64;
+        // convert to milliseconds (1 ms = 1,000,000 nanoseconds)
+        (delta / 1_000_000.00).abs()
+    }
 }
 
 #[derive(PartialEq, Eq, Hash)]
@@ -36,40 +43,48 @@ enum OperationBreakdown<'op_name> {
 
 type OperationNameIntervals<'op_name> = HashMap<OperationBreakdown<'op_name>, Vec<TimeWindowSpan>>;
 
-fn merge_intervals(mut intervals: Vec<TimeWindowSpan>) -> Vec<TimeWindowSpan> {
+fn get_op_time_spent(mut intervals: Vec<TimeWindowSpan>) -> Option<f64> {
+    if intervals.is_empty() {
+        return None;
+    }
+
     // sort by start_timestamp in ascending order
     intervals.sort_unstable_by(|a, b| a.start_timestamp.partial_cmp(&b.start_timestamp).unwrap());
 
-    // merged is a vector of disjoint intervals
-    let mut merged = vec![];
+    let mut op_time_spent: f64 = 0.0;
+    let mut previous_interval: Option<TimeWindowSpan> = None;
 
     for current_interval in intervals.into_iter() {
-        let mut last_interval = match merged.last_mut() {
-            Some(last) => last,
+        match previous_interval.as_mut() {
+            Some(last_interval) => {
+                if last_interval.end_timestamp < current_interval.start_timestamp {
+                    // if current_interval does not overlap with last_interval,
+                    // then add last_interval to op_time_spent
+                    op_time_spent += last_interval.get_duration();
+                    previous_interval = Some(current_interval);
+                    continue;
+                }
+
+                // current_interval and last_interval overlaps; so we merge these intervals
+
+                // invariant: last_interval.start_timestamp <= current_interval.start_timestamp
+
+                last_interval.end_timestamp =
+                    std::cmp::max(last_interval.end_timestamp, current_interval.end_timestamp);
+            }
             None => {
-                merged.push(current_interval);
+                previous_interval = Some(current_interval);
                 continue;
             }
         };
-
-        if last_interval.end_timestamp < current_interval.start_timestamp {
-            // if current_interval does not overlap with last_interval,
-            // then add current_interval
-            merged.push(current_interval);
-            continue;
-        }
-
-        // current_interval and last_interval overlaps; so we merge these intervals
-
-        // invariant: last_interval.start_timestamp <= current_interval.start_timestamp
-
-        last_interval.end_timestamp =
-            std::cmp::max(last_interval.end_timestamp, current_interval.end_timestamp);
     }
 
-    merged
-}
+    if let Some(remaining_interval) = previous_interval {
+        op_time_spent += remaining_interval.get_duration();
+    }
 
+    Some(op_time_spent)
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub struct SpanOperationsConfig {
@@ -141,16 +156,10 @@ impl SpanOperationsConfig {
         let mut total_time_spent: f64 = 0.0;
 
         for (operation_name, intervals) in intervals {
-            let op_time_spent: f64 = merge_intervals(intervals)
-                .into_iter()
-                .map(|interval| -> f64 {
-                    let delta: f64 = (interval.end_timestamp.timestamp_nanos()
-                        - interval.start_timestamp.timestamp_nanos())
-                        as f64;
-                    // convert to milliseconds (1 ms = 1,000,000 nanoseconds)
-                    (delta / 1_000_000.00).abs()
-                })
-                .sum();
+            let op_time_spent: f64 = match get_op_time_spent(intervals) {
+                None => continue,
+                Some(op_time_spent) => op_time_spent,
+            };
 
             total_time_spent += op_time_spent;
 
