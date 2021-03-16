@@ -28,14 +28,13 @@ impl TimeWindowSpan {
     }
 }
 
-type OperationName = String;
 #[derive(PartialEq, Eq, Hash)]
-enum OperationBreakdown {
-    Emit(OperationName),
-    DoNotEmit(OperationName),
+enum OperationBreakdown<'op_name> {
+    Emit(&'op_name str),
+    DoNotEmit(&'op_name str),
 }
 
-type OperationNameIntervals = HashMap<OperationBreakdown, Vec<TimeWindowSpan>>;
+type OperationNameIntervals<'op_name> = HashMap<OperationBreakdown<'op_name>, Vec<TimeWindowSpan>>;
 
 fn merge_intervals(mut intervals: Vec<TimeWindowSpan>) -> Vec<TimeWindowSpan> {
     // sort by start_timestamp in ascending order
@@ -101,7 +100,7 @@ impl SpanOperationsConfig {
 
             let operation_name = match span.op.value() {
                 None => continue,
-                Some(span_op) => span_op.clone(),
+                Some(span_op) => span_op,
             };
 
             let start_timestamp = match span.start_timestamp.value() {
@@ -124,7 +123,7 @@ impl SpanOperationsConfig {
 
             let operation_name = match results {
                 None => OperationBreakdown::DoNotEmit(operation_name),
-                Some(operation_name) => OperationBreakdown::Emit(operation_name.clone()),
+                Some(operation_name) => OperationBreakdown::Emit(operation_name),
             };
 
             intervals
