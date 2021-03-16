@@ -9,9 +9,10 @@ use actix::prelude::*;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use futures::prelude::*;
+use relay_metrics::Metric;
 use serde_json::Value as SerdeValue;
 
-use relay_common::{clone, metric, ProjectId};
+use relay_common::{clone, metric, ProjectId, UnixTimestamp};
 use relay_config::{Config, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
@@ -308,6 +309,47 @@ impl EventProcessor {
     pub fn with_geoip_lookup(mut self, geoip_lookup: Option<Arc<GeoIpLookup>>) -> Self {
         self.geoip_lookup = geoip_lookup;
         self
+    }
+
+    /// Validates all metrics in the envelope, if any.
+    ///
+    /// Metrics are removed from the envelope if they contain invalid syntax or if their timestamps
+    /// are out of range after clock drift correction.
+    fn process_metrics(&self, state: &mut ProcessEnvelopeState) {
+        let envelope = &mut state.envelope;
+        let received = state.received_at;
+        // TODO(ja): Avoid unsafe cast
+        let timestamp = UnixTimestamp::from_secs(received.timestamp() as u64);
+
+        let clock_drift_processor =
+            ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
+
+        envelope.retain_items(|item| {
+            if item.ty() != ItemType::Metrics {
+                return true;
+            }
+
+            let payload = item.payload();
+            let mut normalized = Vec::with_capacity(payload.len());
+
+            for metric_result in Metric::parse_all(&payload, timestamp) {
+                let mut metric = match metric_result {
+                    Ok(metric) => metric,
+                    Err(_) => continue,
+                };
+
+                clock_drift_processor.process_timestamp(&mut metric.timestamp);
+
+                if !normalized.is_empty() {
+                    normalized.push(b'\n');
+                }
+                normalized.extend(metric.serialize().as_bytes());
+            }
+
+            item.set_payload(ContentType::Text, normalized);
+
+            true
+        });
     }
 
     /// Validates all sessions in the envelope, if any.
@@ -731,9 +773,10 @@ impl EventProcessor {
             ItemType::Attachment => false,
             ItemType::UserReport => false,
 
-            // session data is never considered as part of deduplication
+            // aggregate data is never considered as part of deduplication
             ItemType::Session => false,
             ItemType::Sessions => false,
+            ItemType::Metrics => false,
         }
     }
 
@@ -1170,6 +1213,7 @@ impl EventProcessor {
             };
         }
 
+        self.process_metrics(&mut state);
         self.process_sessions(&mut state);
         self.process_user_reports(&mut state);
 

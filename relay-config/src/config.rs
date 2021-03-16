@@ -611,6 +611,8 @@ pub enum KafkaTopic {
     Outcomes,
     /// Session health updates.
     Sessions,
+    /// Aggregate Metrics.
+    Metrics,
 }
 
 /// Configuration for topics.
@@ -627,6 +629,8 @@ pub struct TopicNames {
     pub outcomes: String,
     /// Session health topic name.
     pub sessions: String,
+    /// Metrics topic name.
+    pub metrics: String,
 }
 
 impl Default for TopicNames {
@@ -637,6 +641,7 @@ impl Default for TopicNames {
             transactions: "ingest-transactions".to_owned(),
             outcomes: "outcomes".to_owned(),
             sessions: "ingest-sessions".to_owned(),
+            metrics: "ingest-metrics".to_owned(),
         }
     }
 }
@@ -1392,6 +1397,7 @@ impl Config {
             KafkaTopic::Transactions => topics.transactions.as_str(),
             KafkaTopic::Outcomes => topics.outcomes.as_str(),
             KafkaTopic::Sessions => topics.sessions.as_str(),
+            KafkaTopic::Metrics => topics.metrics.as_str(),
         }
     }
 
