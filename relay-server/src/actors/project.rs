@@ -10,7 +10,7 @@ use smallvec::SmallVec;
 use url::Url;
 
 use relay_auth::PublicKey;
-use relay_common::{metric, ProjectId, ProjectKey};
+use relay_common::{metric, DataCategory, ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
@@ -22,7 +22,9 @@ use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
-use crate::utils::{ActorResponse, EnvelopeLimiter, Response};
+use crate::utils::{ActorResponse, EnvelopeLimiter, EnvelopeSummary, Response};
+
+use super::outcome::{Outcome, OutcomeProducer, TrackOutcome};
 
 /// The current status of a project state. Return value of `ProjectState::outdated`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -549,9 +551,15 @@ impl Project {
 
     fn check_envelope(
         &mut self,
-        mut envelope: Envelope,
+        message: CheckEnvelope,
         scoping: &Scoping,
     ) -> Result<CheckedEnvelope, DiscardReason> {
+        let mut envelope = message.envelope;
+        let event_id = envelope.event_id();
+        let remote_addr = envelope.meta().client_addr();
+        let envelope_summary = EnvelopeSummary::compute(&envelope);
+        let outcome_producer = message.outcome_producer;
+
         if let Some(state) = self.state() {
             state.check_request(envelope.meta(), &self.config)?;
         }
@@ -560,7 +568,24 @@ impl Project {
 
         let quotas = self.state().map(|s| s.get_quotas()).unwrap_or(&[]);
         let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
-            Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
+            let applied_limits = self.rate_limits.check_with_quotas(quotas, item_scoping);
+            for applied_limit in applied_limits.iter() {
+                for category in applied_limit.categories.iter() {
+                    outcome_producer.do_send(TrackOutcome {
+                        timestamp: Instant::now(),
+                        scoping: *scoping,
+                        outcome: Outcome::RateLimited(applied_limit.reason_code.clone()),
+                        event_id,
+                        remote_addr,
+                        category: *category,
+                        quantity: match category {
+                            DataCategory::Attachment => envelope_summary.attachment_quantity,
+                            _ => 1,
+                        },
+                    })
+                }
+            }
+            Ok(applied_limits)
         });
 
         let rate_limits = envelope_limiter.enforce(&mut envelope, scoping)?;
@@ -578,7 +603,7 @@ impl Project {
 
     fn check_envelope_scoped(&mut self, message: CheckEnvelope) -> CheckEnvelopeResponse {
         let scoping = self.get_scoping(message.envelope.meta());
-        let result = self.check_envelope(message.envelope, &scoping);
+        let result = self.check_envelope(message, &scoping);
         CheckEnvelopeResponse { result, scoping }
     }
 }
@@ -660,26 +685,29 @@ impl Handler<GetProjectState> for Project {
 ///  - Validate origins and public keys
 ///  - Quotas with a limit of `0`
 ///  - Cached rate limits
-#[derive(Debug)]
+// #[derive(Debug)] // TODO: Fix?
 pub struct CheckEnvelope {
     envelope: Envelope,
     fetch: bool,
+    outcome_producer: Addr<OutcomeProducer>,
 }
 
 impl CheckEnvelope {
     /// Fetches the project state and checks the envelope.
-    pub fn fetched(envelope: Envelope) -> Self {
+    pub fn fetched(envelope: Envelope, outcome_producer: &Addr<OutcomeProducer>) -> Self {
         Self {
             envelope,
             fetch: true,
+            outcome_producer: outcome_producer.clone(),
         }
     }
 
     /// Uses a cached project state and checks the envelope.
-    pub fn cached(envelope: Envelope) -> Self {
+    pub fn cached(envelope: Envelope, outcome_producer: &Addr<OutcomeProducer>) -> Self {
         Self {
             envelope,
             fetch: false,
+            outcome_producer: outcome_producer.clone(),
         }
     }
 }

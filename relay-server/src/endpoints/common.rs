@@ -406,134 +406,147 @@ where
 
     let event_manager = request.state().event_manager();
     let project_manager = request.state().project_cache();
-    let outcome_producer = request.state().outcome_producer();
     let remote_addr = meta.client_addr();
 
     let scoping = Rc::new(RefCell::new(meta.get_partial_scoping()));
     let event_id = Rc::new(RefCell::new(None));
     let envelope_summary = Rc::new(RefCell::new(EnvelopeSummary::empty()));
+    let outcome_producer = Rc::new(RefCell::new(request.state().outcome_producer()));
     let config = request.state().config();
     let processing_enabled = config.processing_enabled();
 
     let future = project_manager
         .send(GetProject { public_key })
         .map_err(BadStoreRequest::ScheduleFailed)
-        .and_then(clone!(event_id, envelope_summary, scoping, |project| {
-            extract_envelope(&request, meta)
-                .into_future()
-                .and_then(clone!(event_id, envelope_summary, |envelope| {
-                    event_id.replace(envelope.event_id());
-                    envelope_summary.replace(EnvelopeSummary::compute(&envelope));
+        .and_then(clone!(
+            event_id,
+            envelope_summary,
+            scoping,
+            outcome_producer,
+            |project| {
+                extract_envelope(&request, meta)
+                    .into_future()
+                    .and_then(clone!(
+                        event_id,
+                        envelope_summary,
+                        outcome_producer,
+                        |envelope| {
+                            event_id.replace(envelope.event_id());
+                            envelope_summary.replace(EnvelopeSummary::compute(&envelope));
 
-                    if envelope.is_empty() {
-                        Err(BadStoreRequest::EmptyEnvelope)
-                    } else {
-                        Ok(envelope)
-                    }
-                }))
-                .and_then(clone!(project, |envelope| {
-                    project
-                        .send(CheckEnvelope::cached(envelope))
-                        .map_err(BadStoreRequest::ScheduleFailed)
-                        .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
-                }))
-                .and_then(clone!(scoping, |response| {
-                    scoping.replace(response.scoping);
-
-                    let checked = response.result.map_err(BadStoreRequest::EventRejected)?;
-
-                    // Skip over queuing and issue a rate limit right away
-                    let envelope = match checked.envelope {
-                        Some(envelope) => envelope,
-                        None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
-                    };
-                    // TODO: Update envelope_summary from checked.envelope, once the rate-limiting
-                    // code in CheckEnvelope emits its own outcomes.
-
-                    if check_envelope_size_limits(&config, &envelope) {
-                        Ok((envelope, checked.rate_limits))
-                    } else {
-                        Err(BadStoreRequest::PayloadError(StorePayloadError::Overflow))
-                    }
-                }))
-                .and_then(clone!(event_manager, project_manager, |(
-                    envelope,
-                    rate_limits,
-                )| {
-                    type RetVal = ResponseFuture<
-                        (Envelope, RateLimits, Option<Addr<Project>>),
-                        BadStoreRequest,
-                    >;
-                    // do dynamic sampling on transactions
-                    let trace_context = match envelope.trace_context() {
-                        None => {
-                            // if we don't have a trace context we can't do dynamic sampling so stop.
-                            return Box::new(Ok((envelope, rate_limits, None)).into_future())
-                                as RetVal;
+                            if envelope.is_empty() {
+                                Err(BadStoreRequest::EmptyEnvelope)
+                            } else {
+                                Ok((envelope, outcome_producer))
+                            }
                         }
-                        Some(trace_context) => trace_context,
-                    };
-                    // Sample and potentially remove transactions from the envelope.
-                    // We only do this if the envelope contains only transactions,
-                    // The reason for that is that in case of envelopes containing only
-                    // transactions we have a chance to end processing here (if the transactions
-                    // are sampled out).
-                    // If the envelope contains other items (beyond transactions then we cannot
-                    // shortcut the processing here so we'll do it after we queue the envelope).
-                    let response = project_manager
-                        .send(GetProject {
-                            public_key: trace_context.public_key,
-                        })
-                        // deal with mailbox errors
-                        .map_err(BadStoreRequest::ScheduleFailed)
+                    ))
+                    .and_then(clone!(project, |(envelope, outcome_producer)| {
+                        project
+                            .send(CheckEnvelope::cached(envelope, &*outcome_producer.borrow()))
+                            .map_err(BadStoreRequest::ScheduleFailed)
+                            .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
+                    }))
+                    .and_then(clone!(scoping, |response| {
+                        scoping.replace(response.scoping);
+
+                        let checked = response.result.map_err(BadStoreRequest::EventRejected)?;
+
+                        // Skip over queuing and issue a rate limit right away
+                        let envelope = match checked.envelope {
+                            Some(envelope) => envelope,
+                            None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
+                        };
+                        // TODO: Update envelope_summary from checked.envelope, once the rate-limiting
+                        // code in CheckEnvelope emits its own outcomes.
+
+                        if check_envelope_size_limits(&config, &envelope) {
+                            Ok((envelope, checked.rate_limits))
+                        } else {
+                            Err(BadStoreRequest::PayloadError(StorePayloadError::Overflow))
+                        }
+                    }))
+                    .and_then(clone!(
+                        event_manager,
+                        project_manager,
+                        |(envelope, rate_limits)| {
+                            type RetVal = ResponseFuture<
+                                (Envelope, RateLimits, Option<Addr<Project>>),
+                                BadStoreRequest,
+                            >;
+                            // do dynamic sampling on transactions
+                            let trace_context = match envelope.trace_context() {
+                                None => {
+                                    // if we don't have a trace context we can't do dynamic sampling so stop.
+                                    return Box::new(Ok((envelope, rate_limits, None)).into_future())
+                                        as RetVal;
+                                }
+                                Some(trace_context) => trace_context,
+                            };
+                            // Sample and potentially remove transactions from the envelope.
+                            // We only do this if the envelope contains only transactions,
+                            // The reason for that is that in case of envelopes containing only
+                            // transactions we have a chance to end processing here (if the transactions
+                            // are sampled out).
+                            // If the envelope contains other items (beyond transactions then we cannot
+                            // shortcut the processing here so we'll do it after we queue the envelope).
+                            let response = project_manager
+                                .send(GetProject {
+                                    public_key: trace_context.public_key,
+                                })
+                                // deal with mailbox errors
+                                .map_err(BadStoreRequest::ScheduleFailed)
+                                // do the fast path transaction sampling (if we can't do it here
+                                // we'll try again after the envelope is queued)
+                                .map(|project| (envelope, rate_limits, Some(project)));
+                            Box::new(response) as RetVal
+                        }
+                    ))
+                    .and_then(move |(envelope, rate_limits, sampling_project)| {
                         // do the fast path transaction sampling (if we can't do it here
                         // we'll try again after the envelope is queued)
-                        .map(|project| (envelope, rate_limits, Some(project)));
-                    Box::new(response) as RetVal
-                }))
-                .and_then(move |(envelope, rate_limits, sampling_project)| {
-                    // do the fast path transaction sampling (if we can't do it here
-                    // we'll try again after the envelope is queued)
-                    let event_id = envelope.event_id();
+                        let event_id = envelope.event_id();
 
-                    utils::sample_transaction(
-                        envelope,
-                        sampling_project.clone(),
-                        true,
-                        processing_enabled,
-                    )
-                    .then(move |result| match result {
-                        Err(()) => Err(BadStoreRequest::TraceSampled(event_id)),
-                        Ok(envelope) if envelope.is_empty() => {
-                            Err(BadStoreRequest::TraceSampled(event_id))
-                        }
-                        Ok(envelope) => Ok((envelope, rate_limits, sampling_project)),
-                    })
-                })
-                .and_then(move |(envelope, rate_limits, sampling_project)| {
-                    event_manager
-                        .send(QueueEnvelope {
+                        utils::sample_transaction(
                             envelope,
-                            project,
-                            sampling_project,
-                            start_time,
+                            sampling_project.clone(),
+                            true,
+                            processing_enabled,
+                        )
+                        .then(move |result| match result {
+                            Err(()) => Err(BadStoreRequest::TraceSampled(event_id)),
+                            Ok(envelope) if envelope.is_empty() => {
+                                Err(BadStoreRequest::TraceSampled(event_id))
+                            }
+                            Ok(envelope) => Ok((envelope, rate_limits, sampling_project)),
                         })
-                        .map_err(BadStoreRequest::ScheduleFailed)
-                        .and_then(|result| result.map_err(BadStoreRequest::QueueFailed))
-                        .map(move |event_id| (event_id, rate_limits))
-                })
-                .and_then(move |(event_id, rate_limits)| {
-                    if rate_limits.is_limited() {
-                        Err(BadStoreRequest::RateLimited(rate_limits))
-                    } else {
-                        Ok(create_response(event_id))
-                    }
-                })
-        }))
+                    })
+                    .and_then(move |(envelope, rate_limits, sampling_project)| {
+                        event_manager
+                            .send(QueueEnvelope {
+                                envelope,
+                                project,
+                                sampling_project,
+                                start_time,
+                            })
+                            .map_err(BadStoreRequest::ScheduleFailed)
+                            .and_then(|result| result.map_err(BadStoreRequest::QueueFailed))
+                            .map(move |event_id| (event_id, rate_limits))
+                    })
+                    .and_then(move |(event_id, rate_limits)| {
+                        if rate_limits.is_limited() {
+                            Err(BadStoreRequest::RateLimited(rate_limits))
+                        } else {
+                            Ok(create_response(event_id))
+                        }
+                    })
+            }
+        ))
         .or_else(move |error: BadStoreRequest| {
             metric!(counter(RelayCounters::EnvelopeRejected) += 1);
 
             let envelope_summary = envelope_summary.borrow();
+            let outcome_producer = outcome_producer.borrow();
             if let Some(outcome) = error.to_outcome() {
                 if let Some(category) = envelope_summary.event_category {
                     outcome_producer.do_send(TrackOutcome {
