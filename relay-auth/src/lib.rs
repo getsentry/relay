@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 
@@ -90,24 +89,8 @@ impl FromStr for RelayVersion {
     }
 }
 
-impl<'de> Deserialize<'de> for RelayVersion {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::de::Deserializer<'de>,
-    {
-        let string = Cow::<str>::deserialize(deserializer)?;
-        Ok(string.parse().map_err(serde::de::Error::custom)?)
-    }
-}
+relay_common::impl_str_serde!(RelayVersion, "a version string");
 
-impl Serialize for RelayVersion {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::ser::Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}
 /// Raised if a key could not be parsed.
 #[derive(Debug, Fail, PartialEq, Eq, Hash)]
 pub enum KeyParseError {
@@ -297,7 +280,7 @@ impl fmt::Debug for SecretKey {
     }
 }
 
-relay_common::impl_str_serialization!(SecretKey, "a secret key");
+relay_common::impl_str_serde!(SecretKey, "a secret key");
 
 impl PublicKey {
     /// Verifies the signature and returns the embedded signature
@@ -413,7 +396,7 @@ impl fmt::Debug for PublicKey {
     }
 }
 
-relay_common::impl_str_serialization!(PublicKey, "a public key");
+relay_common::impl_str_serde!(PublicKey, "a public key");
 
 /// Generates an relay ID.
 pub fn generate_relay_id() -> RelayId {
@@ -819,7 +802,7 @@ fn test_registration() {
 /// This is a pseudo-test to easily generate the strings used by test_auth.py
 /// You can copy the output to the top of the test_auth.py when there are changes in the
 /// exchanged authentication structures.
-/// It follows test_registration but instead of asserting it prints the strings  
+/// It follows test_registration but instead of asserting it prints the strings
 #[test]
 fn test_generate_strings_for_test_auth_py() {
     let max_age = Duration::minutes(15);

@@ -94,7 +94,7 @@ derive_fromstr_and_display!(CspDirective, InvalidSecurityError, {
     CspDirective::TrustedTypes => "trusted-types",
 });
 
-impl_str_serde!(CspDirective);
+relay_common::impl_str_serde!(CspDirective, "a csp directive");
 
 fn is_local(uri: &str) -> bool {
     matches!(uri, "" | "self" | "'self'")
@@ -508,7 +508,7 @@ derive_fromstr_and_display!(ExpectCtStatus, InvalidSecurityError, {
     ExpectCtStatus::Invalid => "invalid",
 });
 
-impl_str_serde!(ExpectCtStatus);
+relay_common::impl_str_serde!(ExpectCtStatus, "an expect-ct status");
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ExpectCtSource {
@@ -523,7 +523,7 @@ derive_fromstr_and_display!(ExpectCtSource, InvalidSecurityError, {
             ExpectCtSource::Embedded => "embedded",
 });
 
-impl_str_serde!(ExpectCtSource);
+relay_common::impl_str_serde!(ExpectCtSource, "an expect-ct source");
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 struct SingleCertificateTimestampRaw {
@@ -899,7 +899,7 @@ derive_fromstr_and_display!(ExpectStapleResponseStatus, InvalidSecurityError, {
     ExpectStapleResponseStatus::ParseResponseDataError => "PARSE_RESPONSE_DATA_ERROR",
 });
 
-impl_str_serde!(ExpectStapleResponseStatus);
+relay_common::impl_str_serde!(ExpectStapleResponseStatus, "an expect-ct response status");
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ExpectStapleCertStatus {
@@ -914,7 +914,7 @@ derive_fromstr_and_display!(ExpectStapleCertStatus, InvalidSecurityError, {
     ExpectStapleCertStatus::Unknown => "UNKNOWN",
 });
 
-impl_str_serde!(ExpectStapleCertStatus);
+relay_common::impl_str_serde!(ExpectStapleCertStatus, "an expect-staple cert status");
 
 /// Inner (useful) part of a Expect Stable report as sent by a user agent ( browser)
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
