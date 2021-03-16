@@ -99,10 +99,17 @@ impl SpanOperationsConfig {
                 Some(span) => span,
             };
 
-            let cover = TimeWindowSpan::new(
-                *span.start_timestamp.value().unwrap(),
-                *span.timestamp.value().unwrap(),
-            );
+            let start_timestamp = match span.start_timestamp.value() {
+                None => continue,
+                Some(start_timestamp) => start_timestamp,
+            };
+
+            let end_timestamp = match span.timestamp.value() {
+                None => continue,
+                Some(end_timestamp) => end_timestamp,
+            };
+
+            let cover = TimeWindowSpan::new(*start_timestamp, *end_timestamp);
 
             let operation_name = span.op.value().unwrap().clone();
 
