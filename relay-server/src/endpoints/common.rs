@@ -11,7 +11,7 @@ use failure::Fail;
 use futures::prelude::*;
 use serde::Deserialize;
 
-use relay_common::{clone, metric, tryf};
+use relay_common::{clone, metric, tryf, DataCategory};
 use relay_config::Config;
 use relay_general::protocol::{EventId, EventType};
 use relay_log::LogError;
@@ -26,7 +26,7 @@ use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
 use crate::service::{ServiceApp, ServiceState};
-use crate::utils::{self, ApiErrorResponse, FormDataIter, MultipartError};
+use crate::utils::{self, ApiErrorResponse, EnvelopeSummary, FormDataIter, MultipartError};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -410,19 +410,19 @@ where
 
     let scoping = Rc::new(RefCell::new(meta.get_partial_scoping()));
     let event_id = Rc::new(RefCell::new(None));
-    let event_category = Rc::new(RefCell::new(None));
+    let envelope_summary = Rc::new(RefCell::new(EnvelopeSummary::empty()));
     let config = request.state().config();
     let processing_enabled = config.processing_enabled();
 
     let future = project_manager
         .send(GetProject { public_key })
         .map_err(BadStoreRequest::ScheduleFailed)
-        .and_then(clone!(event_id, event_category, scoping, |project| {
+        .and_then(clone!(event_id, envelope_summary, scoping, |project| {
             extract_envelope(&request, meta)
                 .into_future()
-                .and_then(clone!(event_id, event_category, |envelope| {
+                .and_then(clone!(event_id, envelope_summary, |envelope| {
                     event_id.replace(envelope.event_id());
-                    event_category.replace(envelope.get_event_category());
+                    envelope_summary.replace(EnvelopeSummary::compute(&envelope));
 
                     if envelope.is_empty() {
                         Err(BadStoreRequest::EmptyEnvelope)
@@ -446,6 +446,8 @@ where
                         Some(envelope) => envelope,
                         None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
                     };
+                    // TODO: Update envelope_summary from checked.envelope, once the rate-limiting
+                    // code in CheckEnvelope emits its own outcomes.
 
                     if check_envelope_size_limits(&config, &envelope) {
                         Ok((envelope, checked.rate_limits))
@@ -530,15 +532,29 @@ where
         .or_else(move |error: BadStoreRequest| {
             metric!(counter(RelayCounters::EnvelopeRejected) += 1);
 
-            if let Some(category) = *event_category.borrow() {
-                if let Some(outcome) = error.to_outcome() {
+            let envelope_summary = envelope_summary.borrow();
+            if let Some(outcome) = error.to_outcome() {
+                if let Some(category) = envelope_summary.event_category {
+                    outcome_producer.do_send(TrackOutcome {
+                        timestamp: start_time,
+                        scoping: *scoping.borrow(),
+                        outcome: outcome.clone(),
+                        event_id: *event_id.borrow(),
+                        remote_addr,
+                        category,
+                        quantity: 1,
+                    });
+                }
+
+                if envelope_summary.attachment_quantity > 0 {
                     outcome_producer.do_send(TrackOutcome {
                         timestamp: start_time,
                         scoping: *scoping.borrow(),
                         outcome,
                         event_id: *event_id.borrow(),
                         remote_addr,
-                        category,
+                        category: DataCategory::Attachment,
+                        quantity: envelope_summary.attachment_quantity,
                     });
                 }
             }

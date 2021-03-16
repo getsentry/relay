@@ -84,6 +84,8 @@ pub struct TrackOutcome {
     pub remote_addr: Option<IpAddr>,
     /// The event's data category.
     pub category: DataCategory,
+    /// The number of events or total attachment size in bytes.
+    pub quantity: usize,
 }
 
 impl Message for TrackOutcome {
@@ -316,6 +318,9 @@ pub struct TrackRawOutcome {
     /// The event's data category.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub category: Option<u8>,
+    /// The number of events or total attachment size in bytes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quantity: Option<usize>,
 }
 
 impl TrackRawOutcome {
@@ -351,6 +356,7 @@ impl TrackRawOutcome {
             remote_addr: msg.remote_addr.map(|addr| addr.to_string()),
             source,
             category: msg.category.value(),
+            quantity: Some(msg.quantity),
         }
     }
 }
