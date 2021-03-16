@@ -229,14 +229,14 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
     assert event["breakdowns"] == {
         "span_ops": {
             "lcp": {"value": 202.1},
-            "ops.time.http": {"value": 2000000.0},
-            "ops.time.resource": {"value": 100001.003},
-            "ops.total.time": {"value": 2200001.003},
+            "ops.http": {"value": 2000000.0},
+            "ops.resource": {"value": 100001.003},
+            "total.time": {"value": 2200001.003},
         },
         "span_ops_2": {
-            "ops.time.http": {"value": 2000000.0},
-            "ops.time.resource": {"value": 100001.003},
-            "ops.total.time": {"value": 2200001.003},
+            "ops.http": {"value": 2000000.0},
+            "ops.resource": {"value": 100001.003},
+            "total.time": {"value": 2200001.003},
         },
     }
 

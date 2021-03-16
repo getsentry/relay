@@ -173,7 +173,7 @@ mod tests {
             let mut span_ops_breakdown = Measurements::default();
 
             span_ops_breakdown.insert(
-                "ops.time.http".to_owned(),
+                "ops.http".to_owned(),
                 Annotated::new(Measurement {
                     // 1 hour in milliseconds
                     value: Annotated::new(3_600_000.0),
@@ -181,7 +181,7 @@ mod tests {
             );
 
             span_ops_breakdown.insert(
-                "ops.time.db".to_owned(),
+                "ops.db".to_owned(),
                 Annotated::new(Measurement {
                     // 2 hours in milliseconds
                     value: Annotated::new(7_200_000.0),
@@ -189,7 +189,7 @@ mod tests {
             );
 
             span_ops_breakdown.insert(
-                "ops.total.time".to_owned(),
+                "total.time".to_owned(),
                 Annotated::new(Measurement {
                     // 4 hours and 10 microseconds in milliseconds
                     value: Annotated::new(14_400_000.01),

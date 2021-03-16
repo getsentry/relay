@@ -172,7 +172,7 @@ impl SpanOperationsConfig {
                 value: Annotated::new(op_time_spent),
             };
 
-            let op_breakdown_name = format!("ops.time.{}", operation_name);
+            let op_breakdown_name = format!("ops.{}", operation_name);
 
             breakdown.insert(op_breakdown_name, Annotated::new(time_spent_measurement));
         }
@@ -181,7 +181,7 @@ impl SpanOperationsConfig {
             value: Annotated::new(total_time_spent),
         };
         breakdown.insert(
-            "ops.total.time".to_string(),
+            "total.time".to_string(),
             Annotated::new(total_time_spent_measurement),
         );
 
