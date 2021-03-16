@@ -685,11 +685,20 @@ impl Handler<GetProjectState> for Project {
 ///  - Validate origins and public keys
 ///  - Quotas with a limit of `0`
 ///  - Cached rate limits
-// #[derive(Debug)] // TODO: Fix?
 pub struct CheckEnvelope {
     envelope: Envelope,
     fetch: bool,
     outcome_producer: Addr<OutcomeProducer>,
+}
+
+impl std::fmt::Debug for CheckEnvelope {
+    // TODO: Is this good enough? Can we avoid needing it?
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CheckEnvelope")
+            .field("envelope", &self.envelope)
+            .field("fetch", &self.fetch)
+            .finish()
+    }
 }
 
 impl CheckEnvelope {
