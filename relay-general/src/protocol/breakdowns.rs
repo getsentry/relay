@@ -99,6 +99,11 @@ impl SpanOperationsConfig {
                 Some(span) => span,
             };
 
+            let operation_name = match span.op.value() {
+                None => continue,
+                Some(span_op) => span_op.clone(),
+            };
+
             let start_timestamp = match span.start_timestamp.value() {
                 None => continue,
                 Some(start_timestamp) => start_timestamp,
@@ -110,8 +115,6 @@ impl SpanOperationsConfig {
             };
 
             let cover = TimeWindowSpan::new(*start_timestamp, *end_timestamp);
-
-            let operation_name = span.op.value().unwrap().clone();
 
             // Only emit an operation breakdown measurement if the operation name matches any
             // entries in operation_name_breakdown.
