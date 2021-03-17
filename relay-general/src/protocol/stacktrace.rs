@@ -76,11 +76,11 @@ pub struct Frame {
     pub abs_path: Annotated<NativeImagePath>,
 
     /// Line number within the source file, starting at 1.
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "null")]
     pub lineno: Annotated<u64>,
 
     /// Column number within the source file, starting at 1.
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "null")]
     pub colno: Annotated<u64>,
 
     /// Which platform this frame is from.
@@ -95,11 +95,11 @@ pub struct Frame {
     pub pre_context: Annotated<Array<String>>,
 
     /// Source code of the current line (`lineno`).
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "null")]
     pub context_line: Annotated<String>,
 
     /// Source code of the lines after `lineno`.
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "null")]
     pub post_context: Annotated<Array<String>>,
 
     /// Override whether this frame should be considered part of application code, or part of
@@ -107,7 +107,7 @@ pub struct Frame {
     ///
     /// Setting this attribute to `false` causes the frame to be hidden/collapsed by default and
     /// mostly ignored during issue grouping.
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "null")]
     pub in_app: Annotated<bool>,
 
     /// Mapping of local variables and expression names that were available in this frame.
