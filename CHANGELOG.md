@@ -6,6 +6,7 @@
 
 - Emit the `quantity` field for outcomes of events. This field describes the total size in bytes for attachments or the event count for all other categories. A separate outcome is emitted for attachments in a rejected envelope, if any, in addition to the event outcome. ([#942](https://github.com/getsentry/relay/pull/942))
 - Add experimental metrics ingestion without bucketing or pre-aggregation. ([#948](https://github.com/getsentry/relay/pull/948))
+- Skip serializing some null values in frames interface. ([#944](https://github.com/getsentry/relay/pull/944))
 
 ## 21.3.0
 
