@@ -9,9 +9,10 @@ use actix::prelude::*;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use futures::prelude::*;
+use relay_metrics::Metric;
 use serde_json::Value as SerdeValue;
 
-use relay_common::{clone, metric, ProjectId};
+use relay_common::{clone, metric, ProjectId, UnixTimestamp};
 use relay_config::{Config, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
@@ -24,6 +25,7 @@ use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction
 use relay_log::LogError;
 use relay_quotas::{DataCategory, RateLimits};
 use relay_redis::RedisPool;
+use relay_sampling::RuleId;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
@@ -35,7 +37,9 @@ use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemTyp
 use crate::http::{HttpError, RequestBuilder};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
-use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, FutureExt};
+use crate::utils::{
+    self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt, SamplingResult,
+};
 
 #[cfg(feature = "processing")]
 use {
@@ -129,8 +133,8 @@ enum ProcessingError {
     #[fail(display = "envelope empty, transaction removed by sampling")]
     TransactionSampled,
 
-    #[fail(display = "envelope empty, event removed by sampling")]
-    EventSampled,
+    #[fail(display = "envelope empty, event removed by sampling rule:{}", _0)]
+    EventSampled(RuleId),
 }
 
 impl ProcessingError {
@@ -170,7 +174,7 @@ impl ProcessingError {
 
             // Dynamic sampling (not an error, just discarding messages that were removed by sampling)
             Self::TransactionSampled => Some(Outcome::Invalid(DiscardReason::TransactionSampled)),
-            Self::EventSampled => Some(Outcome::Invalid(DiscardReason::EventSampled)),
+            Self::EventSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
 
             // If we send to an upstream, we don't emit outcomes.
             Self::SendFailed(_) => None,
@@ -305,6 +309,47 @@ impl EventProcessor {
     pub fn with_geoip_lookup(mut self, geoip_lookup: Option<Arc<GeoIpLookup>>) -> Self {
         self.geoip_lookup = geoip_lookup;
         self
+    }
+
+    /// Validates all metrics in the envelope, if any.
+    ///
+    /// Metrics are removed from the envelope if they contain invalid syntax or if their timestamps
+    /// are out of range after clock drift correction.
+    fn process_metrics(&self, state: &mut ProcessEnvelopeState) {
+        let envelope = &mut state.envelope;
+        let received = state.received_at;
+        // TODO(ja): Avoid unsafe cast
+        let timestamp = UnixTimestamp::from_secs(received.timestamp() as u64);
+
+        let clock_drift_processor =
+            ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
+
+        envelope.retain_items(|item| {
+            if item.ty() != ItemType::Metrics {
+                return true;
+            }
+
+            let payload = item.payload();
+            let mut normalized = Vec::with_capacity(payload.len());
+
+            for metric_result in Metric::parse_all(&payload, timestamp) {
+                let mut metric = match metric_result {
+                    Ok(metric) => metric,
+                    Err(_) => continue,
+                };
+
+                clock_drift_processor.process_timestamp(&mut metric.timestamp);
+
+                if !normalized.is_empty() {
+                    normalized.push(b'\n');
+                }
+                normalized.extend(metric.serialize().as_bytes());
+            }
+
+            item.set_payload(ContentType::Text, normalized);
+
+            true
+        });
     }
 
     /// Validates all sessions in the envelope, if any.
@@ -728,9 +773,10 @@ impl EventProcessor {
             ItemType::Attachment => false,
             ItemType::UserReport => false,
 
-            // session data is never considered as part of deduplication
+            // aggregate data is never considered as part of deduplication
             ItemType::Session => false,
             ItemType::Sessions => false,
+            ItemType::Metrics => false,
         }
     }
 
@@ -1002,19 +1048,19 @@ impl EventProcessor {
         }
 
         let mut remove_event = false;
-        let category = state.event_category();
+        let event_category = state.event_category();
 
         // When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.
         let mut envelope_limiter = EnvelopeLimiter::new(|item_scope, quantity| {
             let limits = rate_limiter.is_rate_limited(quotas, item_scope, quantity)?;
-            remove_event |= Some(item_scope.category) == category && limits.is_limited();
+            remove_event |= Some(item_scope.category) == event_category && limits.is_limited();
             Ok(limits)
         });
 
         // Tell the envelope limiter about the event, since it has been removed from the Envelope at
         // this stage in processing.
-        if let Some(category) = category {
+        if let Some(category) = event_category {
             envelope_limiter.assume_event(category);
         }
 
@@ -1148,9 +1194,10 @@ impl EventProcessor {
             &state.project_state,
             self.config.processing_enabled(),
         ) {
-            Some(false) => Err(ProcessingError::EventSampled),
-            Some(true) => Ok(()),
-            None => Ok(()), // Not enough info to make a definite evaluation, keep the event
+            SamplingResult::Drop(rule_id) => Err(ProcessingError::EventSampled(rule_id)),
+            SamplingResult::Keep => Ok(()),
+            // Not enough info to make a definite evaluation, keep the event
+            SamplingResult::NoDecision => Ok(()),
         }
     }
 
@@ -1166,6 +1213,7 @@ impl EventProcessor {
             };
         }
 
+        self.process_metrics(&mut state);
         self.process_sessions(&mut state);
         self.process_user_reports(&mut state);
 
@@ -1476,19 +1524,19 @@ impl Handler<HandleEnvelope> for EventManager {
             start_time,
             sampling_project,
         } = message;
-        let event_category = envelope.get_event_category();
 
         let event_id = envelope.event_id();
         let remote_addr = envelope.meta().client_addr();
 
         let scoping = Rc::new(RefCell::new(envelope.meta().get_partial_scoping()));
         let is_received = Rc::new(AtomicBool::from(false));
+        let envelope_summary = Rc::new(RefCell::new(EnvelopeSummary::compute(&envelope)));
 
         let future = project
             .send(CheckEnvelope::fetched(envelope))
             .map_err(ProcessingError::ScheduleFailed)
             .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
-            .and_then(clone!(scoping, |response| {
+            .and_then(clone!(scoping, envelope_summary, |response| {
                 // Use the project id from the loaded project state to account for redirects.
                 let project_id = response.scoping.project_id.value();
                 metric!(set(RelaySets::UniqueProjects) = project_id as i64);
@@ -1497,7 +1545,10 @@ impl Handler<HandleEnvelope> for EventManager {
 
                 let checked = response.result.map_err(ProcessingError::EventRejected)?;
                 match checked.envelope {
-                    Some(envelope) => Ok(envelope),
+                    Some(envelope) => {
+                        envelope_summary.replace(EnvelopeSummary::compute(&envelope));
+                        Ok(envelope)
+                    }
                     None => Err(ProcessingError::RateLimited(checked.rate_limits)),
                 }
             }))
@@ -1531,6 +1582,7 @@ impl Handler<HandleEnvelope> for EventManager {
                     })
                     .map_err(ProcessingError::ScheduleFailed)
                     .flatten()
+                // TODO: Update envelope_summary once the rate-limiting code emits its own outcomes.
             })
             .and_then(clone!(project, |processed| {
                 let rate_limits = processed.rate_limits;
@@ -1668,13 +1720,6 @@ impl Handler<HandleEnvelope> for EventManager {
                     }
                 }
 
-                // Envelopes not containing events (such as standalone attachment uploads or user
-                // reports) should never create outcomes.
-                let category = match event_category {
-                    Some(event_category) => event_category,
-                    None => return,
-                };
-
                 let outcome = error.to_outcome();
                 if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome {
                     // Errors are only logged for what we consider an internal discard reason. These
@@ -1692,15 +1737,31 @@ impl Handler<HandleEnvelope> for EventManager {
                     return;
                 }
 
+                let envelope_summary = envelope_summary.borrow();
                 if let Some(outcome) = outcome {
-                    outcome_producer.do_send(TrackOutcome {
-                        timestamp: Instant::now(),
-                        scoping: *scoping.borrow(),
-                        outcome,
-                        event_id,
-                        remote_addr,
-                        category,
-                    })
+                    if let Some(category) = envelope_summary.event_category {
+                        outcome_producer.do_send(TrackOutcome {
+                            timestamp: Instant::now(),
+                            scoping: *scoping.borrow(),
+                            outcome: outcome.clone(),
+                            event_id,
+                            remote_addr,
+                            category,
+                            quantity: 1,
+                        });
+                    }
+
+                    if envelope_summary.attachment_quantity > 0 {
+                        outcome_producer.do_send(TrackOutcome {
+                            timestamp: start_time,
+                            scoping: *scoping.borrow(),
+                            outcome,
+                            event_id,
+                            remote_addr,
+                            category: DataCategory::Attachment,
+                            quantity: envelope_summary.attachment_quantity,
+                        });
+                    }
                 }
             })
             .then(move |x, slf, _| {

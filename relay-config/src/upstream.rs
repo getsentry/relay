@@ -158,7 +158,7 @@ impl FromStr for UpstreamDescriptor<'static> {
     }
 }
 
-relay_common::impl_str_serialization!(UpstreamDescriptor<'static>, "a sentry upstream URL");
+relay_common::impl_str_serde!(UpstreamDescriptor<'static>, "a sentry upstream URL");
 
 #[cfg(test)]
 mod test {

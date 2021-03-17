@@ -6,40 +6,59 @@ use actix::prelude::*;
 use futures::{future, prelude::*};
 
 use relay_general::protocol::{Event, EventId};
-use relay_sampling::{get_matching_event_rule, pseudo_random_from_uuid, rule_type_for_event};
+use relay_sampling::{
+    get_matching_event_rule, pseudo_random_from_uuid, rule_type_for_event, RuleId,
+};
 
 use crate::actors::project::{GetCachedProjectState, GetProjectState, Project, ProjectState};
 use crate::envelope::{Envelope, ItemType};
 
-// Checks whether an event should be kept or removed by dynamic sampling
+/// The result of a Sampling operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SamplingResult {
+    /// Keep the event.
+    Keep,
+    /// Drop the event, due to the rule with provided Id.
+    Drop(RuleId),
+    /// No decision can be made.  
+    NoDecision,
+}
+
+/// Checks whether an event should be kept or removed by dynamic sampling.
 pub fn should_keep_event(
     event: &Event,
     ip_addr: Option<IpAddr>,
     project_state: &ProjectState,
     processing_enabled: bool,
-) -> Option<bool> {
+) -> SamplingResult {
     let sampling_config = match &project_state.config.dynamic_sampling {
-        None => return None, // without config there is not enough info to make up my mind
+        // without config there is not enough info to make up my mind
+        None => return SamplingResult::NoDecision,
         Some(config) => config,
     };
 
     // when we have unsupported rules disable sampling for non processing relays
     if !processing_enabled && sampling_config.has_unsupported_rules() {
-        return Some(true);
+        return SamplingResult::Keep;
     }
 
     let event_id = match event.id.0 {
-        None => return None, // if no eventID we can't really sample so keep everything
+        // if no eventID we can't really do sampling so do not take a decision
+        None => return SamplingResult::NoDecision,
         Some(EventId(id)) => id,
     };
 
     let ty = rule_type_for_event(&event);
     if let Some(rule) = get_matching_event_rule(sampling_config, event, ip_addr, ty) {
         if let Some(random_number) = pseudo_random_from_uuid(event_id) {
-            return Some(rule.sample_rate > random_number);
+            if random_number < rule.sample_rate {
+                return SamplingResult::Keep;
+            }
+            return SamplingResult::Drop(rule.id);
         }
     }
-    None // if no matching rule there is not enough info to make a decision
+    // if there are no matching rules there is not enough info to make a sampling decision
+    SamplingResult::NoDecision
 }
 
 /// Takes an envelope and potentially removes the transaction item from it if that
@@ -94,7 +113,7 @@ fn sample_transaction_internal(
 }
 
 /// Check if we should remove transactions from this envelope (because of trace sampling) and
-/// return what is left of the envelope
+/// return what is left of the envelope.
 pub fn sample_transaction(
     envelope: Envelope,
     project: Option<Addr<Project>>,
@@ -145,5 +164,77 @@ pub fn sample_transaction(
                 ))
             });
         Box::new(fut) as ResponseFuture<_, _>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actors::project::ProjectConfig;
+    use relay_common::EventType;
+    use relay_general::types::Annotated;
+    use relay_sampling::SamplingConfig;
+    use smallvec::SmallVec;
+    use std::time::Instant;
+
+    fn get_project_state(sample_rate: Option<f64>) -> ProjectState {
+        let sampling_config_str = if let Some(sample_rate) = sample_rate {
+            format!(
+                r#"{{
+                "rules":[{{
+                    "condition": {{ "op": "and", "inner":[]}},
+                    "sampleRate": {},
+                    "type": "error",
+                    "id": 1
+                }}]
+            }}"#,
+                sample_rate
+            )
+        } else {
+            "{\"rules\":[]}".to_owned()
+        };
+        let sampling_config = serde_json::from_str::<SamplingConfig>(&sampling_config_str).ok();
+
+        ProjectState {
+            project_id: None,
+            disabled: false,
+            public_keys: SmallVec::new(),
+            slug: None,
+            config: ProjectConfig {
+                dynamic_sampling: sampling_config,
+                ..ProjectConfig::default()
+            },
+            organization_id: None,
+            last_change: None,
+            last_fetch: Instant::now(),
+            invalid: false,
+        }
+    }
+
+    #[test]
+    /// Should_keep_event returns the expected results.
+    fn test_should_keep_event() {
+        let event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Error),
+            ..Event::default()
+        };
+
+        let proj_state = get_project_state(Some(0.0));
+
+        assert_eq!(
+            SamplingResult::Drop(RuleId(1)),
+            should_keep_event(&event, None, &proj_state, true)
+        );
+        let proj_state = get_project_state(Some(1.0));
+        assert_eq!(
+            SamplingResult::Keep,
+            should_keep_event(&event, None, &proj_state, true)
+        );
+        let proj_state = get_project_state(None);
+        assert_eq!(
+            SamplingResult::NoDecision,
+            should_keep_event(&event, None, &proj_state, true)
+        );
     }
 }

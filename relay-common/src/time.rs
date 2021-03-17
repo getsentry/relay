@@ -15,21 +15,22 @@ pub fn instant_to_date_time(instant: Instant) -> chrono::DateTime<chrono::Utc> {
     instant_to_system_time(instant).into()
 }
 
-/// A unix timestap (time elapsed since 1970).
+/// A unix timestap (full seconds elapsed since 1970).
 #[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-pub struct UnixTimestamp(Duration);
+pub struct UnixTimestamp(u64);
 
 impl UnixTimestamp {
     /// Creates a unix timestamp from the given number of seconds.
     pub fn from_secs(secs: u64) -> Self {
-        Self(Duration::from_secs(secs))
+        Self(secs)
     }
 
     /// Creates a unix timestamp from the given system time.
     pub fn from_system(time: SystemTime) -> Self {
         let duration = time
             .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .as_secs();
 
         Self(duration)
     }
@@ -51,12 +52,7 @@ impl UnixTimestamp {
 
     /// Returns the number of seconds since the UNIX epoch start.
     pub fn as_secs(self) -> u64 {
-        self.0.as_secs()
-    }
-
-    /// Returns the number of milliseconds since the UNIX epoch start.
-    pub fn as_millis(self) -> u128 {
-        self.0.as_millis()
+        self.0
     }
 }
 
@@ -66,11 +62,9 @@ impl fmt::Debug for UnixTimestamp {
     }
 }
 
-impl std::ops::Add<Duration> for UnixTimestamp {
-    type Output = Self;
-
-    fn add(self, rhs: Duration) -> Self::Output {
-        Self(self.0 + rhs)
+impl fmt::Display for UnixTimestamp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_secs().fmt(f)
     }
 }
 
@@ -78,7 +72,19 @@ impl std::ops::Sub for UnixTimestamp {
     type Output = Duration;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        self.0 - rhs.0
+        Duration::from_secs(self.0 - rhs.0)
+    }
+}
+
+/// An error returned from parsing [`UnixTimestamp`].
+pub struct ParseUnixTimestampError(());
+
+impl std::str::FromStr for UnixTimestamp {
+    type Err = ParseUnixTimestampError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let ts = s.parse().or(Err(ParseUnixTimestampError(())))?;
+        Ok(Self(ts))
     }
 }
 
@@ -87,7 +93,7 @@ impl Serialize for UnixTimestamp {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_u64(self.0.as_secs())
+        serializer.serialize_u64(self.as_secs())
     }
 }
 

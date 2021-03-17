@@ -30,7 +30,7 @@
 //!
 //! ```
 
-use std::borrow::{Borrow, Cow};
+use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{self, Write};
@@ -41,14 +41,13 @@ use failure::Fail;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use relay_common::DataCategory;
 use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
 use relay_sampling::TraceContext;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
-use crate::utils::{infer_event_category, ErrorBoundary};
+use crate::utils::ErrorBoundary;
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
@@ -96,6 +95,8 @@ pub enum ItemType {
     Session,
     /// Aggregated session data.
     Sessions,
+    /// Metrics.
+    Metrics,
 }
 
 impl ItemType {
@@ -124,6 +125,7 @@ impl fmt::Display for ItemType {
             Self::UserReport => write!(f, "user feedback"),
             Self::Session => write!(f, "session"),
             Self::Sessions => write!(f, "aggregated sessions"),
+            Self::Metrics => write!(f, "metrics"),
         }
     }
 }
@@ -205,6 +207,14 @@ impl From<&'_ str> for ContentType {
     }
 }
 
+impl std::str::FromStr for ContentType {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(s.into())
+    }
+}
+
 impl PartialEq<str> for ContentType {
     fn eq(&self, other: &str) -> bool {
         // Take an indirection via ContentType::from_str to also check aliases. Do not allocate in
@@ -255,16 +265,7 @@ impl Serialize for ContentType {
     }
 }
 
-impl<'de> Deserialize<'de> for ContentType {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let content_type = Cow::<'_, str>::deserialize(deserializer)?;
-        Ok(Self::from_str(&content_type)
-            .unwrap_or_else(|| ContentType::Other(content_type.into_owned())))
-    }
-}
+relay_common::impl_str_de!(ContentType, "a content type string");
 
 /// The type of an event attachment.
 ///
@@ -526,7 +527,9 @@ impl Item {
             ItemType::FormData => false,
 
             // The remaining item types cannot carry event payloads.
-            ItemType::UserReport | ItemType::Session | ItemType::Sessions => false,
+            ItemType::UserReport | ItemType::Session | ItemType::Sessions | ItemType::Metrics => {
+                false
+            }
         }
     }
 
@@ -545,6 +548,7 @@ impl Item {
             ItemType::UserReport => true,
             ItemType::Session => false,
             ItemType::Sessions => false,
+            ItemType::Metrics => false,
         }
     }
 }
@@ -955,13 +959,6 @@ impl Envelope {
         writer
             .write_all(buf)
             .map_err(EnvelopeError::PayloadIoFailed)
-    }
-
-    /// Return the data category type of the event item, if any, in this envelope.
-    pub fn get_event_category(&self) -> Option<DataCategory> {
-        self.items().find_map(infer_event_category)
-        // There are some cases where multiple items may have different categories, but returning
-        // the first is good enough for now.
     }
 }
 
