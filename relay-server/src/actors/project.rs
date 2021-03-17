@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::time::{Duration, Instant};
+use std::{net::IpAddr, sync::Arc};
 
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
@@ -13,7 +13,10 @@ use relay_auth::PublicKey;
 use relay_common::{metric, DataCategory, ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
-use relay_general::pii::{DataScrubbingConfig, PiiConfig};
+use relay_general::{
+    pii::{DataScrubbingConfig, PiiConfig},
+    protocol::EventId,
+};
 use relay_quotas::{Quota, RateLimits, ReasonCode, Scoping};
 use relay_sampling::SamplingConfig;
 
@@ -554,26 +557,8 @@ impl Project {
         message: CheckEnvelope,
         scoping: &Scoping,
     ) -> Result<CheckedEnvelope, DiscardReason> {
+        let rate_limit_envelope = RateLimitEnvelope::new(&message, scoping);
         let mut envelope = message.envelope;
-        let event_id = envelope.event_id();
-        let remote_addr = envelope.meta().client_addr();
-        let envelope_summary = EnvelopeSummary::compute(&envelope);
-        let outcome_producer = message.outcome_producer;
-
-        let emit_outcome = |category: &DataCategory, reason_code: &Option<ReasonCode>| {
-            outcome_producer.do_send(TrackOutcome {
-                timestamp: Instant::now(),
-                scoping: *scoping,
-                outcome: Outcome::RateLimited(reason_code.clone()),
-                event_id,
-                remote_addr,
-                category: *category,
-                quantity: match category {
-                    DataCategory::Attachment => envelope_summary.attachment_quantity,
-                    _ => 1,
-                },
-            })
-        };
 
         if let Some(state) = self.state() {
             state.check_request(envelope.meta(), &self.config)?;
@@ -584,21 +569,7 @@ impl Project {
         let quotas = self.state().map(|s| s.get_quotas()).unwrap_or(&[]);
         let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
             let applied_limits = self.rate_limits.check_with_quotas(quotas, item_scoping);
-            for applied_limit in applied_limits.iter() {
-                if applied_limit.categories.is_empty() {
-                    // Empty categories value indicates that the rate limit applies to all data.
-                    if let Some(event_category) = envelope_summary.event_category {
-                        emit_outcome(&event_category, &applied_limit.reason_code);
-                    }
-                    if envelope_summary.attachment_quantity > 0 {
-                        emit_outcome(&DataCategory::Attachment, &applied_limit.reason_code);
-                    }
-                } else {
-                    for category in applied_limit.categories.iter() {
-                        emit_outcome(category, &applied_limit.reason_code);
-                    }
-                }
-            }
+            rate_limit_envelope.emit_rate_limit_outcomes(&applied_limits);
             Ok(applied_limits)
         });
 
@@ -631,6 +602,60 @@ impl Actor for Project {
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         relay_log::debug!("project {} removed from cache", self.public_key);
+    }
+}
+
+struct RateLimitEnvelope {
+    event_id: Option<EventId>,
+    remote_addr: Option<IpAddr>,
+    envelope_summary: EnvelopeSummary,
+    outcome_producer: Addr<OutcomeProducer>,
+    scoping: Scoping,
+}
+
+impl RateLimitEnvelope {
+    fn new(message: &CheckEnvelope, scoping: &Scoping) -> Self {
+        let envelope = &message.envelope;
+        Self {
+            event_id: envelope.event_id(),
+            remote_addr: envelope.meta().client_addr(),
+            envelope_summary: EnvelopeSummary::compute(&envelope),
+            outcome_producer: message.outcome_producer.clone(),
+            scoping: *scoping,
+        }
+    }
+
+    fn emit_rate_limit_outcomes(&self, applied_limits: &RateLimits) {
+        for applied_limit in applied_limits.iter() {
+            if applied_limit.categories.is_empty() {
+                // Empty categories value indicates that the rate limit applies to all data.
+                if let Some(event_category) = self.envelope_summary.event_category {
+                    self.emit_outcome(&event_category, &applied_limit.reason_code);
+                }
+                if self.envelope_summary.attachment_quantity > 0 {
+                    self.emit_outcome(&DataCategory::Attachment, &applied_limit.reason_code);
+                }
+            } else {
+                for category in applied_limit.categories.iter() {
+                    self.emit_outcome(category, &applied_limit.reason_code);
+                }
+            }
+        }
+    }
+
+    fn emit_outcome(&self, category: &DataCategory, reason_code: &Option<ReasonCode>) {
+        self.outcome_producer.do_send(TrackOutcome {
+            timestamp: Instant::now(),
+            scoping: self.scoping,
+            outcome: Outcome::RateLimited(reason_code.clone()),
+            event_id: self.event_id,
+            remote_addr: self.remote_addr,
+            category: *category,
+            quantity: match category {
+                DataCategory::Attachment => self.envelope_summary.attachment_quantity,
+                _ => 1,
+            },
+        })
     }
 }
 
