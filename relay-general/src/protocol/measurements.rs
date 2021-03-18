@@ -4,27 +4,25 @@ use crate::types::{Annotated, Error, FromValue, Object, Value};
 
 /// An individual observed measurement.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct Measurement {
+pub struct Measurement<T> {
     /// Value of observed measurement value.
     #[metastructure(required = "true", skip_serialization = "never")]
-    pub value: Annotated<f64>,
+    pub value: Annotated<T>,
 }
 
 /// A map of observed measurement values.
 ///
 /// They contain measurement values of observed values such as Largest Contentful Paint (LCP).
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct Measurements(pub Object<Measurement>);
+pub struct Measurements<T>(pub Object<Measurement<T>>);
 
-impl Measurements {
-    pub fn take(self) -> Object<Measurement> {
+impl<T> Measurements<T> {
+    pub fn take(self) -> Object<Measurement<T>> {
         self.0
     }
 }
 
-impl FromValue for Measurements {
+impl<T: std::fmt::Debug + FromValue> FromValue for Measurements<T> {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         let mut processing_errors = Vec::new();
 
@@ -58,15 +56,15 @@ impl FromValue for Measurements {
     }
 }
 
-impl Deref for Measurements {
-    type Target = Object<Measurement>;
+impl<T> Deref for Measurements<T> {
+    type Target = Object<Measurement<T>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for Measurements {
+impl<T> DerefMut for Measurements<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
