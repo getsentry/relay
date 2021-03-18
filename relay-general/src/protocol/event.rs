@@ -480,6 +480,7 @@ pub struct Event {
 
     /// Breakdowns which holds product-defined values such as span operation breakdowns.
     #[metastructure(skip_serialization = "empty")]
+    #[metastructure(omit_from_schema)] // we only document error events for now
     pub breakdowns: Annotated<Breakdowns>,
 
     /// Internal ingestion and processing metrics.
