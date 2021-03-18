@@ -447,8 +447,7 @@ where
                         Some(envelope) => envelope,
                         None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
                     };
-                    // TODO: Update envelope_summary from checked.envelope, once the rate-limiting
-                    // code in CheckEnvelope emits its own outcomes.
+                    envelope_summary.replace(EnvelopeSummary::compute(&envelope));
 
                     if check_envelope_size_limits(&config, &envelope) {
                         Ok((envelope, checked.rate_limits))
