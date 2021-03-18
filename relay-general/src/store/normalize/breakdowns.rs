@@ -65,7 +65,7 @@ mod tests {
             span_ops_breakdown.insert(
                 "lcp".to_owned(),
                 Annotated::new(Measurement {
-                    value: Annotated::new(420.69),
+                    value: Annotated::new(42069),
                 }),
             );
 
@@ -141,7 +141,7 @@ mod tests {
                 span_ops_breakdown.insert(
                     "lcp".to_owned(),
                     Annotated::new(Measurement {
-                        value: Annotated::new(420.69),
+                        value: Annotated::new(42069),
                     }),
                 );
 
@@ -175,24 +175,24 @@ mod tests {
             span_ops_breakdown.insert(
                 "ops.http".to_owned(),
                 Annotated::new(Measurement {
-                    // 1 hour in milliseconds
-                    value: Annotated::new(3_600_000.0),
+                    // 1 hour in nanoseconds
+                    value: Annotated::new(3_600_000_000_000),
                 }),
             );
 
             span_ops_breakdown.insert(
                 "ops.db".to_owned(),
                 Annotated::new(Measurement {
-                    // 2 hours in milliseconds
-                    value: Annotated::new(7_200_000.0),
+                    // 2 hours in nanoseconds
+                    value: Annotated::new(7_200_000_000_000),
                 }),
             );
 
             span_ops_breakdown.insert(
                 "total.time".to_owned(),
                 Annotated::new(Measurement {
-                    // 4 hours and 10 microseconds in milliseconds
-                    value: Annotated::new(14_400_000.01),
+                    // 4 hours and 10 microseconds in nanoseconds
+                    value: Annotated::new(14_400_000_010_000),
                 }),
             );
 
@@ -205,7 +205,7 @@ mod tests {
             span_ops_breakdown.insert(
                 "lcp".to_owned(),
                 Annotated::new(Measurement {
-                    value: Annotated::new(420.69),
+                    value: Annotated::new(42069),
                 }),
             );
             breakdowns.insert("span_ops".to_owned(), Annotated::new(span_ops_breakdown));
