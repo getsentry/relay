@@ -7,22 +7,11 @@ use futures::{future, prelude::*};
 
 use relay_general::protocol::{Event, EventId};
 use relay_sampling::{
-    get_matching_event_rule, pseudo_random_from_uuid, rule_type_for_event, RuleId,
+    get_matching_event_rule, pseudo_random_from_uuid, rule_type_for_event, RuleId, SamplingResult,
 };
 
 use crate::actors::project::{GetCachedProjectState, GetProjectState, Project, ProjectState};
 use crate::envelope::{Envelope, ItemType};
-
-/// The result of a Sampling operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SamplingResult {
-    /// Keep the event.
-    Keep,
-    /// Drop the event, due to the rule with provided Id.
-    Drop(RuleId),
-    /// No decision can be made.  
-    NoDecision,
-}
 
 /// Checks whether an event should be kept or removed by dynamic sampling.
 pub fn should_keep_event(
@@ -68,21 +57,21 @@ fn sample_transaction_internal(
     mut envelope: Envelope,
     project_state: Option<&ProjectState>,
     processing_enabled: bool,
-) -> Envelope {
+) -> Result<Envelope, RuleId> {
     let project_state = match project_state {
-        None => return envelope,
+        None => return Ok(envelope),
         Some(project_state) => project_state,
     };
 
     let sampling_config = match project_state.config.dynamic_sampling {
         // without sampling config we cannot sample transactions so give up here
-        None => return envelope,
+        None => return Ok(envelope),
         Some(ref sampling_config) => sampling_config,
     };
 
     // when we have unsupported rules disable sampling for non processing relays
     if !processing_enabled && sampling_config.has_unsupported_rules() {
-        return envelope;
+        return Ok(envelope);
     }
 
     let trace_context = envelope.trace_context();
@@ -90,26 +79,29 @@ fn sample_transaction_internal(
 
     let trace_context = match (trace_context, transaction_item) {
         // we don't have what we need, can't sample the transactions in this envelope
-        (None, _) | (_, None) => return envelope,
+        (None, _) | (_, None) => return Ok(envelope),
         // see if we need to sample the transaction
         (Some(trace_context), Some(_)) => trace_context,
     };
 
     let client_ip = envelope.meta().client_addr();
 
-    let should_sample = trace_context
-        // see if we should sample
-        .should_sample(client_ip, sampling_config)
-        // TODO verify that this is the desired behaviour (i.e. if we can't find a rule
-        // for sampling, include the transaction)
-        .unwrap_or(true);
+    let should_keep = trace_context.should_keep(client_ip, sampling_config);
 
-    if !should_sample {
-        // finally we decided that we should sample the transaction
-        envelope.take_item_by(|item| item.ty() == ItemType::Transaction);
+    match should_keep {
+        // if we don't have a decision yet keep the transaction
+        SamplingResult::Keep | SamplingResult::NoDecision => Ok(envelope),
+        SamplingResult::Drop(rule_id) => {
+            envelope.take_item_by(|item| item.ty() == ItemType::Transaction);
+            if envelope.is_empty() {
+                // if after we removed the transaction we ended up with an empty envelope
+                // return an error so we can generate an outcome for the rule that dropped the transaction
+                Err(rule_id)
+            } else {
+                Ok(envelope)
+            }
+        }
     }
-
-    envelope
 }
 
 /// Check if we should remove transactions from this envelope (because of trace sampling) and
@@ -119,7 +111,7 @@ pub fn sample_transaction(
     project: Option<Addr<Project>>,
     fast_processing: bool,
     processing_enabled: bool,
-) -> ResponseFuture<Envelope, ()> {
+) -> ResponseFuture<Envelope, RuleId> {
     let project = match project {
         None => return Box::new(future::ok(envelope)),
         Some(project) => project,
@@ -141,11 +133,7 @@ pub fn sample_transaction(
                     Err(_) => return Ok(envelope),
                     Ok(project_state) => project_state,
                 };
-                Ok(sample_transaction_internal(
-                    envelope,
-                    project_state.as_deref(),
-                    processing_enabled,
-                ))
+                sample_transaction_internal(envelope, project_state.as_deref(), processing_enabled)
             });
         Box::new(fut) as ResponseFuture<_, _>
     } else {
@@ -157,11 +145,11 @@ pub fn sample_transaction(
                     Err(_) => return Ok(envelope),
                     Ok(project_state) => project_state,
                 };
-                Ok(sample_transaction_internal(
+                sample_transaction_internal(
                     envelope,
                     project_state.ok().as_deref(),
                     processing_enabled,
-                ))
+                )
             });
         Box::new(fut) as ResponseFuture<_, _>
     }
@@ -169,13 +157,17 @@ pub fn sample_transaction(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::actors::project::ProjectConfig;
+    use std::time::Instant;
+
+    use smallvec::SmallVec;
+
     use relay_common::EventType;
     use relay_general::types::Annotated;
-    use relay_sampling::SamplingConfig;
-    use smallvec::SmallVec;
-    use std::time::Instant;
+    use relay_sampling::{RuleId, SamplingConfig};
+
+    use crate::actors::project::ProjectConfig;
+
+    use super::*;
 
     fn get_project_state(sample_rate: Option<f64>) -> ProjectState {
         let sampling_config_str = if let Some(sample_rate) = sample_rate {

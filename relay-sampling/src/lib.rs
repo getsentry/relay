@@ -30,6 +30,17 @@ pub enum RuleType {
     Error,
 }
 
+/// The result of a Sampling operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SamplingResult {
+    /// Keep the event.
+    Keep,
+    /// Drop the event, due to the rule with provided Id.
+    Drop(RuleId),
+    /// No decision can be made.  
+    NoDecision,
+}
+
 /// A condition that checks the values using the equality operator.
 ///
 /// For string values it supports case-insensitive comparison.
@@ -492,14 +503,25 @@ pub struct TraceContext {
 }
 
 impl TraceContext {
-    /// Returns the decision of whether to sample or not a trace based on the configuration rules.
+    /// Returns the sampling decision of whether to drop or not a transaction based on the configuration rules.
     ///
     /// If None then a decision can't be made either because of an invalid of missing trace context or
     /// because no applicable sampling rule could be found.
-    pub fn should_sample(&self, ip_addr: Option<IpAddr>, config: &SamplingConfig) -> Option<bool> {
-        let rule = get_matching_trace_rule(config, self, ip_addr, RuleType::Trace)?;
-        let rate = pseudo_random_from_uuid(self.trace_id)?;
-        Some(rate < rule.sample_rate)
+    pub fn should_keep(&self, ip_addr: Option<IpAddr>, config: &SamplingConfig) -> SamplingResult {
+        if let Some(rule) = get_matching_trace_rule(config, self, ip_addr, RuleType::Trace) {
+            let rate = match pseudo_random_from_uuid(self.trace_id) {
+                None => return SamplingResult::NoDecision,
+                Some(rate) => rate,
+            };
+
+            if rate < rule.sample_rate {
+                SamplingResult::Keep
+            } else {
+                SamplingResult::Drop(rule.id)
+            }
+        } else {
+            SamplingResult::NoDecision
+        }
     }
 }
 
@@ -552,15 +574,18 @@ pub fn pseudo_random_from_uuid(id: Uuid) -> Option<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
+    use std::str::FromStr;
+
     use insta::assert_ron_snapshot;
+
     use relay_general::protocol::{
         Csp, Exception, Headers, IpAddr, JsonLenientString, LenientString, LogEntry, PairList,
         Request, User, Values,
     };
     use relay_general::types::Annotated;
-    use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
-    use std::str::FromStr;
+
+    use super::*;
 
     fn eq(name: &str, value: &[&str], ignore_case: bool) -> RuleCondition {
         RuleCondition::Eq(EqCondition {
