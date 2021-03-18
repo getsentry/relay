@@ -146,6 +146,8 @@ def test_strip_measurement_interface(
 
 
 def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consumer):
+    events_consumer = transactions_consumer()
+
     relay = relay_with_processing()
     config = mini_sentry.add_basic_project_config(42)
     config["config"].setdefault(
@@ -161,8 +163,6 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
             },
         },
     )
-
-    events_consumer = transactions_consumer()
 
     transaction_item = generate_transaction_item()
     transaction_item.update(
