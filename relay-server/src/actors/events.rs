@@ -1533,7 +1533,7 @@ impl Handler<HandleEnvelope> for EventManager {
         let envelope_summary = Rc::new(RefCell::new(EnvelopeSummary::compute(&envelope)));
 
         let future = project
-            .send(CheckEnvelope::fetched(envelope, &outcome_producer))
+            .send(CheckEnvelope::fetched(envelope))
             .map_err(ProcessingError::ScheduleFailed)
             .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
             .and_then(clone!(scoping, envelope_summary, |response| {

@@ -420,10 +420,16 @@ pub struct Project {
     state_channel: Option<StateChannel>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
+    outcome_producer: Addr<OutcomeProducer>,
 }
 
 impl Project {
-    pub fn new(key: ProjectKey, config: Arc<Config>, manager: Addr<ProjectCache>) -> Self {
+    pub fn new(
+        key: ProjectKey,
+        config: Arc<Config>,
+        manager: Addr<ProjectCache>,
+        outcome_producer: &Addr<OutcomeProducer>,
+    ) -> Self {
         Project {
             public_key: key,
             config,
@@ -432,6 +438,7 @@ impl Project {
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
+            outcome_producer: outcome_producer.clone(),
         }
     }
 
@@ -554,12 +561,9 @@ impl Project {
 
     fn check_envelope(
         &mut self,
-        message: CheckEnvelope,
+        mut envelope: Envelope,
         scoping: &Scoping,
     ) -> Result<CheckedEnvelope, DiscardReason> {
-        let rate_limit_envelope = RateLimitEnvelope::new(&message, scoping);
-        let mut envelope = message.envelope;
-
         if let Some(state) = self.state() {
             state.check_request(envelope.meta(), &self.config)?;
         }
@@ -567,6 +571,8 @@ impl Project {
         self.rate_limits.clean_expired();
 
         let quotas = self.state().map(|s| s.get_quotas()).unwrap_or(&[]);
+        let rate_limit_envelope =
+            RateLimitEnvelope::new(&envelope, &scoping, &self.outcome_producer);
         let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
             let applied_limits = self.rate_limits.check_with_quotas(quotas, item_scoping);
             rate_limit_envelope.emit_rate_limit_outcomes(&applied_limits);
@@ -588,7 +594,7 @@ impl Project {
 
     fn check_envelope_scoped(&mut self, message: CheckEnvelope) -> CheckEnvelopeResponse {
         let scoping = self.get_scoping(message.envelope.meta());
-        let result = self.check_envelope(message, &scoping);
+        let result = self.check_envelope(message.envelope, &scoping);
         CheckEnvelopeResponse { result, scoping }
     }
 }
@@ -609,18 +615,21 @@ struct RateLimitEnvelope {
     event_id: Option<EventId>,
     remote_addr: Option<IpAddr>,
     envelope_summary: EnvelopeSummary,
-    outcome_producer: Addr<OutcomeProducer>,
     scoping: Scoping,
+    outcome_producer: Addr<OutcomeProducer>,
 }
 
 impl RateLimitEnvelope {
-    fn new(message: &CheckEnvelope, scoping: &Scoping) -> Self {
-        let envelope = &message.envelope;
+    fn new(
+        envelope: &Envelope,
+        scoping: &Scoping,
+        outcome_producer: &Addr<OutcomeProducer>,
+    ) -> Self {
         Self {
             event_id: envelope.event_id(),
             remote_addr: envelope.meta().client_addr(),
             envelope_summary: EnvelopeSummary::compute(&envelope),
-            outcome_producer: message.outcome_producer.clone(),
+            outcome_producer: outcome_producer.clone(),
             scoping: *scoping,
         }
     }
@@ -724,38 +733,26 @@ impl Handler<GetProjectState> for Project {
 ///  - Validate origins and public keys
 ///  - Quotas with a limit of `0`
 ///  - Cached rate limits
+#[derive(Debug)]
 pub struct CheckEnvelope {
     envelope: Envelope,
     fetch: bool,
-    outcome_producer: Addr<OutcomeProducer>,
-}
-
-impl std::fmt::Debug for CheckEnvelope {
-    // TODO: Is this good enough? Can we avoid needing it?
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CheckEnvelope")
-            .field("envelope", &self.envelope)
-            .field("fetch", &self.fetch)
-            .finish()
-    }
 }
 
 impl CheckEnvelope {
     /// Fetches the project state and checks the envelope.
-    pub fn fetched(envelope: Envelope, outcome_producer: &Addr<OutcomeProducer>) -> Self {
+    pub fn fetched(envelope: Envelope) -> Self {
         Self {
             envelope,
             fetch: true,
-            outcome_producer: outcome_producer.clone(),
         }
     }
 
     /// Uses a cached project state and checks the envelope.
-    pub fn cached(envelope: Envelope, outcome_producer: &Addr<OutcomeProducer>) -> Self {
+    pub fn cached(envelope: Envelope) -> Self {
         Self {
             envelope,
             fetch: false,
-            outcome_producer: outcome_producer.clone(),
         }
     }
 }
