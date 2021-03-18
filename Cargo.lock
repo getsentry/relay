@@ -3233,8 +3233,10 @@ dependencies = [
 name = "relay-metrics"
 version = "21.3.0"
 dependencies = [
+ "actix",
  "insta",
  "relay-common",
+ "relay-log",
  "serde",
  "serde_json",
 ]

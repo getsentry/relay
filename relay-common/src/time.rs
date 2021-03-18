@@ -16,7 +16,7 @@ pub fn instant_to_date_time(instant: Instant) -> chrono::DateTime<chrono::Utc> {
 }
 
 /// A unix timestap (full seconds elapsed since 1970).
-#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct UnixTimestamp(u64);
 
 impl UnixTimestamp {

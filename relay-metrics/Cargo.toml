@@ -10,7 +10,9 @@ license-file = "../LICENSE"
 publish = false
 
 [dependencies]
+actix = "0.7.9"
 relay-common = { path = "../relay-common" }
+relay-log = { path = "../relay-log" }
 serde = { version = "1.0.114", features = ["derive"] }
 
 [dev-dependencies]

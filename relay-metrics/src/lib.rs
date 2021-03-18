@@ -16,6 +16,8 @@
 //! ```
 #![warn(missing_docs)]
 
+mod bucketing;
 mod protocol;
 
+pub use bucketing::*;
 pub use protocol::*;
