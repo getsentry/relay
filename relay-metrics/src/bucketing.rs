@@ -1,11 +1,10 @@
 #![allow(missing_docs)]
-use std::{
-    collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap},
-    convert::TryFrom,
-    ops::{Add, AddAssign},
-};
+use std::collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap};
+use std::convert::TryFrom;
+use std::ops::{Add, AddAssign};
 
 use actix::{Actor, Context, Handler, Message};
+
 use relay_common::UnixTimestamp;
 
 use crate::{Metric, MetricType, MetricValue};
@@ -92,6 +91,7 @@ struct BucketKey {
 }
 
 /// TODO
+#[derive(Debug)]
 enum BucketValue {
     /// TODO
     Counter(NumericValue),
@@ -136,22 +136,37 @@ impl BucketValue {
         Ok(())
     }
 }
+#[derive(Clone, Debug)]
+pub struct AggregatorConfig {
+    bucket_interval: u64, // TODO: use duration type
+}
+
+impl Default for AggregatorConfig {
+    fn default() -> Self {
+        Self {
+            bucket_interval: 10,
+        }
+    }
+}
 
 /// TODO
+#[derive(Debug)]
 pub struct Aggregator {
+    config: AggregatorConfig,
     buckets: HashMap<BucketKey, BucketValue>,
 }
 
 impl Aggregator {
-    pub fn new() -> Self {
+    pub fn new(config: AggregatorConfig) -> Self {
         Self {
+            config,
             buckets: HashMap::new(),
         }
     }
 
     fn insert(&mut self, metric: Metric) -> Result<(), ()> {
         let key = BucketKey {
-            timestamp: metric.timestamp,
+            timestamp: self.get_bucket_timestamp(metric.timestamp),
             metric_name: metric.name,
             tags: metric.tags,
         };
@@ -167,6 +182,12 @@ impl Aggregator {
         }
 
         Ok(())
+    }
+
+    fn get_bucket_timestamp(&self, timestamp: UnixTimestamp) -> UnixTimestamp {
+        UnixTimestamp::from_secs(
+            (timestamp.as_secs() / self.config.bucket_interval) * self.config.bucket_interval,
+        )
     }
 }
 
@@ -203,5 +224,92 @@ impl Handler<InsertMetric> for Aggregator {
     fn handle(&mut self, message: InsertMetric, context: &mut Self::Context) -> Self::Result {
         let InsertMetric { metric } = message;
         self.insert(metric)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::MetricUnit;
+
+    #[test]
+    fn test_merge_counters() {
+        let mut aggregator = Aggregator::new(AggregatorConfig::default());
+
+        let metric1 = Metric {
+            name: "foo".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Integer(42),
+            ty: MetricType::Counter,
+            timestamp: UnixTimestamp::from_secs(4711),
+            tags: BTreeMap::new(),
+        };
+
+        let mut metric2 = metric1.clone();
+        metric2.value = MetricValue::Integer(43);
+        aggregator.insert(metric1).unwrap();
+        aggregator.insert(metric2).unwrap();
+
+        insta::assert_debug_snapshot!(aggregator.buckets, @r###"
+        {
+            BucketKey {
+                timestamp: UnixTimestamp(4710),
+                metric_name: "foo",
+                tags: {},
+            }: Counter(
+                Integer(
+                    85,
+                ),
+            ),
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_merge_similar_timestamps() {
+        let mut aggregator = Aggregator::new(AggregatorConfig {
+            bucket_interval: 10,
+        });
+
+        let metric1 = Metric {
+            name: "foo".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Integer(42),
+            ty: MetricType::Counter,
+            timestamp: UnixTimestamp::from_secs(4711),
+            tags: BTreeMap::new(),
+        };
+
+        let mut metric2 = metric1.clone();
+        metric2.timestamp = UnixTimestamp::from_secs(4712);
+
+        let mut metric3 = metric1.clone();
+        metric3.timestamp = UnixTimestamp::from_secs(4721);
+        aggregator.insert(metric1).unwrap();
+        aggregator.insert(metric2).unwrap();
+        aggregator.insert(metric3).unwrap();
+
+        insta::assert_debug_snapshot!(aggregator.buckets, @r###"
+        {
+            BucketKey {
+                timestamp: UnixTimestamp(4710),
+                metric_name: "foo",
+                tags: {},
+            }: Counter(
+                Integer(
+                    84,
+                ),
+            ),
+            BucketKey {
+                timestamp: UnixTimestamp(4720),
+                metric_name: "foo",
+                tags: {},
+            }: Counter(
+                Integer(
+                    42,
+                ),
+            ),
+        }
+        "###);
     }
 }
