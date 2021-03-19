@@ -438,7 +438,7 @@ pub struct Request {
     /// The URL of the request if available.
     ///
     ///The query string can be declared either as part of the `url`, or separately in `query_string`.
-    #[metastructure(max_chars = "path")]
+    #[metastructure(max_chars = "path", pii = "maybe")]
     pub url: Annotated<String>,
 
     /// HTTP request method.
