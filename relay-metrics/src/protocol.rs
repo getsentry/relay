@@ -199,11 +199,16 @@ impl fmt::Display for ParseMetricError {
 
 /// Validates a metric name.
 ///
-/// Metric names can consist of ASCII alphanumerics, underscores and periods.
+/// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
+/// underscores and periods.
 fn is_valid_name(name: &str) -> bool {
-    name.as_bytes()
-        .iter()
-        .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_'))
+    let mut iter = name.as_bytes().iter();
+    if let Some(first_byte) = iter.next() {
+        if first_byte.is_ascii_alphabetic() {
+            return iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_'));
+        }
+    }
+    false
 }
 
 /// Parses the `name[@unit]` part of a metric string.
@@ -313,7 +318,8 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 pub struct Metric {
     /// The name of the metric without its unit.
     ///
-    /// Metric names can consist of ASCII alphanumerics, underscores and periods.
+    /// Metric names cannot be empty, must start with a letter and can consist of ASCII
+    /// alphanumerics, underscores and periods.
     pub name: String,
     /// The unit of the metric value.
     ///
@@ -647,6 +653,22 @@ mod tests {
     #[test]
     fn test_parse_invalid_name() {
         let s = "foo#bar:42|c";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Metric::parse(s.as_bytes(), timestamp);
+        assert!(metric.is_err());
+    }
+
+    #[test]
+    fn test_parse_empty_name() {
+        let s = ":42|c";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Metric::parse(s.as_bytes(), timestamp);
+        assert!(metric.is_err());
+    }
+
+    #[test]
+    fn test_parse_invalid_name_with_leading_digit() {
+        let s = "64bit:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp);
         assert!(metric.is_err());
