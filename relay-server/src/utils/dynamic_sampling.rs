@@ -159,28 +159,35 @@ pub fn sample_transaction(
 mod tests {
     use std::time::Instant;
 
+    use bytes::Bytes;
     use smallvec::SmallVec;
 
     use relay_common::EventType;
     use relay_general::types::Annotated;
-    use relay_sampling::{RuleId, SamplingConfig};
+    use relay_sampling::{RuleId, RuleType, SamplingConfig};
 
     use crate::actors::project::ProjectConfig;
+    use crate::envelope::Item;
 
     use super::*;
 
-    fn get_project_state(sample_rate: Option<f64>) -> ProjectState {
+    fn get_project_state(sample_rate: Option<f64>, rule_type: RuleType) -> ProjectState {
         let sampling_config_str = if let Some(sample_rate) = sample_rate {
+            let rt = match rule_type {
+                RuleType::Transaction => "transaction",
+                RuleType::Error => "error",
+                RuleType::Trace => "trace",
+            };
             format!(
                 r#"{{
                 "rules":[{{
                     "condition": {{ "op": "and", "inner":[]}},
                     "sampleRate": {},
-                    "type": "error",
+                    "type": "{}",
                     "id": 1
                 }}]
             }}"#,
-                sample_rate
+                sample_rate, rt
             )
         } else {
             "{\"rules\":[]}".to_owned()
@@ -203,6 +210,46 @@ mod tests {
         }
     }
 
+    /// ugly hack to build an envelope with an optional trace context
+    fn new_envelope(with_trace_context: bool) -> Envelope {
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42";
+        let event_id = EventId::new();
+
+        let raw_event = if with_trace_context {
+            let trace_id = uuid::Uuid::new_v4();
+            let public_key = "12345678901234567890123456789012";
+            let trace_context_raw = format!(
+                r#"{{"trace_id": "{}", "public_key": "{}"}}"#,
+                trace_id.to_simple(),
+                public_key,
+            );
+            format!(
+                "{{\"event_id\":\"{}\",\"dsn\":\"{}\", \"trace\": {}}}\n",
+                event_id.0.to_simple(),
+                dsn,
+                trace_context_raw,
+            )
+        } else {
+            format!(
+                "{{\"event_id\":\"{}\",\"dsn\":\"{}\"}}\n",
+                event_id.0.to_simple(),
+                dsn,
+            )
+        };
+
+        let bytes = Bytes::from(raw_event);
+
+        let mut envelope = Envelope::parse_bytes(bytes).unwrap();
+
+        let item1 = Item::new(ItemType::Transaction);
+        envelope.add_item(item1);
+
+        let item2 = Item::new(ItemType::Event);
+        envelope.add_item(item2);
+
+        envelope
+    }
+
     #[test]
     /// Should_keep_event returns the expected results.
     fn test_should_keep_event() {
@@ -212,21 +259,79 @@ mod tests {
             ..Event::default()
         };
 
-        let proj_state = get_project_state(Some(0.0));
+        let proj_state = get_project_state(Some(0.0), RuleType::Error);
 
         assert_eq!(
             SamplingResult::Drop(RuleId(1)),
             should_keep_event(&event, None, &proj_state, true)
         );
-        let proj_state = get_project_state(Some(1.0));
+        let proj_state = get_project_state(Some(1.0), RuleType::Error);
         assert_eq!(
             SamplingResult::Keep,
             should_keep_event(&event, None, &proj_state, true)
         );
-        let proj_state = get_project_state(None);
+        let proj_state = get_project_state(None, RuleType::Error);
         assert_eq!(
             SamplingResult::NoDecision,
             should_keep_event(&event, None, &proj_state, true)
         );
+    }
+
+    #[test]
+    /// Should remove transaction from envelope when a matching rule is detected
+    fn test_should_drop_transaction() {
+        //create an envelope with a event and a transaction
+        let envelope = new_envelope(true);
+        let state = get_project_state(Some(0.0), RuleType::Trace);
+
+        let result = sample_transaction_internal(envelope, Some(&state), true);
+        assert!(result.is_ok());
+        let envelope = result.unwrap();
+        // the transaction item should have been removed
+        assert_eq!(envelope.len(), 1);
+    }
+
+    #[test]
+    /// Should keep transaction when no trace context is present
+    fn test_should_keep_transaction_no_trace() {
+        //create an envelope with a event and a transaction
+        let envelope = new_envelope(false);
+        let state = get_project_state(Some(0.0), RuleType::Trace);
+
+        let result = sample_transaction_internal(envelope, Some(&state), true);
+        assert!(result.is_ok());
+        let envelope = result.unwrap();
+        // both the event and the transaction item should have been left in the envelope
+        assert_eq!(envelope.len(), 2);
+    }
+
+    #[test]
+    /// When no state is provided the envelope should be left unchanged
+    fn test_should_keep_transactions_no_state() {
+        //create an envelope with a event and a transaction
+        let envelope = new_envelope(true);
+
+        let result = sample_transaction_internal(envelope, None, true);
+        assert!(result.is_ok());
+        let envelope = result.unwrap();
+        // both the event and the transaction item should have been left in the envelope
+        assert_eq!(envelope.len(), 2);
+    }
+
+    #[test]
+    /// When the envelope becomes empty due to sampling we should get back the rule that dropped the
+    /// transaction
+    fn test_should_signal_when_envelope_becomes_empty() {
+        //create an envelope with a event and a transaction
+        let mut envelope = new_envelope(true);
+        //remove the event (so the envelope contains only a transaction
+        envelope.take_item_by(|item| item.ty() == ItemType::Event);
+        let state = get_project_state(Some(0.0), RuleType::Trace);
+
+        let result = sample_transaction_internal(envelope, Some(&state), true);
+        assert!(result.is_err());
+        let rule_id = result.unwrap_err();
+        // we got back the rule id
+        assert_eq!(rule_id, RuleId(1));
     }
 }
