@@ -99,7 +99,7 @@ pub struct Frame {
     pub context_line: Annotated<String>,
 
     /// Source code of the lines after `lineno`.
-    #[metastructure(skip_serialization = "null")]
+    #[metastructure(skip_serialization = "empty")]
     pub post_context: Annotated<Array<String>>,
 
     /// Override whether this frame should be considered part of application code, or part of
@@ -121,7 +121,7 @@ pub struct Frame {
     pub data: Annotated<FrameData>,
 
     /// (C/C++/Native) Start address of the containing code module (image).
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "null")]
     pub image_addr: Annotated<Addr>,
 
     /// (C/C++/Native) An optional instruction address for symbolication.
@@ -130,7 +130,7 @@ pub struct Frame {
     /// If this is set and a known image is defined in the
     /// [Debug Meta Interface]({%- link _documentation/development/sdk-dev/event-payloads/debugmeta.md -%}),
     /// then symbolication can take place.
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "null")]
     pub instruction_addr: Annotated<Addr>,
 
     /// Defines the addressing mode for addresses.
@@ -141,7 +141,7 @@ pub struct Frame {
     ///
     /// We use the instruction address for symbolication, but this can be used to calculate
     /// an instruction offset automatically.
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "null")]
     pub symbol_addr: Annotated<Addr>,
 
     /// (C/C++/Native) Used for native crashes to indicate how much we can "trust" the instruction_addr
