@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Skip serializing some null values in frames interface. ([#944](https://github.com/getsentry/relay/pull/944))
+
 ## 0.8.4
 
 - Deny backslashes in release names. ([#904](https://github.com/getsentry/relay/pull/904))
