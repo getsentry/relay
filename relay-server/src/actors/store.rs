@@ -326,7 +326,6 @@ impl StoreForwarder {
                     name: metric.name,
                     unit: metric.unit,
                     value: metric.value,
-                    ty: metric.ty,
                     timestamp: metric.timestamp,
                     tags: metric.tags,
                 })?;
@@ -505,8 +504,6 @@ struct MetricKafkaMessage {
     pub name: String,
     pub unit: MetricUnit,
     pub value: MetricValue,
-    #[serde(rename = "type")]
-    pub ty: MetricType,
     pub timestamp: UnixTimestamp,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub tags: BTreeMap<String, String>,
