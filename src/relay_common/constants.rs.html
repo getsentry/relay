@@ -323,6 +323,17 @@
 <span id="320">320</span>
 <span id="321">321</span>
 <span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Constants shared with the C-ABI and Sentry.</span>
 
@@ -338,6 +349,17 @@
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="doccomment">/// The type of an event.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The event type determines how Sentry handles the event and has an impact on processing, rate</span>
+<span class="doccomment">/// limiting, and quotas. There are three fundamental classes of event types:</span>
+<span class="doccomment">///</span>
+<span class="doccomment">///  - **Error monitoring events** (`default`, `error`): Processed and grouped into unique issues</span>
+<span class="doccomment">///    based on their exception stack traces and error messages.</span>
+<span class="doccomment">///  - **Security events** (`csp`, `hpkp`, `expectct`, `expectstaple`): Derived from Browser</span>
+<span class="doccomment">///    security violation reports and grouped into unique issues based on the endpoint and</span>
+<span class="doccomment">///    violation. SDKs do not send such events.</span>
+<span class="doccomment">///  - **Transaction events** (`transaction`): Contain operation spans and collected into traces for</span>
+<span class="doccomment">///    performance monitoring.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>, <span class="ident">Ord</span>, <span class="ident">PartialEq</span>, <span class="ident">PartialOrd</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;lowercase&quot;</span>)]</span>
