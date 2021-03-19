@@ -1555,7 +1555,7 @@ impl Handler<HandleEnvelope> for EventManager {
             }))
             .and_then(move |envelope| {
                 utils::sample_transaction(envelope, sampling_project, false, processing_enabled)
-                    .map_err(|rule_id| (ProcessingError::TransactionSampled(rule_id)))
+                    .map_err(ProcessingError::TransactionSampled)
             })
             .and_then(clone!(project, |envelope| {
                 // get the state for the current project. we can always fetch the cached version
