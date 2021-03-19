@@ -227,6 +227,13 @@
 <span id="224">224</span>
 <span id="225">225</span>
 <span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Server endpoint that proxies any request to the upstream.</span>
 <span class="doccomment">//!</span>
@@ -306,6 +313,13 @@
                 <span class="ident">HttpError</span>::<span class="ident">ActixPayload</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">e</span>.<span class="ident">error_response</span>(),
                 <span class="ident">HttpError</span>::<span class="ident">ActixJson</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">e</span>.<span class="ident">error_response</span>(),
             },
+            <span class="ident">UpstreamRequestError</span>::<span class="ident">SendFailed</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="kw">if</span> <span class="ident">e</span>.<span class="ident">is_timeout</span>() {
+                    <span class="ident">HttpResponse</span>::<span class="ident">GatewayTimeout</span>().<span class="ident">finish</span>()
+                } <span class="kw">else</span> {
+                    <span class="ident">HttpResponse</span>::<span class="ident">BadGateway</span>().<span class="ident">finish</span>()
+                }
+            }
             <span class="ident">e</span> <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="comment">// should all be unreachable</span>
                 <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(

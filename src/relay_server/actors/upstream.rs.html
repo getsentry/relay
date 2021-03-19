@@ -1295,9 +1295,6 @@
 <span id="1292">1292</span>
 <span id="1293">1293</span>
 <span id="1294">1294</span>
-<span id="1295">1295</span>
-<span id="1296">1296</span>
-<span id="1297">1297</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -1347,17 +1344,15 @@
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">utils</span>::{<span class="self">self</span>, <span class="ident">ApiErrorResponse</span>, <span class="ident">IntoTracked</span>, <span class="ident">RelayErrorAction</span>, <span class="ident">TrackedFutureFinished</span>};
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Fail</span>, <span class="ident">Debug</span>)]</span>
-<span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not send request using reqwest&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">UpstreamSendRequestError</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">reqwest</span>::<span class="ident">Error</span>);
-
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Fail</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">UpstreamRequestError</span> {
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;attempted to send upstream request without credentials configured&quot;</span>)]</span>
     <span class="ident">NoCredentials</span>,
 
+    <span class="doccomment">/// As opposed to HTTP variant this contains all network errors.</span>
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not send request to upstream&quot;</span>)]</span>
-    <span class="ident">SendFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">UpstreamSendRequestError</span>),
+    <span class="ident">SendFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">reqwest</span>::<span class="ident">Error</span>),
 
+    <span class="doccomment">/// Likely a bad HTTP status code or unparseable response.</span>
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not send request&quot;</span>)]</span>
     <span class="ident">Http</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">HttpError</span>),
 
@@ -1876,7 +1871,6 @@
             <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">client</span>
                 .<span class="ident">execute</span>(<span class="ident">client_request</span>.<span class="number">0</span>)
                 .<span class="kw">await</span>
-                .<span class="ident">map_err</span>(<span class="ident">UpstreamSendRequestError</span>)
                 .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError</span>::<span class="ident">SendFailed</span>);
             <span class="ident">tx</span>.<span class="ident">send</span>(<span class="ident">res</span>)
         });
