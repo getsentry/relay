@@ -54,6 +54,28 @@ impl UnixTimestamp {
     pub fn as_secs(self) -> u64 {
         self.0
     }
+
+    /// Converts the unix timestamp into an `Instant` based on the current system timestamp.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use std::time::{Duration, Instant};
+    /// use relay_common::UnixTimestamp;
+    ///
+    /// let timestamp = UnixTimestamp::now();
+    /// let instant = timestamp.to_instant();
+    /// assert!(Instant::now() - instant < Duration::from_millis(1));
+    /// ```
+    pub fn to_instant(self) -> Instant {
+        let now = Self::now();
+
+        if self > now {
+            Instant::now() + (self - now)
+        } else {
+            Instant::now() - (now - self)
+        }
+    }
 }
 
 impl fmt::Debug for UnixTimestamp {
