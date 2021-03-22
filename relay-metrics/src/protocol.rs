@@ -463,8 +463,7 @@ impl Metric {
     /// let metric = Metric {
     ///     name: "hits".to_owned(),
     ///     unit: MetricUnit::None,
-    ///     value: MetricValue::Integer(1),
-    ///     ty: MetricType::Counter,
+    ///     value: MetricValue::Counter(1.0),
     ///     timestamp: UnixTimestamp::from_secs(1615889449),
     ///     tags: BTreeMap::new(),
     /// };
@@ -755,8 +754,8 @@ mod tests {
         let json = r#"{
   "name": "foo",
   "unit": "s",
-  "value": 42,
   "type": "c",
+  "value": 42.0,
   "timestamp": 4711,
   "tags": {
     "empty": "",
@@ -771,10 +770,9 @@ mod tests {
             unit: Duration(
                 Second,
             ),
-            value: Integer(
-                42,
+            value: Counter(
+                42.0,
             ),
-            ty: Counter,
             timestamp: UnixTimestamp(4711),
             tags: {
                 "empty": "",
@@ -802,10 +800,9 @@ mod tests {
         Metric {
             name: "foo",
             unit: None,
-            value: Integer(
-                42,
+            value: Counter(
+                42.0,
             ),
-            ty: Counter,
             timestamp: UnixTimestamp(4711),
             tags: {},
         }

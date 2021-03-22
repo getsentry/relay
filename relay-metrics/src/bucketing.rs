@@ -446,8 +446,6 @@ mod tests {
 
     #[test]
     fn test_merge_similar_timestamps() {
-        // TODO: Setup tests
-
         let config = AggregatorConfig {
             bucket_interval: 10,
             ..AggregatorConfig::default()
@@ -472,23 +470,31 @@ mod tests {
         aggregator.insert(metric2).unwrap();
         aggregator.insert(metric3).unwrap();
 
-        insta::assert_debug_snapshot!(aggregator.buckets, @r###"
-        {
-            BucketKey {
-                timestamp: UnixTimestamp(4710),
-                metric_name: "foo",
-                tags: {},
-            }: Counter(
-                84.0,
+        let mut buckets: Vec<(BucketKey, BucketValue)> = aggregator.buckets.into_iter().collect();
+        buckets.sort_by(|a, b| a.0.timestamp.cmp(&b.0.timestamp));
+        insta::assert_debug_snapshot!(buckets, @r###"
+        [
+            (
+                BucketKey {
+                    timestamp: UnixTimestamp(4710),
+                    metric_name: "foo",
+                    tags: {},
+                },
+                Counter(
+                    84.0,
+                ),
             ),
-            BucketKey {
-                timestamp: UnixTimestamp(4720),
-                metric_name: "foo",
-                tags: {},
-            }: Counter(
-                42.0,
+            (
+                BucketKey {
+                    timestamp: UnixTimestamp(4720),
+                    metric_name: "foo",
+                    tags: {},
+                },
+                Counter(
+                    42.0,
+                ),
             ),
-        }
+        ]
         "###);
     }
 }
