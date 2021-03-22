@@ -15,6 +15,18 @@ pub fn instant_to_date_time(instant: Instant) -> chrono::DateTime<chrono::Utc> {
     instant_to_system_time(instant).into()
 }
 
+/// Represent any point in time as an Instant. If the time is outside of what can be represented
+/// in an `Instant`, mark it as `Earlier` or `Later`.
+///
+pub enum UnboundedInstant {
+    /// A time before the earliest representable `Instant`
+    Earlier,
+    /// A representable `Instant`
+    Instant(Instant),
+    /// A time after the latest representable `Instant`
+    Later,
+}
+
 /// A unix timestap (full seconds elapsed since 1970).
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct UnixTimestamp(u64);
@@ -67,13 +79,19 @@ impl UnixTimestamp {
     /// let instant = timestamp.to_instant();
     /// assert!(Instant::now() - instant < Duration::from_millis(1));
     /// ```
-    pub fn to_instant(self) -> Instant {
+    pub fn to_instant(self) -> UnboundedInstant {
         let now = Self::now();
 
         if self > now {
-            Instant::now() + (self - now)
+            match Instant::now().checked_add(self - now) {
+                Some(instant) => UnboundedInstant::Instant(instant),
+                None => UnboundedInstant::Later,
+            }
         } else {
-            Instant::now() - (now - self)
+            match Instant::now().checked_sub(now - self) {
+                Some(instant) => UnboundedInstant::Instant(instant),
+                None => UnboundedInstant::Earlier,
+            }
         }
     }
 }

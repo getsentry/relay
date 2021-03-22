@@ -6,9 +6,10 @@ use std::fmt;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
+
 use serde::{Deserialize, Serialize};
 
-use relay_common::UnixTimestamp;
+use relay_common::{UnboundedInstant, UnixTimestamp};
 
 use crate::{Metric, MetricValue};
 
@@ -132,16 +133,24 @@ impl AggregatorConfig {
     fn get_flush_time(&self, bucket_timestamp: UnixTimestamp) -> Instant {
         let now = Instant::now();
 
-        let bucket_end = bucket_timestamp.to_instant() + self.bucket_interval();
-        let initial_flush = bucket_end + self.initial_delay();
-
-        if initial_flush > now {
-            // If the initial flush is still pending, use that.
-            initial_flush
-        } else {
-            // If the initial flush time has passed, debounce future flushes with the
-            // `debounce_delay` starting now.
-            now + self.debounce_delay()
+        match bucket_timestamp.to_instant() {
+            // For a bucket from the distance past, use debounce delay
+            UnboundedInstant::Earlier => now + self.debounce_delay(),
+            UnboundedInstant::Instant(instant) => {
+                let bucket_end = instant + self.bucket_interval();
+                let initial_flush = bucket_end + self.initial_delay();
+                if initial_flush > now {
+                    // If the initial flush is still pending, use that.
+                    initial_flush
+                } else {
+                    // If the initial flush time has passed, debounce future flushes with the
+                    // `debounce_delay` starting now.
+                    now + self.debounce_delay()
+                }
+            }
+            // Bucket from distant future. Best we can do is schedule it after initial delay
+            // TODO: or refuse metric altogether?
+            UnboundedInstant::Later => now + self.initial_delay(),
         }
     }
 }
