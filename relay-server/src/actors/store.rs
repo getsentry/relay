@@ -11,7 +11,7 @@ use failure::{Fail, ResultExt};
 use rdkafka::error::KafkaError;
 use rdkafka::producer::BaseRecord;
 use rdkafka::ClientConfig;
-use relay_metrics::{Metric, MetricType, MetricUnit, MetricValue};
+use relay_metrics::{Metric, MetricUnit, MetricValue};
 use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
 

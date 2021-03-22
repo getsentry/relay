@@ -6,7 +6,7 @@ use std::fmt;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use relay_common::UnixTimestamp;
 
@@ -105,7 +105,7 @@ struct BucketKey {
 }
 
 // TODO: use better types and names
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AggregatorConfig {
     /// The wall clock time width of each bucket in seconds.
     bucket_interval: u64,
