@@ -1430,6 +1430,32 @@
 <span id="1427">1427</span>
 <span id="1428">1428</span>
 <span id="1429">1429</span>
+<span id="1430">1430</span>
+<span id="1431">1431</span>
+<span id="1432">1432</span>
+<span id="1433">1433</span>
+<span id="1434">1434</span>
+<span id="1435">1435</span>
+<span id="1436">1436</span>
+<span id="1437">1437</span>
+<span id="1438">1438</span>
+<span id="1439">1439</span>
+<span id="1440">1440</span>
+<span id="1441">1441</span>
+<span id="1442">1442</span>
+<span id="1443">1443</span>
+<span id="1444">1444</span>
+<span id="1445">1445</span>
+<span id="1446">1446</span>
+<span id="1447">1447</span>
+<span id="1448">1448</span>
+<span id="1449">1449</span>
+<span id="1450">1450</span>
+<span id="1451">1451</span>
+<span id="1452">1452</span>
+<span id="1453">1453</span>
+<span id="1454">1454</span>
+<span id="1455">1455</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.</span>
 
@@ -1461,6 +1487,17 @@
     <span class="doccomment">/// A non transaction rule applies to Errors, Security events...every type of event that</span>
     <span class="doccomment">/// is not a Transaction</span>
     <span class="ident">Error</span>,
+}
+
+<span class="doccomment">/// The result of a sampling operation returned by [`TraceContext::should_keep`].</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">SamplingResult</span> {
+    <span class="doccomment">/// Keep the event.</span>
+    <span class="ident">Keep</span>,
+    <span class="doccomment">/// Drop the event, due to the rule with provided identifier.</span>
+    <span class="ident">Drop</span>(<span class="ident">RuleId</span>),
+    <span class="doccomment">/// No decision can be made.</span>
+    <span class="ident">NoDecision</span>,
 }
 
 <span class="doccomment">/// A condition that checks the values using the equality operator.</span>
@@ -1925,14 +1962,26 @@
 }
 
 <span class="kw">impl</span> <span class="ident">TraceContext</span> {
-    <span class="doccomment">/// Returns the decision of whether to sample or not a trace based on the configuration rules.</span>
+    <span class="doccomment">/// Returns whether a trace should be retained based on sampling rules.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// If None then a decision can&#39;t be made either because of an invalid of missing trace context or</span>
-    <span class="doccomment">/// because no applicable sampling rule could be found.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">should_sample</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">SamplingConfig</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">rule</span> <span class="op">=</span> <span class="ident">get_matching_trace_rule</span>(<span class="ident">config</span>, <span class="self">self</span>, <span class="ident">ip_addr</span>, <span class="ident">RuleType</span>::<span class="ident">Trace</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">rate</span> <span class="op">=</span> <span class="ident">pseudo_random_from_uuid</span>(<span class="self">self</span>.<span class="ident">trace_id</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Some</span>(<span class="ident">rate</span> <span class="op">&lt;</span> <span class="ident">rule</span>.<span class="ident">sample_rate</span>)
+    <span class="doccomment">/// If [`SamplingResult::NoDecision`] is returned, then no rule matched this trace. In this</span>
+    <span class="doccomment">/// case, the caller may decide whether to keep the trace or not. The same is returned if the</span>
+    <span class="doccomment">/// configuration is invalid.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">should_keep</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">SamplingConfig</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">SamplingResult</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rule</span>) <span class="op">=</span> <span class="ident">get_matching_trace_rule</span>(<span class="ident">config</span>, <span class="self">self</span>, <span class="ident">ip_addr</span>, <span class="ident">RuleType</span>::<span class="ident">Trace</span>) {
+            <span class="kw">let</span> <span class="ident">rate</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">pseudo_random_from_uuid</span>(<span class="self">self</span>.<span class="ident">trace_id</span>) {
+                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">SamplingResult</span>::<span class="ident">NoDecision</span>,
+                <span class="prelude-val">Some</span>(<span class="ident">rate</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">rate</span>,
+            };
+
+            <span class="kw">if</span> <span class="ident">rate</span> <span class="op">&lt;</span> <span class="ident">rule</span>.<span class="ident">sample_rate</span> {
+                <span class="ident">SamplingResult</span>::<span class="ident">Keep</span>
+            } <span class="kw">else</span> {
+                <span class="ident">SamplingResult</span>::<span class="ident">Drop</span>(<span class="ident">rule</span>.<span class="ident">id</span>)
+            }
+        } <span class="kw">else</span> {
+            <span class="ident">SamplingResult</span>::<span class="ident">NoDecision</span>
+        }
     }
 }
 
@@ -1985,15 +2034,18 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">net</span>::{<span class="ident">IpAddr</span> <span class="kw">as</span> <span class="ident">NetIpAddr</span>, <span class="ident">Ipv4Addr</span>};
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">FromStr</span>;
+
     <span class="kw">use</span> <span class="ident">insta</span>::<span class="ident">assert_ron_snapshot</span>;
+
     <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">protocol</span>::{
         <span class="ident">Csp</span>, <span class="ident">Exception</span>, <span class="ident">Headers</span>, <span class="ident">IpAddr</span>, <span class="ident">JsonLenientString</span>, <span class="ident">LenientString</span>, <span class="ident">LogEntry</span>, <span class="ident">PairList</span>,
         <span class="ident">Request</span>, <span class="ident">User</span>, <span class="ident">Values</span>,
     };
     <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">types</span>::<span class="ident">Annotated</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">net</span>::{<span class="ident">IpAddr</span> <span class="kw">as</span> <span class="ident">NetIpAddr</span>, <span class="ident">Ipv4Addr</span>};
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">FromStr</span>;
+
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">fn</span> <span class="ident">eq</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">str</span>], <span class="ident">ignore_case</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RuleCondition</span> {
         <span class="ident">RuleCondition</span>::<span class="ident">Eq</span>(<span class="ident">EqCondition</span> {

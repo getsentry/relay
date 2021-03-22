@@ -9,5 +9,5 @@ implementors["relay_log"] = [{"text":"impl Eq for LogFormat","synthetic":false,"
 implementors["relay_metrics"] = [{"text":"impl Eq for DurationPrecision","synthetic":false,"types":[]},{"text":"impl Eq for MetricUnit","synthetic":false,"types":[]},{"text":"impl Eq for MetricType","synthetic":false,"types":[]}];
 implementors["relay_quotas"] = [{"text":"impl Eq for QuotaScope","synthetic":false,"types":[]},{"text":"impl Eq for ReasonCode","synthetic":false,"types":[]},{"text":"impl Eq for RetryAfter","synthetic":false,"types":[]},{"text":"impl Eq for RateLimitScope","synthetic":false,"types":[]}];
 implementors["relay_redis"] = [{"text":"impl Eq for RedisConfig","synthetic":false,"types":[]}];
-implementors["relay_sampling"] = [{"text":"impl Eq for RuleType","synthetic":false,"types":[]},{"text":"impl Eq for RuleId","synthetic":false,"types":[]}];
+implementors["relay_sampling"] = [{"text":"impl Eq for RuleType","synthetic":false,"types":[]},{"text":"impl Eq for SamplingResult","synthetic":false,"types":[]},{"text":"impl Eq for RuleId","synthetic":false,"types":[]}];
 if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

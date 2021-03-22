@@ -9,5 +9,5 @@ implementors["relay_general"] = [{"text":"impl Copy for ValueType","synthetic":f
 implementors["relay_log"] = [{"text":"impl Copy for LogFormat","synthetic":false,"types":[]}];
 implementors["relay_metrics"] = [{"text":"impl Copy for DurationPrecision","synthetic":false,"types":[]},{"text":"impl Copy for MetricUnit","synthetic":false,"types":[]},{"text":"impl Copy for MetricType","synthetic":false,"types":[]},{"text":"impl Copy for ParseMetricError","synthetic":false,"types":[]}];
 implementors["relay_quotas"] = [{"text":"impl Copy for Scoping","synthetic":false,"types":[]},{"text":"impl&lt;'a&gt; Copy for ItemScoping&lt;'a&gt;","synthetic":false,"types":[]},{"text":"impl Copy for QuotaScope","synthetic":false,"types":[]},{"text":"impl Copy for RetryAfter","synthetic":false,"types":[]}];
-implementors["relay_sampling"] = [{"text":"impl Copy for RuleType","synthetic":false,"types":[]},{"text":"impl Copy for RuleId","synthetic":false,"types":[]}];
+implementors["relay_sampling"] = [{"text":"impl Copy for RuleType","synthetic":false,"types":[]},{"text":"impl Copy for SamplingResult","synthetic":false,"types":[]},{"text":"impl Copy for RuleId","synthetic":false,"types":[]}];
 if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

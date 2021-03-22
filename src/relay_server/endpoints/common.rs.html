@@ -678,15 +678,6 @@
 <span id="675">675</span>
 <span id="676">676</span>
 <span id="677">677</span>
-<span id="678">678</span>
-<span id="679">679</span>
-<span id="680">680</span>
-<span id="681">681</span>
-<span id="682">682</span>
-<span id="683">683</span>
-<span id="684">684</span>
-<span id="685">685</span>
-<span id="686">686</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.</span>
 
@@ -706,6 +697,7 @@
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">protocol</span>::{<span class="ident">EventId</span>, <span class="ident">EventType</span>};
 <span class="kw">use</span> <span class="ident">relay_log</span>::<span class="ident">LogError</span>;
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::<span class="ident">RateLimits</span>;
+<span class="kw">use</span> <span class="ident">relay_sampling</span>::<span class="ident">RuleId</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">events</span>::{<span class="ident">QueueEnvelope</span>, <span class="ident">QueueEnvelopeError</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>, <span class="ident">TrackOutcome</span>};
@@ -772,7 +764,7 @@
     <span class="ident">EventRejected</span>(<span class="ident">DiscardReason</span>),
 
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;envelope empty due to sampling&quot;</span>)]</span>
-    <span class="ident">TraceSampled</span>(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>),
+    <span class="ident">TraceSampled</span>(<span class="ident">RuleId</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">BadStoreRequest</span> {
@@ -821,9 +813,7 @@
                     .<span class="ident">longest_error</span>()
                     .<span class="ident">map</span>(<span class="op">|</span><span class="ident">r</span><span class="op">|</span> <span class="ident">Outcome</span>::<span class="ident">RateLimited</span>(<span class="ident">r</span>.<span class="ident">reason_code</span>.<span class="ident">clone</span>()));
             }
-            <span class="comment">//TODO fix this when we decide how to map empty Envelopes due to the trace being</span>
-            <span class="comment">//removed by sampling</span>
-            <span class="ident">BadStoreRequest</span>::<span class="ident">TraceSampled</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">DiscardReason</span>::<span class="ident">Internal</span>),
+            <span class="ident">BadStoreRequest</span>::<span class="ident">TraceSampled</span>(<span class="ident">rule_id</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Outcome</span>::<span class="ident">FilteredSampling</span>(<span class="kw-2">*</span><span class="ident">rule_id</span>),
 
             <span class="comment">// should actually never create an outcome</span>
             <span class="ident">BadStoreRequest</span>::<span class="ident">InvalidEventId</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">DiscardReason</span>::<span class="ident">Internal</span>),
@@ -1182,21 +1172,14 @@
                     <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">response</span>) <span class="kw">as</span> <span class="ident">RetVal</span>
                 }))
                 .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span>(<span class="ident">envelope</span>, <span class="ident">rate_limits</span>, <span class="ident">sampling_project</span>)<span class="op">|</span> {
-                    <span class="comment">// do the fast path transaction sampling (if we can&#39;t do it here</span>
-                    <span class="comment">// we&#39;ll try again after the envelope is queued)</span>
-                    <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>();
-
-                    <span class="ident">utils</span>::<span class="ident">sample_transaction</span>(
+                    <span class="ident">utils</span>::<span class="ident">sample_trace</span>(
                         <span class="ident">envelope</span>,
                         <span class="ident">sampling_project</span>.<span class="ident">clone</span>(),
                         <span class="bool-val">true</span>,
                         <span class="ident">processing_enabled</span>,
                     )
                     .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">result</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">result</span> {
-                        <span class="prelude-val">Err</span>(()) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">BadStoreRequest</span>::<span class="ident">TraceSampled</span>(<span class="ident">event_id</span>)),
-                        <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>) <span class="kw">if</span> <span class="ident">envelope</span>.<span class="ident">is_empty</span>() <span class="op">=</span><span class="op">&gt;</span> {
-                            <span class="prelude-val">Err</span>(<span class="ident">BadStoreRequest</span>::<span class="ident">TraceSampled</span>(<span class="ident">event_id</span>))
-                        }
+                        <span class="prelude-val">Err</span>(<span class="ident">rule_id</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">BadStoreRequest</span>::<span class="ident">TraceSampled</span>(<span class="ident">rule_id</span>)),
                         <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>((<span class="ident">envelope</span>, <span class="ident">rate_limits</span>, <span class="ident">sampling_project</span>)),
                     })
                 })
@@ -1254,9 +1237,8 @@
                 <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">create_response</span>(<span class="kw-2">*</span><span class="ident">event_id</span>.<span class="ident">borrow</span>()));
             }
 
-            <span class="kw">if</span> <span class="kw">let</span> <span class="ident">BadStoreRequest</span>::<span class="ident">TraceSampled</span>(<span class="ident">event_id</span>) <span class="op">=</span> <span class="ident">error</span> {
-                <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;creating response for trace sampled event&quot;</span>);
-                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">create_response</span>(<span class="ident">event_id</span>));
+            <span class="kw">if</span> <span class="macro">matches</span><span class="macro">!</span>(<span class="ident">error</span>, <span class="ident">BadStoreRequest</span>::<span class="ident">TraceSampled</span>(<span class="kw">_</span>)) {
+                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">create_response</span>(<span class="kw-2">*</span><span class="ident">event_id</span>.<span class="ident">borrow</span>()));
             }
 
             <span class="kw">let</span> <span class="ident">response</span> <span class="op">=</span> <span class="ident">error</span>.<span class="ident">error_response</span>();
