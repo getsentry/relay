@@ -49,7 +49,7 @@ fn get_op_time_spent(mut intervals: Vec<TimeWindowSpan>) -> Option<f64> {
     }
 
     // sort by start_timestamp in ascending order
-    intervals.sort_unstable_by(|a, b| a.start_timestamp.partial_cmp(&b.start_timestamp).unwrap());
+    intervals.sort_unstable_by_key(|span| span.start_timestamp);
 
     let mut op_time_spent: f64 = 0.0;
     let mut previous_interval: Option<TimeWindowSpan> = None;
