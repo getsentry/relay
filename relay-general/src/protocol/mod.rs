@@ -32,8 +32,7 @@ mod user_report;
 
 pub use self::breadcrumb::Breadcrumb;
 pub use self::breakdowns::{
-    BreakdownConfig, BreakdownMeasurements, Breakdowns, BreakdownsConfig, EmitBreakdowns,
-    SpanOperationsConfig,
+    BreakdownConfig, Breakdowns, BreakdownsConfig, EmitBreakdowns, SpanOperationsConfig,
 };
 pub use self::clientsdk::{ClientSdkInfo, ClientSdkPackage};
 pub use self::constants::{INVALID_ENVIRONMENTS, INVALID_RELEASES, VALID_PLATFORMS};

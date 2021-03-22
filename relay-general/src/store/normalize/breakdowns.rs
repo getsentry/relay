@@ -2,9 +2,7 @@
 //!
 //! This module is responsible for generating breakdowns for events, such as span operation breakdowns.
 
-use crate::protocol::{
-    BreakdownMeasurements, Breakdowns, BreakdownsConfig, EmitBreakdowns, Event, Measurements,
-};
+use crate::protocol::{Breakdowns, BreakdownsConfig, EmitBreakdowns, Event, Measurements};
 use crate::types::Annotated;
 
 pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: &BreakdownsConfig) {
@@ -22,25 +20,22 @@ pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: &BreakdownsCon
             Some(breakdown) => breakdown,
         };
 
+        if breakdown.is_empty() {
+            continue;
+        }
+
         let breakdowns = event
             .breakdowns
             .value_mut()
             .get_or_insert_with(Breakdowns::default);
 
-        match breakdown {
-            BreakdownMeasurements::U64(breakdown) => {
-                let span_ops_breakdown = breakdowns
-                    .entry(breakdown_name.clone())
-                    .or_insert_with(|| {
-                        Annotated::new(BreakdownMeasurements::U64(Measurements::default()))
-                    })
-                    .value_mut()
-                    .get_or_insert_with(|| BreakdownMeasurements::U64(Measurements::default()));
+        let span_ops_breakdown = breakdowns
+            .entry(breakdown_name.clone())
+            .or_insert_with(|| Annotated::new(Measurements::default()))
+            .value_mut()
+            .get_or_insert_with(Measurements::default);
 
-                let BreakdownMeasurements::U64(dest) = span_ops_breakdown;
-                dest.extend(breakdown.take());
-            }
-        }
+        span_ops_breakdown.extend(breakdown.take());
     }
 }
 
@@ -70,15 +65,12 @@ mod tests {
             span_ops_breakdown.insert(
                 "lcp".to_owned(),
                 Annotated::new(Measurement {
-                    value: Annotated::new(42069),
+                    value: Annotated::new(420.69),
                 }),
             );
 
             let mut breakdowns = Object::new();
-            breakdowns.insert(
-                "span_ops".to_owned(),
-                Annotated::new(BreakdownMeasurements::U64(span_ops_breakdown)),
-            );
+            breakdowns.insert("span_ops".to_owned(), Annotated::new(span_ops_breakdown));
 
             breakdowns
         });
@@ -149,15 +141,12 @@ mod tests {
                 span_ops_breakdown.insert(
                     "lcp".to_owned(),
                     Annotated::new(Measurement {
-                        value: Annotated::new(42069),
+                        value: Annotated::new(420.69),
                     }),
                 );
 
                 let mut breakdowns = Object::new();
-                breakdowns.insert(
-                    "span_ops".to_owned(),
-                    Annotated::new(BreakdownMeasurements::U64(span_ops_breakdown)),
-                );
+                breakdowns.insert("span_ops".to_owned(), Annotated::new(span_ops_breakdown));
 
                 breakdowns
             })
@@ -187,7 +176,7 @@ mod tests {
                 "ops.http".to_owned(),
                 Annotated::new(Measurement {
                     // 1 hour in nanoseconds
-                    value: Annotated::new(3_600_000_000_000),
+                    value: Annotated::new(3_600_000.0),
                 }),
             );
 
@@ -195,7 +184,7 @@ mod tests {
                 "ops.db".to_owned(),
                 Annotated::new(Measurement {
                     // 2 hours in nanoseconds
-                    value: Annotated::new(7_200_000_000_000),
+                    value: Annotated::new(7_200_000.0),
                 }),
             );
 
@@ -203,26 +192,23 @@ mod tests {
                 "total.time".to_owned(),
                 Annotated::new(Measurement {
                     // 4 hours and 10 microseconds in nanoseconds
-                    value: Annotated::new(14_400_000_010_000),
+                    value: Annotated::new(14_400_000.01),
                 }),
             );
 
             let mut breakdowns = Object::new();
             breakdowns.insert(
                 "span_ops_2".to_owned(),
-                Annotated::new(BreakdownMeasurements::U64(span_ops_breakdown.clone())),
+                Annotated::new(span_ops_breakdown.clone()),
             );
 
             span_ops_breakdown.insert(
                 "lcp".to_owned(),
                 Annotated::new(Measurement {
-                    value: Annotated::new(42069),
+                    value: Annotated::new(420.69),
                 }),
             );
-            breakdowns.insert(
-                "span_ops".to_owned(),
-                Annotated::new(BreakdownMeasurements::U64(span_ops_breakdown)),
-            );
+            breakdowns.insert("span_ops".to_owned(), Annotated::new(span_ops_breakdown));
 
             breakdowns
         });
