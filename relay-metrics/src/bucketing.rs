@@ -386,22 +386,39 @@ mod tests {
     use super::*;
     use crate::MetricUnit;
 
-    /*
+    struct TestReceiver;
+
+    impl Actor for TestReceiver {
+        type Context = Context<Self>;
+    }
+
+    impl Handler<FlushBuckets> for TestReceiver {
+        type Result = Result<(), Vec<Bucket>>;
+
+        fn handle(&mut self, msg: FlushBuckets, _ctx: &mut Self::Context) -> Self::Result {
+            relay_log::debug!("received buckets: {:#?}", msg.into_buckets());
+            Ok(())
+        }
+    }
+
     #[test]
     fn test_merge_counters() {
-        let mut aggregator = Aggregator::new(AggregatorConfig::default());
+        // TODO: Setup tests
+
+        let config = AggregatorConfig::default();
+        let receiver = TestReceiver.start().recipient();
+        let mut aggregator = Aggregator::new(config, receiver);
 
         let metric1 = Metric {
             name: "foo".to_owned(),
             unit: MetricUnit::None,
-            value: MetricValue::Integer(42),
-            ty: MetricType::Counter,
+            value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(4711),
             tags: BTreeMap::new(),
         };
 
         let mut metric2 = metric1.clone();
-        metric2.value = MetricValue::Integer(43);
+        metric2.value = MetricValue::Counter(43.);
         aggregator.insert(metric1).unwrap();
         aggregator.insert(metric2).unwrap();
 
@@ -412,9 +429,7 @@ mod tests {
                 metric_name: "foo",
                 tags: {},
             }: Counter(
-                Integer(
-                    85,
-                ),
+                85.0,
             ),
         }
         "###);
@@ -422,16 +437,19 @@ mod tests {
 
     #[test]
     fn test_merge_similar_timestamps() {
-        let mut aggregator = Aggregator::new(AggregatorConfig {
+        // TODO: Setup tests
+
+        let config = AggregatorConfig {
             bucket_interval: 10,
             ..AggregatorConfig::default()
-        });
+        };
+        let receiver = TestReceiver.start().recipient();
+        let mut aggregator = Aggregator::new(config, receiver);
 
         let metric1 = Metric {
             name: "foo".to_owned(),
             unit: MetricUnit::None,
-            value: MetricValue::Integer(42),
-            ty: MetricType::Counter,
+            value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(4711),
             tags: BTreeMap::new(),
         };
@@ -452,21 +470,16 @@ mod tests {
                 metric_name: "foo",
                 tags: {},
             }: Counter(
-                Integer(
-                    84,
-                ),
+                84.0,
             ),
             BucketKey {
                 timestamp: UnixTimestamp(4720),
                 metric_name: "foo",
                 tags: {},
             }: Counter(
-                Integer(
-                    42,
-                ),
+                42.0,
             ),
         }
         "###);
     }
-    */
 }
