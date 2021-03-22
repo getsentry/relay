@@ -36,12 +36,12 @@ impl TimeWindowSpan {
 }
 
 #[derive(PartialEq, Eq, Hash)]
-enum OperationBreakdown<'op_name> {
-    Emit(&'op_name str),
-    DoNotEmit(&'op_name str),
+enum OperationBreakdown<'a> {
+    Emit(&'a str),
+    DoNotEmit(&'a str),
 }
 
-type OperationNameIntervals<'op_name> = HashMap<OperationBreakdown<'op_name>, Vec<TimeWindowSpan>>;
+type OperationNameIntervals<'a> = HashMap<OperationBreakdown<'a>, Vec<TimeWindowSpan>>;
 
 fn get_op_time_spent(mut intervals: Vec<TimeWindowSpan>) -> Option<f64> {
     if intervals.is_empty() {
