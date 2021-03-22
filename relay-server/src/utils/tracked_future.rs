@@ -80,7 +80,7 @@ impl<F> Drop for TrackedFuture<F> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::utils::test;
+
     use actix::{Actor, Context, Handler};
     use failure::_core::time::Duration;
     use futures::sync::oneshot::{channel, Sender};
@@ -125,13 +125,13 @@ mod test {
 
     #[test]
     fn test_tracked_future_termination() {
-        test::setup();
+        relay_test::setup();
         let mut futures = [
             Some(futures::future::ok::<bool, ()>(true)),
             Some(futures::future::err::<bool, ()>(())),
         ];
         for future in &mut futures {
-            test::block_fn(|| {
+            relay_test::block_fn(|| {
                 let (tx, rx) = channel::<()>();
                 let addr = TestActor::new(tx).start();
                 let rec = addr.recipient::<TrackedFutureFinished>();
@@ -151,8 +151,8 @@ mod test {
 
     #[test]
     fn test_tracked_future_dropped() {
-        test::setup();
-        test::block_fn(|| {
+        relay_test::setup();
+        relay_test::block_fn(|| {
             let (tx, rx) = channel::<()>();
             let addr = TestActor::new(tx).start();
             let rec = addr.recipient::<TrackedFutureFinished>();

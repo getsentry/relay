@@ -12,6 +12,17 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// The type of an event.
+///
+/// The event type determines how Sentry handles the event and has an impact on processing, rate
+/// limiting, and quotas. There are three fundamental classes of event types:
+///
+///  - **Error monitoring events** (`default`, `error`): Processed and grouped into unique issues
+///    based on their exception stack traces and error messages.
+///  - **Security events** (`csp`, `hpkp`, `expectct`, `expectstaple`): Derived from Browser
+///    security violation reports and grouped into unique issues based on the endpoint and
+///    violation. SDKs do not send such events.
+///  - **Transaction events** (`transaction`): Contain operation spans and collected into traces for
+///    performance monitoring.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[serde(rename_all = "lowercase")]

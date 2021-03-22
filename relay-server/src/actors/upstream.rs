@@ -46,17 +46,15 @@ use crate::metrics::{RelayHistograms, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, IntoTracked, RelayErrorAction, TrackedFutureFinished};
 
 #[derive(Fail, Debug)]
-#[fail(display = "could not send request using reqwest")]
-pub struct UpstreamSendRequestError(#[cause] reqwest::Error);
-
-#[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
     #[fail(display = "attempted to send upstream request without credentials configured")]
     NoCredentials,
 
+    /// As opposed to HTTP variant this contains all network errors.
     #[fail(display = "could not send request to upstream")]
-    SendFailed(#[cause] UpstreamSendRequestError),
+    SendFailed(#[cause] reqwest::Error),
 
+    /// Likely a bad HTTP status code or unparseable response.
     #[fail(display = "could not send request")]
     Http(#[cause] HttpError),
 
@@ -575,7 +573,6 @@ impl UpstreamRelay {
             let res = client
                 .execute(client_request.0)
                 .await
-                .map_err(UpstreamSendRequestError)
                 .map_err(UpstreamRequestError::SendFailed);
             tx.send(res)
         });

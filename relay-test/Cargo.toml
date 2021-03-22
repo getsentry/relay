@@ -1,0 +1,16 @@
+[package]
+name = "relay-test"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Test utilities for Relay"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "21.3.0"
+edition = "2018"
+license-file = "../LICENSE"
+publish = false
+
+[dependencies]
+actix = "0.7.9"
+actix-web = { version = "0.7.19", default-features = false}
+futures = "0.1.28"
+relay-log = { path = "../relay-log", features = ["test"] }
