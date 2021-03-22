@@ -12,6 +12,7 @@
 - Add experimental metrics ingestion without bucketing or pre-aggregation. ([#948](https://github.com/getsentry/relay/pull/948))
 - Change HTTP response for upstream timeouts from 502 to 504. ([#859](https://github.com/getsentry/relay/pull/859))
 - Disallow empty metric names, require alphabetic start. ([#952](https://github.com/getsentry/relay/pull/952))
+- Add rule id to outcomes coming from transaction sampling. ([#953](https://github.com/getsentry/relay/pull/953))
 
 ## 21.3.0
 

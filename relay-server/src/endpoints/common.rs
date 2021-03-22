@@ -16,6 +16,7 @@ use relay_config::Config;
 use relay_general::protocol::{EventId, EventType};
 use relay_log::LogError;
 use relay_quotas::RateLimits;
+use relay_sampling::RuleId;
 
 use crate::actors::events::{QueueEnvelope, QueueEnvelopeError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -82,7 +83,7 @@ pub enum BadStoreRequest {
     EventRejected(DiscardReason),
 
     #[fail(display = "envelope empty due to sampling")]
-    TraceSampled(Option<EventId>),
+    TraceSampled(RuleId),
 }
 
 impl BadStoreRequest {
@@ -131,9 +132,7 @@ impl BadStoreRequest {
                     .longest_error()
                     .map(|r| Outcome::RateLimited(r.reason_code.clone()));
             }
-            //TODO fix this when we decide how to map empty Envelopes due to the trace being
-            //removed by sampling
-            BadStoreRequest::TraceSampled(_) => Outcome::Invalid(DiscardReason::Internal),
+            BadStoreRequest::TraceSampled(rule_id) => Outcome::FilteredSampling(*rule_id),
 
             // should actually never create an outcome
             BadStoreRequest::InvalidEventId => Outcome::Invalid(DiscardReason::Internal),
@@ -492,21 +491,14 @@ where
                     Box::new(response) as RetVal
                 }))
                 .and_then(move |(envelope, rate_limits, sampling_project)| {
-                    // do the fast path transaction sampling (if we can't do it here
-                    // we'll try again after the envelope is queued)
-                    let event_id = envelope.event_id();
-
-                    utils::sample_transaction(
+                    utils::sample_trace(
                         envelope,
                         sampling_project.clone(),
                         true,
                         processing_enabled,
                     )
                     .then(move |result| match result {
-                        Err(()) => Err(BadStoreRequest::TraceSampled(event_id)),
-                        Ok(envelope) if envelope.is_empty() => {
-                            Err(BadStoreRequest::TraceSampled(event_id))
-                        }
+                        Err(rule_id) => Err(BadStoreRequest::TraceSampled(rule_id)),
                         Ok(envelope) => Ok((envelope, rate_limits, sampling_project)),
                     })
                 })
@@ -564,9 +556,8 @@ where
                 return Ok(create_response(*event_id.borrow()));
             }
 
-            if let BadStoreRequest::TraceSampled(event_id) = error {
-                relay_log::debug!("creating response for trace sampled event");
-                return Ok(create_response(event_id));
+            if matches!(error, BadStoreRequest::TraceSampled(_)) {
+                return Ok(create_response(*event_id.borrow()));
             }
 
             let response = error.error_response();

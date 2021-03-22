@@ -142,7 +142,7 @@ def test_it_removes_transactions(mini_sentry, relay):
     config = mini_sentry.add_basic_project_config(project_id)
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
     public_key = config["publicKeys"][0]["publicKey"]
-    _add_sampling_config(config, sample_rate=0, rule_type="trace")
+    rules = _add_sampling_config(config, sample_rate=0, rule_type="trace")
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
     envelope = Envelope()
@@ -159,8 +159,8 @@ def test_it_removes_transactions(mini_sentry, relay):
     outcomes = mini_sentry.captured_outcomes.get(timeout=2)
     assert outcomes is not None
     outcome = outcomes["outcomes"][0]
-    assert outcome.get("outcome") == 3
-    assert outcome.get("reason") == "transaction_sampled"
+    assert outcome.get("outcome") == 1
+    assert outcome.get("reason") == f"Sampled:{rules[0]['id']}"
 
 
 def test_it_keeps_transactions(mini_sentry, relay):
