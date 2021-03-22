@@ -1,0 +1,36 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `relay_test` crate."><meta name="keywords" content="rust, rustlang, rust-lang, relay_test"><title>relay_test - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../ayu.css" disabled ><script id="default-settings"></script><script src="../storage.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="alternate icon" type="image/png" href="../favicon-16x16.png">
+<link rel="alternate icon" type="image/png" href="../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../relay_test/index.html'><div class='logo-container rust-logo'><img src='../rust-logo.png' alt='logo'></div></a><p class="location">Crate relay_test</p><div class="block version"><p>Version 21.3.0</p></div><div class="sidebar-elems"><a id="all-types" href="all.html"><p>See all relay_test's items</p></a><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#functions">Functions</a></li></ul></div><p class="location"></p><script>window.sidebarCurrent = {name: "relay_test", ty: "mod", relpath: "../"};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+                <a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class="fqn"><span class="out-of-band"><span id="render-detail"><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span><a class="srclink" href="../src/relay_test/lib.rs.html#1-104" title="goto source code">[src]</a></span><span class="in-band">Crate <a class="mod" href="">relay_test</a></span></h1><div class="docblock"><p>Helpers for testing the web server and services.</p>
+<p>When writing tests, keep the following points in mind:</p>
+<ul>
+<li>
+<p>In every test, call <a href="../relay_test/fn.setup.html" title="setup"><code>setup</code></a>. This will set up the logger so that all console output is
+captured by the test runner. All logs emitted with <a href="../relay_log/index.html" title="relay_log"><code>relay_log</code></a> will show up for test
+failures or when run with <code>--nocapture</code>.</p>
+</li>
+<li>
+<p>Wrap all code that spawns futures into <a href="../relay_test/fn.block_fn.html" title="block_fn"><code>block_fn</code></a>. This ensures the actix system is both
+registered and running.</p>
+</li>
+</ul>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">relay_test</span>::<span class="ident">setup</span>();
+
+<span class="comment">// Access to the actix System is possible outside of `block_fn`.</span>
+<span class="kw">let</span> <span class="ident">system</span> <span class="op">=</span> <span class="ident">actix</span>::<span class="ident">System</span>::<span class="ident">current</span>();
+
+<span class="ident">relay_test</span>::<span class="ident">block_fn</span>(<span class="op">|</span><span class="op">|</span> {
+    <span class="comment">// `actix::spawn` can be called in here.</span>
+    <span class="prelude-val">Ok</span>::<span class="op">&lt;</span>(), ()<span class="op">&gt;</span>(())
+});</pre></div>
+</div><h2 id="structs" class="section-header"><a href="#structs">Structs</a></h2>
+<table><tr class="module-item"><td><a class="struct" href="struct.TestApp.html" title="relay_test::TestApp struct">TestApp</a></td><td class="docblock-short"><p>Test application helper for testing request handlers.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.TestRequest.html" title="relay_test::TestRequest struct">TestRequest</a></td><td class="docblock-short"><p>Test <code>HttpRequest</code> builder</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.TestServer.html" title="relay_test::TestServer struct">TestServer</a></td><td class="docblock-short"><p>The <code>TestServer</code> type.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.TestServerBuilder.html" title="relay_test::TestServerBuilder struct">TestServerBuilder</a></td><td class="docblock-short"><p>An <code>TestServer</code> builder</p>
+</td></tr></table><h2 id="functions" class="section-header"><a href="#functions">Functions</a></h2>
+<table><tr class="module-item"><td><a class="fn" href="fn.block_fn.html" title="relay_test::block_fn fn">block_fn</a></td><td class="docblock-short"><p>Runs the provided function, blocking the current thread until the result future completes.</p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.setup.html" title="relay_test::setup fn">setup</a></td><td class="docblock-short"><p>Setup the test environment.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../";window.currentCrate = "relay_test";</script><script src="../main.js"></script><script defer src="../search-index.js"></script></body></html>
