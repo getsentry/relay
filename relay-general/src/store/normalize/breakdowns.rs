@@ -87,13 +87,17 @@ fn get_op_time_spent(mut intervals: Vec<TimeWindowSpan>) -> Option<f64> {
     Some(op_time_spent)
 }
 
+/// Emit breakdowns that are derived using information from the given event.
 pub trait EmitBreakdowns {
     fn emit_breakdowns(&self, event: &Event) -> Option<Measurements>;
 }
 
+/// Configuration to define breakdowns based on span operation name.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct SpanOperationsConfig {
+    /// Operation names are matched against an array of strings. The match is successful if the span
+    /// operation name starts with any string in the array "matches".
     pub matches: Vec<String>,
 }
 
