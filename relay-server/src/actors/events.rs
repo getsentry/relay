@@ -128,13 +128,10 @@ enum ProcessingError {
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
 
-    #[fail(
-        display = "envelope empty, transaction removed by sampling rule:{}",
-        _0
-    )]
-    TransactionSampled(RuleId),
+    #[fail(display = "trace dropped by sampling rule {}", _0)]
+    TraceSampled(RuleId),
 
-    #[fail(display = "envelope empty, event removed by sampling rule:{}", _0)]
+    #[fail(display = "event dropped by sampling rule {}", _0)]
     EventSampled(RuleId),
 }
 
@@ -174,7 +171,7 @@ impl ProcessingError {
             }
 
             // Dynamic sampling (not an error, just discarding messages that were removed by sampling)
-            Self::TransactionSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
+            Self::TraceSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
             Self::EventSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
 
             // If we send to an upstream, we don't emit outcomes.
@@ -1554,8 +1551,8 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
             }))
             .and_then(move |envelope| {
-                utils::sample_transaction(envelope, sampling_project, false, processing_enabled)
-                    .map_err(ProcessingError::TransactionSampled)
+                utils::sample_trace(envelope, sampling_project, false, processing_enabled)
+                    .map_err(ProcessingError::TraceSampled)
             })
             .and_then(clone!(project, |envelope| {
                 // get the state for the current project. we can always fetch the cached version

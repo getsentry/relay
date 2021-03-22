@@ -30,14 +30,14 @@ pub enum RuleType {
     Error,
 }
 
-/// The result of a Sampling operation.
+/// The result of a sampling operation returned by [`TraceContext::should_keep`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SamplingResult {
     /// Keep the event.
     Keep,
-    /// Drop the event, due to the rule with provided Id.
+    /// Drop the event, due to the rule with provided identifier.
     Drop(RuleId),
-    /// No decision can be made.  
+    /// No decision can be made.
     NoDecision,
 }
 
@@ -503,10 +503,11 @@ pub struct TraceContext {
 }
 
 impl TraceContext {
-    /// Returns the sampling decision of whether to drop or not a transaction based on the configuration rules.
+    /// Returns whether a trace should be retained based on sampling rules.
     ///
-    /// If None then a decision can't be made either because of an invalid of missing trace context or
-    /// because no applicable sampling rule could be found.
+    /// If [`SamplingResult::NoDecision`] is returned, then no rule matched this trace. In this
+    /// case, the caller may decide whether to keep the trace or not. The same is returned if the
+    /// configuration is invalid.
     pub fn should_keep(&self, ip_addr: Option<IpAddr>, config: &SamplingConfig) -> SamplingResult {
         if let Some(rule) = get_matching_trace_rule(config, self, ip_addr, RuleType::Trace) {
             let rate = match pseudo_random_from_uuid(self.trace_id) {

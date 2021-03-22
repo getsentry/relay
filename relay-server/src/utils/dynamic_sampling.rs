@@ -50,9 +50,11 @@ pub fn should_keep_event(
     SamplingResult::NoDecision
 }
 
-/// Takes an envelope and potentially removes the transaction item from it if that
-/// transaction item should be sampled out according to the dynamic sampling configuration
-/// and the trace context.
+/// Execute dynamic sampling on an envelope using the provided project state.
+///
+/// This function potentially removes the transaction item from the envelpoe if that transaction
+/// item should be sampled out according to the dynamic sampling configuration and the trace
+/// context.
 fn sample_transaction_internal(
     mut envelope: Envelope,
     project_state: Option<&ProjectState>,
@@ -85,28 +87,31 @@ fn sample_transaction_internal(
     };
 
     let client_ip = envelope.meta().client_addr();
-
-    let should_keep = trace_context.should_keep(client_ip, sampling_config);
-
-    match should_keep {
-        // if we don't have a decision yet keep the transaction
-        SamplingResult::Keep | SamplingResult::NoDecision => Ok(envelope),
-        SamplingResult::Drop(rule_id) => {
-            envelope.take_item_by(|item| item.ty() == ItemType::Transaction);
-            if envelope.is_empty() {
-                // if after we removed the transaction we ended up with an empty envelope
-                // return an error so we can generate an outcome for the rule that dropped the transaction
-                Err(rule_id)
-            } else {
-                Ok(envelope)
-            }
+    if let SamplingResult::Drop(rule_id) = trace_context.should_keep(client_ip, sampling_config) {
+        // TODO: Remove event-dependent items similar to `EnvelopeLimiter`.
+        envelope.take_item_by(|item| item.ty() == ItemType::Transaction);
+        if envelope.is_empty() {
+            // if after we removed the transaction we ended up with an empty envelope
+            // return an error so we can generate an outcome for the rule that dropped the transaction
+            Err(rule_id)
+        } else {
+            Ok(envelope)
         }
+    } else {
+        // if we don't have a decision yet keep the transaction
+        Ok(envelope)
     }
 }
 
-/// Check if we should remove transactions from this envelope (because of trace sampling) and
-/// return what is left of the envelope.
-pub fn sample_transaction(
+/// Execute dynamic sampling on the given envelope.
+///
+/// Computes a sampling decision based on the envelope's trace context and sampling rules in the
+/// provided project. If the trace is to be dropped, transaction-related items are removed from the
+/// envelope. Trace sampling never applies to error events.
+///
+/// Returns `Ok` if there are remaining items in the envelope. Returns `Err` with the matching rule
+/// identifier if all elements have been removed.
+pub fn sample_trace(
     envelope: Envelope,
     project: Option<Addr<Project>>,
     fast_processing: bool,
