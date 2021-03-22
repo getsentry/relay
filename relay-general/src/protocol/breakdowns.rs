@@ -41,8 +41,6 @@ enum OperationBreakdown<'a> {
     DoNotEmit(&'a str),
 }
 
-type OperationNameIntervals<'a> = HashMap<OperationBreakdown<'a>, Vec<TimeWindowSpan>>;
-
 fn get_op_time_spent(mut intervals: Vec<TimeWindowSpan>) -> Option<f64> {
     if intervals.is_empty() {
         return None;
@@ -51,7 +49,7 @@ fn get_op_time_spent(mut intervals: Vec<TimeWindowSpan>) -> Option<f64> {
     // sort by start_timestamp in ascending order
     intervals.sort_unstable_by_key(|span| span.start_timestamp);
 
-    let mut op_time_spent: f64 = 0.0;
+    let mut op_time_spent = 0.0;
     let mut previous_interval: Option<TimeWindowSpan> = None;
 
     for current_interval in intervals.into_iter() {
@@ -74,7 +72,6 @@ fn get_op_time_spent(mut intervals: Vec<TimeWindowSpan>) -> Option<f64> {
             }
             None => {
                 previous_interval = Some(current_interval);
-                continue;
             }
         };
     }
@@ -91,7 +88,7 @@ pub trait EmitBreakdowns {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct SpanOperationsConfig {
     pub matches: Vec<String>,
 }
@@ -110,7 +107,7 @@ impl EmitBreakdowns for SpanOperationsConfig {
         };
 
         // Generate span operation breakdowns
-        let mut intervals: OperationNameIntervals = HashMap::new();
+        let mut intervals = HashMap::new();
 
         for span in spans.iter() {
             let span = match span.value() {
@@ -158,10 +155,10 @@ impl EmitBreakdowns for SpanOperationsConfig {
 
         let mut breakdown = Measurements::default();
 
-        let mut total_time_spent: f64 = 0.0;
+        let mut total_time_spent = 0.0;
 
         for (operation_name, intervals) in intervals {
-            let op_time_spent: f64 = match get_op_time_spent(intervals) {
+            let op_time_spent = match get_op_time_spent(intervals) {
                 None => continue,
                 Some(op_time_spent) => op_time_spent,
             };
@@ -196,7 +193,7 @@ impl EmitBreakdowns for SpanOperationsConfig {
 
 /// Configuration to define breakdown to be generated based on properties and breakdown type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum BreakdownConfig {
     SpanOperations(SpanOperationsConfig),
 }
