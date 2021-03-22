@@ -97,7 +97,8 @@ pub trait EmitBreakdowns {
 #[serde(rename_all = "snake_case")]
 pub struct SpanOperationsConfig {
     /// Operation names are matched against an array of strings. The match is successful if the span
-    /// operation name starts with any string in the array "matches".
+    /// operation name starts with any string in the array. If any string in the array has at least
+    /// one match, then a breakdown group is created, and its name will be the matched string.
     pub matches: Vec<String>,
 }
 
