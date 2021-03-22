@@ -359,6 +359,7 @@ pub struct Metric {
     /// [Distributions](MetricType::Distribution) and [counters](MetricType::Counter) require numeric
     /// values which can either be integral or floating point. In contrast, [sets](MetricType::Set)
     /// and [gauges](MetricType::Gauge) can store any unique value including custom strings.
+    #[serde(flatten)]
     pub value: MetricValue,
     /// The timestamp for this metric value.
     ///
