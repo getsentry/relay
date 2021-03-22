@@ -476,7 +476,7 @@ pub struct Event {
     /// values such as Largest Contentful Paint (LCP).
     #[metastructure(skip_serialization = "empty")]
     #[metastructure(omit_from_schema)] // we only document error events for now
-    pub measurements: Annotated<Measurements<f64>>,
+    pub measurements: Annotated<Measurements>,
 
     /// Breakdowns which holds product-defined values such as span operation breakdowns.
     #[metastructure(skip_serialization = "empty")]
