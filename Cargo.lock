@@ -3318,6 +3318,7 @@ dependencies = [
  "relay-quotas",
  "relay-redis",
  "relay-sampling",
+ "relay-test",
  "reqwest",
  "rmp-serde",
  "serde",
@@ -3330,6 +3331,16 @@ dependencies = [
  "tokio-timer",
  "url 2.2.0",
  "uuid 0.8.1",
+]
+
+[[package]]
+name = "relay-test"
+version = "21.3.0"
+dependencies = [
+ "actix",
+ "actix-web",
+ "futures 0.1.29",
+ "relay-log",
 ]
 
 [[package]]
