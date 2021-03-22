@@ -14,7 +14,7 @@ use relay_common::{metric, ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_general::protocol::BreakdownsConfig;
+use relay_general::store::BreakdownsConfig;
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 

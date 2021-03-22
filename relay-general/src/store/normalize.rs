@@ -21,7 +21,7 @@ use crate::types::{
     ProcessingResult, Value,
 };
 
-mod breakdowns;
+pub mod breakdowns;
 mod contexts;
 mod logentry;
 mod mechanism;

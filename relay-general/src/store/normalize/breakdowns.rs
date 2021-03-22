@@ -2,8 +2,231 @@
 //!
 //! This module is responsible for generating breakdowns for events, such as span operation breakdowns.
 
-use crate::protocol::{Breakdowns, BreakdownsConfig, EmitBreakdowns, Event, Measurements};
+use std::collections::HashMap;
+use std::ops::Deref;
+
+use serde::{Deserialize, Serialize};
+
+use crate::protocol::{Breakdowns, Event, Measurement, Measurements, Timestamp};
 use crate::types::Annotated;
+
+#[derive(Clone, Debug)]
+struct TimeWindowSpan {
+    start_timestamp: Timestamp,
+    end_timestamp: Timestamp,
+}
+
+impl TimeWindowSpan {
+    fn new(start_timestamp: Timestamp, end_timestamp: Timestamp) -> Self {
+        if end_timestamp < start_timestamp {
+            return TimeWindowSpan {
+                start_timestamp: end_timestamp,
+                end_timestamp: start_timestamp,
+            };
+        }
+
+        TimeWindowSpan {
+            start_timestamp,
+            end_timestamp,
+        }
+    }
+
+    fn get_duration(&self) -> f64 {
+        let delta: f64 =
+            (self.end_timestamp.timestamp_nanos() - self.start_timestamp.timestamp_nanos()) as f64;
+        // convert to milliseconds (1 ms = 1,000,000 nanoseconds)
+        (delta / 1_000_000.00).abs()
+    }
+}
+
+#[derive(PartialEq, Eq, Hash)]
+enum OperationBreakdown<'a> {
+    Emit(&'a str),
+    DoNotEmit(&'a str),
+}
+
+fn get_op_time_spent(mut intervals: Vec<TimeWindowSpan>) -> Option<f64> {
+    if intervals.is_empty() {
+        return None;
+    }
+
+    // sort by start_timestamp in ascending order
+    intervals.sort_unstable_by_key(|span| span.start_timestamp);
+
+    let mut op_time_spent = 0.0;
+    let mut previous_interval: Option<TimeWindowSpan> = None;
+
+    for current_interval in intervals.into_iter() {
+        match previous_interval.as_mut() {
+            Some(last_interval) => {
+                if last_interval.end_timestamp < current_interval.start_timestamp {
+                    // if current_interval does not overlap with last_interval,
+                    // then add last_interval to op_time_spent
+                    op_time_spent += last_interval.get_duration();
+                    previous_interval = Some(current_interval);
+                    continue;
+                }
+
+                // current_interval and last_interval overlaps; so we merge these intervals
+
+                // invariant: last_interval.start_timestamp <= current_interval.start_timestamp
+
+                last_interval.end_timestamp =
+                    std::cmp::max(last_interval.end_timestamp, current_interval.end_timestamp);
+            }
+            None => {
+                previous_interval = Some(current_interval);
+            }
+        };
+    }
+
+    if let Some(remaining_interval) = previous_interval {
+        op_time_spent += remaining_interval.get_duration();
+    }
+
+    Some(op_time_spent)
+}
+
+pub trait EmitBreakdowns {
+    fn emit_breakdowns(&self, event: &Event) -> Option<Measurements>;
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct SpanOperationsConfig {
+    pub matches: Vec<String>,
+}
+
+impl EmitBreakdowns for SpanOperationsConfig {
+    fn emit_breakdowns(&self, event: &Event) -> Option<Measurements> {
+        let operation_name_breakdowns = &self.matches;
+
+        if operation_name_breakdowns.is_empty() {
+            return None;
+        }
+
+        let spans = match event.spans.value() {
+            None => return None,
+            Some(spans) => spans,
+        };
+
+        // Generate span operation breakdowns
+        let mut intervals = HashMap::new();
+
+        for span in spans.iter() {
+            let span = match span.value() {
+                None => continue,
+                Some(span) => span,
+            };
+
+            let operation_name = match span.op.value() {
+                None => continue,
+                Some(span_op) => span_op,
+            };
+
+            let start_timestamp = match span.start_timestamp.value() {
+                None => continue,
+                Some(start_timestamp) => start_timestamp,
+            };
+
+            let end_timestamp = match span.timestamp.value() {
+                None => continue,
+                Some(end_timestamp) => end_timestamp,
+            };
+
+            let cover = TimeWindowSpan::new(*start_timestamp, *end_timestamp);
+
+            // Only emit an operation breakdown measurement if the operation name matches any
+            // entries in operation_name_breakdown.
+            let results = operation_name_breakdowns
+                .iter()
+                .find(|maybe| operation_name.starts_with(*maybe));
+
+            let operation_name = match results {
+                None => OperationBreakdown::DoNotEmit(operation_name),
+                Some(operation_name) => OperationBreakdown::Emit(operation_name),
+            };
+
+            intervals
+                .entry(operation_name)
+                .or_insert_with(Vec::new)
+                .push(cover);
+        }
+
+        if intervals.is_empty() {
+            return None;
+        }
+
+        let mut breakdown = Measurements::default();
+
+        let mut total_time_spent = 0.0;
+
+        for (operation_name, intervals) in intervals {
+            let op_time_spent = match get_op_time_spent(intervals) {
+                None => continue,
+                Some(op_time_spent) => op_time_spent,
+            };
+
+            total_time_spent += op_time_spent;
+
+            let operation_name = match operation_name {
+                OperationBreakdown::DoNotEmit(_) => continue,
+                OperationBreakdown::Emit(operation_name) => operation_name,
+            };
+
+            let time_spent_measurement = Measurement {
+                value: Annotated::new(op_time_spent),
+            };
+
+            let op_breakdown_name = format!("ops.{}", operation_name);
+
+            breakdown.insert(op_breakdown_name, Annotated::new(time_spent_measurement));
+        }
+
+        let total_time_spent_measurement = Measurement {
+            value: Annotated::new(total_time_spent),
+        };
+        breakdown.insert(
+            "total.time".to_string(),
+            Annotated::new(total_time_spent_measurement),
+        );
+
+        Some(breakdown)
+    }
+}
+
+/// Configuration to define breakdown to be generated based on properties and breakdown type.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum BreakdownConfig {
+    SpanOperations(SpanOperationsConfig),
+}
+
+impl EmitBreakdowns for BreakdownConfig {
+    fn emit_breakdowns(&self, event: &Event) -> Option<Measurements> {
+        match self {
+            BreakdownConfig::SpanOperations(config) => config.emit_breakdowns(event),
+        }
+    }
+}
+
+type BreakdownName = String;
+
+/// Represents the breakdown configuration for a project.
+/// Generate a named (key) breakdown (value).
+///
+/// Breakdowns are product-defined numbers that are indirectly reported by the client, and are materialized
+/// during ingestion.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct BreakdownsConfig(pub HashMap<BreakdownName, BreakdownConfig>);
+
+impl Deref for BreakdownsConfig {
+    type Target = HashMap<BreakdownName, BreakdownConfig>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: &BreakdownsConfig) {
     if breakdowns_config.is_empty() {
@@ -43,13 +266,9 @@ pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: &BreakdownsCon
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::{
-        BreakdownConfig, EventType, Measurement, Span, SpanId, SpanOperationsConfig, SpanStatus,
-        Timestamp, TraceId,
-    };
-    use crate::types::{Annotated, Object};
+    use crate::protocol::{EventType, Span, SpanId, SpanStatus, TraceId};
+    use crate::types::Object;
     use chrono::{TimeZone, Utc};
-    use std::collections::HashMap;
 
     #[test]
     fn test_skip_with_empty_breakdowns_config() {
