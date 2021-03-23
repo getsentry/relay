@@ -12,6 +12,23 @@ use relay_common::{UnboundedInstant, UnixTimestamp};
 
 use crate::{Metric, MetricValue};
 
+/// Anything that can be merged into a [`BucketValue`].
+/// Currently either a [`MetricValue`] or another BucketValue.
+trait MergeValue {
+    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError>;
+    fn into_bucket_value(self) -> BucketValue;
+}
+
+impl MergeValue for MetricValue {
+    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError> {
+        bucket_value.insert(self)
+    }
+
+    fn into_bucket_value(self) -> BucketValue {
+        BucketValue::from(self)
+    }
+}
+
 /// The aggregated value stored in a bucket.
 #[derive(Debug, Clone)]
 pub enum BucketValue {
@@ -72,6 +89,35 @@ impl From<MetricValue> for BucketValue {
     }
 }
 
+impl MergeValue for BucketValue {
+    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError> {
+        bucket_value.merge(self)
+    }
+
+    fn into_bucket_value(self) -> BucketValue {
+        self
+    }
+}
+
+/// Anything that can be merged into a [`Bucket`].
+/// Currently either a [`Metric`] or another Bucket.
+trait Merge<T: MergeValue> {
+    fn into_parts(self, aggregator: &Aggregator) -> (BucketKey, T);
+}
+
+impl Merge<MetricValue> for Metric {
+    fn into_parts(self, aggregator: &Aggregator) -> (BucketKey, MetricValue) {
+        (
+            BucketKey {
+                timestamp: aggregator.get_bucket_timestamp(self.timestamp),
+                metric_name: self.name,
+                tags: self.tags,
+            },
+            self.value,
+        )
+    }
+}
+
 /// A bucket collecting metric values for a given metric name, time window, and tag combination.
 #[derive(Clone, Debug)]
 pub struct Bucket {
@@ -97,6 +143,19 @@ impl Bucket {
     }
 }
 
+impl Merge<BucketValue> for Bucket {
+    fn into_parts(self, _: &Aggregator) -> (BucketKey, BucketValue) {
+        (
+            BucketKey {
+                timestamp: self.timestamp,
+                metric_name: self.metric_name,
+                tags: self.tags,
+            },
+            self.value,
+        )
+    }
+}
+
 /// Any error that may occur during aggregation.
 #[derive(Debug)]
 pub struct AggregateMetricsError;
@@ -117,6 +176,7 @@ struct BucketKey {
 }
 // TODO: use better types and names
 /// Parameters used by the [`Aggregator`].
+///
 /// `initial_delay` and `debounce_delay` should be multiples of `bucket_interval`.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AggregatorConfig {
@@ -249,6 +309,7 @@ impl Message for FlushBuckets {
 }
 
 /// Collector of submitted [`Metric`]s.
+///
 /// Each metric is added to its corresponding [`Bucket`], which is identified by the metric's
 /// name, tags and timestamp.
 pub struct Aggregator {
@@ -279,56 +340,38 @@ impl Aggregator {
         UnixTimestamp::from_secs(ts)
     }
 
-    /// Inserts a metric into the corresponding bucket. If no bucket exists for the given
-    /// bucket key, a new bucket will be created.
-    pub fn insert(&mut self, metric: Metric) -> Result<(), AggregateMetricsError> {
-        let bucket_timestamp = self.get_bucket_timestamp(metric.timestamp);
-
-        let key = BucketKey {
-            timestamp: bucket_timestamp,
-            metric_name: metric.name,
-            tags: metric.tags,
-        };
+    fn do_merge<S: MergeValue, T: Merge<S>>(
+        &mut self,
+        mergeable: T,
+    ) -> Result<(), AggregateMetricsError> {
+        let (key, value) = mergeable.into_parts(self);
+        let timestamp = key.timestamp;
 
         match self.buckets.entry(key) {
             Entry::Occupied(mut entry) => {
-                entry.get_mut().insert(metric.value)?;
+                value.merge_into(entry.get_mut())?;
             }
             Entry::Vacant(entry) => {
-                let flush_at = self.config.get_flush_time(bucket_timestamp);
+                let flush_at = self.config.get_flush_time(timestamp);
                 self.queue
                     .push(QueuedBucket::new(flush_at, entry.key().clone()));
-                entry.insert(metric.value.into());
+                entry.insert(value.into_bucket_value());
             }
         }
 
         Ok(())
     }
 
-    /// Add the values of `bucket` to this aggregator.
-    /// This assumes that the bucket was created
-    /// by the same aggregator, i.e. with the same `bucket_interval`. If a matching bucket already
-    /// exists, the buckets are merged. Else, the new bucket is simply added.
+    /// Inserts a metric into the corresponding bucket. If no bucket exists for the given
+    /// bucket key, a new bucket will be created.
+    pub fn insert(&mut self, metric: Metric) -> Result<(), AggregateMetricsError> {
+        self.do_merge(metric)
+    }
+
+    /// Merge a bucket with the existing buckets. If no bucket exists for the given
+    /// bucket key, a new bucket will be created.
     pub fn merge(&mut self, bucket: Bucket) -> Result<(), AggregateMetricsError> {
-        let key = BucketKey {
-            timestamp: bucket.timestamp,
-            metric_name: bucket.metric_name,
-            tags: bucket.tags,
-        };
-
-        match self.buckets.entry(key) {
-            Entry::Occupied(mut entry) => {
-                entry.get_mut().merge(bucket.value)?;
-            }
-            Entry::Vacant(entry) => {
-                let flush_at = self.config.get_flush_time(bucket.timestamp);
-                self.queue
-                    .push(QueuedBucket::new(flush_at, entry.key().clone()));
-                entry.insert(bucket.value);
-            }
-        }
-
-        Ok(())
+        self.do_merge(bucket)
     }
 
     /// Iterates over `buckets` and merges them using [`Self::merge`].
