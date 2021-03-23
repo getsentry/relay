@@ -205,30 +205,24 @@ impl AggregatorConfig {
 
     /// Gets the instant at which this bucket will be flushed, i.e. removed from the aggregator and
     /// sent onwards.
-    /// Recent buckets are flushed after a grace period of `initial_delay`. Backdated
-    /// buckets (i.e. buckets that lie in the past) are flushed after the shorter `debounce_delay`.
+    ///
+    /// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets (i.e.
+    /// buckets that lie in the past) are flushed after the shorter `debounce_delay`.
     fn get_flush_time(&self, bucket_timestamp: UnixTimestamp) -> Instant {
         let now = Instant::now();
 
-        match bucket_timestamp.to_instant() {
-            // For a bucket from the distance past, use debounce delay
-            UnboundedInstant::Earlier => now + self.debounce_delay(),
-            UnboundedInstant::Instant(instant) => {
-                let bucket_end = instant + self.bucket_interval();
-                let initial_flush = bucket_end + self.initial_delay();
-                if initial_flush > now {
-                    // If the initial flush is still pending, use that.
-                    initial_flush
-                } else {
-                    // If the initial flush time has passed, debounce future flushes with the
-                    // `debounce_delay` starting now.
-                    now + self.debounce_delay()
-                }
+        if let MonotonicResult::Instant(instant) = bucket_timestamp.to_monotonic() {
+            let bucket_end = instant + self.bucket_interval();
+            let initial_flush = bucket_end + self.initial_delay();
+            if initial_flush > now {
+                // If the initial flush is still pending, use that.
+                return initial_flush;
             }
-            // Bucket from distant future. Best we can do is schedule it after initial delay
-            // TODO: or refuse metric altogether?
-            UnboundedInstant::Later => now + self.initial_delay(),
         }
+
+        // If the initial flush time has passed or cannot be represented, debounce future flushes
+        // with the `debounce_delay` starting now.
+        now + self.debounce_delay()
     }
 }
 
