@@ -8,24 +8,37 @@ use actix::prelude::*;
 
 use serde::{Deserialize, Serialize};
 
-use relay_common::{UnboundedInstant, UnixTimestamp};
+use relay_common::{MonotonicResult, UnixTimestamp};
 
 use crate::{Metric, MetricValue};
 
 /// Anything that can be merged into a [`BucketValue`].
 /// Currently either a [`MetricValue`] or another BucketValue.
-trait MergeValue {
+trait MergeValue: Into<BucketValue> {
     fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError>;
-    fn into_bucket_value(self) -> BucketValue;
 }
 
 impl MergeValue for MetricValue {
     fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError> {
-        bucket_value.insert(self)
-    }
+        match (bucket_value, self) {
+            (BucketValue::Counter(counter), MetricValue::Counter(value)) => {
+                *counter += value;
+            }
+            (BucketValue::Distribution(distribution), MetricValue::Distribution(value)) => {
+                distribution.push(value)
+            }
+            (BucketValue::Set(set), MetricValue::Set(value)) => {
+                set.insert(value);
+            }
+            (BucketValue::Gauge(gauge), MetricValue::Gauge(value)) => {
+                *gauge = value;
+            }
+            _ => {
+                return Err(AggregateMetricsError);
+            }
+        }
 
-    fn into_bucket_value(self) -> BucketValue {
-        BucketValue::from(self)
+        Ok(())
     }
 }
 
@@ -42,42 +55,6 @@ pub enum BucketValue {
     Gauge(f64),
 }
 
-impl BucketValue {
-    fn insert(&mut self, value: MetricValue) -> Result<(), AggregateMetricsError> {
-        match (self, value) {
-            (Self::Counter(counter), MetricValue::Counter(value)) => {
-                *counter += value;
-            }
-            (Self::Distribution(distribution), MetricValue::Distribution(value)) => {
-                distribution.push(value)
-            }
-            (Self::Set(set), MetricValue::Set(value)) => {
-                set.insert(value);
-            }
-            (Self::Gauge(gauge), MetricValue::Gauge(value)) => {
-                *gauge = value;
-            }
-            _ => {
-                return Err(AggregateMetricsError);
-            }
-        }
-
-        Ok(())
-    }
-
-    fn merge(&mut self, other: Self) -> Result<(), AggregateMetricsError> {
-        match (self, other) {
-            (Self::Counter(lhs), Self::Counter(rhs)) => *lhs += rhs,
-            (Self::Distribution(lhs), Self::Distribution(rhs)) => lhs.extend(rhs),
-            (Self::Set(lhs), Self::Set(rhs)) => lhs.extend(rhs),
-            (Self::Gauge(lhs), Self::Gauge(rhs)) => *lhs = rhs,
-            _ => return Err(AggregateMetricsError),
-        }
-
-        Ok(())
-    }
-}
-
 impl From<MetricValue> for BucketValue {
     fn from(value: MetricValue) -> Self {
         match value {
@@ -91,30 +68,15 @@ impl From<MetricValue> for BucketValue {
 
 impl MergeValue for BucketValue {
     fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError> {
-        bucket_value.merge(self)
-    }
+        match (bucket_value, self) {
+            (BucketValue::Counter(lhs), BucketValue::Counter(rhs)) => *lhs += rhs,
+            (BucketValue::Distribution(lhs), BucketValue::Distribution(rhs)) => lhs.extend(rhs),
+            (BucketValue::Set(lhs), BucketValue::Set(rhs)) => lhs.extend(rhs),
+            (BucketValue::Gauge(lhs), BucketValue::Gauge(rhs)) => *lhs = rhs,
+            _ => return Err(AggregateMetricsError),
+        }
 
-    fn into_bucket_value(self) -> BucketValue {
-        self
-    }
-}
-
-/// Anything that can be merged into a [`Bucket`].
-/// Currently either a [`Metric`] or another Bucket.
-trait Merge<T: MergeValue> {
-    fn into_parts(self, aggregator: &Aggregator) -> (BucketKey, T);
-}
-
-impl Merge<MetricValue> for Metric {
-    fn into_parts(self, aggregator: &Aggregator) -> (BucketKey, MetricValue) {
-        (
-            BucketKey {
-                timestamp: aggregator.get_bucket_timestamp(self.timestamp),
-                metric_name: self.name,
-                tags: self.tags,
-            },
-            self.value,
-        )
+        Ok(())
     }
 }
 
@@ -140,19 +102,6 @@ impl Bucket {
             value,
             tags: key.tags,
         }
-    }
-}
-
-impl Merge<BucketValue> for Bucket {
-    fn into_parts(self, _: &Aggregator) -> (BucketKey, BucketValue) {
-        (
-            BucketKey {
-                timestamp: self.timestamp,
-                metric_name: self.metric_name,
-                tags: self.tags,
-            },
-            self.value,
-        )
     }
 }
 
@@ -334,11 +283,11 @@ impl Aggregator {
         UnixTimestamp::from_secs(ts)
     }
 
-    fn do_merge<S: MergeValue, T: Merge<S>>(
+    fn merge_in<T: MergeValue>(
         &mut self,
-        mergeable: T,
+        key: BucketKey,
+        value: T,
     ) -> Result<(), AggregateMetricsError> {
-        let (key, value) = mergeable.into_parts(self);
         let timestamp = key.timestamp;
 
         match self.buckets.entry(key) {
@@ -349,7 +298,7 @@ impl Aggregator {
                 let flush_at = self.config.get_flush_time(timestamp);
                 self.queue
                     .push(QueuedBucket::new(flush_at, entry.key().clone()));
-                entry.insert(value.into_bucket_value());
+                entry.insert(value.into());
             }
         }
 
@@ -359,13 +308,23 @@ impl Aggregator {
     /// Inserts a metric into the corresponding bucket. If no bucket exists for the given
     /// bucket key, a new bucket will be created.
     pub fn insert(&mut self, metric: Metric) -> Result<(), AggregateMetricsError> {
-        self.do_merge(metric)
+        let key = BucketKey {
+            timestamp: self.get_bucket_timestamp(metric.timestamp),
+            metric_name: metric.name,
+            tags: metric.tags,
+        };
+        self.merge_in(key, metric.value)
     }
 
     /// Merge a bucket with the existing buckets. If no bucket exists for the given
     /// bucket key, a new bucket will be created.
     pub fn merge(&mut self, bucket: Bucket) -> Result<(), AggregateMetricsError> {
-        self.do_merge(bucket)
+        let key = BucketKey {
+            timestamp: bucket.timestamp,
+            metric_name: bucket.metric_name,
+            tags: bucket.tags,
+        };
+        self.merge_in(key, bucket.value)
     }
 
     /// Iterates over `buckets` and merges them using [`Self::merge`].
