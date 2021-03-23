@@ -488,7 +488,7 @@ mod tests {
 
     #[test]
     fn test_merge_counters() {
-        // TODO: Setup tests
+        relay_test::setup();
 
         let config = AggregatorConfig::default();
         let receiver = TestReceiver.start().recipient();
@@ -522,6 +522,7 @@ mod tests {
 
     #[test]
     fn test_merge_similar_timestamps() {
+        relay_test::setup();
         let config = AggregatorConfig {
             bucket_interval: 10,
             ..AggregatorConfig::default()
@@ -576,6 +577,7 @@ mod tests {
 
     #[test]
     fn test_mixup_types() {
+        relay_test::setup();
         let config = AggregatorConfig {
             bucket_interval: 10,
             ..AggregatorConfig::default()

@@ -3247,6 +3247,7 @@ dependencies = [
  "insta",
  "relay-common",
  "relay-log",
+ "relay-test",
  "serde",
  "serde_json",
 ]
