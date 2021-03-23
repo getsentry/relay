@@ -27,7 +27,7 @@ pub enum UnboundedInstant {
     Later,
 }
 
-/// A unix timestap (full seconds elapsed since 1970).
+/// A unix timestamp (full seconds elapsed since 1970).
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct UnixTimestamp(u64);
 
@@ -76,8 +76,9 @@ impl UnixTimestamp {
     /// use relay_common::UnixTimestamp;
     ///
     /// let timestamp = UnixTimestamp::now();
-    /// let instant = timestamp.to_instant();
-    /// assert!(Instant::now() - instant < Duration::from_millis(1));
+    /// if let UnboundedInstant::Instant(instant) = timestamp.to_instant() {
+    ///    assert!((Instant::now() - instant) < Duration::from_millis(1));
+    /// }
     /// ```
     pub fn to_instant(self) -> UnboundedInstant {
         let now = Self::now();

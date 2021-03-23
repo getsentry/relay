@@ -1,4 +1,3 @@
-#![allow(missing_docs)]
 use std::collections::BinaryHeap;
 use std::collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
@@ -13,11 +12,16 @@ use relay_common::{UnboundedInstant, UnixTimestamp};
 
 use crate::{Metric, MetricValue};
 
+/// The aggregated value stored in a bucket.
 #[derive(Debug, Clone)]
 pub enum BucketValue {
+    /// Aggregates [`MetricValue::Counter`] values by adding them.
     Counter(f64),
+    /// Aggregates [`MetricValue::Distribution`] values by collecting their values.
     Distribution(Vec<f64>),
+    /// Aggregates [`MetricValue::Set`] values by storing their values in a set.
     Set(BTreeSet<u32>),
+    /// Aggregates [`MetricValue::Gauge`] values by overwriting the previous value.
     Gauge(f64),
 }
 
@@ -68,11 +72,17 @@ impl From<MetricValue> for BucketValue {
     }
 }
 
+/// A bucket collecting metric values for a given metric name, time window, and tag combination.
 #[derive(Clone, Debug)]
 pub struct Bucket {
+    /// The start time of the time window. The length of the time window is stored in the
+    /// [`Aggregator`].
     pub timestamp: UnixTimestamp,
+    /// Name of the metric. See [`Metric::name`].
     pub metric_name: String,
+    /// The value of the bucket.
     pub value: BucketValue,
+    /// See [`Metric::tags``]. Every combination of tags results in a different bucket.
     pub tags: BTreeMap<String, String>,
 }
 
@@ -87,6 +97,7 @@ impl Bucket {
     }
 }
 
+/// Any error that may occur during aggregation.
 #[derive(Debug)]
 pub struct AggregateMetricsError;
 
@@ -104,32 +115,38 @@ struct BucketKey {
     metric_name: String,
     tags: BTreeMap<String, String>,
 }
-
 // TODO: use better types and names
+/// Parameters used by the [`Aggregator`].
+/// `initial_delay` and `debounce_delay` should be multiples of `bucket_interval`.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AggregatorConfig {
-    /// The wall clock time width of each bucket in seconds.
     bucket_interval: u64,
-    /// The initial flush delay after the end of a bucket's original time window.
+
     initial_delay: u64,
-    /// The delay to debounce backdated flushes.
+
     debounce_delay: u64,
 }
 
 impl AggregatorConfig {
+    /// The wall clock time width of each bucket in seconds.
     pub fn bucket_interval(&self) -> Duration {
         Duration::from_secs(self.bucket_interval)
     }
 
+    /// The initial flush delay after the end of a bucket's original time window.
     pub fn initial_delay(&self) -> Duration {
         Duration::from_secs(self.initial_delay)
     }
 
+    /// The delay to debounce backdated flushes.
     pub fn debounce_delay(&self) -> Duration {
         Duration::from_secs(self.debounce_delay)
     }
 
-    /// TODO: Doc
+    /// Gets the instant at which this bucket will be flushed, i.e. removed from the aggregator and
+    /// sent onwards.
+    /// Recent buckets are flushed after a grace period of `initial_delay`. Backdated
+    /// buckets (i.e. buckets that lie in the past) are flushed after the shorter `debounce_delay`.
     fn get_flush_time(&self, bucket_timestamp: UnixTimestamp) -> Instant {
         let now = Instant::now();
 
@@ -176,7 +193,7 @@ struct QueuedBucket {
 }
 
 impl QueuedBucket {
-    /// Creates a new `QueuedBucket` witha  given flush time.
+    /// Creates a new `QueuedBucket` with a given flush time.
     fn new(flush_at: Instant, key: BucketKey) -> Self {
         Self { flush_at, key }
     }
@@ -209,16 +226,19 @@ impl Ord for QueuedBucket {
     }
 }
 
+/// A message containing a vector of buckets to be flushed.
 #[derive(Clone, Debug)]
 pub struct FlushBuckets {
     buckets: Vec<Bucket>,
 }
 
 impl FlushBuckets {
+    /// Creates a new message by consuming a vector of buckets.
     pub fn new(buckets: Vec<Bucket>) -> Self {
         Self { buckets }
     }
 
+    /// Consumes the buckets contained in this message.
     pub fn into_buckets(self) -> Vec<Bucket> {
         self.buckets
     }
@@ -228,7 +248,9 @@ impl Message for FlushBuckets {
     type Result = Result<(), Vec<Bucket>>;
 }
 
-/// TODO
+/// Collector of submitted [`Metric`]s.
+/// Each metric is added to its corresponding [`Bucket`], which is identified by the metric's
+/// name, tags and timestamp.
 pub struct Aggregator {
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, BucketValue>,
@@ -237,6 +259,8 @@ pub struct Aggregator {
 }
 
 impl Aggregator {
+    /// Create a new aggregator and connect it to `receiver`, to which batches of buckets will
+    /// be sent in intervals based on `config`.
     pub fn new(config: AggregatorConfig, receiver: Recipient<FlushBuckets>) -> Self {
         Self {
             config,
@@ -246,15 +270,17 @@ impl Aggregator {
         }
     }
 
-    /// TODO: Doc
+    /// Determines which bucket a timestamp is assigned to. The bucket timestamp is the input timestamp
+    /// rounded by the configured `bucket_interval`.
     fn get_bucket_timestamp(&self, timestamp: UnixTimestamp) -> UnixTimestamp {
-        // TODO: We know this must be UNIX timestamp because we need reliable match even with system
+        // We know this must be UNIX timestamp because we need reliable match even with system
         // clock skew over time.
         let ts = (timestamp.as_secs() / self.config.bucket_interval) * self.config.bucket_interval;
         UnixTimestamp::from_secs(ts)
     }
 
-    /// TODO: doc
+    /// Inserts a metric into the corresponding bucket. If no bucket exists for the given
+    /// bucket key, a new bucket will be created.
     pub fn insert(&mut self, metric: Metric) -> Result<(), AggregateMetricsError> {
         let bucket_timestamp = self.get_bucket_timestamp(metric.timestamp);
 
@@ -279,6 +305,10 @@ impl Aggregator {
         Ok(())
     }
 
+    /// Add the values of `bucket` to this aggregator.
+    /// This assumes that the bucket was created
+    /// by the same aggregator, i.e. with the same `bucket_interval`. If a matching bucket already
+    /// exists, the buckets are merged. Else, the new bucket is simply added.
     pub fn merge(&mut self, bucket: Bucket) -> Result<(), AggregateMetricsError> {
         let key = BucketKey {
             timestamp: bucket.timestamp,
@@ -301,6 +331,7 @@ impl Aggregator {
         Ok(())
     }
 
+    /// Iterates over `buckets` and merges them using [`Self::merge`].
     pub fn merge_all<I>(&mut self, buckets: I) -> Result<(), AggregateMetricsError>
     where
         I: IntoIterator<Item = Bucket>,
@@ -366,12 +397,14 @@ impl Actor for Aggregator {
     }
 }
 
+/// Message containing a [`Metric`] to be inserted.
 #[derive(Debug)]
 pub struct InsertMetric {
     metric: Metric,
 }
 
 impl InsertMetric {
+    /// Create a new message containing a [`Metric`].
     pub fn new(metric: Metric) -> Self {
         Self { metric }
     }
