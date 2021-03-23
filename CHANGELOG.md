@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add `user.id` and `user.segment` to sampling rules. ([#959](https://github.com/getsentry/relay/pull/959))
+
 **Bug Fixes**:
 
 - Make request url scrubbable. ([#955](https://github.com/getsentry/relay/pull/955))
