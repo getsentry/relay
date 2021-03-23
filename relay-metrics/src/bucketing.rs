@@ -530,4 +530,40 @@ mod tests {
         ]
         "###);
     }
+
+    #[test]
+    fn test_mixup_types() {
+        let config = AggregatorConfig {
+            bucket_interval: 10,
+            ..AggregatorConfig::default()
+        };
+        let receiver = TestReceiver.start().recipient();
+        let mut aggregator = Aggregator::new(config, receiver);
+
+        let metric1 = Metric {
+            name: "foo".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Counter(42.),
+            timestamp: UnixTimestamp::from_secs(4711),
+            tags: BTreeMap::new(),
+        };
+
+        let mut metric2 = metric1.clone();
+        metric2.value = MetricValue::Set(123);
+
+        aggregator.insert(metric1).unwrap();
+        assert!(matches!(aggregator.insert(metric2), Result::Err(_)));
+
+        insta::assert_debug_snapshot!(aggregator.buckets, @r###"
+        {
+            BucketKey {
+                timestamp: UnixTimestamp(4710),
+                metric_name: "foo",
+                tags: {},
+            }: Counter(
+                42.0,
+            ),
+        }
+        "###);
+    }
 }
