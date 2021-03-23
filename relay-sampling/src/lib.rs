@@ -331,7 +331,16 @@ impl FieldValueProvider for Event {
                 None => Value::Null,
                 Some(ref s) => Value::String(s.into()),
             },
-            "event.user" => Value::Null, // Not available at this time
+            "event.user.id" => self.user.value().map_or(Value::Null, |user| {
+                user.id
+                    .value()
+                    .map_or(Value::Null, |id| Value::String(id.as_str().into()))
+            }),
+            "event.user.segment" => self.user.value().map_or(Value::Null, |user| {
+                user.segment
+                    .value()
+                    .map_or(Value::Null, |segment| Value::String(segment.into()))
+            }),
             "event.is_local_ip" => Value::Bool(localhost::matches(&self)),
             "event.has_bad_browser_extensions" => Value::Bool(browser_extensions::matches(&self)),
             "event.web_crawlers" => Value::Bool(web_crawlers::matches(&self)),
@@ -434,10 +443,21 @@ impl FieldValueProvider for TraceContext {
                 None => Value::Null,
                 Some(ref s) => Value::String(s.into()),
             },
-            "trace.user" => match self.user {
-                None => Value::Null,
-                Some(ref s) => Value::String(s.into()),
-            },
+            "trace.user.id" => self
+                .user
+                .as_ref()
+                .map_or(Value::Null, |user| match user.id {
+                    None => Value::Null,
+                    Some(ref s) => Value::String(s.into()),
+                }),
+            "trace.user.segment" => {
+                self.user
+                    .as_ref()
+                    .map_or(Value::Null, |user| match user.segment {
+                        None => Value::Null,
+                        Some(ref s) => Value::String(s.into()),
+                    })
+            }
             _ => Value::Null,
         }
     }
@@ -472,6 +492,15 @@ impl SamplingConfig {
     }
 }
 
+/// The User related information in the trace context
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TraceUserContext {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub segment: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+}
+
 /// TraceContext created by the first Sentry SDK in the call chain.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraceContext {
@@ -485,7 +514,7 @@ pub struct TraceContext {
     /// the user specific identifier ( e.g. a user segment, or similar created by the SDK
     /// from the user object)
     #[serde(default)]
-    pub user: Option<String>,
+    pub user: Option<TraceUserContext>,
     /// the environment
     #[serde(default)]
     pub environment: Option<String>,
@@ -608,6 +637,142 @@ mod tests {
     }
 
     #[test]
+    /// test extraction of field values from event with everything
+    fn test_field_value_provider_event_filled() {
+        let event = Event {
+            release: Annotated::new(LenientString("1.1.1".to_owned())),
+            environment: Annotated::new("prod".to_owned()),
+            user: Annotated::new(User {
+                ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+                id: Annotated::new(LenientString("user-id".into())),
+                segment: Annotated::new("user-seg".into()),
+                ..Default::default()
+            }),
+            exceptions: Annotated::new(Values {
+                values: Annotated::new(vec![Annotated::new(Exception {
+                    value: Annotated::new(JsonLenientString::from(
+                        "canvas.contentDocument".to_owned(),
+                    )),
+                    ..Default::default()
+                })]),
+                ..Default::default()
+            }),
+            request: Annotated::new(Request {
+                headers: Annotated::new(Headers(PairList(vec![Annotated::new((
+                    Annotated::new("user-agent".into()),
+                    Annotated::new("Slurp".into()),
+                ))]))),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            Value::String("1.1.1".into()),
+            event.get_value("event.release")
+        );
+        assert_eq!(
+            Value::String("prod".into()),
+            event.get_value("event.environment")
+        );
+        assert_eq!(
+            Value::String("user-id".into()),
+            event.get_value("event.user.id")
+        );
+        assert_eq!(
+            Value::String("user-seg".into()),
+            event.get_value("event.user.segment")
+        );
+        assert_eq!(Value::Bool(true), event.get_value("event.is_local_ip"),);
+        assert_eq!(
+            Value::Bool(true),
+            event.get_value("event.has_bad_browser_extensions")
+        );
+        assert_eq!(Value::Bool(true), event.get_value("event.web_crawlers"));
+    }
+
+    #[test]
+    /// test extraction of field values from empty event
+    fn test_field_value_provider_event_empty() {
+        let event = Event::default();
+
+        assert_eq!(Value::Null, event.get_value("event.release"));
+        assert_eq!(Value::Null, event.get_value("event.environment"));
+        assert_eq!(Value::Null, event.get_value("event.user.id"));
+        assert_eq!(Value::Null, event.get_value("event.user.segment"));
+        assert_eq!(Value::Bool(false), event.get_value("event.is_local_ip"),);
+        assert_eq!(
+            Value::Bool(false),
+            event.get_value("event.has_bad_browser_extensions")
+        );
+        assert_eq!(Value::Bool(false), event.get_value("event.web_crawlers"));
+
+        // now try with an empty user
+        let event = Event {
+            user: Annotated::new(User {
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        assert_eq!(Value::Null, event.get_value("event.user.id"));
+        assert_eq!(Value::Null, event.get_value("event.user.segment"));
+    }
+
+    #[test]
+    fn test_field_value_provider_trace_filled() {
+        let tc = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: Some(TraceUserContext {
+                segment: Some("user-seg".into()),
+                id: Some("user-id".into()),
+            }),
+            environment: Some("prod".to_string()),
+        };
+
+        assert_eq!(Value::String("1.1.1".into()), tc.get_value("trace.release"));
+        assert_eq!(
+            Value::String("prod".into()),
+            tc.get_value("trace.environment")
+        );
+        assert_eq!(
+            Value::String("user-id".into()),
+            tc.get_value("trace.user.id")
+        );
+        assert_eq!(
+            Value::String("user-seg".into()),
+            tc.get_value("trace.user.segment")
+        );
+    }
+
+    #[test]
+    fn test_field_value_provider_trace_empty() {
+        let tc = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: None,
+            user: None,
+            environment: None,
+        };
+        assert_eq!(Value::Null, tc.get_value("event.release"));
+        assert_eq!(Value::Null, tc.get_value("event.environment"));
+        assert_eq!(Value::Null, tc.get_value("event.user.id"));
+        assert_eq!(Value::Null, tc.get_value("event.user.segment"));
+
+        let tc = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: None,
+            user: Some(TraceUserContext::default()),
+            environment: None,
+        };
+        assert_eq!(Value::Null, tc.get_value("event.user.id"));
+        assert_eq!(Value::Null, tc.get_value("event.user.segment"));
+    }
+
+    #[test]
     /// test matching for various rules
     fn test_matches() {
         let conditions = [
@@ -616,7 +781,7 @@ mod tests {
                 and(vec![
                     glob("trace.release", &["1.1.1"]),
                     eq("trace.environment", &["debug"], true),
-                    eq("trace.user", &["vip"], true),
+                    eq("trace.user.segment", &["vip"], true),
                 ]),
             ),
             (
@@ -624,7 +789,7 @@ mod tests {
                 and(vec![
                     glob("trace.release", &["1.*"]),
                     eq("trace.environment", &["debug"], true),
-                    eq("trace.user", &["vip"], true),
+                    eq("trace.user.segment", &["vip"], true),
                 ]),
             ),
             (
@@ -632,7 +797,7 @@ mod tests {
                 and(vec![
                     glob("trace.release", &["2.1.1", "1.1.*"]),
                     eq("trace.environment", &["debug"], true),
-                    eq("trace.user", &["vip"], true),
+                    eq("trace.user.segment", &["vip"], true),
                 ]),
             ),
             (
@@ -640,7 +805,7 @@ mod tests {
                 and(vec![
                     glob("trace.release", &["1.1.1"]),
                     eq("trace.environment", &["debug"], true),
-                    eq("trace.user", &["paid", "vip", "free"], true),
+                    eq("trace.user.segment", &["paid", "vip", "free"], true),
                 ]),
             ),
             (
@@ -648,7 +813,7 @@ mod tests {
                 and(vec![
                     glob("trace.release", &["1.1.1"]),
                     eq("trace.environment", &["debug"], true),
-                    eq("trace.user", &["ViP", "FrEe"], true),
+                    eq("trace.user.segment", &["ViP", "FrEe"], true),
                 ]),
             ),
             (
@@ -660,7 +825,7 @@ mod tests {
                         &["integration", "debug", "production"],
                         true,
                     ),
-                    eq("trace.user", &["vip"], true),
+                    eq("trace.user.segment", &["vip"], true),
                 ]),
             ),
             (
@@ -668,21 +833,21 @@ mod tests {
                 and(vec![
                     glob("trace.release", &["1.1.1"]),
                     eq("trace.environment", &["DeBuG", "PrOd"], true),
-                    eq("trace.user", &["vip"], true),
+                    eq("trace.user.segment", &["vip"], true),
                 ]),
             ),
             (
                 "all environments",
                 and(vec![
                     glob("trace.release", &["1.1.1"]),
-                    eq("trace.user", &["vip"], true),
+                    eq("trace.user.segment", &["vip"], true),
                 ]),
             ),
             (
                 "undefined environments",
                 and(vec![
                     glob("trace.release", &["1.1.1"]),
-                    eq("trace.user", &["vip"], true),
+                    eq("trace.user.segment", &["vip"], true),
                 ]),
             ),
             ("match no conditions", and(vec![])),
@@ -692,7 +857,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some("vip".to_string()),
+            user: Some(TraceUserContext {
+                segment: Some("vip".into()),
+                id: Some("user-id".into()),
+            }),
             environment: Some("debug".to_string()),
         };
 
@@ -822,7 +990,7 @@ mod tests {
                 true,
                 or(vec![
                     eq("trace.environment", &["debug"], true),
-                    eq("trace.user", &["vip"], true),
+                    eq("trace.user.segment", &["vip"], true),
                 ]),
             ),
             (
@@ -830,7 +998,7 @@ mod tests {
                 true,
                 or(vec![
                     eq("trace.environment", &["debug"], true),
-                    eq("trace.user", &["all"], true),
+                    eq("trace.user.segment", &["all"], true),
                 ]),
             ),
             (
@@ -838,7 +1006,7 @@ mod tests {
                 true,
                 or(vec![
                     eq("trace.environment", &["prod"], true),
-                    eq("trace.user", &["vip"], true),
+                    eq("trace.user.segment", &["vip"], true),
                 ]),
             ),
             (
@@ -846,7 +1014,7 @@ mod tests {
                 false,
                 or(vec![
                     eq("trace.environment", &["prod"], true),
-                    eq("trace.user", &["all"], true),
+                    eq("trace.user.segment", &["all"], true),
                 ]),
             ),
             ("empty", false, or(vec![])),
@@ -856,7 +1024,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some("vip".to_string()),
+            user: Some(TraceUserContext {
+                segment: Some("vip".into()),
+                id: Some("user-id".into()),
+            }),
             environment: Some("debug".to_string()),
         };
 
@@ -877,7 +1048,7 @@ mod tests {
                 true,
                 and(vec![
                     eq("trace.environment", &["debug"], true),
-                    eq("trace.user", &["vip"], true),
+                    eq("trace.user.segment", &["vip"], true),
                 ]),
             ),
             (
@@ -885,7 +1056,7 @@ mod tests {
                 false,
                 and(vec![
                     eq("trace.environment", &["debug"], true),
-                    eq("trace.user", &["all"], true),
+                    eq("trace.user.segment", &["all"], true),
                 ]),
             ),
             (
@@ -893,7 +1064,7 @@ mod tests {
                 false,
                 and(vec![
                     eq("trace.environment", &["prod"], true),
-                    eq("trace.user", &["vip"], true),
+                    eq("trace.user.segment", &["vip"], true),
                 ]),
             ),
             (
@@ -901,7 +1072,7 @@ mod tests {
                 false,
                 and(vec![
                     eq("trace.environment", &["prod"], true),
-                    eq("trace.user", &["all"], true),
+                    eq("trace.user.segment", &["all"], true),
                 ]),
             ),
             ("empty", true, and(vec![])),
@@ -911,7 +1082,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some("vip".to_string()),
+            user: Some(TraceUserContext {
+                segment: Some("vip".into()),
+                id: Some("user-id".into()),
+            }),
             environment: Some("debug".to_string()),
         };
 
@@ -943,7 +1117,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some("vip".to_string()),
+            user: Some(TraceUserContext {
+                segment: Some("vip".into()),
+                id: Some("user-id".into()),
+            }),
             environment: Some("debug".to_string()),
         };
 
@@ -990,7 +1167,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some("vip".to_string()),
+            user: Some(TraceUserContext {
+                segment: Some("vip".into()),
+                id: Some("user-id".into()),
+            }),
             environment: Some("debug".to_string()),
         };
 
@@ -1195,13 +1375,16 @@ mod tests {
     fn test_partial_trace_matches() {
         let condition = and(vec![
             eq("trace.environment", &["debug"], true),
-            eq("trace.user", &["vip"], true),
+            eq("trace.user.segment", &["vip"], true),
         ]);
         let tc = TraceContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
-            user: Some("vip".to_string()),
+            user: Some(TraceUserContext {
+                segment: Some("vip".into()),
+                id: Some("user-id".into()),
+            }),
             environment: Some("debug".to_string()),
         };
 
@@ -1229,13 +1412,16 @@ mod tests {
 
         let condition = and(vec![
             glob("trace.release", &["1.1.1"]),
-            eq("trace.user", &["vip"], true),
+            eq("trace.user.segment", &["vip"], true),
         ]);
         let tc = TraceContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some("vip".to_string()),
+            user: Some(TraceUserContext {
+                segment: Some("vip".into()),
+                id: Some("user-id".into()),
+            }),
             environment: None,
         };
 
@@ -1274,7 +1460,7 @@ mod tests {
                     condition: and(vec![
                         glob("trace.release", &["1.1.1"]),
                         eq("trace.environment", &["debug"], true),
-                        eq("trace.user", &["vip"], true),
+                        eq("trace.user.segment", &["vip"], true),
                     ]),
                     sample_rate: 0.1,
                     ty: RuleType::Trace,
@@ -1294,7 +1480,7 @@ mod tests {
                 SamplingRule {
                     condition: and(vec![
                         eq("trace.environment", &["debug"], true),
-                        eq("trace.user", &["vip"], true),
+                        eq("trace.user.segment", &["vip"], true),
                     ]),
                     sample_rate: 0.3,
                     ty: RuleType::Trace,
@@ -1304,7 +1490,7 @@ mod tests {
                 SamplingRule {
                     condition: and(vec![
                         glob("trace.release", &["1.1.1"]),
-                        eq("trace.user", &["vip"], true),
+                        eq("trace.user.segment", &["vip"], true),
                     ]),
                     sample_rate: 0.4,
                     ty: RuleType::Trace,
@@ -1325,7 +1511,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some("vip".to_string()),
+            user: Some(TraceUserContext {
+                segment: Some("vip".into()),
+                id: Some("user-id".into()),
+            }),
             environment: Some("debug".to_string()),
         };
 
@@ -1341,7 +1530,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.2".to_string()),
-            user: Some("vip".to_string()),
+            user: Some(TraceUserContext {
+                segment: Some("vip".into()),
+                id: Some("user-id".into()),
+            }),
             environment: Some("debug".to_string()),
         };
 
@@ -1357,7 +1549,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.3".to_string()),
-            user: Some("vip".to_string()),
+            user: Some(TraceUserContext {
+                segment: Some("vip".into()),
+                id: Some("user-id".into()),
+            }),
             environment: Some("debug".to_string()),
         };
 
@@ -1373,7 +1568,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some("vip".to_string()),
+            user: Some(TraceUserContext {
+                segment: Some("vip".into()),
+                id: Some("user-id".into()),
+            }),
             environment: Some("production".to_string()),
         };
 
@@ -1389,7 +1587,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some("all".to_string()),
+            user: Some(TraceUserContext {
+                segment: Some("all".into()),
+                id: Some("user-id".into()),
+            }),
             environment: Some("debug".to_string()),
         };
 
