@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Make request url scrubbable. ([#955](https://github.com/getsentry/relay/pull/955))
+- Remove dependent items from envelope when dropping transaction item. ([#960](https://github.com/getsentry/relay/pull/960))
 
 **Internal**:
 
