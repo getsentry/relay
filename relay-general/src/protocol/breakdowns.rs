@@ -12,8 +12,11 @@ pub struct Breakdowns(pub Object<Measurements>);
 
 impl Breakdowns {
     pub fn is_valid_breakdown_name(name: &str) -> bool {
-        name.chars()
-            .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.'))
+        !name.is_empty()
+            && name.starts_with(|c| matches!(c, 'a'..='z' | 'A'..='Z'))
+            && name
+                .chars()
+                .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.'))
     }
 }
 
