@@ -39,10 +39,12 @@
 //!  - [`relay-filter`]: Inbound data filters.
 //!  - [`relay-general`]: Event protocol, normalization and data scrubbing.
 //!  - [`relay-log`]: Error reporting and logging.
+//!  - [`relay-metrics`]: Metrics protocol and processing.
 //!  - [`relay-quotas`]: Sentry quotas and rate limiting.
 //!  - [`relay-redis`]: Pooled Redis and Redis cluster abstraction.
 //!  - [`relay-sampling`]: Dynamic sampling functionality.
 //!  - [`relay-server`]: Endpoints and services.
+//!  - [`relay-test`]: Helpers for testing the web server and services.
 //!
 //! # Tools
 //!
@@ -64,10 +66,12 @@
 //! [`relay-filter`]: ../relay_filter/index.html
 //! [`relay-general`]: ../relay_general/index.html
 //! [`relay-log`]: ../relay_log/index.html
+//! [`relay-metrics`]: ../relay_metrics/index.html
 //! [`relay-quotas`]: ../relay_quotas/index.html
 //! [`relay-redis`]: ../relay_redis/index.html
 //! [`relay-sampling`]: ../relay_sampling/index.html
 //! [`relay-server`]: ../relay_server/index.html
+//! [`relay-test`]: ../relay_test/index.html
 //! [`document-metrics`]: ../document_metrics/index.html
 //! [`generate-schema`]: ../generate_schema/index.html
 //! [`process-event`]: ../process_event/index.html

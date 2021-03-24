@@ -62,7 +62,7 @@ impl FromStr for EventId {
     }
 }
 
-impl_str_serde!(EventId);
+relay_common::impl_str_serde!(EventId, "an event identifier");
 
 #[doc(inline)]
 pub use relay_common::{EventType, ParseEventTypeError};
@@ -202,7 +202,30 @@ pub struct Event {
     /// Version
     pub version: Annotated<String>,
 
-    /// Type of event: error, csp, default
+    /// Type of the event. Defaults to `default`.
+    ///
+    /// The event type determines how Sentry handles the event and has an impact on processing, rate
+    /// limiting, and quotas. There are three fundamental classes of event types:
+    ///
+    ///  - **Error monitoring events**: Processed and grouped into unique issues based on their
+    ///    exception stack traces and error messages.
+    ///  - **Security events**: Derived from Browser security violation reports and grouped into
+    ///    unique issues based on the endpoint and violation. SDKs do not send such events.
+    ///  - **Transaction events** (`transaction`): Contain operation spans and collected into traces
+    ///    for performance monitoring.
+    ///
+    /// Transactions must explicitly specify the `"transaction"` event type. In all other cases,
+    /// Sentry infers the appropriate event type from the payload and overrides the stated type.
+    /// SDKs should not send an event type other than for transactions.
+    ///
+    /// Example:
+    ///
+    /// ```json
+    /// {
+    ///   "type": "transaction",
+    ///   "spans": []
+    /// }
+    /// ```
     #[metastructure(field = "type")]
     pub ty: Annotated<EventType>,
 

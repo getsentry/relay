@@ -232,7 +232,7 @@ impl FromStr for SelectorSpec {
     }
 }
 
-impl_str_serde!(SelectorSpec);
+relay_common::impl_str_serde!(SelectorSpec, "a selector");
 
 impl From<ValueType> for SelectorSpec {
     fn from(value_type: ValueType) -> Self {

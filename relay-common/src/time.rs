@@ -62,11 +62,29 @@ impl fmt::Debug for UnixTimestamp {
     }
 }
 
+impl fmt::Display for UnixTimestamp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_secs().fmt(f)
+    }
+}
+
 impl std::ops::Sub for UnixTimestamp {
     type Output = Duration;
 
     fn sub(self, rhs: Self) -> Self::Output {
         Duration::from_secs(self.0 - rhs.0)
+    }
+}
+
+/// An error returned from parsing [`UnixTimestamp`].
+pub struct ParseUnixTimestampError(());
+
+impl std::str::FromStr for UnixTimestamp {
+    type Err = ParseUnixTimestampError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let ts = s.parse().or(Err(ParseUnixTimestampError(())))?;
+        Ok(Self(ts))
     }
 }
 

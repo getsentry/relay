@@ -85,7 +85,7 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
 ///   to be set on the event item.
 /// - `Attachment`: If the attachment creates an event (e.g. for minidumps), the category is assumed
 ///   to be `Error`.
-pub fn infer_event_category(item: &Item) -> Option<DataCategory> {
+fn infer_event_category(item: &Item) -> Option<DataCategory> {
     match item.ty() {
         ItemType::Event => Some(DataCategory::Error),
         ItemType::Transaction => Some(DataCategory::Transaction),
@@ -95,6 +95,7 @@ pub fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Attachment => None,
         ItemType::Session => None,
         ItemType::Sessions => None,
+        ItemType::Metrics => None,
         ItemType::FormData => None,
         ItemType::UserReport => None,
     }

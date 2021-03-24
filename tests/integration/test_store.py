@@ -538,7 +538,7 @@ def test_processing_quotas(
 
     if outcomes_consumer is not None:
         outcomes_consumer.assert_rate_limited(
-            "get_lost", key_id=key_id, category=category
+            "get_lost", key_id=key_id, categories=[category]
         )
     else:
         # since we don't wait for the outcome, wait a little for the event to go through
@@ -558,7 +558,7 @@ def test_processing_quotas(
         assert rest == "%s:key:get_lost" % category
         if outcomes_consumer is not None:
             outcomes_consumer.assert_rate_limited(
-                "get_lost", key_id=key_id, category=category
+                "get_lost", key_id=key_id, categories=[category]
             )
 
     for i in range(10):
