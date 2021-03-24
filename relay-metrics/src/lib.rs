@@ -14,6 +14,12 @@
 //! endpoint.response_time@ms:57|d|'1615889449|#route:user_index
 //! endpoint.hits:1|c|'1615889449|#route:user_index
 //! ```
+//!
+//! # Aggregation
+//!
+//! Relay accumulates all metrics in time buckets before sending them onwards.
+//! Buckets are flushed when their time window plus a grace period has passed
+//! (see [`aggregation::Aggregator`]).
 #![warn(missing_docs)]
 
 mod aggregation;

@@ -251,10 +251,23 @@ impl Message for FlushBuckets {
     type Result = Result<(), Vec<Bucket>>;
 }
 
-/// Collector of submitted [`Metric`]s.
+/// A collector of [`Metric`] submissions. Every project has one aggregator.
 ///
-/// Each metric is added to its corresponding [`Bucket`], which is identified by the metric's
-/// name, tags and timestamp.
+/// # Aggregation
+///
+/// Each metric is dispatched into the correct [`Bucket`] depending on their name, tags and timestamp.
+/// Each bucket stores the accumulated value of submitted metrics:
+///
+/// - `Counter`: sum of values
+/// - `Distribution`: a vector of values
+/// - `Set`: a set of values
+/// - `Gauge`: the latest submitted value
+///
+/// # Flushing
+///
+/// Buckets are flushed (i.e. sent onwards to a receiver) after its time window and a grace period
+/// have passed. Metrics with a recent timestamp are given a longer grace period than backdated metrics,
+/// which are flushed after a shorter debounce delay (see [`AggregatorConfig`]).
 pub struct Aggregator {
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, BucketValue>,
@@ -307,6 +320,8 @@ impl Aggregator {
 
     /// Inserts a metric into the corresponding bucket. If no bucket exists for the given
     /// bucket key, a new bucket will be created.
+    ///
+    /// Fails if a bucket for this metric name already exists with a different type.
     pub fn insert(&mut self, metric: Metric) -> Result<(), AggregateMetricsError> {
         let key = BucketKey {
             timestamp: self.get_bucket_timestamp(metric.timestamp),
