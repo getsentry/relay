@@ -13,6 +13,7 @@
 - Change HTTP response for upstream timeouts from 502 to 504. ([#859](https://github.com/getsentry/relay/pull/859))
 - Disallow empty metric names, require alphabetic start. ([#952](https://github.com/getsentry/relay/pull/952))
 - Add rule id to outcomes coming from transaction sampling. ([#953](https://github.com/getsentry/relay/pull/953))
+- Add support for breakdowns ingestion. ([#934](https://github.com/getsentry/relay/pull/934))
 
 ## 21.3.0
 
@@ -36,7 +37,6 @@
 - Log old events and sessions in the `requests.timestamp_delay` metric. ([#933](https://github.com/getsentry/relay/pull/933))
 - Add rule id to outcomes coming from event sampling. ([#943](https://github.com/getsentry/relay/pull/943))
 - Fix a bug in rate limiting that leads to accepting all events in the last second of a rate limiting window, regardless of whether the rate limit applies. ([#946](https://github.com/getsentry/relay/pull/946))
-- Add support for breakdowns ingestion. ([#934](https://github.com/getsentry/relay/pull/934))
 
 ## 21.2.0
 
