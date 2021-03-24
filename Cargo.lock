@@ -3243,6 +3243,7 @@ name = "relay-metrics"
 version = "21.3.0"
 dependencies = [
  "actix",
+ "futures 0.1.29",
  "hash32",
  "insta",
  "relay-common",
@@ -3354,6 +3355,7 @@ dependencies = [
  "actix-web",
  "futures 0.1.29",
  "relay-log",
+ "tokio-timer",
 ]
 
 [[package]]

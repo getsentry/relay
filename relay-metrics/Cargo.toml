@@ -17,6 +17,7 @@ relay-log = { path = "../relay-log" }
 serde = { version = "1.0.114", features = ["derive"] }
 
 [dev-dependencies]
+futures = "0.1.28"
 insta = "1.1.0"
 relay-test = { path = "../relay-test" }
 serde_json = "1.0.55"

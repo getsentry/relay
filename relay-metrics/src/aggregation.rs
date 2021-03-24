@@ -421,10 +421,34 @@ impl Handler<InsertMetric> for Aggregator {
 
 #[cfg(test)]
 mod tests {
+    use futures::future::Future;
+    use std::sync::{Arc, RwLock};
+
     use super::*;
     use crate::MetricUnit;
 
-    struct TestReceiver;
+    #[derive(Default)]
+    struct ReceivedData {
+        buckets: Vec<Bucket>,
+    }
+
+    #[derive(Clone, Default)]
+    struct TestReceiver {
+        // TODO: Better way to communicate with Actor after it's started?
+        // Messages, maybe?
+        data: Arc<RwLock<ReceivedData>>,
+        reject_all: bool,
+    }
+
+    impl TestReceiver {
+        fn add_buckets(&self, buckets: Vec<Bucket>) {
+            self.data.write().unwrap().buckets.extend(buckets);
+        }
+
+        fn bucket_count(&self) -> usize {
+            self.data.read().unwrap().buckets.len()
+        }
+    }
 
     impl Actor for TestReceiver {
         type Context = Context<Self>;
@@ -434,8 +458,20 @@ mod tests {
         type Result = Result<(), Vec<Bucket>>;
 
         fn handle(&mut self, msg: FlushBuckets, _ctx: &mut Self::Context) -> Self::Result {
-            relay_log::debug!("received buckets: {:#?}", msg.into_buckets());
+            let buckets = msg.into_buckets();
+            relay_log::debug!("received buckets: {:#?}", buckets);
+            self.add_buckets(buckets);
             Ok(())
+        }
+    }
+
+    fn some_metric() -> Metric {
+        Metric {
+            name: "foo".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Counter(42.),
+            timestamp: UnixTimestamp::from_secs(4711),
+            tags: BTreeMap::new(),
         }
     }
 
@@ -444,16 +480,10 @@ mod tests {
         relay_test::setup();
 
         let config = AggregatorConfig::default();
-        let receiver = TestReceiver.start().recipient();
+        let receiver = TestReceiver::start_default().recipient();
         let mut aggregator = Aggregator::new(config, receiver);
 
-        let metric1 = Metric {
-            name: "foo".to_owned(),
-            unit: MetricUnit::None,
-            value: MetricValue::Counter(42.),
-            timestamp: UnixTimestamp::from_secs(4711),
-            tags: BTreeMap::new(),
-        };
+        let metric1 = some_metric();
 
         let mut metric2 = metric1.clone();
         metric2.value = MetricValue::Counter(43.);
@@ -480,16 +510,10 @@ mod tests {
             bucket_interval: 10,
             ..AggregatorConfig::default()
         };
-        let receiver = TestReceiver.start().recipient();
+        let receiver = TestReceiver::start_default().recipient();
         let mut aggregator = Aggregator::new(config, receiver);
 
-        let metric1 = Metric {
-            name: "foo".to_owned(),
-            unit: MetricUnit::None,
-            value: MetricValue::Counter(42.),
-            timestamp: UnixTimestamp::from_secs(4711),
-            tags: BTreeMap::new(),
-        };
+        let metric1 = some_metric();
 
         let mut metric2 = metric1.clone();
         metric2.timestamp = UnixTimestamp::from_secs(4712);
@@ -535,16 +559,10 @@ mod tests {
             bucket_interval: 10,
             ..AggregatorConfig::default()
         };
-        let receiver = TestReceiver.start().recipient();
+        let receiver = TestReceiver::start_default().recipient();
         let mut aggregator = Aggregator::new(config, receiver);
 
-        let metric1 = Metric {
-            name: "foo".to_owned(),
-            unit: MetricUnit::None,
-            value: MetricValue::Counter(42.),
-            timestamp: UnixTimestamp::from_secs(4711),
-            tags: BTreeMap::new(),
-        };
+        let metric1 = some_metric();
 
         let mut metric2 = metric1.clone();
         metric2.value = MetricValue::Set(123);
@@ -563,5 +581,108 @@ mod tests {
             ),
         }
         "###);
+    }
+
+    #[test]
+    fn test_mixup_types_with_different_tags() {
+        relay_test::setup();
+        let config = AggregatorConfig {
+            bucket_interval: 10,
+            ..AggregatorConfig::default()
+        };
+        let receiver = TestReceiver::start_default().recipient();
+        let mut aggregator = Aggregator::new(config, receiver);
+
+        let metric1 = some_metric();
+
+        let mut metric2 = metric1.clone();
+        metric2.value = MetricValue::Set(123);
+        metric2.tags.insert("foo".to_owned(), "bar".to_owned());
+
+        aggregator.insert(metric1).unwrap();
+
+        // Should not be able to insert conflicting type with the same name, even if
+        // tags are different:
+        assert!(matches!(aggregator.insert(metric2), Result::Err(_)));
+    }
+
+    #[test]
+    fn test_flush_bucket() {
+        relay_test::setup();
+        let receiver = TestReceiver::default();
+        relay_test::block_fn(|| {
+            let config = AggregatorConfig {
+                bucket_interval: 1,
+                initial_delay: 0,
+                debounce_delay: 0,
+            };
+            let recipient = receiver.clone().start().recipient();
+            let aggregator = Aggregator::new(config, recipient).start();
+
+            let mut metric = some_metric();
+            metric.timestamp = UnixTimestamp::now();
+            aggregator
+                .send(InsertMetric { metric })
+                .map_err(|_| ())
+                .and_then(|_| {
+                    // Immediately after sending the metric, nothing has been flushed:
+                    assert_eq!(receiver.bucket_count(), 0);
+                    Ok(())
+                })
+                .and_then(|_| {
+                    // Wait until flush delay has passed
+                    relay_test::delay(Duration::from_millis(1100)).map_err(|_| ())
+                })
+                .and_then(|_| {
+                    // After the flush delay has passed, the receiver should have the bucket:
+                    assert_eq!(receiver.bucket_count(), 1);
+                    Ok(())
+                })
+        })
+        .ok();
+    }
+
+    #[test]
+    fn test_merge_back() {
+        relay_test::setup();
+
+        // Create a receiver which accepts nothing:
+        let receiver = TestReceiver {
+            reject_all: true,
+            ..TestReceiver::default()
+        };
+
+        relay_test::block_fn(|| {
+            let config = AggregatorConfig {
+                bucket_interval: 1,
+                initial_delay: 0,
+                debounce_delay: 0,
+            };
+            let recipient = receiver.clone().start().recipient();
+            let aggregator = Aggregator::new(config, recipient).start();
+
+            let mut metric = some_metric();
+            metric.timestamp = UnixTimestamp::now();
+            aggregator
+                .send(InsertMetric { metric })
+                .map_err(|_| ())
+                .and_then(|_| {
+                    // Immediately after sending the metric, nothing has been flushed:
+                    assert_eq!(receiver.bucket_count(), 0);
+                    Ok(())
+                })
+                .and_then(|_| {
+                    // Wait until flush delay has passed
+                    relay_test::delay(Duration::from_millis(1100)).map_err(|_| ())
+                })
+                .and_then(|_| {
+                    // After the flush delay has passed, the receiver should still not have the
+                    // bucket
+                    // TODO: check if sender still has bucket
+                    assert_eq!(receiver.bucket_count(), 1);
+                    Ok(())
+                })
+        })
+        .ok();
     }
 }
