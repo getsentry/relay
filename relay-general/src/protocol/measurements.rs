@@ -17,7 +17,8 @@ pub struct Measurement {
 pub struct Measurements(pub Object<Measurement>);
 
 impl Measurements {
-    pub fn take(self) -> Object<Measurement> {
+    /// Returns the underlying object of measurements.
+    pub fn into_inner(self) -> Object<Measurement> {
         self.0
     }
 }
