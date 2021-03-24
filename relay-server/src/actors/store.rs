@@ -503,6 +503,7 @@ struct MetricKafkaMessage {
     project_id: ProjectId,
     pub name: String,
     pub unit: MetricUnit,
+    #[serde(flatten)]
     pub value: MetricValue,
     pub timestamp: UnixTimestamp,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
