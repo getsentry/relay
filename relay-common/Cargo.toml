@@ -23,7 +23,7 @@ rand = "0.7.3"
 regex = "1.3.9"
 relay-log = { path = "../relay-log" }
 sentry-types = "0.20.0"
-schemars = { version = "0.8.0", features = ["uuid", "chrono"], optional = true }
+schemars = { version = "0.8.1", features = ["uuid", "chrono"], optional = true }
 serde = { version = "1.0.114", features = ["derive"] }
 
 [features]
