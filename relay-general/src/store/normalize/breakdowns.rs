@@ -264,7 +264,7 @@ pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: &BreakdownsCon
             .value_mut()
             .get_or_insert_with(Measurements::default);
 
-        span_ops_breakdown.extend(breakdown.take());
+        span_ops_breakdown.extend(breakdown.into_inner());
     }
 }
 
