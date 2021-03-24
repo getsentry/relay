@@ -379,7 +379,8 @@ expression: event_json_schema()
             "null"
           ]
         }
-      }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
@@ -448,7 +449,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -539,7 +541,8 @@ expression: event_json_schema()
               ],
               "format": "uuid"
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -606,7 +609,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -632,7 +636,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -659,7 +664,8 @@ expression: event_json_schema()
               ],
               "format": "int64"
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -719,7 +725,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -745,7 +752,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -922,7 +930,8 @@ expression: event_json_schema()
                 }
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1150,7 +1159,8 @@ expression: event_json_schema()
               "format": "uint64",
               "minimum": 0.0
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1191,7 +1201,8 @@ expression: event_json_schema()
               "description": " The original value causing this error.",
               "default": null
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1278,7 +1289,8 @@ expression: event_json_schema()
                 }
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1491,7 +1503,8 @@ expression: event_json_schema()
                 }
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1534,7 +1547,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1614,7 +1628,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1742,7 +1757,8 @@ expression: event_json_schema()
               "description": " Parameters to be interpolated into the log message. This can be an array of positional\n parameters as well as a mapping of named arguments to their values.",
               "default": null
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1789,7 +1805,8 @@ expression: event_json_schema()
               "format": "uint64",
               "minimum": 0.0
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1862,7 +1879,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1920,7 +1938,8 @@ expression: event_json_schema()
                 }
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2038,7 +2057,8 @@ expression: event_json_schema()
                 }
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2073,7 +2093,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2131,7 +2152,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2175,7 +2197,8 @@ expression: event_json_schema()
               ],
               "format": "int64"
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2196,7 +2219,8 @@ expression: event_json_schema()
               ],
               "format": "uuid"
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2260,7 +2284,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2396,7 +2421,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2438,7 +2464,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2527,7 +2554,8 @@ expression: event_json_schema()
               "format": "uint64",
               "minimum": 0.0
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2639,7 +2667,8 @@ expression: event_json_schema()
                 }
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2732,7 +2761,8 @@ expression: event_json_schema()
                 }
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2815,7 +2845,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     }

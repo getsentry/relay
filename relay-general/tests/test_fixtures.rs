@@ -83,17 +83,6 @@ macro_rules! event_snapshot {
                     ".received" => "[received]",
                     ".timestamp" => "[timestamp]"
                 });
-
-                #[cfg(feature = "jsonschema")]
-                {
-                    let event_schema = serde_json::to_value(event_json_schema()).unwrap();
-                    let event = serde_json::to_value(SerializableAnnotated(&event)).unwrap();
-                    let mut scope = valico::json_schema::Scope::new();
-                    let schema = scope.compile_and_return(event_schema, false).unwrap();
-                    let validation_state = schema.validate(&event);
-                    dbg!(&validation_state.errors);
-                    assert!(validation_state.is_valid());
-                }
             }
         }
     }
