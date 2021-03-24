@@ -1597,7 +1597,10 @@ impl Handler<HandleEnvelope> for EventManager {
                         envelope_summary.replace(EnvelopeSummary::compute(&envelope));
                         Ok(envelope)
                     }
-                    None => Err(ProcessingError::RateLimited(rate_limits)),
+                    None => {
+                        envelope_summary.replace(EnvelopeSummary::empty());
+                        Err(ProcessingError::RateLimited(rate_limits))
+                    }
                 }
             }))
             .into_actor(self)
