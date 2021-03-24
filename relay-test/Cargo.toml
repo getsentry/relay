@@ -14,3 +14,4 @@ actix = "0.7.9"
 actix-web = { version = "0.7.19", default-features = false}
 futures = "0.1.28"
 relay-log = { path = "../relay-log", features = ["test"] }
+tokio-timer = "0.2.13"
