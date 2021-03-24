@@ -442,6 +442,20 @@ mod tests {
     use super::*;
     use crate::MetricUnit;
 
+    struct BucketCountInquiry;
+
+    impl Message for BucketCountInquiry {
+        type Result = usize;
+    }
+
+    impl Handler<BucketCountInquiry> for Aggregator {
+        type Result = usize;
+
+        fn handle(&mut self, _: BucketCountInquiry, _: &mut Self::Context) -> Self::Result {
+            self.buckets.len()
+        }
+    }
+
     #[derive(Default)]
     struct ReceivedData {
         buckets: Vec<Bucket>,
@@ -475,6 +489,9 @@ mod tests {
         fn handle(&mut self, msg: FlushBuckets, _ctx: &mut Self::Context) -> Self::Result {
             let buckets = msg.into_buckets();
             relay_log::debug!("received buckets: {:#?}", buckets);
+            if self.reject_all {
+                return Err(buckets);
+            }
             self.add_buckets(buckets);
             Ok(())
         }
@@ -638,9 +655,11 @@ mod tests {
             metric.timestamp = UnixTimestamp::now();
             aggregator
                 .send(InsertMetric { metric })
+                .and_then(move |_| aggregator.send(BucketCountInquiry))
                 .map_err(|_| ())
-                .and_then(|_| {
+                .and_then(|bucket_count| {
                     // Immediately after sending the metric, nothing has been flushed:
+                    assert_eq!(bucket_count, 1);
                     assert_eq!(receiver.bucket_count(), 0);
                     Ok(())
                 })
@@ -686,15 +705,17 @@ mod tests {
                     assert_eq!(receiver.bucket_count(), 0);
                     Ok(())
                 })
+                .map_err(|_| ())
                 .and_then(|_| {
                     // Wait until flush delay has passed
                     relay_test::delay(Duration::from_millis(1100)).map_err(|_| ())
                 })
-                .and_then(|_| {
+                .and_then(move |_| aggregator.send(BucketCountInquiry).map_err(|_| ()))
+                .and_then(|bucket_count| {
                     // After the flush delay has passed, the receiver should still not have the
                     // bucket
-                    // TODO: check if sender still has bucket
-                    assert_eq!(receiver.bucket_count(), 1);
+                    assert_eq!(bucket_count, 1);
+                    assert_eq!(receiver.bucket_count(), 0);
                     Ok(())
                 })
         })
