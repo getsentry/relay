@@ -75,10 +75,10 @@ impl UnixTimestamp {
     ///
     /// ```
     /// use std::time::{Duration, Instant};
-    /// use relay_common::{UnboundedInstant, UnixTimestamp};
+    /// use relay_common::{MonotonicResult, UnixTimestamp};
     ///
     /// let timestamp = UnixTimestamp::now();
-    /// if let UnboundedInstant::Instant(instant) = timestamp.to_instant() {
+    /// if let MonotonicResult::Instant(instant) = timestamp.to_monotonic() {
     ///    assert!((Instant::now() - instant) < Duration::from_millis(1));
     /// }
     /// ```
