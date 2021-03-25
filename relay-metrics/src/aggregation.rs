@@ -43,15 +43,20 @@ impl MergeValue for MetricValue {
 }
 
 /// The aggregated value stored in a bucket.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
 pub enum BucketValue {
     /// Aggregates [`MetricValue::Counter`] values by adding them.
+    #[serde(rename = "c")]
     Counter(f64),
     /// Aggregates [`MetricValue::Distribution`] values by collecting their values.
+    #[serde(rename = "d")]
     Distribution(Vec<f64>),
     /// Aggregates [`MetricValue::Set`] values by storing their values in a set.
+    #[serde(rename = "s")]
     Set(BTreeSet<u32>),
     /// Aggregates [`MetricValue::Gauge`] values by overwriting the previous value.
+    #[serde(rename = "g")]
     Gauge(f64),
 }
 
@@ -80,17 +85,37 @@ impl MergeValue for BucketValue {
     }
 }
 
+/// Error returned when parsing or serializing a [`Bucket`].
+#[derive(Debug)]
+pub struct ParseBucketError {
+    inner: serde_json::Error,
+}
+
+impl fmt::Display for ParseBucketError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("failed to parse metric bucket")
+    }
+}
+
+impl Error for ParseBucketError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        Some(&self.inner)
+    }
+}
+
 /// A bucket collecting metric values for a given metric name, time window, and tag combination.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Bucket {
     /// The start time of the time window. The length of the time window is stored in the
     /// [`Aggregator`].
     pub timestamp: UnixTimestamp,
     /// Name of the metric. See [`Metric::name`].
-    pub metric_name: String,
+    pub name: String,
     /// The value of the bucket.
+    #[serde(flatten)]
     pub value: BucketValue,
     /// See [`Metric::tags``]. Every combination of tags results in a different bucket.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub tags: BTreeMap<String, String>,
 }
 
@@ -98,10 +123,25 @@ impl Bucket {
     fn from_parts(key: BucketKey, value: BucketValue) -> Self {
         Self {
             timestamp: key.timestamp,
-            metric_name: key.metric_name,
+            name: key.metric_name,
             value,
             tags: key.tags,
         }
+    }
+
+    /// Parses a single metric bucket from the JSON protocol.
+    pub fn parse(slice: &[u8]) -> Result<Self, ParseBucketError> {
+        serde_json::from_slice(slice).map_err(|inner| ParseBucketError { inner })
+    }
+
+    /// Parses a set of metric bucket from the JSON protocol.
+    pub fn parse_all(slice: &[u8]) -> Result<Vec<Bucket>, ParseBucketError> {
+        serde_json::from_slice(slice).map_err(|inner| ParseBucketError { inner })
+    }
+
+    /// Serializes the given buckets to the JSON protocol.
+    pub fn serialize_all(buckets: &[Self]) -> Result<String, ParseBucketError> {
+        serde_json::to_string(&buckets).map_err(|inner| ParseBucketError { inner })
     }
 }
 
@@ -336,7 +376,7 @@ impl Aggregator {
     pub fn merge(&mut self, bucket: Bucket) -> Result<(), AggregateMetricsError> {
         let key = BucketKey {
             timestamp: bucket.timestamp,
-            metric_name: bucket.metric_name,
+            metric_name: bucket.name,
             tags: bucket.tags,
         };
         self.merge_in(key, bucket.value)
@@ -367,12 +407,17 @@ impl Aggregator {
             return;
         }
 
+        relay_log::trace!("flushing {} buckets to receiver", buckets.len());
+
         self.receiver
             .send(FlushBuckets::new(buckets))
             .into_actor(self)
             .and_then(|result, slf, _ctx| {
                 if let Err(buckets) = result {
-                    // TODO: Decide if we need to log errors
+                    relay_log::trace!(
+                        "returned {} buckets from receiver, merging back",
+                        buckets.len()
+                    );
                     slf.merge_all(buckets).ok();
                 }
                 fut::ok(())
@@ -408,7 +453,7 @@ impl Actor for Aggregator {
     }
 }
 
-/// Message containing a [`Metric`] to be inserted.
+/// Inserts a [`Metric`] into the aggregator.
 #[derive(Debug)]
 pub struct InsertMetric {
     metric: Metric,
@@ -431,6 +476,65 @@ impl Handler<InsertMetric> for Aggregator {
     fn handle(&mut self, message: InsertMetric, _context: &mut Self::Context) -> Self::Result {
         let InsertMetric { metric } = message;
         self.insert(metric)
+    }
+}
+
+/// Inserts a list of [`Metric`]s into the aggregator.
+#[derive(Debug)]
+pub struct InsertMetrics {
+    metrics: Vec<Metric>,
+}
+
+impl InsertMetrics {
+    /// Create a new message containing a list of [`Metric`]s.
+    pub fn new<I>(metrics: I) -> Self
+    where
+        I: IntoIterator<Item = Metric>,
+    {
+        Self {
+            metrics: metrics.into_iter().collect(),
+        }
+    }
+}
+
+impl Message for InsertMetrics {
+    type Result = Result<(), AggregateMetricsError>;
+}
+
+impl Handler<InsertMetrics> for Aggregator {
+    type Result = Result<(), AggregateMetricsError>;
+
+    fn handle(&mut self, msg: InsertMetrics, _ctx: &mut Self::Context) -> Self::Result {
+        for metric in msg.metrics {
+            self.insert(metric)?;
+        }
+
+        Ok(())
+    }
+}
+
+/// Inserts a list of [`Bucket`]s into the aggregator.
+#[derive(Debug)]
+pub struct MergeBuckets {
+    buckets: Vec<Bucket>,
+}
+
+impl MergeBuckets {
+    /// Create a new message containing a list of [`Bucket`]s.
+    pub fn new(buckets: Vec<Bucket>) -> Self {
+        Self { buckets }
+    }
+}
+
+impl Message for MergeBuckets {
+    type Result = Result<(), AggregateMetricsError>;
+}
+
+impl Handler<MergeBuckets> for Aggregator {
+    type Result = Result<(), AggregateMetricsError>;
+
+    fn handle(&mut self, msg: MergeBuckets, _ctx: &mut Self::Context) -> Self::Result {
+        self.merge_all(msg.buckets)
     }
 }
 

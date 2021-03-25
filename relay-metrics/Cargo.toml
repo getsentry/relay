@@ -15,9 +15,9 @@ hash32 = "0.1.1"
 relay-common = { path = "../relay-common" }
 relay-log = { path = "../relay-log" }
 serde = { version = "1.0.114", features = ["derive"] }
+serde_json = "1.0.55"
 
 [dev-dependencies]
 futures = "0.1.28"
 insta = "1.1.0"
 relay-test = { path = "../relay-test" }
-serde_json = "1.0.55"
