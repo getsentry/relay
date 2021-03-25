@@ -400,7 +400,7 @@ mod tests {
             span_ops_breakdown.insert(
                 "ops.http".to_owned(),
                 Annotated::new(Measurement {
-                    // 1 hour in nanoseconds
+                    // 1 hour in milliseconds
                     value: Annotated::new(3_600_000.0),
                 }),
             );
@@ -408,7 +408,7 @@ mod tests {
             span_ops_breakdown.insert(
                 "ops.db".to_owned(),
                 Annotated::new(Measurement {
-                    // 2 hours in nanoseconds
+                    // 2 hours in milliseconds
                     value: Annotated::new(7_200_000.0),
                 }),
             );
@@ -416,7 +416,7 @@ mod tests {
             span_ops_breakdown.insert(
                 "total.time".to_owned(),
                 Annotated::new(Measurement {
-                    // 4 hours and 10 microseconds in nanoseconds
+                    // 4 hours and 10 microseconds in milliseconds
                     value: Annotated::new(14_400_000.01),
                 }),
             );
