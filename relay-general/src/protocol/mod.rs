@@ -1,8 +1,5 @@
 //! Implements the sentry event protocol.
 
-// FIXME: Workaround for https://github.com/GREsau/schemars/pull/65
-#![allow(clippy::field_reassign_with_default)]
-
 mod breadcrumb;
 mod breakdowns;
 mod clientsdk;
