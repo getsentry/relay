@@ -1,7 +1,7 @@
 import uuid
 
 import pytest
-from sentry_sdk.envelope import Envelope, Item
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
 
 
@@ -462,16 +462,22 @@ def test_uses_trace_public_key(mini_sentry, relay):
         mini_sentry.captured_outcomes.get(timeout=2)
 
 
-def test_fast_path(mini_sentry, relay):
+@pytest.mark.parametrize(
+    "rule_type, event_factory",
+    [
+        ("error", _create_event_envelope),
+        ("transaction", _create_transaction_envelope),
+        ("trace", _create_transaction_envelope),
+    ],
+)
+def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
     """
-    Tests that the fast path works.
+    Associated items are removed together with event item.
 
-    When the project config is already fetched and the envelope only
-    contains a transaction a fast evaluation path is used.
+    The event is sent twice to account for both fast and slow paths.
 
-    While this is an implementation detail of Relay that is not visible
-    here we test that Relay behaves normally for the conditions that we
-    know are going to trigger a fast-path evaluation
+    When sampling decides to remove a transaction it should also remove all
+    dependent items (attachments).
     """
     project_id = 42
     relay = relay(mini_sentry, _outcomes_enabled_config())
@@ -480,14 +486,25 @@ def test_fast_path(mini_sentry, relay):
     config = mini_sentry.add_basic_project_config(project_id)
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
     public_key = config["publicKeys"][0]["publicKey"]
-    _add_sampling_config(config, sample_rate=0, rule_type="trace")
+
+    # add a sampling rule to project config that drops all events (sample_rate=0), it should be ignored
+    # because there is an invalid rule in the configuration
+    _add_sampling_config(config, sample_rate=0, rule_type=rule_type)
 
     for i in range(2):
         # create an envelope with a trace context that is initiated by this project (for simplicity)
         envelope = Envelope()
-        transaction, trace_id, event_id = _create_transaction_item()
-        envelope.add_transaction(transaction)
-        _add_trace_info(envelope, trace_id=trace_id, public_key=public_key)
+        # create an envelope with a trace context that is initiated by this project (for simplicity)
+        envelope, trace_id, event_id = event_factory(public_key)
+        envelope.add_item(
+            Item(payload=PayloadRef(json={"x": "some attachment"}), type="attachment")
+        )
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(json={"y": "some other attachment"}),
+                type="attachment",
+            )
+        )
 
         # send the event, the transaction should be removed.
         relay.send_envelope(project_id, envelope)
@@ -497,50 +514,3 @@ def test_fast_path(mini_sentry, relay):
 
         outcomes = mini_sentry.captured_outcomes.get(timeout=2)
         assert outcomes is not None
-
-
-def test_multi_item_envelope(mini_sentry, relay):
-    """
-    Test that multi item envelopes are handled correctly.
-
-    Pass an envelope containing of a transaction that will be sampled and an event and
-    test
-
-
-    """
-    project_id = 42
-    relay = relay(mini_sentry, _outcomes_enabled_config())
-
-    # create a basic project config
-    config = mini_sentry.add_basic_project_config(project_id)
-    # add a sampling rule to project config that removes all transactions (sample_rate=0)
-    public_key = config["publicKeys"][0]["publicKey"]
-    _add_sampling_config(config, sample_rate=0, rule_type="trace")
-
-    # we'll run the test twice to make sure that the fast path works as well
-    for i in range(2):
-        # create an envelope with a trace context that is initiated by this project (for simplicity)
-        envelope = Envelope()
-        transaction, trace_id, event_id = _create_transaction_item()
-        envelope.add_transaction(transaction)
-        envelope.add_event({"message": "Hello"})
-        _add_trace_info(envelope, trace_id=trace_id, public_key=public_key)
-
-        # send the event, the transaction should be removed.
-        relay.send_envelope(project_id, envelope)
-
-        msg = mini_sentry.captured_events.get(timeout=1)
-        assert msg is not None
-        transaction = msg.get_transaction_event()
-        event = msg.get_event()
-
-        # check that the transaction was removed during the transaction sampling process
-        assert transaction is None
-        # but the event was kept
-        assert event is not None
-        assert event.setdefault("logentry", {}).get("formatted") == "Hello"
-
-        # no outcome should be generated since we forward the event to upstream
-        # NOTE this might change in the future so we might get outcomes here in the future
-        with pytest.raises(queue.Empty):
-            mini_sentry.captured_outcomes.get(timeout=2)
