@@ -12,20 +12,32 @@ use relay_common::{MonotonicResult, UnixTimestamp};
 
 use crate::{Metric, MetricType, MetricValue};
 
-/// The aggregated value stored in a bucket.
+/// The aggregated value stored in a [`Bucket`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
 pub enum BucketValue {
     /// Aggregates [`MetricValue::Counter`] values by adding them.
+    /// ```notrust
+    /// 1, 2, 2, 3 => 8
+    /// ```
     #[serde(rename = "c")]
     Counter(f64),
     /// Aggregates [`MetricValue::Distribution`] values by collecting their values.
+    /// ```notrust
+    /// 1, 2, 2, 3 => [1, 2, 2, 3]
+    /// ```
     #[serde(rename = "d")]
     Distribution(Vec<f64>),
     /// Aggregates [`MetricValue::Set`] values by storing their values in a set.
+    /// ```notrust
+    /// 1, 2, 2, 3 => {1, 2, 3}
+    /// ```
     #[serde(rename = "s")]
     Set(BTreeSet<u32>),
     /// Aggregates [`MetricValue::Gauge`] values by overwriting the previous value.
+    /// ```notrust
+    /// 1, 2, 2, 3 => 3
+    /// ```
     #[serde(rename = "g")]
     Gauge(f64),
 }
@@ -115,7 +127,10 @@ impl Error for ParseBucketError {
     }
 }
 
-/// A bucket collecting metric values for a given metric name, time window, and tag combination.
+/// A bucket collecting metric values for a given metric type, name, time window, and tag combination.
+///
+/// A different bucket will be created for every combination, so buckets can have the same name
+/// even if their types differ.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Bucket {
     /// The start time of the time window. The length of the time window is stored in the
@@ -126,7 +141,7 @@ pub struct Bucket {
     /// The value of the bucket.
     #[serde(flatten)]
     pub value: BucketValue,
-    /// See [`Metric::tags``]. Every combination of tags results in a different bucket.
+    /// See [`Metric::tags`]. Every combination of tags results in a different bucket.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub tags: BTreeMap<String, String>,
 }
@@ -176,10 +191,16 @@ struct BucketKey {
     metric_type: MetricType,
     tags: BTreeMap<String, String>,
 }
-// TODO: use better types and names
 /// Parameters used by the [`Aggregator`].
 ///
-/// `initial_delay` and `debounce_delay` should be multiples of `bucket_interval`.
+/// The time at which a bucket will be flushed is determined by the bucket timestamp:
+/// ```notrust
+/// bucket_end := bucket.timestamp + bucket_interval
+/// if bucket_end > now
+///     flush_time := bucket_end + initial_delay
+/// else
+///     flush_time := now + debounce_delay
+/// ```
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AggregatorConfig {
     bucket_interval: u64,
@@ -190,7 +211,7 @@ pub struct AggregatorConfig {
 }
 
 impl AggregatorConfig {
-    /// The wall clock time width of each bucket in seconds.
+    /// The time width of each bucket in seconds.
     pub fn bucket_interval(&self) -> Duration {
         Duration::from_secs(self.bucket_interval)
     }
@@ -466,14 +487,14 @@ impl Actor for Aggregator {
     }
 }
 
-/// Inserts a [`Metric`] into the aggregator.
+/// A message containing a [`Metric`] to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct InsertMetric {
     metric: Metric,
 }
 
 impl InsertMetric {
-    /// Create a new message containing a [`Metric`].
+    /// Creates a new message containing a [`Metric`].
     pub fn new(metric: Metric) -> Self {
         Self { metric }
     }
@@ -492,14 +513,14 @@ impl Handler<InsertMetric> for Aggregator {
     }
 }
 
-/// Inserts a list of [`Metric`]s into the aggregator.
+/// A message containing a list of [`Metric`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct InsertMetrics {
     metrics: Vec<Metric>,
 }
 
 impl InsertMetrics {
-    /// Create a new message containing a list of [`Metric`]s.
+    /// Creates a new message containing a list of [`Metric`]s.
     pub fn new<I>(metrics: I) -> Self
     where
         I: IntoIterator<Item = Metric>,
@@ -526,14 +547,14 @@ impl Handler<InsertMetrics> for Aggregator {
     }
 }
 
-/// Inserts a list of [`Bucket`]s into the aggregator.
+/// A message containing a list of [`Bucket`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct MergeBuckets {
     buckets: Vec<Bucket>,
 }
 
 impl MergeBuckets {
-    /// Create a new message containing a list of [`Bucket`]s.
+    /// Creates a new message containing a list of [`Bucket`]s.
     pub fn new(buckets: Vec<Bucket>) -> Self {
         Self { buckets }
     }
