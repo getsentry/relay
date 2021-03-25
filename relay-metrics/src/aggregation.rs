@@ -12,36 +12,6 @@ use relay_common::{MonotonicResult, UnixTimestamp};
 
 use crate::{Metric, MetricType, MetricValue};
 
-/// Anything that can be merged into a [`BucketValue`].
-/// Currently either a [`MetricValue`] or another BucketValue.
-trait MergeValue: Into<BucketValue> {
-    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError>;
-}
-
-impl MergeValue for MetricValue {
-    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError> {
-        match (bucket_value, self) {
-            (BucketValue::Counter(counter), MetricValue::Counter(value)) => {
-                *counter += value;
-            }
-            (BucketValue::Distribution(distribution), MetricValue::Distribution(value)) => {
-                distribution.push(value)
-            }
-            (BucketValue::Set(set), MetricValue::Set(value)) => {
-                set.insert(value);
-            }
-            (BucketValue::Gauge(gauge), MetricValue::Gauge(value)) => {
-                *gauge = value;
-            }
-            _ => {
-                return Err(AggregateMetricsError);
-            }
-        }
-
-        Ok(())
-    }
-}
-
 /// The aggregated value stored in a bucket.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
@@ -83,6 +53,12 @@ impl From<MetricValue> for BucketValue {
     }
 }
 
+/// Anything that can be merged into a [`BucketValue`].
+/// Currently either a [`MetricValue`] or another BucketValue.
+trait MergeValue: Into<BucketValue> {
+    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError>;
+}
+
 impl MergeValue for BucketValue {
     fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError> {
         match (bucket_value, self) {
@@ -91,6 +67,30 @@ impl MergeValue for BucketValue {
             (BucketValue::Set(lhs), BucketValue::Set(rhs)) => lhs.extend(rhs),
             (BucketValue::Gauge(lhs), BucketValue::Gauge(rhs)) => *lhs = rhs,
             _ => return Err(AggregateMetricsError),
+        }
+
+        Ok(())
+    }
+}
+
+impl MergeValue for MetricValue {
+    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError> {
+        match (bucket_value, self) {
+            (BucketValue::Counter(counter), MetricValue::Counter(value)) => {
+                *counter += value;
+            }
+            (BucketValue::Distribution(distribution), MetricValue::Distribution(value)) => {
+                distribution.push(value)
+            }
+            (BucketValue::Set(set), MetricValue::Set(value)) => {
+                set.insert(value);
+            }
+            (BucketValue::Gauge(gauge), MetricValue::Gauge(value)) => {
+                *gauge = value;
+            }
+            _ => {
+                return Err(AggregateMetricsError);
+            }
         }
 
         Ok(())
