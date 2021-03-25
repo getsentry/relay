@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::{MonotonicResult, UnixTimestamp};
 
-use crate::{Metric, MetricValue};
+use crate::{Metric, MetricType, MetricValue};
 
 /// Anything that can be merged into a [`BucketValue`].
 /// Currently either a [`MetricValue`] or another BucketValue.
@@ -58,6 +58,18 @@ pub enum BucketValue {
     /// Aggregates [`MetricValue::Gauge`] values by overwriting the previous value.
     #[serde(rename = "g")]
     Gauge(f64),
+}
+
+impl BucketValue {
+    /// Returns the type of this value.
+    pub fn ty(&self) -> MetricType {
+        match self {
+            Self::Counter(_) => MetricType::Counter,
+            Self::Distribution(_) => MetricType::Distribution,
+            Self::Set(_) => MetricType::Set,
+            Self::Gauge(_) => MetricType::Gauge,
+        }
+    }
 }
 
 impl From<MetricValue> for BucketValue {
@@ -161,6 +173,7 @@ impl Error for AggregateMetricsError {}
 struct BucketKey {
     timestamp: UnixTimestamp,
     metric_name: String,
+    metric_type: MetricType,
     tags: BTreeMap<String, String>,
 }
 // TODO: use better types and names
@@ -360,12 +373,11 @@ impl Aggregator {
 
     /// Inserts a metric into the corresponding bucket. If no bucket exists for the given
     /// bucket key, a new bucket will be created.
-    ///
-    /// Fails if a bucket for this metric name already exists with a different type.
     pub fn insert(&mut self, metric: Metric) -> Result<(), AggregateMetricsError> {
         let key = BucketKey {
             timestamp: self.get_bucket_timestamp(metric.timestamp),
             metric_name: metric.name,
+            metric_type: metric.value.ty(),
             tags: metric.tags,
         };
         self.merge_in(key, metric.value)
@@ -377,6 +389,7 @@ impl Aggregator {
         let key = BucketKey {
             timestamp: bucket.timestamp,
             metric_name: bucket.name,
+            metric_type: bucket.value.ty(),
             tags: bucket.tags,
         };
         self.merge_in(key, bucket.value)
@@ -631,6 +644,7 @@ mod tests {
             BucketKey {
                 timestamp: UnixTimestamp(4710),
                 metric_name: "foo",
+                metric_type: Counter,
                 tags: {},
             }: Counter(
                 85.0,
@@ -668,6 +682,7 @@ mod tests {
                 BucketKey {
                     timestamp: UnixTimestamp(4710),
                     metric_name: "foo",
+                    metric_type: Counter,
                     tags: {},
                 },
                 Counter(
@@ -678,6 +693,7 @@ mod tests {
                 BucketKey {
                     timestamp: UnixTimestamp(4720),
                     metric_name: "foo",
+                    metric_type: Counter,
                     tags: {},
                 },
                 Counter(
@@ -703,43 +719,9 @@ mod tests {
         let mut metric2 = metric1.clone();
         metric2.value = MetricValue::Set(123);
 
+        // It's OK to have same name for different types:
         aggregator.insert(metric1).unwrap();
-        assert!(matches!(aggregator.insert(metric2), Result::Err(_)));
-
-        insta::assert_debug_snapshot!(aggregator.buckets, @r###"
-        {
-            BucketKey {
-                timestamp: UnixTimestamp(4710),
-                metric_name: "foo",
-                tags: {},
-            }: Counter(
-                42.0,
-            ),
-        }
-        "###);
-    }
-
-    #[test]
-    fn test_mixup_types_with_different_tags() {
-        relay_test::setup();
-        let config = AggregatorConfig {
-            bucket_interval: 10,
-            ..AggregatorConfig::default()
-        };
-        let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = Aggregator::new(config, receiver);
-
-        let metric1 = some_metric();
-
-        let mut metric2 = metric1.clone();
-        metric2.value = MetricValue::Set(123);
-        metric2.tags.insert("foo".to_owned(), "bar".to_owned());
-
-        aggregator.insert(metric1).unwrap();
-
-        // Should not be able to insert conflicting type with the same name, even if
-        // tags are different:
-        assert!(matches!(aggregator.insert(metric2), Result::Err(_)));
+        assert!(matches!(aggregator.insert(metric2), Ok(_)));
     }
 
     #[test]

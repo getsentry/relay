@@ -145,7 +145,7 @@ impl fmt::Display for MetricValue {
 }
 
 /// The type of a [`MetricValue`], determining its aggregation and evaluation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum MetricType {
     /// Counts instances of an event. See [`MetricValue::Counter`].
     Counter,
