@@ -743,6 +743,11 @@
 <span id="740">740</span>
 <span id="741">741</span>
 <span id="742">742</span>
+<span id="743">743</span>
+<span id="744">744</span>
+<span id="745">745</span>
+<span id="746">746</span>
+<span id="747">747</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">FromStr</span>;
@@ -756,9 +761,9 @@
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">processor</span>::<span class="ident">ProcessValue</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">protocol</span>::{
-    <span class="ident">Breadcrumb</span>, <span class="ident">ClientSdkInfo</span>, <span class="ident">Contexts</span>, <span class="ident">Csp</span>, <span class="ident">DebugMeta</span>, <span class="ident">Exception</span>, <span class="ident">ExpectCt</span>, <span class="ident">ExpectStaple</span>,
-    <span class="ident">Fingerprint</span>, <span class="ident">Hpkp</span>, <span class="ident">LenientString</span>, <span class="ident">Level</span>, <span class="ident">LogEntry</span>, <span class="ident">Measurements</span>, <span class="ident">Metrics</span>, <span class="ident">Request</span>, <span class="ident">Span</span>,
-    <span class="ident">Stacktrace</span>, <span class="ident">Tags</span>, <span class="ident">TemplateInfo</span>, <span class="ident">Thread</span>, <span class="ident">Timestamp</span>, <span class="ident">User</span>, <span class="ident">Values</span>,
+    <span class="ident">Breadcrumb</span>, <span class="ident">Breakdowns</span>, <span class="ident">ClientSdkInfo</span>, <span class="ident">Contexts</span>, <span class="ident">Csp</span>, <span class="ident">DebugMeta</span>, <span class="ident">Exception</span>, <span class="ident">ExpectCt</span>,
+    <span class="ident">ExpectStaple</span>, <span class="ident">Fingerprint</span>, <span class="ident">Hpkp</span>, <span class="ident">LenientString</span>, <span class="ident">Level</span>, <span class="ident">LogEntry</span>, <span class="ident">Measurements</span>, <span class="ident">Metrics</span>,
+    <span class="ident">Request</span>, <span class="ident">Span</span>, <span class="ident">Stacktrace</span>, <span class="ident">Tags</span>, <span class="ident">TemplateInfo</span>, <span class="ident">Thread</span>, <span class="ident">Timestamp</span>, <span class="ident">User</span>, <span class="ident">Values</span>,
 };
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::{
     <span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">Empty</span>, <span class="ident">ErrorKind</span>, <span class="ident">FromValue</span>, <span class="ident">Object</span>, <span class="ident">SkipSerialization</span>, <span class="ident">ToValue</span>, <span class="ident">Value</span>,
@@ -1246,6 +1251,11 @@
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span> <span class="comment">// we only document error events for now</span>
     <span class="kw">pub</span> <span class="ident">measurements</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Measurements</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Breakdowns which holds product-defined values such as span operation breakdowns.</span>
+    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span> <span class="comment">// we only document error events for now</span>
+    <span class="kw">pub</span> <span class="ident">breakdowns</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Breakdowns</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// Internal ingestion and processing metrics.</span>
     <span class="doccomment">///</span>

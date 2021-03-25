@@ -123,6 +123,10 @@
 <span id="120">120</span>
 <span id="121">121</span>
 <span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Utility code for sentry&#39;s internal store.</span>
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
@@ -147,6 +151,7 @@
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">clock_drift</span>::<span class="ident">ClockDriftProcessor</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">geo</span>::{<span class="ident">GeoIpError</span>, <span class="ident">GeoIpLookup</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">normalize</span>::<span class="ident">breakdowns</span>::<span class="ident">BreakdownsConfig</span>;
 
 <span class="doccomment">/// The config for store.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>)]</span>
@@ -175,6 +180,9 @@
 
     <span class="doccomment">/// When `true` it adds context information extracted from the user agent</span>
     <span class="kw">pub</span> <span class="ident">normalize_user_agent</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Emit breakdowns based on given configuration.</span>
+    <span class="kw">pub</span> <span class="ident">breakdowns</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">normalize</span>::<span class="ident">breakdowns</span>::<span class="ident">BreakdownsConfig</span><span class="op">&gt;</span>,
 }
 
 <span class="doccomment">/// The processor that normalizes events for store.</span>

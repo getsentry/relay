@@ -747,6 +747,11 @@
 <span id="744">744</span>
 <span id="745">745</span>
 <span id="746">746</span>
+<span id="747">747</span>
+<span id="748">748</span>
+<span id="749">749</span>
+<span id="750">750</span>
+<span id="751">751</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
@@ -764,6 +769,7 @@
 <span class="kw">use</span> <span class="ident">relay_config</span>::<span class="ident">Config</span>;
 <span class="kw">use</span> <span class="ident">relay_filter</span>::{<span class="ident">matches_any_origin</span>, <span class="ident">FiltersConfig</span>};
 <span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">pii</span>::{<span class="ident">DataScrubbingConfig</span>, <span class="ident">PiiConfig</span>};
+<span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">store</span>::<span class="ident">BreakdownsConfig</span>;
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">Quota</span>, <span class="ident">RateLimits</span>, <span class="ident">Scoping</span>};
 <span class="kw">use</span> <span class="ident">relay_sampling</span>::<span class="ident">SamplingConfig</span>;
 
@@ -814,6 +820,9 @@
     <span class="doccomment">/// Configuration for sampling traces, if not present there will be no sampling.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">dynamic_sampling</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SamplingConfig</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Configuration for operation breakdown. Will be emitted only if present.</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">breakdowns</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BreakdownsConfig</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">ProjectConfig</span> {
@@ -828,6 +837,7 @@
             <span class="ident">event_retention</span>: <span class="prelude-val">None</span>,
             <span class="ident">quotas</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
             <span class="ident">dynamic_sampling</span>: <span class="prelude-val">None</span>,
+            <span class="ident">breakdowns</span>: <span class="prelude-val">None</span>,
         }
     }
 }

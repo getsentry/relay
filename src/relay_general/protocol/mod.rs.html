@@ -69,10 +69,13 @@
 <span id="66">66</span>
 <span id="67">67</span>
 <span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Implements the sentry event protocol.</span>
 
 <span class="kw">mod</span> <span class="ident">breadcrumb</span>;
+<span class="kw">mod</span> <span class="ident">breakdowns</span>;
 <span class="kw">mod</span> <span class="ident">clientsdk</span>;
 <span class="kw">mod</span> <span class="ident">constants</span>;
 <span class="kw">mod</span> <span class="ident">contexts</span>;
@@ -99,6 +102,7 @@
 <span class="kw">mod</span> <span class="ident">user_report</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">breadcrumb</span>::<span class="ident">Breadcrumb</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">breakdowns</span>::<span class="ident">Breakdowns</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">clientsdk</span>::{<span class="ident">ClientSdkInfo</span>, <span class="ident">ClientSdkPackage</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">constants</span>::{<span class="ident">INVALID_ENVIRONMENTS</span>, <span class="ident">INVALID_RELEASES</span>, <span class="ident">VALID_PLATFORMS</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">contexts</span>::{
@@ -116,7 +120,7 @@
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">exception</span>::<span class="ident">Exception</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">fingerprint</span>::<span class="ident">Fingerprint</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">logentry</span>::{<span class="ident">LogEntry</span>, <span class="ident">Message</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">measurements</span>::<span class="ident">Measurements</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">measurements</span>::{<span class="ident">Measurement</span>, <span class="ident">Measurements</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">mechanism</span>::{<span class="ident">CError</span>, <span class="ident">MachException</span>, <span class="ident">Mechanism</span>, <span class="ident">MechanismMeta</span>, <span class="ident">PosixSignal</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">metrics</span>::{<span class="ident">Metrics</span>, <span class="ident">SampleRate</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">request</span>::{<span class="ident">Cookies</span>, <span class="ident">HeaderName</span>, <span class="ident">HeaderValue</span>, <span class="ident">Headers</span>, <span class="ident">Query</span>, <span class="ident">Request</span>};
