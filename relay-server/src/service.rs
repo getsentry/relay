@@ -139,8 +139,13 @@ impl ServiceState {
         .context(ServerErrorKind::ConfigError)?
         .start();
 
-        let project_cache =
-            ProjectCache::new(config.clone(), upstream_relay.clone(), redis_pool).start();
+        let project_cache = ProjectCache::new(
+            config.clone(),
+            event_manager.clone(),
+            upstream_relay.clone(),
+            redis_pool,
+        )
+        .start();
 
         Ok(ServiceState {
             config: config.clone(),

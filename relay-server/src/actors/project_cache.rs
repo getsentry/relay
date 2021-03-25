@@ -19,6 +19,8 @@ use crate::actors::upstream::UpstreamRelay;
 use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::Response;
 
+use super::events::EventManager;
+
 #[cfg(feature = "processing")]
 use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};
 
@@ -42,6 +44,7 @@ pub struct ProjectCache {
     config: Arc<Config>,
     projects: HashMap<ProjectKey, ProjectEntry>,
 
+    event_manager: Addr<EventManager>,
     local_source: Addr<LocalProjectSource>,
     upstream_source: Addr<UpstreamProjectSource>,
     #[cfg(feature = "processing")]
@@ -51,6 +54,7 @@ pub struct ProjectCache {
 impl ProjectCache {
     pub fn new(
         config: Arc<Config>,
+        event_manager: Addr<EventManager>,
         upstream_relay: Addr<UpstreamRelay>,
         _redis: Option<RedisPool>,
     ) -> Self {
@@ -72,6 +76,7 @@ impl ProjectCache {
             config,
             projects: HashMap::new(),
 
+            event_manager,
             local_source,
             upstream_source,
             #[cfg(feature = "processing")]
@@ -147,7 +152,14 @@ impl Handler<GetProject> for ProjectCache {
             }
             Entry::Vacant(entry) => {
                 metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
-                let project = Project::new(public_key, config, context.address()).start();
+                let project = Project::new(
+                    public_key,
+                    config,
+                    context.address(),
+                    self.event_manager.clone(),
+                )
+                .start();
+
                 entry.insert(ProjectEntry {
                     last_updated_at: Instant::now(),
                     project: project.clone(),

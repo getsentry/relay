@@ -96,6 +96,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Session => None,
         ItemType::Sessions => None,
         ItemType::Metrics => None,
+        ItemType::MetricBuckets => None,
         ItemType::FormData => None,
         ItemType::UserReport => None,
     }

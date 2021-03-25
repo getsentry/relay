@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
+use futures::future;
 use futures::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -15,9 +16,13 @@ use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_general::store::BreakdownsConfig;
+use relay_metrics::{
+    AggregateMetricsError, Aggregator, Bucket, FlushBuckets, InsertMetrics, MergeBuckets,
+};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 
+use crate::actors::events::{EventManager, SendMetrics};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};
 use crate::envelope::Envelope;
@@ -271,12 +276,15 @@ impl ProjectState {
         }
     }
 
-    /// Returns `Scoping` information for this project state.
+    /// Amends request `Scoping` with information from this project state.
     ///
     /// This scoping amends `RequestMeta::get_partial_scoping` by adding organization and key info.
     /// The processor must fetch the full scoping before attempting to rate limit with partial
     /// scoping.
-    pub fn get_scoping(&self, meta: &RequestMeta) -> Scoping {
+    ///
+    /// To get the own scoping of this ProjectKey without amending request information, use
+    /// [`Project::scoping`] instead.
+    pub fn scope_request(&self, meta: &RequestMeta) -> Scoping {
         let mut scoping = meta.get_partial_scoping();
 
         // The key configuration may be missing if the event has been queued for extended times and
@@ -314,6 +322,31 @@ impl ProjectState {
         self.config.quotas.as_slice()
     }
 
+    /// Returns `Err` if the project is known to be invalid or disabled.
+    ///
+    /// If this project state is hard outdated, this returns `Ok(())`, instead, to avoid prematurely
+    /// dropping data.
+    pub fn check_disabled(&self, config: &Config) -> Result<(), DiscardReason> {
+        // if the state is out of date, we proceed as if it was still up to date. The
+        // upstream relay (or sentry) will still filter events.
+        if self.outdated(config) == Outdated::HardOutdated {
+            return Ok(());
+        }
+
+        // if we recorded an invalid project state response from the upstream (i.e. parsing
+        // failed), discard the event with a state reason.
+        if self.invalid() {
+            return Err(DiscardReason::ProjectState);
+        }
+
+        // only drop events if we know for sure the project or key are disabled.
+        if self.disabled() {
+            return Err(DiscardReason::ProjectId);
+        }
+
+        Ok(())
+    }
+
     /// Determines whether the given request should be accepted or discarded.
     ///
     /// Returns `Ok(())` if the request should be accepted. Returns `Err(DiscardReason)` if the
@@ -340,21 +373,8 @@ impl ProjectState {
             return Err(DiscardReason::ProjectId);
         }
 
-        // if the state is out of date, we proceed as if it was still up to date. The
-        // upstream relay (or sentry) will still filter events.
-
-        if self.outdated(config) != Outdated::HardOutdated {
-            // if we recorded an invalid project state response from the upstream (i.e. parsing
-            // failed), discard the event with a state reason.
-            if self.invalid() {
-                return Err(DiscardReason::ProjectState);
-            }
-
-            // only drop events if we know for sure the project or key are disabled.
-            if self.disabled() {
-                return Err(DiscardReason::ProjectId);
-            }
-        }
+        // Check for invalid or disabled projects.
+        self.check_disabled(config)?;
 
         Ok(())
     }
@@ -408,6 +428,13 @@ impl StateChannel {
     }
 }
 
+#[derive(Debug)]
+enum AggregatorState {
+    Unknown,
+    Available(Addr<Aggregator>),
+    Unavailable,
+}
+
 /// Actor representing organization and project configuration for a project key.
 ///
 /// This actor no longer uniquely identifies a project. Instead, it identifies a project key.
@@ -416,6 +443,8 @@ pub struct Project {
     public_key: ProjectKey,
     config: Arc<Config>,
     manager: Addr<ProjectCache>,
+    event_manager: Addr<EventManager>,
+    aggregator: AggregatorState,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<StateChannel>,
     rate_limits: RateLimits,
@@ -423,11 +452,18 @@ pub struct Project {
 }
 
 impl Project {
-    pub fn new(key: ProjectKey, config: Arc<Config>, manager: Addr<ProjectCache>) -> Self {
+    pub fn new(
+        key: ProjectKey,
+        config: Arc<Config>,
+        manager: Addr<ProjectCache>,
+        event_manager: Addr<EventManager>,
+    ) -> Self {
         Project {
             public_key: key,
             config,
             manager,
+            event_manager,
+            aggregator: AggregatorState::Unknown,
             state: None,
             state_channel: None,
             rate_limits: RateLimits::new(),
@@ -437,6 +473,37 @@ impl Project {
 
     pub fn state(&self) -> Option<&ProjectState> {
         self.state.as_deref()
+    }
+
+    fn get_or_create_aggregator(
+        &mut self,
+        context: &mut Context<Self>,
+    ) -> Option<Addr<Aggregator>> {
+        if matches!(self.aggregator, AggregatorState::Unknown) {
+            let flush_receiver = context.address().recipient();
+            let aggregator = Aggregator::new(self.config.aggregator_config(), flush_receiver);
+            // TODO: This starts the aggregator on the project arbiter, but we want a separate
+            // thread or thread pool for this.
+            self.aggregator = AggregatorState::Available(aggregator.start());
+        }
+
+        if let AggregatorState::Available(ref aggregator) = self.aggregator {
+            Some(aggregator.clone())
+        } else {
+            None
+        }
+    }
+
+    fn update_aggregator(&mut self, context: &mut Context<Self>) {
+        let metrics_allowed = self
+            .state()
+            .map_or(false, |s| s.check_disabled(&self.config).is_ok());
+
+        if metrics_allowed && matches!(self.aggregator, AggregatorState::Unavailable) {
+            self.get_or_create_aggregator(context);
+        } else if !metrics_allowed {
+            self.aggregator = AggregatorState::Unavailable;
+        }
     }
 
     fn get_or_fetch_state(
@@ -520,7 +587,7 @@ impl Project {
                 no_cache,
             })
             .into_actor(self)
-            .map(move |state_result, slf, _ctx| {
+            .map(move |state_result, slf, context| {
                 let channel = match slf.state_channel.take() {
                     Some(channel) => channel,
                     None => return,
@@ -535,6 +602,7 @@ impl Project {
 
                 slf.state_channel = None;
                 slf.state = state_result.map(|resp| resp.state).ok();
+                slf.update_aggregator(context);
 
                 if let Some(ref state) = slf.state {
                     relay_log::debug!("project state {} updated", public_key);
@@ -545,9 +613,30 @@ impl Project {
             .spawn(context);
     }
 
-    fn get_scoping(&mut self, meta: &RequestMeta) -> Scoping {
+    /// Creates `Scoping` for this project if the state is loaded.
+    ///
+    /// Returns `Some` if the project state has been fetched and contains a project identifier,
+    /// otherwise `None`.
+    fn scoping(&self) -> Option<Scoping> {
+        let state = self.state()?;
+        Some(Scoping {
+            organization_id: state.organization_id.unwrap_or(0),
+            project_id: state.project_id?,
+            public_key: self.public_key,
+            key_id: state
+                .get_public_key_config()
+                .and_then(|config| config.numeric_id),
+        })
+    }
+
+    /// Amends request `Scoping` with information from this project state.
+    ///
+    /// If the project state is loaded, information from the project state is merged into the
+    /// request's scoping. Otherwise, this function returns partial scoping from the `request_meta`.
+    /// See [`RequestMeta::get_partial_scoping`] for more information.
+    fn scope_request(&self, meta: &RequestMeta) -> Scoping {
         match self.state() {
-            Some(state) => state.get_scoping(meta),
+            Some(state) => state.scope_request(meta),
             None => meta.get_partial_scoping(),
         }
     }
@@ -582,7 +671,7 @@ impl Project {
     }
 
     fn check_envelope_scoped(&mut self, message: CheckEnvelope) -> CheckEnvelopeResponse {
-        let scoping = self.get_scoping(message.envelope.meta());
+        let scoping = self.scope_request(message.envelope.meta());
         let result = self.check_envelope(message.envelope, &scoping);
         CheckEnvelopeResponse { result, scoping }
     }
@@ -747,5 +836,82 @@ impl Handler<UpdateRateLimits> for Project {
     fn handle(&mut self, message: UpdateRateLimits, _context: &mut Self::Context) -> Self::Result {
         let UpdateRateLimits(rate_limits) = message;
         self.rate_limits.merge(rate_limits);
+    }
+}
+
+impl Handler<InsertMetrics> for Project {
+    type Result = Result<(), AggregateMetricsError>;
+
+    fn handle(&mut self, message: InsertMetrics, context: &mut Self::Context) -> Self::Result {
+        // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
+        if let Some(aggregator) = self.get_or_create_aggregator(context) {
+            aggregator.do_send(message);
+        }
+
+        Ok(())
+    }
+}
+
+impl Handler<MergeBuckets> for Project {
+    type Result = Result<(), AggregateMetricsError>;
+
+    fn handle(&mut self, message: MergeBuckets, context: &mut Self::Context) -> Self::Result {
+        // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
+        if let Some(aggregator) = self.get_or_create_aggregator(context) {
+            aggregator.do_send(message);
+        }
+
+        Ok(())
+    }
+}
+
+impl Handler<FlushBuckets> for Project {
+    type Result = ResponseFuture<(), Vec<Bucket>>;
+
+    fn handle(&mut self, message: FlushBuckets, context: &mut Self::Context) -> Self::Result {
+        let outdated = match self.state() {
+            Some(state) => state.outdated(&self.config),
+            None => Outdated::HardOutdated,
+        };
+
+        // Schedule an update to the project state if it is outdated, regardless of whether the
+        // metrics can be forwarded or not. We never wait for this update.
+        if outdated != Outdated::Updated {
+            self.get_or_fetch_state(false, context);
+        }
+
+        // If the state is outdated, we need to wait for an updated state. Put them back into the
+        // aggregator and wait for the next flush cycle.
+        if outdated == Outdated::HardOutdated {
+            return Box::new(future::err(message.into_buckets()));
+        }
+
+        let (state, scoping) = match (self.state(), self.scoping()) {
+            (Some(state), Some(scoping)) => (state, scoping),
+            _ => return Box::new(future::err(message.into_buckets())),
+        };
+
+        // Only send if the project state is valid, otherwise drop this bucket.
+        if state.check_disabled(&self.config).is_err() {
+            return Box::new(future::ok(()));
+        }
+
+        let future = self
+            .event_manager
+            .send(SendMetrics {
+                buckets: message.into_buckets(),
+                scoping,
+                project: context.address(),
+            })
+            .then(move |send_result| match send_result {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(buckets)) => Err(buckets),
+                Err(_) => {
+                    relay_log::error!("dropped metric buckets: event manager mailbox full");
+                    Ok(())
+                }
+            });
+
+        Box::new(future)
     }
 }

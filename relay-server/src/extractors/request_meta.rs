@@ -61,12 +61,12 @@ impl ResponseError for BadEventMeta {
 /// transparently serializes to and deserializes from a DSN string.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PartialDsn {
-    scheme: Scheme,
-    public_key: ProjectKey,
-    host: String,
-    port: u16,
-    path: String,
-    project_id: Option<ProjectId>,
+    pub scheme: Scheme,
+    pub public_key: ProjectKey,
+    pub host: String,
+    pub port: u16,
+    pub path: String,
+    pub project_id: Option<ProjectId>,
 }
 
 impl PartialDsn {
@@ -251,6 +251,21 @@ impl<D> RequestMeta<D> {
 }
 
 impl RequestMeta {
+    /// Creates meta for an outbound request of this Relay.
+    pub fn outbound(dsn: PartialDsn) -> Self {
+        Self {
+            dsn,
+            client: Some(crate::constants::CLIENT.to_owned()),
+            version: default_version(),
+            origin: None,
+            remote_addr: None,
+            forwarded_for: "".to_string(),
+            user_agent: Some(crate::constants::SERVER.to_owned()),
+            no_cache: false,
+            start_time: Instant::now(),
+        }
+    }
+
     #[cfg(test)]
     // TODO: Remove Dsn here?
     pub fn new(dsn: relay_common::Dsn) -> Self {
