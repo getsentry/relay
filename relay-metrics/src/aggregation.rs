@@ -487,32 +487,6 @@ impl Actor for Aggregator {
     }
 }
 
-/// A message containing a [`Metric`] to be inserted into the aggregator.
-#[derive(Debug)]
-pub struct InsertMetric {
-    metric: Metric,
-}
-
-impl InsertMetric {
-    /// Creates a new message containing a [`Metric`].
-    pub fn new(metric: Metric) -> Self {
-        Self { metric }
-    }
-}
-
-impl Message for InsertMetric {
-    type Result = Result<(), AggregateMetricsError>;
-}
-
-impl Handler<InsertMetric> for Aggregator {
-    type Result = Result<(), AggregateMetricsError>;
-
-    fn handle(&mut self, message: InsertMetric, _context: &mut Self::Context) -> Self::Result {
-        let InsertMetric { metric } = message;
-        self.insert(metric)
-    }
-}
-
 /// A message containing a list of [`Metric`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct InsertMetrics {
@@ -761,7 +735,9 @@ mod tests {
             let mut metric = some_metric();
             metric.timestamp = UnixTimestamp::now();
             aggregator
-                .send(InsertMetric { metric })
+                .send(InsertMetrics {
+                    metrics: vec![metric],
+                })
                 .and_then(move |_| aggregator.send(BucketCountInquiry))
                 .map_err(|_| ())
                 .and_then(|bucket_count| {
@@ -805,7 +781,9 @@ mod tests {
             let mut metric = some_metric();
             metric.timestamp = UnixTimestamp::now();
             aggregator
-                .send(InsertMetric { metric })
+                .send(InsertMetrics {
+                    metrics: vec![metric],
+                })
                 .map_err(|_| ())
                 .and_then(|_| {
                     // Immediately after sending the metric, nothing has been flushed:
