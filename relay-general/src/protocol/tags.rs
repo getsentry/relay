@@ -70,28 +70,28 @@ fn test_tags_from_object() {
   "bam": null
 }"#;
 
-    let mut arr = Array::new();
-    arr.push(Annotated::new(TagEntry(
-        Annotated::new("bam".to_string()),
-        Annotated::empty(),
-    )));
-    arr.push(Annotated::new(TagEntry(
-        Annotated::new("blah".to_string()),
-        Annotated::new("blub".to_string()),
-    )));
-    arr.push(Annotated::new(TagEntry(
-        Annotated::new("bool".to_string()),
-        Annotated::new("True".to_string()),
-    )));
-    arr.push(Annotated::new(TagEntry(
-        Annotated::new("foo-bar".to_string()),
-        Annotated::new("baz".to_string()),
-    )));
-    arr.push(Annotated::new(TagEntry(
-        Annotated::new("non-string".to_string()),
-        Annotated::new("42".to_string()),
-    )));
-
+    let arr = vec![
+        Annotated::new(TagEntry(
+            Annotated::new("bam".to_string()),
+            Annotated::empty(),
+        )),
+        Annotated::new(TagEntry(
+            Annotated::new("blah".to_string()),
+            Annotated::new("blub".to_string()),
+        )),
+        Annotated::new(TagEntry(
+            Annotated::new("bool".to_string()),
+            Annotated::new("True".to_string()),
+        )),
+        Annotated::new(TagEntry(
+            Annotated::new("foo-bar".to_string()),
+            Annotated::new("baz".to_string()),
+        )),
+        Annotated::new(TagEntry(
+            Annotated::new("non-string".to_string()),
+            Annotated::new("42".to_string()),
+        )),
+    ];
     let tags = Annotated::new(Tags(arr.into()));
     assert_eq_dbg!(tags, Annotated::from_json(json).unwrap());
 }
@@ -150,27 +150,28 @@ fn test_tags_from_array() {
   ]
 }"#;
 
-    let mut arr = Array::new();
-    arr.push(Annotated::new(TagEntry(
-        Annotated::new("bool".to_string()),
-        Annotated::new("True".to_string()),
-    )));
-    arr.push(Annotated::new(TagEntry(
-        Annotated::new("foo-bar".to_string()),
-        Annotated::new("baz".to_string()),
-    )));
-    arr.push(Annotated::new(TagEntry(
-        Annotated::new("23".to_string()),
-        Annotated::new("42".to_string()),
-    )));
-    arr.push(Annotated::new(TagEntry(
-        Annotated::new("blah".to_string()),
-        Annotated::new("blub".to_string()),
-    )));
-    arr.push(Annotated::new(TagEntry(
-        Annotated::new("bam".to_string()),
-        Annotated::empty(),
-    )));
+    let arr = vec![
+        Annotated::new(TagEntry(
+            Annotated::new("bool".to_string()),
+            Annotated::new("True".to_string()),
+        )),
+        Annotated::new(TagEntry(
+            Annotated::new("foo-bar".to_string()),
+            Annotated::new("baz".to_string()),
+        )),
+        Annotated::new(TagEntry(
+            Annotated::new("23".to_string()),
+            Annotated::new("42".to_string()),
+        )),
+        Annotated::new(TagEntry(
+            Annotated::new("blah".to_string()),
+            Annotated::new("blub".to_string()),
+        )),
+        Annotated::new(TagEntry(
+            Annotated::new("bam".to_string()),
+            Annotated::empty(),
+        )),
+    ];
 
     let tags = Annotated::new(Tags(arr.into()));
     let event = Annotated::new(Event {

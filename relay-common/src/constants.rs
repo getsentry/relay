@@ -1,8 +1,5 @@
 //! Constants shared with the C-ABI and Sentry.
 
-// FIXME: Workaround for https://github.com/GREsau/schemars/pull/65
-#![allow(clippy::field_reassign_with_default)]
-
 use std::convert::TryInto;
 use std::fmt;
 use std::str::FromStr;
@@ -12,6 +9,17 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// The type of an event.
+///
+/// The event type determines how Sentry handles the event and has an impact on processing, rate
+/// limiting, and quotas. There are three fundamental classes of event types:
+///
+///  - **Error monitoring events** (`default`, `error`): Processed and grouped into unique issues
+///    based on their exception stack traces and error messages.
+///  - **Security events** (`csp`, `hpkp`, `expectct`, `expectstaple`): Derived from Browser
+///    security violation reports and grouped into unique issues based on the endpoint and
+///    violation. SDKs do not send such events.
+///  - **Transaction events** (`transaction`): Contain operation spans and collected into traces for
+///    performance monitoring.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[serde(rename_all = "lowercase")]
@@ -23,7 +31,7 @@ pub enum EventType {
     /// An HPKP violation payload.
     Hpkp,
     /// An ExpectCT violation payload.
-    ExpectCT,
+    ExpectCt,
     /// An ExpectStaple violation payload.
     ExpectStaple,
     /// Performance monitoring transactions carrying spans.
@@ -60,7 +68,7 @@ impl FromStr for EventType {
             "error" => EventType::Error,
             "csp" => EventType::Csp,
             "hpkp" => EventType::Hpkp,
-            "expectct" => EventType::ExpectCT,
+            "expectct" => EventType::ExpectCt,
             "expectstaple" => EventType::ExpectStaple,
             "transaction" => EventType::Transaction,
             _ => return Err(ParseEventTypeError),
@@ -75,7 +83,7 @@ impl fmt::Display for EventType {
             EventType::Error => write!(f, "error"),
             EventType::Csp => write!(f, "csp"),
             EventType::Hpkp => write!(f, "hpkp"),
-            EventType::ExpectCT => write!(f, "expectct"),
+            EventType::ExpectCt => write!(f, "expectct"),
             EventType::ExpectStaple => write!(f, "expectstaple"),
             EventType::Transaction => write!(f, "transaction"),
         }
@@ -161,7 +169,7 @@ impl From<EventType> for DataCategory {
         match ty {
             EventType::Default | EventType::Error => Self::Error,
             EventType::Transaction => Self::Transaction,
-            EventType::Csp | EventType::Hpkp | EventType::ExpectCT | EventType::ExpectStaple => {
+            EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
                 Self::Security
             }
         }

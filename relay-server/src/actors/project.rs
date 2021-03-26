@@ -13,6 +13,7 @@ use relay_auth::PublicKey;
 use relay_common::{metric, DataCategory, ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
+use relay_general::store::BreakdownsConfig;
 use relay_general::{
     pii::{DataScrubbingConfig, PiiConfig},
     protocol::EventId,
@@ -69,6 +70,9 @@ pub struct ProjectConfig {
     /// Configuration for sampling traces, if not present there will be no sampling.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dynamic_sampling: Option<SamplingConfig>,
+    /// Configuration for operation breakdown. Will be emitted only if present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub breakdowns: Option<BreakdownsConfig>,
 }
 
 impl Default for ProjectConfig {
@@ -83,6 +87,7 @@ impl Default for ProjectConfig {
             event_retention: None,
             quotas: Vec::new(),
             dynamic_sampling: None,
+            breakdowns: None,
         }
     }
 }

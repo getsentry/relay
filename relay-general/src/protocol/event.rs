@@ -10,9 +10,9 @@ use serde::{Serialize, Serializer};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt, ExpectStaple,
-    Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics, Request, Span,
-    Stacktrace, Tags, TemplateInfo, Thread, Timestamp, User, Values,
+    Breadcrumb, Breakdowns, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt,
+    ExpectStaple, Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics,
+    Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
@@ -202,7 +202,30 @@ pub struct Event {
     /// Version
     pub version: Annotated<String>,
 
-    /// Type of event: error, csp, default
+    /// Type of the event. Defaults to `default`.
+    ///
+    /// The event type determines how Sentry handles the event and has an impact on processing, rate
+    /// limiting, and quotas. There are three fundamental classes of event types:
+    ///
+    ///  - **Error monitoring events**: Processed and grouped into unique issues based on their
+    ///    exception stack traces and error messages.
+    ///  - **Security events**: Derived from Browser security violation reports and grouped into
+    ///    unique issues based on the endpoint and violation. SDKs do not send such events.
+    ///  - **Transaction events** (`transaction`): Contain operation spans and collected into traces
+    ///    for performance monitoring.
+    ///
+    /// Transactions must explicitly specify the `"transaction"` event type. In all other cases,
+    /// Sentry infers the appropriate event type from the payload and overrides the stated type.
+    /// SDKs should not send an event type other than for transactions.
+    ///
+    /// Example:
+    ///
+    /// ```json
+    /// {
+    ///   "type": "transaction",
+    ///   "spans": []
+    /// }
+    /// ```
     #[metastructure(field = "type")]
     pub ty: Annotated<EventType>,
 
@@ -478,6 +501,11 @@ pub struct Event {
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub measurements: Annotated<Measurements>,
 
+    /// Breakdowns which holds product-defined values such as span operation breakdowns.
+    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(omit_from_schema)] // we only document error events for now
+    pub breakdowns: Annotated<Breakdowns>,
+
     /// Internal ingestion and processing metrics.
     ///
     /// This value should not be ingested and will be overwritten by the store normalizer.
@@ -565,11 +593,10 @@ fn test_event_roundtrip() {
         dist: Annotated::new("mydist".to_string()),
         environment: Annotated::new("myenv".to_string()),
         tags: {
-            let mut items = Array::new();
-            items.push(Annotated::new(TagEntry(
+            let items = vec![Annotated::new(TagEntry(
                 Annotated::new("tag".to_string()),
                 Annotated::new("value".to_string()),
-            )));
+            ))];
             Annotated::new(Tags(items.into()))
         },
         extra: {

@@ -348,7 +348,7 @@ expression: event_json_schema()
           ]
         },
         "type": {
-          "description": " Type of event: error, csp, default",
+          "description": " Type of the event. Defaults to `default`.\n\n The event type determines how Sentry handles the event and has an impact on processing, rate\n limiting, and quotas. There are three fundamental classes of event types:\n\n  - **Error monitoring events**: Processed and grouped into unique issues based on their\n    exception stack traces and error messages.\n  - **Security events**: Derived from Browser security violation reports and grouped into\n    unique issues based on the endpoint and violation. SDKs do not send such events.\n  - **Transaction events** (`transaction`): Contain operation spans and collected into traces\n    for performance monitoring.\n\n Transactions must explicitly specify the `\"transaction\"` event type. In all other cases,\n Sentry infers the appropriate event type from the payload and overrides the stated type.\n SDKs should not send an event type other than for transactions.\n\n Example:\n\n ```json\n {\n   \"type\": \"transaction\",\n   \"spans\": []\n }\n ```",
           "default": null,
           "anyOf": [
             {
@@ -379,7 +379,8 @@ expression: event_json_schema()
             "null"
           ]
         }
-      }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
@@ -448,7 +449,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -539,7 +541,8 @@ expression: event_json_schema()
               ],
               "format": "uuid"
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -606,7 +609,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -632,7 +636,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -659,7 +664,8 @@ expression: event_json_schema()
               ],
               "format": "int64"
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -719,7 +725,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -745,7 +752,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -922,7 +930,8 @@ expression: event_json_schema()
                 }
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1150,7 +1159,8 @@ expression: event_json_schema()
               "format": "uint64",
               "minimum": 0.0
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1191,12 +1201,13 @@ expression: event_json_schema()
               "description": " The original value causing this error.",
               "default": null
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
     "EventType": {
-      "description": "The type of an event.",
+      "description": "The type of an event.\n\nThe event type determines how Sentry handles the event and has an impact on processing, rate limiting, and quotas. There are three fundamental classes of event types:\n\n- **Error monitoring events** (`default`, `error`): Processed and grouped into unique issues based on their exception stack traces and error messages. - **Security events** (`csp`, `hpkp`, `expectct`, `expectstaple`): Derived from Browser security violation reports and grouped into unique issues based on the endpoint and violation. SDKs do not send such events. - **Transaction events** (`transaction`): Contain operation spans and collected into traces for performance monitoring.",
       "type": "string",
       "enum": [
         "error",
@@ -1278,7 +1289,8 @@ expression: event_json_schema()
                 }
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1491,7 +1503,8 @@ expression: event_json_schema()
                 }
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1534,7 +1547,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1614,7 +1628,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1742,7 +1757,8 @@ expression: event_json_schema()
               "description": " Parameters to be interpolated into the log message. This can be an array of positional\n parameters as well as a mapping of named arguments to their values.",
               "default": null
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1789,7 +1805,8 @@ expression: event_json_schema()
               "format": "uint64",
               "minimum": 0.0
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1862,7 +1879,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1920,7 +1938,8 @@ expression: event_json_schema()
                 }
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2038,7 +2057,8 @@ expression: event_json_schema()
                 }
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2073,7 +2093,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2131,7 +2152,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2175,7 +2197,8 @@ expression: event_json_schema()
               ],
               "format": "int64"
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2196,7 +2219,8 @@ expression: event_json_schema()
               ],
               "format": "uuid"
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2260,7 +2284,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2396,7 +2421,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2438,7 +2464,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2527,7 +2554,8 @@ expression: event_json_schema()
               "format": "uint64",
               "minimum": 0.0
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2639,7 +2667,8 @@ expression: event_json_schema()
                 }
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2732,7 +2761,8 @@ expression: event_json_schema()
                 }
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2815,7 +2845,8 @@ expression: event_json_schema()
                 "null"
               ]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     }

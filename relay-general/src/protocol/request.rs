@@ -438,7 +438,7 @@ pub struct Request {
     /// The URL of the request if available.
     ///
     ///The query string can be declared either as part of the `url`, or separately in `query_string`.
-    #[metastructure(max_chars = "path")]
+    #[metastructure(max_chars = "path", pii = "maybe")]
     pub url: Annotated<String>,
 
     /// HTTP request method.
@@ -509,23 +509,24 @@ fn test_header_normalization() {
   "x-sentry": "version=8"
 }"#;
 
-    let mut headers = Vec::new();
-    headers.push(Annotated::new((
-        Annotated::new("-Other-".to_string().into()),
-        Annotated::new("header".to_string().into()),
-    )));
-    headers.push(Annotated::new((
-        Annotated::new("Accept".to_string().into()),
-        Annotated::new("application/json".to_string().into()),
-    )));
-    headers.push(Annotated::new((
-        Annotated::new("WWW-Authenticate".to_string().into()),
-        Annotated::new("basic".to_string().into()),
-    )));
-    headers.push(Annotated::new((
-        Annotated::new("X-Sentry".to_string().into()),
-        Annotated::new("version=8".to_string().into()),
-    )));
+    let headers = vec![
+        Annotated::new((
+            Annotated::new("-Other-".to_string().into()),
+            Annotated::new("header".to_string().into()),
+        )),
+        Annotated::new((
+            Annotated::new("Accept".to_string().into()),
+            Annotated::new("application/json".to_string().into()),
+        )),
+        Annotated::new((
+            Annotated::new("WWW-Authenticate".to_string().into()),
+            Annotated::new("basic".to_string().into()),
+        )),
+        Annotated::new((
+            Annotated::new("X-Sentry".to_string().into()),
+            Annotated::new("version=8".to_string().into()),
+        )),
+    ];
 
     let headers = Annotated::new(Headers(PairList(headers)));
     assert_eq_dbg!(headers, Annotated::from_json(json).unwrap());
@@ -537,11 +538,10 @@ fn test_header_from_sequence() {
   ["accept", "application/json"]
 ]"#;
 
-    let mut headers = Vec::new();
-    headers.push(Annotated::new((
+    let headers = vec![Annotated::new((
         Annotated::new("Accept".to_string().into()),
         Annotated::new("application/json".to_string().into()),
-    )));
+    ))];
 
     let headers = Annotated::new(Headers(PairList(headers)));
     assert_eq_dbg!(headers, Annotated::from_json(json).unwrap());
@@ -678,19 +678,16 @@ fn test_request_roundtrip() {
         )),
         fragment: Annotated::new("home".to_string()),
         cookies: Annotated::new(Cookies({
-            let mut map = Vec::new();
-            map.push(Annotated::new((
+            PairList(vec![Annotated::new((
                 Annotated::new("GOOGLE".to_string()),
                 Annotated::new("1".to_string()),
-            )));
-            PairList(map)
+            ))])
         })),
         headers: Annotated::new(Headers({
-            let mut headers = Vec::new();
-            headers.push(Annotated::new((
+            let headers = vec![Annotated::new((
                 Annotated::new("Referer".to_string().into()),
                 Annotated::new("https://google.com/".to_string().into()),
-            )));
+            ))];
             PairList(headers)
         })),
         env: Annotated::new({
@@ -798,19 +795,20 @@ fn test_query_invalid() {
 fn test_cookies_parsing() {
     let json = "\" PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;\"";
 
-    let mut map = Vec::new();
-    map.push(Annotated::new((
-        Annotated::new("PHPSESSID".to_string()),
-        Annotated::new("298zf09hf012fh2".to_string()),
-    )));
-    map.push(Annotated::new((
-        Annotated::new("csrftoken".to_string()),
-        Annotated::new("u32t4o3tb3gg43".to_string()),
-    )));
-    map.push(Annotated::new((
-        Annotated::new("_gat".to_string()),
-        Annotated::new("1".to_string()),
-    )));
+    let map = vec![
+        Annotated::new((
+            Annotated::new("PHPSESSID".to_string()),
+            Annotated::new("298zf09hf012fh2".to_string()),
+        )),
+        Annotated::new((
+            Annotated::new("csrftoken".to_string()),
+            Annotated::new("u32t4o3tb3gg43".to_string()),
+        )),
+        Annotated::new((
+            Annotated::new("_gat".to_string()),
+            Annotated::new("1".to_string()),
+        )),
+    ];
 
     let cookies = Annotated::new(Cookies(PairList(map)));
     assert_eq_dbg!(cookies, Annotated::from_json(json).unwrap());
@@ -821,19 +819,17 @@ fn test_cookies_array() {
     let input = r#"{"cookies":[["foo","bar"],["invalid", 42],["none",null]]}"#;
     let output = r#"{"cookies":[["foo","bar"],["invalid",null],["none",null]],"_meta":{"cookies":{"1":{"1":{"":{"err":[["invalid_data",{"reason":"expected a string"}]],"val":42}}}}}}"#;
 
-    let mut map = Vec::new();
-    map.push(Annotated::new((
-        Annotated::new("foo".to_string()),
-        Annotated::new("bar".to_string()),
-    )));
-    map.push(Annotated::new((
-        Annotated::new("invalid".to_string()),
-        Annotated::from_error(Error::expected("a string"), Some(Value::I64(42))),
-    )));
-    map.push(Annotated::new((
-        Annotated::new("none".to_string()),
-        Annotated::empty(),
-    )));
+    let map = vec![
+        Annotated::new((
+            Annotated::new("foo".to_string()),
+            Annotated::new("bar".to_string()),
+        )),
+        Annotated::new((
+            Annotated::new("invalid".to_string()),
+            Annotated::from_error(Error::expected("a string"), Some(Value::I64(42))),
+        )),
+        Annotated::new((Annotated::new("none".to_string()), Annotated::empty())),
+    ];
 
     let cookies = Annotated::new(Cookies(PairList(map)));
     let request = Annotated::new(Request {
@@ -848,15 +844,16 @@ fn test_cookies_array() {
 fn test_cookies_object() {
     let json = r#"{"foo":"bar", "invalid": 42}"#;
 
-    let mut map = Vec::new();
-    map.push(Annotated::new((
-        Annotated::new("foo".to_string()),
-        Annotated::new("bar".to_string()),
-    )));
-    map.push(Annotated::new((
-        Annotated::new("invalid".to_string()),
-        Annotated::from_error(Error::expected("a string"), Some(Value::I64(42))),
-    )));
+    let map = vec![
+        Annotated::new((
+            Annotated::new("foo".to_string()),
+            Annotated::new("bar".to_string()),
+        )),
+        Annotated::new((
+            Annotated::new("invalid".to_string()),
+            Annotated::from_error(Error::expected("a string"), Some(Value::I64(42))),
+        )),
+    ];
 
     let cookies = Annotated::new(Cookies(PairList(map)));
     assert_eq_dbg!(cookies, Annotated::from_json(json).unwrap());
