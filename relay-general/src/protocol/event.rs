@@ -593,11 +593,10 @@ fn test_event_roundtrip() {
         dist: Annotated::new("mydist".to_string()),
         environment: Annotated::new("myenv".to_string()),
         tags: {
-            let mut items = Array::new();
-            items.push(Annotated::new(TagEntry(
+            let items = vec![Annotated::new(TagEntry(
                 Annotated::new("tag".to_string()),
                 Annotated::new("value".to_string()),
-            )));
+            ))];
             Annotated::new(Tags(items.into()))
         },
         extra: {
