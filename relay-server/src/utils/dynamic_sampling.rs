@@ -88,8 +88,16 @@ fn sample_transaction_internal(
 
     let client_ip = envelope.meta().client_addr();
     if let SamplingResult::Drop(rule_id) = trace_context.should_keep(client_ip, sampling_config) {
-        // TODO: Remove event-dependent items similar to `EnvelopeLimiter`.
-        envelope.take_item_by(|item| item.ty() == ItemType::Transaction);
+        // remove transaction and dependent items
+        if envelope
+            .take_item_by(|item| item.ty() == ItemType::Transaction)
+            .is_some()
+        {
+            // we have removed the transaction from the envelope
+            // also remove any dependent items (all items that require event need to go)
+            envelope.retain_items(|item| !item.requires_event());
+        }
+
         if envelope.is_empty() {
             // if after we removed the transaction we ended up with an empty envelope
             // return an error so we can generate an outcome for the rule that dropped the transaction
@@ -249,8 +257,11 @@ mod tests {
         let item1 = Item::new(ItemType::Transaction);
         envelope.add_item(item1);
 
-        let item2 = Item::new(ItemType::Event);
+        let item2 = Item::new(ItemType::Attachment);
         envelope.add_item(item2);
+
+        let item3 = Item::new(ItemType::Attachment);
+        envelope.add_item(item3);
 
         envelope
     }
@@ -286,13 +297,17 @@ mod tests {
     /// Should remove transaction from envelope when a matching rule is detected
     fn test_should_drop_transaction() {
         //create an envelope with a event and a transaction
-        let envelope = new_envelope(true);
+        let mut envelope = new_envelope(true);
+        // add an item that is not dependent on the transaction (i.e. will not be dropped with it)
+        let session_item = Item::new(ItemType::Session);
+        envelope.add_item(session_item);
+
         let state = get_project_state(Some(0.0), RuleType::Trace);
 
         let result = sample_transaction_internal(envelope, Some(&state), true);
         assert!(result.is_ok());
         let envelope = result.unwrap();
-        // the transaction item should have been removed
+        // the transaction item and dependent items should have been removed
         assert_eq!(envelope.len(), 1);
     }
 
@@ -307,7 +322,7 @@ mod tests {
         assert!(result.is_ok());
         let envelope = result.unwrap();
         // both the event and the transaction item should have been left in the envelope
-        assert_eq!(envelope.len(), 2);
+        assert_eq!(envelope.len(), 3);
     }
 
     #[test]
@@ -320,7 +335,7 @@ mod tests {
         assert!(result.is_ok());
         let envelope = result.unwrap();
         // both the event and the transaction item should have been left in the envelope
-        assert_eq!(envelope.len(), 2);
+        assert_eq!(envelope.len(), 3);
     }
 
     #[test]
@@ -328,9 +343,7 @@ mod tests {
     /// transaction
     fn test_should_signal_when_envelope_becomes_empty() {
         //create an envelope with a event and a transaction
-        let mut envelope = new_envelope(true);
-        //remove the event (so the envelope contains only a transaction
-        envelope.take_item_by(|item| item.ty() == ItemType::Event);
+        let envelope = new_envelope(true);
         let state = get_project_state(Some(0.0), RuleType::Trace);
 
         let result = sample_transaction_internal(envelope, Some(&state), true);
