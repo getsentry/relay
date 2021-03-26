@@ -262,7 +262,7 @@ impl<'a> NormalizeProcessor<'a> {
         } else if event.hpkp.value().is_some() {
             EventType::Hpkp
         } else if event.expectct.value().is_some() {
-            EventType::ExpectCT
+            EventType::ExpectCt
         } else if event.expectstaple.value().is_some() {
             EventType::ExpectStaple
         } else {

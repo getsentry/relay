@@ -657,7 +657,7 @@ mod tests {
             minimal,
             MinimalEvent {
                 id: None,
-                ty: EventType::ExpectCT,
+                ty: EventType::ExpectCt,
             }
         );
     }
