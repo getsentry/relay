@@ -1280,10 +1280,29 @@ impl Handler<ProcessEnvelope> for EventProcessor {
     }
 }
 
+/// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
+///
+/// This parses and validates the metrics:
+///  - For [`Metrics`](ItemType::Metrics), each metric is parsed separately, and invalid metrics are
+///    ignored independently.
+///  - For [`MetricBuckets`](ItemType::MetricBuckets), the entire list of buckets is parsed and
+///    dropped together on parsing failure.
+///  - Other items will be ignored with an error message.
+///
+/// Additionally, processing applies clock drift correction using the system clock of this Relay, if
+/// the Envelope specifies the [`sent_at`](Envelope::sent_at) header.
 struct ProcessMetrics {
+    /// A list of metric items.
     pub items: Vec<Item>,
+
+    /// The target project.
     pub project: Addr<Project>,
+
+    /// The instant at which the request was received.
     pub start_time: Instant,
+
+    /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
+    /// correction.
     pub sent_at: Option<DateTime<Utc>>,
 }
 
@@ -1328,11 +1347,17 @@ impl Handler<ProcessMetrics> for EventProcessor {
                     relay_log::trace!("merging metric buckets into project aggregator");
                     project.do_send(MergeBuckets::new(buckets));
                 }
+            } else {
+                relay_log::error!(
+                    "invalid item of type {} passed to ProcessMetrics",
+                    item.ty()
+                );
             }
         }
     }
 }
 
+/// Error returned from [`EventManager::send_envelope`].
 #[derive(Debug)]
 enum SendEnvelopeError {
     ScheduleFailed(MailboxError),
@@ -1510,10 +1535,10 @@ impl EventManager {
                 if let Err(UpstreamRequestError::RateLimited(upstream_limits)) = result {
                     let limits = upstream_limits.scope(&scoping);
                     project.do_send(UpdateRateLimits(limits.clone()));
-                    return Err(SendEnvelopeError::RateLimited(limits));
+                    Err(SendEnvelopeError::RateLimited(limits))
+                } else {
+                    result.map_err(SendEnvelopeError::SendFailed)
                 }
-
-                result.map_err(SendEnvelopeError::SendFailed)
             });
 
         Box::new(future)
@@ -1536,6 +1561,22 @@ impl Actor for EventManager {
     }
 }
 
+/// Queues an envelope for processing.
+///
+/// Depending on the items in the envelope, there are multiple outcomes:
+///
+/// - Events and event related items, such as attachments, are always queued together. See
+///   [`HandleEnvelope`] for a full description of how queued envelopes are processed by the
+///   `EventManager`.
+/// - Sessions and Session batches are always queued separately. If they occur in the same envelope
+///   as an event, they are split off.
+/// - Metrics are directly sent to the `EventProcessor`, bypassing the manager's queue and going
+///   straight into metrics aggregation. See [`ProcessMetrics`] for a full description.
+///
+/// Queueing can fail if the queue exceeds [`Config::event_buffer_size`]. In this case, `Err` is
+/// returned and the envelope is not queued. Otherwise, this message responds with `Ok`. If it
+/// contained an event-related item, such as an event payload or an attachment, this contains
+/// `Some(EventId)`.
 pub struct QueueEnvelope {
     pub envelope: Envelope,
     pub project: Addr<Project>,
@@ -1620,6 +1661,19 @@ impl Handler<QueueEnvelope> for EventManager {
     }
 }
 
+/// Handles a queued envelope.
+///
+/// 1. Ensures the project state is up-to-date and then validates the envelope against the state and
+///    cached rate limits. See [`CheckEnvelope`] for full information.
+/// 2. Executes dynamic sampling using the sampling project.
+/// 3. Runs the envelope through the [`EventProcessor`] worker pool, which parses items, applies
+///    normalization, and runs filtering logic.
+/// 4. Sends the envelope to the upstream or stores it in Kafka, depending on the
+///    [`processing`](Config::processing_enabled) flag.
+/// 5. Captures [`Outcome`]s for dropped items and envelopes.
+///
+/// This operation is invoked by [`QueueEnvelope`] for envelopes containing all items except
+/// metrics.
 struct HandleEnvelope {
     pub envelope: Envelope,
     pub project: Addr<Project>,
@@ -1828,9 +1882,16 @@ impl Handler<HandleEnvelope> for EventManager {
     }
 }
 
+/// Sends a batch of pre-aggregated metrics to the upstream or Kafka.
+///
+/// Responds with `Err` if there was an error sending some or all of the buckets, containing the
+/// failed buckets.
 pub struct SendMetrics {
+    /// The pre-aggregated metric buckets.
     pub buckets: Vec<Bucket>,
+    /// Scoping information for the metrics.
     pub scoping: Scoping,
+    /// The project of the metrics.
     pub project: Addr<Project>,
 }
 

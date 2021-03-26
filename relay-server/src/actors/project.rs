@@ -428,10 +428,19 @@ impl StateChannel {
     }
 }
 
+/// States for the metrics [`Aggregator`] within a [`Project`].
+///
+/// This allows to initialize an aggregator on demand and permanently disable it during project
+/// state updates.
 #[derive(Debug)]
 enum AggregatorState {
+    /// The aggregator has not been initialized.
     Unknown,
+
+    /// The aggregator is initialized and available.
     Available(Addr<Aggregator>),
+
+    /// The aggregator is disabled and metrics should be dropped.
     Unavailable,
 }
 
@@ -452,6 +461,7 @@ pub struct Project {
 }
 
 impl Project {
+    /// Creates a new `Project` actor.
     pub fn new(
         key: ProjectKey,
         config: Arc<Config>,
@@ -471,10 +481,14 @@ impl Project {
         }
     }
 
+    /// Returns a reference to the project state if available.
     pub fn state(&self) -> Option<&ProjectState> {
         self.state.as_deref()
     }
 
+    /// Creates the aggregator if it is uninitialized and returns it.
+    ///
+    /// Returns `None` if the aggregator is permanently disabled, primarily for disabled projects.
     fn get_or_create_aggregator(
         &mut self,
         context: &mut Context<Self>,
@@ -494,10 +508,24 @@ impl Project {
         }
     }
 
+    /// Updates the aggregator based on updates to the project state.
+    ///
+    /// Changes to the aggregator depend on the project state:
+    ///
+    ///  1. The project state is missing: In this case, the project has not been loaded, so the
+    ///     aggregator remains unmodified.
+    ///  2. The project state is valid: Create an aggregator if it has previously been marked as
+    ///     `Unavailable`, but leave it uninitialized otherwise.
+    ///  3. The project state is disabled or invalid: Mark the aggregator as `Unavailable`,
+    ///     potentially removing an existing aggregator.
+    ///
+    /// If the aggregator is not stopped immediately. Existing requests can continue and the
+    /// aggregator will be stopped when the last reference drops.
     fn update_aggregator(&mut self, context: &mut Context<Self>) {
-        let metrics_allowed = self
-            .state()
-            .map_or(false, |s| s.check_disabled(&self.config).is_ok());
+        let metrics_allowed = match self.state() {
+            Some(state) => state.check_disabled(&self.config).is_ok(),
+            None => return,
+        };
 
         if metrics_allowed && matches!(self.aggregator, AggregatorState::Unavailable) {
             self.get_or_create_aggregator(context);
