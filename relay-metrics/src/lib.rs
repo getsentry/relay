@@ -58,7 +58,8 @@
 //! ```json
 //! [
 //!   {
-//!
+//!     "org_id": 1,
+//!     "project_id": 42,
 //!     "name": "endpoint.response_time",
 //!     "unit": "ms",
 //!     "value": [36, 49, 57, 68],
@@ -69,6 +70,8 @@
 //!     }
 //!   },
 //!   {
+//!     "org_id": 1,
+//!     "project_id": 42,
 //!     "name": "endpoint.hits",
 //!     "value": 4,
 //!     "type": "c",

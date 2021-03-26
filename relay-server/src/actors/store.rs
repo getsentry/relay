@@ -498,13 +498,13 @@ struct SessionKafkaMessage {
 struct MetricKafkaMessage {
     org_id: u64,
     project_id: ProjectId,
-    pub name: String,
-    pub unit: MetricUnit,
+    name: String,
+    unit: MetricUnit,
     #[serde(flatten)]
-    pub value: BucketValue,
-    pub timestamp: UnixTimestamp,
+    value: BucketValue,
+    timestamp: UnixTimestamp,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    pub tags: BTreeMap<String, String>,
+    tags: BTreeMap<String, String>,
 }
 
 /// An enum over all possible ingest messages.
