@@ -343,6 +343,19 @@
 <span id="340">340</span>
 <span id="341">341</span>
 <span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.</span>
 <span class="doccomment">//!</span>
@@ -434,8 +447,16 @@
 
     <span class="kw">let</span> <span class="ident">client_ip</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client_addr</span>();
     <span class="kw">if</span> <span class="kw">let</span> <span class="ident">SamplingResult</span>::<span class="ident">Drop</span>(<span class="ident">rule_id</span>) <span class="op">=</span> <span class="ident">trace_context</span>.<span class="ident">should_keep</span>(<span class="ident">client_ip</span>, <span class="ident">sampling_config</span>) {
-        <span class="comment">// TODO: Remove event-dependent items similar to `EnvelopeLimiter`.</span>
-        <span class="ident">envelope</span>.<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType</span>::<span class="ident">Transaction</span>);
+        <span class="comment">// remove transaction and dependent items</span>
+        <span class="kw">if</span> <span class="ident">envelope</span>
+            .<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType</span>::<span class="ident">Transaction</span>)
+            .<span class="ident">is_some</span>()
+        {
+            <span class="comment">// we have removed the transaction from the envelope</span>
+            <span class="comment">// also remove any dependent items (all items that require event need to go)</span>
+            <span class="ident">envelope</span>.<span class="ident">retain_items</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="op">!</span><span class="ident">item</span>.<span class="ident">requires_event</span>());
+        }
+
         <span class="kw">if</span> <span class="ident">envelope</span>.<span class="ident">is_empty</span>() {
             <span class="comment">// if after we removed the transaction we ended up with an empty envelope</span>
             <span class="comment">// return an error so we can generate an outcome for the rule that dropped the transaction</span>
@@ -595,8 +616,11 @@
         <span class="kw">let</span> <span class="ident">item1</span> <span class="op">=</span> <span class="ident">Item</span>::<span class="ident">new</span>(<span class="ident">ItemType</span>::<span class="ident">Transaction</span>);
         <span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">item1</span>);
 
-        <span class="kw">let</span> <span class="ident">item2</span> <span class="op">=</span> <span class="ident">Item</span>::<span class="ident">new</span>(<span class="ident">ItemType</span>::<span class="ident">Event</span>);
+        <span class="kw">let</span> <span class="ident">item2</span> <span class="op">=</span> <span class="ident">Item</span>::<span class="ident">new</span>(<span class="ident">ItemType</span>::<span class="ident">Attachment</span>);
         <span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">item2</span>);
+
+        <span class="kw">let</span> <span class="ident">item3</span> <span class="op">=</span> <span class="ident">Item</span>::<span class="ident">new</span>(<span class="ident">ItemType</span>::<span class="ident">Attachment</span>);
+        <span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">item3</span>);
 
         <span class="ident">envelope</span>
     }
@@ -632,13 +656,17 @@
     <span class="doccomment">/// Should remove transaction from envelope when a matching rule is detected</span>
     <span class="kw">fn</span> <span class="ident">test_should_drop_transaction</span>() {
         <span class="comment">//create an envelope with a event and a transaction</span>
-        <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="ident">new_envelope</span>(<span class="bool-val">true</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="ident">new_envelope</span>(<span class="bool-val">true</span>);
+        <span class="comment">// add an item that is not dependent on the transaction (i.e. will not be dropped with it)</span>
+        <span class="kw">let</span> <span class="ident">session_item</span> <span class="op">=</span> <span class="ident">Item</span>::<span class="ident">new</span>(<span class="ident">ItemType</span>::<span class="ident">Session</span>);
+        <span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">session_item</span>);
+
         <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">get_project_state</span>(<span class="prelude-val">Some</span>(<span class="number">0.0</span>), <span class="ident">RuleType</span>::<span class="ident">Trace</span>);
 
         <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">sample_transaction_internal</span>(<span class="ident">envelope</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">state</span>), <span class="bool-val">true</span>);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">result</span>.<span class="ident">is_ok</span>());
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="ident">result</span>.<span class="ident">unwrap</span>();
-        <span class="comment">// the transaction item should have been removed</span>
+        <span class="comment">// the transaction item and dependent items should have been removed</span>
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">envelope</span>.<span class="ident">len</span>(), <span class="number">1</span>);
     }
 
@@ -653,7 +681,7 @@
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">result</span>.<span class="ident">is_ok</span>());
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="ident">result</span>.<span class="ident">unwrap</span>();
         <span class="comment">// both the event and the transaction item should have been left in the envelope</span>
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">envelope</span>.<span class="ident">len</span>(), <span class="number">2</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">envelope</span>.<span class="ident">len</span>(), <span class="number">3</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -666,7 +694,7 @@
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">result</span>.<span class="ident">is_ok</span>());
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="ident">result</span>.<span class="ident">unwrap</span>();
         <span class="comment">// both the event and the transaction item should have been left in the envelope</span>
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">envelope</span>.<span class="ident">len</span>(), <span class="number">2</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">envelope</span>.<span class="ident">len</span>(), <span class="number">3</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -674,9 +702,7 @@
     <span class="doccomment">/// transaction</span>
     <span class="kw">fn</span> <span class="ident">test_should_signal_when_envelope_becomes_empty</span>() {
         <span class="comment">//create an envelope with a event and a transaction</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="ident">new_envelope</span>(<span class="bool-val">true</span>);
-        <span class="comment">//remove the event (so the envelope contains only a transaction</span>
-        <span class="ident">envelope</span>.<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType</span>::<span class="ident">Event</span>);
+        <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="ident">new_envelope</span>(<span class="bool-val">true</span>);
         <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">get_project_state</span>(<span class="prelude-val">Some</span>(<span class="number">0.0</span>), <span class="ident">RuleType</span>::<span class="ident">Trace</span>);
 
         <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">sample_transaction_internal</span>(<span class="ident">envelope</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">state</span>), <span class="bool-val">true</span>);
