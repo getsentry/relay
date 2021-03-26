@@ -15,9 +15,9 @@ pub fn instant_to_date_time(instant: Instant) -> chrono::DateTime<chrono::Utc> {
     instant_to_system_time(instant).into()
 }
 
-/// Represent any point in time as an Instant.
+/// The conversion result of [`UnixTimestamp::to_instant`].
 ///
-/// If the time is outside of what can be represented in an `Instant`, mark it as `Past` or
+/// If the time is outside of what can be represented in an [`Instant`], this is `Past` or
 /// `Future`.
 #[derive(Clone, Copy, Debug)]
 pub enum MonotonicResult {
@@ -69,7 +69,13 @@ impl UnixTimestamp {
         self.0
     }
 
-    /// Converts the unix timestamp into an `Instant` based on the current system timestamp.
+    /// Converts the UNIX timestamp into an `Instant` based on the current system timestamp.
+    ///
+    /// Returns [`MonotonicResult::Instant`] if the timestamp can be represented. Otherwise, returns
+    /// [`MonotonicResult::Past`] or [`MonotonicResult::Future`].
+    ///
+    /// Note that the system time is subject to skew, so subsequent calls to `to_instant` may return
+    /// different values.
     ///
     /// # Example
     ///
@@ -78,11 +84,11 @@ impl UnixTimestamp {
     /// use relay_common::{MonotonicResult, UnixTimestamp};
     ///
     /// let timestamp = UnixTimestamp::now();
-    /// if let MonotonicResult::Instant(instant) = timestamp.to_monotonic() {
+    /// if let MonotonicResult::Instant(instant) = timestamp.to_instant() {
     ///    assert!((Instant::now() - instant) < Duration::from_millis(1));
     /// }
     /// ```
-    pub fn to_monotonic(self) -> MonotonicResult {
+    pub fn to_instant(self) -> MonotonicResult {
         let now = Self::now();
 
         if self > now {

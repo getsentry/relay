@@ -93,30 +93,20 @@ relay_common::impl_str_serde!(MetricUnit, "a metric unit string");
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "type", content = "value")]
 pub enum MetricValue {
-    /// Counts instances of an event.
-    ///
-    /// Counters can be incremented and decremented. The default operation is to increment a counter
-    /// by `1`, although increments by larger values are equally possible.
+    /// Counts instances of an event. See [`MetricType::Counter`].
     #[serde(rename = "c")]
     Counter(f64),
-    /// Builds a statistical distribution over values reported.
-    ///
-    /// Based on individual reported values, distributions allow to query the maximum, minimum, or
-    /// average of the reported values, as well as statistical quantiles. With an increasing number
-    /// of values in the distribution, its accuracy becomes approximate.
+    /// Builds a statistical distribution over values reported. See [`MetricType::Distribution`].
     #[serde(rename = "d")]
     Distribution(f64),
-    /// Counts the number of unique reported values.
+    /// Counts the number of unique reported values. See [`MetricType::Set`].
     ///
-    /// Sets allow sending arbitrary discrete values, including strings, and store the deduplicated
-    /// count. With an increasing number of unique values in the set, its accuracy becomes
-    /// approximate. It is not possible to query individual values from a set.
+    /// Set values can be specified as strings in the submission protocol. They are always hashed
+    /// into a 32-bit value and the original value is dropped. If the submission protocol contains a
+    /// 32-bit integer, it will be used directly, instead.
     #[serde(rename = "s")]
     Set(u32),
-    /// Stores absolute snapshots of values.
-    ///
-    /// Contrary to [counters](Self::Counter), which allow relative changes, gauges always store the
-    /// last absolute value submitted.
+    /// Stores absolute snapshots of values. See [`MetricType::Gauge`].
     #[serde(rename = "g")]
     Gauge(f64),
 }
@@ -147,13 +137,27 @@ impl fmt::Display for MetricValue {
 /// The type of a [`MetricValue`], determining its aggregation and evaluation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum MetricType {
-    /// Counts instances of an event. See [`MetricValue::Counter`].
+    /// Counts instances of an event.
+    ///
+    /// Counters can be incremented and decremented. The default operation is to increment a counter
+    /// by `1`, although increments by larger values are equally possible.
     Counter,
-    /// Builds a statistical distribution over values reported. See [`MetricValue::Distribution`].
+    /// Builds a statistical distribution over values reported.
+    ///
+    /// Based on individual reported values, distributions allow to query the maximum, minimum, or
+    /// average of the reported values, as well as statistical quantiles. With an increasing number
+    /// of values in the distribution, its accuracy becomes approximate.
     Distribution,
-    /// Counts the number of unique reported values. See [`MetricValue::Set`].
+    /// Counts the number of unique reported values.
+    ///
+    /// Sets allow sending arbitrary discrete values, including strings, and store the deduplicated
+    /// count. With an increasing number of unique values in the set, its accuracy becomes
+    /// approximate. It is not possible to query individual values from a set.
     Set,
-    /// Stores absolute snapshots of values. See [`MetricValue::Gauge`].
+    /// Stores absolute snapshots of values.
+    ///
+    /// Contrary to [counters](Self::Counter), which allow relative changes, gauges always store the
+    /// last absolute value submitted.
     Gauge,
 }
 
@@ -321,7 +325,7 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 ///
 /// To parse a submission payload, use [`Metric::parse_all`].
 ///
-/// # JSON representation
+/// # JSON Representation
 ///
 /// In addition to the submission protocol, metrics can be represented as structured data in JSON.
 /// Field values are the same with a single exception: The timestamp is required in JSON notation.
@@ -338,6 +342,30 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 ///   }
 /// }
 /// ```
+///
+/// # Hashing of Sets
+///
+/// Set values can be specified as strings in the submission protocol. They are always hashed
+/// into a 32-bit value and the original value is dropped. If the submission protocol contains a
+/// 32-bit integer, it will be used directly, instead.
+///
+/// **Example**:
+///
+/// ```text
+/// endpoint.users:e2546e4c-ecd0-43ad-ae27-87960e57a658|s
+/// ```
+///
+/// The above submission is represented as:
+///
+/// ```json
+/// {
+///   "name": "endpoint.users",
+///   "value": 4267882815,
+///   "type": "s",
+///   "timestamp": 4711
+/// }
+/// ```
+
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Metric {
     /// The name of the metric without its unit.

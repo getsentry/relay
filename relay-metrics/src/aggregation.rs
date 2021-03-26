@@ -12,31 +12,37 @@ use relay_common::{MonotonicResult, UnixTimestamp};
 
 use crate::{Metric, MetricType, MetricValue};
 
-/// The aggregated value stored in a [`Bucket`].
+/// The [aggregated value](Bucket::value) of a metric bucket.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
 pub enum BucketValue {
-    /// Aggregates [`MetricValue::Counter`] values by adding them.
+    /// Aggregates [`MetricValue::Counter`] values by adding them into a single value.
+    ///
     /// ```notrust
-    /// 1, 2, 2, 3 => 8
+    /// 2, 1, 3, 2 => 8
     /// ```
     #[serde(rename = "c")]
     Counter(f64),
     /// Aggregates [`MetricValue::Distribution`] values by collecting their values.
+    ///
     /// ```notrust
-    /// 1, 2, 2, 3 => [1, 2, 2, 3]
+    /// 2, 1, 3, 2 => [1, 2, 2, 3]
     /// ```
     #[serde(rename = "d")]
     Distribution(Vec<f64>),
-    /// Aggregates [`MetricValue::Set`] values by storing their values in a set.
+    /// Aggregates [`MetricValue::Set`] values by storing their hash values in a set.
+    ///
     /// ```notrust
-    /// 1, 2, 2, 3 => {1, 2, 3}
+    /// 2, 1, 3, 2 => {1, 2, 3}
     /// ```
     #[serde(rename = "s")]
     Set(BTreeSet<u32>),
-    /// Aggregates [`MetricValue::Gauge`] values by overwriting the previous value.
+    /// Aggregates [`MetricValue::Gauge`] values always retaining the single last value.
+    ///
+    /// **Note**: This aggregation is not commutative.
+    ///
     /// ```notrust
-    /// 1, 2, 2, 3 => 3
+    /// 1, 2, 3, 2 => 2
     /// ```
     #[serde(rename = "g")]
     Gauge(f64),
@@ -65,9 +71,13 @@ impl From<MetricValue> for BucketValue {
     }
 }
 
-/// Anything that can be merged into a [`BucketValue`].
-/// Currently either a [`MetricValue`] or another BucketValue.
+/// A value that can be merged into a [`BucketValue`].
+///
+/// Currently either a [`MetricValue`] or another `BucketValue`.
 trait MergeValue: Into<BucketValue> {
+    /// Merges `self` into the given `bucket_value`.
+    ///
+    /// Aggregation is performed according to the rules documented in [`BucketValue`].
     fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError>;
 }
 
@@ -127,20 +137,63 @@ impl Error for ParseBucketError {
     }
 }
 
-/// A bucket collecting metric values for a given metric type, name, time window, and tag combination.
+/// An aggregation of metric values by the [`Aggregator`].
 ///
-/// A different bucket will be created for every combination, so buckets can have the same name
-/// even if their types differ.
+/// As opposed to single metric values, bucket aggregations can carry multiple values. See
+/// [`MetricType`] for a description on how values are aggregated in buckets. Values are aggregated
+/// by metric name, type, time window, and all tags. Particularly, this allows metrics to have the
+/// same name even if their types differ.
+///
+/// See the [crate documentation](crate) for general information on Metrics.
+///
+/// # Submission Protocol
+///
+/// Buckets are always represented as JSON. The type of the `value` field is determined by the
+/// metric type, see [`BucketValue`] for a description of all valid values.
+///
+/// ```json
+/// [
+///   {
+///     "name": "endpoint.response_time",
+///     "unit": "ms",
+///     "value": [36, 49, 57, 68],
+///     "type": "d",
+///     "timestamp": 1615889440,
+///     "tags": {
+///       "route": "user_index"
+///     }
+///   },
+///   {
+///     "name": "endpoint.hits",
+///     "value": 4,
+///     "type": "c",
+///     "timestamp": 1615889440,
+///     "tags": {
+///       "route": "user_index"
+///     }
+///   }
+/// ]
+/// ```
+///
+/// To parse a submission payload, use [`Bucket::parse_all`].
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Bucket {
     /// The start time of the time window. The length of the time window is stored in the
     /// [`Aggregator`].
     pub timestamp: UnixTimestamp,
-    /// Name of the metric. See [`Metric::name`].
+    /// The name of the metric without its unit.
+    ///
+    /// See [`Metric::name`].
     pub name: String,
-    /// The value of the bucket.
+    /// The aggregated values in this bucket.
+    ///
+    /// [Counters](BucketValue::Counter) and [gauges](BucketValue::Gauge) store a single value while
+    /// [distributions](MetricType::Distribution) and [sets](MetricType::Set) store the full set of
+    /// reported values.
     #[serde(flatten)]
     pub value: BucketValue,
+    /// A list of tags adding dimensions to the metric for filtering and aggregation.
+    ///
     /// See [`Metric::tags`]. Every combination of tags results in a different bucket.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub tags: BTreeMap<String, String>,
@@ -192,49 +245,53 @@ struct BucketKey {
     tags: BTreeMap<String, String>,
 }
 /// Parameters used by the [`Aggregator`].
-///
-/// The time at which a bucket will be flushed is determined by the bucket timestamp:
-/// ```notrust
-/// bucket_end := bucket.timestamp + bucket_interval
-/// if bucket_end > now
-///     flush_time := bucket_end + initial_delay
-/// else
-///     flush_time := now + debounce_delay
-/// ```
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AggregatorConfig {
-    bucket_interval: u64,
+    /// Determines the wall clock time interval for buckets in seconds.
+    ///
+    /// Defaults to `10` seconds. Every metric is sorted into a bucket of this size based on its
+    /// timestamp. This defines the minimum granularity with which metrics can be queried later.
+    pub bucket_interval: u64,
 
-    initial_delay: u64,
+    /// The initial delay in seconds to wait before flushing a bucket.
+    ///
+    /// Defaults to `30` seconds. Before sending an aggregated bucket, this is the time Relay waits
+    /// for buckets that are being reported in real time. This should be higher than the
+    /// `debounce_delay`.
+    pub initial_delay: u64,
 
-    debounce_delay: u64,
+    /// The delay in seconds to wait before flushing a backdated buckets.
+    ///
+    /// Defaults to `10` seconds. Metrics can be sent with a past timestamp. Relay wait this time
+    /// before sending such a backdated bucket to the upsteam. This should be lower than
+    /// `initial_delay`.
+    pub debounce_delay: u64,
 }
 
 impl AggregatorConfig {
-    /// The time width of each bucket in seconds.
-    pub fn bucket_interval(&self) -> Duration {
+    /// Returns the time width buckets.
+    fn bucket_interval(&self) -> Duration {
         Duration::from_secs(self.bucket_interval)
     }
 
-    /// The initial flush delay after the end of a bucket's original time window.
-    pub fn initial_delay(&self) -> Duration {
+    /// Returns the initial flush delay after the end of a bucket's original time window.
+    fn initial_delay(&self) -> Duration {
         Duration::from_secs(self.initial_delay)
     }
 
     /// The delay to debounce backdated flushes.
-    pub fn debounce_delay(&self) -> Duration {
+    fn debounce_delay(&self) -> Duration {
         Duration::from_secs(self.debounce_delay)
     }
 
-    /// Gets the instant at which this bucket will be flushed, i.e. removed from the aggregator and
-    /// sent onwards.
+    /// Returns the instant at which a bucket should be flushed.
     ///
-    /// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets (i.e.
-    /// buckets that lie in the past) are flushed after the shorter `debounce_delay`.
+    /// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets, that
+    /// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.
     fn get_flush_time(&self, bucket_timestamp: UnixTimestamp) -> Instant {
         let now = Instant::now();
 
-        if let MonotonicResult::Instant(instant) = bucket_timestamp.to_monotonic() {
+        if let MonotonicResult::Instant(instant) = bucket_timestamp.to_instant() {
             let bucket_end = instant + self.bucket_interval();
             let initial_flush = bucket_end + self.initial_delay();
             if initial_flush > now {
@@ -304,6 +361,12 @@ impl Ord for QueuedBucket {
 }
 
 /// A message containing a vector of buckets to be flushed.
+///
+/// Use [`into_buckets`](Self::into_buckets) to access the raw [`Bucket`]s. Handlers must respond to
+/// this message with a `Result`:
+/// - If flushing has succeeded or the buckets should be dropped for any reason, respond with `Ok`.
+/// - If flushing fails and should be retried at a later time, respond with `Err` containing the
+///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
 #[derive(Clone, Debug)]
 pub struct FlushBuckets {
     buckets: Vec<Bucket>,
@@ -325,23 +388,45 @@ impl Message for FlushBuckets {
     type Result = Result<(), Vec<Bucket>>;
 }
 
-/// A collector of [`Metric`] submissions. Every project has one aggregator.
+/// A collector of [`Metric`] submissions. Every project key (DSN) has one Aggregator.
 ///
 /// # Aggregation
 ///
-/// Each metric is dispatched into the correct [`Bucket`] depending on their name, tags and timestamp.
+/// Each metric is dispatched into the a [`Bucket`] depending on its name, type, tags and timestamp.
+/// The bucket timestamp is rounded to the precision declared by the
+/// [`bucket_interval`](AggregatorConfig::bucket_interval) configuration.
+///
 /// Each bucket stores the accumulated value of submitted metrics:
 ///
-/// - `Counter`: sum of values
-/// - `Distribution`: a vector of values
-/// - `Set`: a set of values
-/// - `Gauge`: the latest submitted value
+/// - `Counter`: Sum of values.
+/// - `Distribution`: A list of values.
+/// - `Set`: A unique set of hashed values.
+/// - `Gauge`: The latest submitted value.
 ///
 /// # Flushing
 ///
-/// Buckets are flushed (i.e. sent onwards to a receiver) after its time window and a grace period
-/// have passed. Metrics with a recent timestamp are given a longer grace period than backdated metrics,
-/// which are flushed after a shorter debounce delay (see [`AggregatorConfig`]).
+/// Buckets are flushed to a receiver after their time window and a grace period have passed.
+/// Metrics with a recent timestamp are given a longer grace period than backdated metrics, which
+/// are flushed after a shorter debounce delay. See [`AggregatorConfig`] for configuration options.
+///
+/// Receivers must implement a handler for the [`FlushBuckets`] message:
+///
+/// ```
+/// struct BucketReceiver;
+///
+/// impl Actor for BucketReceiver {
+///     type Context = Context<Self>;
+/// }
+///
+/// impl Handler<FlushBuckets> for BucketReceiver {
+///     type Result = Result<(), Vec<Bucket>>;
+///
+///     fn handle(&mut self, msg: FlushBuckets, _ctx: &mut Self::Context) -> Self::Result {
+///         // Return `Ok` to consume the buckets or `Err` to send them back
+///         Err(msg.into_buckets())
+///     }
+/// }
+/// ```
 pub struct Aggregator {
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, BucketValue>,
@@ -350,8 +435,10 @@ pub struct Aggregator {
 }
 
 impl Aggregator {
-    /// Create a new aggregator and connect it to `receiver`, to which batches of buckets will
-    /// be sent in intervals based on `config`.
+    /// Create a new aggregator and connect it to `receiver`.
+    ///
+    /// The aggregator will flush a list of buckets to the receiver in regular intervals based on
+    /// the given `config`.
     pub fn new(config: AggregatorConfig, receiver: Recipient<FlushBuckets>) -> Self {
         Self {
             config,
@@ -361,8 +448,9 @@ impl Aggregator {
         }
     }
 
-    /// Determines which bucket a timestamp is assigned to. The bucket timestamp is the input timestamp
-    /// rounded by the configured `bucket_interval`.
+    /// Determines which bucket a timestamp is assigned to.
+    ///
+    /// The bucket timestamp is the input timestamp rounded by the configured `bucket_interval`.
     fn get_bucket_timestamp(&self, timestamp: UnixTimestamp) -> UnixTimestamp {
         // We know this must be UNIX timestamp because we need reliable match even with system
         // clock skew over time.
@@ -370,6 +458,9 @@ impl Aggregator {
         UnixTimestamp::from_secs(ts)
     }
 
+    /// Merges any mergeable value into the bucket at the given `key`.
+    ///
+    /// If no bucket exists for the given bucket key, a new bucket will be created.
     fn merge_in<T: MergeValue>(
         &mut self,
         key: BucketKey,
@@ -392,8 +483,9 @@ impl Aggregator {
         Ok(())
     }
 
-    /// Inserts a metric into the corresponding bucket. If no bucket exists for the given
-    /// bucket key, a new bucket will be created.
+    /// Inserts a metric into the corresponding bucket in this aggregator.
+    ///
+    /// If no bucket exists for the given bucket key, a new bucket will be created.
     pub fn insert(&mut self, metric: Metric) -> Result<(), AggregateMetricsError> {
         let key = BucketKey {
             timestamp: self.get_bucket_timestamp(metric.timestamp),
@@ -404,8 +496,9 @@ impl Aggregator {
         self.merge_in(key, metric.value)
     }
 
-    /// Merge a bucket with the existing buckets. If no bucket exists for the given
-    /// bucket key, a new bucket will be created.
+    /// Merge a preaggregated bucket into this aggregator.
+    ///
+    /// If no bucket exists for the given bucket key, a new bucket will be created.
     pub fn merge(&mut self, bucket: Bucket) -> Result<(), AggregateMetricsError> {
         let key = BucketKey {
             timestamp: bucket.timestamp,
@@ -416,7 +509,9 @@ impl Aggregator {
         self.merge_in(key, bucket.value)
     }
 
-    /// Iterates over `buckets` and merges them using [`Self::merge`].
+    /// Merges all given `buckets` into this aggregator.
+    ///
+    /// Buckets that do not exist yet will be created.
     pub fn merge_all<I>(&mut self, buckets: I) -> Result<(), AggregateMetricsError>
     where
         I: IntoIterator<Item = Bucket>,
@@ -428,6 +523,9 @@ impl Aggregator {
         Ok(())
     }
 
+    /// Sends the [`FlushBuckets`] message to the receiver.
+    ///
+    /// If the receiver returns buckets, they are merged back into the cache.
     fn try_flush(&mut self, context: &mut <Self as Actor>::Context) {
         let mut buckets = Vec::new();
 
