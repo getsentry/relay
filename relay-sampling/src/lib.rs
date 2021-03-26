@@ -724,7 +724,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(condition.matches_trace(&tc, None), failure_name);
+            assert!(condition.matches_trace(&tc, None), "{}", failure_name);
         }
     }
 
@@ -797,7 +797,7 @@ mod tests {
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             let ip_addr = Some(NetIpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
-            assert!(condition.matches_event(&evt, ip_addr), failure_name);
+            assert!(condition.matches_event(&evt, ip_addr), "{}", failure_name);
         }
     }
 
@@ -890,6 +890,7 @@ mod tests {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
                 condition.matches_trace(&tc, None) == *expected,
+                "{}",
                 failure_name
             );
         }
@@ -945,6 +946,7 @@ mod tests {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
                 condition.matches_trace(&tc, None) == *expected,
+                "{}",
                 failure_name
             );
         }
@@ -977,6 +979,7 @@ mod tests {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
                 condition.matches_trace(&tc, None) == *expected,
+                "{}",
                 failure_name
             );
         }
@@ -1022,7 +1025,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(!condition.matches_trace(&tc, None), failure_name);
+            assert!(!condition.matches_trace(&tc, None), "{}", failure_name);
         }
     }
 
