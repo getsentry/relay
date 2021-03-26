@@ -439,40 +439,40 @@ def _get_message(message_type):
         raise Exception("Invalid message_type")
 
 
-@pytest.mark.parametrize("category_type", ["session", "transaction"])
-def test_no_outcomes_rate_limit(
+@pytest.mark.parametrize("category_type", [("session", False), ("transaction", True)])
+def test_outcomes_rate_limit(
     relay_with_processing, mini_sentry, outcomes_consumer, category_type
 ):
     """
-    Tests that outcomes are not emitted for certain type of messages
+    Tests that outcomes are emitted or not, depending on the type of message.
 
-    Pass a transaction that is rate limited and check that an outcome is not emitted (although
-    the transaction does NOT go through).
-
-    NOTE: This test should start failing once transactions outcomes become supported.
-    Once that happens change test to verify that a transaction outcome IS sent
+    Pass a transaction that is rate limited and check whether a rate limit outcome is emitted.
     """
+    category, is_outcome_expected = category_type
 
     config = {"outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1}}
     relay = relay_with_processing(config)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    reason_code = "transactions are banned"
     project_config["config"]["quotas"] = [
         {
             "id": "transaction category",
-            "categories": [category_type],
+            "categories": [category],
             "limit": 0,
             "window": 1600,
-            "reasonCode": "transactions are banned",
+            "reasonCode": reason_code,
         }
     ]
     outcomes_consumer = outcomes_consumer()
 
-    message = _get_message(category_type)
+    message = _get_message(category)
     relay.send_event(project_id, message)
 
     # give relay some to handle the message (and send any outcomes it needs to send)
     time.sleep(1)
 
-    # we should not have anything on the outcome topic
-    outcomes_consumer.assert_empty()
+    if is_outcome_expected:
+        outcomes_consumer.assert_rate_limited(reason_code, categories=[category])
+    else:
+        assert not outcomes_consumer.get_outcomes()
