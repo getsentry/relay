@@ -283,8 +283,8 @@ def metrics_consumer(kafka_consumer):
 
 
 class MetricsConsumer(ConsumerBase):
-    def get_metric(self):
-        message = self.poll()
+    def get_metric(self, timeout):
+        message = self.poll(timeout)
         assert message is not None
         assert message.error() is None
 

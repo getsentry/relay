@@ -195,7 +195,7 @@ pub struct Bucket {
     /// A list of tags adding dimensions to the metric for filtering and aggregation.
     ///
     /// See [`Metric::tags`]. Every combination of tags results in a different bucket.
-    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tags: BTreeMap<String, String>,
 }
 
