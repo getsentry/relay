@@ -412,6 +412,9 @@ impl Message for FlushBuckets {
 /// Receivers must implement a handler for the [`FlushBuckets`] message:
 ///
 /// ```
+/// use actix::prelude::*;
+/// use relay_metrics::{Bucket, FlushBuckets};
+///
 /// struct BucketReceiver;
 ///
 /// impl Actor for BucketReceiver {
