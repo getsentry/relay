@@ -184,6 +184,7 @@
 <span id="181">181</span>
 <span id="182">182</span>
 <span id="183">183</span>
+<span id="184">184</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">protocol</span>::{<span class="ident">AsPair</span>, <span class="ident">LenientString</span>, <span class="ident">PairList</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">FromValue</span>, <span class="ident">Value</span>};
@@ -257,28 +258,28 @@
   &quot;bam&quot;: null
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">arr</span> <span class="op">=</span> <span class="ident">Array</span>::<span class="ident">new</span>();
-    <span class="ident">arr</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;bam&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-    )));
-    <span class="ident">arr</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;blah&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;blub&quot;</span>.<span class="ident">to_string</span>()),
-    )));
-    <span class="ident">arr</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;bool&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;True&quot;</span>.<span class="ident">to_string</span>()),
-    )));
-    <span class="ident">arr</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;foo-bar&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;baz&quot;</span>.<span class="ident">to_string</span>()),
-    )));
-    <span class="ident">arr</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;non-string&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;42&quot;</span>.<span class="ident">to_string</span>()),
-    )));
-
+    <span class="kw">let</span> <span class="ident">arr</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
+        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;bam&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
+        )),
+        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;blah&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;blub&quot;</span>.<span class="ident">to_string</span>()),
+        )),
+        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;bool&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;True&quot;</span>.<span class="ident">to_string</span>()),
+        )),
+        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;foo-bar&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;baz&quot;</span>.<span class="ident">to_string</span>()),
+        )),
+        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;non-string&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;42&quot;</span>.<span class="ident">to_string</span>()),
+        )),
+    ];
     <span class="kw">let</span> <span class="ident">tags</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Tags</span>(<span class="ident">arr</span>.<span class="ident">into</span>()));
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">tags</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
 }
@@ -337,27 +338,28 @@
   ]
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">arr</span> <span class="op">=</span> <span class="ident">Array</span>::<span class="ident">new</span>();
-    <span class="ident">arr</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;bool&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;True&quot;</span>.<span class="ident">to_string</span>()),
-    )));
-    <span class="ident">arr</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;foo-bar&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;baz&quot;</span>.<span class="ident">to_string</span>()),
-    )));
-    <span class="ident">arr</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;23&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;42&quot;</span>.<span class="ident">to_string</span>()),
-    )));
-    <span class="ident">arr</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;blah&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;blub&quot;</span>.<span class="ident">to_string</span>()),
-    )));
-    <span class="ident">arr</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;bam&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-    )));
+    <span class="kw">let</span> <span class="ident">arr</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
+        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;bool&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;True&quot;</span>.<span class="ident">to_string</span>()),
+        )),
+        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;foo-bar&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;baz&quot;</span>.<span class="ident">to_string</span>()),
+        )),
+        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;23&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;42&quot;</span>.<span class="ident">to_string</span>()),
+        )),
+        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;blah&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;blub&quot;</span>.<span class="ident">to_string</span>()),
+        )),
+        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;bam&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
+        )),
+    ];
 
     <span class="kw">let</span> <span class="ident">tags</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Tags</span>(<span class="ident">arr</span>.<span class="ident">into</span>()));
     <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Event</span> {
@@ -369,4 +371,5 @@
     <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>(), <span class="ident">output</span>);
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../../";window.currentCrate = "relay_general";</script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general"></div>
+    <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

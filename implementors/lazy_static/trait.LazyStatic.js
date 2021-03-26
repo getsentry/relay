@@ -1,3 +1,3 @@
 (function() {var implementors = {};
-implementors["relay"] = [{"text":"impl LazyStatic for THEME","synthetic":false,"types":[]}];
+implementors["relay"] = [{"text":"impl <a class=\"trait\" href=\"https://docs.rs/lazy_static/1.4.0/lazy_static/trait.LazyStatic.html\" title=\"trait lazy_static::LazyStatic\">LazyStatic</a> for <a class=\"struct\" href=\"relay/utils/struct.THEME.html\" title=\"struct relay::utils::THEME\">THEME</a>","synthetic":false,"types":["relay::utils::THEME"]}];
 if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

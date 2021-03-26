@@ -747,7 +747,6 @@
 <span id="744">744</span>
 <span id="745">745</span>
 <span id="746">746</span>
-<span id="747">747</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">FromStr</span>;
@@ -1344,11 +1343,10 @@
         <span class="ident">dist</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;mydist&quot;</span>.<span class="ident">to_string</span>()),
         <span class="ident">environment</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;myenv&quot;</span>.<span class="ident">to_string</span>()),
         <span class="ident">tags</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">items</span> <span class="op">=</span> <span class="ident">Array</span>::<span class="ident">new</span>();
-            <span class="ident">items</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
+            <span class="kw">let</span> <span class="ident">items</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">TagEntry</span>(
                 <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;tag&quot;</span>.<span class="ident">to_string</span>()),
                 <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>()),
-            )));
+            ))];
             <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Tags</span>(<span class="ident">items</span>.<span class="ident">into</span>()))
         },
         <span class="ident">extra</span>: {
@@ -1497,4 +1495,5 @@
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">output</span>, <span class="ident">event</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../../";window.currentCrate = "relay_general";</script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general"></div>
+    <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

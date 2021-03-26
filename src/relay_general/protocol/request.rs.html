@@ -973,9 +973,6 @@
 <span id="970">970</span>
 <span id="971">971</span>
 <span id="972">972</span>
-<span id="973">973</span>
-<span id="974">974</span>
-<span id="975">975</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>::{<span class="ident">FromIterator</span>, <span class="ident">IntoIterator</span>};
 
@@ -1488,23 +1485,24 @@
   &quot;x-sentry&quot;: &quot;version=8&quot;
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">headers</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
-    <span class="ident">headers</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>((
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;-Other-&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;header&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-    )));
-    <span class="ident">headers</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>((
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;Accept&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;application/json&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-    )));
-    <span class="ident">headers</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>((
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;WWW-Authenticate&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;basic&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-    )));
-    <span class="ident">headers</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>((
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;X-Sentry&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;version=8&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-    )));
+    <span class="kw">let</span> <span class="ident">headers</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
+        <span class="ident">Annotated</span>::<span class="ident">new</span>((
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;-Other-&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;header&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+        )),
+        <span class="ident">Annotated</span>::<span class="ident">new</span>((
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;Accept&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;application/json&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+        )),
+        <span class="ident">Annotated</span>::<span class="ident">new</span>((
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;WWW-Authenticate&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;basic&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+        )),
+        <span class="ident">Annotated</span>::<span class="ident">new</span>((
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;X-Sentry&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;version=8&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+        )),
+    ];
 
     <span class="kw">let</span> <span class="ident">headers</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Headers</span>(<span class="ident">PairList</span>(<span class="ident">headers</span>)));
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">headers</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
@@ -1516,11 +1514,10 @@
   [&quot;accept&quot;, &quot;application/json&quot;]
 ]&quot;#</span>;
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">headers</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
-    <span class="ident">headers</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>((
+    <span class="kw">let</span> <span class="ident">headers</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Annotated</span>::<span class="ident">new</span>((
         <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;Accept&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
         <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;application/json&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-    )));
+    ))];
 
     <span class="kw">let</span> <span class="ident">headers</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Headers</span>(<span class="ident">PairList</span>(<span class="ident">headers</span>)));
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">headers</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
@@ -1657,19 +1654,16 @@
         )),
         <span class="ident">fragment</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;home&quot;</span>.<span class="ident">to_string</span>()),
         <span class="ident">cookies</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Cookies</span>({
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
-            <span class="ident">map</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>((
+            <span class="ident">PairList</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Annotated</span>::<span class="ident">new</span>((
                 <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;GOOGLE&quot;</span>.<span class="ident">to_string</span>()),
                 <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;1&quot;</span>.<span class="ident">to_string</span>()),
-            )));
-            <span class="ident">PairList</span>(<span class="ident">map</span>)
+            ))])
         })),
         <span class="ident">headers</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Headers</span>({
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">headers</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
-            <span class="ident">headers</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>((
+            <span class="kw">let</span> <span class="ident">headers</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Annotated</span>::<span class="ident">new</span>((
                 <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;Referer&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
                 <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;https://google.com/&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-            )));
+            ))];
             <span class="ident">PairList</span>(<span class="ident">headers</span>)
         })),
         <span class="ident">env</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>({
@@ -1777,19 +1771,20 @@
 <span class="kw">fn</span> <span class="ident">test_cookies_parsing</span>() {
     <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">&quot;\&quot; PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;\&quot;&quot;</span>;
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
-    <span class="ident">map</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>((
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;PHPSESSID&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;298zf09hf012fh2&quot;</span>.<span class="ident">to_string</span>()),
-    )));
-    <span class="ident">map</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>((
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;csrftoken&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;u32t4o3tb3gg43&quot;</span>.<span class="ident">to_string</span>()),
-    )));
-    <span class="ident">map</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>((
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;_gat&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;1&quot;</span>.<span class="ident">to_string</span>()),
-    )));
+    <span class="kw">let</span> <span class="ident">map</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
+        <span class="ident">Annotated</span>::<span class="ident">new</span>((
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;PHPSESSID&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;298zf09hf012fh2&quot;</span>.<span class="ident">to_string</span>()),
+        )),
+        <span class="ident">Annotated</span>::<span class="ident">new</span>((
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;csrftoken&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;u32t4o3tb3gg43&quot;</span>.<span class="ident">to_string</span>()),
+        )),
+        <span class="ident">Annotated</span>::<span class="ident">new</span>((
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;_gat&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;1&quot;</span>.<span class="ident">to_string</span>()),
+        )),
+    ];
 
     <span class="kw">let</span> <span class="ident">cookies</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Cookies</span>(<span class="ident">PairList</span>(<span class="ident">map</span>)));
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">cookies</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
@@ -1800,19 +1795,17 @@
     <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;cookies&quot;:[[&quot;foo&quot;,&quot;bar&quot;],[&quot;invalid&quot;, 42],[&quot;none&quot;,null]]}&quot;#</span>;
     <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;cookies&quot;:[[&quot;foo&quot;,&quot;bar&quot;],[&quot;invalid&quot;,null],[&quot;none&quot;,null]],&quot;_meta&quot;:{&quot;cookies&quot;:{&quot;1&quot;:{&quot;1&quot;:{&quot;&quot;:{&quot;err&quot;:[[&quot;invalid_data&quot;,{&quot;reason&quot;:&quot;expected a string&quot;}]],&quot;val&quot;:42}}}}}}&quot;#</span>;
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
-    <span class="ident">map</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>((
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>()),
-    )));
-    <span class="ident">map</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>((
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;invalid&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">from_error</span>(<span class="ident">Error</span>::<span class="ident">expected</span>(<span class="string">&quot;a string&quot;</span>), <span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">I64</span>(<span class="number">42</span>))),
-    )));
-    <span class="ident">map</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>((
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;none&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-    )));
+    <span class="kw">let</span> <span class="ident">map</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
+        <span class="ident">Annotated</span>::<span class="ident">new</span>((
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>()),
+        )),
+        <span class="ident">Annotated</span>::<span class="ident">new</span>((
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;invalid&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">from_error</span>(<span class="ident">Error</span>::<span class="ident">expected</span>(<span class="string">&quot;a string&quot;</span>), <span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">I64</span>(<span class="number">42</span>))),
+        )),
+        <span class="ident">Annotated</span>::<span class="ident">new</span>((<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;none&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Annotated</span>::<span class="ident">empty</span>())),
+    ];
 
     <span class="kw">let</span> <span class="ident">cookies</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Cookies</span>(<span class="ident">PairList</span>(<span class="ident">map</span>)));
     <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Request</span> {
@@ -1827,15 +1820,16 @@
 <span class="kw">fn</span> <span class="ident">test_cookies_object</span>() {
     <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;foo&quot;:&quot;bar&quot;, &quot;invalid&quot;: 42}&quot;#</span>;
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
-    <span class="ident">map</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>((
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>()),
-    )));
-    <span class="ident">map</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>((
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;invalid&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">Annotated</span>::<span class="ident">from_error</span>(<span class="ident">Error</span>::<span class="ident">expected</span>(<span class="string">&quot;a string&quot;</span>), <span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">I64</span>(<span class="number">42</span>))),
-    )));
+    <span class="kw">let</span> <span class="ident">map</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
+        <span class="ident">Annotated</span>::<span class="ident">new</span>((
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>()),
+        )),
+        <span class="ident">Annotated</span>::<span class="ident">new</span>((
+            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;invalid&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">Annotated</span>::<span class="ident">from_error</span>(<span class="ident">Error</span>::<span class="ident">expected</span>(<span class="string">&quot;a string&quot;</span>), <span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">I64</span>(<span class="number">42</span>))),
+        )),
+    ];
 
     <span class="kw">let</span> <span class="ident">cookies</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Cookies</span>(<span class="ident">PairList</span>(<span class="ident">map</span>)));
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">cookies</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
@@ -1953,4 +1947,5 @@
     <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">request</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>(), <span class="ident">output</span>);
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../../";window.currentCrate = "relay_general";</script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general"></div>
+    <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>
