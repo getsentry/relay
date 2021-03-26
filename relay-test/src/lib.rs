@@ -21,12 +21,16 @@
 //! });
 //! ```
 
-use std::cell::RefCell;
+use std::{
+    cell::RefCell,
+    time::{Duration, Instant},
+};
 
 use actix::{System, SystemRunner};
 use futures::{future, IntoFuture};
 
 pub use actix_web::test::*;
+use tokio_timer::Delay;
 
 thread_local! {
     static SYSTEM: RefCell<Inner> = RefCell::new(Inner::new());
@@ -101,4 +105,21 @@ where
         inner.set_current();
         inner.runner().block_on(future::lazy(future))
     })
+}
+
+/// Returns a future which completes after the requested delay.
+/// ```
+/// use std::time::Duration;
+/// use futures::future::Future;
+///
+/// relay_test::setup();
+/// relay_test::block_fn(|| {
+///     relay_test::delay(Duration::from_millis(1000)).and_then(|_| {
+///         println!("One second has passed.");
+///         Ok(())
+///     })
+/// });
+/// ```
+pub fn delay(timeout: Duration) -> Delay {
+    Delay::new(Instant::now() + timeout)
 }

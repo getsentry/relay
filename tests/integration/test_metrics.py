@@ -33,12 +33,13 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     relay.send_metrics(project_id, metrics_payload)
 
     metric = metrics_consumer.get_metric()
+
     assert metric == {
         "org_id": 1,
         "project_id": project_id,
         "name": "foo",
         "unit": "",
-        "value": 42,
+        "value": 42.0,
         "type": "c",
         "timestamp": timestamp,
     }

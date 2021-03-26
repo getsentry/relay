@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt::{self, Write};
 use std::iter::FusedIterator;
 
+use hash32::{FnvHasher, Hasher};
 use serde::{Deserialize, Serialize};
 
 pub use relay_common::UnixTimestamp;
@@ -88,58 +89,58 @@ impl std::str::FromStr for MetricUnit {
 
 relay_common::impl_str_serde!(MetricUnit, "a metric unit string");
 
-/// The [value](Metric::value) of a metric.
-///
-/// [Distributions](MetricType::Distribution) and [counters](MetricType::Counter) require numeric values
-/// which can either be integral or floating point. In contrast, [sets](MetricType::Set) and
-/// [gauges](MetricType::Gauge) can store any unique value including custom strings.
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-#[serde(untagged)]
+/// The [typed value](Metric::value) of a metric.
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(tag = "type", content = "value")]
 pub enum MetricValue {
-    /// A signed integral value.
-    Integer(i64),
-    /// A signed floating point value.
-    Float(f64),
-    /// A custom string value.
+    /// Counts instances of an event. See [`MetricType::Counter`].
+    #[serde(rename = "c")]
+    Counter(f64),
+    /// Builds a statistical distribution over values reported. See [`MetricType::Distribution`].
+    #[serde(rename = "d")]
+    Distribution(f64),
+    /// Counts the number of unique reported values. See [`MetricType::Set`].
     ///
-    /// This value cannot be used in numeric metrics.
-    Custom(String),
-    // TODO: Uuid(Uuid),
+    /// Set values can be specified as strings in the submission protocol. They are always hashed
+    /// into a 32-bit value and the original value is dropped. If the submission protocol contains a
+    /// 32-bit integer, it will be used directly, instead.
+    #[serde(rename = "s")]
+    Set(u32),
+    /// Stores absolute snapshots of values. See [`MetricType::Gauge`].
+    #[serde(rename = "g")]
+    Gauge(f64),
+}
+
+impl MetricValue {
+    /// Returns the type of this value.
+    pub fn ty(&self) -> MetricType {
+        match self {
+            Self::Counter(_) => MetricType::Counter,
+            Self::Distribution(_) => MetricType::Distribution,
+            Self::Set(_) => MetricType::Set,
+            Self::Gauge(_) => MetricType::Gauge,
+        }
+    }
 }
 
 impl fmt::Display for MetricValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MetricValue::Float(float) => float.fmt(f),
-            MetricValue::Integer(int) => int.fmt(f),
-            MetricValue::Custom(string) => string.fmt(f),
+            MetricValue::Counter(value) => value.fmt(f),
+            MetricValue::Distribution(value) => value.fmt(f),
+            MetricValue::Set(value) => value.fmt(f),
+            MetricValue::Gauge(value) => value.fmt(f),
         }
     }
 }
 
-impl std::str::FromStr for MetricValue {
-    type Err = ParseMetricError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(if let Ok(int) = s.parse() {
-            Self::Integer(int)
-        } else if let Ok(float) = s.parse() {
-            Self::Float(float)
-        } else {
-            Self::Custom(s.to_owned())
-        })
-    }
-}
-
-/// The [type](Metric::ty) of a metric, determining its aggregation and evaluation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// The type of a [`MetricValue`], determining its aggregation and evaluation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum MetricType {
     /// Counts instances of an event.
     ///
     /// Counters can be incremented and decremented. The default operation is to increment a counter
     /// by `1`, although increments by larger values are equally possible.
-    ///
-    /// This metric requires numeric values.
     Counter,
     /// Builds a statistical distribution over values reported.
     ///
@@ -149,9 +150,9 @@ pub enum MetricType {
     Distribution,
     /// Counts the number of unique reported values.
     ///
-    /// Sets allow sending arbitrary discrete values and store the deduplicated count. With an
-    /// increasing number of unique values in the set, its accuracy becomes approximate. It is not
-    /// possible to query individual values from a set.
+    /// Sets allow sending arbitrary discrete values, including strings, and store the deduplicated
+    /// count. With an increasing number of unique values in the set, its accuracy becomes
+    /// approximate. It is not possible to query individual values from a set.
     Set,
     /// Stores absolute snapshots of values.
     ///
@@ -230,14 +231,41 @@ fn parse_name_unit(string: &str) -> Option<(String, MetricUnit)> {
     Some((name.to_owned(), unit))
 }
 
+/// Hashes the given set value.
+///
+/// Sets only guarantee 32-bit accuracy, but arbitrary strings are allowed on the protocol. Upon
+/// parsing, they are hashed and only used as hashes subsequently.
+fn hash_set_value(string: &str) -> u32 {
+    let mut hasher = FnvHasher::default();
+    hasher.write(string.as_bytes());
+    hasher.finish()
+}
+
+/// Parses a metric value given its type.
+///
+/// Returns `None` if the value is invalid for the given type.
+fn parse_value(string: &str, ty: MetricType) -> Option<MetricValue> {
+    Some(match ty {
+        MetricType::Counter => MetricValue::Counter(string.parse().ok()?),
+        MetricType::Distribution => MetricValue::Distribution(string.parse().ok()?),
+        MetricType::Set => {
+            MetricValue::Set(string.parse().unwrap_or_else(|_| hash_set_value(string)))
+        }
+        MetricType::Gauge => MetricValue::Gauge(string.parse().ok()?),
+    })
+}
+
 /// Parses the `name[@unit]:value` part of a metric string.
 ///
 /// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if any of the components is
 /// invalid.
-fn parse_name_unit_value(string: &str) -> Option<(String, MetricUnit, MetricValue)> {
+fn parse_name_unit_value(
+    string: &str,
+    ty: MetricType,
+) -> Option<(String, MetricUnit, MetricValue)> {
     let mut components = string.splitn(2, ':');
     let (name, unit) = components.next().and_then(parse_name_unit)?;
-    let value = components.next().and_then(|s| s.parse().ok())?;
+    let value = components.next().and_then(|s| parse_value(s, ty))?;
     Some((name, unit, value))
 }
 
@@ -297,7 +325,7 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 ///
 /// To parse a submission payload, use [`Metric::parse_all`].
 ///
-/// # JSON representation
+/// # JSON Representation
 ///
 /// In addition to the submission protocol, metrics can be represented as structured data in JSON.
 /// Field values are the same with a single exception: The timestamp is required in JSON notation.
@@ -314,6 +342,30 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 ///   }
 /// }
 /// ```
+///
+/// # Hashing of Sets
+///
+/// Set values can be specified as strings in the submission protocol. They are always hashed
+/// into a 32-bit value and the original value is dropped. If the submission protocol contains a
+/// 32-bit integer, it will be used directly, instead.
+///
+/// **Example**:
+///
+/// ```text
+/// endpoint.users:e2546e4c-ecd0-43ad-ae27-87960e57a658|s
+/// ```
+///
+/// The above submission is represented as:
+///
+/// ```json
+/// {
+///   "name": "endpoint.users",
+///   "value": 4267882815,
+///   "type": "s",
+///   "timestamp": 4711
+/// }
+/// ```
+
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Metric {
     /// The name of the metric without its unit.
@@ -335,10 +387,8 @@ pub struct Metric {
     /// [Distributions](MetricType::Distribution) and [counters](MetricType::Counter) require numeric
     /// values which can either be integral or floating point. In contrast, [sets](MetricType::Set)
     /// and [gauges](MetricType::Gauge) can store any unique value including custom strings.
+    #[serde(flatten)]
     pub value: MetricValue,
-    /// The type of the metric, determining its aggregation and evaluation.
-    #[serde(rename = "type")]
-    pub ty: MetricType,
     /// The timestamp for this metric value.
     ///
     /// In the SDK protocol, timestamps are optional and preceded with a single quote `'`. Supply a
@@ -360,14 +410,14 @@ impl Metric {
     fn parse_str(string: &str, timestamp: UnixTimestamp) -> Option<Self> {
         let mut components = string.split('|');
 
-        let (name, unit, value) = components.next().and_then(parse_name_unit_value)?;
+        let name_value_str = components.next()?;
         let ty = components.next().and_then(|s| s.parse().ok())?;
+        let (name, unit, value) = parse_name_unit_value(name_value_str, ty)?;
 
         let mut metric = Self {
             name,
             unit,
             value,
-            ty,
             timestamp,
             tags: BTreeMap::new(),
         };
@@ -441,8 +491,7 @@ impl Metric {
     /// let metric = Metric {
     ///     name: "hits".to_owned(),
     ///     unit: MetricUnit::None,
-    ///     value: MetricValue::Integer(1),
-    ///     ty: MetricType::Counter,
+    ///     value: MetricValue::Counter(1.0),
     ///     timestamp: UnixTimestamp::from_secs(1615889449),
     ///     tags: BTreeMap::new(),
     /// };
@@ -456,7 +505,14 @@ impl Metric {
             write!(string, "@{}", self.unit).ok();
         }
 
-        write!(string, ":{}|{}|'{}", self.value, self.ty, self.timestamp).ok();
+        write!(
+            string,
+            ":{}|{}|'{}",
+            self.value,
+            self.value.ty(),
+            self.timestamp
+        )
+        .ok();
 
         for (index, (key, value)) in self.tags.iter().enumerate() {
             match index {
@@ -538,10 +594,9 @@ mod tests {
         Metric {
             name: "foo",
             unit: None,
-            value: Integer(
-                42,
+            value: Counter(
+                42.0,
             ),
-            ty: Counter,
             timestamp: UnixTimestamp(4711),
             tags: {},
         }
@@ -557,10 +612,9 @@ mod tests {
         Metric {
             name: "foo",
             unit: None,
-            value: Float(
+            value: Distribution(
                 17.5,
             ),
-            ty: Distribution,
             timestamp: UnixTimestamp(4711),
             tags: {},
         }
@@ -572,7 +626,7 @@ mod tests {
         let s = "foo:17.5|h"; // common alias for distribution
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.ty, MetricType::Distribution);
+        assert_eq!(metric.value, MetricValue::Distribution(17.5));
     }
 
     #[test]
@@ -584,10 +638,9 @@ mod tests {
         Metric {
             name: "foo",
             unit: None,
-            value: Custom(
-                "e2546e4c-ecd0-43ad-ae27-87960e57a658",
+            value: Set(
+                4267882815,
             ),
-            ty: Set,
             timestamp: UnixTimestamp(4711),
             tags: {},
         }
@@ -603,10 +656,9 @@ mod tests {
         Metric {
             name: "foo",
             unit: None,
-            value: Integer(
-                42,
+            value: Gauge(
+                42.0,
             ),
-            ty: Gauge,
             timestamp: UnixTimestamp(4711),
             tags: {},
         }
@@ -679,8 +731,7 @@ mod tests {
         let metric = Metric {
             name: "foo".to_owned(),
             unit: MetricUnit::None,
-            value: MetricValue::Integer(42),
-            ty: MetricType::Counter,
+            value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(4711),
             tags: BTreeMap::new(),
         };
@@ -693,8 +744,7 @@ mod tests {
         let metric = Metric {
             name: "foo".to_owned(),
             unit: MetricUnit::Duration(DurationPrecision::Second),
-            value: MetricValue::Integer(42),
-            ty: MetricType::Counter,
+            value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(4711),
             tags: BTreeMap::new(),
         };
@@ -711,8 +761,7 @@ mod tests {
         let metric = Metric {
             name: "foo".to_owned(),
             unit: MetricUnit::None,
-            value: MetricValue::Integer(42),
-            ty: MetricType::Counter,
+            value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(4711),
             tags,
         };
@@ -733,8 +782,8 @@ mod tests {
         let json = r#"{
   "name": "foo",
   "unit": "s",
-  "value": 42,
   "type": "c",
+  "value": 42.0,
   "timestamp": 4711,
   "tags": {
     "empty": "",
@@ -749,10 +798,9 @@ mod tests {
             unit: Duration(
                 Second,
             ),
-            value: Integer(
-                42,
+            value: Counter(
+                42.0,
             ),
-            ty: Counter,
             timestamp: UnixTimestamp(4711),
             tags: {
                 "empty": "",
@@ -780,10 +828,9 @@ mod tests {
         Metric {
             name: "foo",
             unit: None,
-            value: Integer(
-                42,
+            value: Counter(
+                42.0,
             ),
-            ty: Counter,
             timestamp: UnixTimestamp(4711),
             tags: {},
         }

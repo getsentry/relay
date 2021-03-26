@@ -1452,6 +1452,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash32"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4041af86e63ac4298ce40e5cca669066e75b6f1aa3390fe2561ffa5e1d9f4cc"
+dependencies = [
+ "byteorder",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3233,8 +3242,13 @@ dependencies = [
 name = "relay-metrics"
 version = "21.3.0"
 dependencies = [
+ "actix",
+ "futures 0.1.29",
+ "hash32",
  "insta",
  "relay-common",
+ "relay-log",
+ "relay-test",
  "serde",
  "serde_json",
 ]
@@ -3341,6 +3355,7 @@ dependencies = [
  "actix-web",
  "futures 0.1.29",
  "relay-log",
+ "tokio-timer",
 ]
 
 [[package]]
