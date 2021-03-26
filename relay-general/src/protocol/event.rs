@@ -10,9 +10,9 @@ use serde::{Serialize, Serializer};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    Breadcrumb, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt, ExpectStaple,
-    Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics, Request, Span,
-    Stacktrace, Tags, TemplateInfo, Thread, Timestamp, User, Values,
+    Breadcrumb, Breakdowns, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt,
+    ExpectStaple, Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics,
+    Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
@@ -501,6 +501,11 @@ pub struct Event {
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub measurements: Annotated<Measurements>,
 
+    /// Breakdowns which holds product-defined values such as span operation breakdowns.
+    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(omit_from_schema)] // we only document error events for now
+    pub breakdowns: Annotated<Breakdowns>,
+
     /// Internal ingestion and processing metrics.
     ///
     /// This value should not be ingested and will be overwritten by the store normalizer.
@@ -588,11 +593,10 @@ fn test_event_roundtrip() {
         dist: Annotated::new("mydist".to_string()),
         environment: Annotated::new("myenv".to_string()),
         tags: {
-            let mut items = Array::new();
-            items.push(Annotated::new(TagEntry(
+            let items = vec![Annotated::new(TagEntry(
                 Annotated::new("tag".to_string()),
                 Annotated::new("value".to_string()),
-            )));
+            ))];
             Annotated::new(Tags(items.into()))
         },
         extra: {

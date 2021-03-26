@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Make request url scrubbable. ([#955](https://github.com/getsentry/relay/pull/955))
+- Remove dependent items from envelope when dropping transaction item. ([#960](https://github.com/getsentry/relay/pull/960))
 
 **Internal**:
 
@@ -12,6 +13,8 @@
 - Add experimental metrics ingestion without bucketing or pre-aggregation. ([#948](https://github.com/getsentry/relay/pull/948))
 - Change HTTP response for upstream timeouts from 502 to 504. ([#859](https://github.com/getsentry/relay/pull/859))
 - Disallow empty metric names, require alphabetic start. ([#952](https://github.com/getsentry/relay/pull/952))
+- Add rule id to outcomes coming from transaction sampling. ([#953](https://github.com/getsentry/relay/pull/953))
+- Add support for breakdowns ingestion. ([#934](https://github.com/getsentry/relay/pull/934))
 
 ## 21.3.0
 
