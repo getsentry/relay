@@ -721,7 +721,103 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_counters() {
+    fn test_parse_buckets() {
+        let json = r#"[
+          {
+            "name": "endpoint.response_time",
+            "unit": "ms",
+            "value": [36, 49, 57, 68],
+            "type": "d",
+            "timestamp": 1615889440,
+            "tags": {
+                "route": "user_index"
+            }
+          }
+        ]"#;
+
+        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+        insta::assert_debug_snapshot!(buckets, @r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1615889440),
+                name: "endpoint.response_time",
+                value: Distribution(
+                    [
+                        36.0,
+                        49.0,
+                        57.0,
+                        68.0,
+                    ],
+                ),
+                tags: {
+                    "route": "user_index",
+                },
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_parse_bucket_defaults() {
+        let json = r#"[
+          {
+            "name": "endpoint.hits",
+            "value": 4,
+            "type": "c",
+            "timestamp": 1615889440
+          }
+        ]"#;
+
+        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+        insta::assert_debug_snapshot!(buckets, @r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1615889440),
+                name: "endpoint.hits",
+                value: Counter(
+                    4.0,
+                ),
+                tags: {},
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_buckets_roundtrip() {
+        let json = r#"[
+  {
+    "timestamp": 1615889440,
+    "name": "endpoint.response_time",
+    "type": "d",
+    "value": [
+      36.0,
+      49.0,
+      57.0,
+      68.0
+    ],
+    "tags": {
+      "route": "user_index"
+    }
+  },
+  {
+    "timestamp": 1615889440,
+    "name": "endpoint.hits",
+    "type": "c",
+    "value": 4.0,
+    "tags": {
+      "route": "user_index"
+    }
+  }
+]"#;
+
+        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+        let serialized = serde_json::to_string_pretty(&buckets).unwrap();
+        assert_eq!(json, serialized);
+    }
+
+    #[test]
+    fn test_aggregator_merge_counters() {
         relay_test::setup();
 
         let config = AggregatorConfig::default();
@@ -750,7 +846,7 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_similar_timestamps() {
+    fn test_aggregator_merge_timestamps() {
         relay_test::setup();
         let config = AggregatorConfig {
             bucket_interval: 10,
@@ -801,7 +897,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mixup_types() {
+    fn test_aggregator_mixup_types() {
         relay_test::setup();
         let config = AggregatorConfig {
             bucket_interval: 10,
