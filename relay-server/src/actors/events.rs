@@ -604,7 +604,7 @@ impl EventProcessor {
         // instead of a regular `Event` item.
         event.ty = Annotated::new(match report_type {
             SecurityReportType::Csp => EventType::Csp,
-            SecurityReportType::ExpectCt => EventType::ExpectCT,
+            SecurityReportType::ExpectCt => EventType::ExpectCt,
             SecurityReportType::ExpectStaple => EventType::ExpectStaple,
             SecurityReportType::Hpkp => EventType::Hpkp,
         });

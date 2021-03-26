@@ -105,7 +105,7 @@ impl ItemType {
         match event_type {
             EventType::Default | EventType::Error => ItemType::Event,
             EventType::Transaction => ItemType::Transaction,
-            EventType::Csp | EventType::Hpkp | EventType::ExpectCT | EventType::ExpectStaple => {
+            EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
                 ItemType::Security
             }
         }

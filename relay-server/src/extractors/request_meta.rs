@@ -36,22 +36,15 @@ pub enum BadEventMeta {
 
     #[fail(display = "bad sentry DSN public key")]
     BadPublicKey(ParseProjectKeyError),
-
-    #[fail(display = "bad project key: project does not exist")]
-    BadProjectKey,
-
-    #[fail(display = "could not schedule event processing")]
-    ScheduleFailed,
 }
 
 impl ResponseError for BadEventMeta {
     fn error_response(&self) -> HttpResponse {
         let mut builder = match *self {
-            Self::MissingAuth | Self::MultipleAuth | Self::BadProjectKey | Self::BadAuth(_) => {
+            Self::MissingAuth | Self::MultipleAuth | Self::BadAuth(_) => {
                 HttpResponse::Unauthorized()
             }
             Self::BadProject(_) | Self::BadPublicKey(_) => HttpResponse::BadRequest(),
-            Self::ScheduleFailed => HttpResponse::ServiceUnavailable(),
         };
 
         builder.json(&ApiErrorResponse::from_fail(self))
