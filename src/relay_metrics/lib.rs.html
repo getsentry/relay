@@ -22,6 +22,43 @@
 <span id="19">19</span>
 <span id="20">20</span>
 <span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Metric protocol, aggregation and processing for Sentry.</span>
 <span class="doccomment">//!</span>
@@ -39,10 +76,47 @@
 <span class="doccomment">//! endpoint.response_time@ms:57|d|&#39;1615889449|#route:user_index</span>
 <span class="doccomment">//! endpoint.hits:1|c|&#39;1615889449|#route:user_index</span>
 <span class="doccomment">//! ```</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! # Aggregation</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Relay accumulates all metrics in [time buckets](Bucket) before sending them onwards. Aggregation</span>
+<span class="doccomment">//! is handled by the [`Aggregator`], which should be created once per Project Key (DSN). It flushes</span>
+<span class="doccomment">//! aggregates in regular intervals, either shortly after their original time window has passed or</span>
+<span class="doccomment">//! with a debounce delay for backdated submissions.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! **Warning**: With chained Relays submission delays accumulate.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Aggregate buckets are encoded in JSON with the following schema:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! ```json</span>
+<span class="doccomment">//! [</span>
+<span class="doccomment">//!   {</span>
+<span class="doccomment">//!     &quot;name&quot;: &quot;endpoint.response_time&quot;,</span>
+<span class="doccomment">//!     &quot;unit&quot;: &quot;ms&quot;,</span>
+<span class="doccomment">//!     &quot;value&quot;: [36, 49, 57, 68],</span>
+<span class="doccomment">//!     &quot;type&quot;: &quot;d&quot;,</span>
+<span class="doccomment">//!     &quot;timestamp&quot;: 1615889440,</span>
+<span class="doccomment">//!     &quot;tags&quot;: {</span>
+<span class="doccomment">//!       &quot;route&quot;: &quot;user_index&quot;</span>
+<span class="doccomment">//!     }</span>
+<span class="doccomment">//!   },</span>
+<span class="doccomment">//!   {</span>
+<span class="doccomment">//!     &quot;name&quot;: &quot;endpoint.hits&quot;,</span>
+<span class="doccomment">//!     &quot;value&quot;: 4,</span>
+<span class="doccomment">//!     &quot;type&quot;: &quot;c&quot;,</span>
+<span class="doccomment">//!     &quot;timestamp&quot;: 1615889440,</span>
+<span class="doccomment">//!     &quot;tags&quot;: {</span>
+<span class="doccomment">//!       &quot;route&quot;: &quot;user_index&quot;</span>
+<span class="doccomment">//!     }</span>
+<span class="doccomment">//!   }</span>
+<span class="doccomment">//! ]</span>
+<span class="doccomment">//! ```</span>
 <span class="attribute">#![<span class="ident">warn</span>(<span class="ident">missing_docs</span>)]</span>
 
+<span class="kw">mod</span> <span class="ident">aggregation</span>;
 <span class="kw">mod</span> <span class="ident">protocol</span>;
 
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">aggregation</span>::<span class="kw-2">*</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">protocol</span>::<span class="kw-2">*</span>;
 </pre></div>
 </section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_metrics"></div>

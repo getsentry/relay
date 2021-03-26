@@ -680,8 +680,6 @@
 <span id="677">677</span>
 <span id="678">678</span>
 <span id="679">679</span>
-<span id="680">680</span>
-<span id="681">681</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module contains the actor that forwards events and attachments to the Sentry store.</span>
 <span class="doccomment">//! The actor uses kafka topics to forward data to Sentry</span>
@@ -696,7 +694,7 @@
 <span class="kw">use</span> <span class="ident">rdkafka</span>::<span class="ident">error</span>::<span class="ident">KafkaError</span>;
 <span class="kw">use</span> <span class="ident">rdkafka</span>::<span class="ident">producer</span>::<span class="ident">BaseRecord</span>;
 <span class="kw">use</span> <span class="ident">rdkafka</span>::<span class="ident">ClientConfig</span>;
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Metric</span>, <span class="ident">MetricType</span>, <span class="ident">MetricUnit</span>, <span class="ident">MetricValue</span>};
+<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Metric</span>, <span class="ident">MetricUnit</span>, <span class="ident">MetricValue</span>};
 <span class="kw">use</span> <span class="ident">rmp_serde</span>::<span class="ident">encode</span>::<span class="ident">Error</span> <span class="kw">as</span> <span class="ident">RmpError</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">ser</span>::<span class="ident">Error</span>, <span class="ident">Serialize</span>};
 
@@ -1011,7 +1009,6 @@
                     <span class="ident">name</span>: <span class="ident">metric</span>.<span class="ident">name</span>,
                     <span class="ident">unit</span>: <span class="ident">metric</span>.<span class="ident">unit</span>,
                     <span class="ident">value</span>: <span class="ident">metric</span>.<span class="ident">value</span>,
-                    <span class="ident">ty</span>: <span class="ident">metric</span>.<span class="ident">ty</span>,
                     <span class="ident">timestamp</span>: <span class="ident">metric</span>.<span class="ident">timestamp</span>,
                     <span class="ident">tags</span>: <span class="ident">metric</span>.<span class="ident">tags</span>,
                 })<span class="question-mark">?</span>;
@@ -1189,9 +1186,8 @@
     <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
     <span class="kw">pub</span> <span class="ident">name</span>: <span class="ident">String</span>,
     <span class="kw">pub</span> <span class="ident">unit</span>: <span class="ident">MetricUnit</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">flatten</span>)]</span>
     <span class="kw">pub</span> <span class="ident">value</span>: <span class="ident">MetricValue</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">ty</span>: <span class="ident">MetricType</span>,
     <span class="kw">pub</span> <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">tags</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span>,
