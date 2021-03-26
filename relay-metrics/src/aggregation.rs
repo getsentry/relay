@@ -13,7 +13,7 @@ use relay_common::{MonotonicResult, UnixTimestamp};
 use crate::{Metric, MetricType, MetricValue};
 
 /// The [aggregated value](Bucket::value) of a metric bucket.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
 pub enum BucketValue {
     /// Aggregates [`MetricValue::Counter`] values by adding them into a single value.
@@ -735,6 +735,7 @@ mod tests {
           }
         ]"#;
 
+        // TODO: This should parse the unit.
         let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
         insta::assert_debug_snapshot!(buckets, @r###"
         [
@@ -814,6 +815,39 @@ mod tests {
         let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
         let serialized = serde_json::to_string_pretty(&buckets).unwrap();
         assert_eq!(json, serialized);
+    }
+
+    #[test]
+    fn test_bucket_value_merge_counter() {
+        let mut value = BucketValue::Counter(42.);
+        BucketValue::Counter(43.).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Counter(85.));
+    }
+
+    #[test]
+    fn test_bucket_value_merge_distribution() {
+        let mut value = BucketValue::Distribution(vec![1., 2., 3.]);
+        BucketValue::Distribution(vec![2., 4.])
+            .merge_into(&mut value)
+            .unwrap();
+        // TODO: This should be ordered
+        assert_eq!(value, BucketValue::Distribution(vec![1., 2., 3., 2., 4.]));
+    }
+
+    #[test]
+    fn test_bucket_value_merge_set() {
+        let mut value = BucketValue::Set(vec![1, 2].into_iter().collect());
+        BucketValue::Set(vec![2, 3].into_iter().collect())
+            .merge_into(&mut value)
+            .unwrap();
+        assert_eq!(value, BucketValue::Set(vec![1, 2, 3].into_iter().collect()));
+    }
+
+    #[test]
+    fn test_bucket_value_merge_gauge() {
+        let mut value = BucketValue::Gauge(42.);
+        BucketValue::Gauge(43.).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Gauge(43.));
     }
 
     #[test]
