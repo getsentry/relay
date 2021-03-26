@@ -45,7 +45,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     metrics_payload = f"foo:42|c|'{timestamp}\nbar:17|c|'{timestamp}"
     relay.send_metrics(project_id, metrics_payload)
 
-    metric = metrics_consumer.get_metric(timeout=2)
+    metric = metrics_consumer.get_metric()
 
     assert metric == {
         "org_id": 1,

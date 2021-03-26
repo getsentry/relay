@@ -279,12 +279,12 @@ def sessions_consumer(kafka_consumer):
 
 @pytest.fixture
 def metrics_consumer(kafka_consumer):
-    return lambda: MetricsConsumer(*kafka_consumer("metrics"))
+    return lambda timeout=2: MetricsConsumer(timeout=timeout, *kafka_consumer("metrics"))
 
 
 class MetricsConsumer(ConsumerBase):
-    def get_metric(self, timeout):
-        message = self.poll(timeout)
+    def get_metric(self, timeout=None):
+        message = self.poll(timeout=timeout)
         assert message is not None
         assert message.error() is None
 

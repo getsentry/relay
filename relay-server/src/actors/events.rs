@@ -1336,6 +1336,7 @@ impl Handler<ProcessMetrics> for EventProcessor {
 #[derive(Debug)]
 enum SendEnvelopeError {
     ScheduleFailed(MailboxError),
+    #[cfg(feature = "processing")]
     StoreFailed(StoreError),
     SendFailed(UpstreamRequestError),
     RateLimited(RateLimits),
@@ -1423,7 +1424,7 @@ impl EventManager {
         project: Addr<Project>,
         mut envelope: Envelope,
         scoping: Scoping,
-        start_time: Instant,
+        #[allow(unused_variables)] start_time: Instant,
     ) -> ResponseFuture<(), SendEnvelopeError> {
         #[cfg(feature = "processing")]
         {
@@ -1746,6 +1747,7 @@ impl Handler<HandleEnvelope> for EventManager {
                             SendEnvelopeError::ScheduleFailed(e) => {
                                 ProcessingError::ScheduleFailed(e)
                             }
+                            #[cfg(feature = "processing")]
                             SendEnvelopeError::StoreFailed(e) => ProcessingError::StoreFailed(e),
                             SendEnvelopeError::SendFailed(e) => ProcessingError::SendFailed(e),
                             SendEnvelopeError::RateLimited(e) => ProcessingError::RateLimited(e),
