@@ -445,7 +445,10 @@ where
                     // Skip over queuing and issue a rate limit right away
                     let envelope = match checked.envelope {
                         Some(envelope) => envelope,
-                        None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
+                        None => {
+                            envelope_summary.replace(EnvelopeSummary::empty());
+                            return Err(BadStoreRequest::RateLimited(checked.rate_limits));
+                        }
                     };
                     envelope_summary.replace(EnvelopeSummary::compute(&envelope));
 
