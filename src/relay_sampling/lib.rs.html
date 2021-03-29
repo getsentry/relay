@@ -1446,24 +1446,10 @@
 <span id="1443">1443</span>
 <span id="1444">1444</span>
 <span id="1445">1445</span>
-<span id="1446">1446</span>
-<span id="1447">1447</span>
-<span id="1448">1448</span>
-<span id="1449">1449</span>
-<span id="1450">1450</span>
-<span id="1451">1451</span>
-<span id="1452">1452</span>
-<span id="1453">1453</span>
-<span id="1454">1454</span>
-<span id="1455">1455</span>
-<span id="1456">1456</span>
-<span id="1457">1457</span>
-<span id="1458">1458</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.</span>
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">convert</span>::<span class="ident">TryInto</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::{<span class="self">self</span>, <span class="ident">Display</span>, <span class="ident">Formatter</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">net</span>::<span class="ident">IpAddr</span>;
 
@@ -1972,10 +1958,7 @@
     <span class="doccomment">/// configuration is invalid.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">should_keep</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">SamplingConfig</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">SamplingResult</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rule</span>) <span class="op">=</span> <span class="ident">get_matching_trace_rule</span>(<span class="ident">config</span>, <span class="self">self</span>, <span class="ident">ip_addr</span>, <span class="ident">RuleType</span>::<span class="ident">Trace</span>) {
-            <span class="kw">let</span> <span class="ident">rate</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">pseudo_random_from_uuid</span>(<span class="self">self</span>.<span class="ident">trace_id</span>) {
-                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">SamplingResult</span>::<span class="ident">NoDecision</span>,
-                <span class="prelude-val">Some</span>(<span class="ident">rate</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">rate</span>,
-            };
+            <span class="kw">let</span> <span class="ident">rate</span> <span class="op">=</span> <span class="ident">pseudo_random_from_uuid</span>(<span class="self">self</span>.<span class="ident">trace_id</span>);
 
             <span class="kw">if</span> <span class="ident">rate</span> <span class="op">&lt;</span> <span class="ident">rule</span>.<span class="ident">sample_rate</span> {
                 <span class="ident">SamplingResult</span>::<span class="ident">Keep</span>
@@ -2025,14 +2008,11 @@
 <span class="doccomment">/// Generates a pseudo random number by seeding the generator with the given id.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// The return is deterministic, always generates the same number from the same id.</span>
-<span class="doccomment">/// If there&#39;s an error in parsing the id into an UUID it will return None.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pseudo_random_from_uuid</span>(<span class="ident">id</span>: <span class="ident">Uuid</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pseudo_random_from_uuid</span>(<span class="ident">id</span>: <span class="ident">Uuid</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">f64</span> {
     <span class="kw">let</span> <span class="ident">big_seed</span> <span class="op">=</span> <span class="ident">id</span>.<span class="ident">as_u128</span>();
-    <span class="kw">let</span> <span class="ident">seed</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">big_seed</span>.<span class="ident">overflowing_shr</span>(<span class="number">64</span>).<span class="number">0</span>.<span class="ident">try_into</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">stream</span>: <span class="ident">u64</span> <span class="op">=</span> (<span class="ident">big_seed</span> <span class="op">&amp;</span> <span class="number">0xffffffff00000000</span>).<span class="ident">try_into</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">generator</span> <span class="op">=</span> <span class="ident">Pcg32</span>::<span class="ident">new</span>(<span class="ident">seed</span>, <span class="ident">stream</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">generator</span> <span class="op">=</span> <span class="ident">Pcg32</span>::<span class="ident">new</span>((<span class="ident">big_seed</span> <span class="op">&gt;</span><span class="op">&gt;</span> <span class="number">64</span>) <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">big_seed</span> <span class="kw">as</span> <span class="ident">u64</span>);
     <span class="kw">let</span> <span class="ident">dist</span> <span class="op">=</span> <span class="ident">Uniform</span>::<span class="ident">new</span>(<span class="number">0f64</span>, <span class="number">1f64</span>);
-    <span class="prelude-val">Some</span>(<span class="ident">generator</span>.<span class="ident">sample</span>(<span class="ident">dist</span>))
+    <span class="ident">generator</span>.<span class="ident">sample</span>(<span class="ident">dist</span>)
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
@@ -2894,28 +2874,22 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="doccomment">/// Test that we can convert the full range of UUID into a pseudo random number</span>
+    <span class="doccomment">/// Test that we can convert the full range of UUID into a number without panicking</span>
     <span class="kw">fn</span> <span class="ident">test_id_range</span>() {
         <span class="kw">let</span> <span class="ident">highest</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">from_str</span>(<span class="string">&quot;ffffffff-ffff-ffff-ffff-ffffffffffff&quot;</span>).<span class="ident">unwrap</span>();
-
-        <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="ident">pseudo_random_from_uuid</span>(<span class="ident">highest</span>);
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">val</span>.<span class="ident">is_some</span>());
-
+        <span class="ident">pseudo_random_from_uuid</span>(<span class="ident">highest</span>);
         <span class="kw">let</span> <span class="ident">lowest</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">from_str</span>(<span class="string">&quot;00000000-0000-0000-0000-000000000000&quot;</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="ident">pseudo_random_from_uuid</span>(<span class="ident">lowest</span>);
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">val</span>.<span class="ident">is_some</span>());
+        <span class="ident">pseudo_random_from_uuid</span>(<span class="ident">lowest</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="doccomment">/// Test that the we get the same sampling decision from the same trace id</span>
     <span class="kw">fn</span> <span class="ident">test_repeatable_sampling_decision</span>() {
-        <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">new_v4</span>();
+        <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="ident">Uuid</span>::<span class="ident">from_str</span>(<span class="string">&quot;4a106cf6-b151-44eb-9131-ae7db1a157a3&quot;</span>).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">val1</span> <span class="op">=</span> <span class="ident">pseudo_random_from_uuid</span>(<span class="ident">id</span>);
         <span class="kw">let</span> <span class="ident">val2</span> <span class="op">=</span> <span class="ident">pseudo_random_from_uuid</span>(<span class="ident">id</span>);
-
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">val1</span>.<span class="ident">is_some</span>());
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">val1</span>, <span class="ident">val2</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">val1</span> <span class="op">+</span> <span class="ident">f64</span>::<span class="ident">EPSILON</span> <span class="op">&gt;</span> <span class="ident">val2</span> <span class="op">&amp;&amp;</span> <span class="ident">val2</span> <span class="op">+</span> <span class="ident">f64</span>::<span class="ident">EPSILON</span> <span class="op">&gt;</span> <span class="ident">val1</span>);
     }
 }
 </pre></div>

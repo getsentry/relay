@@ -355,7 +355,6 @@
 <span id="352">352</span>
 <span id="353">353</span>
 <span id="354">354</span>
-<span id="355">355</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.</span>
 <span class="doccomment">//!</span>
@@ -398,12 +397,11 @@
 
     <span class="kw">let</span> <span class="ident">ty</span> <span class="op">=</span> <span class="ident">rule_type_for_event</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>);
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rule</span>) <span class="op">=</span> <span class="ident">get_matching_event_rule</span>(<span class="ident">sampling_config</span>, <span class="ident">event</span>, <span class="ident">ip_addr</span>, <span class="ident">ty</span>) {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">random_number</span>) <span class="op">=</span> <span class="ident">pseudo_random_from_uuid</span>(<span class="ident">event_id</span>) {
-            <span class="kw">if</span> <span class="ident">random_number</span> <span class="op">&lt;</span> <span class="ident">rule</span>.<span class="ident">sample_rate</span> {
-                <span class="kw">return</span> <span class="ident">SamplingResult</span>::<span class="ident">Keep</span>;
-            }
-            <span class="kw">return</span> <span class="ident">SamplingResult</span>::<span class="ident">Drop</span>(<span class="ident">rule</span>.<span class="ident">id</span>);
+        <span class="kw">let</span> <span class="ident">random_number</span> <span class="op">=</span> <span class="ident">pseudo_random_from_uuid</span>(<span class="ident">event_id</span>);
+        <span class="kw">if</span> <span class="ident">random_number</span> <span class="op">&lt;</span> <span class="ident">rule</span>.<span class="ident">sample_rate</span> {
+            <span class="kw">return</span> <span class="ident">SamplingResult</span>::<span class="ident">Keep</span>;
         }
+        <span class="kw">return</span> <span class="ident">SamplingResult</span>::<span class="ident">Drop</span>(<span class="ident">rule</span>.<span class="ident">id</span>);
     }
     <span class="comment">// if there are no matching rules there is not enough info to make a sampling decision</span>
     <span class="ident">SamplingResult</span>::<span class="ident">NoDecision</span>
