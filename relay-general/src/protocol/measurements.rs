@@ -72,8 +72,7 @@ impl DerefMut for Measurements {
 }
 
 fn is_valid_measurement_name(name: &str) -> bool {
-    !name.is_empty()
-        && name.starts_with(|c| matches!(c, 'a'..='z' | 'A'..='Z'))
+    name.starts_with(|c| matches!(c, 'a'..='z' | 'A'..='Z'))
         && name
             .chars()
             .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.'))
