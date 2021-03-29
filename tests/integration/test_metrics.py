@@ -52,3 +52,51 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "type": "c",
         "timestamp": timestamp,
     }
+
+    metric = metrics_consumer.get_metric()
+
+    assert metric == {
+        "org_id": 1,
+        "project_id": project_id,
+        "name": "bar",
+        "unit": "",
+        "value": 17.0,
+        "type": "c",
+        "timestamp": timestamp,
+    }
+
+
+def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consumer):
+    metrics_consumer = metrics_consumer()
+
+    upstream_config = {
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 2,  # Give upstream some time to process downstream entries:
+            "debounce_delay": 0,
+        }
+    }
+    upstream = relay_with_processing(options=upstream_config)
+
+    downstream = relay(upstream, options=TEST_CONFIG)
+
+    # Create project config
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+
+    # Send two events to downstream and one to upstream
+    downstream.send_metrics(project_id, "foo:7|c")
+    downstream.send_metrics(project_id, "foo:5|c")
+
+    upstream.send_metrics(project_id, "foo:3|c")
+
+    metric = metrics_consumer.get_metric(timeout=4)
+    metric.pop("timestamp")
+    assert metric == {
+        "org_id": 1,
+        "project_id": project_id,
+        "name": "foo",
+        "unit": "",
+        "value": 15.0,
+        "type": "c",
+    }
