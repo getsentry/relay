@@ -72,8 +72,11 @@ impl DerefMut for Measurements {
 }
 
 fn is_valid_measurement_name(name: &str) -> bool {
-    name.chars()
-        .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.'))
+    !name.is_empty()
+        && name.starts_with(|c| matches!(c, 'a'..='z' | 'A'..='Z'))
+        && name
+            .chars()
+            .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.'))
 }
 
 #[test]
@@ -88,7 +91,8 @@ fn test_measurements_serialization() {
         "cls": {"value": null},
         "fp": {"value": "im a first paint"},
         "Total Blocking Time": {"value": 3.14159},
-        "missing_value": "string"
+        "missing_value": "string",
+        "": {"value": 2.71828}
     }
 }"#;
 
@@ -115,6 +119,12 @@ fn test_measurements_serialization() {
     "measurements": {
       "": {
         "err": [
+          [
+            "invalid_data",
+            {
+              "reason": "measurement name '' can contain only characters a-z0-9.-_"
+            }
+          ],
           [
             "invalid_data",
             {
@@ -200,6 +210,10 @@ fn test_measurements_serialization() {
     }));
 
     let measurements_meta = measurements.meta_mut();
+
+    measurements_meta.add_error(Error::invalid(
+        "measurement name '' can contain only characters a-z0-9.-_",
+    ));
 
     measurements_meta.add_error(Error::invalid(
         "measurement name 'Total Blocking Time' can contain only characters a-z0-9.-_",
