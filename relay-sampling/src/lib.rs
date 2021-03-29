@@ -569,6 +569,7 @@ pub fn pseudo_random_from_uuid(id: Uuid) -> f64 {
 #[cfg(test)]
 mod tests {
     use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
+    use std::str::FromStr;
 
     use insta::assert_ron_snapshot;
 
@@ -1424,9 +1425,18 @@ mod tests {
     }
 
     #[test]
+    /// Test that we can convert the full range of UUID into a number without panicking
+    fn test_id_range() {
+        let highest = Uuid::from_str("ffffffff-ffff-ffff-ffff-ffffffffffff").unwrap();
+        pseudo_random_from_uuid(highest);
+        let lowest = Uuid::from_str("00000000-0000-0000-0000-000000000000").unwrap();
+        pseudo_random_from_uuid(lowest);
+    }
+
+    #[test]
     /// Test that the we get the same sampling decision from the same trace id
     fn test_repeatable_sampling_decision() {
-        let id = Uuid::new_v4();
+        let id = Uuid::from_str("4a106cf6-b151-44eb-9131-ae7db1a157a3").unwrap();
 
         let val1 = pseudo_random_from_uuid(id);
         let val2 = pseudo_random_from_uuid(id);
