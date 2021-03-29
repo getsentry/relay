@@ -39,12 +39,11 @@ pub fn should_keep_event(
 
     let ty = rule_type_for_event(&event);
     if let Some(rule) = get_matching_event_rule(sampling_config, event, ip_addr, ty) {
-        if let Some(random_number) = pseudo_random_from_uuid(event_id) {
-            if random_number < rule.sample_rate {
-                return SamplingResult::Keep;
-            }
-            return SamplingResult::Drop(rule.id);
+        let random_number = pseudo_random_from_uuid(event_id);
+        if random_number < rule.sample_rate {
+            return SamplingResult::Keep;
         }
+        return SamplingResult::Drop(rule.id);
     }
     // if there are no matching rules there is not enough info to make a sampling decision
     SamplingResult::NoDecision
