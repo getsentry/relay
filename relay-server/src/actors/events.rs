@@ -1789,6 +1789,7 @@ impl Handler<HandleEnvelope> for EventManager {
                     .then(move |result| {
                         let received = match result {
                             Ok(_) => true,
+                            Err(SendEnvelopeError::RateLimited(_)) => true,
                             Err(SendEnvelopeError::SendFailed(ref e)) => e.is_received(),
                             Err(_) => false,
                         };
