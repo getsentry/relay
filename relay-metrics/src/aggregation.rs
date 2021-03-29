@@ -851,6 +851,39 @@ mod tests {
     }
 
     #[test]
+    fn test_bucket_value_insert_counter() {
+        let mut value = BucketValue::Counter(42.);
+        MetricValue::Counter(43.).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Counter(85.));
+    }
+
+    #[test]
+    fn test_bucket_value_insert_distribution() {
+        let mut value = BucketValue::Distribution(vec![1., 2., 3.]);
+        MetricValue::Distribution(2.0)
+            .merge_into(&mut value)
+            .unwrap();
+        // TODO: This should be ordered
+        assert_eq!(value, BucketValue::Distribution(vec![1., 2., 3., 2.]));
+    }
+
+    #[test]
+    fn test_bucket_value_insert_set() {
+        let mut value = BucketValue::Set(vec![1, 2].into_iter().collect());
+        MetricValue::Set(3).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Set(vec![1, 2, 3].into_iter().collect()));
+        MetricValue::Set(2).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Set(vec![1, 2, 3].into_iter().collect()));
+    }
+
+    #[test]
+    fn test_bucket_value_insert_gauge() {
+        let mut value = BucketValue::Gauge(42.);
+        MetricValue::Gauge(43.).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Gauge(43.));
+    }
+
+    #[test]
     fn test_aggregator_merge_counters() {
         relay_test::setup();
 
