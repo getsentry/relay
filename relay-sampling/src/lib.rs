@@ -1433,7 +1433,6 @@ mod tests {
 
         let val1 = pseudo_random_from_uuid(id);
         let val2 = pseudo_random_from_uuid(id);
-
-        assert_eq!(val1, val2);
+        assert!(val1 + f64::EPSILON > val2 && val2 + f64::EPSILON > val1);
     }
 }
