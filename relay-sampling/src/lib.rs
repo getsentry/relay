@@ -562,8 +562,8 @@ fn get_matching_trace_rule<'a>(
 /// The return is deterministic, always generates the same number from the same id.
 pub fn pseudo_random_from_uuid(id: Uuid) -> f64 {
     let big_seed = id.as_u128();
-    let seed: u64 = big_seed.overflowing_shr(64).0.try_into().unwrap();
-    let stream: u64 = (big_seed & 0xffffffff00000000).try_into().unwrap();
+    let seed = big_seed >> 64 as u64;
+    let stream = big_seed as u64;
     let mut generator = Pcg32::new(seed, stream);
     let dist = Uniform::new(0f64, 1f64);
     generator.sample(dist)
