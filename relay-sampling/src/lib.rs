@@ -1,7 +1,6 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::fmt::{self, Display, Formatter};
 use std::net::IpAddr;
 
