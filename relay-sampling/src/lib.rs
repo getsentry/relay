@@ -10,12 +10,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use relay_common::{EventType, ProjectKey, Uuid};
-use relay_filter::{
-    browser_extensions, client_ips, csp, error_messages, legacy_browsers, localhost, web_crawlers,
-    GlobPatterns,
-};
+use relay_filter::GlobPatterns;
 use relay_general::protocol::Event;
-use relay_general::types::Empty;
 
 /// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -360,9 +356,11 @@ impl FieldValueProvider for Event {
                     }
                 })
             }),
-            "event.is_local_ip" => Value::Bool(localhost::matches(&self)),
-            "event.has_bad_browser_extensions" => Value::Bool(browser_extensions::matches(&self)),
-            "event.web_crawlers" => Value::Bool(web_crawlers::matches(&self)),
+            "event.is_local_ip" => Value::Bool(relay_filter::localhost::matches(&self)),
+            "event.has_bad_browser_extensions" => {
+                Value::Bool(relay_filter::browser_extensions::matches(&self))
+            }
+            "event.web_crawlers" => Value::Bool(relay_filter::web_crawlers::matches(&self)),
             _ => Value::Null,
         }
     }
@@ -398,7 +396,7 @@ fn client_ips_matcher(
         .map(|v| v.iter().map(|s| s.as_str().unwrap_or("")));
 
     if let Some(ips) = ips {
-        client_ips::matches(ip_addr, ips)
+        relay_filter::client_ips::matches(ip_addr, ips)
     } else {
         false
     }
@@ -414,7 +412,7 @@ fn legacy_browsers_matcher(
         .as_array()
         .map(|v| v.iter().map(|s| s.as_str().unwrap_or("").parse().unwrap()));
     if let Some(browsers) = browsers {
-        legacy_browsers::matches(event, &browsers.collect())
+        relay_filter::legacy_browsers::matches(event, &browsers.collect())
     } else {
         false
     }
@@ -432,7 +430,7 @@ fn error_messages_matcher(
 
     if let Some(patterns) = patterns {
         let globs = GlobPatterns::new(patterns.collect());
-        error_messages::matches(event, &globs)
+        relay_filter::error_messages::matches(event, &globs)
     } else {
         false
     }
@@ -445,7 +443,7 @@ fn csp_matcher(condition: &CustomCondition, event: &Event, _ip_addr: Option<IpAd
         .map(|v| v.iter().map(|s| s.as_str().unwrap_or("")));
 
     if let Some(sources) = sources {
-        csp::matches(event, sources)
+        relay_filter::csp::matches(event, sources)
     } else {
         false
     }
