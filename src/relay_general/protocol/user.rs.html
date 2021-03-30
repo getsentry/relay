@@ -200,6 +200,12 @@
 <span id="197">197</span>
 <span id="198">198</span>
 <span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">protocol</span>::{<span class="ident">IpAddr</span>, <span class="ident">LenientString</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::{<span class="ident">Annotated</span>, <span class="ident">Object</span>, <span class="ident">Value</span>};
@@ -267,6 +273,10 @@
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">geo</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Geo</span><span class="op">&gt;</span>,
 
+    <span class="doccomment">/// The user segment, for apps that divide users in user segments.</span>
+    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">segment</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+
     <span class="doccomment">/// Additional arbitrary fields, as stored in the database (and sometimes as sent by clients).</span>
     <span class="doccomment">/// All data from `self.other` should end up here after store normalization.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
@@ -327,6 +337,7 @@
   &quot;ip_address&quot;: &quot;{{auto}}&quot;,
   &quot;username&quot;: &quot;john_doe&quot;,
   &quot;name&quot;: &quot;John Doe&quot;,
+  &quot;segment&quot;: &quot;vip&quot;,
   &quot;data&quot;: {
     &quot;data&quot;: &quot;value&quot;
   },
@@ -339,6 +350,7 @@
         <span class="ident">name</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;John Doe&quot;</span>.<span class="ident">to_string</span>()),
         <span class="ident">username</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;john_doe&quot;</span>.<span class="ident">to_string</span>()),
         <span class="ident">geo</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
+        <span class="ident">segment</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;vip&quot;</span>.<span class="ident">to_string</span>()),
         <span class="ident">data</span>: {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
             <span class="ident">map</span>.<span class="ident">insert</span>(
