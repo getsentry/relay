@@ -11,7 +11,7 @@ use failure::{Fail, ResultExt};
 use rdkafka::error::KafkaError;
 use rdkafka::producer::BaseRecord;
 use rdkafka::ClientConfig;
-use relay_metrics::{Metric, MetricType, MetricUnit, MetricValue};
+use relay_metrics::{Metric, MetricUnit, MetricValue};
 use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
 
@@ -326,7 +326,6 @@ impl StoreForwarder {
                     name: metric.name,
                     unit: metric.unit,
                     value: metric.value,
-                    ty: metric.ty,
                     timestamp: metric.timestamp,
                     tags: metric.tags,
                 })?;
@@ -504,9 +503,8 @@ struct MetricKafkaMessage {
     project_id: ProjectId,
     pub name: String,
     pub unit: MetricUnit,
+    #[serde(flatten)]
     pub value: MetricValue,
-    #[serde(rename = "type")]
-    pub ty: MetricType,
     pub timestamp: UnixTimestamp,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub tags: BTreeMap<String, String>,

@@ -1,8 +1,9 @@
+use std::ops::{Deref, DerefMut};
+
 use crate::types::{Annotated, Error, FromValue, Object, Value};
 
 /// An individual observed measurement.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Measurement {
     /// Value of observed measurement value.
     #[metastructure(required = "true", skip_serialization = "never")]
@@ -11,17 +12,22 @@ pub struct Measurement {
 
 /// A map of observed measurement values.
 ///
-/// Measurements are only available on transactions. They contain measurement values of observed
-/// values such as Largest Contentful Paint (LCP).
+/// They contain measurement values of observed values such as Largest Contentful Paint (LCP).
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Measurements(pub Object<Measurement>);
+
+impl Measurements {
+    /// Returns the underlying object of measurements.
+    pub fn into_inner(self) -> Object<Measurement> {
+        self.0
+    }
+}
 
 impl FromValue for Measurements {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         let mut processing_errors = Vec::new();
 
-        let mut measurements = Object::<Measurement>::from_value(value).map_value(|measurements| {
+        let mut measurements = Object::from_value(value).map_value(|measurements| {
             let measurements = measurements
                 .into_iter()
                 .filter_map(|(name, object)| {
@@ -48,6 +54,20 @@ impl FromValue for Measurements {
         }
 
         measurements
+    }
+}
+
+impl Deref for Measurements {
+    type Target = Object<Measurement>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Measurements {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 

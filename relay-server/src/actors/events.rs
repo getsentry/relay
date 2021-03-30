@@ -9,7 +9,6 @@ use actix::prelude::*;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use futures::prelude::*;
-use relay_metrics::Metric;
 use serde_json::Value as SerdeValue;
 
 use relay_common::{clone, metric, ProjectId, UnixTimestamp};
@@ -23,9 +22,10 @@ use relay_general::protocol::{
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
+use relay_metrics::Metric;
 use relay_quotas::{DataCategory, RateLimits};
 use relay_redis::RedisPool;
-use relay_sampling::RuleId;
+use relay_sampling::{RuleId, SamplingResult};
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
@@ -37,9 +37,7 @@ use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemTyp
 use crate::http::{HttpError, RequestBuilder};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
-use crate::utils::{
-    self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt, SamplingResult,
-};
+use crate::utils::{self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt};
 
 #[cfg(feature = "processing")]
 use {
@@ -130,10 +128,10 @@ enum ProcessingError {
     #[fail(display = "event exceeded its configured lifetime")]
     Timeout,
 
-    #[fail(display = "envelope empty, transaction removed by sampling")]
-    TransactionSampled,
+    #[fail(display = "trace dropped by sampling rule {}", _0)]
+    TraceSampled(RuleId),
 
-    #[fail(display = "envelope empty, event removed by sampling rule:{}", _0)]
+    #[fail(display = "event dropped by sampling rule {}", _0)]
     EventSampled(RuleId),
 }
 
@@ -173,7 +171,7 @@ impl ProcessingError {
             }
 
             // Dynamic sampling (not an error, just discarding messages that were removed by sampling)
-            Self::TransactionSampled => Some(Outcome::Invalid(DiscardReason::TransactionSampled)),
+            Self::TraceSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
             Self::EventSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
 
             // If we send to an upstream, we don't emit outcomes.
@@ -606,7 +604,7 @@ impl EventProcessor {
         // instead of a regular `Event` item.
         event.ty = Annotated::new(match report_type {
             SecurityReportType::Csp => EventType::Csp,
-            SecurityReportType::ExpectCt => EventType::ExpectCT,
+            SecurityReportType::ExpectCt => EventType::ExpectCt,
             SecurityReportType::ExpectStaple => EventType::ExpectStaple,
             SecurityReportType::Hpkp => EventType::Hpkp,
         });
@@ -1007,6 +1005,7 @@ impl EventProcessor {
             normalize_user_agent: Some(true),
             sent_at: envelope.sent_at(),
             received_at: Some(received_at),
+            breakdowns: project_state.config.breakdowns.clone(),
         };
 
         let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_deref());
@@ -1553,15 +1552,8 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
             }))
             .and_then(move |envelope| {
-                utils::sample_transaction(envelope, sampling_project, false, processing_enabled)
-                    .map_err(|()| (ProcessingError::TransactionSampled))
-            })
-            .and_then(|envelope| {
-                if envelope.is_empty() {
-                    Err(ProcessingError::TransactionSampled)
-                } else {
-                    Ok(envelope)
-                }
+                utils::sample_trace(envelope, sampling_project, false, processing_enabled)
+                    .map_err(ProcessingError::TraceSampled)
             })
             .and_then(clone!(project, |envelope| {
                 // get the state for the current project. we can always fetch the cached version
@@ -1798,11 +1790,11 @@ impl Handler<GetCapturedEnvelope> for EventManager {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use chrono::{DateTime, TimeZone, Utc};
 
     use crate::extractors::RequestMeta;
 
-    use chrono::{DateTime, TimeZone, Utc};
+    use super::*;
 
     fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> Item {
         let mut data = Vec::new();

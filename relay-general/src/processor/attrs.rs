@@ -677,13 +677,11 @@ mod tests {
             let actual = $state.path().matches_selector(&$selector.parse().unwrap());
             assert!(
                 actual == $expected,
-                format!(
-                    "Matched {} against {}, expected {:?}, actually {:?}",
-                    $selector,
-                    $state.path(),
-                    $expected,
-                    actual
-                )
+                "Matched {} against {}, expected {:?}, actually {:?}",
+                $selector,
+                $state.path(),
+                $expected,
+                actual
             );
         }};
     }

@@ -1,7 +1,6 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::fmt::{self, Display, Formatter};
 use std::net::IpAddr;
 
@@ -29,6 +28,17 @@ pub enum RuleType {
     /// A non transaction rule applies to Errors, Security events...every type of event that
     /// is not a Transaction
     Error,
+}
+
+/// The result of a sampling operation returned by [`TraceContext::should_keep`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SamplingResult {
+    /// Keep the event.
+    Keep,
+    /// Drop the event, due to the rule with provided identifier.
+    Drop(RuleId),
+    /// No decision can be made.
+    NoDecision,
 }
 
 /// A condition that checks the values using the equality operator.
@@ -529,14 +539,23 @@ pub struct TraceContext {
 }
 
 impl TraceContext {
-    /// Returns the decision of whether to sample or not a trace based on the configuration rules.
+    /// Returns whether a trace should be retained based on sampling rules.
     ///
-    /// If None then a decision can't be made either because of an invalid of missing trace context or
-    /// because no applicable sampling rule could be found.
-    pub fn should_sample(&self, ip_addr: Option<IpAddr>, config: &SamplingConfig) -> Option<bool> {
-        let rule = get_matching_trace_rule(config, self, ip_addr, RuleType::Trace)?;
-        let rate = pseudo_random_from_uuid(self.trace_id)?;
-        Some(rate < rule.sample_rate)
+    /// If [`SamplingResult::NoDecision`] is returned, then no rule matched this trace. In this
+    /// case, the caller may decide whether to keep the trace or not. The same is returned if the
+    /// configuration is invalid.
+    pub fn should_keep(&self, ip_addr: Option<IpAddr>, config: &SamplingConfig) -> SamplingResult {
+        if let Some(rule) = get_matching_trace_rule(config, self, ip_addr, RuleType::Trace) {
+            let rate = pseudo_random_from_uuid(self.trace_id);
+
+            if rate < rule.sample_rate {
+                SamplingResult::Keep
+            } else {
+                SamplingResult::Drop(rule.id)
+            }
+        } else {
+            SamplingResult::NoDecision
+        }
     }
 }
 
@@ -577,27 +596,27 @@ fn get_matching_trace_rule<'a>(
 /// Generates a pseudo random number by seeding the generator with the given id.
 ///
 /// The return is deterministic, always generates the same number from the same id.
-/// If there's an error in parsing the id into an UUID it will return None.
-pub fn pseudo_random_from_uuid(id: Uuid) -> Option<f64> {
+pub fn pseudo_random_from_uuid(id: Uuid) -> f64 {
     let big_seed = id.as_u128();
-    let seed: u64 = big_seed.overflowing_shr(64).0.try_into().ok()?;
-    let stream: u64 = (big_seed & 0xffffffff00000000).try_into().ok()?;
-    let mut generator = Pcg32::new(seed, stream);
+    let mut generator = Pcg32::new((big_seed >> 64) as u64, big_seed as u64);
     let dist = Uniform::new(0f64, 1f64);
-    Some(generator.sample(dist))
+    generator.sample(dist)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
+    use std::str::FromStr;
+
     use insta::assert_ron_snapshot;
+
     use relay_general::protocol::{
         Csp, Exception, Headers, IpAddr, JsonLenientString, LenientString, LogEntry, PairList,
         Request, User, Values,
     };
     use relay_general::types::Annotated;
-    use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
-    use std::str::FromStr;
+
+    use super::*;
 
     fn eq(name: &str, value: &[&str], ignore_case: bool) -> RuleCondition {
         RuleCondition::Eq(EqCondition {
@@ -874,7 +893,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(condition.matches_trace(&tc, None), failure_name);
+            assert!(condition.matches_trace(&tc, None), "{}", failure_name);
         }
     }
 
@@ -947,7 +966,7 @@ mod tests {
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             let ip_addr = Some(NetIpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
-            assert!(condition.matches_event(&evt, ip_addr), failure_name);
+            assert!(condition.matches_event(&evt, ip_addr), "{}", failure_name);
         }
     }
 
@@ -1043,6 +1062,7 @@ mod tests {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
                 condition.matches_trace(&tc, None) == *expected,
+                "{}",
                 failure_name
             );
         }
@@ -1101,6 +1121,7 @@ mod tests {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
                 condition.matches_trace(&tc, None) == *expected,
+                "{}",
                 failure_name
             );
         }
@@ -1136,6 +1157,7 @@ mod tests {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
                 condition.matches_trace(&tc, None) == *expected,
+                "{}",
                 failure_name
             );
         }
@@ -1184,7 +1206,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(!condition.matches_trace(&tc, None), failure_name);
+            assert!(!condition.matches_trace(&tc, None), "{}", failure_name);
         }
     }
 
@@ -1612,27 +1634,21 @@ mod tests {
     }
 
     #[test]
-    /// Test that we can convert the full range of UUID into a pseudo random number
+    /// Test that we can convert the full range of UUID into a number without panicking
     fn test_id_range() {
         let highest = Uuid::from_str("ffffffff-ffff-ffff-ffff-ffffffffffff").unwrap();
-
-        let val = pseudo_random_from_uuid(highest);
-        assert!(val.is_some());
-
+        pseudo_random_from_uuid(highest);
         let lowest = Uuid::from_str("00000000-0000-0000-0000-000000000000").unwrap();
-        let val = pseudo_random_from_uuid(lowest);
-        assert!(val.is_some());
+        pseudo_random_from_uuid(lowest);
     }
 
     #[test]
     /// Test that the we get the same sampling decision from the same trace id
     fn test_repeatable_sampling_decision() {
-        let id = Uuid::new_v4();
+        let id = Uuid::from_str("4a106cf6-b151-44eb-9131-ae7db1a157a3").unwrap();
 
         let val1 = pseudo_random_from_uuid(id);
         let val2 = pseudo_random_from_uuid(id);
-
-        assert!(val1.is_some());
-        assert_eq!(val1, val2);
+        assert!(val1 + f64::EPSILON > val2 && val2 + f64::EPSILON > val1);
     }
 }
