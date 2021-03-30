@@ -16,6 +16,7 @@ use relay_filter::{
     GlobPatterns,
 };
 use relay_general::protocol::Event;
+use relay_general::types::Empty;
 
 /// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -332,14 +333,22 @@ impl FieldValueProvider for Event {
                 Some(ref s) => Value::String(s.into()),
             },
             "event.user.id" => self.user.value().map_or(Value::Null, |user| {
-                user.id
-                    .value()
-                    .map_or(Value::Null, |id| Value::String(id.as_str().into()))
+                user.id.value().map_or(Value::Null, |id| {
+                    if id.is_empty() {
+                        Value::Null // we don't serialize empty values but check it anyway
+                    } else {
+                        Value::String(id.as_str().into())
+                    }
+                })
             }),
             "event.user.segment" => self.user.value().map_or(Value::Null, |user| {
-                user.segment
-                    .value()
-                    .map_or(Value::Null, |segment| Value::String(segment.into()))
+                user.segment.value().map_or(Value::Null, |segment| {
+                    if segment.is_empty() {
+                        Value::Null
+                    } else {
+                        Value::String(segment.into())
+                    }
+                })
             }),
             "event.is_local_ip" => Value::Bool(localhost::matches(&self)),
             "event.has_bad_browser_extensions" => Value::Bool(browser_extensions::matches(&self)),
@@ -443,21 +452,20 @@ impl FieldValueProvider for TraceContext {
                 None => Value::Null,
                 Some(ref s) => Value::String(s.into()),
             },
-            "trace.user.id" => self
-                .user
-                .as_ref()
-                .map_or(Value::Null, |user| match user.id {
-                    None => Value::Null,
-                    Some(ref s) => Value::String(s.into()),
-                }),
-            "trace.user.segment" => {
-                self.user
-                    .as_ref()
-                    .map_or(Value::Null, |user| match user.segment {
-                        None => Value::Null,
-                        Some(ref s) => Value::String(s.into()),
-                    })
-            }
+            "trace.user.id" => self.user.as_ref().map_or(Value::Null, |user| {
+                if user.id.is_empty() {
+                    Value::Null
+                } else {
+                    Value::String((user.id.clone()))
+                }
+            }),
+            "trace.user.segment" => self.user.as_ref().map_or(Value::Null, |user| {
+                if user.segment.is_empty() {
+                    Value::Null
+                } else {
+                    Value::String(user.segment.clone())
+                }
+            }),
             _ => Value::Null,
         }
     }
@@ -495,10 +503,10 @@ impl SamplingConfig {
 /// The User related information in the trace context
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TraceUserContext {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub segment: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub segment: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub id: String,
 }
 
 /// TraceContext created by the first Sentry SDK in the call chain.
@@ -726,8 +734,8 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Some(TraceUserContext {
-                segment: Some("user-seg".into()),
-                id: Some("user-id".into()),
+                segment: "user-seg".to_owned(),
+                id: "user-id".to_owned(),
             }),
             environment: Some("prod".to_string()),
         };
@@ -858,8 +866,8 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Some(TraceUserContext {
-                segment: Some("vip".into()),
-                id: Some("user-id".into()),
+                segment: "vip".to_owned(),
+                id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
         };
@@ -1025,8 +1033,8 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Some(TraceUserContext {
-                segment: Some("vip".into()),
-                id: Some("user-id".into()),
+                segment: "vip".to_owned(),
+                id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
         };
@@ -1083,8 +1091,8 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Some(TraceUserContext {
-                segment: Some("vip".into()),
-                id: Some("user-id".into()),
+                segment: "vip".to_owned(),
+                id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
         };
@@ -1118,8 +1126,8 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Some(TraceUserContext {
-                segment: Some("vip".into()),
-                id: Some("user-id".into()),
+                segment: "vip".to_owned(),
+                id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
         };
@@ -1168,8 +1176,8 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Some(TraceUserContext {
-                segment: Some("vip".into()),
-                id: Some("user-id".into()),
+                segment: "vip".to_owned(),
+                id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
         };
@@ -1382,8 +1390,8 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
             user: Some(TraceUserContext {
-                segment: Some("vip".into()),
-                id: Some("user-id".into()),
+                segment: "vip".to_owned(),
+                id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
         };
@@ -1419,8 +1427,8 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Some(TraceUserContext {
-                segment: Some("vip".into()),
-                id: Some("user-id".into()),
+                segment: "vip".to_owned(),
+                id: "user-id".to_owned(),
             }),
             environment: None,
         };
@@ -1512,8 +1520,8 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Some(TraceUserContext {
-                segment: Some("vip".into()),
-                id: Some("user-id".into()),
+                segment: "vip".to_owned(),
+                id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
         };
@@ -1531,8 +1539,8 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.2".to_string()),
             user: Some(TraceUserContext {
-                segment: Some("vip".into()),
-                id: Some("user-id".into()),
+                segment: "vip".to_owned(),
+                id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
         };
@@ -1550,8 +1558,8 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.3".to_string()),
             user: Some(TraceUserContext {
-                segment: Some("vip".into()),
-                id: Some("user-id".into()),
+                segment: "vip".to_owned(),
+                id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
         };
@@ -1569,8 +1577,8 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Some(TraceUserContext {
-                segment: Some("vip".into()),
-                id: Some("user-id".into()),
+                segment: "vip".to_owned(),
+                id: "user-id".to_owned(),
             }),
             environment: Some("production".to_string()),
         };
@@ -1588,8 +1596,8 @@ mod tests {
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
             user: Some(TraceUserContext {
-                segment: Some("all".into()),
-                id: Some("user-id".into()),
+                segment: "all".to_owned(),
+                id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
         };
