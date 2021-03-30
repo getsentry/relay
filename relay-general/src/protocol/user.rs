@@ -64,6 +64,10 @@ pub struct User {
     #[metastructure(skip_serialization = "empty")]
     pub geo: Annotated<Geo>,
 
+    /// The user segment, for apps that divide users in user segments.
+    #[metastructure(skip_serialization = "empty")]
+    pub segment: Annotated<String>,
+
     /// Additional arbitrary fields, as stored in the database (and sometimes as sent by clients).
     /// All data from `self.other` should end up here after store normalization.
     #[metastructure(pii = "true", skip_serialization = "empty")]
@@ -124,6 +128,7 @@ fn test_user_roundtrip() {
   "ip_address": "{{auto}}",
   "username": "john_doe",
   "name": "John Doe",
+  "segment": "vip",
   "data": {
     "data": "value"
   },
@@ -136,6 +141,7 @@ fn test_user_roundtrip() {
         name: Annotated::new("John Doe".to_string()),
         username: Annotated::new("john_doe".to_string()),
         geo: Annotated::empty(),
+        segment: Annotated::new("vip".to_string()),
         data: {
             let mut map = Object::new();
             map.insert(
