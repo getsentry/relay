@@ -466,7 +466,7 @@ impl FieldValueProvider for TraceContext {
                 if user.id.is_empty() {
                     Value::Null
                 } else {
-                    Value::String((user.id.clone()))
+                    Value::String(user.id.clone())
                 }
             }),
             "trace.user.segment" => self.user.as_ref().map_or(Value::Null, |user| {
