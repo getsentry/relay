@@ -87,10 +87,11 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
     mini_sentry.add_full_project_config(project_id)
 
     # Send two events to downstream and one to upstream
-    downstream.send_metrics(project_id, "foo:7|c")
-    downstream.send_metrics(project_id, "foo:5|c")
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    downstream.send_metrics(project_id, f"foo:7|c|'{timestamp}")
+    downstream.send_metrics(project_id, f"foo:5|c|'{timestamp}")
 
-    upstream.send_metrics(project_id, "foo:3|c")
+    upstream.send_metrics(project_id, f"foo:3|c|'{timestamp}")
 
     metric = metrics_consumer.get_metric(timeout=4)
     metric.pop("timestamp")
