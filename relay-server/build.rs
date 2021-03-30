@@ -14,6 +14,12 @@ fn main() {
         env::var("CARGO_PKG_VERSION").unwrap()
     )
     .unwrap();
+    writeln!(
+        f,
+        "pub const CLIENT: &str = \"sentry.relay/{}\";",
+        env::var("CARGO_PKG_VERSION").unwrap()
+    )
+    .unwrap();
     println!("cargo:rerun-if-changed=build.rs\n");
     println!("cargo:rerun-if-changed=Cargo.toml\n");
 }

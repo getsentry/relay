@@ -13,7 +13,7 @@ use relay_common::{MonotonicResult, UnixTimestamp};
 use crate::{Metric, MetricType, MetricValue};
 
 /// The [aggregated value](Bucket::value) of a metric bucket.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
 pub enum BucketValue {
     /// Aggregates [`MetricValue::Counter`] values by adding them into a single value.
@@ -195,7 +195,7 @@ pub struct Bucket {
     /// A list of tags adding dimensions to the metric for filtering and aggregation.
     ///
     /// See [`Metric::tags`]. Every combination of tags results in a different bucket.
-    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tags: BTreeMap<String, String>,
 }
 
@@ -721,7 +721,170 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_counters() {
+    fn test_parse_buckets() {
+        let json = r#"[
+          {
+            "name": "endpoint.response_time",
+            "unit": "ms",
+            "value": [36, 49, 57, 68],
+            "type": "d",
+            "timestamp": 1615889440,
+            "tags": {
+                "route": "user_index"
+            }
+          }
+        ]"#;
+
+        // TODO: This should parse the unit.
+        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+        insta::assert_debug_snapshot!(buckets, @r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1615889440),
+                name: "endpoint.response_time",
+                value: Distribution(
+                    [
+                        36.0,
+                        49.0,
+                        57.0,
+                        68.0,
+                    ],
+                ),
+                tags: {
+                    "route": "user_index",
+                },
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_parse_bucket_defaults() {
+        let json = r#"[
+          {
+            "name": "endpoint.hits",
+            "value": 4,
+            "type": "c",
+            "timestamp": 1615889440
+          }
+        ]"#;
+
+        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+        insta::assert_debug_snapshot!(buckets, @r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1615889440),
+                name: "endpoint.hits",
+                value: Counter(
+                    4.0,
+                ),
+                tags: {},
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_buckets_roundtrip() {
+        let json = r#"[
+  {
+    "timestamp": 1615889440,
+    "name": "endpoint.response_time",
+    "type": "d",
+    "value": [
+      36.0,
+      49.0,
+      57.0,
+      68.0
+    ],
+    "tags": {
+      "route": "user_index"
+    }
+  },
+  {
+    "timestamp": 1615889440,
+    "name": "endpoint.hits",
+    "type": "c",
+    "value": 4.0,
+    "tags": {
+      "route": "user_index"
+    }
+  }
+]"#;
+
+        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+        let serialized = serde_json::to_string_pretty(&buckets).unwrap();
+        assert_eq!(json, serialized);
+    }
+
+    #[test]
+    fn test_bucket_value_merge_counter() {
+        let mut value = BucketValue::Counter(42.);
+        BucketValue::Counter(43.).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Counter(85.));
+    }
+
+    #[test]
+    fn test_bucket_value_merge_distribution() {
+        let mut value = BucketValue::Distribution(vec![1., 2., 3.]);
+        BucketValue::Distribution(vec![2., 4.])
+            .merge_into(&mut value)
+            .unwrap();
+        // TODO: This should be ordered
+        assert_eq!(value, BucketValue::Distribution(vec![1., 2., 3., 2., 4.]));
+    }
+
+    #[test]
+    fn test_bucket_value_merge_set() {
+        let mut value = BucketValue::Set(vec![1, 2].into_iter().collect());
+        BucketValue::Set(vec![2, 3].into_iter().collect())
+            .merge_into(&mut value)
+            .unwrap();
+        assert_eq!(value, BucketValue::Set(vec![1, 2, 3].into_iter().collect()));
+    }
+
+    #[test]
+    fn test_bucket_value_merge_gauge() {
+        let mut value = BucketValue::Gauge(42.);
+        BucketValue::Gauge(43.).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Gauge(43.));
+    }
+
+    #[test]
+    fn test_bucket_value_insert_counter() {
+        let mut value = BucketValue::Counter(42.);
+        MetricValue::Counter(43.).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Counter(85.));
+    }
+
+    #[test]
+    fn test_bucket_value_insert_distribution() {
+        let mut value = BucketValue::Distribution(vec![1., 2., 3.]);
+        MetricValue::Distribution(2.0)
+            .merge_into(&mut value)
+            .unwrap();
+        // TODO: This should be ordered
+        assert_eq!(value, BucketValue::Distribution(vec![1., 2., 3., 2.]));
+    }
+
+    #[test]
+    fn test_bucket_value_insert_set() {
+        let mut value = BucketValue::Set(vec![1, 2].into_iter().collect());
+        MetricValue::Set(3).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Set(vec![1, 2, 3].into_iter().collect()));
+        MetricValue::Set(2).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Set(vec![1, 2, 3].into_iter().collect()));
+    }
+
+    #[test]
+    fn test_bucket_value_insert_gauge() {
+        let mut value = BucketValue::Gauge(42.);
+        MetricValue::Gauge(43.).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Gauge(43.));
+    }
+
+    #[test]
+    fn test_aggregator_merge_counters() {
         relay_test::setup();
 
         let config = AggregatorConfig::default();
@@ -750,7 +913,7 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_similar_timestamps() {
+    fn test_aggregator_merge_timestamps() {
         relay_test::setup();
         let config = AggregatorConfig {
             bucket_interval: 10,
@@ -801,7 +964,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mixup_types() {
+    fn test_aggregator_mixup_types() {
         relay_test::setup();
         let config = AggregatorConfig {
             bucket_interval: 10,

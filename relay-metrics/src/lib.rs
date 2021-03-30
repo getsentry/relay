@@ -49,6 +49,39 @@
 //!   }
 //! ]
 //! ```
+//!
+//! # Ingestion
+//!
+//! Processing Relays write aggregate buckets into the ingestion Kafka stream. The schema is similar
+//! to the aggregation payload, with the addition of scoping information:
+//!
+//! ```json
+//! [
+//!   {
+//!     "org_id": 1,
+//!     "project_id": 42,
+//!     "name": "endpoint.response_time",
+//!     "unit": "ms",
+//!     "value": [36, 49, 57, 68],
+//!     "type": "d",
+//!     "timestamp": 1615889440,
+//!     "tags": {
+//!       "route": "user_index"
+//!     }
+//!   },
+//!   {
+//!     "org_id": 1,
+//!     "project_id": 42,
+//!     "name": "endpoint.hits",
+//!     "value": 4,
+//!     "type": "c",
+//!     "timestamp": 1615889440,
+//!     "tags": {
+//!       "route": "user_index"
+//!     }
+//!   }
+//! ]
+//! ```
 #![warn(missing_docs)]
 
 mod aggregation;
