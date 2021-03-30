@@ -677,9 +677,6 @@
 <span id="674">674</span>
 <span id="675">675</span>
 <span id="676">676</span>
-<span id="677">677</span>
-<span id="678">678</span>
-<span id="679">679</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module contains the actor that forwards events and attachments to the Sentry store.</span>
 <span class="doccomment">//! The actor uses kafka topics to forward data to Sentry</span>
@@ -694,7 +691,7 @@
 <span class="kw">use</span> <span class="ident">rdkafka</span>::<span class="ident">error</span>::<span class="ident">KafkaError</span>;
 <span class="kw">use</span> <span class="ident">rdkafka</span>::<span class="ident">producer</span>::<span class="ident">BaseRecord</span>;
 <span class="kw">use</span> <span class="ident">rdkafka</span>::<span class="ident">ClientConfig</span>;
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Metric</span>, <span class="ident">MetricUnit</span>, <span class="ident">MetricValue</span>};
+<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">BucketValue</span>, <span class="ident">MetricUnit</span>};
 <span class="kw">use</span> <span class="ident">rmp_serde</span>::<span class="ident">encode</span>::<span class="ident">Error</span> <span class="kw">as</span> <span class="ident">RmpError</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">ser</span>::<span class="ident">Error</span>, <span class="ident">Serialize</span>};
 
@@ -1000,19 +997,16 @@
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">payload</span>();
 
-        <span class="comment">// NB: Metrics are guaranteed to contain a timestamp at this point.</span>
-        <span class="kw">for</span> <span class="ident">metric_result</span> <span class="kw">in</span> <span class="ident">Metric</span>::<span class="ident">parse_all</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>, <span class="ident">UnixTimestamp</span>::<span class="ident">from_secs</span>(<span class="number">0</span>)) {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">metric</span>) <span class="op">=</span> <span class="ident">metric_result</span> {
-                <span class="self">self</span>.<span class="ident">send_metric_message</span>(<span class="ident">MetricKafkaMessage</span> {
-                    <span class="ident">org_id</span>,
-                    <span class="ident">project_id</span>,
-                    <span class="ident">name</span>: <span class="ident">metric</span>.<span class="ident">name</span>,
-                    <span class="ident">unit</span>: <span class="ident">metric</span>.<span class="ident">unit</span>,
-                    <span class="ident">value</span>: <span class="ident">metric</span>.<span class="ident">value</span>,
-                    <span class="ident">timestamp</span>: <span class="ident">metric</span>.<span class="ident">timestamp</span>,
-                    <span class="ident">tags</span>: <span class="ident">metric</span>.<span class="ident">tags</span>,
-                })<span class="question-mark">?</span>;
-            }
+        <span class="kw">for</span> <span class="ident">bucket</span> <span class="kw">in</span> <span class="ident">Bucket</span>::<span class="ident">parse_all</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>).<span class="ident">unwrap_or_default</span>() {
+            <span class="self">self</span>.<span class="ident">send_metric_message</span>(<span class="ident">MetricKafkaMessage</span> {
+                <span class="ident">org_id</span>,
+                <span class="ident">project_id</span>,
+                <span class="ident">name</span>: <span class="ident">bucket</span>.<span class="ident">name</span>,
+                <span class="ident">unit</span>: <span class="ident">MetricUnit</span>::<span class="ident">default</span>(),
+                <span class="ident">value</span>: <span class="ident">bucket</span>.<span class="ident">value</span>,
+                <span class="ident">timestamp</span>: <span class="ident">bucket</span>.<span class="ident">timestamp</span>,
+                <span class="ident">tags</span>: <span class="ident">bucket</span>.<span class="ident">tags</span>,
+            })<span class="question-mark">?</span>;
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -1184,13 +1178,13 @@
 <span class="kw">struct</span> <span class="ident">MetricKafkaMessage</span> {
     <span class="ident">org_id</span>: <span class="ident">u64</span>,
     <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
-    <span class="kw">pub</span> <span class="ident">name</span>: <span class="ident">String</span>,
-    <span class="kw">pub</span> <span class="ident">unit</span>: <span class="ident">MetricUnit</span>,
+    <span class="ident">name</span>: <span class="ident">String</span>,
+    <span class="ident">unit</span>: <span class="ident">MetricUnit</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">flatten</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">value</span>: <span class="ident">MetricValue</span>,
-    <span class="kw">pub</span> <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>,
+    <span class="ident">value</span>: <span class="ident">BucketValue</span>,
+    <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;BTreeMap::is_empty&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">tags</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="ident">tags</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span>,
 }
 
 <span class="doccomment">/// An enum over all possible ingest messages.</span>
@@ -1317,7 +1311,7 @@
                         <span class="ident">item</span>,
                     )<span class="question-mark">?</span>;
                 }
-                <span class="ident">ItemType</span>::<span class="ident">Metrics</span> <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="ident">ItemType</span>::<span class="ident">MetricBuckets</span> <span class="op">=</span><span class="op">&gt;</span> {
                     <span class="self">self</span>.<span class="ident">produce_metrics</span>(<span class="ident">scoping</span>.<span class="ident">organization_id</span>, <span class="ident">scoping</span>.<span class="ident">project_id</span>, <span class="ident">item</span>)<span class="question-mark">?</span>
                 }
                 <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> {}

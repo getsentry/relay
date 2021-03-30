@@ -1435,6 +1435,14 @@
 <span id="1432">1432</span>
 <span id="1433">1433</span>
 <span id="1434">1434</span>
+<span id="1435">1435</span>
+<span id="1436">1436</span>
+<span id="1437">1437</span>
+<span id="1438">1438</span>
+<span id="1439">1439</span>
+<span id="1440">1440</span>
+<span id="1441">1441</span>
+<span id="1442">1442</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">env</span>;
@@ -1451,6 +1459,7 @@
 
 <span class="kw">use</span> <span class="ident">relay_auth</span>::{<span class="ident">generate_key_pair</span>, <span class="ident">generate_relay_id</span>, <span class="ident">PublicKey</span>, <span class="ident">RelayId</span>, <span class="ident">SecretKey</span>};
 <span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">Uuid</span>;
+<span class="kw">use</span> <span class="ident">relay_metrics</span>::<span class="ident">AggregatorConfig</span>;
 <span class="kw">use</span> <span class="ident">relay_redis</span>::<span class="ident">RedisConfig</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">byte_size</span>::<span class="ident">ByteSize</span>;
@@ -2251,6 +2260,8 @@
     <span class="ident">processing</span>: <span class="ident">Processing</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
     <span class="ident">outcomes</span>: <span class="ident">Outcomes</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
+    <span class="ident">aggregator</span>: <span class="ident">AggregatorConfig</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">ConfigObject</span> <span class="kw">for</span> <span class="ident">ConfigValues</span> {
@@ -2858,6 +2869,11 @@
     <span class="doccomment">/// Maximum rate limit to report to clients in seconds.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_rate_limit</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">max_rate_limit</span>.<span class="ident">map</span>(<span class="ident">u32</span>::<span class="ident">into</span>)
+    }
+
+    <span class="doccomment">/// Returns configuration for the metrics [aggregator](relay_metrics::Aggregator).</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">aggregator_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">AggregatorConfig</span> {
+        <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">aggregator</span>.<span class="ident">clone</span>()
     }
 }
 
