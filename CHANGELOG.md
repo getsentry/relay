@@ -14,6 +14,7 @@
 - Change HTTP response for upstream timeouts from 502 to 504. ([#859](https://github.com/getsentry/relay/pull/859))
 - Add rule id to outcomes coming from transaction sampling. ([#953](https://github.com/getsentry/relay/pull/953))
 - Add support for breakdowns ingestion. ([#934](https://github.com/getsentry/relay/pull/934))
+- Ensure empty strings are invalid measurement names. ([#968](https://github.com/getsentry/relay/pull/968))
 
 ## 21.3.0
 

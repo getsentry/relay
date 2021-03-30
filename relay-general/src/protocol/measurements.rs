@@ -33,7 +33,12 @@ impl FromValue for Measurements {
                 .filter_map(|(name, object)| {
                     let name = name.trim();
 
-                    if is_valid_measurement_name(name) {
+                    if name.is_empty() {
+                        processing_errors.push(Error::invalid(format!(
+                            "measurement name '{}' cannot be empty",
+                            name
+                        )));
+                    } else if is_valid_measurement_name(name) {
                         return Some((name.to_lowercase(), object));
                     } else {
                         processing_errors.push(Error::invalid(format!(
@@ -72,8 +77,10 @@ impl DerefMut for Measurements {
 }
 
 fn is_valid_measurement_name(name: &str) -> bool {
-    name.chars()
-        .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.'))
+    name.starts_with(|c| matches!(c, 'a'..='z' | 'A'..='Z'))
+        && name
+            .chars()
+            .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.'))
 }
 
 #[test]
@@ -88,7 +95,8 @@ fn test_measurements_serialization() {
         "cls": {"value": null},
         "fp": {"value": "im a first paint"},
         "Total Blocking Time": {"value": 3.14159},
-        "missing_value": "string"
+        "missing_value": "string",
+        "": {"value": 2.71828}
     }
 }"#;
 
@@ -115,6 +123,12 @@ fn test_measurements_serialization() {
     "measurements": {
       "": {
         "err": [
+          [
+            "invalid_data",
+            {
+              "reason": "measurement name '' cannot be empty"
+            }
+          ],
           [
             "invalid_data",
             {
@@ -200,6 +214,8 @@ fn test_measurements_serialization() {
     }));
 
     let measurements_meta = measurements.meta_mut();
+
+    measurements_meta.add_error(Error::invalid("measurement name '' cannot be empty"));
 
     measurements_meta.add_error(Error::invalid(
         "measurement name 'Total Blocking Time' can contain only characters a-z0-9.-_",
