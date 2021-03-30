@@ -38,7 +38,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     mini_sentry.add_full_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"foo:42|c|'{timestamp}\nbar:17|c|'{timestamp}"
+    metrics_payload = f"foo:42|c|'{timestamp}\nbar@s:17|c|'{timestamp}"
     relay.send_metrics(project_id, metrics_payload)
 
     metric = metrics_consumer.get_metric()
@@ -59,11 +59,13 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "org_id": 1,
         "project_id": project_id,
         "name": "bar",
-        "unit": "",
+        "unit": "s",
         "value": 17.0,
         "type": "c",
         "timestamp": timestamp,
     }
+
+    metrics_consumer.assert_empty()
 
 
 def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consumer):
@@ -100,3 +102,5 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
         "value": 15.0,
         "type": "c",
     }
+
+    metrics_consumer.assert_empty()

@@ -15,6 +15,9 @@
 //! endpoint.hits:1|c|'1615889449|#route:user_index
 //! ```
 //!
+//! The metric type is part of its signature just like the unit. Therefore, it is allowed to reuse a
+//! metric name for multiple metric types, which will result in multiple metrics being recorded.
+//!
 //! # Aggregation
 //!
 //! Relay accumulates all metrics in [time buckets](Bucket) before sending them onwards. Aggregation

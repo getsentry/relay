@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::{MonotonicResult, UnixTimestamp};
 
-use crate::{Metric, MetricType, MetricValue};
+use crate::{Metric, MetricType, MetricUnit, MetricValue};
 
 /// The [aggregated value](Bucket::value) of a metric bucket.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -185,6 +185,11 @@ pub struct Bucket {
     ///
     /// See [`Metric::name`].
     pub name: String,
+    /// The unit of the metric value.
+    ///
+    /// See [`Metric::unit`].
+    #[serde(default, skip_serializing_if = "MetricUnit::is_none")]
+    pub unit: MetricUnit,
     /// The aggregated values in this bucket.
     ///
     /// [Counters](BucketValue::Counter) and [gauges](BucketValue::Gauge) store a single value while
@@ -204,6 +209,7 @@ impl Bucket {
         Self {
             timestamp: key.timestamp,
             name: key.metric_name,
+            unit: key.metric_unit,
             value,
             tags: key.tags,
         }
@@ -242,6 +248,7 @@ struct BucketKey {
     timestamp: UnixTimestamp,
     metric_name: String,
     metric_type: MetricType,
+    metric_unit: MetricUnit,
     tags: BTreeMap<String, String>,
 }
 /// Parameters used by the [`Aggregator`].
@@ -392,8 +399,8 @@ impl Message for FlushBuckets {
 ///
 /// # Aggregation
 ///
-/// Each metric is dispatched into the a [`Bucket`] depending on its name, type, tags and timestamp.
-/// The bucket timestamp is rounded to the precision declared by the
+/// Each metric is dispatched into the a [`Bucket`] depending on its name, type, unit, tags and
+/// timestamp. The bucket timestamp is rounded to the precision declared by the
 /// [`bucket_interval`](AggregatorConfig::bucket_interval) configuration.
 ///
 /// Each bucket stores the accumulated value of submitted metrics:
@@ -402,6 +409,12 @@ impl Message for FlushBuckets {
 /// - `Distribution`: A list of values.
 /// - `Set`: A unique set of hashed values.
 /// - `Gauge`: The latest submitted value.
+///
+/// # Conflicts
+///
+/// Metrics are uniquely identified by the combination of their name, type and unit. It is allowed
+/// to send metrics of different types and units under the same name. For example, sending a metric
+/// once as set and once as distribution will result in two actual metrics being recorded.
 ///
 /// # Flushing
 ///
@@ -494,6 +507,7 @@ impl Aggregator {
             timestamp: self.get_bucket_timestamp(metric.timestamp),
             metric_name: metric.name,
             metric_type: metric.value.ty(),
+            metric_unit: metric.unit,
             tags: metric.tags,
         };
         self.merge_in(key, metric.value)
@@ -507,6 +521,7 @@ impl Aggregator {
             timestamp: bucket.timestamp,
             metric_name: bucket.name,
             metric_type: bucket.value.ty(),
+            metric_unit: bucket.unit,
             tags: bucket.tags,
         };
         self.merge_in(key, bucket.value)
@@ -653,7 +668,8 @@ mod tests {
     use std::sync::{Arc, RwLock};
 
     use super::*;
-    use crate::MetricUnit;
+
+    use crate::{DurationPrecision, MetricUnit};
 
     struct BucketCountInquiry;
 
@@ -735,13 +751,15 @@ mod tests {
           }
         ]"#;
 
-        // TODO: This should parse the unit.
         let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
         insta::assert_debug_snapshot!(buckets, @r###"
         [
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
                 name: "endpoint.response_time",
+                unit: Duration(
+                    MilliSecond,
+                ),
                 value: Distribution(
                     [
                         36.0,
@@ -775,6 +793,7 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
                 name: "endpoint.hits",
+                unit: None,
                 value: Counter(
                     4.0,
                 ),
@@ -904,6 +923,7 @@ mod tests {
                 timestamp: UnixTimestamp(4710),
                 metric_name: "foo",
                 metric_type: Counter,
+                metric_unit: None,
                 tags: {},
             }: Counter(
                 85.0,
@@ -942,6 +962,7 @@ mod tests {
                     timestamp: UnixTimestamp(4710),
                     metric_name: "foo",
                     metric_type: Counter,
+                    metric_unit: None,
                     tags: {},
                 },
                 Counter(
@@ -953,6 +974,7 @@ mod tests {
                     timestamp: UnixTimestamp(4720),
                     metric_name: "foo",
                     metric_type: Counter,
+                    metric_unit: None,
                     tags: {},
                 },
                 Counter(
@@ -964,12 +986,14 @@ mod tests {
     }
 
     #[test]
-    fn test_aggregator_mixup_types() {
+    fn test_aggregator_mixed_types() {
         relay_test::setup();
+
         let config = AggregatorConfig {
             bucket_interval: 10,
             ..AggregatorConfig::default()
         };
+
         let receiver = TestReceiver::start_default().recipient();
         let mut aggregator = Aggregator::new(config, receiver);
 
@@ -980,7 +1004,33 @@ mod tests {
 
         // It's OK to have same name for different types:
         aggregator.insert(metric1).unwrap();
-        assert!(matches!(aggregator.insert(metric2), Ok(_)));
+        aggregator.insert(metric2).unwrap();
+        assert_eq!(aggregator.buckets.len(), 2);
+    }
+
+    #[test]
+    fn test_aggregator_mixed_units() {
+        relay_test::setup();
+
+        let config = AggregatorConfig {
+            bucket_interval: 10,
+            ..AggregatorConfig::default()
+        };
+
+        let receiver = TestReceiver::start_default().recipient();
+        let mut aggregator = Aggregator::new(config, receiver);
+
+        let metric1 = some_metric();
+
+        let mut metric2 = metric1.clone();
+        metric2.unit = MetricUnit::Duration(DurationPrecision::Second);
+
+        // It's OK to have same metric with different units:
+        aggregator.insert(metric1).unwrap();
+        aggregator.insert(metric2).unwrap();
+
+        // TODO: This should convert if units are convertible
+        assert_eq!(aggregator.buckets.len(), 2);
     }
 
     #[test]
