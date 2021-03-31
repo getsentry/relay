@@ -315,12 +315,16 @@ impl<F> fmt::Debug for EnvelopeLimiter<F> {
 
 pub struct RateLimitEnforcement {
     pub rate_limits: RateLimits,
-    pub removed_items: Envelope,
+    pub removed_items: Option<Envelope>,
 }
 
 impl RateLimitEnforcement {
     pub fn emit_outcomes(&self, scoping: &Scoping, outcome_producer: &Addr<OutcomeProducer>) {
-        let envelope_summary = EnvelopeSummary::compute(&self.removed_items);
+        let envelope_summary = if let Some(removed_items) = &self.removed_items {
+            EnvelopeSummary::compute(&removed_items)
+        } else {
+            return;
+        };
 
         let emit_outcome = |category: DataCategory, reason_code: &Option<ReasonCode>| {
             outcome_producer.do_send(TrackOutcome {

@@ -841,7 +841,7 @@ impl Envelope {
     ///
     /// In other words, remove all elements where `f(&item)` returns `false`. This method operates
     /// in place and preserves the order of the retained and removed items.
-    pub fn retain_items<F>(&mut self, mut f: F) -> Self
+    pub fn retain_items<F>(&mut self, mut f: F) -> Option<Self>
     where
         F: FnMut(&mut Item) -> bool,
     {
@@ -853,9 +853,14 @@ impl Envelope {
             }
             is_retained
         });
-        Self {
-            headers: self.headers.clone(),
-            items: removed_items,
+
+        if removed_items.is_empty() {
+            None
+        } else {
+            Some(Self {
+                headers: self.headers.clone(),
+                items: removed_items,
+            })
         }
     }
 
