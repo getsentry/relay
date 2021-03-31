@@ -577,11 +577,12 @@ impl Project {
             RateLimitOutcomeEmitter::new(&envelope, &scoping, &self.outcome_producer);
         let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
             let applied_limits = self.rate_limits.check_with_quotas(quotas, item_scoping);
+            // TODO: Emit based on RateLimitEnforcement instead
             rate_limit_envelope.emit_rate_limit_outcomes(&applied_limits);
             Ok(applied_limits)
         });
 
-        let rate_limits = envelope_limiter.enforce(&mut envelope, scoping)?;
+        let enforcement = envelope_limiter.enforce(&mut envelope, scoping)?;
         let envelope = if envelope.is_empty() {
             None
         } else {
@@ -590,7 +591,7 @@ impl Project {
 
         Ok(CheckedEnvelope {
             envelope,
-            rate_limits,
+            rate_limits: enforcement.rate_limits,
         })
     }
 

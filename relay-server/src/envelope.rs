@@ -836,15 +836,27 @@ impl Envelope {
         }
     }
 
-    /// Retains only the items specified by the predicate.
+    /// Modifies this envelope in place to retain only the items specified by the predicate, and
+    /// return another envelope containing the removed items.
     ///
     /// In other words, remove all elements where `f(&item)` returns `false`. This method operates
-    /// in place and preserves the order of the retained items.
-    pub fn retain_items<F>(&mut self, f: F)
+    /// in place and preserves the order of the retained and removed items.
+    pub fn retain_items<F>(&mut self, mut f: F) -> Self
     where
         F: FnMut(&mut Item) -> bool,
     {
-        self.items.retain(f)
+        let mut removed_items: Items = Items::new();
+        self.items.retain(|item| {
+            let is_retained = f(item);
+            if !is_retained {
+                removed_items.push(item.clone());
+            }
+            is_retained
+        });
+        Self {
+            headers: self.headers.clone(),
+            items: removed_items,
+        }
     }
 
     /// Serializes this envelope into the given writer.

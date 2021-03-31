@@ -1067,11 +1067,12 @@ impl EventProcessor {
         // point and it is easier than passing scoping through all layers of `process_envelope`.
         let scoping = project_state.get_scoping(state.envelope.meta());
 
-        state.rate_limits = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
+        let enforcement = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
             envelope_limiter
                 .enforce(&mut state.envelope, &scoping)
                 .map_err(ProcessingError::QuotasFailed)?
         });
+        state.rate_limits = enforcement.rate_limits;
 
         if remove_event {
             state.remove_event();
