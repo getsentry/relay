@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Skip serializing some null values in frames interface. ([#944](https://github.com/getsentry/relay/pull/944))
 - Make request url scrubbable. ([#955](https://github.com/getsentry/relay/pull/955))
 
 ## 0.8.4

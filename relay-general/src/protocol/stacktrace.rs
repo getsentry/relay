@@ -76,9 +76,11 @@ pub struct Frame {
     pub abs_path: Annotated<NativeImagePath>,
 
     /// Line number within the source file, starting at 1.
+    #[metastructure(skip_serialization = "null")]
     pub lineno: Annotated<u64>,
 
     /// Column number within the source file, starting at 1.
+    #[metastructure(skip_serialization = "null")]
     pub colno: Annotated<u64>,
 
     /// Which platform this frame is from.
@@ -93,6 +95,7 @@ pub struct Frame {
     pub pre_context: Annotated<Array<String>>,
 
     /// Source code of the current line (`lineno`).
+    #[metastructure(skip_serialization = "null")]
     pub context_line: Annotated<String>,
 
     /// Source code of the lines after `lineno`.
@@ -104,6 +107,7 @@ pub struct Frame {
     ///
     /// Setting this attribute to `false` causes the frame to be hidden/collapsed by default and
     /// mostly ignored during issue grouping.
+    #[metastructure(skip_serialization = "null")]
     pub in_app: Annotated<bool>,
 
     /// Mapping of local variables and expression names that were available in this frame.
@@ -113,9 +117,11 @@ pub struct Frame {
 
     /// Auxiliary information about the frame that is platform specific.
     #[metastructure(omit_from_schema)]
+    #[metastructure(skip_serialization = "empty")]
     pub data: Annotated<FrameData>,
 
     /// (C/C++/Native) Start address of the containing code module (image).
+    #[metastructure(skip_serialization = "null")]
     pub image_addr: Annotated<Addr>,
 
     /// (C/C++/Native) An optional instruction address for symbolication.
@@ -124,15 +130,18 @@ pub struct Frame {
     /// If this is set and a known image is defined in the
     /// [Debug Meta Interface]({%- link _documentation/development/sdk-dev/event-payloads/debugmeta.md -%}),
     /// then symbolication can take place.
+    #[metastructure(skip_serialization = "null")]
     pub instruction_addr: Annotated<Addr>,
 
     /// Defines the addressing mode for addresses.
+    #[metastructure(skip_serialization = "empty")]
     pub addr_mode: Annotated<String>,
 
     /// (C/C++/Native) Start address of the frame's function.
     ///
     /// We use the instruction address for symbolication, but this can be used to calculate
     /// an instruction offset automatically.
+    #[metastructure(skip_serialization = "null")]
     pub symbol_addr: Annotated<Addr>,
 
     /// (C/C++/Native) Used for native crashes to indicate how much we can "trust" the instruction_addr
