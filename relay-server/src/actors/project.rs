@@ -690,9 +690,9 @@ impl Project {
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        let enforcement = envelope_limiter.enforce(&mut envelope, scoping)?;
-        enforcement.emit_outcomes(scoping, &self.outcome_producer);
-
+        let rate_limits = envelope_limiter.enforce(&mut envelope, scoping, |outcome| {
+            self.outcome_producer.do_send(outcome)
+        })?;
         let envelope = if envelope.is_empty() {
             None
         } else {
@@ -700,7 +700,7 @@ impl Project {
         };
         Ok(CheckedEnvelope {
             envelope,
-            rate_limits: enforcement.applied_limits,
+            rate_limits,
         })
     }
 
