@@ -195,7 +195,7 @@ struct ItemRetention {
 
 struct RateLimitForItem {
     applied_limit: RateLimit,
-    item: Item,
+    item_category: DataCategory,
 }
 
 /// Enforces rate limits with the given `check` function on items in the envelope.
@@ -267,10 +267,12 @@ where
         envelope.retain_items(|item| {
             let retention = self.retain_item(item);
             if let Some(applied_limit) = retention.applied_limit {
-                applied_limits.push(RateLimitForItem {
-                    applied_limit,
-                    item: item.clone(),
-                })
+                if let Some(item_category) = infer_event_category(item) {
+                    applied_limits.push(RateLimitForItem {
+                        applied_limit,
+                        item_category,
+                    })
+                }
             }
             retention.retain_in_envelope
         });
@@ -383,20 +385,19 @@ impl RateLimitEnforcement {
         let timestamp = Instant::now();
         for limited_item in self.limited_items.iter() {
             let reason_code = &limited_item.applied_limit.reason_code;
-            if let Some(category) = infer_event_category(&limited_item.item) {
-                outcome_producer.do_send(TrackOutcome {
-                    timestamp,
-                    scoping: *scoping,
-                    outcome: Outcome::RateLimited(reason_code.clone()),
-                    event_id: self.summary.event_id,
-                    remote_addr: self.summary.remote_addr,
-                    category,
-                    quantity: match category {
-                        DataCategory::Attachment => self.summary.attachment_quantity,
-                        _ => 1,
-                    },
-                });
-            }
+            let category = limited_item.item_category;
+            outcome_producer.do_send(TrackOutcome {
+                timestamp,
+                scoping: *scoping,
+                outcome: Outcome::RateLimited(reason_code.clone()),
+                event_id: self.summary.event_id,
+                remote_addr: self.summary.remote_addr,
+                category,
+                quantity: match category {
+                    DataCategory::Attachment => self.summary.attachment_quantity,
+                    _ => 1,
+                },
+            });
         }
     }
 }
