@@ -3132,6 +3132,7 @@ dependencies = [
  "relay-auth",
  "relay-common",
  "relay-log",
+ "relay-metrics",
  "relay-redis",
  "serde",
  "serde_json",

@@ -2837,6 +2837,14 @@ expression: event_json_schema()
                 "null"
               ]
             },
+            "segment": {
+              "description": " The user segment, for apps that divide users in user segments.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "username": {
               "description": " Username of the user.",
               "default": null,

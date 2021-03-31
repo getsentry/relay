@@ -141,6 +141,7 @@ impl ServiceState {
 
         let project_cache = ProjectCache::new(
             config.clone(),
+            event_manager.clone(),
             upstream_relay.clone(),
             redis_pool,
             outcome_producer.clone(),

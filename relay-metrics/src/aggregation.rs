@@ -10,10 +10,10 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::{MonotonicResult, UnixTimestamp};
 
-use crate::{Metric, MetricType, MetricValue};
+use crate::{Metric, MetricType, MetricUnit, MetricValue};
 
 /// The [aggregated value](Bucket::value) of a metric bucket.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
 pub enum BucketValue {
     /// Aggregates [`MetricValue::Counter`] values by adding them into a single value.
@@ -185,6 +185,11 @@ pub struct Bucket {
     ///
     /// See [`Metric::name`].
     pub name: String,
+    /// The unit of the metric value.
+    ///
+    /// See [`Metric::unit`].
+    #[serde(default, skip_serializing_if = "MetricUnit::is_none")]
+    pub unit: MetricUnit,
     /// The aggregated values in this bucket.
     ///
     /// [Counters](BucketValue::Counter) and [gauges](BucketValue::Gauge) store a single value while
@@ -195,7 +200,7 @@ pub struct Bucket {
     /// A list of tags adding dimensions to the metric for filtering and aggregation.
     ///
     /// See [`Metric::tags`]. Every combination of tags results in a different bucket.
-    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tags: BTreeMap<String, String>,
 }
 
@@ -204,6 +209,7 @@ impl Bucket {
         Self {
             timestamp: key.timestamp,
             name: key.metric_name,
+            unit: key.metric_unit,
             value,
             tags: key.tags,
         }
@@ -242,6 +248,7 @@ struct BucketKey {
     timestamp: UnixTimestamp,
     metric_name: String,
     metric_type: MetricType,
+    metric_unit: MetricUnit,
     tags: BTreeMap<String, String>,
 }
 /// Parameters used by the [`Aggregator`].
@@ -392,8 +399,8 @@ impl Message for FlushBuckets {
 ///
 /// # Aggregation
 ///
-/// Each metric is dispatched into the a [`Bucket`] depending on its name, type, tags and timestamp.
-/// The bucket timestamp is rounded to the precision declared by the
+/// Each metric is dispatched into the a [`Bucket`] depending on its name, type, unit, tags and
+/// timestamp. The bucket timestamp is rounded to the precision declared by the
 /// [`bucket_interval`](AggregatorConfig::bucket_interval) configuration.
 ///
 /// Each bucket stores the accumulated value of submitted metrics:
@@ -402,6 +409,12 @@ impl Message for FlushBuckets {
 /// - `Distribution`: A list of values.
 /// - `Set`: A unique set of hashed values.
 /// - `Gauge`: The latest submitted value.
+///
+/// # Conflicts
+///
+/// Metrics are uniquely identified by the combination of their name, type and unit. It is allowed
+/// to send metrics of different types and units under the same name. For example, sending a metric
+/// once as set and once as distribution will result in two actual metrics being recorded.
 ///
 /// # Flushing
 ///
@@ -494,6 +507,7 @@ impl Aggregator {
             timestamp: self.get_bucket_timestamp(metric.timestamp),
             metric_name: metric.name,
             metric_type: metric.value.ty(),
+            metric_unit: metric.unit,
             tags: metric.tags,
         };
         self.merge_in(key, metric.value)
@@ -507,6 +521,7 @@ impl Aggregator {
             timestamp: bucket.timestamp,
             metric_name: bucket.name,
             metric_type: bucket.value.ty(),
+            metric_unit: bucket.unit,
             tags: bucket.tags,
         };
         self.merge_in(key, bucket.value)
@@ -653,7 +668,8 @@ mod tests {
     use std::sync::{Arc, RwLock};
 
     use super::*;
-    use crate::MetricUnit;
+
+    use crate::{DurationPrecision, MetricUnit};
 
     struct BucketCountInquiry;
 
@@ -721,7 +737,173 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_counters() {
+    fn test_parse_buckets() {
+        let json = r#"[
+          {
+            "name": "endpoint.response_time",
+            "unit": "ms",
+            "value": [36, 49, 57, 68],
+            "type": "d",
+            "timestamp": 1615889440,
+            "tags": {
+                "route": "user_index"
+            }
+          }
+        ]"#;
+
+        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+        insta::assert_debug_snapshot!(buckets, @r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1615889440),
+                name: "endpoint.response_time",
+                unit: Duration(
+                    MilliSecond,
+                ),
+                value: Distribution(
+                    [
+                        36.0,
+                        49.0,
+                        57.0,
+                        68.0,
+                    ],
+                ),
+                tags: {
+                    "route": "user_index",
+                },
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_parse_bucket_defaults() {
+        let json = r#"[
+          {
+            "name": "endpoint.hits",
+            "value": 4,
+            "type": "c",
+            "timestamp": 1615889440
+          }
+        ]"#;
+
+        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+        insta::assert_debug_snapshot!(buckets, @r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1615889440),
+                name: "endpoint.hits",
+                unit: None,
+                value: Counter(
+                    4.0,
+                ),
+                tags: {},
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_buckets_roundtrip() {
+        let json = r#"[
+  {
+    "timestamp": 1615889440,
+    "name": "endpoint.response_time",
+    "type": "d",
+    "value": [
+      36.0,
+      49.0,
+      57.0,
+      68.0
+    ],
+    "tags": {
+      "route": "user_index"
+    }
+  },
+  {
+    "timestamp": 1615889440,
+    "name": "endpoint.hits",
+    "type": "c",
+    "value": 4.0,
+    "tags": {
+      "route": "user_index"
+    }
+  }
+]"#;
+
+        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+        let serialized = serde_json::to_string_pretty(&buckets).unwrap();
+        assert_eq!(json, serialized);
+    }
+
+    #[test]
+    fn test_bucket_value_merge_counter() {
+        let mut value = BucketValue::Counter(42.);
+        BucketValue::Counter(43.).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Counter(85.));
+    }
+
+    #[test]
+    fn test_bucket_value_merge_distribution() {
+        let mut value = BucketValue::Distribution(vec![1., 2., 3.]);
+        BucketValue::Distribution(vec![2., 4.])
+            .merge_into(&mut value)
+            .unwrap();
+        // TODO: This should be ordered
+        assert_eq!(value, BucketValue::Distribution(vec![1., 2., 3., 2., 4.]));
+    }
+
+    #[test]
+    fn test_bucket_value_merge_set() {
+        let mut value = BucketValue::Set(vec![1, 2].into_iter().collect());
+        BucketValue::Set(vec![2, 3].into_iter().collect())
+            .merge_into(&mut value)
+            .unwrap();
+        assert_eq!(value, BucketValue::Set(vec![1, 2, 3].into_iter().collect()));
+    }
+
+    #[test]
+    fn test_bucket_value_merge_gauge() {
+        let mut value = BucketValue::Gauge(42.);
+        BucketValue::Gauge(43.).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Gauge(43.));
+    }
+
+    #[test]
+    fn test_bucket_value_insert_counter() {
+        let mut value = BucketValue::Counter(42.);
+        MetricValue::Counter(43.).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Counter(85.));
+    }
+
+    #[test]
+    fn test_bucket_value_insert_distribution() {
+        let mut value = BucketValue::Distribution(vec![1., 2., 3.]);
+        MetricValue::Distribution(2.0)
+            .merge_into(&mut value)
+            .unwrap();
+        // TODO: This should be ordered
+        assert_eq!(value, BucketValue::Distribution(vec![1., 2., 3., 2.]));
+    }
+
+    #[test]
+    fn test_bucket_value_insert_set() {
+        let mut value = BucketValue::Set(vec![1, 2].into_iter().collect());
+        MetricValue::Set(3).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Set(vec![1, 2, 3].into_iter().collect()));
+        MetricValue::Set(2).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Set(vec![1, 2, 3].into_iter().collect()));
+    }
+
+    #[test]
+    fn test_bucket_value_insert_gauge() {
+        let mut value = BucketValue::Gauge(42.);
+        MetricValue::Gauge(43.).merge_into(&mut value).unwrap();
+        assert_eq!(value, BucketValue::Gauge(43.));
+    }
+
+    #[test]
+    fn test_aggregator_merge_counters() {
         relay_test::setup();
 
         let config = AggregatorConfig::default();
@@ -741,6 +923,7 @@ mod tests {
                 timestamp: UnixTimestamp(4710),
                 metric_name: "foo",
                 metric_type: Counter,
+                metric_unit: None,
                 tags: {},
             }: Counter(
                 85.0,
@@ -750,7 +933,7 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_similar_timestamps() {
+    fn test_aggregator_merge_timestamps() {
         relay_test::setup();
         let config = AggregatorConfig {
             bucket_interval: 10,
@@ -779,6 +962,7 @@ mod tests {
                     timestamp: UnixTimestamp(4710),
                     metric_name: "foo",
                     metric_type: Counter,
+                    metric_unit: None,
                     tags: {},
                 },
                 Counter(
@@ -790,6 +974,7 @@ mod tests {
                     timestamp: UnixTimestamp(4720),
                     metric_name: "foo",
                     metric_type: Counter,
+                    metric_unit: None,
                     tags: {},
                 },
                 Counter(
@@ -801,12 +986,14 @@ mod tests {
     }
 
     #[test]
-    fn test_mixup_types() {
+    fn test_aggregator_mixed_types() {
         relay_test::setup();
+
         let config = AggregatorConfig {
             bucket_interval: 10,
             ..AggregatorConfig::default()
         };
+
         let receiver = TestReceiver::start_default().recipient();
         let mut aggregator = Aggregator::new(config, receiver);
 
@@ -817,7 +1004,33 @@ mod tests {
 
         // It's OK to have same name for different types:
         aggregator.insert(metric1).unwrap();
-        assert!(matches!(aggregator.insert(metric2), Ok(_)));
+        aggregator.insert(metric2).unwrap();
+        assert_eq!(aggregator.buckets.len(), 2);
+    }
+
+    #[test]
+    fn test_aggregator_mixed_units() {
+        relay_test::setup();
+
+        let config = AggregatorConfig {
+            bucket_interval: 10,
+            ..AggregatorConfig::default()
+        };
+
+        let receiver = TestReceiver::start_default().recipient();
+        let mut aggregator = Aggregator::new(config, receiver);
+
+        let metric1 = some_metric();
+
+        let mut metric2 = metric1.clone();
+        metric2.unit = MetricUnit::Duration(DurationPrecision::Second);
+
+        // It's OK to have same metric with different units:
+        aggregator.insert(metric1).unwrap();
+        aggregator.insert(metric2).unwrap();
+
+        // TODO: This should convert if units are convertible
+        assert_eq!(aggregator.buckets.len(), 2);
     }
 
     #[test]

@@ -357,8 +357,9 @@ fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool {
             }
             ItemType::Session => session_count += 1,
             ItemType::Sessions => session_count += 1,
-            ItemType::Metrics => (),
             ItemType::UserReport => (),
+            ItemType::Metrics => (),
+            ItemType::MetricBuckets => (),
         }
     }
 

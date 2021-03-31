@@ -10,7 +10,7 @@ pub use relay_common::UnixTimestamp;
 /// Time duration units used in [`MetricUnit::Duration`].
 ///
 /// Defaults to `ms`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum DurationPrecision {
     /// Nanosecond (`"ns"`).
     NanoSecond,
@@ -43,7 +43,7 @@ impl fmt::Display for DurationPrecision {
 /// measurements.
 ///
 /// Units and their precisions are uniquely represented by a string identifier.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum MetricUnit {
     /// A time duration, defaulting to milliseconds (`"ms"`).
     Duration(DurationPrecision),

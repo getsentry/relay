@@ -11,7 +11,7 @@ use failure::{Fail, ResultExt};
 use rdkafka::error::KafkaError;
 use rdkafka::producer::BaseRecord;
 use rdkafka::ClientConfig;
-use relay_metrics::{Metric, MetricUnit, MetricValue};
+use relay_metrics::{Bucket, BucketValue, MetricUnit};
 use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
 
@@ -317,19 +317,16 @@ impl StoreForwarder {
     ) -> Result<(), StoreError> {
         let payload = item.payload();
 
-        // NB: Metrics are guaranteed to contain a timestamp at this point.
-        for metric_result in Metric::parse_all(&payload, UnixTimestamp::from_secs(0)) {
-            if let Ok(metric) = metric_result {
-                self.send_metric_message(MetricKafkaMessage {
-                    org_id,
-                    project_id,
-                    name: metric.name,
-                    unit: metric.unit,
-                    value: metric.value,
-                    timestamp: metric.timestamp,
-                    tags: metric.tags,
-                })?;
-            }
+        for bucket in Bucket::parse_all(&payload).unwrap_or_default() {
+            self.send_metric_message(MetricKafkaMessage {
+                org_id,
+                project_id,
+                name: bucket.name,
+                unit: bucket.unit,
+                value: bucket.value,
+                timestamp: bucket.timestamp,
+                tags: bucket.tags,
+            })?;
         }
 
         Ok(())
@@ -501,13 +498,13 @@ struct SessionKafkaMessage {
 struct MetricKafkaMessage {
     org_id: u64,
     project_id: ProjectId,
-    pub name: String,
-    pub unit: MetricUnit,
+    name: String,
+    unit: MetricUnit,
     #[serde(flatten)]
-    pub value: MetricValue,
-    pub timestamp: UnixTimestamp,
+    value: BucketValue,
+    timestamp: UnixTimestamp,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    pub tags: BTreeMap<String, String>,
+    tags: BTreeMap<String, String>,
 }
 
 /// An enum over all possible ingest messages.
@@ -634,7 +631,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                         item,
                     )?;
                 }
-                ItemType::Metrics => {
+                ItemType::MetricBuckets => {
                     self.produce_metrics(scoping.organization_id, scoping.project_id, item)?
                 }
                 _ => {}
