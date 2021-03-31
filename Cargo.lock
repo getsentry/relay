@@ -1452,6 +1452,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash32"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4041af86e63ac4298ce40e5cca669066e75b6f1aa3390fe2561ffa5e1d9f4cc"
+dependencies = [
+ "byteorder",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3123,6 +3132,7 @@ dependencies = [
  "relay-auth",
  "relay-common",
  "relay-log",
+ "relay-metrics",
  "relay-redis",
  "serde",
  "serde_json",
@@ -3233,8 +3243,13 @@ dependencies = [
 name = "relay-metrics"
 version = "21.3.0"
 dependencies = [
+ "actix",
+ "futures 0.1.29",
+ "hash32",
  "insta",
  "relay-common",
+ "relay-log",
+ "relay-test",
  "serde",
  "serde_json",
 ]
@@ -3318,6 +3333,7 @@ dependencies = [
  "relay-quotas",
  "relay-redis",
  "relay-sampling",
+ "relay-test",
  "reqwest",
  "rmp-serde",
  "serde",
@@ -3330,6 +3346,17 @@ dependencies = [
  "tokio-timer",
  "url 2.2.0",
  "uuid 0.8.1",
+]
+
+[[package]]
+name = "relay-test"
+version = "21.3.0"
+dependencies = [
+ "actix",
+ "actix-web",
+ "futures 0.1.29",
+ "relay-log",
+ "tokio-timer",
 ]
 
 [[package]]
@@ -3491,9 +3518,9 @@ dependencies = [
 
 [[package]]
 name = "schemars"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "763f667253711994847f7e73befe859d6fff7bea2b7a7f01669d2c5b60765c37"
+checksum = "8a24475737c47c5a97cd0858d09db5b0c01ade85d671ee569cd1a5a2c0c80a44"
 dependencies = [
  "chrono",
  "dyn-clone",
@@ -3505,9 +3532,9 @@ dependencies = [
 
 [[package]]
 name = "schemars_derive"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1d457e2e37415f32b7628ddc5a7fea06ef63bd029ed180d65166e87ca25ce21"
+checksum = "c5f0ccbfe5a97322d90f8b19604fa5b99dd8223540eb6e36c99a9125303e4c00"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.7",

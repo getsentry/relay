@@ -95,8 +95,10 @@ pub enum ItemType {
     Session,
     /// Aggregated session data.
     Sessions,
-    /// Metrics.
+    /// Individual metrics in text encoding.
     Metrics,
+    /// Buckets of preaggregated metrics encoded as JSON.
+    MetricBuckets,
 }
 
 impl ItemType {
@@ -105,7 +107,7 @@ impl ItemType {
         match event_type {
             EventType::Default | EventType::Error => ItemType::Event,
             EventType::Transaction => ItemType::Transaction,
-            EventType::Csp | EventType::Hpkp | EventType::ExpectCT | EventType::ExpectStaple => {
+            EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
                 ItemType::Security
             }
         }
@@ -126,6 +128,7 @@ impl fmt::Display for ItemType {
             Self::Session => write!(f, "session"),
             Self::Sessions => write!(f, "aggregated sessions"),
             Self::Metrics => write!(f, "metrics"),
+            Self::MetricBuckets => write!(f, "metric buckets"),
         }
     }
 }
@@ -527,9 +530,11 @@ impl Item {
             ItemType::FormData => false,
 
             // The remaining item types cannot carry event payloads.
-            ItemType::UserReport | ItemType::Session | ItemType::Sessions | ItemType::Metrics => {
-                false
-            }
+            ItemType::UserReport
+            | ItemType::Session
+            | ItemType::Sessions
+            | ItemType::Metrics
+            | ItemType::MetricBuckets => false,
         }
     }
 
@@ -549,6 +554,7 @@ impl Item {
             ItemType::Session => false,
             ItemType::Sessions => false,
             ItemType::Metrics => false,
+            ItemType::MetricBuckets => false,
         }
     }
 }

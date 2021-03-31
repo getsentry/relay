@@ -137,21 +137,20 @@ macro_rules! get_value {
 #[cfg(feature = "uaparser")]
 /// Creates an Event with the specified user agent.
 pub(super) fn get_event_with_user_agent(user_agent: &str) -> Event {
-    let mut headers = Vec::new();
-
-    headers.push(Annotated::new((
-        Annotated::new("Accept".to_string().into()),
-        Annotated::new("application/json".to_string().into()),
-    )));
-
-    headers.push(Annotated::new((
-        Annotated::new("UsEr-AgeNT".to_string().into()),
-        Annotated::new(user_agent.to_string().into()),
-    )));
-    headers.push(Annotated::new((
-        Annotated::new("WWW-Authenticate".to_string().into()),
-        Annotated::new("basic".to_string().into()),
-    )));
+    let headers = vec![
+        Annotated::new((
+            Annotated::new("Accept".to_string().into()),
+            Annotated::new("application/json".to_string().into()),
+        )),
+        Annotated::new((
+            Annotated::new("UsEr-AgeNT".to_string().into()),
+            Annotated::new(user_agent.to_string().into()),
+        )),
+        Annotated::new((
+            Annotated::new("WWW-Authenticate".to_string().into()),
+            Annotated::new("basic".to_string().into()),
+        )),
+    ];
 
     Event {
         request: Annotated::new(Request {

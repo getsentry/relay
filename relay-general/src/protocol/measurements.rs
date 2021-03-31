@@ -1,8 +1,9 @@
+use std::ops::{Deref, DerefMut};
+
 use crate::types::{Annotated, Error, FromValue, Object, Value};
 
 /// An individual observed measurement.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Measurement {
     /// Value of observed measurement value.
     #[metastructure(required = "true", skip_serialization = "never")]
@@ -11,23 +12,33 @@ pub struct Measurement {
 
 /// A map of observed measurement values.
 ///
-/// Measurements are only available on transactions. They contain measurement values of observed
-/// values such as Largest Contentful Paint (LCP).
+/// They contain measurement values of observed values such as Largest Contentful Paint (LCP).
 #[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Measurements(pub Object<Measurement>);
+
+impl Measurements {
+    /// Returns the underlying object of measurements.
+    pub fn into_inner(self) -> Object<Measurement> {
+        self.0
+    }
+}
 
 impl FromValue for Measurements {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         let mut processing_errors = Vec::new();
 
-        let mut measurements = Object::<Measurement>::from_value(value).map_value(|measurements| {
+        let mut measurements = Object::from_value(value).map_value(|measurements| {
             let measurements = measurements
                 .into_iter()
                 .filter_map(|(name, object)| {
                     let name = name.trim();
 
-                    if is_valid_measurement_name(name) {
+                    if name.is_empty() {
+                        processing_errors.push(Error::invalid(format!(
+                            "measurement name '{}' cannot be empty",
+                            name
+                        )));
+                    } else if is_valid_measurement_name(name) {
                         return Some((name.to_lowercase(), object));
                     } else {
                         processing_errors.push(Error::invalid(format!(
@@ -51,9 +62,25 @@ impl FromValue for Measurements {
     }
 }
 
+impl Deref for Measurements {
+    type Target = Object<Measurement>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Measurements {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 fn is_valid_measurement_name(name: &str) -> bool {
-    name.chars()
-        .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.'))
+    name.starts_with(|c| matches!(c, 'a'..='z' | 'A'..='Z'))
+        && name
+            .chars()
+            .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.'))
 }
 
 #[test]
@@ -68,7 +95,8 @@ fn test_measurements_serialization() {
         "cls": {"value": null},
         "fp": {"value": "im a first paint"},
         "Total Blocking Time": {"value": 3.14159},
-        "missing_value": "string"
+        "missing_value": "string",
+        "": {"value": 2.71828}
     }
 }"#;
 
@@ -95,6 +123,12 @@ fn test_measurements_serialization() {
     "measurements": {
       "": {
         "err": [
+          [
+            "invalid_data",
+            {
+              "reason": "measurement name '' cannot be empty"
+            }
+          ],
           [
             "invalid_data",
             {
@@ -180,6 +214,8 @@ fn test_measurements_serialization() {
     }));
 
     let measurements_meta = measurements.meta_mut();
+
+    measurements_meta.add_error(Error::invalid("measurement name '' cannot be empty"));
 
     measurements_meta.add_error(Error::invalid(
         "measurement name 'Total Blocking Time' can contain only characters a-z0-9.-_",

@@ -21,6 +21,7 @@ mod trimming;
 
 pub use self::clock_drift::ClockDriftProcessor;
 pub use self::geo::{GeoIpError, GeoIpLookup};
+pub use normalize::breakdowns::BreakdownsConfig;
 
 /// The config for store.
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -49,6 +50,9 @@ pub struct StoreConfig {
 
     /// When `true` it adds context information extracted from the user agent
     pub normalize_user_agent: Option<bool>,
+
+    /// Emit breakdowns based on given configuration.
+    pub breakdowns: Option<normalize::breakdowns::BreakdownsConfig>,
 }
 
 /// The processor that normalizes events for store.

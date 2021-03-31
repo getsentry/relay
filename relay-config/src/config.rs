@@ -13,6 +13,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::Uuid;
+use relay_metrics::AggregatorConfig;
 use relay_redis::RedisConfig;
 
 use crate::byte_size::ByteSize;
@@ -813,6 +814,8 @@ struct ConfigValues {
     processing: Processing,
     #[serde(default)]
     outcomes: Outcomes,
+    #[serde(default)]
+    aggregator: AggregatorConfig,
 }
 
 impl ConfigObject for ConfigValues {
@@ -1420,6 +1423,11 @@ impl Config {
     /// Maximum rate limit to report to clients in seconds.
     pub fn max_rate_limit(&self) -> Option<u64> {
         self.values.processing.max_rate_limit.map(u32::into)
+    }
+
+    /// Returns configuration for the metrics [aggregator](relay_metrics::Aggregator).
+    pub fn aggregator_config(&self) -> AggregatorConfig {
+        self.values.aggregator.clone()
     }
 }
 
