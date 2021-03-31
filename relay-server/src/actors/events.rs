@@ -1034,7 +1034,7 @@ impl EventProcessor {
                 .enforce(&mut state.envelope, &scoping)
                 .map_err(ProcessingError::QuotasFailed)?
         });
-        state.rate_limits = enforcement.rate_limits;
+        state.rate_limits = enforcement.applied_limits;
 
         if remove_event {
             state.remove_event();
