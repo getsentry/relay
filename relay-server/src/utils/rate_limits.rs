@@ -143,12 +143,17 @@ impl EnvelopeSummary {
         Self::default()
     }
 
-    /// Creates an envelope summary and aggregates the given envelope.
-    pub fn compute(envelope: &Envelope) -> Self {
+    /// Creates an envelope summary containing no items.
+    pub fn empty_copy(envelope: &Envelope) -> Self {
         let mut summary = Self::empty();
-
         summary.event_id = envelope.event_id();
         summary.remote_addr = envelope.meta().client_addr();
+        summary
+    }
+
+    /// Creates an envelope summary and aggregates the given envelope.
+    pub fn compute(envelope: &Envelope) -> Self {
+        let mut summary = Self::empty_copy(envelope);
 
         for item in envelope.items() {
             if item.creates_event() {
@@ -183,9 +188,14 @@ impl EnvelopeSummary {
     }
 }
 
-struct ItemRetention {
-    applied_limit: Option<RateLimit>,
-    retain_in_envelope: bool,
+pub struct ItemRetention {
+    pub applied_limit: Option<RateLimit>,
+    pub retain_in_envelope: bool,
+}
+
+pub struct RateLimitForItem {
+    pub applied_limit: RateLimit,
+    pub item: Item,
 }
 
 /// Enforces rate limits with the given `check` function on items in the envelope.
@@ -243,11 +253,12 @@ where
             summary.event_category = Some(event_category);
         }
 
-        let rate_limits = self.execute(&summary, scoping)?;
-        let removed_items = envelope.retain_items(|item| self.retain_item(item).retain_in_envelope);
+        let applied_limits = self.execute(&summary, scoping)?;
+        let limited_items = envelope.apply_retention(|item| self.retain_item(item));
         Ok(RateLimitEnforcement {
-            applied_limits: rate_limits,
-            removed_items,
+            summary,
+            applied_limits,
+            limited_items,
         })
     }
 
@@ -349,39 +360,29 @@ impl<F> fmt::Debug for EnvelopeLimiter<F> {
 }
 
 pub struct RateLimitEnforcement {
+    pub summary: EnvelopeSummary,
     pub applied_limits: RateLimits,
-    pub removed_items: Option<Envelope>,
+    pub limited_items: Vec<RateLimitForItem>,
 }
 
 impl RateLimitEnforcement {
     pub fn emit_outcomes(&self, scoping: &Scoping, outcome_producer: &Addr<OutcomeProducer>) {
-        let removed_items = if let Some(removed_items) = &self.removed_items {
-            removed_items
-        } else {
-            return;
-        };
-        let summary = EnvelopeSummary::compute(&removed_items);
-
-        for applied_limit in self.applied_limits.iter() {
-            for removed_item in removed_items.items() {
-                if let Some(category) = infer_event_category(removed_item) {
-                    if applied_limit.categories.is_empty()
-                        || applied_limit.categories.contains(&category)
-                    {
-                        outcome_producer.do_send(TrackOutcome {
-                            timestamp: Instant::now(),
-                            scoping: *scoping,
-                            outcome: Outcome::RateLimited(applied_limit.reason_code.clone()),
-                            event_id: summary.event_id,
-                            remote_addr: summary.remote_addr,
-                            category,
-                            quantity: match category {
-                                DataCategory::Attachment => summary.attachment_quantity,
-                                _ => 1,
-                            },
-                        });
-                    }
-                }
+        let timestamp = Instant::now();
+        for limited_item in self.limited_items.iter() {
+            let reason_code = &limited_item.applied_limit.reason_code;
+            if let Some(category) = infer_event_category(&limited_item.item) {
+                outcome_producer.do_send(TrackOutcome {
+                    timestamp,
+                    scoping: *scoping,
+                    outcome: Outcome::RateLimited(reason_code.clone()),
+                    event_id: self.summary.event_id,
+                    remote_addr: self.summary.remote_addr,
+                    category,
+                    quantity: match category {
+                        DataCategory::Attachment => self.summary.attachment_quantity,
+                        _ => 1,
+                    },
+                });
             }
         }
     }
