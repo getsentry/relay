@@ -322,7 +322,7 @@ impl StoreForwarder {
                 org_id,
                 project_id,
                 name: bucket.name,
-                unit: MetricUnit::default(),
+                unit: bucket.unit,
                 value: bucket.value,
                 timestamp: bucket.timestamp,
                 tags: bucket.tags,
