@@ -23,10 +23,11 @@
 
 use std::{
     cell::RefCell,
+    sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
 
-use actix::{System, SystemRunner};
+use actix::{clock, System, SystemRunner};
 use futures::{future, IntoFuture};
 
 pub use actix_web::test::*;
@@ -121,5 +122,55 @@ where
 /// });
 /// ```
 pub fn delay(timeout: Duration) -> Delay {
-    Delay::new(Instant::now() + timeout)
+    Delay::new(clock::now() + timeout)
+}
+
+/// Provides a clock which has to be driven manually. See [`clock::Now`].
+/// ```
+/// use actix::prelude::*;
+/// use futures::future::Future;
+/// use std::time::Duration;
+///
+/// #[test]
+/// fn test_clock() {
+///     let mut test_now = TestNow::new();
+///     let test_clock = clock::Clock::new_with_now(test_now.clone());
+///     let sys = System::builder().clock(test_clock);
+///     sys.run(move || {
+///         actix::spawn(delay(Duration::from_millis(1000)).then(|_| {
+///             println!("This will never happen unless you advance the clock.");
+///             System::current().stop();
+///             Ok(())
+///         }));
+///         test_now.advance(Duration::from_millis(1100));
+///     });
+/// }
+/// ```
+#[derive(Clone)]
+pub struct TestNow {
+    current: Arc<RwLock<Instant>>,
+}
+
+impl TestNow {
+    pub fn new() -> Self {
+        TestNow {
+            current: Arc::new(RwLock::new(Instant::now())),
+        }
+    }
+
+    pub fn advance(&mut self, duration: Duration) {
+        *self.current.write().unwrap() += duration;
+    }
+}
+
+impl Default for TestNow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl actix::clock::Now for TestNow {
+    fn now(&self) -> std::time::Instant {
+        *self.current.read().unwrap()
+    }
 }
