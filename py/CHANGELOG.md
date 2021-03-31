@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.5
 
 - Make request url scrubbable. ([#955](https://github.com/getsentry/relay/pull/955))
 
