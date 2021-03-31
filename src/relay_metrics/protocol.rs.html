@@ -895,7 +895,7 @@
 <span class="doccomment">/// Time duration units used in [`MetricUnit::Duration`].</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Defaults to `ms`.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">DurationPrecision</span> {
     <span class="doccomment">/// Nanosecond (`&quot;ns&quot;`).</span>
     <span class="ident">NanoSecond</span>,
@@ -928,7 +928,7 @@
 <span class="doccomment">/// measurements.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Units and their precisions are uniquely represented by a string identifier.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MetricUnit</span> {
     <span class="doccomment">/// A time duration, defaulting to milliseconds (`&quot;ms&quot;`).</span>
     <span class="ident">Duration</span>(<span class="ident">DurationPrecision</span>),
