@@ -320,41 +320,32 @@ pub struct RateLimitEnforcement {
 
 impl RateLimitEnforcement {
     pub fn emit_outcomes(&self, scoping: &Scoping, outcome_producer: &Addr<OutcomeProducer>) {
-        let envelope_summary = if let Some(removed_items) = &self.removed_items {
-            EnvelopeSummary::compute(&removed_items)
+        let removed_items = if let Some(removed_items) = &self.removed_items {
+            removed_items
         } else {
             return;
         };
-
-        let emit_outcome = |category: DataCategory, reason_code: &Option<ReasonCode>| {
-            outcome_producer.do_send(TrackOutcome {
-                timestamp: Instant::now(),
-                scoping: *scoping,
-                outcome: Outcome::RateLimited(reason_code.clone()),
-                event_id: envelope_summary.event_id,
-                remote_addr: envelope_summary.remote_addr,
-                category,
-                quantity: match category {
-                    DataCategory::Attachment => envelope_summary.attachment_quantity,
-                    _ => 1,
-                },
-            })
-        };
+        let summary = EnvelopeSummary::compute(&removed_items);
 
         for applied_limit in self.rate_limits.iter() {
-            if applied_limit.categories.is_empty() {
-                // TODO: Use removed_items instead of this
-
-                // Empty categories value indicates that the rate limit applies to all data.
-                if let Some(event_category) = envelope_summary.event_category {
-                    emit_outcome(event_category, &applied_limit.reason_code);
-                }
-                if envelope_summary.attachment_quantity > 0 {
-                    emit_outcome(DataCategory::Attachment, &applied_limit.reason_code);
-                }
-            } else {
-                for category in applied_limit.categories.iter() {
-                    emit_outcome(*category, &applied_limit.reason_code);
+            for removed_item in removed_items.items() {
+                if let Some(category) = infer_event_category(removed_item) {
+                    if applied_limit.categories.is_empty()
+                        || applied_limit.categories.contains(&category)
+                    {
+                        outcome_producer.do_send(TrackOutcome {
+                            timestamp: Instant::now(),
+                            scoping: *scoping,
+                            outcome: Outcome::RateLimited(applied_limit.reason_code.clone()),
+                            event_id: summary.event_id,
+                            remote_addr: summary.remote_addr,
+                            category,
+                            quantity: match category {
+                                DataCategory::Attachment => summary.attachment_quantity,
+                                _ => 1,
+                            },
+                        });
+                    }
                 }
             }
         }
