@@ -18,12 +18,12 @@ use relay_general::store::BreakdownsConfig;
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 
+use crate::actors::outcome::DiscardReason;
 use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
 use crate::utils::{ActorResponse, EnvelopeLimiter, Response};
-use crate::{actors::outcome::DiscardReason, utils::RateLimitOutcomeEmitter};
 
 use super::outcome::OutcomeProducer;
 
@@ -573,22 +573,18 @@ impl Project {
         self.rate_limits.clean_expired();
 
         let quotas = self.state().map(|s| s.get_quotas()).unwrap_or(&[]);
-        let rate_limit_envelope =
-            RateLimitOutcomeEmitter::new(&envelope, &scoping, &self.outcome_producer);
         let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
-            let applied_limits = self.rate_limits.check_with_quotas(quotas, item_scoping);
-            // TODO: Emit based on RateLimitEnforcement instead
-            rate_limit_envelope.emit_rate_limit_outcomes(&applied_limits);
-            Ok(applied_limits)
+            Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
         let enforcement = envelope_limiter.enforce(&mut envelope, scoping)?;
+        enforcement.emit_outcomes(scoping, &self.outcome_producer);
+
         let envelope = if envelope.is_empty() {
             None
         } else {
             Some(envelope)
         };
-
         Ok(CheckedEnvelope {
             envelope,
             rate_limits: enforcement.rate_limits,

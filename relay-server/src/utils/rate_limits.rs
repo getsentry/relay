@@ -302,11 +302,6 @@ where
     }
 }
 
-pub struct RateLimitEnforcement {
-    pub rate_limits: RateLimits,
-    pub removed_items: Envelope,
-}
-
 impl<F> fmt::Debug for EnvelopeLimiter<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EnvelopeLimiter")
@@ -318,56 +313,47 @@ impl<F> fmt::Debug for EnvelopeLimiter<F> {
     }
 }
 
-pub struct RateLimitOutcomeEmitter {
-    envelope_summary: EnvelopeSummary,
-    scoping: Scoping,
-    outcome_producer: Addr<OutcomeProducer>,
+pub struct RateLimitEnforcement {
+    pub rate_limits: RateLimits,
+    pub removed_items: Envelope,
 }
 
-impl RateLimitOutcomeEmitter {
-    pub fn new(
-        envelope: &Envelope,
-        scoping: &Scoping,
-        outcome_producer: &Addr<OutcomeProducer>,
-    ) -> Self {
-        Self {
-            envelope_summary: EnvelopeSummary::compute(&envelope),
-            scoping: *scoping,
-            outcome_producer: outcome_producer.clone(),
-        }
-    }
+impl RateLimitEnforcement {
+    pub fn emit_outcomes(&self, scoping: &Scoping, outcome_producer: &Addr<OutcomeProducer>) {
+        let envelope_summary = EnvelopeSummary::compute(&self.removed_items);
 
-    pub fn emit_rate_limit_outcomes(&self, applied_limits: &RateLimits) {
-        for applied_limit in applied_limits.iter() {
+        let emit_outcome = |category: DataCategory, reason_code: &Option<ReasonCode>| {
+            outcome_producer.do_send(TrackOutcome {
+                timestamp: Instant::now(),
+                scoping: *scoping,
+                outcome: Outcome::RateLimited(reason_code.clone()),
+                event_id: envelope_summary.event_id,
+                remote_addr: envelope_summary.remote_addr,
+                category,
+                quantity: match category {
+                    DataCategory::Attachment => envelope_summary.attachment_quantity,
+                    _ => 1,
+                },
+            })
+        };
+
+        for applied_limit in self.rate_limits.iter() {
             if applied_limit.categories.is_empty() {
+                // TODO: Use removed_items instead of this
+
                 // Empty categories value indicates that the rate limit applies to all data.
-                if let Some(event_category) = self.envelope_summary.event_category {
-                    self.emit_outcome(&event_category, &applied_limit.reason_code);
+                if let Some(event_category) = envelope_summary.event_category {
+                    emit_outcome(event_category, &applied_limit.reason_code);
                 }
-                if self.envelope_summary.attachment_quantity > 0 {
-                    self.emit_outcome(&DataCategory::Attachment, &applied_limit.reason_code);
+                if envelope_summary.attachment_quantity > 0 {
+                    emit_outcome(DataCategory::Attachment, &applied_limit.reason_code);
                 }
             } else {
                 for category in applied_limit.categories.iter() {
-                    self.emit_outcome(category, &applied_limit.reason_code);
+                    emit_outcome(*category, &applied_limit.reason_code);
                 }
             }
         }
-    }
-
-    fn emit_outcome(&self, category: &DataCategory, reason_code: &Option<ReasonCode>) {
-        self.outcome_producer.do_send(TrackOutcome {
-            timestamp: Instant::now(),
-            scoping: self.scoping,
-            outcome: Outcome::RateLimited(reason_code.clone()),
-            event_id: self.envelope_summary.event_id,
-            remote_addr: self.envelope_summary.remote_addr,
-            category: *category,
-            quantity: match category {
-                DataCategory::Attachment => self.envelope_summary.attachment_quantity,
-                _ => 1,
-            },
-        })
     }
 }
 
