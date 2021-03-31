@@ -1,5 +1,5 @@
+use std::sync::Arc;
 use std::time::{Duration, Instant};
-use std::{net::IpAddr, sync::Arc};
 
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
@@ -13,11 +13,8 @@ use relay_auth::PublicKey;
 use relay_common::{metric, DataCategory, ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
+use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_general::store::BreakdownsConfig;
-use relay_general::{
-    pii::{DataScrubbingConfig, PiiConfig},
-    protocol::EventId,
-};
 use relay_quotas::{Quota, RateLimits, ReasonCode, Scoping};
 use relay_sampling::SamplingConfig;
 
@@ -617,8 +614,6 @@ impl Actor for Project {
 }
 
 struct RateLimitEnvelope {
-    event_id: Option<EventId>,
-    remote_addr: Option<IpAddr>,
     envelope_summary: EnvelopeSummary,
     scoping: Scoping,
     outcome_producer: Addr<OutcomeProducer>,
@@ -631,11 +626,9 @@ impl RateLimitEnvelope {
         outcome_producer: &Addr<OutcomeProducer>,
     ) -> Self {
         Self {
-            event_id: envelope.event_id(),
-            remote_addr: envelope.meta().client_addr(),
             envelope_summary: EnvelopeSummary::compute(&envelope),
-            outcome_producer: outcome_producer.clone(),
             scoping: *scoping,
+            outcome_producer: outcome_producer.clone(),
         }
     }
 
@@ -662,8 +655,8 @@ impl RateLimitEnvelope {
             timestamp: Instant::now(),
             scoping: self.scoping,
             outcome: Outcome::RateLimited(reason_code.clone()),
-            event_id: self.event_id,
-            remote_addr: self.remote_addr,
+            event_id: self.envelope_summary.event_id,
+            remote_addr: self.envelope_summary.remote_addr,
             category: *category,
             quantity: match category {
                 DataCategory::Attachment => self.envelope_summary.attachment_quantity,

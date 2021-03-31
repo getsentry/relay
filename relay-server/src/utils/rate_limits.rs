@@ -1,5 +1,9 @@
-use std::fmt::{self, Write};
+use std::{
+    fmt::{self, Write},
+    net::IpAddr,
+};
 
+use relay_general::protocol::EventId;
 use relay_quotas::{
     DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
     ReasonCode, Scoping,
@@ -119,6 +123,12 @@ pub struct EnvelopeSummary {
 
     /// Indicates that the envelope contains regular attachments that do not create event payloads.
     pub has_plain_attachments: bool,
+
+    /// Unique identifier of the event associated to this envelope.
+    pub event_id: Option<EventId>,
+
+    /// The IP address of the client that the envelope's event originates from.
+    pub remote_addr: Option<IpAddr>,
 }
 
 impl EnvelopeSummary {
@@ -130,6 +140,9 @@ impl EnvelopeSummary {
     /// Creates an envelope summary and aggregates the given envelope.
     pub fn compute(envelope: &Envelope) -> Self {
         let mut summary = Self::empty();
+
+        summary.event_id = envelope.event_id();
+        summary.remote_addr = envelope.meta().client_addr();
 
         for item in envelope.items() {
             if item.creates_event() {
