@@ -1,15 +1,20 @@
 use std::{
     fmt::{self, Write},
     net::IpAddr,
+    time::Instant,
 };
 
+use actix::Addr;
 use relay_general::protocol::EventId;
 use relay_quotas::{
     DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
     ReasonCode, Scoping,
 };
 
-use crate::envelope::{Envelope, Item, ItemType};
+use crate::{
+    actors::outcome::{Outcome, OutcomeProducer, TrackOutcome},
+    envelope::{Envelope, Item, ItemType},
+};
 
 /// Name of the rate limits header.
 pub const RATE_LIMITS_HEADER: &str = "X-Sentry-Rate-Limits";
@@ -298,6 +303,59 @@ impl<F> fmt::Debug for EnvelopeLimiter<F> {
             .field("remove_attachments", &self.remove_attachments)
             .field("remove_sessions", &self.remove_sessions)
             .finish()
+    }
+}
+
+pub struct RateLimitOutcomeEmitter {
+    envelope_summary: EnvelopeSummary,
+    scoping: Scoping,
+    outcome_producer: Addr<OutcomeProducer>,
+}
+
+impl RateLimitOutcomeEmitter {
+    pub fn new(
+        envelope: &Envelope,
+        scoping: &Scoping,
+        outcome_producer: &Addr<OutcomeProducer>,
+    ) -> Self {
+        Self {
+            envelope_summary: EnvelopeSummary::compute(&envelope),
+            scoping: *scoping,
+            outcome_producer: outcome_producer.clone(),
+        }
+    }
+
+    pub fn emit_rate_limit_outcomes(&self, applied_limits: &RateLimits) {
+        for applied_limit in applied_limits.iter() {
+            if applied_limit.categories.is_empty() {
+                // Empty categories value indicates that the rate limit applies to all data.
+                if let Some(event_category) = self.envelope_summary.event_category {
+                    self.emit_outcome(&event_category, &applied_limit.reason_code);
+                }
+                if self.envelope_summary.attachment_quantity > 0 {
+                    self.emit_outcome(&DataCategory::Attachment, &applied_limit.reason_code);
+                }
+            } else {
+                for category in applied_limit.categories.iter() {
+                    self.emit_outcome(category, &applied_limit.reason_code);
+                }
+            }
+        }
+    }
+
+    fn emit_outcome(&self, category: &DataCategory, reason_code: &Option<ReasonCode>) {
+        self.outcome_producer.do_send(TrackOutcome {
+            timestamp: Instant::now(),
+            scoping: self.scoping,
+            outcome: Outcome::RateLimited(reason_code.clone()),
+            event_id: self.envelope_summary.event_id,
+            remote_addr: self.envelope_summary.remote_addr,
+            category: *category,
+            quantity: match category {
+                DataCategory::Attachment => self.envelope_summary.attachment_quantity,
+                _ => 1,
+            },
+        })
     }
 }
 

@@ -10,22 +10,22 @@ use smallvec::SmallVec;
 use url::Url;
 
 use relay_auth::PublicKey;
-use relay_common::{metric, DataCategory, ProjectId, ProjectKey};
+use relay_common::{metric, ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_general::store::BreakdownsConfig;
-use relay_quotas::{Quota, RateLimits, ReasonCode, Scoping};
+use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 
-use crate::actors::outcome::DiscardReason;
 use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
-use crate::utils::{ActorResponse, EnvelopeLimiter, EnvelopeSummary, Response};
+use crate::utils::{ActorResponse, EnvelopeLimiter, Response};
+use crate::{actors::outcome::DiscardReason, utils::RateLimitOutcomeEmitter};
 
-use super::outcome::{Outcome, OutcomeProducer, TrackOutcome};
+use super::outcome::OutcomeProducer;
 
 /// The current status of a project state. Return value of `ProjectState::outdated`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -574,7 +574,7 @@ impl Project {
 
         let quotas = self.state().map(|s| s.get_quotas()).unwrap_or(&[]);
         let rate_limit_envelope =
-            RateLimitEnvelope::new(&envelope, &scoping, &self.outcome_producer);
+            RateLimitOutcomeEmitter::new(&envelope, &scoping, &self.outcome_producer);
         let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
             let applied_limits = self.rate_limits.check_with_quotas(quotas, item_scoping);
             rate_limit_envelope.emit_rate_limit_outcomes(&applied_limits);
@@ -610,59 +610,6 @@ impl Actor for Project {
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         relay_log::debug!("project {} removed from cache", self.public_key);
-    }
-}
-
-struct RateLimitEnvelope {
-    envelope_summary: EnvelopeSummary,
-    scoping: Scoping,
-    outcome_producer: Addr<OutcomeProducer>,
-}
-
-impl RateLimitEnvelope {
-    fn new(
-        envelope: &Envelope,
-        scoping: &Scoping,
-        outcome_producer: &Addr<OutcomeProducer>,
-    ) -> Self {
-        Self {
-            envelope_summary: EnvelopeSummary::compute(&envelope),
-            scoping: *scoping,
-            outcome_producer: outcome_producer.clone(),
-        }
-    }
-
-    fn emit_rate_limit_outcomes(&self, applied_limits: &RateLimits) {
-        for applied_limit in applied_limits.iter() {
-            if applied_limit.categories.is_empty() {
-                // Empty categories value indicates that the rate limit applies to all data.
-                if let Some(event_category) = self.envelope_summary.event_category {
-                    self.emit_outcome(&event_category, &applied_limit.reason_code);
-                }
-                if self.envelope_summary.attachment_quantity > 0 {
-                    self.emit_outcome(&DataCategory::Attachment, &applied_limit.reason_code);
-                }
-            } else {
-                for category in applied_limit.categories.iter() {
-                    self.emit_outcome(category, &applied_limit.reason_code);
-                }
-            }
-        }
-    }
-
-    fn emit_outcome(&self, category: &DataCategory, reason_code: &Option<ReasonCode>) {
-        self.outcome_producer.do_send(TrackOutcome {
-            timestamp: Instant::now(),
-            scoping: self.scoping,
-            outcome: Outcome::RateLimited(reason_code.clone()),
-            event_id: self.envelope_summary.event_id,
-            remote_addr: self.envelope_summary.remote_addr,
-            category: *category,
-            quantity: match category {
-                DataCategory::Attachment => self.envelope_summary.attachment_quantity,
-                _ => 1,
-            },
-        })
     }
 }
 
