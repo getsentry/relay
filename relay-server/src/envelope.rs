@@ -46,11 +46,8 @@ use relay_general::types::Value;
 use relay_sampling::TraceContext;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
-use crate::utils::{ErrorBoundary, RateLimitForItem};
-use crate::{
-    extractors::{PartialMeta, RequestMeta},
-    utils::ItemRetention,
-};
+use crate::extractors::{PartialMeta, RequestMeta};
+use crate::utils::ErrorBoundary;
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
@@ -854,27 +851,6 @@ impl Envelope {
         F: FnMut(&mut Item) -> bool,
     {
         self.items.retain(f)
-    }
-
-    /// Retains only the items specified by the function, and return a envelope summary containing
-    /// the removed items.
-    pub fn apply_retention<F>(&mut self, mut rate_limit_retain: F) -> Vec<RateLimitForItem>
-    where
-        F: FnMut(&mut Item) -> ItemRetention,
-    {
-        let mut applied_limits = vec![];
-        self.items.retain(|item| {
-            let retention = rate_limit_retain(item);
-            if let Some(applied_limit) = retention.applied_limit {
-                applied_limits.push(RateLimitForItem {
-                    applied_limit,
-                    item: item.clone(),
-                })
-            }
-            retention.retain_in_envelope
-        });
-
-        applied_limits
     }
 
     /// Serializes this envelope into the given writer.

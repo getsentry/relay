@@ -188,14 +188,14 @@ impl EnvelopeSummary {
     }
 }
 
-pub struct ItemRetention {
-    pub applied_limit: Option<RateLimit>,
-    pub retain_in_envelope: bool,
+struct ItemRetention {
+    applied_limit: Option<RateLimit>,
+    retain_in_envelope: bool,
 }
 
-pub struct RateLimitForItem {
-    pub applied_limit: RateLimit,
-    pub item: Item,
+struct RateLimitForItem {
+    applied_limit: RateLimit,
+    item: Item,
 }
 
 /// Enforces rate limits with the given `check` function on items in the envelope.
@@ -254,12 +254,28 @@ where
         }
 
         let applied_limits = self.execute(&summary, scoping)?;
-        let limited_items = envelope.apply_retention(|item| self.retain_item(item));
+        let limited_items = self.apply_retention(envelope);
         Ok(RateLimitEnforcement {
             summary,
             applied_limits,
             limited_items,
         })
+    }
+
+    fn apply_retention(&mut self, envelope: &mut Envelope) -> Vec<RateLimitForItem> {
+        let mut applied_limits = vec![];
+        envelope.retain_items(|item| {
+            let retention = self.retain_item(item);
+            if let Some(applied_limit) = retention.applied_limit {
+                applied_limits.push(RateLimitForItem {
+                    applied_limit,
+                    item: item.clone(),
+                })
+            }
+            retention.retain_in_envelope
+        });
+
+        applied_limits
     }
 
     fn execute(&mut self, summary: &EnvelopeSummary, scoping: &Scoping) -> Result<RateLimits, E> {
@@ -357,9 +373,9 @@ impl<F> fmt::Debug for EnvelopeLimiter<F> {
 }
 
 pub struct RateLimitEnforcement {
-    pub summary: EnvelopeSummary,
     pub applied_limits: RateLimits,
-    pub limited_items: Vec<RateLimitForItem>,
+    summary: EnvelopeSummary,
+    limited_items: Vec<RateLimitForItem>,
 }
 
 impl RateLimitEnforcement {
