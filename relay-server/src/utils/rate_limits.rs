@@ -240,7 +240,7 @@ where
         let rate_limits = self.execute(&summary, scoping)?;
         let removed_items = envelope.retain_items(|item| self.retain_item(item));
         Ok(RateLimitEnforcement {
-            rate_limits,
+            applied_limits: rate_limits,
             removed_items,
         })
     }
@@ -314,7 +314,7 @@ impl<F> fmt::Debug for EnvelopeLimiter<F> {
 }
 
 pub struct RateLimitEnforcement {
-    pub rate_limits: RateLimits,
+    pub applied_limits: RateLimits,
     pub removed_items: Option<Envelope>,
 }
 
@@ -327,7 +327,7 @@ impl RateLimitEnforcement {
         };
         let summary = EnvelopeSummary::compute(&removed_items);
 
-        for applied_limit in self.rate_limits.iter() {
+        for applied_limit in self.applied_limits.iter() {
             for removed_item in removed_items.items() {
                 if let Some(category) = infer_event_category(removed_item) {
                     if applied_limit.categories.is_empty()
@@ -544,7 +544,7 @@ mod tests {
         let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.rate_limits;
+        let limits = enforcement.applied_limits;
 
         assert!(!limits.is_limited());
         assert!(envelope.is_empty());
@@ -561,7 +561,7 @@ mod tests {
         let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.rate_limits;
+        let limits = enforcement.applied_limits;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
@@ -578,7 +578,7 @@ mod tests {
         let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.rate_limits;
+        let limits = enforcement.applied_limits;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
@@ -596,7 +596,7 @@ mod tests {
         let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.rate_limits;
+        let limits = enforcement.applied_limits;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
@@ -614,7 +614,7 @@ mod tests {
         let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.rate_limits;
+        let limits = enforcement.applied_limits;
 
         // Attachments would be limited, but crash reports create events and are thus allowed.
         assert!(limits.is_limited());
@@ -632,7 +632,7 @@ mod tests {
         let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.rate_limits;
+        let limits = enforcement.applied_limits;
 
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(!limits.is_limited());
@@ -655,7 +655,7 @@ mod tests {
         let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.rate_limits;
+        let limits = enforcement.applied_limits;
 
         assert!(!limits.is_limited()); // No new rate limits applied.
         assert_eq!(envelope.len(), 1); // The item was retained
@@ -672,7 +672,7 @@ mod tests {
         let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.rate_limits;
+        let limits = enforcement.applied_limits;
 
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(!limits.is_limited());
@@ -690,7 +690,7 @@ mod tests {
         let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.rate_limits;
+        let limits = enforcement.applied_limits;
 
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(limits.is_limited());

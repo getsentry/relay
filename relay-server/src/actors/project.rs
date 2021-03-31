@@ -587,7 +587,7 @@ impl Project {
         };
         Ok(CheckedEnvelope {
             envelope,
-            rate_limits: enforcement.rate_limits,
+            rate_limits: enforcement.applied_limits,
         })
     }
 
