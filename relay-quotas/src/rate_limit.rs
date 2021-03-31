@@ -231,7 +231,15 @@ impl RateLimits {
 
     /// Returns `true` if this instance contains active rate limits.
     pub fn is_limited(&self) -> bool {
-        self.iter().any(|limit| !limit.retry_after.expired())
+        match self.get_active_limit() {
+            Some(_) => true,
+            None => false,
+        }
+    }
+
+    /// Returns an active rate limit from this instance, if there is one.
+    pub fn get_active_limit(&self) -> Option<&RateLimit> {
+        self.iter().find(|limit| !limit.retry_after.expired())
     }
 
     /// Removes expired rate limits from this instance.

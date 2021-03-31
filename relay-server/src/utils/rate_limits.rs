@@ -183,6 +183,11 @@ impl EnvelopeSummary {
     }
 }
 
+struct ItemRetention {
+    applied_limit: Option<RateLimit>,
+    retain_in_envelope: bool,
+}
+
 /// Enforces rate limits with the given `check` function on items in the envelope.
 ///
 /// The `check` function is called with the following rules:
@@ -197,9 +202,9 @@ impl EnvelopeSummary {
 pub struct EnvelopeLimiter<F> {
     check: F,
     event_category: Option<DataCategory>,
-    remove_event: bool,
-    remove_attachments: bool,
-    remove_sessions: bool,
+    event_limit: Option<RateLimit>,
+    attachment_limit: Option<RateLimit>,
+    session_limit: Option<RateLimit>,
 }
 
 impl<E, F> EnvelopeLimiter<F>
@@ -211,9 +216,9 @@ where
         Self {
             check,
             event_category: None,
-            remove_event: false,
-            remove_attachments: false,
-            remove_sessions: false,
+            event_limit: None,
+            attachment_limit: None,
+            session_limit: None,
         }
     }
 
@@ -239,7 +244,7 @@ where
         }
 
         let rate_limits = self.execute(&summary, scoping)?;
-        let removed_items = envelope.retain_items(|item| self.retain_item(item));
+        let removed_items = envelope.retain_items(|item| self.retain_item(item).retain_in_envelope);
         Ok(RateLimitEnforcement {
             applied_limits: rate_limits,
             removed_items,
@@ -251,55 +256,84 @@ where
 
         if let Some(category) = summary.event_category {
             let event_limits = (&mut self.check)(scoping.item(category), 1)?;
-            self.remove_event = event_limits.is_limited();
+            self.event_limit = event_limits.get_active_limit().map(RateLimit::clone);
             rate_limits.merge(event_limits);
         }
 
-        if !self.remove_event && summary.attachment_quantity > 0 {
-            let item_scoping = scoping.item(DataCategory::Attachment);
-            let attachment_limits = (&mut self.check)(item_scoping, summary.attachment_quantity)?;
-            self.remove_attachments = attachment_limits.is_limited();
+        if let None = self.event_limit {
+            if summary.attachment_quantity > 0 {
+                let item_scoping = scoping.item(DataCategory::Attachment);
+                let attachment_limits =
+                    (&mut self.check)(item_scoping, summary.attachment_quantity)?;
+                self.attachment_limit = attachment_limits.get_active_limit().map(RateLimit::clone);
 
-            // Only record rate limits for plain attachments. For all other attachments, it's
-            // perfectly "legal" to send them. They will still be discarded in Sentry, but clients
-            // can continue to send them.
-            if summary.has_plain_attachments {
-                rate_limits.merge(attachment_limits);
+                // Only record rate limits for plain attachments. For all other attachments, it's
+                // perfectly "legal" to send them. They will still be discarded in Sentry, but clients
+                // can continue to send them.
+                if summary.has_plain_attachments {
+                    rate_limits.merge(attachment_limits);
+                }
             }
         }
 
         if summary.session_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Session);
             let session_limits = (&mut self.check)(item_scoping, summary.session_quantity)?;
-            self.remove_sessions = session_limits.is_limited();
+            self.session_limit = session_limits.get_active_limit().map(RateLimit::clone);
             rate_limits.merge(session_limits);
         }
 
         Ok(rate_limits)
     }
 
-    fn retain_item(&self, item: &mut Item) -> bool {
+    fn retain_item(&self, item: &mut Item) -> ItemRetention {
         // Remove event items and all items that depend on this event
-        if self.remove_event && item.requires_event() {
-            return false;
+        if let Some(event_limit) = &self.event_limit {
+            if item.requires_event() {
+                return ItemRetention {
+                    applied_limit: Some(event_limit.clone()),
+                    retain_in_envelope: false,
+                };
+            }
         }
 
         // Remove attachments, except those required for processing
-        if self.remove_attachments && item.ty() == ItemType::Attachment {
-            if item.creates_event() {
-                item.set_rate_limited(true);
-                return true;
+        if let Some(attachment_limit) = &self.attachment_limit {
+            if item.ty() == ItemType::Attachment {
+                if item.creates_event() {
+                    let applied_limit = if item.rate_limited() {
+                        None
+                    } else {
+                        item.set_rate_limited(true);
+                        Some(attachment_limit.clone())
+                    };
+                    return ItemRetention {
+                        applied_limit,
+                        retain_in_envelope: true,
+                    };
+                } else {
+                    return ItemRetention {
+                        applied_limit: Some(attachment_limit.clone()),
+                        retain_in_envelope: false,
+                    };
+                }
             }
-
-            return false;
         }
 
         // Remove sessions independently of events
-        if self.remove_sessions && item.ty() == ItemType::Session {
-            return false;
+        if let Some(session_limit) = &self.session_limit {
+            if item.ty() == ItemType::Session {
+                return ItemRetention {
+                    applied_limit: Some(session_limit.clone()),
+                    retain_in_envelope: false,
+                };
+            }
         }
 
-        true
+        ItemRetention {
+            applied_limit: None,
+            retain_in_envelope: true,
+        }
     }
 }
 
@@ -307,9 +341,9 @@ impl<F> fmt::Debug for EnvelopeLimiter<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EnvelopeLimiter")
             .field("event_category", &self.event_category)
-            .field("remove_event", &self.remove_event)
-            .field("remove_attachments", &self.remove_attachments)
-            .field("remove_sessions", &self.remove_sessions)
+            .field("event_limit", &self.event_limit)
+            .field("attachment_limit", &self.attachment_limit)
+            .field("session_limit", &self.session_limit)
             .finish()
     }
 }
