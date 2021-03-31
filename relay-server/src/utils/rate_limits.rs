@@ -271,19 +271,16 @@ where
             rate_limits.merge(event_limits);
         }
 
-        if let None = self.event_limit {
-            if summary.attachment_quantity > 0 {
-                let item_scoping = scoping.item(DataCategory::Attachment);
-                let attachment_limits =
-                    (&mut self.check)(item_scoping, summary.attachment_quantity)?;
-                self.attachment_limit = attachment_limits.get_active_limit().map(RateLimit::clone);
+        if self.event_limit.is_none() && summary.attachment_quantity > 0 {
+            let item_scoping = scoping.item(DataCategory::Attachment);
+            let attachment_limits = (&mut self.check)(item_scoping, summary.attachment_quantity)?;
+            self.attachment_limit = attachment_limits.get_active_limit().map(RateLimit::clone);
 
-                // Only record rate limits for plain attachments. For all other attachments, it's
-                // perfectly "legal" to send them. They will still be discarded in Sentry, but clients
-                // can continue to send them.
-                if summary.has_plain_attachments {
-                    rate_limits.merge(attachment_limits);
-                }
+            // Only record rate limits for plain attachments. For all other attachments, it's
+            // perfectly "legal" to send them. They will still be discarded in Sentry, but clients
+            // can continue to send them.
+            if summary.has_plain_attachments {
+                rate_limits.merge(attachment_limits);
             }
         }
 
