@@ -70,34 +70,24 @@ pub trait FutureExt: Sized {
 
 impl<F> FutureExt for F where F: Sized {}
 
-#[cfg(test)]
-mod tests {
-    use actix::clock::Clock;
+#[test]
+#[should_panic(expected = "Dropped unfinished future during shutdown: bye")]
+fn test_basic() {
+    use std::time::{Duration, Instant};
+    use tokio_timer::Delay;
 
-    #[test]
-    #[should_panic(expected = "Dropped unfinished future during shutdown: bye")]
-    fn test_basic() {
-        use std::time::Duration;
-
-        use super::*;
-        let mut test_now = relay_test::TestNow::new();
-        let test_clock = Clock::new_with_now(test_now.clone());
-        let sys = System::builder().clock(test_clock);
-
-        sys.run(move || {
-            actix::spawn(relay_test::delay(Duration::from_millis(1000)).then(|_| {
-                println!("Stopping...");
-                actix::System::current().stop();
+    System::run(|| {
+        actix::spawn(
+            Delay::new(Instant::now() + Duration::from_millis(100)).then(|_| {
+                System::current().stop();
                 Ok(())
-            }));
+            }),
+        );
 
-            actix::spawn(
-                relay_test::delay(Duration::from_millis(2000))
-                    .drop_guard("bye")
-                    .then(|_| Ok(())),
-            );
-
-            test_now.advance(Duration::from_millis(1500));
-        });
-    }
+        actix::spawn(
+            Delay::new(Instant::now() + Duration::from_millis(200))
+                .drop_guard("bye")
+                .then(|_| Ok(())),
+        );
+    });
 }
