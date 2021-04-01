@@ -75,7 +75,7 @@ impl<F> FutureExt for F where F: Sized {}
 fn test_drop_guard() {
     use std::time::Duration;
 
-    System::run(move || {
+    System::run(|| {
         actix::spawn(
             relay_test::delay(Duration::from_secs(10))
                 .drop_guard("bye")
@@ -90,7 +90,7 @@ fn test_drop_guard() {
 fn test_no_drop() {
     use std::time::Duration;
 
-    System::run(move || {
+    System::run(|| {
         actix::spawn(
             relay_test::delay(Duration::from_millis(100))
                 .drop_guard("bye")
