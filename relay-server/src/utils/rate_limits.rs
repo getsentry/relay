@@ -143,17 +143,12 @@ impl EnvelopeSummary {
         Self::default()
     }
 
-    /// Creates an envelope summary containing no items.
-    pub fn empty_copy(envelope: &Envelope) -> Self {
-        let mut summary = Self::empty();
-        summary.event_id = envelope.event_id();
-        summary.remote_addr = envelope.meta().client_addr();
-        summary
-    }
-
     /// Creates an envelope summary and aggregates the given envelope.
     pub fn compute(envelope: &Envelope) -> Self {
-        let mut summary = Self::empty_copy(envelope);
+        let mut summary = Self::empty();
+
+        summary.event_id = envelope.event_id();
+        summary.remote_addr = envelope.meta().client_addr();
 
         for item in envelope.items() {
             if item.creates_event() {
