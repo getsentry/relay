@@ -277,6 +277,7 @@ impl ProcessEnvelopeState {
 /// Synchronous service for processing envelopes.
 pub struct EventProcessor {
     config: Arc<Config>,
+    outcome_producer: Addr<OutcomeProducer>,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
     #[cfg(feature = "processing")]
@@ -285,9 +286,10 @@ pub struct EventProcessor {
 
 impl EventProcessor {
     #[inline]
-    pub fn new(config: Arc<Config>) -> Self {
+    pub fn new(config: Arc<Config>, outcome_producer: Addr<OutcomeProducer>) -> Self {
         Self {
             config,
+            outcome_producer,
             #[cfg(feature = "processing")]
             rate_limiter: None,
             #[cfg(feature = "processing")]
@@ -1027,12 +1029,14 @@ impl EventProcessor {
         // point and it is easier than passing scoping through all layers of `process_envelope`.
         let scoping = project_state.scope_request(state.envelope.meta());
 
-        let enforcement = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
+        let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
             envelope_limiter
                 .enforce(&mut state.envelope, &scoping)
                 .map_err(ProcessingError::QuotasFailed)?
         });
-        state.rate_limits = enforcement.applied_limits;
+
+        state.rate_limits = limits;
+        enforcement.track_outcomes(&self.outcome_producer, &state.envelope, &scoping);
 
         if remove_event {
             state.remove_event();
@@ -1408,16 +1412,22 @@ impl EventManager {
 
             SyncArbiter::start(
                 thread_count,
-                clone!(config, || EventProcessor::new(config.clone())
-                    .with_rate_limiter(rate_limiter.clone())
-                    .with_geoip_lookup(geoip_lookup.clone())),
+                clone!(config, outcome_producer, || EventProcessor::new(
+                    config.clone(),
+                    outcome_producer.clone(),
+                )
+                .with_rate_limiter(rate_limiter.clone())
+                .with_geoip_lookup(geoip_lookup.clone())),
             )
         };
 
         #[cfg(not(feature = "processing"))]
         let processor = SyncArbiter::start(
             thread_count,
-            clone!(config, || EventProcessor::new(config.clone())),
+            clone!(config, outcome_producer, || EventProcessor::new(
+                config.clone(),
+                outcome_producer.clone(),
+            )),
         );
 
         #[cfg(feature = "processing")]
@@ -2117,7 +2127,7 @@ mod tests {
 
     #[test]
     fn test_user_report_invalid() {
-        let processor = EventProcessor::new(Arc::new(Default::default()));
+        let processor = EventProcessor::new(Arc::new(Default::default()), todo!());
         let event_id = EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"

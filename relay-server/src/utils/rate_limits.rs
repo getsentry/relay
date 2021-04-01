@@ -1,20 +1,14 @@
-use std::{
-    fmt::{self, Write},
-    net::IpAddr,
-    time::Instant,
-};
+use std::fmt::{self, Write};
 
 use actix::Addr;
-use relay_general::protocol::EventId;
+
 use relay_quotas::{
     DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
     ReasonCode, Scoping,
 };
 
-use crate::{
-    actors::outcome::{Outcome, OutcomeProducer, TrackOutcome},
-    envelope::{Envelope, Item, ItemType},
-};
+use crate::actors::outcome::{Outcome, OutcomeProducer, TrackOutcome};
+use crate::envelope::{Envelope, Item, ItemType};
 
 /// Name of the rate limits header.
 pub const RATE_LIMITS_HEADER: &str = "X-Sentry-Rate-Limits";
@@ -129,12 +123,6 @@ pub struct EnvelopeSummary {
 
     /// Indicates that the envelope contains regular attachments that do not create event payloads.
     pub has_plain_attachments: bool,
-
-    /// Unique identifier of the event associated to this envelope.
-    pub event_id: Option<EventId>,
-
-    /// The IP address of the client that the envelope's event originates from.
-    pub remote_addr: Option<IpAddr>,
 }
 
 impl EnvelopeSummary {
@@ -146,9 +134,6 @@ impl EnvelopeSummary {
     /// Creates an envelope summary and aggregates the given envelope.
     pub fn compute(envelope: &Envelope) -> Self {
         let mut summary = Self::empty();
-
-        summary.event_id = envelope.event_id();
-        summary.remote_addr = envelope.meta().client_addr();
 
         for item in envelope.items() {
             if item.creates_event() {
@@ -183,14 +168,80 @@ impl EnvelopeSummary {
     }
 }
 
-struct ItemRetention {
-    applied_limit: Option<RateLimit>,
-    retain_in_envelope: bool,
+/// Rate limiting information for a data category.
+#[derive(Debug)]
+struct CategoryLimit {
+    /// The limited data category.
+    category: DataCategory,
+    /// The total rate limited quantity across all items.
+    quantity: usize,
+    /// The reason code of the applied rate limit.
+    ///
+    /// Defaults to `None` if the quota is without limit.
+    reason_code: Option<ReasonCode>,
 }
 
-struct RateLimitForItem {
-    applied_limit: RateLimit,
-    item_category: DataCategory,
+impl CategoryLimit {
+    /// Creates a new `CategoryLimit`.
+    fn new(category: DataCategory, quantity: usize, rate_limit: Option<&RateLimit>) -> Self {
+        match rate_limit {
+            Some(limit) => Self {
+                category,
+                quantity,
+                reason_code: limit.reason_code.clone(),
+            },
+            None => Self::default(),
+        }
+    }
+
+    fn is_active(&self) -> bool {
+        self.quantity > 0
+    }
+}
+
+impl Default for CategoryLimit {
+    fn default() -> Self {
+        Self {
+            category: DataCategory::Default,
+            quantity: 0,
+            reason_code: None,
+        }
+    }
+}
+
+/// Information on the limited quantities returned by [`EnvelopeLimiter::enforce`].
+#[derive(Default, Debug)]
+pub struct Enforcement {
+    /// The event item rate limit.
+    event: CategoryLimit,
+    /// The combined attachment item rate limit.
+    attachments: CategoryLimit,
+    /// The combined session item rate limit.
+    sessions: CategoryLimit,
+}
+
+impl Enforcement {
+    /// Invokes [`TrackOutcome`] on all enforcements reported by the [`EnvelopeLimiter`].
+    pub fn track_outcomes(
+        self,
+        producer: &Addr<OutcomeProducer>,
+        envelope: &Envelope,
+        scoping: &Scoping,
+    ) {
+        for limit in std::array::IntoIter::new([self.event, self.attachments, self.sessions]) {
+            if limit.is_active() {
+                producer.do_send(TrackOutcome {
+                    timestamp: envelope.meta().start_time(),
+                    scoping: *scoping,
+                    outcome: Outcome::RateLimited(limit.reason_code),
+                    event_id: envelope.event_id(),
+                    remote_addr: envelope.meta().remote_addr(),
+                    category: limit.category,
+                    quantity: limit.quantity,
+                });
+            }
+        }
+    }
 }
 
 /// Enforces rate limits with the given `check` function on items in the envelope.
@@ -207,9 +258,6 @@ struct RateLimitForItem {
 pub struct EnvelopeLimiter<F> {
     check: F,
     event_category: Option<DataCategory>,
-    event_limit: Option<RateLimit>,
-    attachment_limit: Option<RateLimit>,
-    session_limit: Option<RateLimit>,
 }
 
 impl<E, F> EnvelopeLimiter<F>
@@ -221,9 +269,6 @@ where
         Self {
             check,
             event_category: None,
-            event_limit: None,
-            attachment_limit: None,
-            session_limit: None,
         }
     }
 
@@ -242,52 +287,48 @@ where
         mut self,
         envelope: &mut Envelope,
         scoping: &Scoping,
-    ) -> Result<RateLimitEnforcement, E> {
+    ) -> Result<(Enforcement, RateLimits), E> {
         let mut summary = EnvelopeSummary::compute(envelope);
         if let Some(event_category) = self.event_category {
             summary.event_category = Some(event_category);
         }
 
-        let applied_limits = self.execute(&summary, scoping)?;
-        let limited_items = self.apply_retention(envelope);
-        Ok(RateLimitEnforcement {
-            summary,
-            applied_limits,
-            limited_items,
-        })
+        let (enforcement, rate_limits) = self.execute(&summary, scoping)?;
+        envelope.retain_items(|item| self.retain_item(item, &enforcement));
+        Ok((enforcement, rate_limits))
     }
 
-    fn apply_retention(&mut self, envelope: &mut Envelope) -> Vec<RateLimitForItem> {
-        let mut applied_limits = vec![];
-        envelope.retain_items(|item| {
-            let retention = self.retain_item(item);
-            if let Some(applied_limit) = retention.applied_limit {
-                if let Some(item_category) = infer_event_category(item) {
-                    applied_limits.push(RateLimitForItem {
-                        applied_limit,
-                        item_category,
-                    })
-                }
-            }
-            retention.retain_in_envelope
-        });
-
-        applied_limits
-    }
-
-    fn execute(&mut self, summary: &EnvelopeSummary, scoping: &Scoping) -> Result<RateLimits, E> {
+    fn execute(
+        &mut self,
+        summary: &EnvelopeSummary,
+        scoping: &Scoping,
+    ) -> Result<(Enforcement, RateLimits), E> {
         let mut rate_limits = RateLimits::new();
+        let mut enforcement = Enforcement::default();
 
         if let Some(category) = summary.event_category {
             let event_limits = (&mut self.check)(scoping.item(category), 1)?;
-            self.event_limit = event_limits.longest().cloned();
+            let longest = event_limits.longest();
+            enforcement.event = CategoryLimit::new(category, 1, longest);
+
+            // Record the same reason for attachments, if there are any.
+            enforcement.attachments = CategoryLimit::new(
+                DataCategory::Attachment,
+                summary.attachment_quantity,
+                longest,
+            );
+
             rate_limits.merge(event_limits);
         }
 
-        if self.event_limit.is_none() && summary.attachment_quantity > 0 {
+        if !enforcement.event.is_active() && summary.attachment_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Attachment);
             let attachment_limits = (&mut self.check)(item_scoping, summary.attachment_quantity)?;
-            self.attachment_limit = attachment_limits.longest().cloned();
+            enforcement.attachments = CategoryLimit::new(
+                DataCategory::Attachment,
+                summary.attachment_quantity,
+                attachment_limits.longest(),
+            );
 
             // Only record rate limits for plain attachments. For all other attachments, it's
             // perfectly "legal" to send them. They will still be discarded in Sentry, but clients
@@ -300,61 +341,39 @@ where
         if summary.session_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Session);
             let session_limits = (&mut self.check)(item_scoping, summary.session_quantity)?;
-            self.session_limit = session_limits.longest().cloned();
+            enforcement.sessions = CategoryLimit::new(
+                DataCategory::Session,
+                summary.session_quantity,
+                session_limits.longest(),
+            );
             rate_limits.merge(session_limits);
         }
 
-        Ok(rate_limits)
+        Ok((enforcement, rate_limits))
     }
 
-    fn retain_item(&self, item: &mut Item) -> ItemRetention {
+    fn retain_item(&self, item: &mut Item, enforcement: &Enforcement) -> bool {
         // Remove event items and all items that depend on this event
-        if let Some(event_limit) = &self.event_limit {
-            if item.requires_event() {
-                return ItemRetention {
-                    applied_limit: Some(event_limit.clone()),
-                    retain_in_envelope: false,
-                };
-            }
+        if enforcement.event.is_active() && item.requires_event() {
+            return false;
         }
 
         // Remove attachments, except those required for processing
-        if let Some(attachment_limit) = &self.attachment_limit {
-            if item.ty() == ItemType::Attachment {
-                if item.creates_event() {
-                    let applied_limit = if item.rate_limited() {
-                        None
-                    } else {
-                        item.set_rate_limited(true);
-                        Some(attachment_limit.clone())
-                    };
-                    return ItemRetention {
-                        applied_limit,
-                        retain_in_envelope: true,
-                    };
-                } else {
-                    return ItemRetention {
-                        applied_limit: Some(attachment_limit.clone()),
-                        retain_in_envelope: false,
-                    };
-                }
+        if enforcement.attachments.is_active() && item.ty() == ItemType::Attachment {
+            if item.creates_event() {
+                item.set_rate_limited(true);
+                return true;
             }
+
+            return false;
         }
 
         // Remove sessions independently of events
-        if let Some(session_limit) = &self.session_limit {
-            if item.ty() == ItemType::Session {
-                return ItemRetention {
-                    applied_limit: Some(session_limit.clone()),
-                    retain_in_envelope: false,
-                };
-            }
+        if enforcement.sessions.is_active() && item.ty() == ItemType::Session {
+            return false;
         }
 
-        ItemRetention {
-            applied_limit: None,
-            retain_in_envelope: true,
-        }
+        true
     }
 }
 
@@ -362,38 +381,7 @@ impl<F> fmt::Debug for EnvelopeLimiter<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EnvelopeLimiter")
             .field("event_category", &self.event_category)
-            .field("event_limit", &self.event_limit)
-            .field("attachment_limit", &self.attachment_limit)
-            .field("session_limit", &self.session_limit)
             .finish()
-    }
-}
-
-pub struct RateLimitEnforcement {
-    pub applied_limits: RateLimits,
-    summary: EnvelopeSummary,
-    limited_items: Vec<RateLimitForItem>,
-}
-
-impl RateLimitEnforcement {
-    pub fn emit_outcomes(&self, scoping: &Scoping, outcome_producer: &Addr<OutcomeProducer>) {
-        let timestamp = Instant::now();
-        for limited_item in self.limited_items.iter() {
-            let reason_code = &limited_item.applied_limit.reason_code;
-            let category = limited_item.item_category;
-            outcome_producer.do_send(TrackOutcome {
-                timestamp,
-                scoping: *scoping,
-                outcome: Outcome::RateLimited(reason_code.clone()),
-                event_id: self.summary.event_id,
-                remote_addr: self.summary.remote_addr,
-                category,
-                quantity: match category {
-                    DataCategory::Attachment => self.summary.attachment_quantity,
-                    _ => 1,
-                },
-            });
-        }
     }
 }
 
@@ -586,10 +574,9 @@ mod tests {
         let mut envelope = envelope![];
 
         let mut mock = MockLimiter::default();
-        let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.applied_limits;
 
         assert!(!limits.is_limited());
         assert!(envelope.is_empty());
@@ -603,10 +590,9 @@ mod tests {
         let mut envelope = envelope![Event];
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
-        let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.applied_limits;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
@@ -620,10 +606,9 @@ mod tests {
         let mut envelope = envelope![Event, Attachment];
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
-        let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.applied_limits;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
@@ -638,10 +623,9 @@ mod tests {
         let mut envelope = envelope![Attachment::Minidump];
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
-        let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.applied_limits;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
@@ -656,10 +640,9 @@ mod tests {
         let mut envelope = envelope![Attachment::Minidump, Attachment];
 
         let mut mock = MockLimiter::default().deny(DataCategory::Attachment);
-        let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.applied_limits;
 
         // Attachments would be limited, but crash reports create events and are thus allowed.
         assert!(limits.is_limited());
@@ -674,10 +657,9 @@ mod tests {
         let mut envelope = envelope![Attachment::Minidump];
 
         let mut mock = MockLimiter::default().deny(DataCategory::Attachment);
-        let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.applied_limits;
 
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(!limits.is_limited());
@@ -697,10 +679,9 @@ mod tests {
         envelope.add_item(item);
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
-        let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.applied_limits;
 
         assert!(!limits.is_limited()); // No new rate limits applied.
         assert_eq!(envelope.len(), 1); // The item was retained
@@ -714,10 +695,9 @@ mod tests {
         let mut envelope = envelope![Session, Session, Session];
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
-        let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.applied_limits;
 
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(!limits.is_limited());
@@ -732,10 +712,9 @@ mod tests {
         let mut envelope = envelope![Session, Session, Event];
 
         let mut mock = MockLimiter::default().deny(DataCategory::Session);
-        let enforcement = EnvelopeLimiter::new(|s, q| mock.check(s, q))
+        let (_, limits) = EnvelopeLimiter::new(|s, q| mock.check(s, q))
             .enforce(&mut envelope, &scoping())
             .unwrap();
-        let limits = enforcement.applied_limits;
 
         // If only crash report attachments are present, we don't emit a rate limit.
         assert!(limits.is_limited());
@@ -753,8 +732,7 @@ mod tests {
         let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
         let mut limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         limiter.assume_event(DataCategory::Transaction);
-        let enforcement = limiter.enforce(&mut envelope, &scoping()).unwrap();
-        let limits = enforcement.applied_limits;
+        let (_, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty()); // obviously
@@ -771,8 +749,7 @@ mod tests {
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
         let mut limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         limiter.assume_event(DataCategory::Error);
-        let enforcement = limiter.enforce(&mut envelope, &scoping()).unwrap();
-        let limits = enforcement.applied_limits;
+        let (_, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());

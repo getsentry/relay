@@ -689,17 +689,18 @@ impl Project {
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        let enforcement = envelope_limiter.enforce(&mut envelope, scoping)?;
-        enforcement.emit_outcomes(scoping, &self.outcome_producer);
+        let (enforcement, rate_limits) = envelope_limiter.enforce(&mut envelope, scoping)?;
+        enforcement.track_outcomes(&self.outcome_producer, &envelope, scoping);
 
         let envelope = if envelope.is_empty() {
             None
         } else {
             Some(envelope)
         };
+
         Ok(CheckedEnvelope {
             envelope,
-            rate_limits: enforcement.applied_limits,
+            rate_limits,
         })
     }
 
