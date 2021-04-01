@@ -150,15 +150,14 @@ impl ProcessingError {
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
-            Self::RateLimited(ref rate_limits) => rate_limits
-                .longest_error()
-                .map(|r| Outcome::RateLimited(r.reason_code.clone())),
 
             // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
             #[cfg(feature = "processing")]
             Self::EventFiltered(ref filter_stat_key) => Some(Outcome::Filtered(*filter_stat_key)),
+            Self::TraceSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
+            Self::EventSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
 
             // Internal errors
             Self::SerializeFailed(_)
@@ -172,9 +171,8 @@ impl ProcessingError {
                 Some(Outcome::Invalid(DiscardReason::Internal))
             }
 
-            // Dynamic sampling (not an error, just discarding messages that were removed by sampling)
-            Self::TraceSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
-            Self::EventSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
+            // Rate limiting outcomes are emitted at the source.
+            Self::RateLimited(_) => None,
 
             // If we send to an upstream, we don't emit outcomes.
             Self::SendFailed(_) => None,
