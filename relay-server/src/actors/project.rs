@@ -24,13 +24,12 @@ use relay_sampling::SamplingConfig;
 
 use crate::actors::events::{EventManager, SendMetrics};
 use crate::actors::outcome::DiscardReason;
+use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
 use crate::utils::{ActorResponse, EnvelopeLimiter, Response};
-
-use super::outcome::OutcomeProducer;
 
 /// The current status of a project state. Return value of `ProjectState::outdated`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -455,12 +454,12 @@ pub struct Project {
     config: Arc<Config>,
     manager: Addr<ProjectCache>,
     event_manager: Addr<EventManager>,
+    outcome_producer: Addr<OutcomeProducer>,
     aggregator: AggregatorState,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<StateChannel>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
-    outcome_producer: Addr<OutcomeProducer>,
 }
 
 impl Project {
@@ -470,19 +469,19 @@ impl Project {
         config: Arc<Config>,
         manager: Addr<ProjectCache>,
         event_manager: Addr<EventManager>,
-        outcome_producer: &Addr<OutcomeProducer>,
+        outcome_producer: Addr<OutcomeProducer>,
     ) -> Self {
         Project {
             public_key: key,
             config,
             manager,
             event_manager,
+            outcome_producer,
             aggregator: AggregatorState::Unknown,
             state: None,
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
-            outcome_producer: outcome_producer.clone(),
         }
     }
 

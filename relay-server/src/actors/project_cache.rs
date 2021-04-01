@@ -13,14 +13,13 @@ use relay_config::{Config, RelayMode};
 use relay_redis::RedisPool;
 
 use crate::actors::events::EventManager;
+use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project::{Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::actors::upstream::UpstreamRelay;
 use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::Response;
-
-use super::outcome::OutcomeProducer;
 
 #[cfg(feature = "processing")]
 use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};
@@ -46,21 +45,20 @@ pub struct ProjectCache {
     projects: HashMap<ProjectKey, ProjectEntry>,
 
     event_manager: Addr<EventManager>,
+    outcome_producer: Addr<OutcomeProducer>,
     local_source: Addr<LocalProjectSource>,
     upstream_source: Addr<UpstreamProjectSource>,
     #[cfg(feature = "processing")]
     redis_source: Option<Addr<RedisProjectSource>>,
-
-    outcome_producer: Addr<OutcomeProducer>,
 }
 
 impl ProjectCache {
     pub fn new(
         config: Arc<Config>,
         event_manager: Addr<EventManager>,
+        outcome_producer: Addr<OutcomeProducer>,
         upstream_relay: Addr<UpstreamRelay>,
         _redis: Option<RedisPool>,
-        outcome_producer: Addr<OutcomeProducer>,
     ) -> Self {
         let local_source = LocalProjectSource::new(config.clone()).start();
         let upstream_source = UpstreamProjectSource::new(config.clone(), upstream_relay).start();
@@ -81,11 +79,11 @@ impl ProjectCache {
             projects: HashMap::new(),
 
             event_manager,
+            outcome_producer,
             local_source,
             upstream_source,
             #[cfg(feature = "processing")]
             redis_source,
-            outcome_producer,
         }
     }
 
@@ -162,7 +160,7 @@ impl Handler<GetProject> for ProjectCache {
                     config,
                     context.address(),
                     self.event_manager.clone(),
-                    &self.outcome_producer,
+                    self.outcome_producer.clone(),
                 )
                 .start();
 
