@@ -280,14 +280,14 @@ where
 
         if let Some(category) = summary.event_category {
             let event_limits = (&mut self.check)(scoping.item(category), 1)?;
-            self.event_limit = event_limits.get_active_limit().map(RateLimit::clone);
+            self.event_limit = event_limits.longest().cloned();
             rate_limits.merge(event_limits);
         }
 
         if self.event_limit.is_none() && summary.attachment_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Attachment);
             let attachment_limits = (&mut self.check)(item_scoping, summary.attachment_quantity)?;
-            self.attachment_limit = attachment_limits.get_active_limit().map(RateLimit::clone);
+            self.attachment_limit = attachment_limits.longest().cloned();
 
             // Only record rate limits for plain attachments. For all other attachments, it's
             // perfectly "legal" to send them. They will still be discarded in Sentry, but clients
@@ -300,7 +300,7 @@ where
         if summary.session_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Session);
             let session_limits = (&mut self.check)(item_scoping, summary.session_quantity)?;
-            self.session_limit = session_limits.get_active_limit().map(RateLimit::clone);
+            self.session_limit = session_limits.longest().cloned();
             rate_limits.merge(session_limits);
         }
 
@@ -754,7 +754,7 @@ mod tests {
         let mut limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         limiter.assume_event(DataCategory::Transaction);
         let enforcement = limiter.enforce(&mut envelope, &scoping()).unwrap();
-        let limits = enforcement.rate_limits;
+        let limits = enforcement.applied_limits;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty()); // obviously
@@ -772,7 +772,7 @@ mod tests {
         let mut limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
         limiter.assume_event(DataCategory::Error);
         let enforcement = limiter.enforce(&mut envelope, &scoping()).unwrap();
-        let limits = enforcement.rate_limits;
+        let limits = enforcement.applied_limits;
 
         assert!(limits.is_limited());
         assert!(envelope.is_empty());
