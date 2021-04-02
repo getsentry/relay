@@ -72,22 +72,32 @@ impl<F> FutureExt for F where F: Sized {}
 
 #[test]
 #[should_panic(expected = "Dropped unfinished future during shutdown: bye")]
-fn test_basic() {
-    use std::time::{Duration, Instant};
-    use tokio_timer::Delay;
+fn test_drop_guard() {
+    use std::time::Duration;
 
     System::run(|| {
         actix::spawn(
-            Delay::new(Instant::now() + Duration::from_millis(100)).then(|_| {
-                System::current().stop();
-                Ok(())
-            }),
-        );
-
-        actix::spawn(
-            Delay::new(Instant::now() + Duration::from_millis(200))
+            relay_test::delay(Duration::from_secs(10))
                 .drop_guard("bye")
                 .then(|_| Ok(())),
+        );
+
+        actix::System::current().stop();
+    });
+}
+
+#[test]
+fn test_no_drop() {
+    use std::time::Duration;
+
+    System::run(|| {
+        actix::spawn(
+            relay_test::delay(Duration::from_millis(100))
+                .drop_guard("bye")
+                .then(|_| {
+                    actix::System::current().stop();
+                    Ok(())
+                }),
         );
     });
 }
