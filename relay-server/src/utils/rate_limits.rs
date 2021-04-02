@@ -286,19 +286,19 @@ where
     ///
     /// Returns a tuple of `Enforcement` and `RateLimits`:
     ///
-    ///  - Enforcements declare the quantities of categories that have been rate limited with the
-    ///    individual reason codes that caused rate limiting. If multiple rate limits applied to a
-    ///    category, then the longest limit is reported.
-    ///  - Rate limits declare all active rate limits, regardless of whether they have been applied
-    ///    to items in the envelope.
+    /// - Enforcements declare the quantities of categories that have been rate limited with the
+    ///   individual reason codes that caused rate limiting. If multiple rate limits applied to a
+    ///   category, then the longest limit is reported.
+    /// - Rate limits declare all active rate limits, regardless of whether they have been applied
+    ///   to items in the envelope. This excludes rate limits applied to required attachments, since
+    ///   clients are allowed to continue sending them.
     ///
     /// # Example
     ///
     /// **Interaction between Events and Attachments**
     ///
     /// An envelope with an `Error` event and an `Attachment`. Two quotas specify to drop all
-    /// attachments (reason `"a"`) and all errors (`reason `"e"`). The result of enforcement will
-    /// be:
+    /// attachments (reason `"a"`) and all errors (reason `"e"`). The result of enforcement will be:
     ///
     /// 1. All items are removed from the envelope.
     /// 2. Enforcements report both the event and the attachment dropped with reason `"e"`, since
