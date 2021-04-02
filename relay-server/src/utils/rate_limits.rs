@@ -177,12 +177,14 @@ struct CategoryLimit {
     quantity: usize,
     /// The reason code of the applied rate limit.
     ///
-    /// Defaults to `None` if the quota is without limit.
+    /// Defaults to `None` if the quota does not declare a reason code.
     reason_code: Option<ReasonCode>,
 }
 
 impl CategoryLimit {
     /// Creates a new `CategoryLimit`.
+    ///
+    /// Returns an inactive limit if `quantity` is `0` or `rate_limit` is `None`.
     fn new(category: DataCategory, quantity: usize, rate_limit: Option<&RateLimit>) -> Self {
         match rate_limit {
             Some(limit) => Self {
@@ -194,6 +196,10 @@ impl CategoryLimit {
         }
     }
 
+    /// Returns `true` if this is an active limit.
+    ///
+    /// This indicates that the category is limited and a certain quantity is removed from the
+    /// Envelope. If the limit is inactive, there is no change.
     fn is_active(&self) -> bool {
         self.quantity > 0
     }
