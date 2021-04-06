@@ -407,9 +407,8 @@ impl Metric {
         };
 
         for component in components {
-            match component.chars().next() {
-                Some('#') => metric.tags = parse_tags(component.get(1..)?)?,
-                _ => (),
+            if let Some('#') = component.chars().next() {
+                metric.tags = parse_tags(component.get(1..)?)?;
             }
         }
 
