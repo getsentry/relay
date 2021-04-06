@@ -6,6 +6,7 @@
 
 - Make request url scrubbable. ([#955](https://github.com/getsentry/relay/pull/955))
 - Remove dependent items from envelope when dropping transaction item. ([#960](https://github.com/getsentry/relay/pull/960))
+- Parse the Crashpad information extension stream from Minidumps with annotation objects correctly. ([#973](https://github.com/getsentry/relay/pull/973))
 
 **Internal**:
 
