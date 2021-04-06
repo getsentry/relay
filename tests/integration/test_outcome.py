@@ -439,16 +439,17 @@ def _get_message(message_type):
         raise Exception("Invalid message_type")
 
 
-@pytest.mark.parametrize("category_type", [("session", False), ("transaction", True)])
+@pytest.mark.parametrize(
+    "category,is_outcome_expected", [("session", False), ("transaction", True)]
+)
 def test_outcomes_rate_limit(
-    relay_with_processing, mini_sentry, outcomes_consumer, category_type
+    relay_with_processing, mini_sentry, outcomes_consumer, category, is_outcome_expected
 ):
     """
     Tests that outcomes are emitted or not, depending on the type of message.
 
     Pass a transaction that is rate limited and check whether a rate limit outcome is emitted.
     """
-    category, is_outcome_expected = category_type
 
     config = {"outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1}}
     relay = relay_with_processing(config)
