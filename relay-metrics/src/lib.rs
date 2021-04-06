@@ -7,21 +7,31 @@
 //!
 //! # Protocol
 //!
-//! Clients submit metrics in envelopes containing a [text-based protocol](Metric) based on StatsD.
-//! A sample submission looks like this:
+//! Clients submit metrics in a [text-based protocol](Metric) based on StatsD. A sample submission
+//! looks like this:
 //!
 //! ```text
-//! {}
-//! {"type": "metrics", "timestamp": 1615889440}
 //! endpoint.response_time@ms:57|d|#route:user_index
 //! endpoint.hits:1|c|#route:user_index
 //! ```
 //!
-//! The timestamp in the item header is optional. If it is omitted, the `received` time of the
-//! envelope is assumed.
-//!
 //! The metric type is part of its signature just like the unit. Therefore, it is allowed to reuse a
 //! metric name for multiple metric types, which will result in multiple metrics being recorded.
+//!
+//! # Metric Envelopes
+//!
+//! To send one or more metrics to Relay, the raw protocol is enclosed in an envelope item of type
+//! `metrics`:
+//!
+//! ```text
+//! {}
+//! {"type": "metrics", "timestamp": 1615889440, ...}
+//! endpoint.response_time@ms:57|d|#route:user_index
+//! ...
+//! ```
+//!
+//! The timestamp in the item header is used to send backdated metrics. If it is omitted,
+//! the `received` time of the envelope is assumed.
 //!
 //! # Aggregation
 //!

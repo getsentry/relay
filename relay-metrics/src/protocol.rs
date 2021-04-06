@@ -345,8 +345,7 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
 /// {
 ///   "name": "endpoint.users",
 ///   "value": 4267882815,
-///   "type": "s",
-///   "timestamp": 4711 // depends on the item header
+///   "type": "s"
 /// }
 /// ```
 
