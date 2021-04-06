@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::fmt::{self, Write};
+use std::fmt;
 use std::iter::FusedIterator;
 
 use hash32::{FnvHasher, Hasher};
@@ -285,23 +285,6 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
     Some(map)
 }
 
-/// Parses a UNIX timestamp from the given string.
-///
-/// The timestamp can be represented as floating point number, in which case it is truncated.
-fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
-    if let Ok(int) = string.parse() {
-        Some(UnixTimestamp::from_secs(int))
-    } else if let Ok(float) = string.parse::<f64>() {
-        if float < 0f64 {
-            None
-        } else {
-            Some(UnixTimestamp::from_secs(float.trunc() as u64))
-        }
-    } else {
-        None
-    }
-}
-
 /// A single metric value representing the payload sent from clients.
 ///
 /// As opposed to bucketed metric aggregations, this single metrics always represent a single
@@ -312,15 +295,15 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 /// # Submission Protocol
 ///
 /// ```text
-/// <name>[@unit]:<value>|<type>|'<timestamp>|#<tag_key>:<tag_value>,<tag>
+/// <name>[@unit]:<value>|<type>|#<tag_key>:<tag_value>,<tag>
 /// ```
 ///
 /// See the field documentation on this struct for more information on the components. An example
 /// submission looks like this:
 ///
 /// ```text
-/// endpoint.response_time@ms:57|d|'1615889449|#route:user_index
-/// endpoint.hits:1|c|'1615889449|#route:user_index
+/// endpoint.response_time@ms:57|d|#route:user_index
+/// endpoint.hits:1|c|#route:user_index
 /// ```
 ///
 /// To parse a submission payload, use [`Metric::parse_all`].
@@ -328,7 +311,8 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 /// # JSON Representation
 ///
 /// In addition to the submission protocol, metrics can be represented as structured data in JSON.
-/// Field values are the same with a single exception: The timestamp is required in JSON notation.
+/// In addition to the field values from the submission protocol, a timestamp is added to every
+/// metric (see [crate documentation](crate)).
 ///
 /// ```json
 /// {
@@ -362,7 +346,7 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 ///   "name": "endpoint.users",
 ///   "value": 4267882815,
 ///   "type": "s",
-///   "timestamp": 4711
+///   "timestamp": 4711 // depends on the item header
 /// }
 /// ```
 
@@ -391,9 +375,9 @@ pub struct Metric {
     pub value: MetricValue,
     /// The timestamp for this metric value.
     ///
-    /// In the SDK protocol, timestamps are optional and preceded with a single quote `'`. Supply a
-    /// default timestamp to [`Metric::parse`] or [`Metric::parse_all`] to insert a default
-    /// timestamp.
+    /// If a timestamp is not supplied in the item header of the envelope, the
+    /// default timestamp supplied to [`Metric::parse`] or [`Metric::parse_all`]
+    /// is associated with the metric.
     pub timestamp: UnixTimestamp,
     /// A list of tags adding dimensions to the metric for filtering and aggregation.
     ///
@@ -425,7 +409,6 @@ impl Metric {
         for component in components {
             match component.chars().next() {
                 Some('#') => metric.tags = parse_tags(component.get(1..)?)?,
-                Some('\'') => metric.timestamp = parse_timestamp(component.get(1..)?)?,
                 _ => (),
             }
         }
@@ -476,56 +459,6 @@ impl Metric {
     /// ```
     pub fn parse_all(slice: &[u8], timestamp: UnixTimestamp) -> ParseMetrics<'_> {
         ParseMetrics { slice, timestamp }
-    }
-
-    /// Serializes the metric to the raw protocol.
-    ///
-    /// See the [`Metric`] for more information on the protocol.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use std::collections::BTreeMap;
-    /// use relay_metrics::{Metric, MetricUnit, MetricValue, MetricType, UnixTimestamp};
-    ///
-    /// let metric = Metric {
-    ///     name: "hits".to_owned(),
-    ///     unit: MetricUnit::None,
-    ///     value: MetricValue::Counter(1.0),
-    ///     timestamp: UnixTimestamp::from_secs(1615889449),
-    ///     tags: BTreeMap::new(),
-    /// };
-    ///
-    /// assert_eq!(metric.serialize(), "hits:1|c|'1615889449");
-    /// ```
-    pub fn serialize(&self) -> String {
-        let mut string = self.name.clone();
-
-        if self.unit != MetricUnit::None {
-            write!(string, "@{}", self.unit).ok();
-        }
-
-        write!(
-            string,
-            ":{}|{}|'{}",
-            self.value,
-            self.value.ty(),
-            self.timestamp
-        )
-        .ok();
-
-        for (index, (key, value)) in self.tags.iter().enumerate() {
-            match index {
-                0 => write!(string, "|#{}", key).ok(),
-                _ => write!(string, ",{}", key).ok(),
-            };
-
-            if !value.is_empty() {
-                write!(string, ":{}", value).ok();
-            }
-        }
-
-        string
     }
 }
 
@@ -674,22 +607,6 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_timestamp() {
-        let s = "foo:17.5|d|'1337";
-        let timestamp = UnixTimestamp::from_secs(0xffff_ffff);
-        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.timestamp, UnixTimestamp::from_secs(1337));
-    }
-
-    #[test]
-    fn test_parse_timestamp_float() {
-        let s = "foo:17.5|d|'1337.666";
-        let timestamp = UnixTimestamp::from_secs(0xffff_ffff);
-        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.timestamp, UnixTimestamp::from_secs(1337));
-    }
-
-    #[test]
     fn test_parse_tags() {
         let s = "foo:17.5|d|#foo,bar:baz";
         let timestamp = UnixTimestamp::from_secs(4711);
@@ -724,57 +641,6 @@ mod tests {
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp);
         assert!(metric.is_err());
-    }
-
-    #[test]
-    fn test_serialize_basic() {
-        let metric = Metric {
-            name: "foo".to_owned(),
-            unit: MetricUnit::None,
-            value: MetricValue::Counter(42.),
-            timestamp: UnixTimestamp::from_secs(4711),
-            tags: BTreeMap::new(),
-        };
-
-        assert_eq!(metric.serialize(), "foo:42|c|'4711");
-    }
-
-    #[test]
-    fn test_serialize_unit() {
-        let metric = Metric {
-            name: "foo".to_owned(),
-            unit: MetricUnit::Duration(DurationPrecision::Second),
-            value: MetricValue::Counter(42.),
-            timestamp: UnixTimestamp::from_secs(4711),
-            tags: BTreeMap::new(),
-        };
-
-        assert_eq!(metric.serialize(), "foo@s:42|c|'4711");
-    }
-
-    #[test]
-    fn test_serialize_tags() {
-        let mut tags = BTreeMap::new();
-        tags.insert("empty".to_owned(), "".to_owned());
-        tags.insert("full".to_owned(), "value".to_owned());
-
-        let metric = Metric {
-            name: "foo".to_owned(),
-            unit: MetricUnit::None,
-            value: MetricValue::Counter(42.),
-            timestamp: UnixTimestamp::from_secs(4711),
-            tags,
-        };
-
-        assert_eq!(metric.serialize(), "foo:42|c|'4711|#empty,full:value");
-    }
-
-    #[test]
-    fn test_roundtrip() {
-        let s = "foo@s:17.5|d|'1337|#bar,foo:baz";
-        let timestamp = UnixTimestamp::from_secs(0xffff_ffff);
-        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.serialize(), s);
     }
 
     #[test]

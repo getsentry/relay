@@ -38,6 +38,7 @@ use std::io::{self, Write};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use failure::Fail;
+use relay_common::UnixTimestamp;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -362,6 +363,13 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sample_rates: Option<Value>,
 
+    /// A custom timestamp.
+    ///
+    /// For metrics, this field can be used to backdate a submission.
+    /// The given timestamp determines the bucket into which the metric will be aggregated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    timestamp: Option<UnixTimestamp>,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -385,6 +393,7 @@ impl Item {
                 filename: None,
                 rate_limited: false,
                 sample_rates: None,
+                timestamp: None,
                 other: BTreeMap::new(),
             },
             payload: Bytes::new(),
@@ -480,6 +489,11 @@ impl Item {
         if matches!(sample_rates, Value::Array(ref a) if !a.is_empty()) {
             self.headers.sample_rates = Some(sample_rates);
         }
+    }
+
+    /// Get custom timestamp for this item. Currently used to backdate metrics.
+    pub fn timestamp(&self) -> Option<UnixTimestamp> {
+        self.headers.timestamp
     }
 
     /// Returns the specified header value, if present.

@@ -7,13 +7,18 @@
 //!
 //! # Protocol
 //!
-//! Clients submit metrics in a [text-based protocol](Metric) based on StatsD. A sample submission
-//! looks like this:
+//! Clients submit metrics in envelopes containing a [text-based protocol](Metric) based on StatsD.
+//! A sample submission looks like this:
 //!
 //! ```text
-//! endpoint.response_time@ms:57|d|'1615889449|#route:user_index
-//! endpoint.hits:1|c|'1615889449|#route:user_index
+//! {}
+//! {"type": "metrics", "timestamp": 1615889440}
+//! endpoint.response_time@ms:57|d|#route:user_index
+//! endpoint.hits:1|c|#route:user_index
 //! ```
+//!
+//! The timestamp in the item header is optional. If it is omitted, the `received` time of the
+//! envelope is assumed.
 //!
 //! The metric type is part of its signature just like the unit. Therefore, it is allowed to reuse a
 //! metric name for multiple metric types, which will result in multiple metrics being recorded.
