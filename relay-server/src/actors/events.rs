@@ -1330,7 +1330,11 @@ impl Handler<ProcessMetrics> for EventProcessor {
         for item in items {
             let payload = item.payload();
             if item.ty() == ItemType::Metrics {
-                let timestamp = item.timestamp().unwrap_or(default_timestamp);
+                let timestamp = if let Some(datetime) = item.datetime() {
+                    UnixTimestamp::from_secs(datetime.timestamp() as u64)
+                } else {
+                    default_timestamp
+                };
                 let metrics = Metric::parse_all(&payload, timestamp).filter_map(|result| {
                     let mut metric = result.ok()?;
                     clock_drift_processor.process_timestamp(&mut metric.timestamp);

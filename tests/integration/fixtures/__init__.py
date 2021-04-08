@@ -181,7 +181,7 @@ class SentryLike(object):
             Item(
                 payload=PayloadRef(bytes=payload.encode()),
                 type="metrics",
-                headers=None if timestamp is None else {"timestamp": timestamp},
+                headers=None if timestamp is None else {"datetime": timestamp},
             )
         )
         self.send_envelope(project_id, envelope)
