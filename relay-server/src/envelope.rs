@@ -32,13 +32,13 @@
 
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
-use std::convert::TryFrom;
 use std::fmt;
 use std::io::{self, Write};
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use failure::Fail;
+use relay_common::UnixTimestamp;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -320,64 +320,6 @@ impl Default for AttachmentType {
     }
 }
 
-struct DateTimeVisitor;
-
-impl<'de> serde::de::Visitor<'de> for DateTimeVisitor {
-    type Value = Option<DateTime<Utc>>;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a numeric timestamp, datetime string, or null")
-    }
-
-    fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        let timestamp = i64::try_from(v).map_err(E::custom)?;
-        let naive = chrono::NaiveDateTime::from_timestamp_opt(timestamp, 0)
-            .ok_or_else(|| E::custom("timestamp out-of-range"))?;
-
-        Ok(Some(DateTime::<Utc>::from_utc(naive, Utc)))
-    }
-
-    fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        if v < 0.0 || v > i64::MAX as f64 {
-            return Err(E::custom("timestamp out-of-range"));
-        }
-        let timestamp = v as i64;
-        let naive = chrono::NaiveDateTime::from_timestamp_opt(timestamp, 0)
-            .ok_or_else(|| E::custom("timestamp out-of-range"))?;
-
-        Ok(Some(DateTime::<Utc>::from_utc(naive, Utc)))
-    }
-
-    fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        let datetime = v.parse::<DateTime<Utc>>().map_err(E::custom)?;
-        Ok(Some(datetime))
-    }
-
-    fn visit_unit<E>(self) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        Ok(None)
-    }
-}
-
-/// Parse datetime which can either be int / float timestamp or ISO string
-fn parse_datetime<'de, D>(de: D) -> Result<Option<DateTime<Utc>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    de.deserialize_any(DateTimeVisitor)
-}
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ItemHeaders {
     /// The type of the item.
@@ -425,12 +367,8 @@ pub struct ItemHeaders {
     ///
     /// For metrics, this field can be used to backdate a submission.
     /// The given datetime determines the bucket into which the metric will be aggregated.
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "parse_datetime"
-    )]
-    datetime: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    timestamp: Option<UnixTimestamp>,
 
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
@@ -455,7 +393,7 @@ impl Item {
                 filename: None,
                 rate_limited: false,
                 sample_rates: None,
-                datetime: None,
+                timestamp: None,
                 other: BTreeMap::new(),
             },
             payload: Bytes::new(),
@@ -553,9 +491,9 @@ impl Item {
         }
     }
 
-    /// Get custom datetime for this item. Currently used to backdate metrics.
-    pub fn datetime(&self) -> Option<DateTime<Utc>> {
-        self.headers.datetime
+    /// Get custom timestamp for this item. Currently used to backdate metrics.
+    pub fn timestamp(&self) -> Option<UnixTimestamp> {
+        self.headers.timestamp
     }
 
     /// Returns the specified header value, if present.
@@ -662,11 +600,7 @@ pub struct EnvelopeHeaders<M = RequestMeta> {
     /// Timestamp when the event has been sent, according to the SDK.
     ///
     /// This can be used to perform drift correction.
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "parse_datetime"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     sent_at: Option<DateTime<Utc>>,
 
     /// Trace context associated with the request
@@ -1403,74 +1337,6 @@ mod tests {
     fn test_parse_request_validate_origin() {
         let bytes = Bytes::from("{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\",\"origin\":\"http://localhost/\"}");
         Envelope::parse_request(bytes, request_meta()).unwrap();
-    }
-
-    #[test]
-    fn test_parse_datetime_empty() {
-        let bytes = Bytes::from("{\"type\": \"metrics\"}");
-        let (item, _) = Envelope::parse_item(bytes).unwrap();
-        assert!(item.datetime().is_none());
-    }
-
-    #[test]
-    fn test_parse_datetime_int() {
-        let bytes = Bytes::from("{\"type\": \"metrics\", \"datetime\": 123}");
-        let (item, _) = Envelope::parse_item(bytes).unwrap();
-        let datetime = item.datetime().unwrap();
-        assert_eq!(datetime.timestamp(), 123);
-    }
-
-    /// Cannot parse largest u64 as DateTime uses i64 internally
-    #[test]
-    fn test_parse_datetime_large_int() {
-        let bytes = Bytes::from("{\"type\": \"metrics\", \"datetime\": 9223372036854775808}");
-        assert!(Envelope::parse_item(bytes).is_err());
-    }
-
-    #[test]
-    fn test_parse_datetime_negint() {
-        let bytes = Bytes::from("{\"type\": \"metrics\", \"datetime\": -1}");
-        assert!(Envelope::parse_item(bytes).is_err());
-    }
-
-    #[test]
-    fn test_parse_datetime_float() {
-        let bytes = Bytes::from("{\"type\": \"metrics\", \"datetime\": 123.4}");
-        let (item, _) = Envelope::parse_item(bytes).unwrap();
-        let datetime = item.datetime().unwrap();
-        assert_eq!(datetime.timestamp(), 123);
-    }
-
-    #[test]
-    fn test_parse_datetime_large_float() {
-        let bytes = Bytes::from("{\"type\": \"metrics\", \"datetime\": 9223372036854775808.0}");
-        assert!(Envelope::parse_item(bytes).is_err());
-    }
-
-    #[test]
-    fn test_parse_datetime_negfloat() {
-        let bytes = Bytes::from("{\"type\": \"metrics\", \"datetime\": -123.4}");
-        assert!(Envelope::parse_item(bytes).is_err());
-    }
-
-    #[test]
-    fn test_parse_datetime_str() {
-        let bytes = Bytes::from("{\"type\": \"metrics\", \"datetime\": \"1970-01-01T00:02:03Z\"}");
-        let (item, _) = Envelope::parse_item(bytes).unwrap();
-        let datetime = item.datetime().unwrap();
-        assert_eq!(datetime.timestamp(), 123);
-    }
-
-    #[test]
-    fn test_parse_datetime_other() {
-        let bytes = Bytes::from("{\"type\": \"metrics\", \"datetime\": true}");
-        assert!(Envelope::parse_item(bytes).is_err());
-    }
-
-    #[test]
-    fn test_parse_datetime_bogus() {
-        let bytes = Bytes::from("{\"type\": \"metrics\", \"datetime\": \"adf3rt546;\"}");
-        assert!(Envelope::parse_item(bytes).is_err());
     }
 
     #[test]

@@ -3,6 +3,7 @@
 use std::fmt;
 use std::time::{Duration, Instant, SystemTime};
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 /// Converts an `Instant` into a `SystemTime`.
@@ -146,12 +147,114 @@ impl Serialize for UnixTimestamp {
     }
 }
 
+struct UnixTimestampVisitor;
+
+impl<'de> serde::de::Visitor<'de> for UnixTimestampVisitor {
+    type Value = UnixTimestamp;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a non-negative timestamp or datetime string")
+    }
+
+    fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(UnixTimestamp::from_secs(v))
+    }
+
+    fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        if v < 0.0 || v > u64::MAX as f64 {
+            return Err(E::custom("timestamp out-of-range"));
+        }
+
+        Ok(UnixTimestamp::from_secs(v.trunc() as u64))
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        let datetime = v.parse::<DateTime<Utc>>().map_err(E::custom)?;
+        let timestamp = datetime.timestamp();
+
+        if timestamp >= 0 {
+            Ok(UnixTimestamp(timestamp as u64))
+        } else {
+            Err(E::custom("timestamp out-of-range"))
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for UnixTimestamp {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let secs = u64::deserialize(deserializer)?;
-        Ok(Self::from_secs(secs))
+        deserializer.deserialize_any(UnixTimestampVisitor)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_test::{assert_de_tokens, assert_de_tokens_error, assert_tokens, Token};
+
+    #[test]
+    fn test_parse_timestamp_int() {
+        assert_tokens(&UnixTimestamp::from_secs(123), &[Token::U64(123)]);
+    }
+
+    #[test]
+    fn test_parse_timestamp_neg_int() {
+        assert_de_tokens_error::<UnixTimestamp>(
+            &[Token::I64(-1)],
+            "invalid type: integer `-1`, expected a non-negative timestamp or datetime string",
+        );
+    }
+
+    #[test]
+    fn test_parse_timestamp_float() {
+        assert_de_tokens(&UnixTimestamp::from_secs(123), &[Token::F64(123.4)]);
+    }
+
+    #[test]
+    fn test_parse_timestamp_large_float() {
+        assert_de_tokens_error::<UnixTimestamp>(
+            &[Token::F64(2.0 * (u64::MAX as f64))],
+            "timestamp out-of-range",
+        );
+    }
+
+    #[test]
+    fn test_parse_timestamp_neg_float() {
+        assert_de_tokens_error::<UnixTimestamp>(&[Token::F64(-1.0)], "timestamp out-of-range");
+    }
+
+    #[test]
+    fn test_parse_timestamp_str() {
+        assert_de_tokens(
+            &UnixTimestamp::from_secs(123),
+            &[Token::Str("1970-01-01T00:02:03Z")],
+        );
+    }
+
+    #[test]
+    fn test_parse_timestamp_other() {
+        assert_de_tokens_error::<UnixTimestamp>(
+            &[Token::Bool(true)],
+            "invalid type: boolean `true`, expected a non-negative timestamp or datetime string",
+        );
+    }
+
+    #[test]
+    fn test_parse_datetime_bogus() {
+        assert_de_tokens_error::<UnixTimestamp>(
+            &[Token::Str("adf3rt546")],
+            "input contains invalid characters",
+        );
     }
 }

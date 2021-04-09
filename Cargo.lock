@@ -3120,6 +3120,7 @@ dependencies = [
  "schemars",
  "sentry-types 0.20.1",
  "serde",
+ "serde_test",
 ]
 
 [[package]]
@@ -3807,6 +3808,15 @@ checksum = "ec2c5d7e739bc07a3e73381a39d61fdb5f671c60c1df26a130690665803d8226"
 dependencies = [
  "itoa",
  "ryu",
+ "serde",
+]
+
+[[package]]
+name = "serde_test"
+version = "1.0.125"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4bb5fef7eaf5a97917567183607ac4224c5b451c15023930f23b937cce879fe"
+dependencies = [
  "serde",
 ]
 
