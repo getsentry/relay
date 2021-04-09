@@ -228,13 +228,16 @@ pub struct Enforcement {
 
 impl Enforcement {
     /// Invokes [`TrackOutcome`] on all enforcements reported by the [`EnvelopeLimiter`].
+    ///
+    /// Relay generally does not emit outcomes for sessions, so those are skipped.
     pub fn track_outcomes(
         self,
         producer: &Addr<OutcomeProducer>,
         envelope: &Envelope,
         scoping: &Scoping,
     ) {
-        for limit in std::array::IntoIter::new([self.event, self.attachments, self.sessions]) {
+        // Do not report outcomes for sessions.
+        for limit in std::array::IntoIter::new([self.event, self.attachments]) {
             if limit.is_active() {
                 producer.do_send(TrackOutcome {
                     timestamp: envelope.meta().start_time(),

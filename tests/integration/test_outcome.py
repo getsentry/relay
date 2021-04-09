@@ -364,7 +364,7 @@ def test_outcomes_forwarding_rate_limited(
     ]
 
     # Send an event, it should be dropped in the upstream (processing) relay
-    result = downstream_relay.send_event(project_id, _get_message(category))
+    result = downstream_relay.send_event(project_id, _get_event_payload(category))
     event_id = result["id"]
 
     outcome = outcomes_consumer.get_outcome()
@@ -386,7 +386,7 @@ def test_outcomes_forwarding_rate_limited(
     # Send another event, now the downstream should drop it because it'll cache the 429
     # response from the previous event, but the outcome should be emitted
     with pytest.raises(requests.exceptions.HTTPError, match="429 Client Error"):
-        downstream_relay.send_event(project_id, _get_message(category))
+        downstream_relay.send_event(project_id, _get_event_payload(category))
 
     expected_outcome_from_downstream = deepcopy(expected_outcome)
     expected_outcome_from_downstream["source"] = "downstream-layer"
@@ -401,10 +401,10 @@ def test_outcomes_forwarding_rate_limited(
     outcomes_consumer.assert_empty()
 
 
-def _get_message(message_type):
-    if message_type == "error":
+def _get_event_payload(event_type):
+    if event_type == "error":
         return {"message": "hello"}
-    elif message_type == "transaction":
+    elif event_type == "transaction":
         now = datetime.utcnow()
         return {
             "type": "transaction",
@@ -420,23 +420,8 @@ def _get_message(message_type):
             },
             "transaction": "hi",
         }
-    elif message_type == "session":
-        timestamp = datetime.now(tz=timezone.utc)
-        started = timestamp - timedelta(hours=1)
-        return {
-            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
-            "did": "foobarbaz",
-            "seq": 42,
-            "init": True,
-            "timestamp": timestamp.isoformat(),
-            "started": started.isoformat(),
-            "duration": 1947.49,
-            "status": "exited",
-            "errors": 0,
-            "attrs": {"release": "sentry-test@1.0.0", "environment": "production"},
-        }
     else:
-        raise Exception("Invalid message_type")
+        raise Exception("Invalid event type")
 
 
 @pytest.mark.parametrize(
@@ -467,13 +452,29 @@ def test_outcomes_rate_limit(
     ]
     outcomes_consumer = outcomes_consumer()
 
-    message = _get_message(category)
-    relay.send_event(project_id, message)
+    if category == "session":
+        timestamp = datetime.now(tz=timezone.utc)
+        started = timestamp - timedelta(hours=1)
+        payload = {
+            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+            "did": "foobarbaz",
+            "seq": 42,
+            "init": True,
+            "timestamp": timestamp.isoformat(),
+            "started": started.isoformat(),
+            "duration": 1947.49,
+            "status": "exited",
+            "errors": 0,
+            "attrs": {"release": "sentry-test@1.0.0", "environment": "production"},
+        }
+        relay.send_session(project_id, payload)
+    else:
+        relay.send_event(project_id, _get_event_payload(category))
 
-    # give relay some to handle the message (and send any outcomes it needs to send)
+    # give relay some to handle the request (and send any outcomes it needs to send)
     time.sleep(1)
 
     if is_outcome_expected:
         outcomes_consumer.assert_rate_limited(reason_code, categories=[category])
     else:
-        assert not outcomes_consumer.get_outcomes()
+        outcomes_consumer.assert_empty()
