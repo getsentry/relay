@@ -326,6 +326,7 @@
 <span id="323">323</span>
 <span id="324">324</span>
 <span id="325">325</span>
+<span id="326">326</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
@@ -471,6 +472,7 @@
         <span class="kw">let</span> <span class="ident">project_cache</span> <span class="op">=</span> <span class="ident">ProjectCache</span>::<span class="ident">new</span>(
             <span class="ident">config</span>.<span class="ident">clone</span>(),
             <span class="ident">event_manager</span>.<span class="ident">clone</span>(),
+            <span class="ident">outcome_producer</span>.<span class="ident">clone</span>(),
             <span class="ident">upstream_relay</span>.<span class="ident">clone</span>(),
             <span class="ident">redis_pool</span>,
         )

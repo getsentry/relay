@@ -306,6 +306,11 @@
 <span id="303">303</span>
 <span id="304">304</span>
 <span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::{<span class="ident">hash_map</span>::<span class="ident">Entry</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
@@ -322,6 +327,7 @@
 <span class="kw">use</span> <span class="ident">relay_redis</span>::<span class="ident">RedisPool</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">events</span>::<span class="ident">EventManager</span>;
+<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">outcome</span>::<span class="ident">OutcomeProducer</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">project</span>::{<span class="ident">Project</span>, <span class="ident">ProjectState</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">project_local</span>::<span class="ident">LocalProjectSource</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">project_upstream</span>::<span class="ident">UpstreamProjectSource</span>;
@@ -353,6 +359,7 @@
     <span class="ident">projects</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">ProjectKey</span>, <span class="ident">ProjectEntry</span><span class="op">&gt;</span>,
 
     <span class="ident">event_manager</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EventManager</span><span class="op">&gt;</span>,
+    <span class="ident">outcome_producer</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeProducer</span><span class="op">&gt;</span>,
     <span class="ident">local_source</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">LocalProjectSource</span><span class="op">&gt;</span>,
     <span class="ident">upstream_source</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">UpstreamProjectSource</span><span class="op">&gt;</span>,
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
@@ -363,6 +370,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(
         <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
         <span class="ident">event_manager</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EventManager</span><span class="op">&gt;</span>,
+        <span class="ident">outcome_producer</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeProducer</span><span class="op">&gt;</span>,
         <span class="ident">upstream_relay</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">UpstreamRelay</span><span class="op">&gt;</span>,
         <span class="ident">_redis</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RedisPool</span><span class="op">&gt;</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
@@ -385,6 +393,7 @@
             <span class="ident">projects</span>: <span class="ident">HashMap</span>::<span class="ident">new</span>(),
 
             <span class="ident">event_manager</span>,
+            <span class="ident">outcome_producer</span>,
             <span class="ident">local_source</span>,
             <span class="ident">upstream_source</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
@@ -465,6 +474,7 @@
                     <span class="ident">config</span>,
                     <span class="ident">context</span>.<span class="ident">address</span>(),
                     <span class="self">self</span>.<span class="ident">event_manager</span>.<span class="ident">clone</span>(),
+                    <span class="self">self</span>.<span class="ident">outcome_producer</span>.<span class="ident">clone</span>(),
                 )
                 .<span class="ident">start</span>();
 
