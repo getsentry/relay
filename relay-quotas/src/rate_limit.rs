@@ -286,21 +286,6 @@ impl RateLimits {
     pub fn longest(&self) -> Option<&RateLimit> {
         self.iter().max_by_key(|limit| limit.retry_after)
     }
-
-    /// Returns the longest rate limit that is error releated.
-    ///
-    /// The most relevant rate limit from the point of view of an error generating an outcome
-    /// is the longest rate limit for error messages.
-    pub fn longest_error(&self) -> Option<&RateLimit> {
-        let is_event_related = |rate_limit: &&RateLimit| {
-            rate_limit.categories.is_empty()
-                || rate_limit.categories.iter().any(|cat| cat.is_error())
-        };
-
-        self.iter()
-            .filter(is_event_related)
-            .max_by_key(|limit| limit.retry_after)
-    }
 }
 
 /// Immutable rate limits iterator.
@@ -662,68 +647,6 @@ mod tests {
           scope: Organization(42),
           reason_code: Some(ReasonCode("second")),
           retry_after: RetryAfter(10),
-        )
-        "###);
-    }
-
-    #[test]
-    fn test_rate_limits_longest_error_none() {
-        let mut rate_limits = RateLimits::new();
-
-        rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Transaction],
-            scope: RateLimitScope::Organization(42),
-            reason_code: None,
-            retry_after: RetryAfter::from_secs(1),
-        });
-        rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Attachment],
-            scope: RateLimitScope::Organization(42),
-            reason_code: None,
-            retry_after: RetryAfter::from_secs(1),
-        });
-        rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Session],
-            scope: RateLimitScope::Organization(42),
-            reason_code: None,
-            retry_after: RetryAfter::from_secs(1),
-        });
-
-        // only non event rate limits so nothing relevant
-        assert_eq!(rate_limits.longest_error(), None)
-    }
-
-    #[test]
-    fn test_rate_limits_longest_error() {
-        let mut rate_limits = RateLimits::new();
-        rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Transaction],
-            scope: RateLimitScope::Organization(40),
-            reason_code: None,
-            retry_after: RetryAfter::from_secs(100),
-        });
-        rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Error],
-            scope: RateLimitScope::Organization(41),
-            reason_code: None,
-            retry_after: RetryAfter::from_secs(5),
-        });
-        rate_limits.add(RateLimit {
-            categories: smallvec![DataCategory::Error],
-            scope: RateLimitScope::Organization(42),
-            reason_code: None,
-            retry_after: RetryAfter::from_secs(7),
-        });
-
-        let rate_limit = rate_limits.longest().unwrap();
-        insta::assert_ron_snapshot!(rate_limit, @r###"
-        RateLimit(
-          categories: [
-            transaction,
-          ],
-          scope: Organization(40),
-          reason_code: None,
-          retry_after: RetryAfter(100),
         )
         "###);
     }

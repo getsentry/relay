@@ -150,15 +150,14 @@ impl ProcessingError {
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
-            Self::RateLimited(ref rate_limits) => rate_limits
-                .longest_error()
-                .map(|r| Outcome::RateLimited(r.reason_code.clone())),
 
             // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
             #[cfg(feature = "processing")]
             Self::EventFiltered(ref filter_stat_key) => Some(Outcome::Filtered(*filter_stat_key)),
+            Self::TraceSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
+            Self::EventSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
 
             // Internal errors
             Self::SerializeFailed(_)
@@ -172,9 +171,8 @@ impl ProcessingError {
                 Some(Outcome::Invalid(DiscardReason::Internal))
             }
 
-            // Dynamic sampling (not an error, just discarding messages that were removed by sampling)
-            Self::TraceSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
-            Self::EventSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
+            // Rate limiting outcomes are emitted at the source.
+            Self::RateLimited(_) => None,
 
             // If we send to an upstream, we don't emit outcomes.
             Self::SendFailed(_) => None,
@@ -283,6 +281,8 @@ pub struct EventProcessor {
     rate_limiter: Option<RedisRateLimiter>,
     #[cfg(feature = "processing")]
     geoip_lookup: Option<Arc<GeoIpLookup>>,
+    #[cfg(feature = "processing")]
+    outcome_producer: Option<Addr<OutcomeProducer>>,
 }
 
 impl EventProcessor {
@@ -294,6 +294,8 @@ impl EventProcessor {
             rate_limiter: None,
             #[cfg(feature = "processing")]
             geoip_lookup: None,
+            #[cfg(feature = "processing")]
+            outcome_producer: None,
         }
     }
 
@@ -308,6 +310,13 @@ impl EventProcessor {
     #[inline]
     pub fn with_geoip_lookup(mut self, geoip_lookup: Option<Arc<GeoIpLookup>>) -> Self {
         self.geoip_lookup = geoip_lookup;
+        self
+    }
+
+    #[cfg(feature = "processing")]
+    #[inline]
+    pub fn with_outcome_producer(mut self, producer: Addr<OutcomeProducer>) -> Self {
+        self.outcome_producer = Some(producer);
         self
     }
 
@@ -1029,11 +1038,16 @@ impl EventProcessor {
         // point and it is easier than passing scoping through all layers of `process_envelope`.
         let scoping = project_state.scope_request(state.envelope.meta());
 
-        state.rate_limits = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
+        let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
             envelope_limiter
                 .enforce(&mut state.envelope, &scoping)
                 .map_err(ProcessingError::QuotasFailed)?
         });
+
+        state.rate_limits = limits;
+        if let Some(ref producer) = self.outcome_producer {
+            enforcement.track_outcomes(producer, &state.envelope, &scoping);
+        }
 
         if remove_event {
             state.remove_event();
@@ -1414,9 +1428,12 @@ impl EventManager {
 
             SyncArbiter::start(
                 thread_count,
-                clone!(config, || EventProcessor::new(config.clone())
-                    .with_rate_limiter(rate_limiter.clone())
-                    .with_geoip_lookup(geoip_lookup.clone())),
+                clone!(config, outcome_producer, || {
+                    EventProcessor::new(config.clone())
+                        .with_rate_limiter(rate_limiter.clone())
+                        .with_geoip_lookup(geoip_lookup.clone())
+                        .with_outcome_producer(outcome_producer.clone())
+                }),
             )
         };
 
@@ -1772,9 +1789,8 @@ impl Handler<HandleEnvelope> for EventManager {
                     })
                     .map_err(ProcessingError::ScheduleFailed)
                     .flatten()
-                // TODO: Update envelope_summary once the rate-limiting code emits its own outcomes.
             })
-            .and_then(clone!(project, |processed| {
+            .and_then(clone!(project, envelope_summary, |processed| {
                 let rate_limits = processed.rate_limits;
 
                 // Processing returned new rate limits. Cache them on the project to avoid expensive
@@ -1784,7 +1800,10 @@ impl Handler<HandleEnvelope> for EventManager {
                 }
 
                 match processed.envelope {
-                    Some(envelope) => Ok(envelope),
+                    Some(envelope) => {
+                        envelope_summary.replace(EnvelopeSummary::compute(&envelope));
+                        Ok(envelope)
+                    }
                     None => Err(ProcessingError::RateLimited(rate_limits)),
                 }
             }))

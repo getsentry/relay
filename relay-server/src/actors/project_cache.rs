@@ -13,6 +13,7 @@ use relay_config::{Config, RelayMode};
 use relay_redis::RedisPool;
 
 use crate::actors::events::EventManager;
+use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project::{Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
@@ -44,6 +45,7 @@ pub struct ProjectCache {
     projects: HashMap<ProjectKey, ProjectEntry>,
 
     event_manager: Addr<EventManager>,
+    outcome_producer: Addr<OutcomeProducer>,
     local_source: Addr<LocalProjectSource>,
     upstream_source: Addr<UpstreamProjectSource>,
     #[cfg(feature = "processing")]
@@ -54,6 +56,7 @@ impl ProjectCache {
     pub fn new(
         config: Arc<Config>,
         event_manager: Addr<EventManager>,
+        outcome_producer: Addr<OutcomeProducer>,
         upstream_relay: Addr<UpstreamRelay>,
         _redis: Option<RedisPool>,
     ) -> Self {
@@ -76,6 +79,7 @@ impl ProjectCache {
             projects: HashMap::new(),
 
             event_manager,
+            outcome_producer,
             local_source,
             upstream_source,
             #[cfg(feature = "processing")]
@@ -156,6 +160,7 @@ impl Handler<GetProject> for ProjectCache {
                     config,
                     context.address(),
                     self.event_manager.clone(),
+                    self.outcome_producer.clone(),
                 )
                 .start();
 

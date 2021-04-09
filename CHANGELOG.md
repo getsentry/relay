@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Emit outcomes for rate limited attachments. ([#951](https://github.com/getsentry/relay/pull/951))
+
+## 21.3.1
+
 **Bug Fixes**:
 
 - Make request url scrubbable. ([#955](https://github.com/getsentry/relay/pull/955))

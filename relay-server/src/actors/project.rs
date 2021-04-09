@@ -24,6 +24,7 @@ use relay_sampling::SamplingConfig;
 
 use crate::actors::events::{EventManager, SendMetrics};
 use crate::actors::outcome::DiscardReason;
+use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
@@ -453,6 +454,7 @@ pub struct Project {
     config: Arc<Config>,
     manager: Addr<ProjectCache>,
     event_manager: Addr<EventManager>,
+    outcome_producer: Addr<OutcomeProducer>,
     aggregator: AggregatorState,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<StateChannel>,
@@ -467,12 +469,14 @@ impl Project {
         config: Arc<Config>,
         manager: Addr<ProjectCache>,
         event_manager: Addr<EventManager>,
+        outcome_producer: Addr<OutcomeProducer>,
     ) -> Self {
         Project {
             public_key: key,
             config,
             manager,
             event_manager,
+            outcome_producer,
             aggregator: AggregatorState::Unknown,
             state: None,
             state_channel: None,
@@ -685,7 +689,9 @@ impl Project {
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        let rate_limits = envelope_limiter.enforce(&mut envelope, scoping)?;
+        let (enforcement, rate_limits) = envelope_limiter.enforce(&mut envelope, scoping)?;
+        enforcement.track_outcomes(&self.outcome_producer, &envelope, scoping);
+
         let envelope = if envelope.is_empty() {
             None
         } else {
