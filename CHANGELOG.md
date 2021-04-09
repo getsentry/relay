@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Parse the Crashpad information extension stream from Minidumps with annotation objects correctly. ([#973](https://github.com/getsentry/relay/pull/973))
+
 **Internal**:
 
 - Emit outcomes for rate limited attachments. ([#951](https://github.com/getsentry/relay/pull/951))

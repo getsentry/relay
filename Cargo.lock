@@ -1961,7 +1961,7 @@ dependencies = [
 [[package]]
 name = "minidump"
 version = "0.2.0"
-source = "git+https://github.com/luser/rust-minidump?rev=20070798b5e9216474013341ed80c5272558d9ee#20070798b5e9216474013341ed80c5272558d9ee"
+source = "git+https://github.com/luser/rust-minidump?rev=dedd6715af3a22f5fff9c065e7c4b22c44fef320#dedd6715af3a22f5fff9c065e7c4b22c44fef320"
 dependencies = [
  "chrono",
  "encoding",
@@ -1977,7 +1977,7 @@ dependencies = [
 [[package]]
 name = "minidump-common"
 version = "0.2.0"
-source = "git+https://github.com/luser/rust-minidump?rev=20070798b5e9216474013341ed80c5272558d9ee#20070798b5e9216474013341ed80c5272558d9ee"
+source = "git+https://github.com/luser/rust-minidump?rev=dedd6715af3a22f5fff9c065e7c4b22c44fef320#dedd6715af3a22f5fff9c065e7c4b22c44fef320"
 dependencies = [
  "bitflags",
  "enum-primitive-derive",
