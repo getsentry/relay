@@ -240,7 +240,7 @@ class OutcomesConsumer(ConsumerBase):
 
         for outcome in outcomes:
             assert outcome["outcome"] == 2, outcome
-            assert outcome["reason"] == reason
+            assert outcome["reason"] == reason, outcome["reason"]
             if key_id is not None:
                 assert outcome["key_id"] == key_id
 

@@ -4,9 +4,18 @@
 
 **Bug Fixes**:
 
+- Parse the Crashpad information extension stream from Minidumps with annotation objects correctly. ([#973](https://github.com/getsentry/relay/pull/973))
+
+**Internal**:
+
+- Emit outcomes for rate limited attachments. ([#951](https://github.com/getsentry/relay/pull/951))
+
+## 21.3.1
+
+**Bug Fixes**:
+
 - Make request url scrubbable. ([#955](https://github.com/getsentry/relay/pull/955))
 - Remove dependent items from envelope when dropping transaction item. ([#960](https://github.com/getsentry/relay/pull/960))
-- Parse the Crashpad information extension stream from Minidumps with annotation objects correctly. ([#973](https://github.com/getsentry/relay/pull/973))
 
 **Internal**:
 
