@@ -113,29 +113,23 @@ impl BadStoreRequest {
             BadStoreRequest::QueueFailed(event_error) => match event_error {
                 QueueEnvelopeError::TooManyEvents => Outcome::Invalid(DiscardReason::Internal),
             },
-
             BadStoreRequest::ProjectFailed(project_error) => match project_error {
                 ProjectError::FetchFailed => Outcome::Invalid(DiscardReason::ProjectState),
                 _ => Outcome::Invalid(DiscardReason::Internal),
             },
-
             BadStoreRequest::ScheduleFailed(_) => Outcome::Invalid(DiscardReason::Internal),
-
             BadStoreRequest::EventRejected(reason) => Outcome::Invalid(*reason),
-
             BadStoreRequest::PayloadError(payload_error) => {
                 Outcome::Invalid(payload_error.discard_reason())
             }
 
-            BadStoreRequest::RateLimited(rate_limits) => {
-                return rate_limits
-                    .longest_error()
-                    .map(|r| Outcome::RateLimited(r.reason_code.clone()));
-            }
             BadStoreRequest::TraceSampled(rule_id) => Outcome::FilteredSampling(*rule_id),
 
             // should actually never create an outcome
             BadStoreRequest::InvalidEventId => Outcome::Invalid(DiscardReason::Internal),
+
+            // Rate limiting outcomes are emitted at the source.
+            BadStoreRequest::RateLimited(_) => return None,
         })
     }
 }
@@ -447,9 +441,8 @@ where
                         Some(envelope) => envelope,
                         None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
                     };
-                    // TODO: Update envelope_summary from checked.envelope, once the rate-limiting
-                    // code in CheckEnvelope emits its own outcomes.
 
+                    envelope_summary.replace(EnvelopeSummary::compute(&envelope));
                     if check_envelope_size_limits(&config, &envelope) {
                         Ok((envelope, checked.rate_limits))
                     } else {

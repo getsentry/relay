@@ -364,7 +364,7 @@ def test_outcomes_forwarding_rate_limited(
     ]
 
     # Send an event, it should be dropped in the upstream (processing) relay
-    result = downstream_relay.send_event(project_id, _get_message(category))
+    result = downstream_relay.send_event(project_id, _get_event_payload(category))
     event_id = result["id"]
 
     outcome = outcomes_consumer.get_outcome()
@@ -386,7 +386,7 @@ def test_outcomes_forwarding_rate_limited(
     # Send another event, now the downstream should drop it because it'll cache the 429
     # response from the previous event, but the outcome should be emitted
     with pytest.raises(requests.exceptions.HTTPError, match="429 Client Error"):
-        downstream_relay.send_event(project_id, _get_message(category))
+        downstream_relay.send_event(project_id, _get_event_payload(category))
 
     expected_outcome_from_downstream = deepcopy(expected_outcome)
     expected_outcome_from_downstream["source"] = "downstream-layer"
@@ -401,10 +401,10 @@ def test_outcomes_forwarding_rate_limited(
     outcomes_consumer.assert_empty()
 
 
-def _get_message(message_type):
-    if message_type == "error":
+def _get_event_payload(event_type):
+    if event_type == "error":
         return {"message": "hello"}
-    elif message_type == "transaction":
+    elif event_type == "transaction":
         now = datetime.utcnow()
         return {
             "type": "transaction",
@@ -420,10 +420,42 @@ def _get_message(message_type):
             },
             "transaction": "hi",
         }
-    elif message_type == "session":
+    else:
+        raise Exception("Invalid event type")
+
+
+@pytest.mark.parametrize(
+    "category,is_outcome_expected", [("session", False), ("transaction", True)]
+)
+def test_outcomes_rate_limit(
+    relay_with_processing, mini_sentry, outcomes_consumer, category, is_outcome_expected
+):
+    """
+    Tests that outcomes are emitted or not, depending on the type of message.
+
+    Pass a transaction that is rate limited and check whether a rate limit outcome is emitted.
+    """
+
+    config = {"outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1}}
+    relay = relay_with_processing(config)
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    reason_code = "transactions are banned"
+    project_config["config"]["quotas"] = [
+        {
+            "id": "transaction category",
+            "categories": [category],
+            "limit": 0,
+            "window": 1600,
+            "reasonCode": reason_code,
+        }
+    ]
+    outcomes_consumer = outcomes_consumer()
+
+    if category == "session":
         timestamp = datetime.now(tz=timezone.utc)
         started = timestamp - timedelta(hours=1)
-        return {
+        payload = {
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "did": "foobarbaz",
             "seq": 42,
@@ -435,44 +467,14 @@ def _get_message(message_type):
             "errors": 0,
             "attrs": {"release": "sentry-test@1.0.0", "environment": "production"},
         }
+        relay.send_session(project_id, payload)
     else:
-        raise Exception("Invalid message_type")
+        relay.send_event(project_id, _get_event_payload(category))
 
-
-@pytest.mark.parametrize("category_type", ["session", "transaction"])
-def test_no_outcomes_rate_limit(
-    relay_with_processing, mini_sentry, outcomes_consumer, category_type
-):
-    """
-    Tests that outcomes are not emitted for certain type of messages
-
-    Pass a transaction that is rate limited and check that an outcome is not emitted (although
-    the transaction does NOT go through).
-
-    NOTE: This test should start failing once transactions outcomes become supported.
-    Once that happens change test to verify that a transaction outcome IS sent
-    """
-
-    config = {"outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1}}
-    relay = relay_with_processing(config)
-    project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["quotas"] = [
-        {
-            "id": "transaction category",
-            "categories": [category_type],
-            "limit": 0,
-            "window": 1600,
-            "reasonCode": "transactions are banned",
-        }
-    ]
-    outcomes_consumer = outcomes_consumer()
-
-    message = _get_message(category_type)
-    relay.send_event(project_id, message)
-
-    # give relay some to handle the message (and send any outcomes it needs to send)
+    # give relay some to handle the request (and send any outcomes it needs to send)
     time.sleep(1)
 
-    # we should not have anything on the outcome topic
-    outcomes_consumer.assert_empty()
+    if is_outcome_expected:
+        outcomes_consumer.assert_rate_limited(reason_code, categories=[category])
+    else:
+        outcomes_consumer.assert_empty()
