@@ -1041,8 +1041,8 @@
     <span class="ident">Set</span>,
     <span class="doccomment">/// Stores absolute snapshots of values.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// Contrary to [counters](Self::Counter), which allow relative changes, gauges always store the</span>
-    <span class="doccomment">/// last absolute value submitted.</span>
+    <span class="doccomment">/// In addition to plain [counters](Self::Counter), gauges store a snapshot of the maximum,</span>
+    <span class="doccomment">/// minimum and sum of all values, as well as the last reported value.</span>
     <span class="ident">Gauge</span>,
 }
 
