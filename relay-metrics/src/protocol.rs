@@ -156,8 +156,8 @@ pub enum MetricType {
     Set,
     /// Stores absolute snapshots of values.
     ///
-    /// Contrary to [counters](Self::Counter), which allow relative changes, gauges always store the
-    /// last absolute value submitted.
+    /// In addition to plain [counters](Self::Counter), gauges store a snapshot of the maximum,
+    /// minimum and sum of all values, as well as the last reported value.
     Gauge,
 }
 

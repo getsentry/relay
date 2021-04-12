@@ -2,10 +2,15 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Parse the Crashpad information extension stream from Minidumps with annotation objects correctly. ([#973](https://github.com/getsentry/relay/pull/973))
+
 **Internal**:
 
 - Emit outcomes for rate limited attachments. ([#951](https://github.com/getsentry/relay/pull/951))
 - Remove timestamp from metrics text protocol. ([#972](https://github.com/getsentry/relay/pull/972))
+- Add max, min, sum, and count to gauge metrics. ([#974](https://github.com/getsentry/relay/pull/974))
 
 ## 21.3.1
 

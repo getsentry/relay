@@ -12,40 +12,112 @@ use relay_common::{MonotonicResult, UnixTimestamp};
 
 use crate::{Metric, MetricType, MetricUnit, MetricValue};
 
+/// A snapshot of values within a [`Bucket`].
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
+pub struct GaugeValue {
+    /// The maximum value reported in the bucket.
+    pub max: f64,
+    /// The minimum value reported in the bucket.
+    pub min: f64,
+    /// The sum of all values reported in the bucket.
+    pub sum: f64,
+    /// The last value reported in the bucket.
+    ///
+    /// This aggregation is not commutative.
+    pub last: f64,
+    /// The number of times this bucket was updated with a new value.
+    pub count: u64,
+}
+
+impl GaugeValue {
+    /// Creates a gauge snapshot from a single value.
+    pub fn single(value: f64) -> Self {
+        Self {
+            max: value,
+            min: value,
+            sum: value,
+            last: value,
+            count: 1,
+        }
+    }
+
+    /// Inserts a new value into the gauge.
+    pub fn insert(&mut self, value: f64) {
+        self.max = self.max.max(value);
+        self.min = self.min.min(value);
+        self.sum += value;
+        self.last = value;
+        self.count += 1;
+    }
+
+    /// Merges two gauge snapshots.
+    pub fn merge(&mut self, other: Self) {
+        self.max = self.max.max(other.max);
+        self.min = self.min.min(other.min);
+        self.sum += other.sum;
+        self.last = other.last;
+        self.count += other.count;
+    }
+
+    /// Returns the average of all values reported in this bucket.
+    pub fn avg(&self) -> f64 {
+        if self.count > 0 {
+            self.sum / (self.count as f64)
+        } else {
+            0f64
+        }
+    }
+}
+
 /// The [aggregated value](Bucket::value) of a metric bucket.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
 pub enum BucketValue {
     /// Aggregates [`MetricValue::Counter`] values by adding them into a single value.
     ///
-    /// ```notrust
+    /// ```text
     /// 2, 1, 3, 2 => 8
     /// ```
+    ///
+    /// This variant serializes to a double precision float.
     #[serde(rename = "c")]
     Counter(f64),
     /// Aggregates [`MetricValue::Distribution`] values by collecting their values.
     ///
-    /// ```notrust
+    /// ```text
     /// 2, 1, 3, 2 => [1, 2, 2, 3]
     /// ```
+    ///
+    /// This variant serializes to a list of double precision floats.
     #[serde(rename = "d")]
     Distribution(Vec<f64>),
     /// Aggregates [`MetricValue::Set`] values by storing their hash values in a set.
     ///
-    /// ```notrust
+    /// ```text
     /// 2, 1, 3, 2 => {1, 2, 3}
     /// ```
+    ///
+    /// This variant serializes to a list of 32-bit integers.
     #[serde(rename = "s")]
     Set(BTreeSet<u32>),
-    /// Aggregates [`MetricValue::Gauge`] values always retaining the single last value.
+    /// Aggregates [`MetricValue::Gauge`] values always retaining the maximum, minimum, and last
+    /// value, as well as the sum and count of all values.
     ///
-    /// **Note**: This aggregation is not commutative.
+    /// **Note**: The "last" component of this aggregation is not commutative.
     ///
-    /// ```notrust
-    /// 1, 2, 3, 2 => 2
+    /// ```text
+    /// 1, 2, 3, 2 => {
+    ///   max: 3,
+    ///   min: 1,
+    ///   sum: 8,
+    ///   last: 2
+    ///   count: 4,
+    /// }
     /// ```
+    ///
+    /// This variant serializes to a structure, see [`GaugeValue`].
     #[serde(rename = "g")]
-    Gauge(f64),
+    Gauge(GaugeValue),
 }
 
 impl BucketValue {
@@ -66,7 +138,7 @@ impl From<MetricValue> for BucketValue {
             MetricValue::Counter(value) => Self::Counter(value),
             MetricValue::Distribution(value) => Self::Distribution(vec![value]),
             MetricValue::Set(value) => Self::Set(std::iter::once(value).collect()),
-            MetricValue::Gauge(value) => Self::Gauge(value),
+            MetricValue::Gauge(value) => Self::Gauge(GaugeValue::single(value)),
         }
     }
 }
@@ -87,7 +159,7 @@ impl MergeValue for BucketValue {
             (BucketValue::Counter(lhs), BucketValue::Counter(rhs)) => *lhs += rhs,
             (BucketValue::Distribution(lhs), BucketValue::Distribution(rhs)) => lhs.extend(rhs),
             (BucketValue::Set(lhs), BucketValue::Set(rhs)) => lhs.extend(rhs),
-            (BucketValue::Gauge(lhs), BucketValue::Gauge(rhs)) => *lhs = rhs,
+            (BucketValue::Gauge(lhs), BucketValue::Gauge(rhs)) => lhs.merge(rhs),
             _ => return Err(AggregateMetricsError),
         }
 
@@ -102,13 +174,13 @@ impl MergeValue for MetricValue {
                 *counter += value;
             }
             (BucketValue::Distribution(distribution), MetricValue::Distribution(value)) => {
-                distribution.push(value)
+                distribution.push(value);
             }
             (BucketValue::Set(set), MetricValue::Set(value)) => {
                 set.insert(value);
             }
             (BucketValue::Gauge(gauge), MetricValue::Gauge(value)) => {
-                *gauge = value;
+                gauge.insert(value);
             }
             _ => {
                 return Err(AggregateMetricsError);
@@ -146,28 +218,62 @@ impl Error for ParseBucketError {
 ///
 /// See the [crate documentation](crate) for general information on Metrics.
 ///
+/// # Values
+///
+/// The contents of a bucket, especially their representation and serialization, depend on the
+/// metric type:
+///
+/// - [Counters](BucketValue::Counter) store a single value, serialized as floating point.
+/// - [Distributions](MetricType::Distribution) and [sets](MetricType::Set) store the full set of
+///   reported values.
+/// - [Gauges](BucketValue::Gauge) store a snapshot of reported values, see [`GaugeValue`].
+///
 /// # Submission Protocol
 ///
-/// Buckets are always represented as JSON. The type of the `value` field is determined by the
-/// metric type, see [`BucketValue`] for a description of all valid values.
+/// Buckets are always represented as JSON. The data type of the `value` field is determined by the
+/// metric type.
 ///
 /// ```json
 /// [
 ///   {
+///     "timestamp": 1615889440,
 ///     "name": "endpoint.response_time",
+///     "type": "d",
 ///     "unit": "ms",
 ///     "value": [36, 49, 57, 68],
-///     "type": "d",
-///     "timestamp": 1615889440,
 ///     "tags": {
 ///       "route": "user_index"
 ///     }
 ///   },
 ///   {
-///     "name": "endpoint.hits",
-///     "value": 4,
-///     "type": "c",
 ///     "timestamp": 1615889440,
+///     "name": "endpoint.hits",
+///     "type": "c",
+///     "value": 4,
+///     "tags": {
+///       "route": "user_index"
+///     }
+///   },
+///   {
+///     "timestamp": 1615889440,
+///     "name": "endpoint.parallel_requests",
+///     "type": "g",
+///     "value": {
+///       "max": 42.0,
+///       "min": 17.0,
+///       "sum": 2210.0,
+///       "last": 25.0,
+///       "count": 85
+///     }
+///   },
+///   {
+///     "timestamp": 1615889440,
+///     "name": "endpoint.users",
+///     "type": "s",
+///     "value": [
+///       3182887624,
+///       4267882815
+///     ],
 ///     "tags": {
 ///       "route": "user_index"
 ///     }
@@ -190,11 +296,9 @@ pub struct Bucket {
     /// See [`Metric::unit`].
     #[serde(default, skip_serializing_if = "MetricUnit::is_none")]
     pub unit: MetricUnit,
-    /// The aggregated values in this bucket.
+    /// The type and aggregated values of this bucket.
     ///
-    /// [Counters](BucketValue::Counter) and [gauges](BucketValue::Gauge) store a single value while
-    /// [distributions](MetricType::Distribution) and [sets](MetricType::Set) store the full set of
-    /// reported values.
+    /// See [`Metric::value`] for a mapping to inbound data.
     #[serde(flatten)]
     pub value: BucketValue,
     /// A list of tags adding dimensions to the metric for filtering and aggregation.
@@ -408,7 +512,7 @@ impl Message for FlushBuckets {
 /// - `Counter`: Sum of values.
 /// - `Distribution`: A list of values.
 /// - `Set`: A unique set of hashed values.
-/// - `Gauge`: The latest submitted value.
+/// - `Gauge`: A summary of the reported values, see [`GaugeValue`].
 ///
 /// # Conflicts
 ///
@@ -828,6 +932,30 @@ mod tests {
     "tags": {
       "route": "user_index"
     }
+  },
+  {
+    "timestamp": 1615889440,
+    "name": "endpoint.parallel_requests",
+    "type": "g",
+    "value": {
+      "max": 42.0,
+      "min": 17.0,
+      "sum": 2210.0,
+      "last": 25.0,
+      "count": 85
+    }
+  },
+  {
+    "timestamp": 1615889440,
+    "name": "endpoint.users",
+    "type": "s",
+    "value": [
+      3182887624,
+      4267882815
+    ],
+    "tags": {
+      "route": "user_index"
+    }
   }
 ]"#;
 
@@ -864,9 +992,21 @@ mod tests {
 
     #[test]
     fn test_bucket_value_merge_gauge() {
-        let mut value = BucketValue::Gauge(42.);
-        BucketValue::Gauge(43.).merge_into(&mut value).unwrap();
-        assert_eq!(value, BucketValue::Gauge(43.));
+        let mut value = BucketValue::Gauge(GaugeValue::single(42.));
+        BucketValue::Gauge(GaugeValue::single(43.))
+            .merge_into(&mut value)
+            .unwrap();
+
+        assert_eq!(
+            value,
+            BucketValue::Gauge(GaugeValue {
+                max: 43.,
+                min: 42.,
+                sum: 85.,
+                last: 43.,
+                count: 2,
+            })
+        );
     }
 
     #[test]
@@ -897,9 +1037,18 @@ mod tests {
 
     #[test]
     fn test_bucket_value_insert_gauge() {
-        let mut value = BucketValue::Gauge(42.);
+        let mut value = BucketValue::Gauge(GaugeValue::single(42.));
         MetricValue::Gauge(43.).merge_into(&mut value).unwrap();
-        assert_eq!(value, BucketValue::Gauge(43.));
+        assert_eq!(
+            value,
+            BucketValue::Gauge(GaugeValue {
+                max: 43.,
+                min: 42.,
+                sum: 85.,
+                last: 43.,
+                count: 2,
+            })
+        );
     }
 
     #[test]
