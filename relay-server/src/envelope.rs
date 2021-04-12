@@ -363,10 +363,10 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sample_rates: Option<Value>,
 
-    /// A custom datetime associated with the item.
+    /// A custom timestamp associated with the item.
     ///
     /// For metrics, this field can be used to backdate a submission.
-    /// The given datetime determines the bucket into which the metric will be aggregated.
+    /// The given timestamp determines the bucket into which the metric will be aggregated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     timestamp: Option<UnixTimestamp>,
 
