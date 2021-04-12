@@ -2174,6 +2174,7 @@
 <span id="2171">2171</span>
 <span id="2172">2172</span>
 <span id="2173">2173</span>
+<span id="2174">2174</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -3513,7 +3514,7 @@
         } <span class="op">=</span> <span class="ident">message</span>;
 
         <span class="kw">let</span> <span class="ident">received</span> <span class="op">=</span> <span class="ident">relay_common</span>::<span class="ident">instant_to_date_time</span>(<span class="ident">start_time</span>);
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp</span>::<span class="ident">from_secs</span>(<span class="ident">received</span>.<span class="ident">timestamp</span>() <span class="kw">as</span> <span class="ident">u64</span>);
+        <span class="kw">let</span> <span class="ident">default_timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp</span>::<span class="ident">from_secs</span>(<span class="ident">received</span>.<span class="ident">timestamp</span>() <span class="kw">as</span> <span class="ident">u64</span>);
 
         <span class="kw">let</span> <span class="ident">clock_drift_processor</span> <span class="op">=</span>
             <span class="ident">ClockDriftProcessor</span>::<span class="ident">new</span>(<span class="ident">sent_at</span>, <span class="ident">received</span>).<span class="ident">at_least</span>(<span class="ident">MINIMUM_CLOCK_DRIFT</span>);
@@ -3521,6 +3522,7 @@
         <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="ident">items</span> {
             <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">payload</span>();
             <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType</span>::<span class="ident">Metrics</span> {
+                <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">timestamp</span>().<span class="ident">unwrap_or</span>(<span class="ident">default_timestamp</span>);
                 <span class="kw">let</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="ident">Metric</span>::<span class="ident">parse_all</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>, <span class="ident">timestamp</span>).<span class="ident">filter_map</span>(<span class="op">|</span><span class="ident">result</span><span class="op">|</span> {
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">result</span>.<span class="ident">ok</span>()<span class="question-mark">?</span>;
                     <span class="ident">clock_drift_processor</span>.<span class="ident">process_timestamp</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">metric</span>.<span class="ident">timestamp</span>);

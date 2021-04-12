@@ -2487,7 +2487,7 @@
                 })
                 .<span class="ident">and_then</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
                     <span class="comment">// Wait until flush delay has passed</span>
-                    <span class="ident">relay_test</span>::<span class="ident">delay</span>(<span class="ident">Duration</span>::<span class="ident">from_millis</span>(<span class="number">1100</span>)).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
+                    <span class="ident">relay_test</span>::<span class="ident">delay</span>(<span class="ident">Duration</span>::<span class="ident">from_millis</span>(<span class="number">1500</span>)).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
                 })
                 .<span class="ident">and_then</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
                     <span class="comment">// After the flush delay has passed, the receiver should have the bucket:</span>

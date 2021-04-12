@@ -1398,6 +1398,38 @@
 <span id="1395">1395</span>
 <span id="1396">1396</span>
 <span id="1397">1397</span>
+<span id="1398">1398</span>
+<span id="1399">1399</span>
+<span id="1400">1400</span>
+<span id="1401">1401</span>
+<span id="1402">1402</span>
+<span id="1403">1403</span>
+<span id="1404">1404</span>
+<span id="1405">1405</span>
+<span id="1406">1406</span>
+<span id="1407">1407</span>
+<span id="1408">1408</span>
+<span id="1409">1409</span>
+<span id="1410">1410</span>
+<span id="1411">1411</span>
+<span id="1412">1412</span>
+<span id="1413">1413</span>
+<span id="1414">1414</span>
+<span id="1415">1415</span>
+<span id="1416">1416</span>
+<span id="1417">1417</span>
+<span id="1418">1418</span>
+<span id="1419">1419</span>
+<span id="1420">1420</span>
+<span id="1421">1421</span>
+<span id="1422">1422</span>
+<span id="1423">1423</span>
+<span id="1424">1424</span>
+<span id="1425">1425</span>
+<span id="1426">1426</span>
+<span id="1427">1427</span>
+<span id="1428">1428</span>
+<span id="1429">1429</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Implementation of event envelopes.</span>
 <span class="doccomment">//!</span>
@@ -1439,6 +1471,7 @@
 <span class="kw">use</span> <span class="ident">bytes</span>::<span class="ident">Bytes</span>;
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Utc</span>};
 <span class="kw">use</span> <span class="ident">failure</span>::<span class="ident">Fail</span>;
+<span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">UnixTimestamp</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">de</span>::<span class="ident">DeserializeOwned</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 <span class="kw">use</span> <span class="ident">smallvec</span>::<span class="ident">SmallVec</span>;
 
@@ -1763,6 +1796,13 @@
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
     <span class="ident">sample_rates</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
 
+    <span class="doccomment">/// A custom timestamp associated with the item.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// For metrics, this field can be used to backdate a submission.</span>
+    <span class="doccomment">/// The given timestamp determines the bucket into which the metric will be aggregated.</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
+    <span class="ident">timestamp</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">UnixTimestamp</span><span class="op">&gt;</span>,
+
     <span class="doccomment">/// Other attributes for forward compatibility.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">flatten</span>)]</span>
     <span class="ident">other</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Value</span><span class="op">&gt;</span>,
@@ -1786,6 +1826,7 @@
                 <span class="ident">filename</span>: <span class="prelude-val">None</span>,
                 <span class="ident">rate_limited</span>: <span class="bool-val">false</span>,
                 <span class="ident">sample_rates</span>: <span class="prelude-val">None</span>,
+                <span class="ident">timestamp</span>: <span class="prelude-val">None</span>,
                 <span class="ident">other</span>: <span class="ident">BTreeMap</span>::<span class="ident">new</span>(),
             },
             <span class="ident">payload</span>: <span class="ident">Bytes</span>::<span class="ident">new</span>(),
@@ -1881,6 +1922,11 @@
         <span class="kw">if</span> <span class="macro">matches</span><span class="macro">!</span>(<span class="ident">sample_rates</span>, <span class="ident">Value</span>::<span class="ident">Array</span>(<span class="kw-2">ref</span> <span class="ident">a</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">a</span>.<span class="ident">is_empty</span>()) {
             <span class="self">self</span>.<span class="ident">headers</span>.<span class="ident">sample_rates</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">sample_rates</span>);
         }
+    }
+
+    <span class="doccomment">/// Get custom timestamp for this item. Currently used to backdate metrics.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">timestamp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">UnixTimestamp</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">headers</span>.<span class="ident">timestamp</span>
     }
 
     <span class="doccomment">/// Returns the specified header value, if present.</span>
@@ -2675,6 +2721,24 @@
 
         <span class="comment">// DSN should be assumed from the request.</span>
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">meta</span>.<span class="ident">dsn</span>(), <span class="ident">request_meta</span>().<span class="ident">dsn</span>());
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_parse_request_sent_at</span>() {
+        <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="ident">Bytes</span>::<span class="ident">from</span>(<span class="string">&quot;{\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;, \&quot;sent_at\&quot;: \&quot;1970-01-01T00:02:03Z\&quot;}&quot;</span>);
+        <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="ident">Envelope</span>::<span class="ident">parse_request</span>(<span class="ident">bytes</span>, <span class="ident">request_meta</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">sent_at</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">sent_at</span>().<span class="ident">unwrap</span>();
+
+        <span class="comment">// DSN should be assumed from the request.</span>
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">sent_at</span>.<span class="ident">timestamp</span>(), <span class="number">123</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_parse_request_sent_at_null</span>() {
+        <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span>
+            <span class="ident">Bytes</span>::<span class="ident">from</span>(<span class="string">&quot;{\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;, \&quot;sent_at\&quot;: null}&quot;</span>);
+        <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="ident">Envelope</span>::<span class="ident">parse_request</span>(<span class="ident">bytes</span>, <span class="ident">request_meta</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">envelope</span>.<span class="ident">sent_at</span>().<span class="ident">is_none</span>());
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
