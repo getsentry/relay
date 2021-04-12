@@ -715,6 +715,9 @@ pub struct Processing {
     /// Maximum rate limit to report to clients.
     #[serde(default = "default_max_rate_limit")]
     pub max_rate_limit: Option<u32>,
+    /// Projects for which to emit extra (high-noise) metrics.
+    #[serde(default)]
+    pub _internal_projects: Vec<u64>,
 }
 
 impl Default for Processing {
@@ -732,6 +735,7 @@ impl Default for Processing {
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
+            _internal_projects: Vec::new(),
         }
     }
 }
@@ -1362,6 +1366,11 @@ impl Config {
     /// True if the Relay should do processing.
     pub fn processing_enabled(&self) -> bool {
         self.values.processing.enabled
+    }
+
+    /// Set of internal project IDs for which to emit extra metrics.
+    pub fn processing_internal_projects(&self) -> &[u64] {
+        &self.values.processing.internal_projects
     }
 
     /// The path to the GeoIp database required for event processing.
