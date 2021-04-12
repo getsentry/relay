@@ -1370,7 +1370,7 @@ impl Config {
 
     /// Set of internal project IDs for which to emit extra metrics.
     pub fn processing_internal_projects(&self) -> &[u64] {
-        &self.values.processing.internal_projects
+        &self.values.processing._internal_projects
     }
 
     /// The path to the GeoIp database required for event processing.
