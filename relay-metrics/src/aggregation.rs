@@ -1211,7 +1211,7 @@ mod tests {
                 })
                 .and_then(|_| {
                     // Wait until flush delay has passed
-                    relay_test::delay(Duration::from_millis(1100)).map_err(|_| ())
+                    relay_test::delay(Duration::from_millis(1500)).map_err(|_| ())
                 })
                 .and_then(|_| {
                     // After the flush delay has passed, the receiver should have the bucket:

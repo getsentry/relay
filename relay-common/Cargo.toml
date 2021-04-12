@@ -26,6 +26,9 @@ sentry-types = "0.20.0"
 schemars = { version = "0.8.1", features = ["uuid", "chrono"], optional = true }
 serde = { version = "1.0.114", features = ["derive"] }
 
+[dev-dependencies]
+serde_test = "1.0.125"
+
 [features]
 jsonschema = ["schemars"]
 default = []

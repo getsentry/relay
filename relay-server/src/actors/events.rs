@@ -1336,7 +1336,7 @@ impl Handler<ProcessMetrics> for EventProcessor {
         } = message;
 
         let received = relay_common::instant_to_date_time(start_time);
-        let timestamp = UnixTimestamp::from_secs(received.timestamp() as u64);
+        let default_timestamp = UnixTimestamp::from_secs(received.timestamp() as u64);
 
         let clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
@@ -1344,6 +1344,7 @@ impl Handler<ProcessMetrics> for EventProcessor {
         for item in items {
             let payload = item.payload();
             if item.ty() == ItemType::Metrics {
+                let timestamp = item.timestamp().unwrap_or(default_timestamp);
                 let metrics = Metric::parse_all(&payload, timestamp).filter_map(|result| {
                     let mut metric = result.ok()?;
                     clock_drift_processor.process_timestamp(&mut metric.timestamp);

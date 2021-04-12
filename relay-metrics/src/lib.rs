@@ -11,12 +11,27 @@
 //! looks like this:
 //!
 //! ```text
-//! endpoint.response_time@ms:57|d|'1615889449|#route:user_index
-//! endpoint.hits:1|c|'1615889449|#route:user_index
+//! endpoint.response_time@ms:57|d|#route:user_index
+//! endpoint.hits:1|c|#route:user_index
 //! ```
 //!
 //! The metric type is part of its signature just like the unit. Therefore, it is allowed to reuse a
 //! metric name for multiple metric types, which will result in multiple metrics being recorded.
+//!
+//! # Metric Envelopes
+//!
+//! To send one or more metrics to Relay, the raw protocol is enclosed in an envelope item of type
+//! `metrics`:
+//!
+//! ```text
+//! {}
+//! {"type": "metrics", "timestamp": 1615889440, ...}
+//! endpoint.response_time@ms:57|d|#route:user_index
+//! ...
+//! ```
+//!
+//! The timestamp in the item header is used to send backdated metrics. If it is omitted,
+//! the `received` time of the envelope is assumed.
 //!
 //! # Aggregation
 //!
