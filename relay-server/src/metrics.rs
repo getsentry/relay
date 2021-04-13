@@ -448,7 +448,12 @@ pub enum RelayCounters {
     /// Number of upstream connections that experienced a timeout.
     ConnectorTimeouts,
     /// An event has been produced to Kafka for one of the configured "internal" projects.
+    #[cfg(feature = "processing")]
     InternalCapturedEventStoreActor,
+    /// An event has been preliminarily accepted in the store endpoint for one of the configured
+    /// "internal" projects.
+    #[cfg(feature = "processing")]
+    InternalCapturedEventEndpoint,
 }
 
 impl CounterMetric for RelayCounters {
@@ -479,6 +484,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ConnectorTimeouts => "connector.timeouts",
             #[cfg(feature = "processing")]
             RelayCounters::InternalCapturedEventStoreActor => "internal.captured.event.store_actor",
+            #[cfg(feature = "processing")]
+            RelayCounters::InternalCapturedEventEndpoint => "internal.captured.event.endpoint",
         }
     }
 }

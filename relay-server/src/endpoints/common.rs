@@ -409,6 +409,11 @@ where
     let config = request.state().config();
     let processing_enabled = config.processing_enabled();
 
+    #[cfg(feature = "processing")]
+    let project_id = scoping.borrow().project_id.value();
+    #[cfg(feature = "processing")]
+    let is_internal = config.processing_internal_projects().contains(&project_id);
+
     let future = project_manager
         .send(GetProject { public_key })
         .map_err(BadStoreRequest::ScheduleFailed)
@@ -512,6 +517,13 @@ where
                     if rate_limits.is_limited() {
                         Err(BadStoreRequest::RateLimited(rate_limits))
                     } else {
+                        #[cfg(feature = "processing")]
+                        if is_internal {
+                            metric!(
+                                counter(RelayCounters::InternalCapturedEventEndpoint) += 1,
+                                project = &project_id.to_string(),
+                            );
+                        }
                         Ok(create_response(event_id))
                     }
                 })
