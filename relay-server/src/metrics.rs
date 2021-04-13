@@ -477,6 +477,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ConnectorClosed => "connector.closed",
             RelayCounters::ConnectorErrors => "connector.errors",
             RelayCounters::ConnectorTimeouts => "connector.timeouts",
+            #[cfg(feature = "processing")]
             RelayCounters::InternalCapturedEventStoreActor => "internal.captured.event.store_actor",
         }
     }
