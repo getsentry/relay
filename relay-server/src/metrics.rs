@@ -452,7 +452,6 @@ pub enum RelayCounters {
     InternalCapturedEventStoreActor,
     /// An event has been preliminarily accepted in the store endpoint for one of the configured
     /// "internal" projects.
-    #[cfg(feature = "processing")]
     InternalCapturedEventEndpoint,
 }
 
@@ -484,7 +483,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ConnectorTimeouts => "connector.timeouts",
             #[cfg(feature = "processing")]
             RelayCounters::InternalCapturedEventStoreActor => "internal.captured.event.store_actor",
-            #[cfg(feature = "processing")]
             RelayCounters::InternalCapturedEventEndpoint => "internal.captured.event.endpoint",
         }
     }

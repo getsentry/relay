@@ -409,9 +409,7 @@ where
     let config = request.state().config();
     let processing_enabled = config.processing_enabled();
 
-    #[cfg(feature = "processing")]
-    let project_id = scoping.borrow().project_id.value();
-    #[cfg(feature = "processing")]
+    let project_id = meta.project_id().map(|id| id.value()).unwrap_or_default();
     let is_internal = config.processing_internal_projects().contains(&project_id);
 
     let future = project_manager
@@ -421,8 +419,17 @@ where
             extract_envelope(&request, meta)
                 .into_future()
                 .and_then(clone!(event_id, envelope_summary, |envelope| {
+                    let summary = EnvelopeSummary::compute(&envelope);
+
+                    if is_internal && summary.event_category == Some(DataCategory::Transaction) {
+                        metric!(
+                            counter(RelayCounters::InternalCapturedEventEndpoint) += 1,
+                            project = &project_id.to_string()
+                        );
+                    }
+
                     event_id.replace(envelope.event_id());
-                    envelope_summary.replace(EnvelopeSummary::compute(&envelope));
+                    envelope_summary.replace(summary);
 
                     if envelope.is_empty() {
                         Err(BadStoreRequest::EmptyEnvelope)
@@ -517,13 +524,6 @@ where
                     if rate_limits.is_limited() {
                         Err(BadStoreRequest::RateLimited(rate_limits))
                     } else {
-                        #[cfg(feature = "processing")]
-                        if is_internal {
-                            metric!(
-                                counter(RelayCounters::InternalCapturedEventEndpoint) += 1,
-                                project = &project_id.to_string(),
-                            );
-                        }
                         Ok(create_response(event_id))
                     }
                 })
