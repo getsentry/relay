@@ -11,7 +11,7 @@ use failure::Fail;
 use futures::prelude::*;
 use serde::Deserialize;
 
-use relay_common::{clone, metric, tryf, DataCategory};
+use relay_common::{clone, metric, tryf, DataCategory, ProjectId};
 use relay_config::Config;
 use relay_general::protocol::{EventId, EventType};
 use relay_log::LogError;
@@ -409,6 +409,9 @@ where
     let config = request.state().config();
     let processing_enabled = config.processing_enabled();
 
+    let project_id = meta.project_id().unwrap_or_else(|| ProjectId::new(0));
+    let is_internal = config.processing_internal_projects().contains(&project_id);
+
     let future = project_manager
         .send(GetProject { public_key })
         .map_err(BadStoreRequest::ScheduleFailed)
@@ -416,8 +419,17 @@ where
             extract_envelope(&request, meta)
                 .into_future()
                 .and_then(clone!(event_id, envelope_summary, |envelope| {
+                    let summary = EnvelopeSummary::compute(&envelope);
+
+                    if is_internal && summary.event_category == Some(DataCategory::Transaction) {
+                        metric!(
+                            counter(RelayCounters::InternalCapturedEventEndpoint) += 1,
+                            project = &project_id.to_string()
+                        );
+                    }
+
                     event_id.replace(envelope.event_id());
-                    envelope_summary.replace(EnvelopeSummary::compute(&envelope));
+                    envelope_summary.replace(summary);
 
                     if envelope.is_empty() {
                         Err(BadStoreRequest::EmptyEnvelope)

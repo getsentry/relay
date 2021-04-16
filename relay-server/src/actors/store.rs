@@ -649,6 +649,19 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                 attachments,
             });
 
+            #[cfg(feature = "processing")]
+            if self
+                .config
+                .processing_internal_projects()
+                .contains(&scoping.project_id)
+            {
+                metric!(
+                    counter(RelayCounters::InternalCapturedEventStoreActor) += 1,
+                    event_item_type = &event_item.ty().to_string(),
+                    project = &scoping.project_id.value().to_string(),
+                );
+            }
+
             self.produce(topic, event_message)?;
             metric!(
                 counter(RelayCounters::ProcessingMessageProduced) += 1,
