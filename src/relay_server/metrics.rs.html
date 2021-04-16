@@ -481,6 +481,15 @@
 <span id="478">478</span>
 <span id="479">479</span>
 <span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+<span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">metrics</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
@@ -931,6 +940,12 @@
     <span class="ident">ConnectorErrors</span>,
     <span class="doccomment">/// Number of upstream connections that experienced a timeout.</span>
     <span class="ident">ConnectorTimeouts</span>,
+    <span class="doccomment">/// An event has been produced to Kafka for one of the configured &quot;internal&quot; projects.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+    <span class="ident">InternalCapturedEventStoreActor</span>,
+    <span class="doccomment">/// An event has been preliminarily accepted in the store endpoint for one of the configured</span>
+    <span class="doccomment">/// &quot;internal&quot; projects.</span>
+    <span class="ident">InternalCapturedEventEndpoint</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">CounterMetric</span> <span class="kw">for</span> <span class="ident">RelayCounters</span> {
@@ -959,6 +974,9 @@
             <span class="ident">RelayCounters</span>::<span class="ident">ConnectorClosed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;connector.closed&quot;</span>,
             <span class="ident">RelayCounters</span>::<span class="ident">ConnectorErrors</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;connector.errors&quot;</span>,
             <span class="ident">RelayCounters</span>::<span class="ident">ConnectorTimeouts</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;connector.timeouts&quot;</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+            <span class="ident">RelayCounters</span>::<span class="ident">InternalCapturedEventStoreActor</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;internal.captured.event.store_actor&quot;</span>,
+            <span class="ident">RelayCounters</span>::<span class="ident">InternalCapturedEventEndpoint</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;internal.captured.event.endpoint&quot;</span>,
         }
     }
 }
