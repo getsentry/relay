@@ -409,7 +409,7 @@ where
     let config = request.state().config();
     let processing_enabled = config.processing_enabled();
 
-    let project_id = meta.project_id().unwrap_or(ProjectId::new(0));
+    let project_id = meta.project_id().unwrap_or_else(|| ProjectId::new(0));
     let is_internal = config.processing_internal_projects().contains(&project_id);
 
     let future = project_manager
