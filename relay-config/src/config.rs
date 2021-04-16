@@ -12,7 +12,7 @@ use failure::{Backtrace, Context, Fail};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
-use relay_common::Uuid;
+use relay_common::{ProjectId, Uuid};
 use relay_metrics::AggregatorConfig;
 use relay_redis::RedisConfig;
 
@@ -717,7 +717,7 @@ pub struct Processing {
     pub max_rate_limit: Option<u32>,
     /// Projects for which to emit extra (high-noise) metrics.
     #[serde(default)]
-    pub _internal_projects: Vec<u64>,
+    pub _internal_projects: Vec<ProjectId>,
 }
 
 impl Default for Processing {
@@ -1369,7 +1369,7 @@ impl Config {
     }
 
     /// Set of internal project IDs for which to emit extra metrics.
-    pub fn processing_internal_projects(&self) -> &[u64] {
+    pub fn processing_internal_projects(&self) -> &[ProjectId] {
         &self.values.processing._internal_projects
     }
 

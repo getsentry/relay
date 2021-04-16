@@ -11,7 +11,7 @@ use failure::Fail;
 use futures::prelude::*;
 use serde::Deserialize;
 
-use relay_common::{clone, metric, tryf, DataCategory};
+use relay_common::{clone, metric, tryf, DataCategory, ProjectId};
 use relay_config::Config;
 use relay_general::protocol::{EventId, EventType};
 use relay_log::LogError;
@@ -409,7 +409,7 @@ where
     let config = request.state().config();
     let processing_enabled = config.processing_enabled();
 
-    let project_id = meta.project_id().map(|id| id.value()).unwrap_or_default();
+    let project_id = meta.project_id().unwrap_or(ProjectId::new(0));
     let is_internal = config.processing_internal_projects().contains(&project_id);
 
     let future = project_manager

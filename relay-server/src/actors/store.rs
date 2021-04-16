@@ -653,7 +653,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
             if self
                 .config
                 .processing_internal_projects()
-                .contains(&scoping.project_id.value())
+                .contains(&scoping.project_id)
             {
                 metric!(
                     counter(RelayCounters::InternalCapturedEventStoreActor) += 1,
