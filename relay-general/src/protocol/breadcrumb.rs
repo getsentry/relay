@@ -1,7 +1,7 @@
 #[cfg(test)]
 use chrono::{TimeZone, Utc};
 
-use crate::protocol::{Level, Timestamp};
+use crate::protocol::{EventId, Level, Timestamp};
 use crate::types::{Annotated, Object, Value};
 
 /// The Breadcrumbs Interface specifies a series of application events, or "breadcrumbs", that
@@ -109,6 +109,13 @@ pub struct Breadcrumb {
     #[metastructure(skip_serialization = "empty")]
     pub data: Annotated<Object<Value>>,
 
+    /// Identifier of the event this breadcrumb belongs to.
+    ///
+    /// Sentry events can appear as breadcrumbs in other events as long as they have occurred in the
+    /// same organization. This identifier links to the original event.
+    #[metastructure(skip_serialization = "null")]
+    pub event_id: Annotated<EventId>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
@@ -127,6 +134,7 @@ fn test_breadcrumb_roundtrip() {
   "data": {
     "a": "b"
   },
+  "event_id": "52df9022835246eeb317dbd739ccd059",
   "c": "d"
 }"#;
 
@@ -139,6 +147,7 @@ fn test_breadcrumb_roundtrip() {
   "data": {
     "a": "b"
   },
+  "event_id": "52df9022835246eeb317dbd739ccd059",
   "c": "d"
 }"#;
 
@@ -156,6 +165,7 @@ fn test_breadcrumb_roundtrip() {
             );
             Annotated::new(map)
         },
+        event_id: Annotated::new("52df9022835246eeb317dbd739ccd059".parse().unwrap()),
         other: {
             let mut map = Map::new();
             map.insert(
