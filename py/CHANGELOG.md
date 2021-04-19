@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add back `breadcrumb.event_id`. ([#977](https://github.com/getsentry/relay/pull/977))
+
 ## 0.8.5
 
 - Skip serializing some null values in frames interface. ([#944](https://github.com/getsentry/relay/pull/944))

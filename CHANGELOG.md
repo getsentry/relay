@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Allow the `event_id` attribute on breadcrumbs to link between Sentry events. ([#977](https://github.com/getsentry/relay/pull/977))
+
 ## 21.4.0
 
 **Bug Fixes**:
