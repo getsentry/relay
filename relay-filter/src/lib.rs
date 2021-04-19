@@ -7,6 +7,10 @@
 //! * web crawlers (filter events sent by user agents known to be web crawlers)
 //! * legacy browsers (filter events originating from legacy browsers, can be configured)
 #![warn(missing_docs)]
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
+    html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
+)]
 
 use std::net::IpAddr;
 
