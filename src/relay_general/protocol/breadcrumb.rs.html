@@ -202,11 +202,21 @@
 <span id="199">199</span>
 <span id="200">200</span>
 <span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">TimeZone</span>, <span class="ident">Utc</span>};
 
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">protocol</span>::{<span class="ident">Level</span>, <span class="ident">Timestamp</span>};
+<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">protocol</span>::{<span class="ident">EventId</span>, <span class="ident">Level</span>, <span class="ident">Timestamp</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::{<span class="ident">Annotated</span>, <span class="ident">Object</span>, <span class="ident">Value</span>};
 
 <span class="doccomment">/// The Breadcrumbs Interface specifies a series of application events, or &quot;breadcrumbs&quot;, that</span>
@@ -314,6 +324,13 @@
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">data</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span><span class="op">&gt;</span>,
 
+    <span class="doccomment">/// Identifier of the event this breadcrumb belongs to.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Sentry events can appear as breadcrumbs in other events as long as they have occurred in the</span>
+    <span class="doccomment">/// same organization. This identifier links to the original event.</span>
+    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;null&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">event_id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>,
+
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>)]</span>
     <span class="kw">pub</span> <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
@@ -332,6 +349,7 @@
   &quot;data&quot;: {
     &quot;a&quot;: &quot;b&quot;
   },
+  &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
   &quot;c&quot;: &quot;d&quot;
 }&quot;#</span>;
 
@@ -344,6 +362,7 @@
   &quot;data&quot;: {
     &quot;a&quot;: &quot;b&quot;
   },
+  &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
   &quot;c&quot;: &quot;d&quot;
 }&quot;#</span>;
 
@@ -361,6 +380,7 @@
             );
             <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">map</span>)
         },
+        <span class="ident">event_id</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;52df9022835246eeb317dbd739ccd059&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
         <span class="ident">other</span>: {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map</span>::<span class="ident">new</span>();
             <span class="ident">map</span>.<span class="ident">insert</span>(
