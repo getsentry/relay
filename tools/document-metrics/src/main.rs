@@ -1,3 +1,8 @@
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
+    html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
+)]
+
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::File;
