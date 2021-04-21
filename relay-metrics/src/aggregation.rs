@@ -1,8 +1,7 @@
-use std::collections::{btree_map, btree_set, BinaryHeap};
+use std::collections::{btree_map, BinaryHeap};
 use std::collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::fmt;
-use std::iter::Peekable;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
@@ -106,9 +105,8 @@ impl GaugeValue {
 /// for each value in the distribution, including duplicates.
 #[derive(Clone, Default, PartialEq)]
 pub struct DistributionValue {
-    singles: BTreeSet<FloatOrd<f64>>,
-    duplicates: BTreeMap<FloatOrd<f64>, usize>,
-    length: usize,
+    values: BTreeMap<FloatOrd<f64>, u32>,
+    length: u32,
 }
 
 impl DistributionValue {
@@ -132,7 +130,7 @@ impl DistributionValue {
     /// dist.insert(1.0);
     /// assert_eq!(dist.len(), 2);
     /// ```
-    pub fn len(&self) -> usize {
+    pub fn len(&self) -> u32 {
         self.length
     }
 
@@ -155,7 +153,7 @@ impl DistributionValue {
     /// assert_eq!(dist.insert(1.0), 2);
     /// assert_eq!(dist.insert(2.0), 1);
     /// ```
-    pub fn insert(&mut self, value: f64) -> usize {
+    pub fn insert(&mut self, value: f64) -> u32 {
         self.insert_multi(value, 1)
     }
 
@@ -172,28 +170,17 @@ impl DistributionValue {
     /// assert_eq!(dist.insert_multi(1.0, 2), 2);
     /// assert_eq!(dist.insert_multi(1.0, 3), 5);
     /// ```
-    pub fn insert_multi(&mut self, value: f64, mut count: usize) -> usize {
+    pub fn insert_multi(&mut self, value: f64, count: u32) -> u32 {
         self.length += count;
         if count == 0 {
             return 0;
         }
 
-        let value = FloatOrd(value);
-        if self.singles.insert(value) {
-            count -= 1;
-        }
-
-        if count > 0 {
-            let duplicates = self
-                .duplicates
-                .entry(value)
-                .and_modify(|value| *value += count)
-                .or_insert(count);
-
-            *duplicates + 1
-        } else {
-            1
-        }
+        *self
+            .values
+            .entry(FloatOrd(value))
+            .and_modify(|c| *c += count)
+            .or_insert(count)
     }
 
     /// Returns `true` if the set contains a value.
@@ -209,7 +196,7 @@ impl DistributionValue {
     /// assert_eq!(dist.contains(2.0), false);
     /// ```
     pub fn contains(&self, value: impl std::borrow::Borrow<f64>) -> bool {
-        self.singles.contains(&FloatOrd(*value.borrow()))
+        self.values.contains_key(&FloatOrd(*value.borrow()))
     }
 
     /// Returns how often the given value occurs in the distribution.
@@ -224,15 +211,9 @@ impl DistributionValue {
     /// assert_eq!(dist.get(1.0), 2);
     /// assert_eq!(dist.get(2.0), 0);
     /// ```
-    pub fn get(&self, value: impl std::borrow::Borrow<f64>) -> usize {
+    pub fn get(&self, value: impl std::borrow::Borrow<f64>) -> u32 {
         let value = &FloatOrd(*value.borrow());
-        if let Some(count) = self.duplicates.get(value) {
-            *count + 1
-        } else if self.singles.contains(value) {
-            1
-        } else {
-            0
-        }
+        self.values.get(value).copied().unwrap_or(0)
     }
 
     /// Gets an iterator that visits unique values in the `DistributionValue` in ascending order.
@@ -254,9 +235,7 @@ impl DistributionValue {
     /// ```
     pub fn iter(&self) -> DistributionIter<'_> {
         DistributionIter {
-            singles: self.singles.iter().peekable(),
-            duplicates: self.duplicates.iter().peekable(),
-            length: self.len(),
+            inner: self.values.iter(),
         }
     }
 
@@ -286,7 +265,7 @@ impl DistributionValue {
 }
 
 impl<'a> IntoIterator for &'a DistributionValue {
-    type Item = (f64, usize);
+    type Item = (f64, u32);
     type IntoIter = DistributionIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -308,8 +287,8 @@ impl Extend<f64> for DistributionValue {
     }
 }
 
-impl Extend<(f64, usize)> for DistributionValue {
-    fn extend<T: IntoIterator<Item = (f64, usize)>>(&mut self, iter: T) {
+impl Extend<(f64, u32)> for DistributionValue {
+    fn extend<T: IntoIterator<Item = (f64, u32)>>(&mut self, iter: T) {
         for (value, count) in iter.into_iter() {
             self.insert_multi(value, count);
         }
@@ -363,38 +342,19 @@ impl<'de> Deserialize<'de> for DistributionValue {
 /// `DistributionValue`. See its documentation for more.
 #[derive(Clone)]
 pub struct DistributionIter<'a> {
-    singles: Peekable<btree_set::Iter<'a, FloatOrd<f64>>>,
-    duplicates: Peekable<btree_map::Iter<'a, FloatOrd<f64>, usize>>,
-    length: usize,
+    inner: btree_map::Iter<'a, FloatOrd<f64>, u32>,
 }
 
 impl Iterator for DistributionIter<'_> {
-    type Item = (f64, usize);
+    type Item = (f64, u32);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let use_single = match (self.singles.peek(), self.duplicates.peek()) {
-            (Some(single), Some((duplicate, _))) => single < duplicate,
-            (Some(_), None) => true,
-            (None, Some(_)) => false,
-            (None, None) => return None,
-        };
-
-        debug_assert!(self.length > 0);
-        self.length -= 1;
-
-        if use_single {
-            let value = self.singles.next()?;
-            Some((value.0, 1))
-        } else {
-            let (value, count) = self.duplicates.next()?;
-            let single = self.singles.next();
-            debug_assert_eq!(single.unwrap(), value);
-            Some((value.0, *count + 1))
-        }
+        let (value, count) = self.inner.next()?;
+        Some((value.0, *count))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.length, Some(self.length))
+        self.inner.size_hint()
     }
 }
 
@@ -414,7 +374,7 @@ impl fmt::Debug for DistributionIter<'_> {
 pub struct DistributionValuesIter<'a> {
     inner: DistributionIter<'a>,
     current: f64,
-    remaining: usize,
+    remaining: u32,
 }
 
 impl Iterator for DistributionValuesIter<'_> {
@@ -434,7 +394,8 @@ impl Iterator for DistributionValuesIter<'_> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner.len() + self.remaining;
+        // todo: This is entirely wrong.
+        let len = self.inner.len() + self.remaining as usize;
         (len, Some(len))
     }
 }
