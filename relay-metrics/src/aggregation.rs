@@ -70,6 +70,9 @@ impl GaugeValue {
     }
 }
 
+/// Type for counting duplicates in distributions.
+type Count = u32;
+
 /// A distribution of values within a [`Bucket`].
 ///
 /// Distributions store a histogram of values. It allows to iterate both the distribution with
@@ -105,8 +108,8 @@ impl GaugeValue {
 /// for each value in the distribution, including duplicates.
 #[derive(Clone, Default, PartialEq)]
 pub struct DistributionValue {
-    values: BTreeMap<FloatOrd<f64>, u32>,
-    length: u32,
+    values: BTreeMap<FloatOrd<f64>, Count>,
+    length: Count,
 }
 
 impl DistributionValue {
@@ -130,7 +133,7 @@ impl DistributionValue {
     /// dist.insert(1.0);
     /// assert_eq!(dist.len(), 2);
     /// ```
-    pub fn len(&self) -> u32 {
+    pub fn len(&self) -> Count {
         self.length
     }
 
@@ -153,7 +156,7 @@ impl DistributionValue {
     /// assert_eq!(dist.insert(1.0), 2);
     /// assert_eq!(dist.insert(2.0), 1);
     /// ```
-    pub fn insert(&mut self, value: f64) -> u32 {
+    pub fn insert(&mut self, value: f64) -> Count {
         self.insert_multi(value, 1)
     }
 
@@ -170,7 +173,7 @@ impl DistributionValue {
     /// assert_eq!(dist.insert_multi(1.0, 2), 2);
     /// assert_eq!(dist.insert_multi(1.0, 3), 5);
     /// ```
-    pub fn insert_multi(&mut self, value: f64, count: u32) -> u32 {
+    pub fn insert_multi(&mut self, value: f64, count: Count) -> Count {
         self.length += count;
         if count == 0 {
             return 0;
@@ -211,7 +214,7 @@ impl DistributionValue {
     /// assert_eq!(dist.get(1.0), 2);
     /// assert_eq!(dist.get(2.0), 0);
     /// ```
-    pub fn get(&self, value: impl std::borrow::Borrow<f64>) -> u32 {
+    pub fn get(&self, value: impl std::borrow::Borrow<f64>) -> Count {
         let value = &FloatOrd(*value.borrow());
         self.values.get(value).copied().unwrap_or(0)
     }
@@ -260,12 +263,13 @@ impl DistributionValue {
             inner: self.iter(),
             current: 0f64,
             remaining: 0,
+            total: self.length,
         }
     }
 }
 
 impl<'a> IntoIterator for &'a DistributionValue {
-    type Item = (f64, u32);
+    type Item = (f64, Count);
     type IntoIter = DistributionIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -287,8 +291,8 @@ impl Extend<f64> for DistributionValue {
     }
 }
 
-impl Extend<(f64, u32)> for DistributionValue {
-    fn extend<T: IntoIterator<Item = (f64, u32)>>(&mut self, iter: T) {
+impl Extend<(f64, Count)> for DistributionValue {
+    fn extend<T: IntoIterator<Item = (f64, Count)>>(&mut self, iter: T) {
         for (value, count) in iter.into_iter() {
             self.insert_multi(value, count);
         }
@@ -342,11 +346,11 @@ impl<'de> Deserialize<'de> for DistributionValue {
 /// `DistributionValue`. See its documentation for more.
 #[derive(Clone)]
 pub struct DistributionIter<'a> {
-    inner: btree_map::Iter<'a, FloatOrd<f64>, u32>,
+    inner: btree_map::Iter<'a, FloatOrd<f64>, Count>,
 }
 
 impl Iterator for DistributionIter<'_> {
-    type Item = (f64, u32);
+    type Item = (f64, Count);
 
     fn next(&mut self) -> Option<Self::Item> {
         let (value, count) = self.inner.next()?;
@@ -374,7 +378,8 @@ impl fmt::Debug for DistributionIter<'_> {
 pub struct DistributionValuesIter<'a> {
     inner: DistributionIter<'a>,
     current: f64,
-    remaining: u32,
+    remaining: Count,
+    total: Count,
 }
 
 impl Iterator for DistributionValuesIter<'_> {
@@ -383,6 +388,7 @@ impl Iterator for DistributionValuesIter<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         if self.remaining > 0 {
             self.remaining -= 1;
+            self.total -= 1;
             return Some(self.current);
         }
 
@@ -390,12 +396,12 @@ impl Iterator for DistributionValuesIter<'_> {
 
         self.current = value;
         self.remaining = count - 1;
+        self.total -= 1;
         Some(self.current)
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        // todo: This is entirely wrong.
-        let len = self.inner.len() + self.remaining as usize;
+        let len = self.total as usize;
         (len, Some(len))
     }
 }
@@ -459,7 +465,7 @@ pub enum BucketValue {
     ///
     /// This variant serializes to a list of 32-bit integers.
     #[serde(rename = "s")]
-    Set(BTreeSet<u32>),
+    Set(BTreeSet<Count>),
     /// Aggregates [`MetricValue::Gauge`] values always retaining the maximum, minimum, and last
     /// value, as well as the sum and count of all values.
     ///
@@ -1241,32 +1247,31 @@ mod tests {
     }
 
     #[test]
-    fn test_distribution_iter() {
-        let mut distribution = DistributionValue::new();
-        distribution.insert(2f64);
-        distribution.insert(1f64);
-        distribution.insert(2f64);
+    fn test_distribution_iter_values() {
+        let distribution = dist![2f64, 1f64, 2f64];
 
         let mut iter = distribution.iter_values();
+        assert_eq!(iter.len(), 3);
         assert_eq!(iter.next(), Some(1f64));
+        assert_eq!(iter.len(), 2);
         assert_eq!(iter.next(), Some(2f64));
+        assert_eq!(iter.len(), 1);
         assert_eq!(iter.next(), Some(2f64));
+        assert_eq!(iter.len(), 0);
         assert_eq!(iter.next(), None);
     }
 
     #[test]
-    fn test_distribution_iter_empty() {
+    fn test_distribution_iter_values_empty() {
         let distribution = DistributionValue::new();
         let mut iter = distribution.iter_values();
+        assert_eq!(iter.len(), 0);
         assert_eq!(iter.next(), None);
     }
 
     #[test]
-    fn test_distribution_iter_unique() {
-        let mut distribution = DistributionValue::new();
-        distribution.insert(2f64);
-        distribution.insert(1f64);
-        distribution.insert(2f64);
+    fn test_distribution_iter() {
+        let distribution = dist![2f64, 1f64, 2f64];
 
         let mut iter = distribution.iter();
         assert_eq!(iter.next(), Some((1f64, 1)));
