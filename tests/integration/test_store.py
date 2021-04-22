@@ -7,9 +7,10 @@ import six
 import socket
 import threading
 import pytest
+import time
 
 from requests.exceptions import HTTPError
-from flask import abort, Response
+from flask import abort, Response, jsonify, request as flask_request
 
 
 def test_store(mini_sentry, relay_chain):
@@ -940,3 +941,58 @@ def test_buffer_events_during_outage(relay, mini_sentry):
     # sanity test that we got the event we sent
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "123"}
+
+
+def test_missing_in_response(mini_sentry, relay):
+    """
+    Test that Relay still lets other events through if the projectconfig
+    response is missing data.
+    """
+
+    project_id = 42
+    config = mini_sentry.add_basic_project_config(project_id)
+    dsn_key = config["publicKeys"][0]["publicKey"]
+
+    broken_project_id = 43
+    broken_dsn_key = "59bcc3ad6775562f845953cf01624225"
+
+    get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
+
+    requests = []
+
+    @mini_sentry.app.endpoint("get_project_config")
+    def get_project_config():
+        original_keys = flask_request.json["publicKeys"]
+        if not requests:
+            flask_request.json["publicKeys"] = [
+                x for x in flask_request.json["publicKeys"] if x != broken_dsn_key
+            ]
+            data = json.loads(get_project_config_original().data)
+            assert len(data["configs"]) == 1
+            rv = jsonify(retryConfigs=[broken_dsn_key], **data)
+        else:
+            rv = get_project_config_original()
+
+        requests.append(set(original_keys))
+        return rv
+
+    relay = relay(mini_sentry, options={"cache": {"batch_interval": 500}})
+
+    relay.send_event(broken_project_id, {"message": "123"}, dsn_key=broken_dsn_key)
+    relay.send_event(project_id, {"message": "123"})
+
+    envelope = mini_sentry.captured_events.get(timeout=2)
+    assert envelope.headers["dsn"].endswith("/42")
+    event = envelope.get_event()
+    assert event["logentry"] == {"formatted": "123"}
+
+    assert not mini_sentry.captured_events.qsize()
+
+    assert requests == [{dsn_key, broken_dsn_key}]
+
+    time.sleep(0.5)
+
+    assert requests == [
+        {dsn_key, broken_dsn_key},
+        {broken_dsn_key},
+    ]

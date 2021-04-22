@@ -226,3 +226,11 @@ def test_processing_redis_query(
     else:
         event, v = events_consumer.get_event()
         assert event["logentry"] == {"formatted": "Hello, World!"}
+
+
+def test_missing_in_response(mini_sentry, relay):
+    relay = relay(mini_sentry)
+
+    @mini_sentry.app.endpoint("get_project_config")
+    def get_project_config():
+        return jsonify(configs={})

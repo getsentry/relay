@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -49,6 +49,8 @@ pub struct GetProjectStates {
 pub struct GetProjectStatesResponse {
     #[serde(default)]
     pub configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
+    #[serde(default)]
+    pub retry_configs: HashSet<ProjectKey>,
 }
 
 impl UpstreamQuery for GetProjectStates {
@@ -245,22 +247,26 @@ impl UpstreamProjectSource {
                                     response.configs.len() as u64
                             );
                             for (key, channel) in channels_batch {
-                                let state = response
-                                    .configs
-                                    .remove(&key)
-                                    .unwrap_or(ErrorBoundary::Ok(None))
-                                    .unwrap_or_else(|error| {
-                                        let e = LogError(error);
-                                        relay_log::error!(
-                                            "error fetching project state {}: {}",
-                                            key,
-                                            e
-                                        );
-                                        Some(ProjectState::err())
-                                    })
-                                    .unwrap_or_else(ProjectState::missing);
+                                let state = response.configs.remove(&key);
+                                if state.is_none() && response.retry_configs.contains(&key) {
+                                    metric!(counter(RelayCounters::ProjectStateRetry) += 1);
+                                    slf.state_channels.insert(key, channel);
+                                } else {
+                                    let state = state
+                                        .unwrap_or(ErrorBoundary::Ok(None))
+                                        .unwrap_or_else(|error| {
+                                            let e = LogError(error);
+                                            relay_log::error!(
+                                                "error fetching project state {}: {}",
+                                                key,
+                                                e
+                                            );
+                                            Some(ProjectState::err())
+                                        })
+                                        .unwrap_or_else(ProjectState::missing);
 
-                                channel.send(state.sanitize());
+                                    channel.send(state.sanitize());
+                                }
                             }
                         }
                         Err(error) => {
