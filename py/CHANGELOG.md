@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add back `breadcrumb.event_id`. ([#977](https://github.com/getsentry/relay/pull/977))
+- Fix roundtrip error when PII selector starts with number. ([#982](https://github.com/getsentry/relay/pull/982))
 
 ## 0.8.5
 
