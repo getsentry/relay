@@ -1483,6 +1483,14 @@ expression: event_json_schema()
                 "null"
               ]
             },
+            "stack_start": {
+              "description": " Marks this frame as the bottom of a sub stack trace.\n\n Stack traces from asynchronous code consist of several sub traces that are chained together\n into one large list. This flag indicates the root function of a sub stack trace. Depending\n on the runtime and thread, this is either the `main` function or a thread base stub.\n\n This field should only be specified when true.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
             "symbol": {
               "description": " Potentially mangled name of the symbol as it appears in an executable.\n\n This is different from a function name by generally being the mangled\n name that appears natively in the binary.  This is relevant for languages\n like Swift, C++ or Rust.",
               "default": null,

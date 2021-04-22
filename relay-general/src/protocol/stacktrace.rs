@@ -154,6 +154,17 @@ pub struct Frame {
     #[metastructure(omit_from_schema)]
     pub lang: Annotated<String>,
 
+    /// Marks this frame as the bottom of a chained stack trace.
+    ///
+    /// Stack traces from asynchronous code consist of several sub traces that are chained together
+    /// into one large list. This flag indicates the root function of a chained stack trace.
+    /// Depending on the runtime and thread, this is either the `main` function or a thread base
+    /// stub.
+    ///
+    /// This field should only be specified when true.
+    #[metastructure(skip_serialization = "null")]
+    pub stack_start: Annotated<bool>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
@@ -388,6 +399,7 @@ fn test_frame_roundtrip() {
   "symbol_addr": "0x404",
   "trust": "69",
   "lang": "rust",
+  "stack_start": true,
   "other": "value"
 }"#;
     let frame = Annotated::new(Frame {
@@ -423,6 +435,7 @@ fn test_frame_roundtrip() {
         symbol_addr: Annotated::new(Addr(0x404)),
         trust: Annotated::new("69".into()),
         lang: Annotated::new("rust".into()),
+        stack_start: Annotated::new(true),
         other: {
             let mut vars = Object::new();
             vars.insert(
