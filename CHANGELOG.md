@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Features**:
+
+- Support the `frame.stack_start` field for chained async stack traces in Cocoa SDK v7. ([#981](https://github.com/getsentry/relay/pull/981))
+
+## 21.4.1
+
 **Bug Fixes**:
 
 - Allow the `event_id` attribute on breadcrumbs to link between Sentry events. ([#977](https://github.com/getsentry/relay/pull/977))

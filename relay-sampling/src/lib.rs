@@ -1,4 +1,8 @@
 //! Functionality for calculating if a trace should be processed or dropped.
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
+    html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
+)]
 
 use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};

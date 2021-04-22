@@ -100,6 +100,10 @@
 //! [`errno`]: https://man7.org/linux/man-pages/man3/errno.3.html
 
 #![warn(missing_docs)]
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
+    html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
+)]
 
 use std::cell::RefCell;
 use std::error::Error;
