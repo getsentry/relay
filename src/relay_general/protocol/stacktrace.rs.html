@@ -610,6 +610,19 @@
 <span id="609">609</span>
 <span id="610">610</span>
 <span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::{<span class="ident">Deref</span>, <span class="ident">DerefMut</span>};
 
@@ -766,6 +779,17 @@
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;enumlike&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span>
     <span class="kw">pub</span> <span class="ident">lang</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Marks this frame as the bottom of a chained stack trace.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Stack traces from asynchronous code consist of several sub traces that are chained together</span>
+    <span class="doccomment">/// into one large list. This flag indicates the root function of a chained stack trace.</span>
+    <span class="doccomment">/// Depending on the runtime and thread, this is either the `main` function or a thread base</span>
+    <span class="doccomment">/// stub.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This field should only be specified when true.</span>
+    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;null&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">stack_start</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>)]</span>
@@ -1001,6 +1025,7 @@
   &quot;symbol_addr&quot;: &quot;0x404&quot;,
   &quot;trust&quot;: &quot;69&quot;,
   &quot;lang&quot;: &quot;rust&quot;,
+  &quot;stack_start&quot;: true,
   &quot;other&quot;: &quot;value&quot;
 }&quot;#</span>;
     <span class="kw">let</span> <span class="ident">frame</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Frame</span> {
@@ -1036,6 +1061,7 @@
         <span class="ident">symbol_addr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">0x404</span>)),
         <span class="ident">trust</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;69&quot;</span>.<span class="ident">into</span>()),
         <span class="ident">lang</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;rust&quot;</span>.<span class="ident">into</span>()),
+        <span class="ident">stack_start</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="bool-val">true</span>),
         <span class="ident">other</span>: {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">vars</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
             <span class="ident">vars</span>.<span class="ident">insert</span>(
