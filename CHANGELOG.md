@@ -6,6 +6,10 @@
 
 - Support the `frame.stack_start` field for chained async stack traces in Cocoa SDK v7. ([#981](https://github.com/getsentry/relay/pull/981))
 
+**Internal**:
+
+- Update internal representation of distribution metrics. ([#979](https://github.com/getsentry/relay/pull/979))
+
 ## 21.4.1
 
 **Bug Fixes**:
