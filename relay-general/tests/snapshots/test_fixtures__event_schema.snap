@@ -1484,7 +1484,7 @@ expression: event_json_schema()
               ]
             },
             "stack_start": {
-              "description": " Marks this frame as the bottom of a sub stack trace.\n\n Stack traces from asynchronous code consist of several sub traces that are chained together\n into one large list. This flag indicates the root function of a sub stack trace. Depending\n on the runtime and thread, this is either the `main` function or a thread base stub.\n\n This field should only be specified when true.",
+              "description": " Marks this frame as the bottom of a chained stack trace.\n\n Stack traces from asynchronous code consist of several sub traces that are chained together\n into one large list. This flag indicates the root function of a chained stack trace.\n Depending on the runtime and thread, this is either the `main` function or a thread base\n stub.\n\n This field should only be specified when true.",
               "default": null,
               "type": [
                 "boolean",
