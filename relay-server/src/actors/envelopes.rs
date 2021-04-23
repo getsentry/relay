@@ -57,8 +57,8 @@ const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
 
 #[derive(Debug, Fail)]
 pub enum QueueEnvelopeError {
-    #[fail(display = "Too many events (event_buffer_size reached)")]
-    TooManyEvents,
+    #[fail(display = "Too many envelopes (event_buffer_size reached)")]
+    TooManyEnvelopes,
 }
 
 #[derive(Debug, Fail)]
@@ -79,7 +79,7 @@ enum ProcessingError {
     #[fail(display = "invalid transaction event")]
     InvalidTransaction,
 
-    #[fail(display = "event processor failed")]
+    #[fail(display = "envelope processor failed")]
     ProcessingFailed(#[cause] ProcessingAction),
 
     #[fail(display = "duplicate {} in event", _0)]
@@ -103,8 +103,8 @@ enum ProcessingError {
     #[fail(display = "invalid security report")]
     InvalidSecurityReport(#[cause] serde_json::Error),
 
-    #[fail(display = "event submission rejected with reason: {:?}", _0)]
-    EventRejected(DiscardReason),
+    #[fail(display = "submission rejected with reason: {:?}", _0)]
+    Rejected(DiscardReason),
 
     #[cfg(feature = "processing")]
     #[fail(display = "event filtered with reason: {:?}", _0)]
@@ -113,21 +113,21 @@ enum ProcessingError {
     #[fail(display = "could not serialize event payload")]
     SerializeFailed(#[cause] serde_json::Error),
 
-    #[fail(display = "could not send event to upstream")]
+    #[fail(display = "could not send request to upstream")]
     SendFailed(#[cause] UpstreamRequestError),
 
     #[cfg(feature = "processing")]
-    #[fail(display = "could not store event")]
+    #[fail(display = "could not store envelope")]
     StoreFailed(#[cause] StoreError),
 
-    #[fail(display = "event rate limited")]
+    #[fail(display = "envelope items were rate limited")]
     RateLimited(RateLimits),
 
     #[cfg(feature = "processing")]
     #[fail(display = "failed to apply quotas")]
     QuotasFailed(#[cause] RateLimitingError),
 
-    #[fail(display = "event exceeded its configured lifetime")]
+    #[fail(display = "envelope exceeded its configured lifetime")]
     Timeout,
 
     #[fail(display = "trace dropped by sampling rule {}", _0)]
@@ -144,7 +144,7 @@ impl ProcessingError {
             Self::PayloadTooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge)),
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
-            Self::EventRejected(reason) => Some(Outcome::Invalid(reason)),
+            Self::Rejected(reason) => Some(Outcome::Invalid(reason)),
             Self::InvalidSecurityType => Some(Outcome::Invalid(DiscardReason::SecurityReportType)),
             Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
@@ -1623,7 +1623,7 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
         );
 
         if self.config.event_buffer_size() <= self.current_active_events {
-            return Err(QueueEnvelopeError::TooManyEvents);
+            return Err(QueueEnvelopeError::TooManyEnvelopes);
         }
 
         let event_id = message.envelope.event_id();
@@ -1753,7 +1753,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
 
                 scoping.replace(response.scoping);
 
-                let checked = response.result.map_err(ProcessingError::EventRejected)?;
+                let checked = response.result.map_err(ProcessingError::Rejected)?;
                 match checked.envelope {
                     Some(envelope) => {
                         envelope_summary.replace(EnvelopeSummary::compute(&envelope));

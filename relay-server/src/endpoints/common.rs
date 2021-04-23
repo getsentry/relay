@@ -111,7 +111,7 @@ impl BadStoreRequest {
             BadStoreRequest::InvalidEnvelope(_) => Outcome::Invalid(DiscardReason::InvalidEnvelope),
 
             BadStoreRequest::QueueFailed(event_error) => match event_error {
-                QueueEnvelopeError::TooManyEvents => Outcome::Invalid(DiscardReason::Internal),
+                QueueEnvelopeError::TooManyEnvelopes => Outcome::Invalid(DiscardReason::Internal),
             },
             BadStoreRequest::ProjectFailed(project_error) => match project_error {
                 ProjectError::FetchFailed => Outcome::Invalid(DiscardReason::ProjectState),
