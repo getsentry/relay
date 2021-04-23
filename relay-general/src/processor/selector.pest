@@ -10,7 +10,7 @@ Or = _{ "||" | "|" }
 Not = _{ "~" | "!" }
 EscapedQuote = @{ "'" }
 
-UnquotedKey = @{ !ASCII_DIGIT ~ (ASCII_ALPHANUMERIC | "-" | "_") + }
+UnquotedKey = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "-" | "_") * }
 RootUnquotedKey = { SOI ~ UnquotedKey ~ EOI }
 QuotedCharacter = @{ ((!"'") ~ ANY) }
 QuotedKey = ${ (QuotedCharacter | ("'" ~ EscapedQuote))+ }
