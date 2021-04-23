@@ -1389,7 +1389,7 @@ pub struct EnvelopeManager {
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     processor: Addr<EnvelopeProcessor>,
-    current_active_events: u32,
+    active_envelopes: u32,
     outcome_producer: Addr<OutcomeProducer>,
     captures: BTreeMap<EventId, CapturedEnvelope>,
 
@@ -1451,7 +1451,7 @@ impl EnvelopeManager {
             config,
             upstream,
             processor,
-            current_active_events: 0,
+            active_envelopes: 0,
             captures: BTreeMap::new(),
 
             #[cfg(feature = "processing")]
@@ -1610,19 +1610,17 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
     type Result = Result<Option<EventId>, QueueEnvelopeError>;
 
     fn handle(&mut self, mut message: QueueEnvelope, context: &mut Self::Context) -> Self::Result {
-        metric!(
-            histogram(RelayHistograms::EnvelopeQueueSize) = u64::from(self.current_active_events)
-        );
+        metric!(histogram(RelayHistograms::EnvelopeQueueSize) = u64::from(self.active_envelopes));
 
         metric!(
             histogram(RelayHistograms::EnvelopeQueueSizePct) = {
-                let queue_size_pct = self.current_active_events as f32 * 100.0
-                    / self.config.event_buffer_size() as f32;
+                let queue_size_pct =
+                    self.active_envelopes as f32 * 100.0 / self.config.event_buffer_size() as f32;
                 queue_size_pct.floor() as u64
             }
         );
 
-        if self.config.event_buffer_size() <= self.current_active_events {
+        if self.config.event_buffer_size() <= self.active_envelopes {
             return Err(QueueEnvelopeError::TooManyEnvelopes);
         }
 
@@ -1651,7 +1649,7 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
         //     since all items depend on this event.
         if let Some(event_envelope) = message.envelope.split_by(Item::requires_event) {
             relay_log::trace!("queueing separate envelope for non-event items");
-            self.current_active_events += 1;
+            self.active_envelopes += 1;
             context.notify(HandleEnvelope {
                 envelope: event_envelope,
                 sampling_project: message.sampling_project.clone(),
@@ -1662,7 +1660,7 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
 
         if !message.envelope.is_empty() {
             relay_log::trace!("queueing envelope");
-            self.current_active_events += 1;
+            self.active_envelopes += 1;
             context.notify(HandleEnvelope {
                 envelope: message.envelope,
                 sampling_project: message.sampling_project,
@@ -1894,7 +1892,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             })
             .then(move |x, slf, _| {
                 metric!(timer(RelayTimers::EnvelopeTotalTime) = start_time.elapsed());
-                slf.current_active_events -= 1;
+                slf.active_envelopes -= 1;
                 fut::result(x)
             })
             .drop_guard("process_event");
