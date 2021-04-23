@@ -565,9 +565,11 @@ struct Cache {
     /// The cache timeout for downstream relay info (public keys) in seconds.
     relay_expiry: u32,
     /// The cache timeout for events (store) before dropping them.
-    event_expiry: u32,
+    #[serde(alias = "event_expiry")]
+    envelope_expiry: u32,
     /// The maximum amount of events to queue before dropping them.
-    event_buffer_size: u32,
+    #[serde(alias = "event_buffer_size")]
+    envelope_buffer_size: u32,
     /// The cache timeout for non-existing entries.
     miss_expiry: u32,
     /// The buffer timeout for batched queries before sending them upstream in ms.
@@ -587,9 +589,9 @@ impl Default for Cache {
         Cache {
             project_expiry: 300, // 5 minutes
             project_grace_period: 0,
-            relay_expiry: 3600, // 1 hour
-            event_expiry: 600,  // 10 minutes
-            event_buffer_size: 1000,
+            relay_expiry: 3600,   // 1 hour
+            envelope_expiry: 600, // 10 minutes
+            envelope_buffer_size: 1000,
             miss_expiry: 60,     // 1 minute
             batch_interval: 100, // 100ms
             batch_size: 500,
@@ -1235,12 +1237,12 @@ impl Config {
 
     /// Returns the timeout for buffered events (due to upstream errors).
     pub fn event_buffer_expiry(&self) -> Duration {
-        Duration::from_secs(self.values.cache.event_expiry.into())
+        Duration::from_secs(self.values.cache.envelope_expiry.into())
     }
 
     /// Returns the maximum number of buffered events
     pub fn event_buffer_size(&self) -> u32 {
-        self.values.cache.event_buffer_size
+        self.values.cache.envelope_buffer_size
     }
 
     /// Returns the expiry timeout for cached misses before trying to refetch.
@@ -1447,5 +1449,24 @@ impl Default for Config {
             credentials: None,
             path: PathBuf::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression test for renaming the envelope buffer flags.
+    #[test]
+    fn test_event_buffer_size() {
+        let yaml = r###"
+cache:
+    event_buffer_size: 1000000
+    event_expiry: 1800
+"###;
+
+        let values: ConfigValues = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(values.cache.envelope_buffer_size, 1_000_000);
+        assert_eq!(values.cache.envelope_expiry, 1800);
     }
 }
