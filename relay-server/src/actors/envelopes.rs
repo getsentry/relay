@@ -1898,7 +1898,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 slf.active_envelopes -= 1;
                 fut::result(x)
             })
-            .drop_guard("process_event");
+            .drop_guard("process_envelope");
 
         Box::new(future)
     }
