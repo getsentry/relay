@@ -2,13 +2,13 @@
 
 ## Unreleased
 
-**Bug Fixes**:
-
-- Fix roundtrip error when PII selector starts with number. ([#982](https://github.com/getsentry/relay/pull/982))
-
 **Features**:
 
 - Support the `frame.stack_start` field for chained async stack traces in Cocoa SDK v7. ([#981](https://github.com/getsentry/relay/pull/981))
+
+**Bug Fixes**:
+
+- Fix roundtrip error when PII selector starts with number. ([#982](https://github.com/getsentry/relay/pull/982))
 
 **Internal**:
 
