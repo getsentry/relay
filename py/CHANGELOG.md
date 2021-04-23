@@ -4,6 +4,7 @@
 
 - Add back `breadcrumb.event_id`. ([#977](https://github.com/getsentry/relay/pull/977))
 - Fix roundtrip error when PII selector starts with number. ([#982](https://github.com/getsentry/relay/pull/982))
+- Add `frame.stack_start` for chained async stack traces. ([#981](https://github.com/getsentry/relay/pull/981))
 
 ## 0.8.5
 
