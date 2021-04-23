@@ -502,7 +502,7 @@ mod processing {
         type Context = Context<Self>;
 
         fn started(&mut self, context: &mut Self::Context) {
-            // Set the mailbox size to the size of the event buffer. This is a rough estimate but
+            // Set the mailbox size to the size of the envelope buffer. This is a rough estimate but
             // should ensure that we're not dropping outcomes unintentionally.
             let mailbox_size = self.config.envelope_buffer_size() as usize;
             context.set_mailbox_capacity(mailbox_size);

@@ -941,7 +941,7 @@ impl Handler<FlushBuckets> for Project {
                 Ok(Ok(())) => Ok(()),
                 Ok(Err(buckets)) => Err(buckets),
                 Err(_) => {
-                    relay_log::error!("dropped metric buckets: event manager mailbox full");
+                    relay_log::error!("dropped metric buckets: envelope manager mailbox full");
                     Ok(())
                 }
             });

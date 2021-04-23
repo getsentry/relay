@@ -188,7 +188,7 @@ struct ProcessEnvelopeState {
     /// The envelope.
     ///
     /// The pipeline can mutate the envelope and remove or add items. In particular, event items are
-    /// removed at the beginning of event processing and re-added in the end.
+    /// removed at the beginning of processing and re-added in the end.
     envelope: Envelope,
 
     /// The extracted event payload.
@@ -235,8 +235,8 @@ struct ProcessEnvelopeState {
 impl ProcessEnvelopeState {
     /// Returns whether any item in the envelope creates an event.
     ///
-    /// This is used to branch into the event processing pipeline. If this function returns false,
-    /// only rate limits are executed.
+    /// This is used to branch into the processing pipeline. If this function returns false, only
+    /// rate limits are executed.
     fn creates_event(&self) -> bool {
         self.envelope.items().any(Item::creates_event)
     }
@@ -472,10 +472,10 @@ impl EnvelopeProcessor {
 
         // Prefer the project's project ID, and fall back to the stated project id from the
         // envelope. The project ID is available in all modes, other than in proxy mode, where
-        // events for unknown projects are forwarded blindly.
+        // envelopes for unknown projects are forwarded blindly.
         //
         // Neither ID can be available in proxy mode on the /store/ endpoint. This is not supported,
-        // since we cannot process an event without project ID, so drop it.
+        // since we cannot process an envelope without project ID, so drop it.
         let project_id = project_state
             .project_id
             .or_else(|| envelope.meta().project_id())
@@ -501,9 +501,9 @@ impl EnvelopeProcessor {
 
     /// Expands Unreal 4 items inside an envelope.
     ///
-    /// If the envelope does NOT contain an `UnrealReport` item, it doesn't do anything. If the envelope
-    /// contains an `UnrealReport` item, it removes it from the envelope and inserts new items for each
-    /// of its contents.
+    /// If the envelope does NOT contain an `UnrealReport` item, it doesn't do anything. If the
+    /// envelope contains an `UnrealReport` item, it removes it from the envelope and inserts new
+    /// items for each of its contents.
     ///
     /// After this, the `EnvelopeProcessor` should be able to process the envelope the same way it
     /// processes any other envelopes.
@@ -1405,7 +1405,7 @@ impl EnvelopeManager {
         redis_pool: Option<RedisPool>,
     ) -> Result<Self, ServerError> {
         let thread_count = config.cpu_concurrency();
-        relay_log::info!("starting {} event processing workers", thread_count);
+        relay_log::info!("starting {} envelope processing workers", thread_count);
 
         #[cfg(not(feature = "processing"))]
         let _ = redis_pool;
@@ -1486,8 +1486,7 @@ impl EnvelopeManager {
             }
         }
 
-        // if we are in capture mode, we stash away the event instead of
-        // forwarding it.
+        // if we are in capture mode, we stash away the event instead of forwarding it.
         if self.config.relay_mode() == RelayMode::Capture {
             // XXX: this is wrong because captured_events does not take envelopes without
             // event_id into account.
@@ -1505,7 +1504,7 @@ impl EnvelopeManager {
         let http_encoding = self.config.http_encoding();
         let request = SendRequest::post(format!("/api/{}/envelope/", scoping.project_id)).build(
             move |mut builder: RequestBuilder| {
-                // Override the `sent_at` timestamp. Since the event went through basic
+                // Override the `sent_at` timestamp. Since the envelope went through basic
                 // normalization, all timestamps have been corrected. We propagate the new
                 // `sent_at` to allow the next Relay to double-check this timestamp and
                 // potentially apply correction again. This is done as close to sending as
@@ -1567,15 +1566,16 @@ impl Actor for EnvelopeManager {
     type Context = Context<Self>;
 
     fn started(&mut self, context: &mut Self::Context) {
-        // Set the mailbox size to the size of the event buffer. This is a rough estimate but
-        // should ensure that we're not dropping events unintentionally after we've accepted them.
+        // Set the mailbox size to the size of the envelope buffer. This is a rough estimate but
+        // should ensure that we're not dropping envelopes unintentionally after we've accepted
+        // them.
         let mailbox_size = self.config.envelope_buffer_size() as usize;
         context.set_mailbox_capacity(mailbox_size);
-        relay_log::info!("event manager started");
+        relay_log::info!("envelope manager started");
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        relay_log::info!("event manager stopped");
+        relay_log::info!("envelope manager stopped");
     }
 }
 
@@ -1705,21 +1705,21 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
     type Result = ResponseActFuture<Self, (), ()>;
 
     fn handle(&mut self, message: HandleEnvelope, _ctx: &mut Self::Context) -> Self::Result {
-        // We measure three timers while handling events, once they have been initially accepted:
+        // We measure three timers while handling envelopes, once they have been initially accepted:
         //
-        // 1. `event.wait_time`: The time we take to get all dependencies for events before
-        //    they actually start processing. This includes scheduling overheads, project config
+        // 1. `event.wait_time`: The time we take to get all dependencies for envelopes before they
+        //    actually start processing. This includes scheduling overheads, project config
         //    fetching, batched requests and congestions in the sync processor arbiter. This does
-        //    not include delays in the incoming request (body upload) and skips all events that are
-        //    fast-rejected.
+        //    not include delays in the incoming request (body upload) and skips all envelopes that
+        //    are fast-rejected.
         //
         // 2. `event.processing_time`: The time the sync processor takes to parse the event payload,
         //    apply normalizations, strip PII and finally re-serialize it into a byte stream. This
         //    is recorded directly in the EnvelopeProcessor.
         //
-        // 3. `event.total_time`: The full time an event takes from being initially accepted up to
-        //    being sent to the upstream (including delays in the upstream). This can be regarded
-        //    the total time an event spent in this relay, corrected by incoming network delays.
+        // 3. `event.total_time`: The full time an envelope takes from being initially accepted up
+        //    to being sent to the upstream (including delays in the upstream). This can be regarded
+        //    the total time an envelope spent in this Relay, corrected by incoming network delays.
 
         let processor = self.processor.clone();
         let outcome_producer = self.outcome_producer.clone();
@@ -1836,8 +1836,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             .map_err(move |error, slf, _| {
                 metric!(counter(RelayCounters::EnvelopeRejected) += 1);
 
-                // if we are in capture mode, we stash away the event instead of
-                // forwarding it.
+                // if we are in capture mode, we stash away the event instead of forwarding it.
                 if capture {
                     // XXX: does not work with envelopes without event_id
                     if let Some(event_id) = event_id {
@@ -1854,9 +1853,9 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     // Errors are only logged for what we consider an internal discard reason. These
                     // indicate errors in the infrastructure or implementation bugs. In other cases,
                     // we "expect" errors and log them as debug level.
-                    relay_log::error!("error processing event: {}", LogError(&error));
+                    relay_log::error!("error processing envelope: {}", LogError(&error));
                 } else {
-                    relay_log::debug!("dropped event: {}", LogError(&error));
+                    relay_log::debug!("dropped envelope: {}", LogError(&error));
                 }
 
                 // Do not emit outcomes for requests that have been accepted by the upstream. In
