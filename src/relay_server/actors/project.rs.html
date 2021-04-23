@@ -975,7 +975,7 @@
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">Quota</span>, <span class="ident">RateLimits</span>, <span class="ident">Scoping</span>};
 <span class="kw">use</span> <span class="ident">relay_sampling</span>::<span class="ident">SamplingConfig</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">events</span>::{<span class="ident">EventManager</span>, <span class="ident">SendMetrics</span>};
+<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">SendMetrics</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">outcome</span>::<span class="ident">DiscardReason</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">outcome</span>::<span class="ident">OutcomeProducer</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">project_cache</span>::{<span class="ident">FetchProjectState</span>, <span class="ident">ProjectCache</span>, <span class="ident">ProjectError</span>};
@@ -1406,7 +1406,7 @@
     <span class="ident">public_key</span>: <span class="ident">ProjectKey</span>,
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
     <span class="ident">manager</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">ProjectCache</span><span class="op">&gt;</span>,
-    <span class="ident">event_manager</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EventManager</span><span class="op">&gt;</span>,
+    <span class="ident">event_manager</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EnvelopeManager</span><span class="op">&gt;</span>,
     <span class="ident">outcome_producer</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeProducer</span><span class="op">&gt;</span>,
     <span class="ident">aggregator</span>: <span class="ident">AggregatorState</span>,
     <span class="ident">state</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span>,
@@ -1421,7 +1421,7 @@
         <span class="ident">key</span>: <span class="ident">ProjectKey</span>,
         <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
         <span class="ident">manager</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">ProjectCache</span><span class="op">&gt;</span>,
-        <span class="ident">event_manager</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EventManager</span><span class="op">&gt;</span>,
+        <span class="ident">event_manager</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EnvelopeManager</span><span class="op">&gt;</span>,
         <span class="ident">outcome_producer</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeProducer</span><span class="op">&gt;</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="ident">Project</span> {
@@ -1804,8 +1804,8 @@
             <span class="comment">// a full reload.</span>
             <span class="self">self</span>.<span class="ident">get_or_fetch_state</span>(<span class="bool-val">false</span>, <span class="ident">context</span>);
 
-            <span class="comment">// message.fetch == false: Fetching must not block the store request. The EventManager</span>
-            <span class="comment">// will later fetch the project state.</span>
+            <span class="comment">// message.fetch == false: Fetching must not block the store request. The</span>
+            <span class="comment">// EnvelopeManager will later fetch the project state.</span>
             <span class="ident">ActorResponse</span>::<span class="ident">ok</span>(<span class="self">self</span>.<span class="ident">check_envelope_scoped</span>(<span class="ident">message</span>))
         }
     }
@@ -1894,7 +1894,7 @@
                 <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(())) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
                 <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(<span class="ident">buckets</span>)) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">buckets</span>),
                 <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                    <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;dropped metric buckets: event manager mailbox full&quot;</span>);
+                    <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;dropped metric buckets: envelope manager mailbox full&quot;</span>);
                     <span class="prelude-val">Ok</span>(())
                 }
             });

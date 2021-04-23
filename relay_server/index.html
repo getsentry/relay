@@ -192,7 +192,7 @@ to Relay.</p>
 participant sdk as SDK
 participant endpoint as Endpoint
 participant projectcache as ProjectCache
-participant eventmanager as EventManager
+participant envelopemanager as EnvelopeManager
 participant cpupool as CPU Pool
 
 sdk-&gt;&gt;endpoint:POST /api/42/store
@@ -202,28 +202,28 @@ activate projectcache
 projectcache--&gt;&gt;endpoint: return project
 deactivate projectcache
 Note over endpoint: Checking rate limits and auth (fast path)
-endpoint-&gt;&gt;eventmanager: queue event
+endpoint-&gt;&gt;envelopemanager: queue event
 
-activate eventmanager
-eventmanager--&gt;&gt;endpoint:event ID
+activate envelopemanager
+envelopemanager--&gt;&gt;endpoint:event ID
 endpoint--&gt;&gt;sdk:200 OK
 deactivate endpoint
 
-eventmanager-&gt;&gt;projectcache:fetch project
+envelopemanager-&gt;&gt;projectcache:fetch project
 activate projectcache
-Note over eventmanager,projectcache: web request (batched with other projects)
-projectcache--&gt;&gt;eventmanager: return project
+Note over envelopemanager,projectcache: web request (batched with other projects)
+projectcache--&gt;&gt;envelopemanager: return project
 deactivate projectcache
 
-eventmanager-&gt;&gt;cpupool: .
+envelopemanager-&gt;&gt;cpupool: .
 activate cpupool
-Note over eventmanager,cpupool: normalization, datascrubbing, redis rate limits, ...
-cpupool--&gt;&gt;eventmanager: .
+Note over envelopemanager,cpupool: normalization, datascrubbing, redis rate limits, ...
+cpupool--&gt;&gt;envelopemanager: .
 deactivate cpupool
 
-Note over eventmanager: Send event to kafka
+Note over envelopemanager: Send event to kafka
 
-deactivate eventmanager
+deactivate envelopemanager
 </code></pre>
 <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
 <script>

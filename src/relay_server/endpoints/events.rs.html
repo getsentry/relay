@@ -47,7 +47,7 @@
 <span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">http</span>::<span class="ident">Method</span>, <span class="ident">HttpResponse</span>, <span class="ident">Path</span>};
 <span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">future</span>::<span class="ident">Future</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">events</span>::<span class="ident">GetCapturedEnvelope</span>;
+<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">envelopes</span>::<span class="ident">GetCapturedEnvelope</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">envelope</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">extractors</span>::<span class="ident">CurrentServiceState</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">service</span>::<span class="ident">ServiceApp</span>;
@@ -59,7 +59,7 @@
     <span class="ident">event_id</span>: <span class="ident">Path</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>,
 ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">HttpResponse</span>, <span class="ident">actix</span>::<span class="ident">MailboxError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">state</span>
-        .<span class="ident">event_manager</span>()
+        .<span class="ident">envelope_manager</span>()
         .<span class="ident">send</span>(<span class="ident">GetCapturedEnvelope</span> {
             <span class="ident">event_id</span>: <span class="kw-2">*</span><span class="ident">event_id</span>,
         })

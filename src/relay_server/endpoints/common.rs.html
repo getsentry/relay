@@ -703,7 +703,7 @@
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::<span class="ident">RateLimits</span>;
 <span class="kw">use</span> <span class="ident">relay_sampling</span>::<span class="ident">RuleId</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">events</span>::{<span class="ident">QueueEnvelope</span>, <span class="ident">QueueEnvelopeError</span>};
+<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">envelopes</span>::{<span class="ident">QueueEnvelope</span>, <span class="ident">QueueEnvelopeError</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>, <span class="ident">TrackOutcome</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">project</span>::{<span class="ident">CheckEnvelope</span>, <span class="ident">Project</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">project_cache</span>::{<span class="ident">GetProject</span>, <span class="ident">ProjectError</span>};
@@ -796,7 +796,7 @@
             <span class="ident">BadStoreRequest</span>::<span class="ident">InvalidEnvelope</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">DiscardReason</span>::<span class="ident">InvalidEnvelope</span>),
 
             <span class="ident">BadStoreRequest</span>::<span class="ident">QueueFailed</span>(<span class="ident">event_error</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">event_error</span> {
-                <span class="ident">QueueEnvelopeError</span>::<span class="ident">TooManyEvents</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">DiscardReason</span>::<span class="ident">Internal</span>),
+                <span class="ident">QueueEnvelopeError</span>::<span class="ident">TooManyEnvelopes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">DiscardReason</span>::<span class="ident">Internal</span>),
             },
             <span class="ident">BadStoreRequest</span>::<span class="ident">ProjectFailed</span>(<span class="ident">project_error</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">project_error</span> {
                 <span class="ident">ProjectError</span>::<span class="ident">FetchFailed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">DiscardReason</span>::<span class="ident">ProjectState</span>),
@@ -858,7 +858,7 @@
             <span class="ident">BadStoreRequest</span>::<span class="ident">EventRejected</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="comment">// The event has been discarded, which is generally indicated with a 403 error.</span>
                 <span class="comment">// Originally, Sentry also used this status code for event filters, but these are</span>
-                <span class="comment">// now executed asynchronously in `EventProcessor`.</span>
+                <span class="comment">// now executed asynchronously in `EnvelopeProcessor`.</span>
                 <span class="ident">HttpResponse</span>::<span class="ident">Forbidden</span>().<span class="ident">json</span>(<span class="kw-2">&amp;</span><span class="ident">body</span>)
             }
             <span class="ident">BadStoreRequest</span>::<span class="ident">PayloadError</span>(<span class="ident">StorePayloadError</span>::<span class="ident">Overflow</span>) <span class="op">=</span><span class="op">&gt;</span> {
@@ -961,7 +961,7 @@
 
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="op">=</span> <span class="ident">items</span>.<span class="ident">iter</span>().<span class="ident">find</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType</span>::<span class="ident">FormData</span>) {
         <span class="comment">// Swallow all other errors here since it is quite common to receive invalid secondary</span>
-        <span class="comment">// payloads. `EventProcessor` also retains events in such cases.</span>
+        <span class="comment">// payloads. `EnvelopeProcessor` also retains events in such cases.</span>
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">event_id</span>)) <span class="op">=</span> <span class="ident">event_id_from_formdata</span>(<span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">payload</span>()) {
             <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">event_id</span>));
         }
@@ -1083,7 +1083,7 @@
 
     <span class="kw">let</span> <span class="ident">public_key</span> <span class="op">=</span> <span class="ident">meta</span>.<span class="ident">public_key</span>();
 
-    <span class="kw">let</span> <span class="ident">event_manager</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">state</span>().<span class="ident">event_manager</span>();
+    <span class="kw">let</span> <span class="ident">event_manager</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">state</span>().<span class="ident">envelope_manager</span>();
     <span class="kw">let</span> <span class="ident">project_manager</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">state</span>().<span class="ident">project_cache</span>();
     <span class="kw">let</span> <span class="ident">outcome_producer</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">state</span>().<span class="ident">outcome_producer</span>();
     <span class="kw">let</span> <span class="ident">remote_addr</span> <span class="op">=</span> <span class="ident">meta</span>.<span class="ident">client_addr</span>();

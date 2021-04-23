@@ -1450,6 +1450,8 @@
 <span id="1449">1449</span>
 <span id="1450">1450</span>
 <span id="1451">1451</span>
+<span id="1452">1452</span>
+<span id="1453">1453</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">env</span>;
@@ -1901,7 +1903,8 @@
     <span class="ident">max_pending_connections</span>: <span class="ident">i32</span>,
     <span class="doccomment">/// The maximum number of open connections to Relay.</span>
     <span class="ident">max_connections</span>: <span class="ident">usize</span>,
-    <span class="doccomment">/// The maximum number of seconds to wait for pending events after receiving a shutdown signal.</span>
+    <span class="doccomment">/// The maximum number of seconds to wait for pending envelopes after receiving a shutdown</span>
+    <span class="doccomment">/// signal.</span>
     <span class="ident">shutdown_timeout</span>: <span class="ident">u64</span>,
 }
 
@@ -1965,7 +1968,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// Re-authentication happens even when Relay is idle. If authentication fails, Relay reverts</span>
     <span class="doccomment">/// back into startup mode and tries to establish a connection. During this time, incoming</span>
-    <span class="doccomment">/// events will be buffered.</span>
+    <span class="doccomment">/// envelopes will be buffered.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Defaults to `600` (10 minutes).</span>
     <span class="ident">auth_interval</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
@@ -2017,9 +2020,9 @@
     <span class="ident">project_grace_period</span>: <span class="ident">u32</span>,
     <span class="doccomment">/// The cache timeout for downstream relay info (public keys) in seconds.</span>
     <span class="ident">relay_expiry</span>: <span class="ident">u32</span>,
-    <span class="doccomment">/// The cache timeout for events (store) before dropping them.</span>
+    <span class="doccomment">/// The cache timeout for envelopes (store) before dropping them.</span>
     <span class="ident">event_expiry</span>: <span class="ident">u32</span>,
-    <span class="doccomment">/// The maximum amount of events to queue before dropping them.</span>
+    <span class="doccomment">/// The maximum amount of envelopes to queue before dropping them.</span>
     <span class="ident">event_buffer_size</span>: <span class="ident">u32</span>,
     <span class="doccomment">/// The cache timeout for non-existing entries.</span>
     <span class="ident">miss_expiry</span>: <span class="ident">u32</span>,
@@ -2686,13 +2689,13 @@
         <span class="ident">Duration</span>::<span class="ident">from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">cache</span>.<span class="ident">relay_expiry</span>.<span class="ident">into</span>())
     }
 
-    <span class="doccomment">/// Returns the timeout for buffered events (due to upstream errors).</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">event_buffer_expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
+    <span class="doccomment">/// Returns the timeout for buffered envelopes (due to upstream errors).</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">envelope_buffer_expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
         <span class="ident">Duration</span>::<span class="ident">from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">cache</span>.<span class="ident">event_expiry</span>.<span class="ident">into</span>())
     }
 
-    <span class="doccomment">/// Returns the maximum number of buffered events</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">event_buffer_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u32</span> {
+    <span class="doccomment">/// Returns the maximum number of buffered envelopes</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">envelope_buffer_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u32</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">cache</span>.<span class="ident">event_buffer_size</span>
     }
 
@@ -2796,7 +2799,8 @@
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_pending_connections</span>
     }
 
-    <span class="doccomment">/// The maximum number of seconds to wait for pending events after receiving a shutdown signal.</span>
+    <span class="doccomment">/// The maximum number of seconds to wait for pending envelopes after receiving a shutdown</span>
+    <span class="doccomment">/// signal.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">shutdown_timeout</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
         <span class="ident">Duration</span>::<span class="ident">from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">shutdown_timeout</span>)
     }

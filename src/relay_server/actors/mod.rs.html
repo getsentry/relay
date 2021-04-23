@@ -66,10 +66,10 @@
 <span class="doccomment">//!  - [`ProjectCache`](project_cache::ProjectCache): A cache that serves queries for project</span>
 <span class="doccomment">//!    configurations. Its requests are debounced and batched based on a configured interval (100ms</span>
 <span class="doccomment">//!    by default). Also, missing projects are cached for some time.</span>
-<span class="doccomment">//!  - [`EventManager`](events::EventManager) and [`EventProcessor`](events::EventProcessor): Handle</span>
-<span class="doccomment">//!    a queue of events, verify their projects, execute PII stripping and finally send the event to</span>
-<span class="doccomment">//!    the upstream. The processor is spawned in multiple synchronous worker threads (via</span>
-<span class="doccomment">//!    `SyncArbiter`).</span>
+<span class="doccomment">//!  - [`EnvelopeManager`](envelopes::EnvelopeManager) and</span>
+<span class="doccomment">//!    [`EnvelopeProcessor`](envelopes::EnvelopeProcessor): Handle a queue of envelopes, verify</span>
+<span class="doccomment">//!    their projects, execute PII stripping and finally send the envelope to the upstream. The</span>
+<span class="doccomment">//!    processor is spawned in multiple synchronous worker threads (via `SyncArbiter`).</span>
 <span class="doccomment">//!  - [`UpstreamRelay`](upstream::UpstreamRelay): Abstraction for communication with the upstream</span>
 <span class="doccomment">//!    (either another Relay or Sentry). It manages an internal client connector to throttle</span>
 <span class="doccomment">//!    requests and ensures this relay is authenticated before sending queries (e.g. project config</span>
@@ -87,7 +87,7 @@
 
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">connector</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">controller</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">events</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">envelopes</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">healthcheck</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">outcome</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">project</span>;

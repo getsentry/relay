@@ -419,7 +419,7 @@
 <span class="doccomment">/// contains an `UnrealReport` item, it removes it from the envelope and inserts new items for each</span>
 <span class="doccomment">/// of its contents.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// After this, the `EventProcessor` should be able to process the envelope the same way it</span>
+<span class="doccomment">/// After this, the `EnvelopeProcessor` should be able to process the envelope the same way it</span>
 <span class="doccomment">/// processes any other envelopes.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expand_unreal_envelope</span>(
     <span class="ident">unreal_item</span>: <span class="ident">Item</span>,
@@ -650,7 +650,7 @@
     }
 
     <span class="comment">// If we have UE4 info, ensure an event is there to fill. DO NOT fill if there is no unreal</span>
-    <span class="comment">// information, or otherwise `EventProcessor::process` breaks.</span>
+    <span class="comment">// information, or otherwise `EnvelopeProcessor::process` breaks.</span>
     <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">Event</span>::<span class="ident">default</span>);
 
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">user_info</span>) <span class="op">=</span> <span class="ident">user_header</span> {
