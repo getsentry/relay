@@ -57,8 +57,8 @@ const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
 
 #[derive(Debug, Fail)]
 pub enum QueueEnvelopeError {
-    #[fail(display = "Too many events (event_buffer_size reached)")]
-    TooManyEvents,
+    #[fail(display = "Too many envelopes (event_buffer_size reached)")]
+    TooManyEnvelopes,
 }
 
 #[derive(Debug, Fail)]
@@ -79,7 +79,7 @@ enum ProcessingError {
     #[fail(display = "invalid transaction event")]
     InvalidTransaction,
 
-    #[fail(display = "event processor failed")]
+    #[fail(display = "envelope processor failed")]
     ProcessingFailed(#[cause] ProcessingAction),
 
     #[fail(display = "duplicate {} in event", _0)]
@@ -103,8 +103,8 @@ enum ProcessingError {
     #[fail(display = "invalid security report")]
     InvalidSecurityReport(#[cause] serde_json::Error),
 
-    #[fail(display = "event submission rejected with reason: {:?}", _0)]
-    EventRejected(DiscardReason),
+    #[fail(display = "submission rejected with reason: {:?}", _0)]
+    Rejected(DiscardReason),
 
     #[cfg(feature = "processing")]
     #[fail(display = "event filtered with reason: {:?}", _0)]
@@ -113,21 +113,21 @@ enum ProcessingError {
     #[fail(display = "could not serialize event payload")]
     SerializeFailed(#[cause] serde_json::Error),
 
-    #[fail(display = "could not send event to upstream")]
+    #[fail(display = "could not send request to upstream")]
     SendFailed(#[cause] UpstreamRequestError),
 
     #[cfg(feature = "processing")]
-    #[fail(display = "could not store event")]
+    #[fail(display = "could not store envelope")]
     StoreFailed(#[cause] StoreError),
 
-    #[fail(display = "event rate limited")]
+    #[fail(display = "envelope items were rate limited")]
     RateLimited(RateLimits),
 
     #[cfg(feature = "processing")]
     #[fail(display = "failed to apply quotas")]
     QuotasFailed(#[cause] RateLimitingError),
 
-    #[fail(display = "event exceeded its configured lifetime")]
+    #[fail(display = "envelope exceeded its configured lifetime")]
     Timeout,
 
     #[fail(display = "trace dropped by sampling rule {}", _0)]
@@ -144,7 +144,7 @@ impl ProcessingError {
             Self::PayloadTooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge)),
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
-            Self::EventRejected(reason) => Some(Outcome::Invalid(reason)),
+            Self::Rejected(reason) => Some(Outcome::Invalid(reason)),
             Self::InvalidSecurityType => Some(Outcome::Invalid(DiscardReason::SecurityReportType)),
             Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
@@ -188,7 +188,7 @@ struct ProcessEnvelopeState {
     /// The envelope.
     ///
     /// The pipeline can mutate the envelope and remove or add items. In particular, event items are
-    /// removed at the beginning of event processing and re-added in the end.
+    /// removed at the beginning of processing and re-added in the end.
     envelope: Envelope,
 
     /// The extracted event payload.
@@ -235,8 +235,8 @@ struct ProcessEnvelopeState {
 impl ProcessEnvelopeState {
     /// Returns whether any item in the envelope creates an event.
     ///
-    /// This is used to branch into the event processing pipeline. If this function returns false,
-    /// only rate limits are executed.
+    /// This is used to branch into the processing pipeline. If this function returns false, only
+    /// rate limits are executed.
     fn creates_event(&self) -> bool {
         self.envelope.items().any(Item::creates_event)
     }
@@ -275,7 +275,7 @@ impl ProcessEnvelopeState {
 }
 
 /// Synchronous service for processing envelopes.
-pub struct EventProcessor {
+pub struct EnvelopeProcessor {
     config: Arc<Config>,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
@@ -285,7 +285,7 @@ pub struct EventProcessor {
     outcome_producer: Option<Addr<OutcomeProducer>>,
 }
 
-impl EventProcessor {
+impl EnvelopeProcessor {
     #[inline]
     pub fn new(config: Arc<Config>) -> Self {
         Self {
@@ -472,10 +472,10 @@ impl EventProcessor {
 
         // Prefer the project's project ID, and fall back to the stated project id from the
         // envelope. The project ID is available in all modes, other than in proxy mode, where
-        // events for unknown projects are forwarded blindly.
+        // envelopes for unknown projects are forwarded blindly.
         //
         // Neither ID can be available in proxy mode on the /store/ endpoint. This is not supported,
-        // since we cannot process an event without project ID, so drop it.
+        // since we cannot process an envelope without project ID, so drop it.
         let project_id = project_state
             .project_id
             .or_else(|| envelope.meta().project_id())
@@ -501,11 +501,11 @@ impl EventProcessor {
 
     /// Expands Unreal 4 items inside an envelope.
     ///
-    /// If the envelope does NOT contain an `UnrealReport` item, it doesn't do anything. If the envelope
-    /// contains an `UnrealReport` item, it removes it from the envelope and inserts new items for each
-    /// of its contents.
+    /// If the envelope does NOT contain an `UnrealReport` item, it doesn't do anything. If the
+    /// envelope contains an `UnrealReport` item, it removes it from the envelope and inserts new
+    /// items for each of its contents.
     ///
-    /// After this, the `EventProcessor` should be able to process the envelope the same way it
+    /// After this, the `EnvelopeProcessor` should be able to process the envelope the same way it
     /// processes any other envelopes.
     #[cfg(feature = "processing")]
     fn expand_unreal(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
@@ -1254,7 +1254,7 @@ impl EventProcessor {
     }
 }
 
-impl Actor for EventProcessor {
+impl Actor for EnvelopeProcessor {
     type Context = SyncContext<Self>;
 }
 
@@ -1283,7 +1283,7 @@ impl Message for ProcessEnvelope {
     type Result = Result<ProcessEnvelopeResponse, ProcessingError>;
 }
 
-impl Handler<ProcessEnvelope> for EventProcessor {
+impl Handler<ProcessEnvelope> for EnvelopeProcessor {
     type Result = Result<ProcessEnvelopeResponse, ProcessingError>;
 
     fn handle(&mut self, message: ProcessEnvelope, _context: &mut Self::Context) -> Self::Result {
@@ -1324,7 +1324,7 @@ impl Message for ProcessMetrics {
     type Result = ();
 }
 
-impl Handler<ProcessMetrics> for EventProcessor {
+impl Handler<ProcessMetrics> for EnvelopeProcessor {
     type Result = ();
 
     fn handle(&mut self, message: ProcessMetrics, _context: &mut Self::Context) -> Self::Result {
@@ -1372,7 +1372,7 @@ impl Handler<ProcessMetrics> for EventProcessor {
     }
 }
 
-/// Error returned from [`EventManager::send_envelope`].
+/// Error returned from [`EnvelopeManager::send_envelope`].
 #[derive(Debug)]
 enum SendEnvelopeError {
     ScheduleFailed(MailboxError),
@@ -1385,11 +1385,11 @@ enum SendEnvelopeError {
 /// Either a captured envelope or an error that occured during processing.
 pub type CapturedEnvelope = Result<Envelope, String>;
 
-pub struct EventManager {
+pub struct EnvelopeManager {
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
-    processor: Addr<EventProcessor>,
-    current_active_events: u32,
+    processor: Addr<EnvelopeProcessor>,
+    active_envelopes: u32,
     outcome_producer: Addr<OutcomeProducer>,
     captures: BTreeMap<EventId, CapturedEnvelope>,
 
@@ -1397,7 +1397,7 @@ pub struct EventManager {
     store_forwarder: Option<Addr<StoreForwarder>>,
 }
 
-impl EventManager {
+impl EnvelopeManager {
     pub fn create(
         config: Arc<Config>,
         upstream: Addr<UpstreamRelay>,
@@ -1405,7 +1405,7 @@ impl EventManager {
         redis_pool: Option<RedisPool>,
     ) -> Result<Self, ServerError> {
         let thread_count = config.cpu_concurrency();
-        relay_log::info!("starting {} event processing workers", thread_count);
+        relay_log::info!("starting {} envelope processing workers", thread_count);
 
         #[cfg(not(feature = "processing"))]
         let _ = redis_pool;
@@ -1425,7 +1425,7 @@ impl EventManager {
             SyncArbiter::start(
                 thread_count,
                 clone!(config, outcome_producer, || {
-                    EventProcessor::new(config.clone())
+                    EnvelopeProcessor::new(config.clone())
                         .with_rate_limiter(rate_limiter.clone())
                         .with_geoip_lookup(geoip_lookup.clone())
                         .with_outcome_producer(outcome_producer.clone())
@@ -1436,7 +1436,7 @@ impl EventManager {
         #[cfg(not(feature = "processing"))]
         let processor = SyncArbiter::start(
             thread_count,
-            clone!(config, || EventProcessor::new(config.clone())),
+            clone!(config, || EnvelopeProcessor::new(config.clone())),
         );
 
         #[cfg(feature = "processing")]
@@ -1447,11 +1447,11 @@ impl EventManager {
             None
         };
 
-        Ok(EventManager {
+        Ok(EnvelopeManager {
             config,
             upstream,
             processor,
-            current_active_events: 0,
+            active_envelopes: 0,
             captures: BTreeMap::new(),
 
             #[cfg(feature = "processing")]
@@ -1486,8 +1486,7 @@ impl EventManager {
             }
         }
 
-        // if we are in capture mode, we stash away the event instead of
-        // forwarding it.
+        // if we are in capture mode, we stash away the event instead of forwarding it.
         if self.config.relay_mode() == RelayMode::Capture {
             // XXX: this is wrong because captured_events does not take envelopes without
             // event_id into account.
@@ -1505,7 +1504,7 @@ impl EventManager {
         let http_encoding = self.config.http_encoding();
         let request = SendRequest::post(format!("/api/{}/envelope/", scoping.project_id)).build(
             move |mut builder: RequestBuilder| {
-                // Override the `sent_at` timestamp. Since the event went through basic
+                // Override the `sent_at` timestamp. Since the envelope went through basic
                 // normalization, all timestamps have been corrected. We propagate the new
                 // `sent_at` to allow the next Relay to double-check this timestamp and
                 // potentially apply correction again. This is done as close to sending as
@@ -1563,19 +1562,20 @@ impl EventManager {
     }
 }
 
-impl Actor for EventManager {
+impl Actor for EnvelopeManager {
     type Context = Context<Self>;
 
     fn started(&mut self, context: &mut Self::Context) {
-        // Set the mailbox size to the size of the event buffer. This is a rough estimate but
-        // should ensure that we're not dropping events unintentionally after we've accepted them.
-        let mailbox_size = self.config.event_buffer_size() as usize;
+        // Set the mailbox size to the size of the envelope buffer. This is a rough estimate but
+        // should ensure that we're not dropping envelopes unintentionally after we've accepted
+        // them.
+        let mailbox_size = self.config.envelope_buffer_size() as usize;
         context.set_mailbox_capacity(mailbox_size);
-        relay_log::info!("event manager started");
+        relay_log::info!("envelope manager started");
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        relay_log::info!("event manager stopped");
+        relay_log::info!("envelope manager stopped");
     }
 }
 
@@ -1585,10 +1585,10 @@ impl Actor for EventManager {
 ///
 /// - Events and event related items, such as attachments, are always queued together. See
 ///   [`HandleEnvelope`] for a full description of how queued envelopes are processed by the
-///   `EventManager`.
+///   `EnvelopeManager`.
 /// - Sessions and Session batches are always queued separately. If they occur in the same envelope
 ///   as an event, they are split off.
-/// - Metrics are directly sent to the `EventProcessor`, bypassing the manager's queue and going
+/// - Metrics are directly sent to the `EnvelopeProcessor`, bypassing the manager's queue and going
 ///   straight into metrics aggregation. See [`ProcessMetrics`] for a full description.
 ///
 /// Queueing can fail if the queue exceeds [`Config::event_buffer_size`]. In this case, `Err` is
@@ -1606,24 +1606,22 @@ impl Message for QueueEnvelope {
     type Result = Result<Option<EventId>, QueueEnvelopeError>;
 }
 
-impl Handler<QueueEnvelope> for EventManager {
+impl Handler<QueueEnvelope> for EnvelopeManager {
     type Result = Result<Option<EventId>, QueueEnvelopeError>;
 
     fn handle(&mut self, mut message: QueueEnvelope, context: &mut Self::Context) -> Self::Result {
-        metric!(
-            histogram(RelayHistograms::EnvelopeQueueSize) = u64::from(self.current_active_events)
-        );
+        metric!(histogram(RelayHistograms::EnvelopeQueueSize) = u64::from(self.active_envelopes));
 
         metric!(
             histogram(RelayHistograms::EnvelopeQueueSizePct) = {
-                let queue_size_pct = self.current_active_events as f32 * 100.0
-                    / self.config.event_buffer_size() as f32;
+                let queue_size_pct = self.active_envelopes as f32 * 100.0
+                    / self.config.envelope_buffer_size() as f32;
                 queue_size_pct.floor() as u64
             }
         );
 
-        if self.config.event_buffer_size() <= self.current_active_events {
-            return Err(QueueEnvelopeError::TooManyEvents);
+        if self.config.envelope_buffer_size() <= self.active_envelopes {
+            return Err(QueueEnvelopeError::TooManyEnvelopes);
         }
 
         let event_id = message.envelope.event_id();
@@ -1651,7 +1649,7 @@ impl Handler<QueueEnvelope> for EventManager {
         //     since all items depend on this event.
         if let Some(event_envelope) = message.envelope.split_by(Item::requires_event) {
             relay_log::trace!("queueing separate envelope for non-event items");
-            self.current_active_events += 1;
+            self.active_envelopes += 1;
             context.notify(HandleEnvelope {
                 envelope: event_envelope,
                 sampling_project: message.sampling_project.clone(),
@@ -1662,7 +1660,7 @@ impl Handler<QueueEnvelope> for EventManager {
 
         if !message.envelope.is_empty() {
             relay_log::trace!("queueing envelope");
-            self.current_active_events += 1;
+            self.active_envelopes += 1;
             context.notify(HandleEnvelope {
                 envelope: message.envelope,
                 sampling_project: message.sampling_project,
@@ -1672,7 +1670,7 @@ impl Handler<QueueEnvelope> for EventManager {
         }
 
         // Actual event handling is performed asynchronously in a separate future. The lifetime of
-        // that future will be tied to the EventManager's context. This allows to keep the Project
+        // that future will be tied to the EnvelopeManager's context. This allows to keep the Project
         // actor alive even if it is cleaned up in the ProjectManager.
 
         Ok(event_id)
@@ -1684,7 +1682,7 @@ impl Handler<QueueEnvelope> for EventManager {
 /// 1. Ensures the project state is up-to-date and then validates the envelope against the state and
 ///    cached rate limits. See [`CheckEnvelope`] for full information.
 /// 2. Executes dynamic sampling using the sampling project.
-/// 3. Runs the envelope through the [`EventProcessor`] worker pool, which parses items, applies
+/// 3. Runs the envelope through the [`EnvelopeProcessor`] worker pool, which parses items, applies
 ///    normalization, and runs filtering logic.
 /// 4. Sends the envelope to the upstream or stores it in Kafka, depending on the
 ///    [`processing`](Config::processing_enabled) flag.
@@ -1703,25 +1701,25 @@ impl Message for HandleEnvelope {
     type Result = Result<(), ()>;
 }
 
-impl Handler<HandleEnvelope> for EventManager {
+impl Handler<HandleEnvelope> for EnvelopeManager {
     type Result = ResponseActFuture<Self, (), ()>;
 
     fn handle(&mut self, message: HandleEnvelope, _ctx: &mut Self::Context) -> Self::Result {
-        // We measure three timers while handling events, once they have been initially accepted:
+        // We measure three timers while handling envelopes, once they have been initially accepted:
         //
-        // 1. `event.wait_time`: The time we take to get all dependencies for events before
-        //    they actually start processing. This includes scheduling overheads, project config
+        // 1. `event.wait_time`: The time we take to get all dependencies for envelopes before they
+        //    actually start processing. This includes scheduling overheads, project config
         //    fetching, batched requests and congestions in the sync processor arbiter. This does
-        //    not include delays in the incoming request (body upload) and skips all events that are
-        //    fast-rejected.
+        //    not include delays in the incoming request (body upload) and skips all envelopes that
+        //    are fast-rejected.
         //
         // 2. `event.processing_time`: The time the sync processor takes to parse the event payload,
         //    apply normalizations, strip PII and finally re-serialize it into a byte stream. This
-        //    is recorded directly in the EventProcessor.
+        //    is recorded directly in the EnvelopeProcessor.
         //
-        // 3. `event.total_time`: The full time an event takes from being initially accepted up to
-        //    being sent to the upstream (including delays in the upstream). This can be regarded
-        //    the total time an event spent in this relay, corrected by incoming network delays.
+        // 3. `event.total_time`: The full time an envelope takes from being initially accepted up
+        //    to being sent to the upstream (including delays in the upstream). This can be regarded
+        //    the total time an envelope spent in this Relay, corrected by incoming network delays.
 
         let processor = self.processor.clone();
         let outcome_producer = self.outcome_producer.clone();
@@ -1753,7 +1751,7 @@ impl Handler<HandleEnvelope> for EventManager {
 
                 scoping.replace(response.scoping);
 
-                let checked = response.result.map_err(ProcessingError::EventRejected)?;
+                let checked = response.result.map_err(ProcessingError::Rejected)?;
                 match checked.envelope {
                     Some(envelope) => {
                         envelope_summary.replace(EnvelopeSummary::compute(&envelope));
@@ -1830,13 +1828,15 @@ impl Handler<HandleEnvelope> for EventManager {
                     })
                     .into_actor(slf)
             }))
-            .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
+            .timeout(
+                self.config.envelope_buffer_expiry(),
+                ProcessingError::Timeout,
+            )
             .map(|_, _, _| metric!(counter(RelayCounters::EnvelopeAccepted) += 1))
             .map_err(move |error, slf, _| {
                 metric!(counter(RelayCounters::EnvelopeRejected) += 1);
 
-                // if we are in capture mode, we stash away the event instead of
-                // forwarding it.
+                // if we are in capture mode, we stash away the event instead of forwarding it.
                 if capture {
                     // XXX: does not work with envelopes without event_id
                     if let Some(event_id) = event_id {
@@ -1853,9 +1853,9 @@ impl Handler<HandleEnvelope> for EventManager {
                     // Errors are only logged for what we consider an internal discard reason. These
                     // indicate errors in the infrastructure or implementation bugs. In other cases,
                     // we "expect" errors and log them as debug level.
-                    relay_log::error!("error processing event: {}", LogError(&error));
+                    relay_log::error!("error processing envelope: {}", LogError(&error));
                 } else {
-                    relay_log::debug!("dropped event: {}", LogError(&error));
+                    relay_log::debug!("dropped envelope: {}", LogError(&error));
                 }
 
                 // Do not emit outcomes for requests that have been accepted by the upstream. In
@@ -1894,10 +1894,10 @@ impl Handler<HandleEnvelope> for EventManager {
             })
             .then(move |x, slf, _| {
                 metric!(timer(RelayTimers::EnvelopeTotalTime) = start_time.elapsed());
-                slf.current_active_events -= 1;
+                slf.active_envelopes -= 1;
                 fut::result(x)
             })
-            .drop_guard("process_event");
+            .drop_guard("process_envelope");
 
         Box::new(future)
     }
@@ -1930,7 +1930,7 @@ impl Message for SendMetrics {
     type Result = Result<(), Vec<Bucket>>;
 }
 
-impl Handler<SendMetrics> for EventManager {
+impl Handler<SendMetrics> for EnvelopeManager {
     type Result = ResponseFuture<(), Vec<Bucket>>;
 
     fn handle(&mut self, message: SendMetrics, _context: &mut Self::Context) -> Self::Result {
@@ -1972,7 +1972,7 @@ impl Message for GetCapturedEnvelope {
     type Result = Option<CapturedEnvelope>;
 }
 
-impl Handler<GetCapturedEnvelope> for EventManager {
+impl Handler<GetCapturedEnvelope> for EnvelopeManager {
     type Result = Option<CapturedEnvelope>;
 
     fn handle(
@@ -2028,7 +2028,7 @@ mod tests {
 
         // NOTE: using (Some, None) here:
         let result =
-            EventProcessor::event_from_attachments(&Config::default(), None, Some(item), None);
+            EnvelopeProcessor::event_from_attachments(&Config::default(), None, Some(item), None);
 
         let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
@@ -2044,7 +2044,7 @@ mod tests {
 
         // NOTE: using (None, Some) here:
         let result =
-            EventProcessor::event_from_attachments(&Config::default(), None, None, Some(item));
+            EnvelopeProcessor::event_from_attachments(&Config::default(), None, None, Some(item));
 
         let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
@@ -2059,7 +2059,7 @@ mod tests {
         let item1 = create_breadcrumbs_item(&[(None, "crumb1")]);
         let item2 = create_breadcrumbs_item(&[(None, "crumb2"), (None, "crumb3")]);
 
-        let result = EventProcessor::event_from_attachments(
+        let result = EnvelopeProcessor::event_from_attachments(
             &Config::default(),
             None,
             Some(item1),
@@ -2079,7 +2079,7 @@ mod tests {
         let item1 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
         let item2 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
 
-        let result = EventProcessor::event_from_attachments(
+        let result = EnvelopeProcessor::event_from_attachments(
             &Config::default(),
             None,
             Some(item1),
@@ -2102,7 +2102,7 @@ mod tests {
         let item1 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
         let item2 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
 
-        let result = EventProcessor::event_from_attachments(
+        let result = EnvelopeProcessor::event_from_attachments(
             &Config::default(),
             None,
             Some(item1),
@@ -2123,7 +2123,7 @@ mod tests {
         let item2 = create_breadcrumbs_item(&[]);
         let item3 = create_breadcrumbs_item(&[]);
 
-        let result = EventProcessor::event_from_attachments(
+        let result = EnvelopeProcessor::event_from_attachments(
             &Config::default(),
             Some(item1),
             Some(item2),
@@ -2136,7 +2136,7 @@ mod tests {
 
     #[test]
     fn test_user_report_invalid() {
-        let processor = EventProcessor::new(Arc::new(Default::default()));
+        let processor = EnvelopeProcessor::new(Arc::new(Default::default()));
         let event_id = EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"

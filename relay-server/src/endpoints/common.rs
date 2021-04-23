@@ -18,7 +18,7 @@ use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_sampling::RuleId;
 
-use crate::actors::events::{QueueEnvelope, QueueEnvelopeError};
+use crate::actors::envelopes::{QueueEnvelope, QueueEnvelopeError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{CheckEnvelope, Project};
 use crate::actors::project_cache::{GetProject, ProjectError};
@@ -111,7 +111,7 @@ impl BadStoreRequest {
             BadStoreRequest::InvalidEnvelope(_) => Outcome::Invalid(DiscardReason::InvalidEnvelope),
 
             BadStoreRequest::QueueFailed(event_error) => match event_error {
-                QueueEnvelopeError::TooManyEvents => Outcome::Invalid(DiscardReason::Internal),
+                QueueEnvelopeError::TooManyEnvelopes => Outcome::Invalid(DiscardReason::Internal),
             },
             BadStoreRequest::ProjectFailed(project_error) => match project_error {
                 ProjectError::FetchFailed => Outcome::Invalid(DiscardReason::ProjectState),
@@ -173,7 +173,7 @@ impl ResponseError for BadStoreRequest {
             BadStoreRequest::EventRejected(_) => {
                 // The event has been discarded, which is generally indicated with a 403 error.
                 // Originally, Sentry also used this status code for event filters, but these are
-                // now executed asynchronously in `EventProcessor`.
+                // now executed asynchronously in `EnvelopeProcessor`.
                 HttpResponse::Forbidden().json(&body)
             }
             BadStoreRequest::PayloadError(StorePayloadError::Overflow) => {
@@ -276,7 +276,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 
     if let Some(item) = items.iter().find(|item| item.ty() == ItemType::FormData) {
         // Swallow all other errors here since it is quite common to receive invalid secondary
-        // payloads. `EventProcessor` also retains events in such cases.
+        // payloads. `EnvelopeProcessor` also retains events in such cases.
         if let Ok(Some(event_id)) = event_id_from_formdata(&item.payload()) {
             return Ok(Some(event_id));
         }
@@ -398,7 +398,7 @@ where
 
     let public_key = meta.public_key();
 
-    let event_manager = request.state().event_manager();
+    let event_manager = request.state().envelope_manager();
     let project_manager = request.state().project_cache();
     let outcome_producer = request.state().outcome_producer();
     let remote_addr = meta.client_addr();

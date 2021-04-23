@@ -320,7 +320,7 @@ def test_store_buffer_size(mini_sentry, relay):
 
         for (_, error) in mini_sentry.test_failures:
             assert isinstance(error, AssertionError)
-            assert "Too many events (event_buffer_size reached)" in str(error)
+            assert "Too many envelopes" in str(error)
     finally:
         mini_sentry.test_failures.clear()
 

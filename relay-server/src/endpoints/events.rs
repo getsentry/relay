@@ -4,7 +4,7 @@ use ::actix::prelude::*;
 use actix_web::{http::Method, HttpResponse, Path};
 use futures::future::Future;
 
-use crate::actors::events::GetCapturedEnvelope;
+use crate::actors::envelopes::GetCapturedEnvelope;
 use crate::envelope;
 use crate::extractors::CurrentServiceState;
 use crate::service::ServiceApp;
@@ -16,7 +16,7 @@ fn get_captured_event(
     event_id: Path<EventId>,
 ) -> ResponseFuture<HttpResponse, actix::MailboxError> {
     let future = state
-        .event_manager()
+        .envelope_manager()
         .send(GetCapturedEnvelope {
             event_id: *event_id,
         })

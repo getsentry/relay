@@ -12,7 +12,7 @@ use relay_common::{metric, ProjectKey};
 use relay_config::{Config, RelayMode};
 use relay_redis::RedisPool;
 
-use crate::actors::events::EventManager;
+use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project::{Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
@@ -44,7 +44,7 @@ pub struct ProjectCache {
     config: Arc<Config>,
     projects: HashMap<ProjectKey, ProjectEntry>,
 
-    event_manager: Addr<EventManager>,
+    event_manager: Addr<EnvelopeManager>,
     outcome_producer: Addr<OutcomeProducer>,
     local_source: Addr<LocalProjectSource>,
     upstream_source: Addr<UpstreamProjectSource>,
@@ -55,7 +55,7 @@ pub struct ProjectCache {
 impl ProjectCache {
     pub fn new(
         config: Arc<Config>,
-        event_manager: Addr<EventManager>,
+        event_manager: Addr<EnvelopeManager>,
         outcome_producer: Addr<OutcomeProducer>,
         upstream_relay: Addr<UpstreamRelay>,
         _redis: Option<RedisPool>,
@@ -103,10 +103,10 @@ impl Actor for ProjectCache {
     type Context = Context<Self>;
 
     fn started(&mut self, context: &mut Self::Context) {
-        // Set the mailbox size to the size of the event buffer. This is a rough estimate but
+        // Set the mailbox size to the size of the envelope buffer. This is a rough estimate but
         // should ensure that we're not dropping messages if the main arbiter running this actor
         // gets hammered a bit.
-        let mailbox_size = self.config.event_buffer_size() as usize;
+        let mailbox_size = self.config.envelope_buffer_size() as usize;
         context.set_mailbox_capacity(mailbox_size);
 
         context.run_interval(self.config.cache_eviction_interval(), |slf, _| {
