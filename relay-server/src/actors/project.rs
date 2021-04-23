@@ -22,7 +22,7 @@ use relay_metrics::{
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 
-use crate::actors::envelopes::{EventManager, SendMetrics};
+use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};
@@ -453,7 +453,7 @@ pub struct Project {
     public_key: ProjectKey,
     config: Arc<Config>,
     manager: Addr<ProjectCache>,
-    event_manager: Addr<EventManager>,
+    event_manager: Addr<EnvelopeManager>,
     outcome_producer: Addr<OutcomeProducer>,
     aggregator: AggregatorState,
     state: Option<Arc<ProjectState>>,
@@ -468,7 +468,7 @@ impl Project {
         key: ProjectKey,
         config: Arc<Config>,
         manager: Addr<ProjectCache>,
-        event_manager: Addr<EventManager>,
+        event_manager: Addr<EnvelopeManager>,
         outcome_producer: Addr<OutcomeProducer>,
     ) -> Self {
         Project {
@@ -851,8 +851,8 @@ impl Handler<CheckEnvelope> for Project {
             // a full reload.
             self.get_or_fetch_state(false, context);
 
-            // message.fetch == false: Fetching must not block the store request. The EventManager
-            // will later fetch the project state.
+            // message.fetch == false: Fetching must not block the store request. The
+            // EnvelopeManager will later fetch the project state.
             ActorResponse::ok(self.check_envelope_scoped(message))
         }
     }

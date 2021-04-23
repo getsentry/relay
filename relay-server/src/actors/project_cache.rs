@@ -12,7 +12,7 @@ use relay_common::{metric, ProjectKey};
 use relay_config::{Config, RelayMode};
 use relay_redis::RedisPool;
 
-use crate::actors::envelopes::EventManager;
+use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project::{Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
@@ -44,7 +44,7 @@ pub struct ProjectCache {
     config: Arc<Config>,
     projects: HashMap<ProjectKey, ProjectEntry>,
 
-    event_manager: Addr<EventManager>,
+    event_manager: Addr<EnvelopeManager>,
     outcome_producer: Addr<OutcomeProducer>,
     local_source: Addr<LocalProjectSource>,
     upstream_source: Addr<UpstreamProjectSource>,
@@ -55,7 +55,7 @@ pub struct ProjectCache {
 impl ProjectCache {
     pub fn new(
         config: Arc<Config>,
-        event_manager: Addr<EventManager>,
+        event_manager: Addr<EnvelopeManager>,
         outcome_producer: Addr<OutcomeProducer>,
         upstream_relay: Addr<UpstreamRelay>,
         _redis: Option<RedisPool>,

@@ -179,8 +179,8 @@ pub enum RelayTimers {
     /// Time spent converting the event from its in-memory reprsentation into a JSON string.
     EventProcessingSerialization,
     /// Time spent between receiving a request in Relay (that is, beginning of request handling) and
-    /// the start of synchronous processing in the EventProcessor. This metric primarily indicates
-    /// backlog in event processing.
+    /// the start of synchronous processing in the EnvelopeProcessor. This metric primarily
+    /// indicates backlog in event processing.
     EnvelopeWaitTime,
     /// Time in milliseconds spent in synchronous processing of envelopes.
     ///

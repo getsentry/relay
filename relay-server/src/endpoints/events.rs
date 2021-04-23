@@ -16,7 +16,7 @@ fn get_captured_event(
     event_id: Path<EventId>,
 ) -> ResponseFuture<HttpResponse, actix::MailboxError> {
     let future = state
-        .event_manager()
+        .envelope_manager()
         .send(GetCapturedEnvelope {
             event_id: *event_id,
         })
