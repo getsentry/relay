@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -44,6 +45,17 @@ pub enum Outdated {
     HardOutdated,
 }
 
+/// Features exposed by project config
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum Feature {
+    #[serde(rename = "organizations:metrics-extraction")]
+    MetricsExtraction,
+
+    /// forward compatibility
+    #[serde(other)]
+    Unknown,
+}
+
 /// These are config values that the user can modify in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -74,6 +86,9 @@ pub struct ProjectConfig {
     /// Configuration for operation breakdown. Will be emitted only if present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns: Option<BreakdownsConfig>,
+    /// Exposable features enabled for this project
+    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
+    pub features: BTreeSet<Feature>,
 }
 
 impl Default for ProjectConfig {
@@ -89,11 +104,12 @@ impl Default for ProjectConfig {
             quotas: Vec::new(),
             dynamic_sampling: None,
             breakdowns: None,
+            features: BTreeSet::new(),
         }
     }
 }
 
-/// These are config values that the user can modify in the UI.
+/// These are config values that are passed to external Relays.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase", remote = "ProjectConfig")]
 pub struct LimitedProjectConfig {
@@ -101,6 +117,7 @@ pub struct LimitedProjectConfig {
     pub trusted_relays: Vec<PublicKey>,
     pub pii_config: Option<PiiConfig>,
     pub datascrubbing_settings: DataScrubbingConfig,
+    pub features: BTreeSet<Feature>,
 }
 
 /// The project state is a cached server state of a project.
@@ -384,6 +401,10 @@ impl ProjectState {
     pub fn sanitize(mut self) -> Self {
         self.config.quotas.retain(Quota::is_valid);
         self
+    }
+
+    pub fn has_feature(&self, feature: Feature) -> bool {
+        self.config.features.contains(&feature)
     }
 }
 
