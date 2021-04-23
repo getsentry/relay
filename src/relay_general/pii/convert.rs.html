@@ -1385,6 +1385,9 @@
 <span id="1384">1384</span>
 <span id="1385">1385</span>
 <span id="1386">1386</span>
+<span id="1387">1387</span>
+<span id="1388">1388</span>
+<span id="1389">1389</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
 
@@ -2742,7 +2745,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
             <span class="ident">sensitive_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;special ,./&lt;&gt;?!@#$%^&amp;*())&#39;gärbage&#39;&quot;</span>.<span class="ident">to_owned</span>()],
-            <span class="ident">exclude_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;do not ,./&lt;&gt;?!@#$%^&amp;*())&#39;ßtrip&#39;&quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">exclude_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[
+                <span class="string">&quot;do not ,./&lt;&gt;?!@#$%^&amp;*())&#39;ßtrip&#39;&quot;</span>.<span class="ident">to_owned</span>(),
+                <span class="string">&quot;2abc&quot;</span>.<span class="ident">to_owned</span>(),
+            ],
             ..<span class="ident">simple_enabled_config</span>()
         });
 
