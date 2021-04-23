@@ -106,7 +106,7 @@ impl Actor for ProjectCache {
         // Set the mailbox size to the size of the event buffer. This is a rough estimate but
         // should ensure that we're not dropping messages if the main arbiter running this actor
         // gets hammered a bit.
-        let mailbox_size = self.config.event_buffer_size() as usize;
+        let mailbox_size = self.config.envelope_buffer_size() as usize;
         context.set_mailbox_capacity(mailbox_size);
 
         context.run_interval(self.config.cache_eviction_interval(), |slf, _| {

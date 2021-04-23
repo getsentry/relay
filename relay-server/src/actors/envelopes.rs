@@ -1569,7 +1569,7 @@ impl Actor for EnvelopeManager {
     fn started(&mut self, context: &mut Self::Context) {
         // Set the mailbox size to the size of the event buffer. This is a rough estimate but
         // should ensure that we're not dropping events unintentionally after we've accepted them.
-        let mailbox_size = self.config.event_buffer_size() as usize;
+        let mailbox_size = self.config.envelope_buffer_size() as usize;
         context.set_mailbox_capacity(mailbox_size);
         relay_log::info!("event manager started");
     }
@@ -1614,13 +1614,13 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
 
         metric!(
             histogram(RelayHistograms::EnvelopeQueueSizePct) = {
-                let queue_size_pct =
-                    self.active_envelopes as f32 * 100.0 / self.config.event_buffer_size() as f32;
+                let queue_size_pct = self.active_envelopes as f32 * 100.0
+                    / self.config.envelope_buffer_size() as f32;
                 queue_size_pct.floor() as u64
             }
         );
 
-        if self.config.event_buffer_size() <= self.active_envelopes {
+        if self.config.envelope_buffer_size() <= self.active_envelopes {
             return Err(QueueEnvelopeError::TooManyEnvelopes);
         }
 
@@ -1828,7 +1828,10 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     })
                     .into_actor(slf)
             }))
-            .timeout(self.config.event_buffer_expiry(), ProcessingError::Timeout)
+            .timeout(
+                self.config.envelope_buffer_expiry(),
+                ProcessingError::Timeout,
+            )
             .map(|_, _, _| metric!(counter(RelayCounters::EnvelopeAccepted) += 1))
             .map_err(move |error, slf, _| {
                 metric!(counter(RelayCounters::EnvelopeRejected) += 1);
