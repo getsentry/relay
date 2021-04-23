@@ -13,7 +13,7 @@ use relay_redis::RedisPool;
 
 use crate::actors::connector::MeteredConnector;
 use crate::actors::controller::{Configure, Controller};
-use crate::actors::events::EventManager;
+use crate::actors::envelopes::EventManager;
 use crate::actors::healthcheck::Healthcheck;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::ProjectCache;

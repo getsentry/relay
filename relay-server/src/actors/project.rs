@@ -22,7 +22,7 @@ use relay_metrics::{
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 
-use crate::actors::events::{EventManager, SendMetrics};
+use crate::actors::envelopes::{EventManager, SendMetrics};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};

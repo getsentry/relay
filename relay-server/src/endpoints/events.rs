@@ -4,7 +4,7 @@ use ::actix::prelude::*;
 use actix_web::{http::Method, HttpResponse, Path};
 use futures::future::Future;
 
-use crate::actors::events::GetCapturedEnvelope;
+use crate::actors::envelopes::GetCapturedEnvelope;
 use crate::envelope;
 use crate::extractors::CurrentServiceState;
 use crate::service::ServiceApp;

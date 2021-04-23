@@ -18,7 +18,7 @@ use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_sampling::RuleId;
 
-use crate::actors::events::{QueueEnvelope, QueueEnvelopeError};
+use crate::actors::envelopes::{QueueEnvelope, QueueEnvelopeError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::{CheckEnvelope, Project};
 use crate::actors::project_cache::{GetProject, ProjectError};

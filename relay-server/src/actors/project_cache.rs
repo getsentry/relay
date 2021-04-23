@@ -12,7 +12,7 @@ use relay_common::{metric, ProjectKey};
 use relay_config::{Config, RelayMode};
 use relay_redis::RedisPool;
 
-use crate::actors::events::EventManager;
+use crate::actors::envelopes::EventManager;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project::{Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
