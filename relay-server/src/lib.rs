@@ -206,7 +206,7 @@
 //! participant sdk as SDK
 //! participant endpoint as Endpoint
 //! participant projectcache as ProjectCache
-//! participant eventmanager as EventManager
+//! participant envelopemanager as EnvelopeManager
 //! participant cpupool as CPU Pool
 //!
 //! sdk->>endpoint:POST /api/42/store
@@ -216,28 +216,28 @@
 //! projectcache-->>endpoint: return project
 //! deactivate projectcache
 //! Note over endpoint: Checking rate limits and auth (fast path)
-//! endpoint->>eventmanager: queue event
+//! endpoint->>envelopemanager: queue event
 //!
-//! activate eventmanager
-//! eventmanager-->>endpoint:event ID
+//! activate envelopemanager
+//! envelopemanager-->>endpoint:event ID
 //! endpoint-->>sdk:200 OK
 //! deactivate endpoint
 //!
-//! eventmanager->>projectcache:fetch project
+//! envelopemanager->>projectcache:fetch project
 //! activate projectcache
-//! Note over eventmanager,projectcache: web request (batched with other projects)
-//! projectcache-->>eventmanager: return project
+//! Note over envelopemanager,projectcache: web request (batched with other projects)
+//! projectcache-->>envelopemanager: return project
 //! deactivate projectcache
 //!
-//! eventmanager->>cpupool: .
+//! envelopemanager->>cpupool: .
 //! activate cpupool
-//! Note over eventmanager,cpupool: normalization, datascrubbing, redis rate limits, ...
-//! cpupool-->>eventmanager: .
+//! Note over envelopemanager,cpupool: normalization, datascrubbing, redis rate limits, ...
+//! cpupool-->>envelopemanager: .
 //! deactivate cpupool
 //!
-//! Note over eventmanager: Send event to kafka
+//! Note over envelopemanager: Send event to kafka
 //!
-//! deactivate eventmanager
+//! deactivate envelopemanager
 //! ```
 //!
 //! <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>

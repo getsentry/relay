@@ -448,7 +448,8 @@ struct Limits {
     max_pending_connections: i32,
     /// The maximum number of open connections to Relay.
     max_connections: usize,
-    /// The maximum number of seconds to wait for pending events after receiving a shutdown signal.
+    /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
+    /// signal.
     shutdown_timeout: u64,
 }
 
@@ -512,7 +513,7 @@ struct Http {
     ///
     /// Re-authentication happens even when Relay is idle. If authentication fails, Relay reverts
     /// back into startup mode and tries to establish a connection. During this time, incoming
-    /// events will be buffered.
+    /// envelopes will be buffered.
     ///
     /// Defaults to `600` (10 minutes).
     auth_interval: Option<u64>,
@@ -564,9 +565,9 @@ struct Cache {
     project_grace_period: u32,
     /// The cache timeout for downstream relay info (public keys) in seconds.
     relay_expiry: u32,
-    /// The cache timeout for events (store) before dropping them.
+    /// The cache timeout for envelopes (store) before dropping them.
     event_expiry: u32,
-    /// The maximum amount of events to queue before dropping them.
+    /// The maximum amount of envelopes to queue before dropping them.
     event_buffer_size: u32,
     /// The cache timeout for non-existing entries.
     miss_expiry: u32,
@@ -1233,13 +1234,13 @@ impl Config {
         Duration::from_secs(self.values.cache.relay_expiry.into())
     }
 
-    /// Returns the timeout for buffered events (due to upstream errors).
-    pub fn event_buffer_expiry(&self) -> Duration {
+    /// Returns the timeout for buffered envelopes (due to upstream errors).
+    pub fn envelope_buffer_expiry(&self) -> Duration {
         Duration::from_secs(self.values.cache.event_expiry.into())
     }
 
-    /// Returns the maximum number of buffered events
-    pub fn event_buffer_size(&self) -> u32 {
+    /// Returns the maximum number of buffered envelopes
+    pub fn envelope_buffer_size(&self) -> u32 {
         self.values.cache.event_buffer_size
     }
 
@@ -1343,7 +1344,8 @@ impl Config {
         self.values.limits.max_pending_connections
     }
 
-    /// The maximum number of seconds to wait for pending events after receiving a shutdown signal.
+    /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
+    /// signal.
     pub fn shutdown_timeout(&self) -> Duration {
         Duration::from_secs(self.values.limits.shutdown_timeout)
     }

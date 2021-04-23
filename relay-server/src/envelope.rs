@@ -626,7 +626,7 @@ impl EnvelopeHeaders<PartialMeta> {
 
         // Relay does not read the envelope's headers before running initial validation and fully
         // relies on request headers at the moment. Technically, the envelope's meta is checked
-        // again once the event goes into the EventManager, but we want to be as accurate as
+        // again once the event goes into the EnvelopeManager, but we want to be as accurate as
         // possible in the endpoint already.
         if meta.origin().is_some() && meta.origin() != request_meta.origin() {
             return Err(EnvelopeError::HeaderMismatch("origin"));

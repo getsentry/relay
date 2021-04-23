@@ -42,7 +42,7 @@ fn get_event_item(data: &[u8]) -> Result<Option<Item>, Unreal4Error> {
 /// contains an `UnrealReport` item, it removes it from the envelope and inserts new items for each
 /// of its contents.
 ///
-/// After this, the `EventProcessor` should be able to process the envelope the same way it
+/// After this, the `EnvelopeProcessor` should be able to process the envelope the same way it
 /// processes any other envelopes.
 pub fn expand_unreal_envelope(
     unreal_item: Item,
@@ -273,7 +273,7 @@ pub fn process_unreal_envelope(
     }
 
     // If we have UE4 info, ensure an event is there to fill. DO NOT fill if there is no unreal
-    // information, or otherwise `EventProcessor::process` breaks.
+    // information, or otherwise `EnvelopeProcessor::process` breaks.
     let event = event.get_or_insert_with(Event::default);
 
     if let Some(user_info) = user_header {

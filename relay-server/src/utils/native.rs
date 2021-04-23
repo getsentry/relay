@@ -1,6 +1,6 @@
 //! Utility methods for native event processing.
 //!
-//! These functions are invoked by the `EventProcessor`, and are used to prepare native event
+//! These functions are invoked by the `EnvelopeProcessor`, and are used to prepare native event
 //! payloads. See [`process_minidump`] and [`process_apple_crash_report`] for more information.
 
 use std::collections::BTreeMap;
