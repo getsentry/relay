@@ -23,7 +23,7 @@ use relay_general::protocol::{
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
-use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricUnit, MetricValue};
+use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{RuleId, SamplingResult};
@@ -49,6 +49,7 @@ use {
     failure::ResultExt,
     relay_filter::FilterStatKey,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+    relay_metrics::{MetricUnit, MetricValue},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
 };
 
@@ -180,16 +181,6 @@ impl ProcessingError {
     }
 }
 
-fn with_tag(
-    tags: &BTreeMap<String, String>,
-    name: &str,
-    value: impl fmt::Display,
-) -> BTreeMap<String, String> {
-    let mut tags = tags.clone();
-    tags.insert(name.to_owned(), value.to_string());
-    tags
-}
-
 type ExtractedEvent = (Annotated<Event>, usize);
 
 /// A state container for envelope processing.
@@ -291,7 +282,23 @@ impl ProcessEnvelopeState {
 }
 
 #[cfg(feature = "processing")]
-fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
+fn with_tag(
+    tags: &BTreeMap<String, String>,
+    name: &str,
+    value: impl fmt::Display,
+) -> BTreeMap<String, String> {
+    let mut tags = tags.clone();
+    tags.insert(name.to_owned(), value.to_string());
+    tags
+}
+
+#[cfg(feature = "processing")]
+fn extract_transaction_metrics(event: &Annotated<Event>, target: &mut Vec<Metric>) {
+    let event = match event.value() {
+        Some(event) => event,
+        None => return,
+    };
+
     let timestamp = match event
         .timestamp
         .value()
@@ -354,6 +361,7 @@ fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
     }
 }
 
+#[cfg(feature = "processing")]
 fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
     let timestamp = match UnixTimestamp::from_datetime(session.timestamp) {
         Some(ts) => ts,
@@ -488,7 +496,7 @@ impl EnvelopeProcessor {
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
         let received = state.received_at;
         let extract_metrics = state.project_state.has_feature(Feature::MetricsExtraction);
-        let extracted_metrics = &mut state.extracted_metrics;
+        let _extracted_metrics = &mut state.extracted_metrics;
 
         let envelope = &mut state.envelope;
         let client_addr = envelope.meta().client_addr();
@@ -568,7 +576,8 @@ impl EnvelopeProcessor {
             }
 
             if extract_metrics {
-                extract_session_metrics(&session, extracted_metrics);
+                #[cfg(feature = "processing")]
+                extract_session_metrics(&session, _extracted_metrics);
             }
 
             if changed {
@@ -1380,10 +1389,7 @@ impl EnvelopeProcessor {
 
             if_processing!({
                 self.store_process_event(&mut state)?;
-                if let Some(event) = state.event.value() {
-                    extract_transaction_metrics(&event, &mut state.extracted_metrics);
-                }
-
+                extract_transaction_metrics(&state.event, &mut state.extracted_metrics);
                 self.filter_event(&mut state)?;
             });
         }
@@ -2167,6 +2173,7 @@ impl Handler<GetCapturedEnvelope> for EnvelopeManager {
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, TimeZone, Utc};
+    #[cfg(feature = "processing")]
     use relay_general::protocol::SessionStatus;
 
     use crate::extractors::RequestMeta;
@@ -2354,6 +2361,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "processing")]
     fn test_extract_session_metrics() {
         let mut metrics = vec![];
 
@@ -2388,6 +2396,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "processing")]
     fn test_extract_session_metrics_ok() {
         let mut metrics = vec![];
 
@@ -2411,6 +2420,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "processing")]
     fn test_extract_session_metrics_errored() {
         let update1 = SessionUpdate::parse(
             r#"{
@@ -2457,6 +2467,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "processing")]
     fn test_extract_session_metrics_fatal() {
         for status in &[SessionStatus::Crashed, SessionStatus::Abnormal] {
             let mut session = SessionUpdate::parse(
@@ -2496,6 +2507,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "processing")]
     fn test_extract_transaction_metrics() {
         let json = r#"
         {
@@ -2516,9 +2528,10 @@ mod tests {
             }
         }
         "#;
+
         let event = Annotated::from_json(json).unwrap();
         let mut metrics = vec![];
-        extract_transaction_metrics(event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&event, &mut metrics);
 
         assert_eq!(metrics.len(), 4);
 
