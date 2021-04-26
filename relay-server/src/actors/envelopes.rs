@@ -183,6 +183,7 @@ impl ProcessingError {
 type ExtractedEvent = (Annotated<Event>, usize);
 
 /// A state container for envelope processing.
+#[derive(Debug)]
 struct ProcessEnvelopeState {
     /// The envelope.
     ///
@@ -217,7 +218,11 @@ struct ProcessEnvelopeState {
     /// These are always empty in non-processing mode, since the rate limiter is not invoked.
     rate_limits: RateLimits,
 
-    project: Addr<Project>,
+    /// Metrics extracted from items in the envelope.
+    ///
+    /// This is controlled by [`Feature::MetricsExtraction`]. Relay extracts metrics for sessions
+    /// and transactions.
+    extracted_metrics: Vec<Metric>,
 
     /// The state of the project that this envelope belongs to.
     project_state: Arc<ProjectState>,
@@ -231,21 +236,6 @@ struct ProcessEnvelopeState {
 
     /// UTC date time converted from the `start_time` instant.
     received_at: DateTime<Utc>,
-}
-
-impl std::fmt::Debug for ProcessEnvelopeState {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ProcessEnvelopeState")
-            .field("envelope", &self.event)
-            .field("event", &self.event)
-            .field("metrics", &self.metrics)
-            .field("sample_rates", &self.sample_rates)
-            .field("rate_limits", &self.rate_limits)
-            .field("project", &format_args!("Addr<Project>"))
-            .field("project_state", &self.project_state)
-            .field("received_at", &self.received_at)
-            .finish()
-    }
 }
 
 impl ProcessEnvelopeState {
@@ -336,7 +326,7 @@ impl EnvelopeProcessor {
         self
     }
 
-    fn extract_session_metrics(&self, project: &Addr<Project>, session: &SessionUpdate) {
+    fn extract_session_metrics(&self, session: &SessionUpdate, target: &mut Vec<Metric>) {
         let mut tags = BTreeMap::new();
         tags.insert("session.status".to_owned(), session.status.to_string());
 
@@ -346,18 +336,14 @@ impl EnvelopeProcessor {
             relay_log::error!("session timestamp {} < 0", timestamp);
             return;
         }
-        let metrics = vec![
-            // Increment session counter tagged by status
-            Metric {
-                name: "session".to_owned(),
-                unit: MetricUnit::None,
-                value: MetricValue::Counter(1.0),
-                timestamp: UnixTimestamp::from_secs(timestamp as u64),
-                tags,
-            },
-        ];
 
-        project.do_send(InsertMetrics::new(metrics));
+        target.push(Metric {
+            name: "session".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Counter(1.0),
+            timestamp: UnixTimestamp::from_secs(timestamp as u64),
+            tags,
+        });
     }
 
     /// Validates all sessions in the envelope, if any.
@@ -365,15 +351,15 @@ impl EnvelopeProcessor {
     /// Sessions are removed from the envelope if they contain invalid JSON or if their timestamps
     /// are out of range after clock drift correction.
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
-        let envelope = &mut state.envelope;
         let received = state.received_at;
+        let extract_metrics = state.project_state.has_feature(Feature::MetricsExtraction);
+        let extracted_metrics = &mut state.extracted_metrics;
+
+        let envelope = &mut state.envelope;
         let client_addr = envelope.meta().client_addr();
 
         let clock_drift_processor =
             ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
-
-        let extract_metrics = state.project_state.has_feature(Feature::MetricsExtraction);
-        let project = &state.project;
 
         envelope.retain_items(|item| {
             if item.ty() != ItemType::Session {
@@ -447,7 +433,7 @@ impl EnvelopeProcessor {
             }
 
             if extract_metrics {
-                self.extract_session_metrics(project, &session);
+                self.extract_session_metrics(&session, extracted_metrics);
             }
 
             if changed {
@@ -509,7 +495,6 @@ impl EnvelopeProcessor {
             mut envelope,
             project_state,
             start_time,
-            project,
         } = message;
 
         // Set the event retention. Effectively, this value will only be available in processing
@@ -541,7 +526,7 @@ impl EnvelopeProcessor {
             metrics: Metrics::default(),
             sample_rates: None,
             rate_limits: RateLimits::new(),
-            project,
+            extracted_metrics: Vec::new(),
             project_state,
             project_id,
             received_at: relay_common::instant_to_date_time(start_time),
@@ -1307,9 +1292,9 @@ impl Actor for EnvelopeProcessor {
     type Context = SyncContext<Self>;
 }
 
+#[derive(Debug)]
 struct ProcessEnvelope {
     pub envelope: Envelope,
-    pub project: Addr<Project>,
     pub project_state: Arc<ProjectState>,
     pub start_time: Instant,
 }
@@ -1318,6 +1303,7 @@ struct ProcessEnvelope {
 struct ProcessEnvelopeResponse {
     envelope: Option<Envelope>,
     rate_limits: RateLimits,
+    metrics: Vec<Metric>,
 }
 
 impl From<ProcessEnvelopeState> for ProcessEnvelopeResponse {
@@ -1325,6 +1311,7 @@ impl From<ProcessEnvelopeState> for ProcessEnvelopeResponse {
         Self {
             envelope: Some(state.envelope).filter(|e| !e.is_empty()),
             rate_limits: state.rate_limits,
+            metrics: state.extracted_metrics,
         }
     }
 }
@@ -1824,17 +1811,16 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
                     .map(|state| (envelope, state))
             }))
-            .and_then(clone!(project, |(envelope, project_state)| {
+            .and_then(move |(envelope, project_state)| {
                 processor
                     .send(ProcessEnvelope {
                         envelope,
-                        project,
                         project_state,
                         start_time,
                     })
                     .map_err(ProcessingError::ScheduleFailed)
                     .flatten()
-            }))
+            })
             .and_then(clone!(project, envelope_summary, |processed| {
                 let rate_limits = processed.rate_limits;
 
@@ -1843,6 +1829,10 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 if rate_limits.is_limited() {
                     project.do_send(UpdateRateLimits(rate_limits.clone()));
                 }
+
+                // Capture extracted metrics in the project's aggregator, independent of dropped
+                // items. This allows us to retain metrics while also sampling.
+                project.do_send(InsertMetrics::new(processed.metrics));
 
                 match processed.envelope {
                     Some(envelope) => {
@@ -2212,7 +2202,6 @@ mod tests {
         let envelope_response = processor
             .process(ProcessEnvelope {
                 envelope,
-                project: todo!(),
                 project_state: Arc::new(ProjectState::allowed()),
                 start_time: Instant::now(),
             })
