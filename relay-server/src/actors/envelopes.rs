@@ -329,12 +329,13 @@ impl EnvelopeProcessor {
     fn extract_session_metrics(&self, session: &SessionUpdate, target: &mut Vec<Metric>) {
         let status_tag = "session.status".to_owned();
 
-        let timestamp = session.timestamp.timestamp();
-        if timestamp < 0 {
-            relay_log::error!("session timestamp {} < 0", timestamp);
-            return;
-        }
-        let timestamp = UnixTimestamp::from_secs(timestamp as u64);
+        let timestamp = match UnixTimestamp::from_datetime(session.timestamp) {
+            Some(ts) => ts,
+            None => {
+                relay_log::error!("invalid session timestamp: {}", session.timestamp);
+                return;
+            }
+        };
 
         // Always capture with "init" tag for the first session update of a session. This is used
         // for adoption and as baseline for crash rates.
