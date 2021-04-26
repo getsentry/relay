@@ -291,12 +291,7 @@ impl ProcessEnvelopeState {
 }
 
 #[cfg(feature = "processing")]
-fn extract_transaction_metrics(state: &mut ProcessEnvelopeState) {
-    let event = match state.event.value() {
-        Some(event) => event,
-        None => return,
-    };
-
+fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
     let timestamp = match event
         .timestamp
         .value()
@@ -321,7 +316,7 @@ fn extract_transaction_metrics(state: &mut ProcessEnvelopeState) {
                 None => continue,
             };
 
-            state.extracted_metrics.push(Metric {
+            target.push(Metric {
                 name: format!("measurement.{}", name),
                 unit: MetricUnit::None,
                 value: MetricValue::Distribution(measurement),
@@ -348,7 +343,7 @@ fn extract_transaction_metrics(state: &mut ProcessEnvelopeState) {
                 None => continue,
             };
 
-            state.extracted_metrics.push(Metric {
+            target.push(Metric {
                 name: format!("breakdown.{}.{}", breakdown, name),
                 unit: MetricUnit::None,
                 value: MetricValue::Distribution(measurement),
@@ -1385,7 +1380,10 @@ impl EnvelopeProcessor {
 
             if_processing!({
                 self.store_process_event(&mut state)?;
-                extract_transaction_metrics(&mut state);
+                if let Some(event) = state.event.value() {
+                    extract_transaction_metrics(&event, &mut state.extracted_metrics);
+                }
+
                 self.filter_event(&mut state)?;
             });
         }
@@ -2448,8 +2446,7 @@ mod tests {
             let session_metric = &metrics[expected_metrics - 2];
             assert_eq!(session_metric.name, "session.error");
             assert!(matches!(session_metric.value, MetricValue::Set(_)));
-            assert_eq!(session_metric.tags["session.status"], "errored");
-            assert_eq!(session_metric.tags.len(), 0);
+            assert_eq!(session_metric.tags.len(), 1); // Only the release tag
 
             let user_metric = &metrics[expected_metrics - 1];
             assert_eq!(user_metric.name, "user");
@@ -2495,6 +2492,45 @@ mod tests {
             assert_eq!(user_metric.name, "user");
             assert!(matches!(user_metric.value, MetricValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], status.to_string());
+        }
+    }
+
+    #[test]
+    fn test_extract_transaction_metrics() {
+        let json = r#"
+        {
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "release": "1.2.3",
+            "environment": "fake_environment",
+            "measurements": {
+                "foo": {"value": 420.69}
+            },
+            "breakdowns": {
+                "breakdown1": {
+                    "bar": {"value": 123.4}
+                },
+                "breakdown2": {
+                    "baz": {"value": 123.4},
+                    "zap": {"value": 666}
+                }
+            }
+        }
+        "#;
+        let event = Annotated::from_json(json).unwrap();
+        let mut metrics = vec![];
+        extract_transaction_metrics(event.value().unwrap(), &mut metrics);
+
+        assert_eq!(metrics.len(), 4);
+
+        assert_eq!(metrics[0].name, "measurement.foo");
+        assert_eq!(metrics[1].name, "breakdown.breakdown1.bar");
+        assert_eq!(metrics[2].name, "breakdown.breakdown2.baz");
+        assert_eq!(metrics[3].name, "breakdown.breakdown2.zap");
+
+        for metric in metrics {
+            assert!(matches!(metric.value, MetricValue::Distribution(_)));
+            assert_eq!(metric.tags["release"], "1.2.3");
+            assert_eq!(metric.tags["environment"], "fake_environment");
         }
     }
 }
