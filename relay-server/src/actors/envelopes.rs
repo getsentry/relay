@@ -180,6 +180,16 @@ impl ProcessingError {
     }
 }
 
+fn with_tag(
+    tags: &BTreeMap<String, String>,
+    name: &str,
+    value: impl fmt::Display,
+) -> BTreeMap<String, String> {
+    let mut tags = tags.clone();
+    tags.insert(name.to_owned(), value.to_string());
+    tags
+}
+
 type ExtractedEvent = (Annotated<Event>, usize);
 
 /// A state container for envelope processing.
@@ -342,6 +352,14 @@ impl EnvelopeProcessor {
             None => return,
         };
 
+        let mut tags = BTreeMap::new();
+        if let Some(release) = event.release.as_str() {
+            tags.insert("release".to_owned(), release.to_owned());
+        }
+        if let Some(environment) = event.environment.as_str() {
+            tags.insert("environment".to_owned(), environment.to_owned());
+        }
+
         if let Some(measurements) = event.measurements.value() {
             for (name, annotated) in measurements.iter() {
                 let measurement = match annotated.value().and_then(|m| m.value.value()) {
@@ -354,7 +372,7 @@ impl EnvelopeProcessor {
                     unit: MetricUnit::None,
                     value: MetricValue::Distribution(measurement),
                     timestamp,
-                    tags: Default::default(),
+                    tags: tags.clone(),
                 });
             }
         }
@@ -381,15 +399,13 @@ impl EnvelopeProcessor {
                     unit: MetricUnit::None,
                     value: MetricValue::Distribution(measurement),
                     timestamp,
-                    tags: Default::default(),
+                    tags: tags.clone(),
                 });
             }
         }
     }
 
     fn extract_session_metrics(&self, session: &SessionUpdate, target: &mut Vec<Metric>) {
-        let status_tag = "session.status".to_owned();
-
         let timestamp = match UnixTimestamp::from_datetime(session.timestamp) {
             Some(ts) => ts,
             None => {
@@ -397,6 +413,12 @@ impl EnvelopeProcessor {
                 return;
             }
         };
+
+        let mut tags = BTreeMap::new();
+        tags.insert("release".to_owned(), session.attributes.release.clone());
+        if let Some(ref environment) = session.attributes.environment {
+            tags.insert("environment".to_owned(), environment.clone());
+        }
 
         // Always capture with "init" tag for the first session update of a session. This is used
         // for adoption and as baseline for crash rates.
@@ -406,7 +428,7 @@ impl EnvelopeProcessor {
                 unit: MetricUnit::None,
                 value: MetricValue::Counter(1.0),
                 timestamp,
-                tags: std::iter::once((status_tag.clone(), "init".to_owned())).collect(),
+                tags: with_tag(&tags, "session.status", "init"),
             });
 
             if let Some(ref distinct_id) = session.distinct_id {
@@ -415,7 +437,7 @@ impl EnvelopeProcessor {
                     unit: MetricUnit::None,
                     value: MetricValue::set_from_str(distinct_id),
                     timestamp,
-                    tags: std::iter::once((status_tag.clone(), "init".to_owned())).collect(),
+                    tags: with_tag(&tags, "session.status", "init"),
                 });
             }
         }
@@ -427,7 +449,7 @@ impl EnvelopeProcessor {
                 unit: MetricUnit::None,
                 value: MetricValue::set_from_display(session.session_id),
                 timestamp,
-                tags: Default::default(),
+                tags: tags.clone(),
             });
 
             if let Some(ref distinct_id) = session.distinct_id {
@@ -436,7 +458,7 @@ impl EnvelopeProcessor {
                     unit: MetricUnit::None,
                     value: MetricValue::set_from_str(distinct_id),
                     timestamp,
-                    tags: std::iter::once((status_tag.clone(), "errored".to_owned())).collect(),
+                    tags: with_tag(&tags, "session.status", "errored"),
                 });
             }
         }
@@ -449,7 +471,7 @@ impl EnvelopeProcessor {
                 unit: MetricUnit::None,
                 value: MetricValue::Counter(1.0),
                 timestamp,
-                tags: std::iter::once((status_tag.clone(), session.status.to_string())).collect(),
+                tags: with_tag(&tags, "session.status", session.status),
             });
 
             if let Some(ref distinct_id) = session.distinct_id {
@@ -458,7 +480,7 @@ impl EnvelopeProcessor {
                     unit: MetricUnit::None,
                     value: MetricValue::set_from_str(distinct_id),
                     timestamp,
-                    tags: std::iter::once((status_tag, session.status.to_string())).collect(),
+                    tags: with_tag(&tags, "session.status", session.status),
                 });
             }
         }
