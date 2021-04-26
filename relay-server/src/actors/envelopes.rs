@@ -326,6 +326,67 @@ impl EnvelopeProcessor {
         self
     }
 
+    #[cfg(feature = "processing")]
+    fn extract_transaction_metrics(&self, state: &mut ProcessEnvelopeState) {
+        let event = match state.event.value() {
+            Some(event) => event,
+            None => return,
+        };
+
+        let timestamp = match event
+            .timestamp
+            .value()
+            .and_then(|ts| UnixTimestamp::from_datetime(ts.into_inner()))
+        {
+            Some(ts) => ts,
+            None => return,
+        };
+
+        if let Some(measurements) = event.measurements.value() {
+            for (name, annotated) in measurements.iter() {
+                let measurement = match annotated.value().and_then(|m| m.value.value()) {
+                    Some(measurement) => *measurement,
+                    None => continue,
+                };
+
+                state.extracted_metrics.push(Metric {
+                    name: format!("measurement.{}", name),
+                    unit: MetricUnit::None,
+                    value: MetricValue::Distribution(measurement),
+                    timestamp,
+                    tags: Default::default(),
+                });
+            }
+        }
+
+        let breakdowns = match event.breakdowns.value() {
+            Some(breakdowns) => breakdowns,
+            None => return,
+        };
+
+        for (breakdown, annotated) in breakdowns.iter() {
+            let measurements = match annotated.value() {
+                Some(measurements) => measurements,
+                None => continue,
+            };
+
+            for (name, annotated) in measurements.iter() {
+                let measurement = match annotated.value().and_then(|m| m.value.value()) {
+                    Some(measurement) => *measurement,
+                    None => continue,
+                };
+
+                state.extracted_metrics.push(Metric {
+                    name: format!("breakdown.{}.{}", breakdown, name),
+                    unit: MetricUnit::None,
+                    value: MetricValue::Distribution(measurement),
+                    timestamp,
+                    tags: Default::default(),
+                });
+            }
+        }
+    }
+
     fn extract_session_metrics(&self, session: &SessionUpdate, target: &mut Vec<Metric>) {
         let status_tag = "session.status".to_owned();
 
@@ -1302,6 +1363,7 @@ impl EnvelopeProcessor {
 
             if_processing!({
                 self.store_process_event(&mut state)?;
+                self.extract_transaction_metrics(&mut state);
                 self.filter_event(&mut state)?;
             });
         }
