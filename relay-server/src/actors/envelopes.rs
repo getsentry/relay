@@ -290,6 +290,156 @@ impl ProcessEnvelopeState {
     }
 }
 
+#[cfg(feature = "processing")]
+fn extract_transaction_metrics(state: &mut ProcessEnvelopeState) {
+    let event = match state.event.value() {
+        Some(event) => event,
+        None => return,
+    };
+
+    let timestamp = match event
+        .timestamp
+        .value()
+        .and_then(|ts| UnixTimestamp::from_datetime(ts.into_inner()))
+    {
+        Some(ts) => ts,
+        None => return,
+    };
+
+    let mut tags = BTreeMap::new();
+    if let Some(release) = event.release.as_str() {
+        tags.insert("release".to_owned(), release.to_owned());
+    }
+    if let Some(environment) = event.environment.as_str() {
+        tags.insert("environment".to_owned(), environment.to_owned());
+    }
+
+    if let Some(measurements) = event.measurements.value() {
+        for (name, annotated) in measurements.iter() {
+            let measurement = match annotated.value().and_then(|m| m.value.value()) {
+                Some(measurement) => *measurement,
+                None => continue,
+            };
+
+            state.extracted_metrics.push(Metric {
+                name: format!("measurement.{}", name),
+                unit: MetricUnit::None,
+                value: MetricValue::Distribution(measurement),
+                timestamp,
+                tags: tags.clone(),
+            });
+        }
+    }
+
+    let breakdowns = match event.breakdowns.value() {
+        Some(breakdowns) => breakdowns,
+        None => return,
+    };
+
+    for (breakdown, annotated) in breakdowns.iter() {
+        let measurements = match annotated.value() {
+            Some(measurements) => measurements,
+            None => continue,
+        };
+
+        for (name, annotated) in measurements.iter() {
+            let measurement = match annotated.value().and_then(|m| m.value.value()) {
+                Some(measurement) => *measurement,
+                None => continue,
+            };
+
+            state.extracted_metrics.push(Metric {
+                name: format!("breakdown.{}.{}", breakdown, name),
+                unit: MetricUnit::None,
+                value: MetricValue::Distribution(measurement),
+                timestamp,
+                tags: tags.clone(),
+            });
+        }
+    }
+}
+
+fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
+    let timestamp = match UnixTimestamp::from_datetime(session.timestamp) {
+        Some(ts) => ts,
+        None => {
+            relay_log::error!("invalid session timestamp: {}", session.timestamp);
+            return;
+        }
+    };
+
+    let mut tags = BTreeMap::new();
+    tags.insert("release".to_owned(), session.attributes.release.clone());
+    if let Some(ref environment) = session.attributes.environment {
+        tags.insert("environment".to_owned(), environment.clone());
+    }
+
+    // Always capture with "init" tag for the first session update of a session. This is used
+    // for adoption and as baseline for crash rates.
+    if session.init {
+        target.push(Metric {
+            name: "session".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Counter(1.0),
+            timestamp,
+            tags: with_tag(&tags, "session.status", "init"),
+        });
+
+        if let Some(ref distinct_id) = session.distinct_id {
+            target.push(Metric {
+                name: "user".to_owned(),
+                unit: MetricUnit::None,
+                value: MetricValue::set_from_str(distinct_id),
+                timestamp,
+                tags: with_tag(&tags, "session.status", "init"),
+            });
+        }
+    }
+
+    // Mark the session as errored, which includes fatal sessions.
+    if session.errors > 0 || session.status.is_error() {
+        target.push(Metric {
+            name: "session.error".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::set_from_display(session.session_id),
+            timestamp,
+            tags: tags.clone(),
+        });
+
+        if let Some(ref distinct_id) = session.distinct_id {
+            target.push(Metric {
+                name: "user".to_owned(),
+                unit: MetricUnit::None,
+                value: MetricValue::set_from_str(distinct_id),
+                timestamp,
+                tags: with_tag(&tags, "session.status", "errored"),
+            });
+        }
+    }
+
+    // Record fatal sessions for crash rate computation. This is a strict subset of errored
+    // sessions above.
+    if session.status.is_fatal() {
+        target.push(Metric {
+            name: "session".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Counter(1.0),
+            timestamp,
+            tags: with_tag(&tags, "session.status", session.status),
+        });
+
+        if let Some(ref distinct_id) = session.distinct_id {
+            target.push(Metric {
+                name: "user".to_owned(),
+                unit: MetricUnit::None,
+                value: MetricValue::set_from_str(distinct_id),
+                timestamp,
+                tags: with_tag(&tags, "session.status", session.status),
+            });
+        }
+    }
+}
+
 /// Synchronous service for processing envelopes.
 pub struct EnvelopeProcessor {
     config: Arc<Config>,
@@ -334,156 +484,6 @@ impl EnvelopeProcessor {
     pub fn with_outcome_producer(mut self, producer: Addr<OutcomeProducer>) -> Self {
         self.outcome_producer = Some(producer);
         self
-    }
-
-    #[cfg(feature = "processing")]
-    fn extract_transaction_metrics(&self, state: &mut ProcessEnvelopeState) {
-        let event = match state.event.value() {
-            Some(event) => event,
-            None => return,
-        };
-
-        let timestamp = match event
-            .timestamp
-            .value()
-            .and_then(|ts| UnixTimestamp::from_datetime(ts.into_inner()))
-        {
-            Some(ts) => ts,
-            None => return,
-        };
-
-        let mut tags = BTreeMap::new();
-        if let Some(release) = event.release.as_str() {
-            tags.insert("release".to_owned(), release.to_owned());
-        }
-        if let Some(environment) = event.environment.as_str() {
-            tags.insert("environment".to_owned(), environment.to_owned());
-        }
-
-        if let Some(measurements) = event.measurements.value() {
-            for (name, annotated) in measurements.iter() {
-                let measurement = match annotated.value().and_then(|m| m.value.value()) {
-                    Some(measurement) => *measurement,
-                    None => continue,
-                };
-
-                state.extracted_metrics.push(Metric {
-                    name: format!("measurement.{}", name),
-                    unit: MetricUnit::None,
-                    value: MetricValue::Distribution(measurement),
-                    timestamp,
-                    tags: tags.clone(),
-                });
-            }
-        }
-
-        let breakdowns = match event.breakdowns.value() {
-            Some(breakdowns) => breakdowns,
-            None => return,
-        };
-
-        for (breakdown, annotated) in breakdowns.iter() {
-            let measurements = match annotated.value() {
-                Some(measurements) => measurements,
-                None => continue,
-            };
-
-            for (name, annotated) in measurements.iter() {
-                let measurement = match annotated.value().and_then(|m| m.value.value()) {
-                    Some(measurement) => *measurement,
-                    None => continue,
-                };
-
-                state.extracted_metrics.push(Metric {
-                    name: format!("breakdown.{}.{}", breakdown, name),
-                    unit: MetricUnit::None,
-                    value: MetricValue::Distribution(measurement),
-                    timestamp,
-                    tags: tags.clone(),
-                });
-            }
-        }
-    }
-
-    fn extract_session_metrics(&self, session: &SessionUpdate, target: &mut Vec<Metric>) {
-        let timestamp = match UnixTimestamp::from_datetime(session.timestamp) {
-            Some(ts) => ts,
-            None => {
-                relay_log::error!("invalid session timestamp: {}", session.timestamp);
-                return;
-            }
-        };
-
-        let mut tags = BTreeMap::new();
-        tags.insert("release".to_owned(), session.attributes.release.clone());
-        if let Some(ref environment) = session.attributes.environment {
-            tags.insert("environment".to_owned(), environment.clone());
-        }
-
-        // Always capture with "init" tag for the first session update of a session. This is used
-        // for adoption and as baseline for crash rates.
-        if session.init {
-            target.push(Metric {
-                name: "session".to_owned(),
-                unit: MetricUnit::None,
-                value: MetricValue::Counter(1.0),
-                timestamp,
-                tags: with_tag(&tags, "session.status", "init"),
-            });
-
-            if let Some(ref distinct_id) = session.distinct_id {
-                target.push(Metric {
-                    name: "user".to_owned(),
-                    unit: MetricUnit::None,
-                    value: MetricValue::set_from_str(distinct_id),
-                    timestamp,
-                    tags: with_tag(&tags, "session.status", "init"),
-                });
-            }
-        }
-
-        // Mark the session as errored, which includes fatal sessions.
-        if session.errors > 0 || session.status.is_error() {
-            target.push(Metric {
-                name: "session.error".to_owned(),
-                unit: MetricUnit::None,
-                value: MetricValue::set_from_display(session.session_id),
-                timestamp,
-                tags: tags.clone(),
-            });
-
-            if let Some(ref distinct_id) = session.distinct_id {
-                target.push(Metric {
-                    name: "user".to_owned(),
-                    unit: MetricUnit::None,
-                    value: MetricValue::set_from_str(distinct_id),
-                    timestamp,
-                    tags: with_tag(&tags, "session.status", "errored"),
-                });
-            }
-        }
-
-        // Record fatal sessions for crash rate computation. This is a strict subset of errored
-        // sessions above.
-        if session.status.is_fatal() {
-            target.push(Metric {
-                name: "session".to_owned(),
-                unit: MetricUnit::None,
-                value: MetricValue::Counter(1.0),
-                timestamp,
-                tags: with_tag(&tags, "session.status", session.status),
-            });
-
-            if let Some(ref distinct_id) = session.distinct_id {
-                target.push(Metric {
-                    name: "user".to_owned(),
-                    unit: MetricUnit::None,
-                    value: MetricValue::set_from_str(distinct_id),
-                    timestamp,
-                    tags: with_tag(&tags, "session.status", session.status),
-                });
-            }
-        }
     }
 
     /// Validates all sessions in the envelope, if any.
@@ -573,7 +573,7 @@ impl EnvelopeProcessor {
             }
 
             if extract_metrics {
-                self.extract_session_metrics(&session, extracted_metrics);
+                extract_session_metrics(&session, extracted_metrics);
             }
 
             if changed {
@@ -1385,7 +1385,7 @@ impl EnvelopeProcessor {
 
             if_processing!({
                 self.store_process_event(&mut state)?;
-                self.extract_transaction_metrics(&mut state);
+                extract_transaction_metrics(&mut state);
                 self.filter_event(&mut state)?;
             });
         }
