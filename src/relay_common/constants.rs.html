@@ -428,17 +428,17 @@
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">i8</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">DataCategory</span> {
     <span class="doccomment">/// Reserved and unused.</span>
-    <span class="ident">Default</span>,
+    <span class="ident">Default</span> <span class="op">=</span> <span class="number">0</span>,
     <span class="doccomment">/// Error events and Events with an `event_type` not explicitly listed below.</span>
-    <span class="ident">Error</span>,
+    <span class="ident">Error</span> <span class="op">=</span> <span class="number">1</span>,
     <span class="doccomment">/// Transaction events.</span>
-    <span class="ident">Transaction</span>,
+    <span class="ident">Transaction</span> <span class="op">=</span> <span class="number">2</span>,
     <span class="doccomment">/// Events with an event type of `csp`, `hpkp`, `expectct` and `expectstaple`.</span>
-    <span class="ident">Security</span>,
+    <span class="ident">Security</span> <span class="op">=</span> <span class="number">3</span>,
     <span class="doccomment">/// An attachment. Quantity is the size of the attachment in bytes.</span>
-    <span class="ident">Attachment</span>,
+    <span class="ident">Attachment</span> <span class="op">=</span> <span class="number">4</span>,
     <span class="doccomment">/// Session updates. Quantity is the number of updates in the batch.</span>
-    <span class="ident">Session</span>,
+    <span class="ident">Session</span> <span class="op">=</span> <span class="number">5</span>,
     <span class="doccomment">/// Any other data category not known by this Relay.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">other</span>)]</span>
     <span class="ident">Unknown</span> <span class="op">=</span> <span class="op">-</span><span class="number">1</span>,
