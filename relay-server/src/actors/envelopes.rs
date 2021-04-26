@@ -2169,6 +2169,7 @@ impl Handler<GetCapturedEnvelope> for EnvelopeManager {
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, TimeZone, Utc};
+    use relay_general::protocol::SessionStatus;
 
     use crate::extractors::RequestMeta;
 
@@ -2352,5 +2353,148 @@ mod tests {
 
         assert_eq!(new_envelope.len(), 1);
         assert_eq!(new_envelope.items().next().unwrap().ty(), ItemType::Event);
+    }
+
+    #[test]
+    fn test_extract_session_metrics() {
+        let mut metrics = vec![];
+
+        let session = SessionUpdate::parse(
+            r#"{
+            "init": true,
+            "started": "2021-04-26T08:00:00+0100",
+            "attrs": {
+                "release": "1.0.0"
+            },
+            "did": "user123"
+        }"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        extract_session_metrics(&session, &mut metrics);
+
+        assert_eq!(metrics.len(), 2);
+
+        let session_metric = &metrics[0];
+        assert_eq!(session_metric.name, "session");
+        assert!(matches!(session_metric.value, MetricValue::Counter(_)));
+        assert_eq!(session_metric.tags["session.status"], "init");
+        assert_eq!(session_metric.tags["release"], "1.0.0");
+
+        let user_metric = &metrics[1];
+        assert_eq!(user_metric.name, "user");
+        assert!(matches!(user_metric.value, MetricValue::Set(_)));
+        assert_eq!(session_metric.tags["session.status"], "init");
+        assert_eq!(user_metric.tags["release"], "1.0.0");
+    }
+
+    #[test]
+    fn test_extract_session_metrics_ok() {
+        let mut metrics = vec![];
+
+        let session = SessionUpdate::parse(
+            r#"{
+                "init": false,
+                "started": "2021-04-26T08:00:00+0100",
+                "attrs": {
+                    "release": "1.0.0"
+                },
+                "did": "user123"
+            }"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        extract_session_metrics(&session, &mut metrics);
+
+        // A none-initial update will not trigger any metric if it's not errored/crashed
+        assert_eq!(metrics.len(), 0);
+    }
+
+    #[test]
+    fn test_extract_session_metrics_errored() {
+        let update1 = SessionUpdate::parse(
+            r#"{
+                "init": true,
+                "started": "2021-04-26T08:00:00+0100",
+                "attrs": {
+                    "release": "1.0.0"
+                },
+                "did": "user123",
+                "status": "errored"
+            }"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        let mut update2 = update1.clone();
+        update2.init = false;
+
+        let mut update3 = update2.clone();
+        update3.status = SessionStatus::Ok;
+        update3.errors = 123;
+
+        for (update, expected_metrics) in vec![
+            (update1, 4), // init == true, so expect 4 metrics
+            (update2, 2),
+            (update3, 2),
+        ] {
+            let mut metrics = vec![];
+            extract_session_metrics(&update, &mut metrics);
+
+            assert_eq!(metrics.len(), expected_metrics);
+
+            let session_metric = &metrics[expected_metrics - 2];
+            assert_eq!(session_metric.name, "session.error");
+            assert!(matches!(session_metric.value, MetricValue::Set(_)));
+            assert_eq!(session_metric.tags["session.status"], "errored");
+            assert_eq!(session_metric.tags.len(), 0);
+
+            let user_metric = &metrics[expected_metrics - 1];
+            assert_eq!(user_metric.name, "user");
+            assert!(matches!(user_metric.value, MetricValue::Set(_)));
+            assert_eq!(user_metric.tags["session.status"], "errored");
+            assert_eq!(user_metric.tags["release"], "1.0.0");
+        }
+    }
+
+    #[test]
+    fn test_extract_session_metrics_fatal() {
+        for status in &[SessionStatus::Crashed, SessionStatus::Abnormal] {
+            let mut session = SessionUpdate::parse(
+                r#"{
+                    "init": false,
+                    "started": "2021-04-26T08:00:00+0100",
+                    "attrs": {
+                        "release": "1.0.0"
+                    },
+                    "did": "user123"
+                }"#
+                .as_bytes(),
+            )
+            .unwrap();
+            session.status = *status;
+
+            let mut metrics = vec![];
+
+            extract_session_metrics(&session, &mut metrics);
+
+            assert_eq!(metrics.len(), 4);
+
+            assert_eq!(metrics[0].name, "session.error");
+            assert_eq!(metrics[1].name, "user");
+            assert_eq!(metrics[1].tags["session.status"], "errored");
+
+            let session_metric = &metrics[2];
+            assert_eq!(session_metric.name, "session");
+            assert!(matches!(session_metric.value, MetricValue::Counter(_)));
+            assert_eq!(session_metric.tags["session.status"], status.to_string());
+
+            let user_metric = &metrics[3];
+            assert_eq!(user_metric.name, "user");
+            assert!(matches!(user_metric.value, MetricValue::Set(_)));
+            assert_eq!(user_metric.tags["session.status"], status.to_string());
+        }
     }
 }
