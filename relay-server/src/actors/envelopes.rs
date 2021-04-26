@@ -327,23 +327,79 @@ impl EnvelopeProcessor {
     }
 
     fn extract_session_metrics(&self, session: &SessionUpdate, target: &mut Vec<Metric>) {
-        let mut tags = BTreeMap::new();
-        tags.insert("session.status".to_owned(), session.status.to_string());
+        let status_tag = "session.status".to_owned();
 
         let timestamp = session.timestamp.timestamp();
-
         if timestamp < 0 {
             relay_log::error!("session timestamp {} < 0", timestamp);
             return;
         }
+        let timestamp = UnixTimestamp::from_secs(timestamp as u64);
 
-        target.push(Metric {
-            name: "session".to_owned(),
-            unit: MetricUnit::None,
-            value: MetricValue::Counter(1.0),
-            timestamp: UnixTimestamp::from_secs(timestamp as u64),
-            tags,
-        });
+        // Always capture with "init" tag for the first session update of a session. This is used
+        // for adoption and as baseline for crash rates.
+        if session.init {
+            target.push(Metric {
+                name: "session".to_owned(),
+                unit: MetricUnit::None,
+                value: MetricValue::Counter(1.0),
+                timestamp,
+                tags: std::iter::once((status_tag.clone(), "init".to_owned())).collect(),
+            });
+
+            if let Some(ref distinct_id) = session.distinct_id {
+                target.push(Metric {
+                    name: "user".to_owned(),
+                    unit: MetricUnit::None,
+                    value: MetricValue::set_from_str(distinct_id),
+                    timestamp,
+                    tags: std::iter::once((status_tag.clone(), "init".to_owned())).collect(),
+                });
+            }
+        }
+
+        // Mark the session as errored, which includes fatal sessions.
+        if session.errors > 0 || session.status.is_error() {
+            target.push(Metric {
+                name: "session.error".to_owned(),
+                unit: MetricUnit::None,
+                value: MetricValue::set_from_display(session.session_id),
+                timestamp,
+                tags: Default::default(),
+            });
+
+            if let Some(ref distinct_id) = session.distinct_id {
+                target.push(Metric {
+                    name: "user".to_owned(),
+                    unit: MetricUnit::None,
+                    value: MetricValue::set_from_str(distinct_id),
+                    timestamp,
+                    tags: std::iter::once((status_tag.clone(), "errored".to_owned())).collect(),
+                });
+            }
+        }
+
+        // Record fatal sessions for crash rate computation. This is a strict subset of errored
+        // sessions above.
+        if session.status.is_fatal() {
+            target.push(Metric {
+                name: "session".to_owned(),
+                unit: MetricUnit::None,
+                value: MetricValue::Counter(1.0),
+                timestamp,
+                tags: std::iter::once((status_tag.clone(), session.status.to_string())).collect(),
+            });
+
+            if let Some(ref distinct_id) = session.distinct_id {
+                target.push(Metric {
+                    name: "user".to_owned(),
+                    unit: MetricUnit::None,
+                    value: MetricValue::set_from_str(distinct_id),
+                    timestamp,
+                    tags: std::iter::once((status_tag, session.status.to_string())).collect(),
+                });
+            }
+        }
     }
 
     /// Validates all sessions in the envelope, if any.
