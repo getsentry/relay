@@ -38,11 +38,12 @@ def test_session_metrics_feature_disabled(mini_sentry, relay):
     assert mini_sentry.captured_events.empty()
 
 
-def test_session_metrics(mini_sentry, relay):
-    relay = relay(mini_sentry, options=TEST_CONFIG)
-
+def test_session_metrics(mini_sentry, relay_with_processing, metrics_consumer):
+    relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
+    mini_sentry.add_full_project_config(project_id)
+
+    metrics_consumer = metrics_consumer()
 
     mini_sentry.project_configs[project_id]["config"]["features"] = [
         "organizations:metrics-extraction"
@@ -68,42 +69,39 @@ def test_session_metrics(mini_sentry, relay):
 
     relay.send_session(project_id, session_payload)
 
-    # Get session envelope
-    mini_sentry.captured_events.get(timeout=2)
-
-    # Get metrics envelope
-    envelope = mini_sentry.captured_events.get(timeout=2)
-
-    assert len(envelope.items) == 1
-
-    metrics_item = envelope.items[0]
-    assert metrics_item.type == "metric_buckets"
-
-    received_metrics = metrics_item.get_bytes()
-    assert json.loads(received_metrics.decode()) == [
-        {
-            "timestamp": int(timestamp.timestamp()),
-            "name": "session",
-            "type": "c",
-            "value": 1.0,
-            "tags": {
-                "environment": "production",
-                "release": "sentry-test@1.0.0",
-                "session.status": "init",
-            },
+    metric = metrics_consumer.get_metric()
+    assert metric == {
+        "org_id": 1,
+        "project_id": 42,
+        "timestamp": int(timestamp.timestamp()),
+        "name": "session",
+        "type": "c",
+        "unit": "",
+        "value": 1.0,
+        "tags": {
+            "environment": "production",
+            "release": "sentry-test@1.0.0",
+            "session.status": "init",
         },
-        {
-            "timestamp": int(timestamp.timestamp()),
-            "name": "user",
-            "type": "s",
-            "value": [1617781333],
-            "tags": {
-                "environment": "production",
-                "release": "sentry-test@1.0.0",
-                "session.status": "init",
-            },
+    }
+
+    metric = metrics_consumer.get_metric()
+    assert metric == {
+        "org_id": 1,
+        "project_id": 42,
+        "timestamp": int(timestamp.timestamp()),
+        "name": "user",
+        "type": "s",
+        "unit": "",
+        "value": [1617781333],
+        "tags": {
+            "environment": "production",
+            "release": "sentry-test@1.0.0",
+            "session.status": "init",
         },
-    ]
+    }
+
+    metrics_consumer.assert_empty()
 
 
 def test_transaction_metrics(mini_sentry, relay_with_processing, metrics_consumer):
