@@ -23,7 +23,7 @@ use relay_general::protocol::{
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
-use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
+use relay_metrics::{Bucket, DurationPrecision, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{RuleId, SamplingResult};
@@ -293,12 +293,7 @@ fn with_tag(
 }
 
 #[cfg(feature = "processing")]
-fn extract_transaction_metrics(event: &Annotated<Event>, target: &mut Vec<Metric>) {
-    let event = match event.value() {
-        Some(event) => event,
-        None => return,
-    };
-
+fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
     let timestamp = match event
         .timestamp
         .value()
@@ -333,30 +328,27 @@ fn extract_transaction_metrics(event: &Annotated<Event>, target: &mut Vec<Metric
         }
     }
 
-    let breakdowns = match event.breakdowns.value() {
-        Some(breakdowns) => breakdowns,
-        None => return,
-    };
-
-    for (breakdown, annotated) in breakdowns.iter() {
-        let measurements = match annotated.value() {
-            Some(measurements) => measurements,
-            None => continue,
-        };
-
-        for (name, annotated) in measurements.iter() {
-            let measurement = match annotated.value().and_then(|m| m.value.value()) {
-                Some(measurement) => *measurement,
+    if let Some(breakdowns) = event.breakdowns.value() {
+        for (breakdown, annotated) in breakdowns.iter() {
+            let measurements = match annotated.value() {
+                Some(measurements) => measurements,
                 None => continue,
             };
 
-            target.push(Metric {
-                name: format!("breakdown.{}.{}", breakdown, name),
-                unit: MetricUnit::None,
-                value: MetricValue::Distribution(measurement),
-                timestamp,
-                tags: tags.clone(),
-            });
+            for (name, annotated) in measurements.iter() {
+                let measurement = match annotated.value().and_then(|m| m.value.value()) {
+                    Some(measurement) => *measurement,
+                    None => continue,
+                };
+
+                target.push(Metric {
+                    name: format!("breakdown.{}.{}", breakdown, name),
+                    unit: MetricUnit::None,
+                    value: MetricValue::Distribution(measurement),
+                    timestamp,
+                    tags: tags.clone(),
+                });
+            }
         }
     }
 }
@@ -438,6 +430,18 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
                 value: MetricValue::set_from_str(distinct_id),
                 timestamp,
                 tags: with_tag(&tags, "session.status", session.status),
+            });
+        }
+    }
+
+    if session.status.is_terminal() {
+        if let Some(duration) = session.duration {
+            target.push(Metric {
+                name: "session.duration".to_owned(),
+                unit: MetricUnit::Duration(DurationPrecision::Second),
+                value: MetricValue::Distribution(duration),
+                timestamp,
+                tags,
             });
         }
     }
@@ -1236,6 +1240,25 @@ impl EnvelopeProcessor {
         Ok(())
     }
 
+    /// Extract metrics for transaction events with breakdowns and measurements.
+    #[cfg(feature = "processing")]
+    fn extract_transaction_metrics(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
+        if !state.project_state.has_feature(Feature::MetricsExtraction) {
+            return Ok(());
+        }
+
+        if let Some(event) = state.event.value() {
+            // Actual logic outsourced for unit tests
+            extract_transaction_metrics(event, &mut state.extracted_metrics);
+            Ok(())
+        } else {
+            Err(ProcessingError::NoEventPayload)
+        }
+    }
+
     /// Apply data privacy rules to the event payload.
     ///
     /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
@@ -1390,9 +1413,7 @@ impl EnvelopeProcessor {
 
             if_processing!({
                 self.store_process_event(&mut state)?;
-                if state.project_state.has_feature(Feature::MetricsExtraction) {
-                    extract_transaction_metrics(&state.event, &mut state.extracted_metrics);
-                }
+                self.extract_transaction_metrics(&mut state)?;
                 self.filter_event(&mut state)?;
             });
         }
@@ -2534,7 +2555,7 @@ mod tests {
 
         let event = Annotated::from_json(json).unwrap();
         let mut metrics = vec![];
-        extract_transaction_metrics(&event, &mut metrics);
+        extract_transaction_metrics(event.value().unwrap(), &mut metrics);
 
         assert_eq!(metrics.len(), 4);
 

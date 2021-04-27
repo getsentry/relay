@@ -111,7 +111,7 @@ pub struct SessionUpdate {
     pub timestamp: DateTime<Utc>,
     /// The timestamp of when the session itself started.
     pub started: DateTime<Utc>,
-    /// An optional duration of the session so far.
+    /// An optional duration of the session in seconds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
     /// The status of the session.
