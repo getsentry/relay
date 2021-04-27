@@ -2570,4 +2570,36 @@ mod tests {
             assert_eq!(metric.tags["environment"], "fake_environment");
         }
     }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_extract_session_metrics_duration() {
+        let mut metrics = vec![];
+
+        let session = SessionUpdate::parse(
+            r#"{
+            "init": false,
+            "started": "2021-04-26T08:00:00+0100",
+            "attrs": {
+                "release": "1.0.0"
+            },
+            "did": "user123",
+            "status": "exited",
+            "duration": 123.4
+        }"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        extract_session_metrics(&session, &mut metrics);
+
+        assert_eq!(metrics.len(), 1);
+
+        let duration_metric = &metrics[0];
+        assert_eq!(duration_metric.name, "session.duration");
+        assert!(matches!(
+            duration_metric.value,
+            MetricValue::Distribution(_)
+        ));
+    }
 }

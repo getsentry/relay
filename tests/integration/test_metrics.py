@@ -221,6 +221,18 @@ def test_session_metrics(mini_sentry, relay_with_processing, metrics_consumer):
         },
     }
 
+    metric = metrics_consumer.get_metric()
+    assert metric == {
+        "org_id": 1,
+        "project_id": 42,
+        "timestamp": int(timestamp.timestamp()),
+        "name": "session.duration",
+        "type": "d",
+        "unit": "s",
+        "value": [1947.49],
+        "tags": {"environment": "production", "release": "sentry-test@1.0.0",},
+    }
+
     metrics_consumer.assert_empty()
 
 
