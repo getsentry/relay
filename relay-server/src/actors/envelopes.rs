@@ -1389,7 +1389,9 @@ impl EnvelopeProcessor {
 
             if_processing!({
                 self.store_process_event(&mut state)?;
-                extract_transaction_metrics(&state.event, &mut state.extracted_metrics);
+                if state.project_state.has_feature(Feature::MetricsExtraction) {
+                    extract_transaction_metrics(&state.event, &mut state.extracted_metrics);
+                }
                 self.filter_event(&mut state)?;
             });
         }
