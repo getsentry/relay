@@ -495,7 +495,8 @@ impl EnvelopeProcessor {
     /// are out of range after clock drift correction.
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
         let received = state.received_at;
-        let extract_metrics = state.project_state.has_feature(Feature::MetricsExtraction);
+        let extract_metrics = self.config.processing_enabled()
+            && state.project_state.has_feature(Feature::MetricsExtraction);
         let _extracted_metrics = &mut state.extracted_metrics;
 
         let envelope = &mut state.envelope;
