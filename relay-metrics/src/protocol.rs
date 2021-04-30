@@ -112,6 +112,16 @@ pub enum MetricValue {
 }
 
 impl MetricValue {
+    /// Creates a [`MetricValue::Set`] from the given string.
+    pub fn set_from_str(string: &str) -> Self {
+        Self::Set(hash_set_value(string))
+    }
+
+    /// Creates a [`MetricValue::Set`] from any type that implements `Display`.
+    pub fn set_from_display(display: impl fmt::Display) -> Self {
+        Self::set_from_str(&display.to_string())
+    }
+
     /// Returns the type of this value.
     pub fn ty(&self) -> MetricType {
         match self {

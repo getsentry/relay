@@ -30,7 +30,7 @@ use relay_sampling::{RuleId, SamplingResult};
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{
-    CheckEnvelope, GetProjectState, Project, ProjectState, UpdateRateLimits,
+    CheckEnvelope, Feature, GetProjectState, Project, ProjectState, UpdateRateLimits,
 };
 use crate::actors::project_cache::ProjectError;
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
@@ -49,6 +49,7 @@ use {
     failure::ResultExt,
     relay_filter::FilterStatKey,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+    relay_metrics::{DurationPrecision, MetricUnit, MetricValue},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
 };
 
@@ -218,6 +219,12 @@ struct ProcessEnvelopeState {
     /// These are always empty in non-processing mode, since the rate limiter is not invoked.
     rate_limits: RateLimits,
 
+    /// Metrics extracted from items in the envelope.
+    ///
+    /// This is controlled by [`Feature::MetricsExtraction`]. Relay extracts metrics for sessions
+    /// and transactions.
+    extracted_metrics: Vec<Metric>,
+
     /// The state of the project that this envelope belongs to.
     project_state: Arc<ProjectState>,
 
@@ -274,6 +281,172 @@ impl ProcessEnvelopeState {
     }
 }
 
+#[cfg(feature = "processing")]
+fn with_tag(
+    tags: &BTreeMap<String, String>,
+    name: &str,
+    value: impl fmt::Display,
+) -> BTreeMap<String, String> {
+    let mut tags = tags.clone();
+    tags.insert(name.to_owned(), value.to_string());
+    tags
+}
+
+#[cfg(feature = "processing")]
+fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
+    let timestamp = match event
+        .timestamp
+        .value()
+        .and_then(|ts| UnixTimestamp::from_datetime(ts.into_inner()))
+    {
+        Some(ts) => ts,
+        None => return,
+    };
+
+    let mut tags = BTreeMap::new();
+    if let Some(release) = event.release.as_str() {
+        tags.insert("release".to_owned(), release.to_owned());
+    }
+    if let Some(environment) = event.environment.as_str() {
+        tags.insert("environment".to_owned(), environment.to_owned());
+    }
+
+    if let Some(measurements) = event.measurements.value() {
+        for (name, annotated) in measurements.iter() {
+            let measurement = match annotated.value().and_then(|m| m.value.value()) {
+                Some(measurement) => *measurement,
+                None => continue,
+            };
+
+            target.push(Metric {
+                name: format!("measurement.{}", name),
+                unit: MetricUnit::None,
+                value: MetricValue::Distribution(measurement),
+                timestamp,
+                tags: tags.clone(),
+            });
+        }
+    }
+
+    if let Some(breakdowns) = event.breakdowns.value() {
+        for (breakdown, annotated) in breakdowns.iter() {
+            let measurements = match annotated.value() {
+                Some(measurements) => measurements,
+                None => continue,
+            };
+
+            for (name, annotated) in measurements.iter() {
+                let measurement = match annotated.value().and_then(|m| m.value.value()) {
+                    Some(measurement) => *measurement,
+                    None => continue,
+                };
+
+                target.push(Metric {
+                    name: format!("breakdown.{}.{}", breakdown, name),
+                    unit: MetricUnit::None,
+                    value: MetricValue::Distribution(measurement),
+                    timestamp,
+                    tags: tags.clone(),
+                });
+            }
+        }
+    }
+}
+
+#[cfg(feature = "processing")]
+fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
+    let timestamp = match UnixTimestamp::from_datetime(session.timestamp) {
+        Some(ts) => ts,
+        None => {
+            relay_log::error!("invalid session timestamp: {}", session.timestamp);
+            return;
+        }
+    };
+
+    let mut tags = BTreeMap::new();
+    tags.insert("release".to_owned(), session.attributes.release.clone());
+    if let Some(ref environment) = session.attributes.environment {
+        tags.insert("environment".to_owned(), environment.clone());
+    }
+
+    // Always capture with "init" tag for the first session update of a session. This is used
+    // for adoption and as baseline for crash rates.
+    if session.init {
+        target.push(Metric {
+            name: "session".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Counter(1.0),
+            timestamp,
+            tags: with_tag(&tags, "session.status", "init"),
+        });
+
+        if let Some(ref distinct_id) = session.distinct_id {
+            target.push(Metric {
+                name: "user".to_owned(),
+                unit: MetricUnit::None,
+                value: MetricValue::set_from_str(distinct_id),
+                timestamp,
+                tags: with_tag(&tags, "session.status", "init"),
+            });
+        }
+    }
+
+    // Mark the session as errored, which includes fatal sessions.
+    if session.errors > 0 || session.status.is_error() {
+        target.push(Metric {
+            name: "session.error".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::set_from_display(session.session_id),
+            timestamp,
+            tags: tags.clone(),
+        });
+
+        if let Some(ref distinct_id) = session.distinct_id {
+            target.push(Metric {
+                name: "user".to_owned(),
+                unit: MetricUnit::None,
+                value: MetricValue::set_from_str(distinct_id),
+                timestamp,
+                tags: with_tag(&tags, "session.status", "errored"),
+            });
+        }
+    }
+
+    // Record fatal sessions for crash rate computation. This is a strict subset of errored
+    // sessions above.
+    if session.status.is_fatal() {
+        target.push(Metric {
+            name: "session".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Counter(1.0),
+            timestamp,
+            tags: with_tag(&tags, "session.status", session.status),
+        });
+
+        if let Some(ref distinct_id) = session.distinct_id {
+            target.push(Metric {
+                name: "user".to_owned(),
+                unit: MetricUnit::None,
+                value: MetricValue::set_from_str(distinct_id),
+                timestamp,
+                tags: with_tag(&tags, "session.status", session.status),
+            });
+        }
+    }
+
+    if session.status.is_terminal() {
+        if let Some(duration) = session.duration {
+            target.push(Metric {
+                name: "session.duration".to_owned(),
+                unit: MetricUnit::Duration(DurationPrecision::Second),
+                value: MetricValue::Distribution(duration),
+                timestamp,
+                tags,
+            });
+        }
+    }
+}
+
 /// Synchronous service for processing envelopes.
 pub struct EnvelopeProcessor {
     config: Arc<Config>,
@@ -325,8 +498,12 @@ impl EnvelopeProcessor {
     /// Sessions are removed from the envelope if they contain invalid JSON or if their timestamps
     /// are out of range after clock drift correction.
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
-        let envelope = &mut state.envelope;
         let received = state.received_at;
+        let extract_metrics = self.config.processing_enabled()
+            && state.project_state.has_feature(Feature::MetricsExtraction);
+        let _extracted_metrics = &mut state.extracted_metrics;
+
+        let envelope = &mut state.envelope;
         let client_addr = envelope.meta().client_addr();
 
         let clock_drift_processor =
@@ -401,6 +578,11 @@ impl EnvelopeProcessor {
                     session.attributes.ip_address = client_addr.map(IpAddr::from);
                     changed = true;
                 }
+            }
+
+            if extract_metrics {
+                #[cfg(feature = "processing")]
+                extract_session_metrics(&session, _extracted_metrics);
             }
 
             if changed {
@@ -493,6 +675,7 @@ impl EnvelopeProcessor {
             metrics: Metrics::default(),
             sample_rates: None,
             rate_limits: RateLimits::new(),
+            extracted_metrics: Vec::new(),
             project_state,
             project_id,
             received_at: relay_common::instant_to_date_time(start_time),
@@ -1057,6 +1240,25 @@ impl EnvelopeProcessor {
         Ok(())
     }
 
+    /// Extract metrics for transaction events with breakdowns and measurements.
+    #[cfg(feature = "processing")]
+    fn extract_transaction_metrics(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
+        if !state.project_state.has_feature(Feature::MetricsExtraction) {
+            return Ok(());
+        }
+
+        if let Some(event) = state.event.value() {
+            // Actual logic outsourced for unit tests
+            extract_transaction_metrics(event, &mut state.extracted_metrics);
+            Ok(())
+        } else {
+            Err(ProcessingError::NoEventPayload)
+        }
+    }
+
     /// Apply data privacy rules to the event payload.
     ///
     /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
@@ -1211,6 +1413,7 @@ impl EnvelopeProcessor {
 
             if_processing!({
                 self.store_process_event(&mut state)?;
+                self.extract_transaction_metrics(&mut state)?;
                 self.filter_event(&mut state)?;
             });
         }
@@ -1258,6 +1461,7 @@ impl Actor for EnvelopeProcessor {
     type Context = SyncContext<Self>;
 }
 
+#[derive(Debug)]
 struct ProcessEnvelope {
     pub envelope: Envelope,
     pub project_state: Arc<ProjectState>,
@@ -1268,6 +1472,7 @@ struct ProcessEnvelope {
 struct ProcessEnvelopeResponse {
     envelope: Option<Envelope>,
     rate_limits: RateLimits,
+    metrics: Vec<Metric>,
 }
 
 impl From<ProcessEnvelopeState> for ProcessEnvelopeResponse {
@@ -1275,6 +1480,7 @@ impl From<ProcessEnvelopeState> for ProcessEnvelopeResponse {
         Self {
             envelope: Some(state.envelope).filter(|e| !e.is_empty()),
             rate_limits: state.rate_limits,
+            metrics: state.extracted_metrics,
         }
     }
 }
@@ -1793,6 +1999,10 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     project.do_send(UpdateRateLimits(rate_limits.clone()));
                 }
 
+                // Capture extracted metrics in the project's aggregator, independent of dropped
+                // items. This allows us to retain metrics while also sampling.
+                project.do_send(InsertMetrics::new(processed.metrics));
+
                 match processed.envelope {
                     Some(envelope) => {
                         envelope_summary.replace(EnvelopeSummary::compute(&envelope));
@@ -1987,6 +2197,8 @@ impl Handler<GetCapturedEnvelope> for EnvelopeManager {
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, TimeZone, Utc};
+    #[cfg(feature = "processing")]
+    use relay_general::protocol::SessionStatus;
 
     use crate::extractors::RequestMeta;
 
@@ -2170,5 +2382,224 @@ mod tests {
 
         assert_eq!(new_envelope.len(), 1);
         assert_eq!(new_envelope.items().next().unwrap().ty(), ItemType::Event);
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_extract_session_metrics() {
+        let mut metrics = vec![];
+
+        let session = SessionUpdate::parse(
+            r#"{
+            "init": true,
+            "started": "2021-04-26T08:00:00+0100",
+            "attrs": {
+                "release": "1.0.0"
+            },
+            "did": "user123"
+        }"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        extract_session_metrics(&session, &mut metrics);
+
+        assert_eq!(metrics.len(), 2);
+
+        let session_metric = &metrics[0];
+        assert_eq!(session_metric.name, "session");
+        assert!(matches!(session_metric.value, MetricValue::Counter(_)));
+        assert_eq!(session_metric.tags["session.status"], "init");
+        assert_eq!(session_metric.tags["release"], "1.0.0");
+
+        let user_metric = &metrics[1];
+        assert_eq!(user_metric.name, "user");
+        assert!(matches!(user_metric.value, MetricValue::Set(_)));
+        assert_eq!(session_metric.tags["session.status"], "init");
+        assert_eq!(user_metric.tags["release"], "1.0.0");
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_extract_session_metrics_ok() {
+        let mut metrics = vec![];
+
+        let session = SessionUpdate::parse(
+            r#"{
+                "init": false,
+                "started": "2021-04-26T08:00:00+0100",
+                "attrs": {
+                    "release": "1.0.0"
+                },
+                "did": "user123"
+            }"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        extract_session_metrics(&session, &mut metrics);
+
+        // A none-initial update will not trigger any metric if it's not errored/crashed
+        assert_eq!(metrics.len(), 0);
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_extract_session_metrics_errored() {
+        let update1 = SessionUpdate::parse(
+            r#"{
+                "init": true,
+                "started": "2021-04-26T08:00:00+0100",
+                "attrs": {
+                    "release": "1.0.0"
+                },
+                "did": "user123",
+                "status": "errored"
+            }"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        let mut update2 = update1.clone();
+        update2.init = false;
+
+        let mut update3 = update2.clone();
+        update3.status = SessionStatus::Ok;
+        update3.errors = 123;
+
+        for (update, expected_metrics) in vec![
+            (update1, 4), // init == true, so expect 4 metrics
+            (update2, 2),
+            (update3, 2),
+        ] {
+            let mut metrics = vec![];
+            extract_session_metrics(&update, &mut metrics);
+
+            assert_eq!(metrics.len(), expected_metrics);
+
+            let session_metric = &metrics[expected_metrics - 2];
+            assert_eq!(session_metric.name, "session.error");
+            assert!(matches!(session_metric.value, MetricValue::Set(_)));
+            assert_eq!(session_metric.tags.len(), 1); // Only the release tag
+
+            let user_metric = &metrics[expected_metrics - 1];
+            assert_eq!(user_metric.name, "user");
+            assert!(matches!(user_metric.value, MetricValue::Set(_)));
+            assert_eq!(user_metric.tags["session.status"], "errored");
+            assert_eq!(user_metric.tags["release"], "1.0.0");
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_extract_session_metrics_fatal() {
+        for status in &[SessionStatus::Crashed, SessionStatus::Abnormal] {
+            let mut session = SessionUpdate::parse(
+                r#"{
+                    "init": false,
+                    "started": "2021-04-26T08:00:00+0100",
+                    "attrs": {
+                        "release": "1.0.0"
+                    },
+                    "did": "user123"
+                }"#
+                .as_bytes(),
+            )
+            .unwrap();
+            session.status = *status;
+
+            let mut metrics = vec![];
+
+            extract_session_metrics(&session, &mut metrics);
+
+            assert_eq!(metrics.len(), 4);
+
+            assert_eq!(metrics[0].name, "session.error");
+            assert_eq!(metrics[1].name, "user");
+            assert_eq!(metrics[1].tags["session.status"], "errored");
+
+            let session_metric = &metrics[2];
+            assert_eq!(session_metric.name, "session");
+            assert!(matches!(session_metric.value, MetricValue::Counter(_)));
+            assert_eq!(session_metric.tags["session.status"], status.to_string());
+
+            let user_metric = &metrics[3];
+            assert_eq!(user_metric.name, "user");
+            assert!(matches!(user_metric.value, MetricValue::Set(_)));
+            assert_eq!(user_metric.tags["session.status"], status.to_string());
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_extract_transaction_metrics() {
+        let json = r#"
+        {
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "release": "1.2.3",
+            "environment": "fake_environment",
+            "measurements": {
+                "foo": {"value": 420.69}
+            },
+            "breakdowns": {
+                "breakdown1": {
+                    "bar": {"value": 123.4}
+                },
+                "breakdown2": {
+                    "baz": {"value": 123.4},
+                    "zap": {"value": 666}
+                }
+            }
+        }
+        "#;
+
+        let event = Annotated::from_json(json).unwrap();
+        let mut metrics = vec![];
+        extract_transaction_metrics(event.value().unwrap(), &mut metrics);
+
+        assert_eq!(metrics.len(), 4);
+
+        assert_eq!(metrics[0].name, "measurement.foo");
+        assert_eq!(metrics[1].name, "breakdown.breakdown1.bar");
+        assert_eq!(metrics[2].name, "breakdown.breakdown2.baz");
+        assert_eq!(metrics[3].name, "breakdown.breakdown2.zap");
+
+        for metric in metrics {
+            assert!(matches!(metric.value, MetricValue::Distribution(_)));
+            assert_eq!(metric.tags["release"], "1.2.3");
+            assert_eq!(metric.tags["environment"], "fake_environment");
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_extract_session_metrics_duration() {
+        let mut metrics = vec![];
+
+        let session = SessionUpdate::parse(
+            r#"{
+            "init": false,
+            "started": "2021-04-26T08:00:00+0100",
+            "attrs": {
+                "release": "1.0.0"
+            },
+            "did": "user123",
+            "status": "exited",
+            "duration": 123.4
+        }"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        extract_session_metrics(&session, &mut metrics);
+
+        assert_eq!(metrics.len(), 1);
+
+        let duration_metric = &metrics[0];
+        assert_eq!(duration_metric.name, "session.duration");
+        assert!(matches!(
+            duration_metric.value,
+            MetricValue::Distribution(_)
+        ));
     }
 }

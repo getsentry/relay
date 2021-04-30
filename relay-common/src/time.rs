@@ -3,7 +3,7 @@
 use std::fmt;
 use std::time::{Duration, Instant, SystemTime};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 
 /// Converts an `Instant` into a `SystemTime`.
@@ -48,6 +48,19 @@ impl UnixTimestamp {
             .as_secs();
 
         Self(duration)
+    }
+
+    /// Creates a unix timestamp from the given chrono `DateTime`.
+    ///
+    /// Returns `Some` if this is a valid date time starting with 1970-01-01 00:00 UTC. If the date
+    /// lies before the UNIX epoch, this function returns `None`.
+    pub fn from_datetime(date_time: DateTime<impl TimeZone>) -> Option<Self> {
+        let timestamp = date_time.timestamp();
+        if timestamp >= 0 {
+            Some(UnixTimestamp::from_secs(timestamp as u64))
+        } else {
+            None
+        }
     }
 
     /// Converts the given `Instant` into a UNIX timestamp.

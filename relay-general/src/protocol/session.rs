@@ -25,6 +25,23 @@ pub enum SessionStatus {
     Errored,
 }
 
+impl SessionStatus {
+    /// Returns `true` if the status indicates an ended session.
+    pub fn is_terminal(&self) -> bool {
+        !matches!(self, SessionStatus::Ok)
+    }
+
+    /// Returns `true` if the status indicates a session with any kind of error or crash.
+    pub fn is_error(&self) -> bool {
+        !matches!(self, SessionStatus::Ok | SessionStatus::Exited)
+    }
+
+    /// Returns `true` if the status indicates a fatal session.
+    pub fn is_fatal(&self) -> bool {
+        matches!(self, SessionStatus::Crashed | SessionStatus::Abnormal)
+    }
+}
+
 impl Default for SessionStatus {
     fn default() -> Self {
         Self::Ok
@@ -94,7 +111,7 @@ pub struct SessionUpdate {
     pub timestamp: DateTime<Utc>,
     /// The timestamp of when the session itself started.
     pub started: DateTime<Utc>,
-    /// An optional duration of the session so far.
+    /// An optional duration of the session in seconds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
     /// The status of the session.

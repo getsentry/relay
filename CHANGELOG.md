@@ -14,6 +14,7 @@
 **Internal**:
 
 - Update internal representation of distribution metrics. ([#979](https://github.com/getsentry/relay/pull/979))
+- Extract metrics for transaction breakdowns and sessions when the feature is enabled for the organizaiton. ([#986](https://github.com/getsentry/relay/pull/986))
 - Assign explicit values to DataCategory enum. ([#987](https://github.com/getsentry/relay/pull/987))
 
 ## 21.4.1
