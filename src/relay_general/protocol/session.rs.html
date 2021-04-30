@@ -294,6 +294,23 @@
 <span id="293">293</span>
 <span id="294">294</span>
 <span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::<span class="ident">SystemTime</span>;
 
@@ -320,6 +337,23 @@
     <span class="ident">Abnormal</span>,
     <span class="doccomment">/// The session exited cleanly but experienced some errors during its run.</span>
     <span class="ident">Errored</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">SessionStatus</span> {
+    <span class="doccomment">/// Returns `true` if the status indicates an ended session.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_terminal</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="op">!</span><span class="macro">matches</span><span class="macro">!</span>(<span class="self">self</span>, <span class="ident">SessionStatus</span>::<span class="prelude-val">Ok</span>)
+    }
+
+    <span class="doccomment">/// Returns `true` if the status indicates a session with any kind of error or crash.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_error</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="op">!</span><span class="macro">matches</span><span class="macro">!</span>(<span class="self">self</span>, <span class="ident">SessionStatus</span>::<span class="prelude-val">Ok</span> <span class="op">|</span> <span class="ident">SessionStatus</span>::<span class="ident">Exited</span>)
+    }
+
+    <span class="doccomment">/// Returns `true` if the status indicates a fatal session.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_fatal</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="macro">matches</span><span class="macro">!</span>(<span class="self">self</span>, <span class="ident">SessionStatus</span>::<span class="ident">Crashed</span> <span class="op">|</span> <span class="ident">SessionStatus</span>::<span class="ident">Abnormal</span>)
+    }
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">SessionStatus</span> {
@@ -391,7 +425,7 @@
     <span class="kw">pub</span> <span class="ident">timestamp</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>,
     <span class="doccomment">/// The timestamp of when the session itself started.</span>
     <span class="kw">pub</span> <span class="ident">started</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// An optional duration of the session so far.</span>
+    <span class="doccomment">/// An optional duration of the session in seconds.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">duration</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>,
     <span class="doccomment">/// The status of the session.</span>
