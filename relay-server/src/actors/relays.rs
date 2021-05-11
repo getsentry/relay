@@ -1,6 +1,7 @@
 //! This actor caches known public keys.
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::iter::FromIterator;
 use std::mem;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -14,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use relay_auth::{PublicKey, RelayId};
 use relay_common::RetryBackoff;
-use relay_config::{Config, StaticRelayInfo};
+use relay_config::Config;
 use relay_log::LogError;
 
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
@@ -114,24 +115,22 @@ pub struct RelayCache {
 
 impl RelayCache {
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
-        let mut static_relays = HashMap::new();
-
-        for static_relay_info in &config.static_relays().relays {
-            static_relays.insert(
-                static_relay_info.id,
+        let static_relays = HashMap::from_iter(config.static_relays().relays.iter().map(|r| {
+            (
+                r.id,
                 RelayInfo {
-                    public_key: static_relay_info.public_key.clone(),
-                    internal: static_relay_info.internal,
+                    public_key: r.public_key.clone(),
+                    internal: r.internal,
                 },
-            );
-        }
+            )
+        }));
 
         RelayCache {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             config,
             upstream,
             relays: HashMap::new(),
-            static_relays: static_relays,
+            static_relays,
             relay_channels: HashMap::new(),
         }
     }

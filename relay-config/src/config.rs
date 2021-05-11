@@ -1062,6 +1062,7 @@ impl Config {
         self.credentials.as_ref()
     }
 
+    /// Return the statically configured Relays
     pub fn static_relays(&self) -> &StaticRelays {
         &self.static_relays
     }
