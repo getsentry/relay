@@ -94,7 +94,7 @@ pub trait EmitBreakdowns {
 
 /// Configuration to define breakdowns based on span operation name.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "camelCase")]
 pub struct SpanOperationsConfig {
     /// Operation names are matched against an array of strings. The match is successful if the span
     /// operation name starts with any string in the array. If any string in the array has at least
