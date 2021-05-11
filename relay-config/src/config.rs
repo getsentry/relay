@@ -343,13 +343,14 @@ fn default_host() -> IpAddr {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ReadinessCondition {
-    /// (default) Uses `authenticated` in managed mode, and `always` in other modes.
-    Mixed,
-    /// Relay is ready when authenticated and connected to the upstream.
+    /// (default) Relay is ready when authenticated and connected to the upstream.
     ///
     /// Before authentication has succeeded and during network outages, Relay responds as not ready.
     /// Relay reauthenticates based on the `http.auth_interval` parameter. During reauthentication,
     /// Relay remains ready until authentication fails.
+    ///
+    /// Authentication is only required for Relays in managed mode. Other Relays will only check for
+    /// network outages.
     Authenticated,
     /// Relay reports readiness regardless of the authentication and networking state.
     Always,
@@ -363,7 +364,7 @@ impl ReadinessCondition {
 
 impl Default for ReadinessCondition {
     fn default() -> Self {
-        Self::Mixed
+        Self::Authenticated
     }
 }
 
@@ -1154,8 +1155,7 @@ impl Config {
     /// See [`ReadinessCondition`] for more information.
     pub fn requires_auth(&self) -> bool {
         match self.values.relay.ready {
-            ReadinessCondition::Mixed => self.relay_mode() == RelayMode::Managed,
-            ReadinessCondition::Authenticated => true,
+            ReadinessCondition::Authenticated => self.relay_mode() == RelayMode::Managed,
             ReadinessCondition::Always => false,
         }
     }
