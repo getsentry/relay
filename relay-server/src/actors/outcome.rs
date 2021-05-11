@@ -325,11 +325,7 @@ pub struct TrackRawOutcome {
 
 impl TrackRawOutcome {
     fn from_outcome(msg: TrackOutcome, config: &Config) -> Self {
-        let reason = match msg.outcome.to_reason() {
-            None => None,
-            Some(reason) => Some(reason.to_string()),
-        };
-
+        let reason = msg.outcome.to_reason().map(|reason| reason.to_string());
         let date_time = relay_common::instant_to_date_time(msg.timestamp);
 
         // convert to a RFC 3339 formatted date with the shape YYYY-MM-DDTHH:MM:SS.mmmmmmZ

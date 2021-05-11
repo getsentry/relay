@@ -894,7 +894,9 @@ impl Config {
         }
 
         if let Some(port) = overrides.port {
-            relay.port = u16::from_str_radix(port.as_str(), 10)
+            relay.port = port
+                .as_str()
+                .parse()
                 .map_err(|err| ConfigError::for_field(err, "port"))?;
         }
 
@@ -973,9 +975,9 @@ impl Config {
             match (id, public_key, secret_key) {
                 (Some(id), Some(public_key), Some(secret_key)) => {
                     self.credentials = Some(Credentials {
-                        id,
-                        public_key,
                         secret_key,
+                        public_key,
+                        id,
                     })
                 }
                 (None, None, None) => {

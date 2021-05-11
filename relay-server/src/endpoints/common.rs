@@ -461,10 +461,7 @@ where
                         Err(BadStoreRequest::PayloadError(StorePayloadError::Overflow))
                     }
                 }))
-                .and_then(clone!(event_manager, project_manager, |(
-                    envelope,
-                    rate_limits,
-                )| {
+                .and_then(clone!(project_manager, |(envelope, rate_limits)| {
                     type RetVal = ResponseFuture<
                         (Envelope, RateLimits, Option<Addr<Project>>),
                         BadStoreRequest,

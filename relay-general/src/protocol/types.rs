@@ -373,7 +373,7 @@ macro_rules! hex_metrastructure {
                 if s.starts_with("0x") || s.starts_with("0X") {
                     u64::from_str_radix(&s[2..], 16).map($type)
                 } else {
-                    u64::from_str_radix(&s, 10).map($type)
+                    s.parse().map($type)
                 }
             }
         }
