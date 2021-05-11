@@ -171,7 +171,7 @@
             <span class="ident">IsHealthy</span>::<span class="ident">Readiness</span> <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="kw">if</span> <span class="self">self</span>.<span class="ident">is_shutting_down</span> {
                     <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">future</span>::<span class="ident">ok</span>(<span class="bool-val">false</span>))
-                } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">relay_mode</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">RelayMode</span>::<span class="ident">Managed</span> {
+                } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">requires_auth</span>() {
                     <span class="ident">Box</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">upstream</span>.<span class="ident">send</span>(<span class="ident">IsAuthenticated</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ()))
                 } <span class="kw">else</span> {
                     <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">future</span>::<span class="ident">ok</span>(<span class="bool-val">true</span>))
