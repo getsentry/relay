@@ -891,7 +891,7 @@
 
     <span class="doccomment">/// Returns the remaining seconds until the rate limit expires.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// This is a shortcut to `retry_after.remaining().as_secs()` whith one exception: If the rate</span>
+    <span class="doccomment">/// This is a shortcut to `retry_after.remaining().as_secs()` with one exception: If the rate</span>
     <span class="doccomment">/// limit has expired, this function returns `0`.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">remaining_seconds</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u64</span> {
