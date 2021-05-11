@@ -1,5 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `relay_server` crate."><meta name="keywords" content="rust, rustlang, rust-lang, relay_server"><title>relay_server - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../ayu.css" disabled ><script id="default-settings"></script><script src="../storage.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../relay_server/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a><p class="location">Crate relay_server</p><div class="block version"><p>Version 21.4.1</p></div><div class="sidebar-elems"><a id="all-types" href="all.html"><p>See all relay_server's items</p></a><div class="block items"><ul><li><a href="#macros">Macros</a></li><li><a href="#structs">Structs</a></li><li><a href="#functions">Functions</a></li></ul></div><p class="location"></p><div id="sidebar-vars" data-name="relay_server" data-ty="mod" data-relpath="../"></div></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
-                <a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class="fqn"><span class="in-band">Crate <a class="mod" href="">relay_server</a></span><span class="out-of-band"><span id="render-detail"><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span><a class="srclink" href="../src/relay_server/lib.rs.html#1-284" title="goto source code">[src]</a></span></h1><div class="docblock"><p>The Sentry relay server application.</p>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="The Sentry relay server application."><meta name="keywords" content="rust, rustlang, rust-lang, relay_server"><title>relay_server - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../ayu.css" disabled ><script id="default-settings"></script><script src="../storage.js"></script><script src="../crates.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../relay_server/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a><p class="location">Crate relay_server</p><div class="block version"><p>Version 21.4.1</p></div><div class="sidebar-elems"><a id="all-types" href="all.html"><p>See all relay_server's items</p></a><div class="block items"><ul><li><a href="#macros">Macros</a></li><li><a href="#structs">Structs</a></li><li><a href="#functions">Functions</a></li></ul></div><p class="location"></p><div id="sidebar-vars" data-name="relay_server" data-ty="mod" data-relpath="../"></div></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+                <a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class="fqn"><span class="in-band">Crate <a class="mod" href="">relay_server</a></span><span class="out-of-band"><span id="render-detail"><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span><a class="srclink" href="../src/relay_server/lib.rs.html#1-284" title="goto source code">[src]</a></span></h1><div class="docblock"><p>The Sentry relay server application.</p>
 <p>This module contains the <a href="../relay_server/fn.run.html" title="run"><code>run</code></a> function which starts the relay server. It responds on
 multiple supported endpoints, serves queries to downstream relays and send received events to
 the upstream.</p>
@@ -28,7 +28,7 @@ process--&gt;save
 
 </code></pre>
 <h2 id="processing-enabled-vs-not" class="section-header"><a href="#processing-enabled-vs-not">Processing enabled vs not?</a></h2>
-<p>Relay can run as part of a Sentry installation, such as within <code>sentry.io</code>'s
+<p>Relay can run as part of a Sentry installation, such as within <code>sentry.io</code>’s
 infrastructure, or next to the application as a forwarding proxy. A lot of
 steps described here are skipped or run in a limited form when Relay is <em>not</em>
 running with processing enabled:</p>
@@ -76,7 +76,7 @@ actually attempt to populate it at this stage. <strong>It just returns a <code>2
 though the event might be dropped later.</strong> This implies:</p>
 <ul>
 <li>
-<p>The first store request that runs into a rate limit doesn't actually result
+<p>The first store request that runs into a rate limit doesn’t actually result
 in a <code>429</code>, but a subsequent request will (because by that time the project
 cache will have been updated).</p>
 </li>
@@ -100,12 +100,12 @@ project results in <code>200 OK</code>s only. However, a multi-second flood of i
 events should quickly result in eventually consistent and correct status codes.</p>
 <p>The response is completed at this point. All expensive work (such as talking to
 external services) is deferred into a background task. Except for responding to
-the HTTP request, there's no I/O done in the endpoint in any form. We didn't
+the HTTP request, there’s no I/O done in the endpoint in any form. We didn’t
 even hit Redis to calculate rate limits.</p>
 <h3 id="summary" class="section-header"><a href="#summary">Summary</a></h3>
 <p>The HTTP response returned is just a best-effort guess at what the actual
 outcome of the event is going to be. We only return a <code>4xx</code> code if we know that
-the response will fail (based on cached information), if we don't we return a
+the response will fail (based on cached information), if we don’t we return a
 200 and continue to process the event asynchronously. This asynchronous
 processing used to happen synchronously in the Python implementation of
 <code>StoreView</code>.</p>
@@ -124,7 +124,7 @@ fetch it. We may wait a couple milliseconds (<code>batch_interval</code>) here t
 able to batch multiple project config fetches into the same HTTP request to
 not overload Sentry too much.</p>
 <p>At this stage Relay may drop the event because it realized that the DSN was
-invalid or the project didn't even exist. The next incoming event will get a
+invalid or the project didn’t even exist. The next incoming event will get a
 proper 4xx status code.</p>
 </li>
 <li>
@@ -141,18 +141,18 @@ from deprecated fields to newer fields and generally just does schema
 validation.</p>
 </li>
 <li>
-<p><strong>Filters (&quot;inbound filters&quot;) are applied.</strong> Event may be discarded because of IP
+<p><strong>Filters (“inbound filters”) are applied.</strong> Event may be discarded because of IP
 addresses, patterns on the error message or known web crawlers.</p>
 </li>
 <li>
-<p><strong>Exact rate limits (&quot;quotas&quot;) are applied.</strong> <code>is_rate_limited.lua</code> is
-executed on Redis. The input parameters for <code>is_rate_limited.lua</code> (&quot;quota
-objects&quot;) are part of the project config. See <a href="https://github.com/getsentry/sentry/pull/14558">this pull
+<p><strong>Exact rate limits (“quotas”) are applied.</strong> <code>is_rate_limited.lua</code> is
+executed on Redis. The input parameters for <code>is_rate_limited.lua</code> (“quota
+objects”) are part of the project config. See <a href="https://github.com/getsentry/sentry/pull/14558">this pull
 request</a> for an explanation
 of what quota objects are.</p>
 <p>The event may be discarded here. If so, we write the rate limit info
 (reason and expiration timestamp) into the in-memory project cache so that
-the next store request returns a 429 in the endpoint and doesn't hit Redis
+the next store request returns a 429 in the endpoint and doesn’t hit Redis
 at all.</p>
 <p>This contraption has the advantage that suspended or permanently
 rate-limited projects are very cheap to handle, and do not involve external
@@ -236,5 +236,5 @@ Array.from(document.getElementsByTagName('svg')).map(x => x.style.background = "
 <table><tr class="module-item"><td><a class="struct" href="struct.ServerError.html" title="relay_server::ServerError struct">ServerError</a></td><td class="docblock-short"><p>Common error type for the relay server.</p>
 </td></tr></table><h2 id="functions" class="section-header"><a href="#functions">Functions</a></h2>
 <table><tr class="module-item"><td><a class="fn" href="fn.run.html" title="relay_server::run fn">run</a></td><td class="docblock-short"><p>Runs a relay web server and spawns all internal worker threads.</p>
-</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../" data-current-crate="relay_server"></div>
-    <script src="../main.js"></script><script defer src="../search-index.js"></script></body></html>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../" data-current-crate="relay_server" data-search-js="../search-index.js"></div>
+    <script src="../main.js"></script></body></html>
