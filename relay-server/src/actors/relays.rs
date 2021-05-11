@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use relay_auth::{PublicKey, RelayId};
 use relay_common::RetryBackoff;
-use relay_config::Config;
+use relay_config::{Config, StaticRelayInfo};
 use relay_log::LogError;
 
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
@@ -108,16 +108,30 @@ pub struct RelayCache {
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     relays: HashMap<RelayId, RelayState>,
+    static_relays: HashMap<RelayId, RelayInfo>,
     relay_channels: HashMap<RelayId, RelayInfoChannel>,
 }
 
 impl RelayCache {
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
+        let mut static_relays = HashMap::new();
+
+        for static_relay_info in &config.static_relays().relays {
+            static_relays.insert(
+                static_relay_info.id,
+                RelayInfo {
+                    public_key: static_relay_info.public_key.clone(),
+                    internal: static_relay_info.internal,
+                },
+            );
+        }
+
         RelayCache {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             config,
             upstream,
             relays: HashMap::new(),
+            static_relays: static_relays,
             relay_channels: HashMap::new(),
         }
     }
@@ -192,6 +206,11 @@ impl RelayCache {
         relay_id: RelayId,
         context: &mut Context<Self>,
     ) -> Response<(RelayId, Option<RelayInfo>), KeyError> {
+        //first check the statically configured relays
+        if let Some(key) = self.static_relays.get(&relay_id) {
+            return Response::ok((relay_id, Some(key.clone())));
+        }
+
         if let Some(key) = self.relays.get(&relay_id) {
             if key.is_valid_cache(&self.config) {
                 return Response::ok((relay_id, key.as_option().cloned()));
