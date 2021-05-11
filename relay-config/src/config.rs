@@ -337,6 +337,37 @@ fn default_host() -> IpAddr {
     }
 }
 
+/// Controls responses from the readiness health check endpoint based on authentication.
+///
+/// Independent of the the readiness condition, shutdown always switches Relay into unready state.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ReadinessCondition {
+    /// (default) Relay is ready when authenticated and connected to the upstream.
+    ///
+    /// Before authentication has succeeded and during network outages, Relay responds as not ready.
+    /// Relay reauthenticates based on the `http.auth_interval` parameter. During reauthentication,
+    /// Relay remains ready until authentication fails.
+    ///
+    /// Authentication is only required for Relays in managed mode. Other Relays will only check for
+    /// network outages.
+    Authenticated,
+    /// Relay reports readiness regardless of the authentication and networking state.
+    Always,
+}
+
+impl ReadinessCondition {
+    fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+impl Default for ReadinessCondition {
+    fn default() -> Self {
+        Self::Authenticated
+    }
+}
+
 /// Relay specific configuration values.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -355,6 +386,9 @@ pub struct Relay {
     pub tls_identity_path: Option<PathBuf>,
     /// Password for the PKCS12 archive.
     pub tls_identity_password: Option<String>,
+    /// Controls responses from the readiness health check endpoint based on authentication.
+    #[serde(skip_serializing_if = "ReadinessCondition::is_default")]
+    pub ready: ReadinessCondition,
 }
 
 impl Default for Relay {
@@ -367,6 +401,7 @@ impl Default for Relay {
             tls_port: None,
             tls_identity_path: None,
             tls_identity_password: None,
+            ready: ReadinessCondition::default(),
         }
     }
 }
@@ -829,6 +864,7 @@ impl ConfigObject for ConfigValues {
     fn format() -> ConfigFormat {
         ConfigFormat::Yaml
     }
+
     fn name() -> &'static str {
         "config"
     }
@@ -1112,6 +1148,16 @@ impl Config {
     /// Returns the password for the identity bundle
     pub fn tls_identity_password(&self) -> Option<&str> {
         self.values.relay.tls_identity_password.as_deref()
+    }
+
+    /// Returns `true` if Relay requires authentication for readiness.
+    ///
+    /// See [`ReadinessCondition`] for more information.
+    pub fn requires_auth(&self) -> bool {
+        match self.values.relay.ready {
+            ReadinessCondition::Authenticated => self.relay_mode() == RelayMode::Managed,
+            ReadinessCondition::Always => false,
+        }
     }
 
     /// Returns the interval at which Realy should try to re-authenticate with the upstream.

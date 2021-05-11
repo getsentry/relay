@@ -79,7 +79,7 @@ impl Handler<IsHealthy> for Healthcheck {
             IsHealthy::Readiness => {
                 if self.is_shutting_down {
                     Box::new(future::ok(false))
-                } else if self.config.relay_mode() == RelayMode::Managed {
+                } else if self.config.requires_auth() {
                     Box::new(self.upstream.send(IsAuthenticated).map_err(|_| ()))
                 } else {
                     Box::new(future::ok(true))
