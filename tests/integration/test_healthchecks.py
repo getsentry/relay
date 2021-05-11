@@ -6,7 +6,7 @@ import time
 
 
 def failing_check_challenge(*args, **kwargs):
-    return 'fail', 400
+    return "fail", 400
 
 
 def wait_get(server, path):
@@ -60,12 +60,15 @@ def test_readiness_flag(mini_sentry, relay):
     mini_sentry.app.view_functions["check_challenge"] = failing_check_challenge
 
     try:
-        relay = relay(mini_sentry, {"relay": {"ready": "always"}}, wait_healthcheck=False)
+        relay = relay(
+            mini_sentry, {"relay": {"ready": "always"}}, wait_healthcheck=False
+        )
         response = wait_get(relay, "/api/relay/healthcheck/ready/")
         assert response.status_code == 200
     finally:
         # Authentication failures would fail the test
         mini_sentry.test_failures.clear()
+
 
 def test_readiness_proxy(mini_sentry, relay):
     mini_sentry.app.view_functions["check_challenge"] = failing_check_challenge
