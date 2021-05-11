@@ -277,6 +277,38 @@ impl ConfigObject for Credentials {
     }
 }
 
+/// Information on a downstream Relay.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct StaticRelayInfo {
+    /// the id of the relay
+    pub id: RelayId,
+
+    /// The public key that this Relay uses to authenticate and sign requests.
+    pub public_key: PublicKey,
+
+    /// Marks an internal relay that has privileged access to more project configuration.
+    #[serde(default)]
+    pub internal: bool,
+}
+
+/// Contains a list of Relays that are statically configured (in a config file)
+/// For statically configured Relays there will be no upstream key lookup.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct StaticRelays {
+    /// a list of Relay that will be resolved statically
+    pub relays: Vec<StaticRelayInfo>,
+}
+
+impl ConfigObject for StaticRelays {
+    fn format() -> ConfigFormat {
+        ConfigFormat::Yaml
+    }
+    fn name() -> &'static str {
+        "static_relays"
+    }
+}
+
 /// The operation mode of a relay.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -838,6 +870,7 @@ impl ConfigObject for ConfigValues {
 pub struct Config {
     values: ConfigValues,
     credentials: Option<Credentials>,
+    static_relays: StaticRelays,
     path: PathBuf,
 }
 
@@ -859,9 +892,15 @@ impl Config {
 
         let config = Config {
             values: ConfigValues::load(&path)?,
-            credentials: match fs::metadata(Credentials::path(&path)) {
-                Ok(_) => Some(Credentials::load(&path)?),
-                Err(_) => None,
+            credentials: if Credentials::path(&path).exists() {
+                Some(Credentials::load(&path)?)
+            } else {
+                None
+            },
+            static_relays: if StaticRelays::path(&path).exists() {
+                StaticRelays::load(&path)?
+            } else {
+                StaticRelays::default()
             },
             path: path.clone(),
         };
@@ -1021,6 +1060,10 @@ impl Config {
     /// Return the current credentials
     pub fn credentials(&self) -> Option<&Credentials> {
         self.credentials.as_ref()
+    }
+
+    pub fn static_relays(&self) -> &StaticRelays {
+        &self.static_relays
     }
 
     /// Set new credentials.
@@ -1449,6 +1492,7 @@ impl Default for Config {
         Self {
             values: ConfigValues::default(),
             credentials: None,
+            static_relays: StaticRelays::default(),
             path: PathBuf::new(),
         }
     }
