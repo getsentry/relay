@@ -6,6 +6,7 @@
 
 - Support the `frame.stack_start` field for chained async stack traces in Cocoa SDK v7. ([#981](https://github.com/getsentry/relay/pull/981))
 - Rename configuration fields `cache.event_buffer_size` to `cache.envelope_buffer_size` and `cache.event_expiry` to `cache.envelope_expiry`. The former names are still supported by Relay. ([#985](https://github.com/getsentry/relay/pull/985))
+- Add a configuraton flag `relay.ready: always` to mark Relay ready in healthchecks immediately after starting without requiring a health check. ([#989](https://github.com/getsentry/relay/pull/989))
 
 **Bug Fixes**:
 
