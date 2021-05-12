@@ -18,6 +18,7 @@ mod remove_other;
 mod schema;
 mod transactions;
 mod trimming;
+mod unprintable_fields;
 
 pub use self::clock_drift::ClockDriftProcessor;
 pub use self::geo::{GeoIpError, GeoIpLookup};
@@ -120,6 +121,8 @@ impl<'a> Processor for StoreProcessor<'a> {
             // Trim large strings and databags down
             trimming::TrimmingProcessor::new().process_event(event, meta, state)?;
         }
+
+        unprintable_fields::UnprintableFieldsProcessor::new().process_event(event, meta, state)?;
 
         Ok(())
     }
