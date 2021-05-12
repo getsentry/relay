@@ -11,6 +11,7 @@
 **Bug Fixes**:
 
 - Fix roundtrip error when PII selector starts with number. ([#982](https://github.com/getsentry/relay/pull/982))
+- Avoid overflow panic for large retry-after durations. ([#992](https://github.com/getsentry/relay/pull/992))
 
 **Internal**:
 
