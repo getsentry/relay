@@ -204,7 +204,7 @@ impl EmitBreakdowns for SpanOperationsConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum BreakdownConfig {
-    #[serde(alias="span_operations")]
+    #[serde(alias = "span_operations")]
     SpanOperations(SpanOperationsConfig),
 }
 
