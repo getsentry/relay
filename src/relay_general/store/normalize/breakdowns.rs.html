@@ -442,6 +442,7 @@
 <span id="441">441</span>
 <span id="442">442</span>
 <span id="443">443</span>
+<span id="444">444</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Contains the breakdowns normalization code</span>
 <span class="doccomment">//!</span>
@@ -539,7 +540,7 @@
 
 <span class="doccomment">/// Configuration to define breakdowns based on span operation name.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;snake_case&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SpanOperationsConfig</span> {
     <span class="doccomment">/// Operation names are matched against an array of strings. The match is successful if the span</span>
     <span class="doccomment">/// operation name starts with any string in the array. If any string in the array has at least</span>
@@ -647,8 +648,9 @@
 
 <span class="doccomment">/// Configuration to define breakdown to be generated based on properties and breakdown type.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">tag</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>, <span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;snake_case&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">tag</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>, <span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;camelCase&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">BreakdownConfig</span> {
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">alias</span> <span class="op">=</span> <span class="string">&quot;span_operations&quot;</span>)]</span>
     <span class="ident">SpanOperations</span>(<span class="ident">SpanOperationsConfig</span>),
 }
 
