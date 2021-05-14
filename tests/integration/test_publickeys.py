@@ -18,6 +18,7 @@ RelayInfo = namedtuple("RelayInfo", ["id", "public_key", "secret_key", "internal
         ("sr1", ["r1", "r2"]),
         ("sr1", ["sr1", "sr2"]),
         ("sr1", ["r1", "r2", "sr1", "sr2"]),
+        ("sr2", ["r1", "r2", "sr1", "sr2"]),
         ("r2", ["r1", "r2", "sr1", "sr2"]),
     ],
     ids=["dyn relay fetches dyn relay info",
@@ -25,6 +26,7 @@ RelayInfo = namedtuple("RelayInfo", ["id", "public_key", "secret_key", "internal
          "static relay fetches dyn relay info",
          "static relay fetches static relay info",
          "static relay fetches mixed relay info",
+         "static external relay fetches mixed relay info",
          "dyn relay fetches mixed relay info"]
 )
 def test_public_keys(mini_sentry, relay, caller, relays_to_fetch):
