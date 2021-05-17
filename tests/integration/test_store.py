@@ -943,10 +943,12 @@ def test_buffer_events_during_outage(relay, mini_sentry):
     assert event["logentry"] == {"formatted": "123"}
 
 
-def test_missing_in_response(mini_sentry, relay):
+@pytest.mark.parametrize("retry", [True, False])
+def test_missing_in_response(mini_sentry, relay, retry):
     """
     Test that Relay still lets other events through if the projectconfig
-    response is missing data.
+    response is missing data, and that retryConfigs param causes Relay to retry
+    fetching projectconfig.
     """
 
     project_id = 42
@@ -969,7 +971,10 @@ def test_missing_in_response(mini_sentry, relay):
             ]
             data = json.loads(get_project_config_original().data)
             assert len(data["configs"]) == 1
-            rv = jsonify(retryConfigs=[broken_dsn_key], **data)
+
+            if retry:
+                data["retryConfigs"] = [broken_dsn_key]
+            rv = jsonify(**data)
         else:
             rv = get_project_config_original()
 
@@ -992,7 +997,12 @@ def test_missing_in_response(mini_sentry, relay):
 
     time.sleep(0.5)
 
-    assert requests == [
-        {dsn_key, broken_dsn_key},
-        {broken_dsn_key},
-    ]
+    if retry:
+        assert requests == [
+            {dsn_key, broken_dsn_key},
+            {broken_dsn_key},
+        ]
+    else:
+        assert requests == [
+            {dsn_key, broken_dsn_key},
+        ]
