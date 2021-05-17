@@ -387,6 +387,8 @@ mod tests {
         // invalid strings cause parse error
         "".parse::<RetryAfter>().expect_err("error RetryAfter");
         "nope".parse::<RetryAfter>().expect_err("error RetryAfter");
+        " 2 ".parse::<RetryAfter>().expect_err("error RetryAfter");
+        "6 0".parse::<RetryAfter>().expect_err("error RetryAfter");
     }
 
     #[test]
