@@ -331,7 +331,6 @@ def mini_sentry(request):
 
     def reraise_test_failures():
         if sentry.test_failures:
-            return
             pytest.fail(
                 "{n} exceptions happened in mini_sentry:\n\n{failures}".format(
                     n=len(sentry.test_failures), failures=sentry.format_failures()
