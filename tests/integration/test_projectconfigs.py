@@ -10,20 +10,17 @@ from sentry_relay import PublicKey, SecretKey, generate_key_pair
 
 RelayInfo = namedtuple("RelayInfo", ["id", "public_key", "secret_key", "internal"])
 
+
 @pytest.mark.parametrize(
     "caller, projects",
-    [
-        ("r2", ["p2"]),
-        ("sr1", ["p1", "p2", "p3", "p4"]),
-        ("sr2", ["p4"]),
-    ],
+    [("r2", ["p2"]), ("sr1", ["p1", "p2", "p3", "p4"]), ("sr2", ["p4"]),],
     ids=[
-         "dyn external relay fetches proj info",
-         "static internal relay fetches proj info",
-         "static external relay fetches proj info"
-    ]
+        "dyn external relay fetches proj info",
+        "static internal relay fetches proj info",
+        "static external relay fetches proj info",
+    ],
 )
-def test_dynamic_relays(mini_sentry, relay,caller, projects):
+def test_dynamic_relays(mini_sentry, relay, caller, projects):
     sk1, pk1 = generate_key_pair()
     id1 = str(uuid.uuid4())
     sk2, pk2 = generate_key_pair()
@@ -32,26 +29,32 @@ def test_dynamic_relays(mini_sentry, relay,caller, projects):
     # create configuration containing the static relays
     relays_conf = {
         "relays": [
-            {
-                "id": id1,
-                "public_key": str(pk1),
-                "internal": True
-            },
-            {
-                "id": id2,
-                "public_key": str(pk2),
-                "internal": False
-            },
+            {"id": id1, "public_key": str(pk1), "internal": True},
+            {"id": id2, "public_key": str(pk2), "internal": False},
         ]
     }
 
     relay1 = relay(mini_sentry, wait_healthcheck=True, static_relays_config=relays_conf)
-    relay2 = relay(mini_sentry, wait_healthcheck=True, external=True, static_relays_config=relays_conf)
-
+    relay2 = relay(
+        mini_sentry,
+        wait_healthcheck=True,
+        external=True,
+        static_relays_config=relays_conf,
+    )
 
     # create info for our test parameters
-    r1 = RelayInfo(id=relay1.relay_id, public_key=PublicKey.parse(relay1.public_key), secret_key=SecretKey.parse(relay1.secret_key), internal=True)
-    r2 = RelayInfo(id=relay2.relay_id, public_key=PublicKey.parse(relay2.public_key), secret_key=SecretKey.parse(relay2.secret_key), internal=True)
+    r1 = RelayInfo(
+        id=relay1.relay_id,
+        public_key=PublicKey.parse(relay1.public_key),
+        secret_key=SecretKey.parse(relay1.secret_key),
+        internal=True,
+    )
+    r2 = RelayInfo(
+        id=relay2.relay_id,
+        public_key=PublicKey.parse(relay2.public_key),
+        secret_key=SecretKey.parse(relay2.secret_key),
+        internal=True,
+    )
     sr1 = RelayInfo(id=id1, public_key=pk1, secret_key=sk1, internal=True)
     sr2 = RelayInfo(id=id2, public_key=pk2, secret_key=sk2, internal=False)
 
@@ -65,12 +68,7 @@ def test_dynamic_relays(mini_sentry, relay,caller, projects):
     # add sr2 to p4 (since it is external)
     p4["config"]["trustedRelays"].append(str(sr2.public_key))
 
-    test_info = {
-        "r1": r1,
-        "r2": r2,
-        "sr1": sr1,
-        "sr2": sr2
-    }
+    test_info = {"r1": r1, "r2": r2, "sr1": sr1, "sr2": sr2}
 
     proj_info = {
         "p1": p1,
@@ -88,10 +86,11 @@ def test_dynamic_relays(mini_sentry, relay,caller, projects):
 
     packed, signature = caller.secret_key.pack(request)
 
-    resp = relay1.post("/api/0/relays/projectconfigs/?version=2", data=packed, headers={
-        "X-Sentry-Relay-Id": caller.id,
-        "X-Sentry-Relay-Signature": signature
-    })
+    resp = relay1.post(
+        "/api/0/relays/projectconfigs/?version=2",
+        data=packed,
+        headers={"X-Sentry-Relay-Id": caller.id, "X-Sentry-Relay-Signature": signature},
+    )
 
     assert resp.ok
 
