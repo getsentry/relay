@@ -13,7 +13,7 @@ use relay_redis::RedisPool;
 
 use crate::actors::connector::MeteredConnector;
 use crate::actors::controller::{Configure, Controller};
-use crate::actors::events::EventManager;
+use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::healthcheck::Healthcheck;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::ProjectCache;
@@ -110,7 +110,7 @@ pub struct ServiceState {
     relay_cache: Addr<RelayCache>,
     project_cache: Addr<ProjectCache>,
     upstream_relay: Addr<UpstreamRelay>,
-    event_manager: Addr<EventManager>,
+    envelope_manager: Addr<EnvelopeManager>,
     outcome_producer: Addr<OutcomeProducer>,
     healthcheck: Addr<Healthcheck>,
 }
@@ -130,7 +130,7 @@ impl ServiceState {
             _ => None,
         };
 
-        let event_manager = EventManager::create(
+        let event_manager = EnvelopeManager::create(
             config.clone(),
             upstream_relay.clone(),
             outcome_producer.clone(),
@@ -154,7 +154,7 @@ impl ServiceState {
             relay_cache: RelayCache::new(config.clone(), upstream_relay.clone()).start(),
             project_cache,
             healthcheck: Healthcheck::new(config, upstream_relay).start(),
-            event_manager,
+            envelope_manager: event_manager,
             outcome_producer,
         })
     }
@@ -174,9 +174,9 @@ impl ServiceState {
         self.project_cache.clone()
     }
 
-    /// Returns the current event manager.
-    pub fn event_manager(&self) -> Addr<EventManager> {
-        self.event_manager.clone()
+    /// Returns the current envelope manager.
+    pub fn envelope_manager(&self) -> Addr<EnvelopeManager> {
+        self.envelope_manager.clone()
     }
 
     pub fn outcome_producer(&self) -> Addr<OutcomeProducer> {

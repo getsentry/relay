@@ -337,6 +337,37 @@ fn default_host() -> IpAddr {
     }
 }
 
+/// Controls responses from the readiness health check endpoint based on authentication.
+///
+/// Independent of the the readiness condition, shutdown always switches Relay into unready state.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ReadinessCondition {
+    /// (default) Relay is ready when authenticated and connected to the upstream.
+    ///
+    /// Before authentication has succeeded and during network outages, Relay responds as not ready.
+    /// Relay reauthenticates based on the `http.auth_interval` parameter. During reauthentication,
+    /// Relay remains ready until authentication fails.
+    ///
+    /// Authentication is only required for Relays in managed mode. Other Relays will only check for
+    /// network outages.
+    Authenticated,
+    /// Relay reports readiness regardless of the authentication and networking state.
+    Always,
+}
+
+impl ReadinessCondition {
+    fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+impl Default for ReadinessCondition {
+    fn default() -> Self {
+        Self::Authenticated
+    }
+}
+
 /// Relay specific configuration values.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -355,6 +386,9 @@ pub struct Relay {
     pub tls_identity_path: Option<PathBuf>,
     /// Password for the PKCS12 archive.
     pub tls_identity_password: Option<String>,
+    /// Controls responses from the readiness health check endpoint based on authentication.
+    #[serde(skip_serializing_if = "ReadinessCondition::is_default")]
+    pub ready: ReadinessCondition,
 }
 
 impl Default for Relay {
@@ -367,6 +401,7 @@ impl Default for Relay {
             tls_port: None,
             tls_identity_path: None,
             tls_identity_password: None,
+            ready: ReadinessCondition::default(),
         }
     }
 }
@@ -448,7 +483,8 @@ struct Limits {
     max_pending_connections: i32,
     /// The maximum number of open connections to Relay.
     max_connections: usize,
-    /// The maximum number of seconds to wait for pending events after receiving a shutdown signal.
+    /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
+    /// signal.
     shutdown_timeout: u64,
 }
 
@@ -512,7 +548,7 @@ struct Http {
     ///
     /// Re-authentication happens even when Relay is idle. If authentication fails, Relay reverts
     /// back into startup mode and tries to establish a connection. During this time, incoming
-    /// events will be buffered.
+    /// envelopes will be buffered.
     ///
     /// Defaults to `600` (10 minutes).
     auth_interval: Option<u64>,
@@ -564,10 +600,12 @@ struct Cache {
     project_grace_period: u32,
     /// The cache timeout for downstream relay info (public keys) in seconds.
     relay_expiry: u32,
-    /// The cache timeout for events (store) before dropping them.
-    event_expiry: u32,
-    /// The maximum amount of events to queue before dropping them.
-    event_buffer_size: u32,
+    /// The cache timeout for envelopes (store) before dropping them.
+    #[serde(alias = "event_expiry")]
+    envelope_expiry: u32,
+    /// The maximum amount of envelopes to queue before dropping them.
+    #[serde(alias = "event_buffer_size")]
+    envelope_buffer_size: u32,
     /// The cache timeout for non-existing entries.
     miss_expiry: u32,
     /// The buffer timeout for batched queries before sending them upstream in ms.
@@ -587,9 +625,9 @@ impl Default for Cache {
         Cache {
             project_expiry: 300, // 5 minutes
             project_grace_period: 0,
-            relay_expiry: 3600, // 1 hour
-            event_expiry: 600,  // 10 minutes
-            event_buffer_size: 1000,
+            relay_expiry: 3600,   // 1 hour
+            envelope_expiry: 600, // 10 minutes
+            envelope_buffer_size: 1000,
             miss_expiry: 60,     // 1 minute
             batch_interval: 100, // 100ms
             batch_size: 500,
@@ -826,6 +864,7 @@ impl ConfigObject for ConfigValues {
     fn format() -> ConfigFormat {
         ConfigFormat::Yaml
     }
+
     fn name() -> &'static str {
         "config"
     }
@@ -891,7 +930,9 @@ impl Config {
         }
 
         if let Some(port) = overrides.port {
-            relay.port = u16::from_str_radix(port.as_str(), 10)
+            relay.port = port
+                .as_str()
+                .parse()
                 .map_err(|err| ConfigError::for_field(err, "port"))?;
         }
 
@@ -970,9 +1011,9 @@ impl Config {
             match (id, public_key, secret_key) {
                 (Some(id), Some(public_key), Some(secret_key)) => {
                     self.credentials = Some(Credentials {
-                        id,
-                        public_key,
                         secret_key,
+                        public_key,
+                        id,
                     })
                 }
                 (None, None, None) => {
@@ -1109,6 +1150,16 @@ impl Config {
         self.values.relay.tls_identity_password.as_deref()
     }
 
+    /// Returns `true` if Relay requires authentication for readiness.
+    ///
+    /// See [`ReadinessCondition`] for more information.
+    pub fn requires_auth(&self) -> bool {
+        match self.values.relay.ready {
+            ReadinessCondition::Authenticated => self.relay_mode() == RelayMode::Managed,
+            ReadinessCondition::Always => false,
+        }
+    }
+
     /// Returns the interval at which Realy should try to re-authenticate with the upstream.
     ///
     /// Always disabled in processing mode.
@@ -1233,14 +1284,14 @@ impl Config {
         Duration::from_secs(self.values.cache.relay_expiry.into())
     }
 
-    /// Returns the timeout for buffered events (due to upstream errors).
-    pub fn event_buffer_expiry(&self) -> Duration {
-        Duration::from_secs(self.values.cache.event_expiry.into())
+    /// Returns the timeout for buffered envelopes (due to upstream errors).
+    pub fn envelope_buffer_expiry(&self) -> Duration {
+        Duration::from_secs(self.values.cache.envelope_expiry.into())
     }
 
-    /// Returns the maximum number of buffered events
-    pub fn event_buffer_size(&self) -> u32 {
-        self.values.cache.event_buffer_size
+    /// Returns the maximum number of buffered envelopes
+    pub fn envelope_buffer_size(&self) -> u32 {
+        self.values.cache.envelope_buffer_size
     }
 
     /// Returns the expiry timeout for cached misses before trying to refetch.
@@ -1343,7 +1394,8 @@ impl Config {
         self.values.limits.max_pending_connections
     }
 
-    /// The maximum number of seconds to wait for pending events after receiving a shutdown signal.
+    /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
+    /// signal.
     pub fn shutdown_timeout(&self) -> Duration {
         Duration::from_secs(self.values.limits.shutdown_timeout)
     }
@@ -1447,5 +1499,24 @@ impl Default for Config {
             credentials: None,
             path: PathBuf::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression test for renaming the envelope buffer flags.
+    #[test]
+    fn test_event_buffer_size() {
+        let yaml = r###"
+cache:
+    event_buffer_size: 1000000
+    event_expiry: 1800
+"###;
+
+        let values: ConfigValues = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(values.cache.envelope_buffer_size, 1_000_000);
+        assert_eq!(values.cache.envelope_expiry, 1800);
     }
 }

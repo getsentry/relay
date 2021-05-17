@@ -1,4 +1,4 @@
-use std::collections::BinaryHeap;
+use std::collections::{btree_map, BinaryHeap};
 use std::collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::fmt;
@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 
+use float_ord::FloatOrd;
 use serde::{Deserialize, Serialize};
 
 use relay_common::{MonotonicResult, UnixTimestamp};
@@ -69,6 +70,371 @@ impl GaugeValue {
     }
 }
 
+/// Type for counting duplicates in distributions.
+type Count = u32;
+
+/// A distribution of values within a [`Bucket`].
+///
+/// Distributions store a histogram of values. It allows to iterate both the distribution with
+/// [`iter`](Self::iter) and individual values with [`iter_values`](Self::iter_values).
+///
+/// Based on individual reported values, distributions allow to query the maximum, minimum, or
+/// average of the reported values, as well as statistical quantiles.
+///
+/// # Example
+///
+/// ```rust
+/// use relay_metrics::dist;
+///
+/// let mut dist = dist![1.0, 1.0, 1.0, 2.0];
+/// dist.insert(5.0);
+/// dist.insert_multi(3.0, 7);
+/// ```
+///
+/// Logically, this distribution is equivalent to this visualization:
+///
+/// ```plain
+/// value | count
+/// 1.0   | ***
+/// 2.0   | *
+/// 3.0   | *******
+/// 4.0   |
+/// 5.0   | *
+/// ```
+///
+/// # Serialization
+///
+/// Distributions serialize as sorted lists of floating point values. The list contains one entry
+/// for each value in the distribution, including duplicates.
+#[derive(Clone, Default, PartialEq)]
+pub struct DistributionValue {
+    values: BTreeMap<FloatOrd<f64>, Count>,
+    length: Count,
+}
+
+impl DistributionValue {
+    /// Makes a new, empty `DistributionValue`.
+    ///
+    /// Does not allocate anything on its own.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Returns the number of values in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_metrics::DistributionValue;
+    ///
+    /// let mut dist = DistributionValue::new();
+    /// assert_eq!(dist.len(), 0);
+    /// dist.insert(1.0);
+    /// dist.insert(1.0);
+    /// assert_eq!(dist.len(), 2);
+    /// ```
+    pub fn len(&self) -> Count {
+        self.length
+    }
+
+    /// Returns `true` if the map contains no elements.
+    pub fn is_empty(&self) -> bool {
+        self.length == 0
+    }
+
+    /// Adds a value to the distribution.
+    ///
+    /// Returns the number this value occurs in the distribution after inserting.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_metrics::DistributionValue;
+    ///
+    /// let mut dist = DistributionValue::new();
+    /// assert_eq!(dist.insert(1.0), 1);
+    /// assert_eq!(dist.insert(1.0), 2);
+    /// assert_eq!(dist.insert(2.0), 1);
+    /// ```
+    pub fn insert(&mut self, value: f64) -> Count {
+        self.insert_multi(value, 1)
+    }
+
+    /// Adds a value multiple times to the distribution.
+    ///
+    /// Returns the number this value occurs in the distribution after inserting.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_metrics::DistributionValue;
+    ///
+    /// let mut dist = DistributionValue::new();
+    /// assert_eq!(dist.insert_multi(1.0, 2), 2);
+    /// assert_eq!(dist.insert_multi(1.0, 3), 5);
+    /// ```
+    pub fn insert_multi(&mut self, value: f64, count: Count) -> Count {
+        self.length += count;
+        if count == 0 {
+            return 0;
+        }
+
+        *self
+            .values
+            .entry(FloatOrd(value))
+            .and_modify(|c| *c += count)
+            .or_insert(count)
+    }
+
+    /// Returns `true` if the set contains a value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_metrics::dist;
+    ///
+    /// let dist = dist![1.0];
+    ///
+    /// assert_eq!(dist.contains(1.0), true);
+    /// assert_eq!(dist.contains(2.0), false);
+    /// ```
+    pub fn contains(&self, value: impl std::borrow::Borrow<f64>) -> bool {
+        self.values.contains_key(&FloatOrd(*value.borrow()))
+    }
+
+    /// Returns how often the given value occurs in the distribution.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_metrics::dist;
+    ///
+    /// let dist = dist![1.0, 1.0];
+    ///
+    /// assert_eq!(dist.get(1.0), 2);
+    /// assert_eq!(dist.get(2.0), 0);
+    /// ```
+    pub fn get(&self, value: impl std::borrow::Borrow<f64>) -> Count {
+        let value = &FloatOrd(*value.borrow());
+        self.values.get(value).copied().unwrap_or(0)
+    }
+
+    /// Gets an iterator that visits unique values in the `DistributionValue` in ascending order.
+    ///
+    /// The iterator yields pairs of values and their count in the distribution.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_metrics::dist;
+    ///
+    /// let dist = dist![2.0, 1.0, 3.0, 2.0];
+    ///
+    /// let mut iter = dist.iter();
+    /// assert_eq!(iter.next(), Some((1.0, 1)));
+    /// assert_eq!(iter.next(), Some((2.0, 2)));
+    /// assert_eq!(iter.next(), Some((3.0, 1)));
+    /// assert_eq!(iter.next(), None);
+    /// ```
+    pub fn iter(&self) -> DistributionIter<'_> {
+        DistributionIter {
+            inner: self.values.iter(),
+        }
+    }
+
+    /// Gets an iterator that visits the values in the `DistributionValue` in ascending order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_metrics::dist;
+    ///
+    /// let dist = dist![2.0, 1.0, 3.0, 2.0];
+    ///
+    /// let mut iter = dist.iter_values();
+    /// assert_eq!(iter.next(), Some(1.0));
+    /// assert_eq!(iter.next(), Some(2.0));
+    /// assert_eq!(iter.next(), Some(2.0));
+    /// assert_eq!(iter.next(), Some(3.0));
+    /// assert_eq!(iter.next(), None);
+    /// ```
+    pub fn iter_values(&self) -> DistributionValuesIter<'_> {
+        DistributionValuesIter {
+            inner: self.iter(),
+            current: 0f64,
+            remaining: 0,
+            total: self.length,
+        }
+    }
+}
+
+impl<'a> IntoIterator for &'a DistributionValue {
+    type Item = (f64, Count);
+    type IntoIter = DistributionIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl fmt::Debug for DistributionValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_map().entries(self.iter()).finish()
+    }
+}
+
+impl Extend<f64> for DistributionValue {
+    fn extend<T: IntoIterator<Item = f64>>(&mut self, iter: T) {
+        for value in iter.into_iter() {
+            self.insert(value);
+        }
+    }
+}
+
+impl Extend<(f64, Count)> for DistributionValue {
+    fn extend<T: IntoIterator<Item = (f64, Count)>>(&mut self, iter: T) {
+        for (value, count) in iter.into_iter() {
+            self.insert_multi(value, count);
+        }
+    }
+}
+
+impl Serialize for DistributionValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.collect_seq(self.iter_values())
+    }
+}
+
+impl<'de> Deserialize<'de> for DistributionValue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct DistributionVisitor;
+
+        impl<'d> serde::de::Visitor<'d> for DistributionVisitor {
+            type Value = DistributionValue;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                write!(formatter, "a list of floating point values")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'d>,
+            {
+                let mut distribution = DistributionValue::new();
+
+                while let Some(value) = seq.next_element()? {
+                    distribution.insert(value);
+                }
+
+                Ok(distribution)
+            }
+        }
+
+        deserializer.deserialize_seq(DistributionVisitor)
+    }
+}
+
+/// An iterator over distribution entries in a [`DistributionValue`].
+///
+/// This struct is created by the [`iter`](DistributionValue::iter) method on
+/// `DistributionValue`. See its documentation for more.
+#[derive(Clone)]
+pub struct DistributionIter<'a> {
+    inner: btree_map::Iter<'a, FloatOrd<f64>, Count>,
+}
+
+impl Iterator for DistributionIter<'_> {
+    type Item = (f64, Count);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (value, count) = self.inner.next()?;
+        Some((value.0, *count))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl ExactSizeIterator for DistributionIter<'_> {}
+
+impl fmt::Debug for DistributionIter<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list().entries(self.clone()).finish()
+    }
+}
+
+/// An iterator over all individual values in a [`DistributionValue`].
+///
+/// This struct is created by the [`iter_values`](DistributionValue::iter_values) method on
+/// `DistributionValue`. See its documentation for more.
+#[derive(Clone)]
+pub struct DistributionValuesIter<'a> {
+    inner: DistributionIter<'a>,
+    current: f64,
+    remaining: Count,
+    total: Count,
+}
+
+impl Iterator for DistributionValuesIter<'_> {
+    type Item = f64;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.remaining > 0 {
+            self.remaining -= 1;
+            self.total -= 1;
+            return Some(self.current);
+        }
+
+        let (value, count) = self.inner.next()?;
+
+        self.current = value;
+        self.remaining = count - 1;
+        self.total -= 1;
+        Some(self.current)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.total as usize;
+        (len, Some(len))
+    }
+}
+
+impl ExactSizeIterator for DistributionValuesIter<'_> {}
+
+impl fmt::Debug for DistributionValuesIter<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list().entries(self.clone()).finish()
+    }
+}
+
+/// Creates a [`DistributionValue`] containing the given arguments.
+///
+/// `dist!` allows `DistributionValue` to be defined with the same syntax as array expressions.
+///
+/// # Example
+///
+/// ```
+/// let dist = relay_metrics::dist![1.0, 2.0];
+/// ```
+#[macro_export]
+macro_rules! dist {
+    () => {
+        $crate::DistributionValue::new()
+    };
+    ($($x:expr),+ $(,)?) => {{
+        let mut distribution = $crate::DistributionValue::new();
+        $( distribution.insert($x); )*
+        distribution
+    }};
+}
+
 /// The [aggregated value](Bucket::value) of a metric bucket.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
@@ -88,9 +454,9 @@ pub enum BucketValue {
     /// 2, 1, 3, 2 => [1, 2, 2, 3]
     /// ```
     ///
-    /// This variant serializes to a list of double precision floats.
+    /// This variant serializes to a list of double precision floats, see [`DistributionValue`].
     #[serde(rename = "d")]
-    Distribution(Vec<f64>),
+    Distribution(DistributionValue),
     /// Aggregates [`MetricValue::Set`] values by storing their hash values in a set.
     ///
     /// ```text
@@ -99,7 +465,7 @@ pub enum BucketValue {
     ///
     /// This variant serializes to a list of 32-bit integers.
     #[serde(rename = "s")]
-    Set(BTreeSet<u32>),
+    Set(BTreeSet<Count>),
     /// Aggregates [`MetricValue::Gauge`] values always retaining the maximum, minimum, and last
     /// value, as well as the sum and count of all values.
     ///
@@ -136,7 +502,7 @@ impl From<MetricValue> for BucketValue {
     fn from(value: MetricValue) -> Self {
         match value {
             MetricValue::Counter(value) => Self::Counter(value),
-            MetricValue::Distribution(value) => Self::Distribution(vec![value]),
+            MetricValue::Distribution(value) => Self::Distribution(dist![value]),
             MetricValue::Set(value) => Self::Set(std::iter::once(value).collect()),
             MetricValue::Gauge(value) => Self::Gauge(GaugeValue::single(value)),
         }
@@ -157,7 +523,7 @@ impl MergeValue for BucketValue {
     fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError> {
         match (bucket_value, self) {
             (BucketValue::Counter(lhs), BucketValue::Counter(rhs)) => *lhs += rhs,
-            (BucketValue::Distribution(lhs), BucketValue::Distribution(rhs)) => lhs.extend(rhs),
+            (BucketValue::Distribution(lhs), BucketValue::Distribution(rhs)) => lhs.extend(&rhs),
             (BucketValue::Set(lhs), BucketValue::Set(rhs)) => lhs.extend(rhs),
             (BucketValue::Gauge(lhs), BucketValue::Gauge(rhs)) => lhs.merge(rhs),
             _ => return Err(AggregateMetricsError),
@@ -174,7 +540,7 @@ impl MergeValue for MetricValue {
                 *counter += value;
             }
             (BucketValue::Distribution(distribution), MetricValue::Distribution(value)) => {
-                distribution.push(value);
+                distribution.insert(value);
             }
             (BucketValue::Set(set), MetricValue::Set(value)) => {
                 set.insert(value);
@@ -841,6 +1207,79 @@ mod tests {
     }
 
     #[test]
+    fn test_distribution_insert() {
+        let mut distribution = DistributionValue::new();
+        assert_eq!(distribution.insert(2f64), 1);
+        assert_eq!(distribution.insert(1f64), 1);
+        assert_eq!(distribution.insert(2f64), 2);
+
+        assert_eq!(distribution.len(), 3);
+
+        assert!(!distribution.contains(0f64));
+        assert!(distribution.contains(1f64));
+        assert!(distribution.contains(2f64));
+
+        assert_eq!(distribution.get(0f64), 0);
+        assert_eq!(distribution.get(1f64), 1);
+        assert_eq!(distribution.get(2f64), 2);
+    }
+
+    #[test]
+    fn test_distribution_insert_multi() {
+        let mut distribution = DistributionValue::new();
+        assert_eq!(distribution.insert_multi(0f64, 0), 0);
+        assert_eq!(distribution.insert_multi(2f64, 2), 2);
+        assert_eq!(distribution.insert_multi(1f64, 1), 1);
+        assert_eq!(distribution.insert_multi(3f64, 1), 1);
+        assert_eq!(distribution.insert_multi(3f64, 2), 3);
+
+        assert_eq!(distribution.len(), 6);
+
+        assert!(!distribution.contains(0f64));
+        assert!(distribution.contains(1f64));
+        assert!(distribution.contains(2f64));
+        assert!(distribution.contains(3f64));
+
+        assert_eq!(distribution.get(0f64), 0);
+        assert_eq!(distribution.get(1f64), 1);
+        assert_eq!(distribution.get(2f64), 2);
+        assert_eq!(distribution.get(3f64), 3);
+    }
+
+    #[test]
+    fn test_distribution_iter_values() {
+        let distribution = dist![2f64, 1f64, 2f64];
+
+        let mut iter = distribution.iter_values();
+        assert_eq!(iter.len(), 3);
+        assert_eq!(iter.next(), Some(1f64));
+        assert_eq!(iter.len(), 2);
+        assert_eq!(iter.next(), Some(2f64));
+        assert_eq!(iter.len(), 1);
+        assert_eq!(iter.next(), Some(2f64));
+        assert_eq!(iter.len(), 0);
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_distribution_iter_values_empty() {
+        let distribution = DistributionValue::new();
+        let mut iter = distribution.iter_values();
+        assert_eq!(iter.len(), 0);
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_distribution_iter() {
+        let distribution = dist![2f64, 1f64, 2f64];
+
+        let mut iter = distribution.iter();
+        assert_eq!(iter.next(), Some((1f64, 1)));
+        assert_eq!(iter.next(), Some((2f64, 2)));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
     fn test_parse_buckets() {
         let json = r#"[
           {
@@ -865,12 +1304,12 @@ mod tests {
                     MilliSecond,
                 ),
                 value: Distribution(
-                    [
-                        36.0,
-                        49.0,
-                        57.0,
-                        68.0,
-                    ],
+                    {
+                        36.0: 1,
+                        49.0: 1,
+                        57.0: 1,
+                        68.0: 1,
+                    },
                 ),
                 tags: {
                     "route": "user_index",
@@ -973,12 +1412,11 @@ mod tests {
 
     #[test]
     fn test_bucket_value_merge_distribution() {
-        let mut value = BucketValue::Distribution(vec![1., 2., 3.]);
-        BucketValue::Distribution(vec![2., 4.])
+        let mut value = BucketValue::Distribution(dist![1., 2., 3.]);
+        BucketValue::Distribution(dist![2., 4.])
             .merge_into(&mut value)
             .unwrap();
-        // TODO: This should be ordered
-        assert_eq!(value, BucketValue::Distribution(vec![1., 2., 3., 2., 4.]));
+        assert_eq!(value, BucketValue::Distribution(dist![1., 2., 2., 3., 4.]));
     }
 
     #[test]
@@ -1018,12 +1456,12 @@ mod tests {
 
     #[test]
     fn test_bucket_value_insert_distribution() {
-        let mut value = BucketValue::Distribution(vec![1., 2., 3.]);
+        let mut value = BucketValue::Distribution(dist![1., 2., 3.]);
         MetricValue::Distribution(2.0)
             .merge_into(&mut value)
             .unwrap();
         // TODO: This should be ordered
-        assert_eq!(value, BucketValue::Distribution(vec![1., 2., 3., 2.]));
+        assert_eq!(value, BucketValue::Distribution(dist![1., 2., 3., 2.]));
     }
 
     #[test]

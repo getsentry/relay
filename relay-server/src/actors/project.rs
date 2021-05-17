@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -22,7 +23,7 @@ use relay_metrics::{
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 
-use crate::actors::events::{EventManager, SendMetrics};
+use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};
@@ -42,6 +43,17 @@ pub enum Outdated {
     /// The project state is completely outdated and events need to be buffered up until the new
     /// state has been fetched.
     HardOutdated,
+}
+
+/// Features exposed by project config
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum Feature {
+    #[serde(rename = "organizations:metrics-extraction")]
+    MetricsExtraction,
+
+    /// forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 /// These are config values that the user can modify in the UI.
@@ -74,6 +86,9 @@ pub struct ProjectConfig {
     /// Configuration for operation breakdown. Will be emitted only if present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns: Option<BreakdownsConfig>,
+    /// Exposable features enabled for this project
+    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
+    pub features: BTreeSet<Feature>,
 }
 
 impl Default for ProjectConfig {
@@ -89,11 +104,12 @@ impl Default for ProjectConfig {
             quotas: Vec::new(),
             dynamic_sampling: None,
             breakdowns: None,
+            features: BTreeSet::new(),
         }
     }
 }
 
-/// These are config values that the user can modify in the UI.
+/// These are config values that are passed to external Relays.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase", remote = "ProjectConfig")]
 pub struct LimitedProjectConfig {
@@ -101,6 +117,7 @@ pub struct LimitedProjectConfig {
     pub trusted_relays: Vec<PublicKey>,
     pub pii_config: Option<PiiConfig>,
     pub datascrubbing_settings: DataScrubbingConfig,
+    pub features: BTreeSet<Feature>,
 }
 
 /// The project state is a cached server state of a project.
@@ -385,6 +402,10 @@ impl ProjectState {
         self.config.quotas.retain(Quota::is_valid);
         self
     }
+
+    pub fn has_feature(&self, feature: Feature) -> bool {
+        self.config.features.contains(&feature)
+    }
 }
 
 /// Represents a public key received from the projectconfig endpoint.
@@ -453,7 +474,7 @@ pub struct Project {
     public_key: ProjectKey,
     config: Arc<Config>,
     manager: Addr<ProjectCache>,
-    event_manager: Addr<EventManager>,
+    event_manager: Addr<EnvelopeManager>,
     outcome_producer: Addr<OutcomeProducer>,
     aggregator: AggregatorState,
     state: Option<Arc<ProjectState>>,
@@ -468,7 +489,7 @@ impl Project {
         key: ProjectKey,
         config: Arc<Config>,
         manager: Addr<ProjectCache>,
-        event_manager: Addr<EventManager>,
+        event_manager: Addr<EnvelopeManager>,
         outcome_producer: Addr<OutcomeProducer>,
     ) -> Self {
         Project {
@@ -851,8 +872,8 @@ impl Handler<CheckEnvelope> for Project {
             // a full reload.
             self.get_or_fetch_state(false, context);
 
-            // message.fetch == false: Fetching must not block the store request. The EventManager
-            // will later fetch the project state.
+            // message.fetch == false: Fetching must not block the store request. The
+            // EnvelopeManager will later fetch the project state.
             ActorResponse::ok(self.check_envelope_scoped(message))
         }
     }
@@ -941,7 +962,7 @@ impl Handler<FlushBuckets> for Project {
                 Ok(Ok(())) => Ok(()),
                 Ok(Err(buckets)) => Err(buckets),
                 Err(_) => {
-                    relay_log::error!("dropped metric buckets: event manager mailbox full");
+                    relay_log::error!("dropped metric buckets: envelope manager mailbox full");
                     Ok(())
                 }
             });

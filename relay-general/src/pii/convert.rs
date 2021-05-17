@@ -1354,7 +1354,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
             sensitive_fields: vec!["special ,./<>?!@#$%^&*())'gärbage'".to_owned()],
-            exclude_fields: vec!["do not ,./<>?!@#$%^&*())'ßtrip'".to_owned()],
+            exclude_fields: vec![
+                "do not ,./<>?!@#$%^&*())'ßtrip'".to_owned(),
+                "2abc".to_owned(),
+            ],
             ..simple_enabled_config()
         });
 

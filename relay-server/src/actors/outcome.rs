@@ -325,11 +325,7 @@ pub struct TrackRawOutcome {
 
 impl TrackRawOutcome {
     fn from_outcome(msg: TrackOutcome, config: &Config) -> Self {
-        let reason = match msg.outcome.to_reason() {
-            None => None,
-            Some(reason) => Some(reason.to_string()),
-        };
-
+        let reason = msg.outcome.to_reason().map(|reason| reason.to_string());
         let date_time = relay_common::instant_to_date_time(msg.timestamp);
 
         // convert to a RFC 3339 formatted date with the shape YYYY-MM-DDTHH:MM:SS.mmmmmmZ
@@ -502,9 +498,9 @@ mod processing {
         type Context = Context<Self>;
 
         fn started(&mut self, context: &mut Self::Context) {
-            // Set the mailbox size to the size of the event buffer. This is a rough estimate but
+            // Set the mailbox size to the size of the envelope buffer. This is a rough estimate but
             // should ensure that we're not dropping outcomes unintentionally.
-            let mailbox_size = self.config.event_buffer_size() as usize;
+            let mailbox_size = self.config.envelope_buffer_size() as usize;
             context.set_mailbox_capacity(mailbox_size);
 
             relay_log::info!("OutcomeProducer started.");

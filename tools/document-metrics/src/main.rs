@@ -226,13 +226,13 @@ fn parse_metrics(source: &str) -> Result<Vec<Metric>> {
         }
     }
 
-    let mut metrics = Vec::new();
+    let mut metrics = Vec::with_capacity(impl_parts.len());
 
     for (path, (name, ty)) in impl_parts {
         let (description, features) = variant_parts.remove(&path).unwrap();
         metrics.push(Metric {
-            name,
             ty,
+            name,
             description,
             features,
         });

@@ -96,17 +96,17 @@ impl fmt::Display for EventType {
 #[repr(i8)]
 pub enum DataCategory {
     /// Reserved and unused.
-    Default,
+    Default = 0,
     /// Error events and Events with an `event_type` not explicitly listed below.
-    Error,
+    Error = 1,
     /// Transaction events.
-    Transaction,
+    Transaction = 2,
     /// Events with an event type of `csp`, `hpkp`, `expectct` and `expectstaple`.
-    Security,
+    Security = 3,
     /// An attachment. Quantity is the size of the attachment in bytes.
-    Attachment,
+    Attachment = 4,
     /// Session updates. Quantity is the number of updates in the batch.
-    Session,
+    Session = 5,
     /// Any other data category not known by this Relay.
     #[serde(other)]
     Unknown = -1,
