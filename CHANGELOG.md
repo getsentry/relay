@@ -11,6 +11,7 @@
 **Bug Fixes**:
 
 - Fix roundtrip error when PII selector starts with number. ([#982](https://github.com/getsentry/relay/pull/982))
+- Clean error code returned on relay authenticated endpoints. ([#998](https://github.com/getsentry/relay/pull/998))
 
 **Internal**:
 
