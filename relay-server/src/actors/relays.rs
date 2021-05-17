@@ -1,7 +1,6 @@
 //! This actor caches known public keys.
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::iter::FromIterator;
 use std::mem;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -115,15 +114,20 @@ pub struct RelayCache {
 
 impl RelayCache {
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
-        let static_relays = HashMap::from_iter(config.static_relays().relays.iter().map(|r| {
-            (
-                r.id,
-                RelayInfo {
-                    public_key: r.public_key.clone(),
-                    internal: r.internal,
-                },
-            )
-        }));
+        let static_relays = config
+            .static_relays()
+            .relays
+            .iter()
+            .map(|r| {
+                (
+                    r.id,
+                    RelayInfo {
+                        public_key: r.public_key.clone(),
+                        internal: r.internal,
+                    },
+                )
+            })
+            .collect();
 
         RelayCache {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
