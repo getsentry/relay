@@ -18,6 +18,7 @@
 - Extract metrics for transaction breakdowns and sessions when the feature is enabled for the organizaiton. ([#986](https://github.com/getsentry/relay/pull/986))
 - Assign explicit values to DataCategory enum. ([#987](https://github.com/getsentry/relay/pull/987))
 - All fields in breakdown config should be camelCase. ([#993](https://github.com/getsentry/relay/pull/993))
+- Relay can now be told by Sentry to retry individual projectconfig requests later. ([#980](https://github.com/getsentry/relay/pull/980))
 
 ## 21.4.1
 
