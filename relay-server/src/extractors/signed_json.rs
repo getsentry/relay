@@ -4,7 +4,7 @@ use failure::Fail;
 use futures::prelude::*;
 use serde::de::DeserializeOwned;
 
-use relay_auth::RelayId;
+use relay_auth::{RelayId, UnpackError};
 use relay_common::tryf;
 use relay_log::Hub;
 
@@ -23,6 +23,8 @@ pub struct SignedJson<T> {
 enum SignatureError {
     #[fail(display = "invalid relay signature")]
     BadSignature,
+    #[fail(display = "could not deserialize payload")]
+    BadPayload(#[cause] serde_json::Error),
     #[fail(display = "missing header: {}", _0)]
     MissingHeader(&'static str),
     #[fail(display = "malformed header: {}", _0)]
@@ -33,7 +35,12 @@ enum SignatureError {
 
 impl ResponseError for SignatureError {
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::Unauthorized().json(&ApiErrorResponse::from_fail(self))
+        match &self {
+            SignatureError::BadPayload(_) => {
+                HttpResponse::BadRequest().json(&ApiErrorResponse::from_fail(self))
+            }
+            _ => HttpResponse::Unauthorized().json(&ApiErrorResponse::from_fail(self)),
+        }
     }
 }
 
@@ -81,7 +88,10 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
                     .public_key
                     .unpack(&body, &relay_sig, None)
                     .map(|inner| SignedJson { inner, relay })
-                    .map_err(|_| Error::from(SignatureError::BadSignature))
+                    .map_err(|e| match e {
+                        UnpackError::BadPayload(e) => Error::from(SignatureError::BadPayload(e)),
+                        _ => Error::from(SignatureError::BadSignature),
+                    })
             });
 
         Box::new(future)
