@@ -37,7 +37,7 @@ impl RetryAfter {
 
     /// Returns the remaining seconds until the rate limit expires.
     ///
-    /// This is a shortcut to `retry_after.remaining().as_secs()` whith one exception: If the rate
+    /// This is a shortcut to `retry_after.remaining().as_secs()` with one exception: If the rate
     /// limit has expired, this function returns `0`.
     #[inline]
     pub fn remaining_seconds(self) -> u64 {

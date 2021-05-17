@@ -131,10 +131,8 @@ fn parse_raw_data(request: &Request) -> Option<(&'static str, Value)> {
 
     if let Ok(value) = serde_json::from_str(raw) {
         Some(("application/json", value))
-    } else if let Some(value) = urlencoded_from_str(raw) {
-        Some(("application/x-www-form-urlencoded", value))
     } else {
-        None
+        urlencoded_from_str(raw).map(|value| ("application/x-www-form-urlencoded", value))
     }
 }
 

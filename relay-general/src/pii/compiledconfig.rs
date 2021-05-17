@@ -32,10 +32,10 @@ impl CompiledPiiConfig {
 fn get_rule(config: &PiiConfig, id: &str) -> Option<RuleRef> {
     if let Some(spec) = config.rules.get(id) {
         Some(RuleRef::new(id.to_owned(), spec))
-    } else if let Some(spec) = BUILTIN_RULES_MAP.get(id) {
-        Some(RuleRef::new(id.to_owned(), spec))
     } else {
-        None
+        BUILTIN_RULES_MAP
+            .get(id)
+            .map(|spec| RuleRef::new(id.to_owned(), spec))
     }
 }
 

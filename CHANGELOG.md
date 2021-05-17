@@ -7,6 +7,7 @@
 - Support the `frame.stack_start` field for chained async stack traces in Cocoa SDK v7. ([#981](https://github.com/getsentry/relay/pull/981))
 - Rename configuration fields `cache.event_buffer_size` to `cache.envelope_buffer_size` and `cache.event_expiry` to `cache.envelope_expiry`. The former names are still supported by Relay. ([#985](https://github.com/getsentry/relay/pull/985))
 - Support statically configured relays. ([#991](https://github.com/getsentry/relay/pull/991))
+- Add a configuraton flag `relay.ready: always` to mark Relay ready in healthchecks immediately after starting without requiring to authenticate. ([#989](https://github.com/getsentry/relay/pull/989))
 
 **Bug Fixes**:
 
@@ -17,6 +18,7 @@
 - Update internal representation of distribution metrics. ([#979](https://github.com/getsentry/relay/pull/979))
 - Extract metrics for transaction breakdowns and sessions when the feature is enabled for the organizaiton. ([#986](https://github.com/getsentry/relay/pull/986))
 - Assign explicit values to DataCategory enum. ([#987](https://github.com/getsentry/relay/pull/987))
+- All fields in breakdown config should be camelCase. ([#993](https://github.com/getsentry/relay/pull/993))
 
 ## 21.4.1
 
