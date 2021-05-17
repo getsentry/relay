@@ -87,8 +87,8 @@ def test_public_keys(mini_sentry, relay, caller, relays_to_fetch):
     packed, signature = caller.secret_key.pack(request)
 
     resp = relay1.post("/api/0/relays/publickeys/", data=packed, headers={
-        "X-SENTRY-RELAY-ID": caller.id,
-        "X-SENTRY-RELAY-SIGNATURE": signature
+        "X-Sentry-Relay-Id": caller.id,
+        "X-Sentry-Relay-Signature": signature
     })
     assert resp.ok
 
