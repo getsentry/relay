@@ -1062,14 +1062,14 @@ impl Actor for Aggregator {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        relay_log::info!("aggregator started");
+        relay_log::debug!("aggregator started");
 
         // TODO: Consider a better approach than busy polling
         ctx.run_interval(Duration::from_millis(500), Self::try_flush);
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        relay_log::info!("aggregator stopped");
+        relay_log::debug!("aggregator stopped");
     }
 }
 
