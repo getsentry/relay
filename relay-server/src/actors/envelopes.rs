@@ -1999,9 +1999,11 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     project.do_send(UpdateRateLimits(rate_limits.clone()));
                 }
 
-                // Capture extracted metrics in the project's aggregator, independent of dropped
-                // items. This allows us to retain metrics while also sampling.
-                project.do_send(InsertMetrics::new(processed.metrics));
+                if !processed.metrics.is_empty() {
+                    // Capture extracted metrics in the project's aggregator, independent of dropped
+                    // items. This allows us to retain metrics while also sampling.
+                    project.do_send(InsertMetrics::new(processed.metrics));
+                }
 
                 match processed.envelope {
                     Some(envelope) => {

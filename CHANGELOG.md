@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Do not leak resources when projects or DSNs are idle. ([#1003](https://github.com/getsentry/relay/pull/1003))
+
 ## 21.5.0
 
 **Features**:
