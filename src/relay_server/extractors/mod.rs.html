@@ -15,6 +15,8 @@
 <span id="14">14</span>
 <span id="15">15</span>
 <span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">State</span>;
 
@@ -22,11 +24,13 @@
 
 <span class="kw">mod</span> <span class="ident">forwarded_for</span>;
 <span class="kw">mod</span> <span class="ident">request_meta</span>;
+<span class="kw">mod</span> <span class="ident">shared_payload</span>;
 <span class="kw">mod</span> <span class="ident">signed_json</span>;
 <span class="kw">mod</span> <span class="ident">start_time</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">forwarded_for</span>::<span class="kw-2">*</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">request_meta</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">shared_payload</span>::<span class="kw-2">*</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">signed_json</span>::<span class="kw-2">*</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">start_time</span>::<span class="kw-2">*</span>;
 
