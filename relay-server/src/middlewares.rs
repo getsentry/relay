@@ -16,6 +16,7 @@ use relay_log::_sentry::{types::Uuid, Hub, Level, ScopeGuard};
 use relay_log::protocol::{ClientSdkPackage, Event, Request};
 
 use crate::constants::SERVER;
+use crate::extractors::SharedPayload;
 use crate::metrics::{RelayCounters, RelayTimers};
 use crate::utils::ApiErrorResponse;
 
@@ -109,8 +110,7 @@ pub struct ReadRequestMiddleware;
 
 impl<S> Middleware<S> for ReadRequestMiddleware {
     fn response(&self, req: &HttpRequest<S>, resp: HttpResponse) -> Result<Response, Error> {
-        let future = req
-            .payload()
+        let future = SharedPayload::get(req)
             .for_each(|_| Ok(()))
             .map(|_| resp)
             .map_err(Error::from);

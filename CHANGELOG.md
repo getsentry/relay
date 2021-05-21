@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 21.5.1
+
+**Bug Fixes**:
+
+- Do not leak resources when projects or DSNs are idle. ([#1003](https://github.com/getsentry/relay/pull/1003))
+
+## 21.5.0
 
 **Features**:
 
@@ -18,7 +24,6 @@
 - Update internal representation of distribution metrics. ([#979](https://github.com/getsentry/relay/pull/979))
 - Extract metrics for transaction breakdowns and sessions when the feature is enabled for the organizaiton. ([#986](https://github.com/getsentry/relay/pull/986))
 - Assign explicit values to DataCategory enum. ([#987](https://github.com/getsentry/relay/pull/987))
-- All fields in breakdown config should be camelCase. ([#993](https://github.com/getsentry/relay/pull/993))
 
 ## 21.4.1
 
