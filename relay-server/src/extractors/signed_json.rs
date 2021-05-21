@@ -6,9 +6,10 @@ use serde::de::DeserializeOwned;
 
 use relay_auth::RelayId;
 use relay_common::tryf;
+use relay_config::RelayInfo;
 use relay_log::Hub;
 
-use crate::actors::relays::{GetRelay, RelayInfo};
+use crate::actors::relays::GetRelay;
 use crate::middlewares::ActixWebHubExt;
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;

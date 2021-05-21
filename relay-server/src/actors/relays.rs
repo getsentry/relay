@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use relay_auth::{PublicKey, RelayId};
 use relay_common::RetryBackoff;
-use relay_config::Config;
+use relay_config::{Config, RelayInfo};
 use relay_log::LogError;
 
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
@@ -114,21 +114,7 @@ pub struct RelayCache {
 
 impl RelayCache {
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
-        let static_relays = config
-            .static_relays()
-            .relays
-            .iter()
-            .map(|r| {
-                (
-                    r.id,
-                    RelayInfo {
-                        public_key: r.public_key.clone(),
-                        internal: r.internal,
-                    },
-                )
-            })
-            .collect();
-
+        let static_relays = config.static_relays().relays.clone();
         RelayCache {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             config,
@@ -318,27 +304,6 @@ pub struct PublicKeysResultCompatibility {
     /// A map from Relay's identifier to its information.
     #[serde(default)]
     pub relays: HashMap<RelayId, Option<RelayInfo>>,
-}
-
-/// Information on a downstream Relay.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct RelayInfo {
-    /// The public key that this Relay uses to authenticate and sign requests.
-    pub public_key: PublicKey,
-
-    /// Marks an internal relay that has privileged access to more project configuration.
-    #[serde(default)]
-    pub internal: bool,
-}
-
-impl RelayInfo {
-    pub fn new(public_key: PublicKey) -> Self {
-        Self {
-            public_key,
-            internal: false,
-        }
-    }
 }
 
 impl Message for GetRelays {

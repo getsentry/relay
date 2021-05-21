@@ -49,10 +49,10 @@ def test_public_keys(mini_sentry, relay, caller, relays_to_fetch):
 
     # create configuration containing the static relays
     relays_conf = {
-        "relays": [
-            {"id": id1, "public_key": str(pk1), "internal": True},
-            {"id": id2, "public_key": str(pk2), "internal": False},
-        ]
+        "relays": {
+            id1: {"publicKey": str(pk1), "internal": True},
+            id2: {"publicKey": str(pk2), "internal": False},
+        }
     }
 
     # create 2 normal relays

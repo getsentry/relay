@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::env;
 use std::fmt;
 use std::fs;
@@ -279,16 +279,24 @@ impl ConfigObject for Credentials {
 
 /// Information on a downstream Relay.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct StaticRelayInfo {
-    /// The identifier of the Relay included in every signed request.
-    pub id: RelayId,
-
+#[serde(rename_all = "camelCase")]
+pub struct RelayInfo {
     /// The public key that this Relay uses to authenticate and sign requests.
     pub public_key: PublicKey,
 
     /// Marks an internal relay that has privileged access to more project configuration.
     #[serde(default)]
     pub internal: bool,
+}
+
+impl RelayInfo {
+    /// Creates a new RelayInfo
+    pub fn new(public_key: PublicKey) -> Self {
+        Self {
+            public_key,
+            internal: false,
+        }
+    }
 }
 
 /// Contains a list of Relays that are statically configured in a config file.
@@ -300,7 +308,7 @@ pub struct StaticRelays {
     /// A list of Relays that will be resolved statically.
     ///
     /// Relay IDs must be unique within this list. Duplicate entries lead to undefined behavior.
-    pub relays: Vec<StaticRelayInfo>,
+    pub relays: HashMap<RelayId, RelayInfo>,
 }
 
 impl ConfigObject for StaticRelays {
