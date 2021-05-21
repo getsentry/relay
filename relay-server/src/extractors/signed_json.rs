@@ -38,26 +38,24 @@ impl ResponseError for SignatureError {
     }
 }
 
-fn extract_header<'a>(
-    req: &'a HttpRequest<ServiceState>,
-    name: &'static str,
-) -> Result<&'a str, SignatureError> {
-    req.headers()
-        .get(name)
-        .ok_or(SignatureError::MissingHeader(name))
-        .and_then(|value| {
-            value
-                .to_str()
-                .map_err(|_| SignatureError::MalformedHeader(name))
-        })
-}
-
 impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> {
     type Config = ();
     type Result = ResponseFuture<Self, Error>;
 
     fn from_request(req: &HttpRequest<ServiceState>, _cfg: &Self::Config) -> Self::Result {
-        let relay_id: RelayId = tryf!(tryf!(extract_header(req, "X-Sentry-Relay-Id"))
+        macro_rules! extract_header {
+            ($name:expr) => {
+                tryf!(req
+                    .headers()
+                    .get($name)
+                    .ok_or(SignatureError::MissingHeader($name))
+                    .and_then(|value| value
+                        .to_str()
+                        .map_err(|_| SignatureError::MalformedHeader($name))))
+            };
+        }
+
+        let relay_id: RelayId = tryf!(extract_header!("X-Sentry-Relay-Id")
             .parse()
             .map_err(|_| SignatureError::MalformedHeader("X-Sentry-Relay-Id")));
 
@@ -66,7 +64,7 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
             scope.set_tag("relay_id", relay_id.to_string());
         });
 
-        let relay_sig = tryf!(extract_header(req, "X-Sentry-Relay-Signature")).to_owned();
+        let relay_sig = extract_header!("X-Sentry-Relay-Signature").to_owned();
 
         let future = req
             .state()
