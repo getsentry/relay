@@ -291,7 +291,8 @@ pub struct StaticRelayInfo {
     pub internal: bool,
 }
 
-/// Contains a list of Relays that are statically configured (in a config file)
+/// Contains a list of Relays that are statically configured in a config file.
+///
 /// For statically configured Relays there will be no upstream key lookup.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
