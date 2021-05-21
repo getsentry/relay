@@ -1,3 +1,6 @@
+use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use actix_web::dev::Payload;
 use actix_web::{FromRequest, HttpMessage, HttpRequest};
 use futures::{Async, Poll, Stream};
@@ -13,7 +16,7 @@ use futures::{Async, Poll, Stream};
 #[derive(Clone, Debug)]
 pub struct SharedPayload {
     inner: Payload,
-    done: bool,
+    done: Rc<AtomicBool>,
 }
 
 impl SharedPayload {
@@ -27,7 +30,7 @@ impl SharedPayload {
 
         let payload = Self {
             inner: request.payload(),
-            done: false,
+            done: Rc::new(AtomicBool::new(false)),
         };
 
         extensions.insert(payload.clone());
@@ -50,18 +53,17 @@ impl Stream for SharedPayload {
 
     #[inline]
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        if self.done {
+        if self.done.load(Ordering::Relaxed) {
+            relay_log::info!("done");
             return Ok(Async::Ready(None));
         }
 
         let poll = self.inner.poll();
 
-        self.done = match poll {
-            Ok(Async::NotReady) => false,
-            Ok(Async::Ready(Some(_))) => false,
-            Ok(Async::Ready(None)) => true,
-            Err(_) => true,
-        };
+        // Fuse the stream on error. Subsequent polls will never be ready
+        if matches!(poll, Ok(Async::Ready(None)) | Err(_)) {
+            self.done.store(true, Ordering::Relaxed);
+        }
 
         poll
     }

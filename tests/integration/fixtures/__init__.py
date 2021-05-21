@@ -293,9 +293,13 @@ class SentryLike(object):
         response.raise_for_status()
         return response
 
-    def request(self, method, path, **kwargs):
+    def request(self, method, path, timeout=None, **kwargs):
         assert path.startswith("/")
-        return session.request(method, self.url + path, **kwargs)
+
+        if timeout is None:
+            timeout = 10
+
+        return session.request(method, self.url + path, timeout=timeout, **kwargs)
 
     def post(self, path, **kwargs):
         return self.request("post", path, **kwargs)
