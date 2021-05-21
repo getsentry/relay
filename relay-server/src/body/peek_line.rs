@@ -1,4 +1,3 @@
-use actix_web::dev::Payload;
 use bytes::{Bytes, BytesMut};
 use futures::{Async, Poll, Stream};
 use smallvec::SmallVec;
@@ -18,7 +17,7 @@ use crate::extractors::SharedPayload;
 /// smaller than the size limit. Otherwise, resolves to `None`. Any errors on the underlying stream
 /// are returned without change.
 pub struct PeekLine {
-    payload: Payload,
+    payload: SharedPayload,
     chunks: SmallVec<[Bytes; 3]>,
     len: usize,
     limit: Option<usize>,
@@ -26,7 +25,7 @@ pub struct PeekLine {
 
 impl PeekLine {
     /// Creates a new peek line future from the given payload.
-    pub fn new(payload: Payload) -> Self {
+    pub fn new(payload: SharedPayload) -> Self {
         Self {
             payload,
             chunks: SmallVec::new(),
@@ -116,7 +115,6 @@ impl futures::Future for PeekLine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::HttpMessage;
     use relay_test::TestRequest;
 
     #[test]
@@ -127,7 +125,8 @@ mod tests {
             .set_payload("".to_string())
             .finish();
 
-        let opt = relay_test::block_fn(move || PeekLine::new(request.payload())).unwrap();
+        let opt =
+            relay_test::block_fn(move || PeekLine::new(SharedPayload::get(&request))).unwrap();
         assert_eq!(opt, None);
     }
 
@@ -139,7 +138,8 @@ mod tests {
             .set_payload("test".to_string())
             .finish();
 
-        let opt = relay_test::block_fn(move || PeekLine::new(request.payload())).unwrap();
+        let opt =
+            relay_test::block_fn(move || PeekLine::new(SharedPayload::get(&request))).unwrap();
         assert_eq!(opt, Some("test".into()));
     }
 
@@ -151,7 +151,8 @@ mod tests {
             .set_payload("test\ndone".to_string())
             .finish();
 
-        let opt = relay_test::block_fn(move || PeekLine::new(request.payload())).unwrap();
+        let opt =
+            relay_test::block_fn(move || PeekLine::new(SharedPayload::get(&request))).unwrap();
         assert_eq!(opt, Some("test".into()));
     }
 
@@ -164,7 +165,9 @@ mod tests {
             .set_payload(payload.to_string())
             .finish();
 
-        let opt = relay_test::block_fn(move || PeekLine::new(request.payload()).limit(4)).unwrap();
+        let opt =
+            relay_test::block_fn(move || PeekLine::new(SharedPayload::get(&request)).limit(4))
+                .unwrap();
         assert_eq!(opt, Some("test".into()));
     }
 
@@ -177,7 +180,9 @@ mod tests {
             .set_payload(payload.to_string())
             .finish();
 
-        let opt = relay_test::block_fn(move || PeekLine::new(request.payload()).limit(3)).unwrap();
+        let opt =
+            relay_test::block_fn(move || PeekLine::new(SharedPayload::get(&request)).limit(3))
+                .unwrap();
         assert_eq!(opt, None);
     }
 
