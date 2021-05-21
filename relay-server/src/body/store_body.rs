@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::io::{self, Read};
 
 use actix::ResponseFuture;
-use actix_web::dev::Payload;
 use actix_web::http::StatusCode;
 use actix_web::{error::PayloadError, HttpRequest, HttpResponse, ResponseError};
 use base64::DecodeError;
@@ -82,7 +81,7 @@ pub struct StoreBody {
     // These states are mutually exclusive:
     result: Option<Result<Bytes, StorePayloadError>>,
     fut: Option<ResponseFuture<Bytes, StorePayloadError>>,
-    stream: Option<Payload>,
+    stream: Option<SharedPayload>,
 }
 
 impl StoreBody {
