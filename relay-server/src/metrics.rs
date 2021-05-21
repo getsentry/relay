@@ -303,6 +303,12 @@ impl TimerMetric for RelayTimers {
 
 /// Counter metrics used by Relay
 pub enum RelayCounters {
+    /// Number of Events that had corrupted (unprintable) event attributes.
+    ///
+    /// This currently checks for `environment` and `release`, for which we know that
+    /// some SDKs may send corrupted values.
+    #[cfg(feature = "processing")]
+    EventCorrupted,
     /// Number of envelopes accepted in the current time slot.
     ///
     /// This represents requests that have successfully passed rate limits and filters, and have
@@ -373,12 +379,6 @@ pub enum RelayCounters {
     ///
     /// This can be used to track unwanted restarts due to crashes or termination.
     ServerStarting,
-    /// Number of Events that had corrupted (unprintable) event attributes.
-    ///
-    /// This currently checks for `environment` and `release`, for which we know that
-    /// some SDKs may send corrupted values.
-    #[cfg(feature = "processing")]
-    ProcessingEventCorrupted,
     /// Number of messages placed on the Kafka queues.
     ///
     /// When Relay operates as Sentry service and an Envelope item is successfully processed, each
@@ -464,6 +464,8 @@ pub enum RelayCounters {
 impl CounterMetric for RelayCounters {
     fn name(&self) -> &'static str {
         match self {
+            #[cfg(feature = "processing")]
+            RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
             #[cfg(feature = "processing")]
@@ -474,8 +476,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectCacheHit => "project_cache.hit",
             RelayCounters::ProjectCacheMiss => "project_cache.miss",
             RelayCounters::ServerStarting => "server.starting",
-            #[cfg(feature = "processing")]
-            RelayCounters::ProcessingEventCorrupted => "processing.event.corrupted",
             #[cfg(feature = "processing")]
             RelayCounters::ProcessingMessageProduced => "processing.event.produced",
             #[cfg(feature = "processing")]

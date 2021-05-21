@@ -1167,7 +1167,7 @@ impl EnvelopeProcessor {
             process_value(event, &mut store_processor, ProcessingState::root())
                 .map_err(|_| ProcessingError::InvalidTransaction)?;
             if has_unprintable_fields(event) {
-                metric!(counter(RelayCounters::ProcessingEventCorrupted) += 1);
+                metric!(counter(RelayCounters::EventCorrupted) += 1);
             }
         });
 
@@ -2203,24 +2203,19 @@ impl Handler<GetCapturedEnvelope> for EnvelopeManager {
 
 #[cfg(feature = "processing")]
 fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
-    fn is_unprintable(value: &str) -> bool {
+    fn is_unprintable(value: &&str) -> bool {
         value.chars().any(|c| {
             c == '\u{fffd}' // unicode replacement character
                 || (c.is_control() && !c.is_whitespace()) // non-whitespace control characters
         })
     }
-    event
-        .0
-        .as_ref()
-        .filter(|event| {
-            let env = event.environment.0.as_deref();
-            let release = event.release.0.as_ref().map(|s| s.as_str());
-            env.filter(|s| is_unprintable(s))
-                .or(release)
-                .filter(|s| is_unprintable(s))
-                .is_some()
-        })
-        .is_some()
+    if let Some(event) = event.value() {
+        let env = event.environment.as_str().filter(is_unprintable);
+        let release = event.release.as_str().filter(is_unprintable);
+        env.is_some() || release.is_some()
+    } else {
+        false
+    }
 }
 
 #[cfg(test)]
