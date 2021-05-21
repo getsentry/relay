@@ -1,5 +1,4 @@
 use actix::ResponseFuture;
-use actix_web::dev::Payload;
 use actix_web::{error::PayloadError, http::StatusCode, HttpRequest, HttpResponse, ResponseError};
 use bytes::{Bytes, BytesMut};
 use failure::Fail;
@@ -46,7 +45,7 @@ impl From<PayloadError> for ForwardPayloadError {
 /// Future that resolves to a complete store endpoint body.
 pub struct ForwardBody {
     limit: usize,
-    stream: Option<Payload>,
+    stream: Option<SharedPayload>,
     err: Option<ForwardPayloadError>,
     fut: Option<ResponseFuture<Bytes, ForwardPayloadError>>,
 }
