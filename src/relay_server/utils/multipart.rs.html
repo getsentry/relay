@@ -392,19 +392,12 @@
 <span id="391">391</span>
 <span id="392">392</span>
 <span id="393">393</span>
-<span id="394">394</span>
-<span id="395">395</span>
-<span id="396">396</span>
-<span id="397">397</span>
-<span id="398">398</span>
-<span id="399">399</span>
-<span id="400">400</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">convert</span>::<span class="ident">TryInto</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
 
 <span class="kw">use</span> <span class="ident">actix</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">dev</span>::<span class="ident">Payload</span>, <span class="ident">error</span>::<span class="ident">PayloadError</span>, <span class="ident">multipart</span>, <span class="ident">HttpMessage</span>, <span class="ident">HttpRequest</span>};
+<span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">error</span>::<span class="ident">PayloadError</span>, <span class="ident">multipart</span>, <span class="ident">HttpMessage</span>, <span class="ident">HttpRequest</span>};
 <span class="kw">use</span> <span class="ident">bytes</span>::<span class="ident">Bytes</span>;
 <span class="kw">use</span> <span class="ident">failure</span>::<span class="ident">Fail</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">future</span>, <span class="ident">Async</span>, <span class="ident">Future</span>, <span class="ident">Poll</span>, <span class="ident">Stream</span>};
@@ -426,14 +419,14 @@
 <span class="doccomment">/// A wrapper around an actix payload that always ends with a newline.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">struct</span> <span class="ident">TerminatedPayload</span> {
-    <span class="ident">inner</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Payload</span><span class="op">&gt;</span>,
+    <span class="ident">inner</span>: <span class="ident">SharedPayload</span>,
     <span class="ident">end</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Bytes</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TerminatedPayload</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">payload</span>: <span class="ident">Payload</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">payload</span>: <span class="ident">SharedPayload</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="self">Self</span> {
-            <span class="ident">inner</span>: <span class="prelude-val">Some</span>(<span class="ident">payload</span>),
+            <span class="ident">inner</span>: <span class="ident">payload</span>,
             <span class="ident">end</span>: <span class="prelude-val">Some</span>(<span class="ident">Bytes</span>::<span class="ident">from_static</span>(<span class="string">b&quot;\r\n&quot;</span>)),
         }
     }
@@ -445,17 +438,10 @@
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">poll</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Poll</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Bytes</span><span class="op">&gt;</span>, <span class="ident">PayloadError</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">inner</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="kw">match</span> <span class="ident">inner</span>.<span class="ident">poll</span>() {
-                <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="ident">option</span>)) <span class="kw">if</span> <span class="ident">option</span>.<span class="ident">is_none</span>() <span class="op">=</span><span class="op">&gt;</span> {
-                    <span class="comment">// Remove the stream to fuse, then fall through.</span>
-                    <span class="self">self</span>.<span class="ident">inner</span> <span class="op">=</span> <span class="prelude-val">None</span>;
-                }
-                <span class="ident">poll</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">poll</span>,
-            }
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">poll</span>() {
+            <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">None</span>)) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="self">self</span>.<span class="ident">end</span>.<span class="ident">take</span>())),
+            <span class="ident">poll</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">poll</span>,
         }
-
-        <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="self">self</span>.<span class="ident">end</span>.<span class="ident">take</span>()))
     }
 }
 

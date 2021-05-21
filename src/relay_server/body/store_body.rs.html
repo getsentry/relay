@@ -194,13 +194,11 @@
 <span id="193">193</span>
 <span id="194">194</span>
 <span id="195">195</span>
-<span id="196">196</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">Read</span>};
 
 <span class="kw">use</span> <span class="ident">actix</span>::<span class="ident">ResponseFuture</span>;
-<span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">dev</span>::<span class="ident">Payload</span>;
 <span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">http</span>::<span class="ident">StatusCode</span>;
 <span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">error</span>::<span class="ident">PayloadError</span>, <span class="ident">HttpRequest</span>, <span class="ident">HttpResponse</span>, <span class="ident">ResponseError</span>};
 <span class="kw">use</span> <span class="ident">base64</span>::<span class="ident">DecodeError</span>;
@@ -280,7 +278,7 @@
     <span class="comment">// These states are mutually exclusive:</span>
     <span class="ident">result</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Bytes</span>, <span class="ident">StorePayloadError</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">fut</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">Bytes</span>, <span class="ident">StorePayloadError</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">stream</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Payload</span><span class="op">&gt;</span>,
+    <span class="ident">stream</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SharedPayload</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">StoreBody</span> {

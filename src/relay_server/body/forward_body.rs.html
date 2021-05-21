@@ -112,10 +112,8 @@
 <span id="111">111</span>
 <span id="112">112</span>
 <span id="113">113</span>
-<span id="114">114</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">actix</span>::<span class="ident">ResponseFuture</span>;
-<span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">dev</span>::<span class="ident">Payload</span>;
 <span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">error</span>::<span class="ident">PayloadError</span>, <span class="ident">http</span>::<span class="ident">StatusCode</span>, <span class="ident">HttpRequest</span>, <span class="ident">HttpResponse</span>, <span class="ident">ResponseError</span>};
 <span class="kw">use</span> <span class="ident">bytes</span>::{<span class="ident">Bytes</span>, <span class="ident">BytesMut</span>};
 <span class="kw">use</span> <span class="ident">failure</span>::<span class="ident">Fail</span>;
@@ -162,7 +160,7 @@
 <span class="doccomment">/// Future that resolves to a complete store endpoint body.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ForwardBody</span> {
     <span class="ident">limit</span>: <span class="ident">usize</span>,
-    <span class="ident">stream</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Payload</span><span class="op">&gt;</span>,
+    <span class="ident">stream</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SharedPayload</span><span class="op">&gt;</span>,
     <span class="ident">err</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ForwardPayloadError</span><span class="op">&gt;</span>,
     <span class="ident">fut</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">Bytes</span>, <span class="ident">ForwardPayloadError</span><span class="op">&gt;</span><span class="op">&gt;</span>,
 }
