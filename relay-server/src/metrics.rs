@@ -373,6 +373,12 @@ pub enum RelayCounters {
     ///
     /// This can be used to track unwanted restarts due to crashes or termination.
     ServerStarting,
+    /// Number of Events that had corrupted (unprintable) event attributes.
+    ///
+    /// This currently checks for `environment` and `release`, for which we know that
+    /// some SDKs may send corrupted values.
+    #[cfg(feature = "processing")]
+    ProcessingEventCorrupted,
     /// Number of messages placed on the Kafka queues.
     ///
     /// When Relay operates as Sentry service and an Envelope item is successfully processed, each
@@ -468,6 +474,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectCacheHit => "project_cache.hit",
             RelayCounters::ProjectCacheMiss => "project_cache.miss",
             RelayCounters::ServerStarting => "server.starting",
+            #[cfg(feature = "processing")]
+            RelayCounters::ProcessingEventCorrupted => "processing.event.corrupted",
             #[cfg(feature = "processing")]
             RelayCounters::ProcessingMessageProduced => "processing.event.produced",
             #[cfg(feature = "processing")]

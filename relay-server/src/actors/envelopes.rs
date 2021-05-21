@@ -1166,6 +1166,9 @@ impl EnvelopeProcessor {
         metric!(timer(RelayTimers::EventProcessingProcess), {
             process_value(event, &mut store_processor, ProcessingState::root())
                 .map_err(|_| ProcessingError::InvalidTransaction)?;
+            if has_unprintable_fields(event) {
+                metric!(counter(RelayCounters::ProcessingEventCorrupted) += 1);
+            }
         });
 
         Ok(())
@@ -2196,6 +2199,30 @@ impl Handler<GetCapturedEnvelope> for EnvelopeManager {
     }
 }
 
+/// Checks if the Event includes unprintable fields.
+
+#[cfg(feature = "processing")]
+fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
+    fn is_unprintable(value: &str) -> bool {
+        value.chars().any(|c| {
+            c == '\u{fffd}' // unicode replacement character
+                || (c.is_control() && !c.is_whitespace()) // non-whitespace control characters
+        })
+    }
+    event
+        .0
+        .as_ref()
+        .filter(|event| {
+            let env = event.environment.0.as_deref();
+            let release = event.release.0.as_ref().map(|s| s.as_str());
+            env.filter(|s| is_unprintable(s))
+                .or(release)
+                .filter(|s| is_unprintable(s))
+                .is_some()
+        })
+        .is_some()
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, TimeZone, Utc};
@@ -2443,6 +2470,40 @@ mod tests {
 
         // A none-initial update will not trigger any metric if it's not errored/crashed
         assert_eq!(metrics.len(), 0);
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_unprintable_fields() {
+        let event = Annotated::new(Event {
+            environment: Annotated::new(String::from(
+                "�9�~YY���)�����9�~YY���)�����9�~YY���)�����9�~YY���)�����",
+            )),
+            ..Default::default()
+        });
+        assert!(has_unprintable_fields(&event));
+
+        let event = Annotated::new(Event {
+            release: Annotated::new(
+                String::from("���7��#1G����7��#1G����7��#1G����7��#1G����7��#").into(),
+            ),
+            ..Default::default()
+        });
+        assert!(has_unprintable_fields(&event));
+
+        let event = Annotated::new(Event {
+            environment: Annotated::new(String::from("production")),
+            ..Default::default()
+        });
+        assert!(!has_unprintable_fields(&event));
+
+        let event = Annotated::new(Event {
+            release: Annotated::new(
+                String::from("release with\t some\n normal\r\nwhitespace").into(),
+            ),
+            ..Default::default()
+        });
+        assert!(!has_unprintable_fields(&event));
     }
 
     #[test]
