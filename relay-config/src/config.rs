@@ -280,7 +280,7 @@ impl ConfigObject for Credentials {
 /// Information on a downstream Relay.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StaticRelayInfo {
-    /// the id of the relay
+    /// The identifier of the Relay included in every signed request.
     pub id: RelayId,
 
     /// The public key that this Relay uses to authenticate and sign requests.
@@ -297,7 +297,9 @@ pub struct StaticRelayInfo {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct StaticRelays {
-    /// a list of Relay that will be resolved statically
+    /// A list of Relays that will be resolved statically.
+    ///
+    /// Relay IDs must be unique within this list. Duplicate entries lead to undefined behavior.
     pub relays: Vec<StaticRelayInfo>,
 }
 
