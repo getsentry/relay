@@ -34,12 +34,12 @@ def test_dynamic_relays(mini_sentry, relay, caller, projects):
         }
     }
 
-    relay1 = relay(mini_sentry, wait_healthcheck=True, static_relays_config=relays_conf)
+    relay1 = relay(mini_sentry, wait_healthcheck=True, static_relays=relays_conf)
     relay2 = relay(
         mini_sentry,
         wait_healthcheck=True,
         external=True,
-        static_relays_config=relays_conf,
+        static_relays=relays_conf,
     )
 
     # create info for our test parameters

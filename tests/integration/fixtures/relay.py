@@ -51,7 +51,7 @@ def relay(mini_sentry, random_port, background_process, config_dir):
         prepare=None,
         external=None,
         wait_healthcheck=True,
-        static_relays_config=None,
+        static_relays=None,
     ):
         host = "127.0.0.1"
         port = random_port()
@@ -80,9 +80,9 @@ def relay(mini_sentry, random_port, background_process, config_dir):
         dir = config_dir("relay")
         dir.join("config.yml").write(json.dumps(default_opts))
 
-        if static_relays_config is not None:
+        if static_relays is not None:
             # since json is yml write it with json (so we don't add another dependency)
-            dir.join("static_relays.yml").write(json.dumps(static_relays_config))
+            dir.join("static_relays.yml").write(json.dumps(static_relays))
 
         output = subprocess.check_output(
             RELAY_BIN + ["-c", str(dir), "credentials", "generate"]
