@@ -940,3 +940,19 @@ def test_buffer_events_during_outage(relay, mini_sentry):
     # sanity test that we got the event we sent
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "123"}
+
+
+def test_store_invalid_gzip(mini_sentry, relay_chain):
+    relay = relay_chain()
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    headers = {
+        "Content-Encoding": "gzip",
+        "X-Sentry-Auth": relay.get_auth_header(project_id),
+    }
+
+    url = "/api/%s/store/" % project_id
+
+    response = relay.post(url, headers=headers)
+    assert response.status_code == 400
