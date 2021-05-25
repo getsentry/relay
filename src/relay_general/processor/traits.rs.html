@@ -149,6 +149,7 @@
 <span id="148">148</span>
 <span id="149">149</span>
 <span id="150">150</span>
+<span id="151">151</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// This module only defines traits, every parameter is used by definition</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">unused_variables</span>)]</span>
@@ -243,6 +244,7 @@
     <span class="macro">process_method</span><span class="macro">!</span>(<span class="ident">process_span</span>, <span class="kw">crate</span>::<span class="ident">protocol</span>::<span class="ident">Span</span>);
     <span class="macro">process_method</span><span class="macro">!</span>(<span class="ident">process_trace_context</span>, <span class="kw">crate</span>::<span class="ident">protocol</span>::<span class="ident">TraceContext</span>);
     <span class="macro">process_method</span><span class="macro">!</span>(<span class="ident">process_native_image_path</span>, <span class="kw">crate</span>::<span class="ident">protocol</span>::<span class="ident">NativeImagePath</span>);
+    <span class="macro">process_method</span><span class="macro">!</span>(<span class="ident">process_contexts</span>, <span class="kw">crate</span>::<span class="ident">protocol</span>::<span class="ident">Contexts</span>);
 
     <span class="kw">fn</span> <span class="ident">process_other</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,

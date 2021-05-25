@@ -1097,6 +1097,11 @@
 <span id="1096">1096</span>
 <span id="1097">1097</span>
 <span id="1098">1098</span>
+<span id="1099">1099</span>
+<span id="1100">1100</span>
+<span id="1101">1101</span>
+<span id="1102">1102</span>
+<span id="1103">1103</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="attribute">#![<span class="ident">recursion_limit</span> <span class="op">=</span> <span class="string">&quot;256&quot;</span>]</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy</span>::<span class="ident">cognitive_complexity</span>)]</span>
@@ -2083,6 +2088,7 @@
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>)]</span>
 <span class="kw">struct</span> <span class="ident">VariantAttrs</span> {
+    <span class="ident">omit_from_schema</span>: <span class="ident">bool</span>,
     <span class="ident">tag_override</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="ident">fallback_variant</span>: <span class="ident">bool</span>,
 }
@@ -2109,11 +2115,15 @@
                     <span class="ident">NestedMeta</span>::<span class="ident">Lit</span>(..) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;unexpected literal attribute&quot;</span>),
                     <span class="ident">NestedMeta</span>::<span class="ident">Meta</span>(<span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">meta</span> {
                         <span class="ident">Meta</span>::<span class="ident">Path</span>(<span class="ident">path</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                            <span class="kw">if</span> <span class="ident">path</span>.<span class="ident">get_ident</span>().<span class="ident">map_or</span>(<span class="bool-val">false</span>, <span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span> <span class="op">=</span><span class="op">=</span> <span class="string">&quot;fallback_variant&quot;</span>) {
+                            <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="ident">path</span>.<span class="ident">get_ident</span>().<span class="ident">expect</span>(<span class="string">&quot;Unexpected path&quot;</span>);
+
+                            <span class="kw">if</span> <span class="ident">ident</span> <span class="op">=</span><span class="op">=</span> <span class="string">&quot;fallback_variant&quot;</span> {
                                 <span class="ident">rv</span>.<span class="ident">tag_override</span> <span class="op">=</span> <span class="prelude-val">None</span>;
                                 <span class="ident">rv</span>.<span class="ident">fallback_variant</span> <span class="op">=</span> <span class="bool-val">true</span>;
+                            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">ident</span> <span class="op">=</span><span class="op">=</span> <span class="string">&quot;omit_from_schema&quot;</span> {
+                                <span class="ident">rv</span>.<span class="ident">omit_from_schema</span> <span class="op">=</span> <span class="bool-val">true</span>;
                             } <span class="kw">else</span> {
-                                <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Unknown attribute {:?}&quot;</span>, <span class="ident">path</span>);
+                                <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Unknown attribute {}&quot;</span>, <span class="ident">ident</span>);
                             }
                         }
                         <span class="ident">Meta</span>::<span class="ident">NameValue</span>(<span class="ident">name_value</span>) <span class="op">=</span><span class="op">&gt;</span> {

@@ -1037,6 +1037,64 @@
 <span id="1036">1036</span>
 <span id="1037">1037</span>
 <span id="1038">1038</span>
+<span id="1039">1039</span>
+<span id="1040">1040</span>
+<span id="1041">1041</span>
+<span id="1042">1042</span>
+<span id="1043">1043</span>
+<span id="1044">1044</span>
+<span id="1045">1045</span>
+<span id="1046">1046</span>
+<span id="1047">1047</span>
+<span id="1048">1048</span>
+<span id="1049">1049</span>
+<span id="1050">1050</span>
+<span id="1051">1051</span>
+<span id="1052">1052</span>
+<span id="1053">1053</span>
+<span id="1054">1054</span>
+<span id="1055">1055</span>
+<span id="1056">1056</span>
+<span id="1057">1057</span>
+<span id="1058">1058</span>
+<span id="1059">1059</span>
+<span id="1060">1060</span>
+<span id="1061">1061</span>
+<span id="1062">1062</span>
+<span id="1063">1063</span>
+<span id="1064">1064</span>
+<span id="1065">1065</span>
+<span id="1066">1066</span>
+<span id="1067">1067</span>
+<span id="1068">1068</span>
+<span id="1069">1069</span>
+<span id="1070">1070</span>
+<span id="1071">1071</span>
+<span id="1072">1072</span>
+<span id="1073">1073</span>
+<span id="1074">1074</span>
+<span id="1075">1075</span>
+<span id="1076">1076</span>
+<span id="1077">1077</span>
+<span id="1078">1078</span>
+<span id="1079">1079</span>
+<span id="1080">1080</span>
+<span id="1081">1081</span>
+<span id="1082">1082</span>
+<span id="1083">1083</span>
+<span id="1084">1084</span>
+<span id="1085">1085</span>
+<span id="1086">1086</span>
+<span id="1087">1087</span>
+<span id="1088">1088</span>
+<span id="1089">1089</span>
+<span id="1090">1090</span>
+<span id="1091">1091</span>
+<span id="1092">1092</span>
+<span id="1093">1093</span>
+<span id="1094">1094</span>
+<span id="1095">1095</span>
+<span id="1096">1096</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">regex</span>::<span class="ident">Regex</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
@@ -1316,6 +1374,33 @@
     }
 }
 
+<span class="doccomment">/// Auxilliary data that Sentry attaches for reprocessed events.</span>
+<span class="comment">// This context is explicitly typed out such that we can disable datascrubbing for it, and for</span>
+<span class="comment">// documentation. We need to disble datascrubbing because it can retract information from the</span>
+<span class="comment">// context that is necessary for basic operation, or worse, mangle it such that the Snuba consumer</span>
+<span class="comment">// crashes: https://github.com/getsentry/snuba/pull/1896/</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">ToValue</span>, <span class="ident">ProcessValue</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ReprocessingContext</span> {
+    <span class="doccomment">/// The issue ID that this event originally belonged to.</span>
+    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;false&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">original_issue_id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+
+    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;false&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">original_primary_hash</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
+    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>, <span class="ident">retain</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;false&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">ReprocessingContext</span> {
+    <span class="doccomment">/// The key under which a reprocessing context is generally stored (in `Contexts`)</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">default_key</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+        <span class="string">&quot;reprocessing&quot;</span>
+    }
+}
+
 <span class="doccomment">/// Operation type such as `db.statement` for database queries or `http` for external HTTP calls.</span>
 <span class="doccomment">/// Tries to follow OpenCensus/OpenTracing&#39;s span types.</span>
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">OperationType</span> <span class="op">=</span> <span class="ident">String</span>;
@@ -1482,6 +1567,7 @@
 <span class="doccomment">/// Trace context</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">ToValue</span>, <span class="ident">ProcessValue</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
+<span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">process_func</span> <span class="op">=</span> <span class="string">&quot;process_trace_context&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TraceContext</span> {
     <span class="doccomment">/// The trace ID.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
@@ -1609,6 +1695,9 @@
     <span class="ident">Trace</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">TraceContext</span><span class="op">&gt;</span>),
     <span class="doccomment">/// Information related to Monitors feature.</span>
     <span class="ident">Monitor</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">MonitorContext</span><span class="op">&gt;</span>),
+    <span class="doccomment">/// Auxilliary information for reprocessing.</span>
+    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">omit_from_schema</span>)]</span>
+    <span class="ident">Reprocessing</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ReprocessingContext</span><span class="op">&gt;</span>),
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">fallback_variant</span>)]</span>
     <span class="ident">Other</span>(<span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span> <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>),
@@ -1625,10 +1714,11 @@
             <span class="ident">Context</span>::<span class="ident">Runtime</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">RuntimeContext</span>::<span class="ident">default_key</span>()),
             <span class="ident">Context</span>::<span class="ident">App</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">AppContext</span>::<span class="ident">default_key</span>()),
             <span class="ident">Context</span>::<span class="ident">Browser</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">BrowserContext</span>::<span class="ident">default_key</span>()),
+            <span class="ident">Context</span>::<span class="ident">Reprocessing</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">ReprocessingContext</span>::<span class="ident">default_key</span>()),
             <span class="ident">Context</span>::<span class="ident">Gpu</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">GpuContext</span>::<span class="ident">default_key</span>()),
             <span class="ident">Context</span>::<span class="ident">Trace</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">TraceContext</span>::<span class="ident">default_key</span>()),
             <span class="ident">Context</span>::<span class="ident">Monitor</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">MonitorContext</span>::<span class="ident">default_key</span>()),
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">Context</span>::<span class="ident">Other</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 }
@@ -1672,6 +1762,7 @@
 <span class="doccomment">/// Additional Data](https://docs.sentry.io/enriching-error-data/additional-data/).</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">ToValue</span>, <span class="ident">ProcessValue</span>, <span class="ident">Default</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
+<span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">process_func</span> <span class="op">=</span> <span class="string">&quot;process_contexts&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Contexts</span>(<span class="kw">pub</span> <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">ContextInner</span><span class="op">&gt;</span>);
 
 <span class="kw">impl</span> <span class="ident">Contexts</span> {
@@ -2075,6 +2166,31 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">FooProcessor</span> { <span class="ident">called</span>: <span class="bool-val">false</span> };
     <span class="kw">crate</span>::<span class="ident">processor</span>::<span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">processor</span>.<span class="ident">called</span>);
+}
+
+<span class="attribute">#[<span class="ident">test</span>]</span>
+<span class="kw">fn</span> <span class="ident">test_reprocessing_context_roundtrip</span>() {
+    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+  &quot;original_issue_id&quot;: 123,
+  &quot;original_primary_hash&quot;: &quot;9f3ee8ff49e6ca0a2bee80d76fee8f0c&quot;,
+  &quot;random&quot;: &quot;stuff&quot;,
+  &quot;type&quot;: &quot;reprocessing&quot;
+}&quot;#</span>;
+    <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Context</span>::<span class="ident">Reprocessing</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">ReprocessingContext</span> {
+        <span class="ident">original_issue_id</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="number">123</span>),
+        <span class="ident">original_primary_hash</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;9f3ee8ff49e6ca0a2bee80d76fee8f0c&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">other</span>: {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
+            <span class="ident">map</span>.<span class="ident">insert</span>(
+                <span class="string">&quot;random&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;stuff&quot;</span>.<span class="ident">to_string</span>())),
+            );
+            <span class="ident">map</span>
+        },
+    })));
+
+    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">context</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 </pre></div>
 </section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-search-js="../../../search-index.js"></div>
