@@ -98,7 +98,7 @@ lazy_static! {
         static\.woopra\.com/js/woopra\.js|
         ^chrome(-extension)?://|                        # Chrome extensions
         ^moz-extension://|                              # Firefox extensions
-        ^safari(-web)-extension://|                     # Safari extensions
+        ^safari(-web)?-extension://|                    # Safari extensions
         127\.0\.0\.1:4001/isrunning|                    # Cacaoweb
         webappstoolbarba\.texthelp\.com/|               # Other
         metrics\.itunes\.apple\.com\.edgesuite\.net/|
