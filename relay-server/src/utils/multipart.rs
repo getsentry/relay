@@ -2,13 +2,14 @@ use std::convert::TryInto;
 use std::io;
 
 use actix::prelude::*;
-use actix_web::{dev::Payload, error::PayloadError, multipart, HttpMessage, HttpRequest};
+use actix_web::{error::PayloadError, multipart, HttpMessage, HttpRequest};
 use bytes::Bytes;
 use failure::Fail;
 use futures::{future, Async, Future, Poll, Stream};
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
+use crate::extractors::SharedPayload;
 use crate::service::ServiceState;
 
 #[derive(Debug, Fail)]
@@ -23,14 +24,14 @@ pub enum MultipartError {
 /// A wrapper around an actix payload that always ends with a newline.
 #[derive(Clone, Debug)]
 struct TerminatedPayload {
-    inner: Option<Payload>,
+    inner: SharedPayload,
     end: Option<Bytes>,
 }
 
 impl TerminatedPayload {
-    pub fn new(payload: Payload) -> Self {
+    pub fn new(payload: SharedPayload) -> Self {
         Self {
-            inner: Some(payload),
+            inner: payload,
             end: Some(Bytes::from_static(b"\r\n")),
         }
     }
@@ -42,17 +43,10 @@ impl Stream for TerminatedPayload {
 
     #[inline]
     fn poll(&mut self) -> Poll<Option<Bytes>, PayloadError> {
-        if let Some(ref mut inner) = self.inner {
-            match inner.poll() {
-                Ok(Async::Ready(option)) if option.is_none() => {
-                    // Remove the stream to fuse, then fall through.
-                    self.inner = None;
-                }
-                poll => return poll,
-            }
+        match self.inner.poll() {
+            Ok(Async::Ready(None)) => Ok(Async::Ready(self.end.take())),
+            poll => poll,
         }
-
-        Ok(Async::Ready(self.end.take()))
     }
 }
 
@@ -319,25 +313,19 @@ impl MultipartItems {
             Err(error) => return Box::new(future::err(MultipartError::InvalidMultipart(error))),
         };
 
-        // The payload is internally clonable which allows to consume it at the end of this future.
-        let payload = TerminatedPayload::new(request.payload());
-        let multipart = multipart::Multipart::new(Ok(boundary), payload.clone());
+        let payload = TerminatedPayload::new(SharedPayload::get(request));
+        let multipart = multipart::Multipart::new(Ok(boundary), payload);
 
-        let future = consume_stream(self, multipart)
-            .and_then(|multipart| {
-                let mut items = multipart.items;
+        let future = consume_stream(self, multipart).and_then(|multipart| {
+            let mut items = multipart.items;
 
-                let form_data = multipart.form_data.into_item();
-                if !form_data.is_empty() {
-                    items.push(form_data);
-                }
+            let form_data = multipart.form_data.into_item();
+            if !form_data.is_empty() {
+                items.push(form_data);
+            }
 
-                Ok(items)
-            })
-            .then(move |result| {
-                // Consume the remaining stream but ignore errors.
-                payload.for_each(|_| Ok(())).then(|_| result)
-            });
+            Ok(items)
+        });
 
         Box::new(future)
     }

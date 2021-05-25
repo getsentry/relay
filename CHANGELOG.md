@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Explicitly declare reprocessing context. ([#1009](https://github.com/getsentry/relay/pull/1009))
+
 ## 21.5.1
 
 **Bug Fixes**:

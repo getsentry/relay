@@ -3,7 +3,7 @@ use std::io::{self, Read};
 
 use actix::ResponseFuture;
 use actix_web::http::StatusCode;
-use actix_web::{error::PayloadError, HttpMessage, HttpRequest, HttpResponse, ResponseError};
+use actix_web::{error::PayloadError, HttpRequest, HttpResponse, ResponseError};
 use base64::DecodeError;
 use bytes::{Bytes, BytesMut};
 use failure::Fail;
@@ -14,6 +14,7 @@ use url::form_urlencoded;
 use relay_common::metric;
 
 use crate::actors::outcome::DiscardReason;
+use crate::extractors::SharedPayload;
 use crate::metrics::RelayHistograms;
 use crate::utils;
 
@@ -80,7 +81,7 @@ pub struct StoreBody {
     // These states are mutually exclusive:
     result: Option<Result<Bytes, StorePayloadError>>,
     fut: Option<ResponseFuture<Bytes, StorePayloadError>>,
-    stream: Option<<HttpRequest as HttpMessage>::Stream>,
+    stream: Option<SharedPayload>,
 }
 
 impl StoreBody {
@@ -95,8 +96,6 @@ impl StoreBody {
             };
         }
 
-        // Check the content length first. If we detect an overflow from the content length header,
-        // keep the payload in the request to drain it correctly in the `ReadRequestMiddleware`.
         if let Some(length) = utils::get_content_length(req) {
             if length > limit {
                 return Self::err(StorePayloadError::Overflow);
@@ -107,7 +106,7 @@ impl StoreBody {
             limit,
             result: None,
             fut: None,
-            stream: Some(req.payload()),
+            stream: Some(SharedPayload::get(req)),
         }
     }
 
@@ -135,27 +134,20 @@ impl Future for StoreBody {
         }
 
         let limit = self.limit;
-        let body = Some(BytesMut::with_capacity(8192));
-
         let future = self
             .stream
             .take()
             .expect("Can not be used second time")
             .map_err(StorePayloadError::from)
-            .fold(body, move |body_opt, chunk| {
-                // Ensure that the stream is always fully consumed. Erroring here would leave a
-                // broken TCP stream that cannot be used with keep-alive connections.
-                Ok::<_, StorePayloadError>(body_opt.and_then(|mut body| {
-                    if (body.len() + chunk.len()) > limit {
-                        None
-                    } else {
-                        body.extend_from_slice(&chunk);
-                        Some(body)
-                    }
-                }))
+            .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
+                if (body.len() + chunk.len()) > limit {
+                    Err(StorePayloadError::Overflow)
+                } else {
+                    body.extend_from_slice(&chunk);
+                    Ok(body)
+                }
             })
-            .and_then(|body_opt| {
-                let body = body_opt.ok_or(StorePayloadError::Overflow)?;
+            .and_then(|body| {
                 metric!(histogram(RelayHistograms::RequestSizeBytesRaw) = body.len() as u64);
                 let decoded = decode_bytes(body.freeze())?;
                 metric!(

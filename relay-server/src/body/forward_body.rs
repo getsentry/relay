@@ -1,9 +1,10 @@
 use actix::ResponseFuture;
-use actix_web::{error::PayloadError, http::StatusCode, HttpMessage, HttpResponse, ResponseError};
+use actix_web::{error::PayloadError, http::StatusCode, HttpRequest, HttpResponse, ResponseError};
 use bytes::{Bytes, BytesMut};
 use failure::Fail;
 use futures::prelude::*;
 
+use crate::extractors::SharedPayload;
 use crate::utils;
 
 /// A set of errors that can occur during parsing json payloads
@@ -42,18 +43,16 @@ impl From<PayloadError> for ForwardPayloadError {
 }
 
 /// Future that resolves to a complete store endpoint body.
-pub struct ForwardBody<T: HttpMessage> {
+pub struct ForwardBody {
     limit: usize,
-    stream: Option<T::Stream>,
+    stream: Option<SharedPayload>,
     err: Option<ForwardPayloadError>,
     fut: Option<ResponseFuture<Bytes, ForwardPayloadError>>,
 }
 
-impl<T: HttpMessage> ForwardBody<T> {
+impl ForwardBody {
     /// Create `ForwardBody` for request.
-    pub fn new(req: &T, limit: usize) -> ForwardBody<T> {
-        // Check the content length first. If we detect an overflow from the content length header,
-        // keep the payload in the request to drain it correctly in the `ReadRequestMiddleware`.
+    pub fn new<S>(req: &HttpRequest<S>, limit: usize) -> Self {
         if let Some(length) = utils::get_content_length(req) {
             if length > limit {
                 return Self::err(ForwardPayloadError::Overflow);
@@ -62,7 +61,7 @@ impl<T: HttpMessage> ForwardBody<T> {
 
         ForwardBody {
             limit,
-            stream: Some(req.payload()),
+            stream: Some(SharedPayload::get(req)),
             err: None,
             fut: None,
         }
@@ -78,10 +77,7 @@ impl<T: HttpMessage> ForwardBody<T> {
     }
 }
 
-impl<T> Future for ForwardBody<T>
-where
-    T: HttpMessage + 'static,
-{
+impl Future for ForwardBody {
     type Item = Bytes;
     type Error = ForwardPayloadError;
 
@@ -95,27 +91,20 @@ where
         }
 
         let limit = self.limit;
-        let body = Some(BytesMut::with_capacity(8192));
-
         let future = self
             .stream
             .take()
             .expect("Can not be used second time")
             .map_err(ForwardPayloadError::from)
-            .fold(body, move |body_opt, chunk| {
-                Ok::<_, ForwardPayloadError>(body_opt.and_then(|mut body| {
-                    if (body.len() + chunk.len()) > limit {
-                        None
-                    } else {
-                        body.extend_from_slice(&chunk);
-                        Some(body)
-                    }
-                }))
+            .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
+                if (body.len() + chunk.len()) > limit {
+                    Err(ForwardPayloadError::Overflow)
+                } else {
+                    body.extend_from_slice(&chunk);
+                    Ok(body)
+                }
             })
-            .and_then(|bytes_opt| match bytes_opt {
-                Some(bytes) => Ok(bytes.freeze()),
-                None => Err(ForwardPayloadError::Overflow),
-            });
+            .map(BytesMut::freeze);
 
         self.fut = Some(Box::new(future));
 
