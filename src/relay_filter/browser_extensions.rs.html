@@ -257,6 +257,7 @@
 <span id="256">256</span>
 <span id="257">257</span>
 <span id="258">258</span>
+<span id="259">259</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Implements filtering for events caused by problematic browsers extensions.</span>
 
@@ -358,7 +359,7 @@
         static\.woopra\.com/js/woopra\.js|
         ^chrome(-extension)?://|                        # Chrome extensions
         ^moz-extension://|                              # Firefox extensions
-        ^safari-extension://|                           # Safari extensions
+        ^safari(-web)?-extension://|                    # Safari extensions
         127\.0\.0\.1:4001/isrunning|                    # Cacaoweb
         webappstoolbarba\.texthelp\.com/|               # Other
         metrics\.itunes\.apple\.com\.edgesuite\.net/|
@@ -443,6 +444,7 @@
             <span class="string">&quot;chrome://my-extension/or/something&quot;</span>,
             <span class="string">&quot;moz-extension://my-extension/or/something&quot;</span>,
             <span class="string">&quot;safari-extension://my-extension/or/something&quot;</span>,
+            <span class="string">&quot;safari-web-extension://my-extension/or/something&quot;</span>,
             <span class="string">&quot;127.0.0.1:4001/isrunning&quot;</span>,
             <span class="string">&quot;webappstoolbarba.texthelp.com/&quot;</span>,
             <span class="string">&quot;http://metrics.itunes.apple.com.edgesuite.net/itunespreview/itunes/browser:firefo&quot;</span>,
