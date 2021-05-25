@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.6
 
 - Add back `breadcrumb.event_id`. ([#977](https://github.com/getsentry/relay/pull/977))
 - Add `frame.stack_start` for chained async stack traces. ([#981](https://github.com/getsentry/relay/pull/981))
