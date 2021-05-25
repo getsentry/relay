@@ -6,6 +6,7 @@
 - Add `frame.stack_start` for chained async stack traces. ([#981](https://github.com/getsentry/relay/pull/981))
 - Fix roundtrip error when PII selector starts with number. ([#982](https://github.com/getsentry/relay/pull/982))
 - Explicitly declare reprocessing context. ([#1009](https://github.com/getsentry/relay/pull/1009))
+- Add `safari-web-extension` to known browser extensions. ([#1011](https://github.com/getsentry/relay/pull/1011))
 
 ## 0.8.5
 
