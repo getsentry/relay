@@ -983,6 +983,7 @@ fn parse_field_attributes(
 
 #[derive(Default)]
 struct VariantAttrs {
+    omit_from_schema: bool,
     tag_override: Option<String>,
     fallback_variant: bool,
 }
@@ -1009,11 +1010,15 @@ fn parse_variant_attributes(attrs: &[syn::Attribute]) -> VariantAttrs {
                     NestedMeta::Lit(..) => panic!("unexpected literal attribute"),
                     NestedMeta::Meta(meta) => match meta {
                         Meta::Path(path) => {
-                            if path.get_ident().map_or(false, |x| x == "fallback_variant") {
+                            let ident = path.get_ident().expect("Unexpected path");
+
+                            if ident == "fallback_variant" {
                                 rv.tag_override = None;
                                 rv.fallback_variant = true;
+                            } else if ident == "omit_from_schema" {
+                                rv.omit_from_schema = true;
                             } else {
-                                panic!("Unknown attribute {:?}", path);
+                                panic!("Unknown attribute {}", ident);
                             }
                         }
                         Meta::NameValue(name_value) => {

@@ -11,9 +11,10 @@ use smallvec::SmallVec;
 
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    AsPair, Breadcrumb, ClientSdkInfo, Context, DebugImage, Event, EventId, EventType, Exception,
-    Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry, Request, SpanStatus,
-    Stacktrace, Tags, TraceContext, User, INVALID_ENVIRONMENTS, INVALID_RELEASES, VALID_PLATFORMS,
+    AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId, EventType,
+    Exception, Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry, Request,
+    SpanStatus, Stacktrace, Tags, TraceContext, User, INVALID_ENVIRONMENTS, INVALID_RELEASES,
+    VALID_PLATFORMS,
 };
 use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig};
 use crate::types::{
@@ -692,6 +693,19 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             .status
             .value_mut()
             .get_or_insert(SpanStatus::Unknown);
+        Ok(())
+    }
+
+    fn process_contexts(
+        &mut self,
+        contexts: &mut Contexts,
+        _meta: &mut Meta,
+        _state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        // Reprocessing context sent from SDKs must not be accepted, it is a Sentry-internal
+        // construct.
+        // This processor does not run on renormalization anyway.
+        contexts.0.remove("reprocessing");
         Ok(())
     }
 }

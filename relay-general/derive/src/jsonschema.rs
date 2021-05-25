@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{parse_quote, Attribute, Lit, Meta, MetaNameValue, Visibility};
 
-use crate::parse_field_attributes;
+use crate::{parse_field_attributes, parse_variant_attributes};
 
 /// Take an attribute set from the original struct and:
 ///
@@ -41,7 +41,19 @@ pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
 
     let mut arms = Vec::new();
 
+    let is_single_variant = s.variants().len() == 1;
+
     for variant in s.variants() {
+        // parse_variant_attributes currently cannot deal with struct attributes. Structs are
+        // represented as single-variant enums in synstructure.
+        if !is_single_variant {
+            let variant_attrs = parse_variant_attributes(&variant.ast().attrs);
+
+            if variant_attrs.omit_from_schema {
+                continue;
+            }
+        }
+
         let mut fields = Vec::new();
 
         let mut is_tuple_struct = false;
