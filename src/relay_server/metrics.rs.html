@@ -488,6 +488,14 @@
 <span id="487">487</span>
 <span id="488">488</span>
 <span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">metrics</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
@@ -794,6 +802,12 @@
 
 <span class="doccomment">/// Counter metrics used by Relay</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">RelayCounters</span> {
+    <span class="doccomment">/// Number of Events that had corrupted (unprintable) event attributes.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This currently checks for `environment` and `release`, for which we know that</span>
+    <span class="doccomment">/// some SDKs may send corrupted values.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+    <span class="ident">EventCorrupted</span>,
     <span class="doccomment">/// Number of envelopes accepted in the current time slot.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This represents requests that have successfully passed rate limits and filters, and have</span>
@@ -949,6 +963,8 @@
 <span class="kw">impl</span> <span class="ident">CounterMetric</span> <span class="kw">for</span> <span class="ident">RelayCounters</span> {
     <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+            <span class="ident">RelayCounters</span>::<span class="ident">EventCorrupted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.corrupted&quot;</span>,
             <span class="ident">RelayCounters</span>::<span class="ident">EnvelopeAccepted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.accepted&quot;</span>,
             <span class="ident">RelayCounters</span>::<span class="ident">EnvelopeRejected</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.rejected&quot;</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>

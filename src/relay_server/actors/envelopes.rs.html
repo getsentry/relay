@@ -2606,6 +2606,62 @@
 <span id="2605">2605</span>
 <span id="2606">2606</span>
 <span id="2607">2607</span>
+<span id="2608">2608</span>
+<span id="2609">2609</span>
+<span id="2610">2610</span>
+<span id="2611">2611</span>
+<span id="2612">2612</span>
+<span id="2613">2613</span>
+<span id="2614">2614</span>
+<span id="2615">2615</span>
+<span id="2616">2616</span>
+<span id="2617">2617</span>
+<span id="2618">2618</span>
+<span id="2619">2619</span>
+<span id="2620">2620</span>
+<span id="2621">2621</span>
+<span id="2622">2622</span>
+<span id="2623">2623</span>
+<span id="2624">2624</span>
+<span id="2625">2625</span>
+<span id="2626">2626</span>
+<span id="2627">2627</span>
+<span id="2628">2628</span>
+<span id="2629">2629</span>
+<span id="2630">2630</span>
+<span id="2631">2631</span>
+<span id="2632">2632</span>
+<span id="2633">2633</span>
+<span id="2634">2634</span>
+<span id="2635">2635</span>
+<span id="2636">2636</span>
+<span id="2637">2637</span>
+<span id="2638">2638</span>
+<span id="2639">2639</span>
+<span id="2640">2640</span>
+<span id="2641">2641</span>
+<span id="2642">2642</span>
+<span id="2643">2643</span>
+<span id="2644">2644</span>
+<span id="2645">2645</span>
+<span id="2646">2646</span>
+<span id="2647">2647</span>
+<span id="2648">2648</span>
+<span id="2649">2649</span>
+<span id="2650">2650</span>
+<span id="2651">2651</span>
+<span id="2652">2652</span>
+<span id="2653">2653</span>
+<span id="2654">2654</span>
+<span id="2655">2655</span>
+<span id="2656">2656</span>
+<span id="2657">2657</span>
+<span id="2658">2658</span>
+<span id="2659">2659</span>
+<span id="2660">2660</span>
+<span id="2661">2661</span>
+<span id="2662">2662</span>
+<span id="2663">2663</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -3775,6 +3831,9 @@
         <span class="macro">metric</span><span class="macro">!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers</span>::<span class="ident">EventProcessingProcess</span>), {
             <span class="ident">process_value</span>(<span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">store_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>())
                 .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ProcessingError</span>::<span class="ident">InvalidTransaction</span>)<span class="question-mark">?</span>;
+            <span class="kw">if</span> <span class="ident">has_unprintable_fields</span>(<span class="ident">event</span>) {
+                <span class="macro">metric</span><span class="macro">!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">EventCorrupted</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
+            }
         });
 
         <span class="prelude-val">Ok</span>(())
@@ -4805,6 +4864,25 @@
     }
 }
 
+<span class="doccomment">/// Checks if the Event includes unprintable fields.</span>
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+<span class="kw">fn</span> <span class="ident">has_unprintable_fields</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_unprintable</span>(<span class="ident">value</span>: <span class="op">&amp;&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="ident">value</span>.<span class="ident">chars</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> {
+            <span class="ident">c</span> <span class="op">=</span><span class="op">=</span> <span class="string">&#39;\u{fffd}&#39;</span> <span class="comment">// unicode replacement character</span>
+                <span class="op">|</span><span class="op">|</span> (<span class="ident">c</span>.<span class="ident">is_control</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">c</span>.<span class="ident">is_whitespace</span>()) <span class="comment">// non-whitespace control characters</span>
+        })
+    }
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event</span>) <span class="op">=</span> <span class="ident">event</span>.<span class="ident">value</span>() {
+        <span class="kw">let</span> <span class="ident">env</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">environment</span>.<span class="ident">as_str</span>().<span class="ident">filter</span>(<span class="ident">is_unprintable</span>);
+        <span class="kw">let</span> <span class="ident">release</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">release</span>.<span class="ident">as_str</span>().<span class="ident">filter</span>(<span class="ident">is_unprintable</span>);
+        <span class="ident">env</span>.<span class="ident">is_some</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">release</span>.<span class="ident">is_some</span>()
+    } <span class="kw">else</span> {
+        <span class="bool-val">false</span>
+    }
+}
+
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
     <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">TimeZone</span>, <span class="ident">Utc</span>};
@@ -5052,6 +5130,40 @@
 
         <span class="comment">// A none-initial update will not trigger any metric if it&#39;s not errored/crashed</span>
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">0</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">test_unprintable_fields</span>() {
+        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Event</span> {
+            <span class="ident">environment</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">String</span>::<span class="ident">from</span>(
+                <span class="string">&quot;�9�~YY���)�����9�~YY���)�����9�~YY���)�����9�~YY���)�����&quot;</span>,
+            )),
+            ..<span class="ident">Default</span>::<span class="ident">default</span>()
+        });
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">has_unprintable_fields</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>));
+
+        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Event</span> {
+            <span class="ident">release</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(
+                <span class="ident">String</span>::<span class="ident">from</span>(<span class="string">&quot;���7��#1G����7��#1G����7��#1G����7��#1G����7��#&quot;</span>).<span class="ident">into</span>(),
+            ),
+            ..<span class="ident">Default</span>::<span class="ident">default</span>()
+        });
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">has_unprintable_fields</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>));
+
+        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Event</span> {
+            <span class="ident">environment</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">String</span>::<span class="ident">from</span>(<span class="string">&quot;production&quot;</span>)),
+            ..<span class="ident">Default</span>::<span class="ident">default</span>()
+        });
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">has_unprintable_fields</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>));
+
+        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Event</span> {
+            <span class="ident">release</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(
+                <span class="ident">String</span>::<span class="ident">from</span>(<span class="string">&quot;release with\t some\n normal\r\nwhitespace&quot;</span>).<span class="ident">into</span>(),
+            ),
+            ..<span class="ident">Default</span>::<span class="ident">default</span>()
+        });
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">has_unprintable_fields</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>));
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
