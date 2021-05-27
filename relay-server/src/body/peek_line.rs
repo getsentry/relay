@@ -1,5 +1,5 @@
 use bytes::{Bytes, BytesMut};
-use futures::{Async, Poll, Stream};
+use futures::{Async, Future, Poll, Stream};
 use smallvec::SmallVec;
 
 use crate::extractors::SharedPayload;
@@ -58,6 +58,8 @@ impl PeekLine {
         while let Some(chunk) = self.chunks.pop() {
             self.payload.unread_data(chunk);
         }
+
+        self.len = 0;
     }
 
     fn concatenate(&self, mut len: usize) -> Bytes {
@@ -86,7 +88,7 @@ impl PeekLine {
     }
 }
 
-impl futures::Future for PeekLine {
+impl Future for PeekLine {
     type Item = Option<Bytes>;
     type Error = <SharedPayload as Stream>::Error;
 
