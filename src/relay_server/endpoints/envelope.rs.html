@@ -58,6 +58,7 @@
 <span id="57">57</span>
 <span id="58">58</span>
 <span id="59">59</span>
+<span id="60">60</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Handles envelope store requests.</span>
 
@@ -71,7 +72,7 @@
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">body</span>::<span class="ident">StoreBody</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">endpoints</span>::<span class="ident">common</span>::{<span class="self">self</span>, <span class="ident">BadStoreRequest</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">envelope</span>::<span class="ident">Envelope</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">extractors</span>::<span class="ident">RequestMeta</span>;
+<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">extractors</span>::{<span class="ident">EnvelopeMeta</span>, <span class="ident">RequestMeta</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">service</span>::{<span class="ident">ServiceApp</span>, <span class="ident">ServiceState</span>};
 
 <span class="kw">fn</span> <span class="ident">extract_envelope</span>(
@@ -104,9 +105,10 @@
 
 <span class="doccomment">/// Handler for the envelope store endpoint.</span>
 <span class="kw">fn</span> <span class="ident">store_envelope</span>(
-    <span class="ident">meta</span>: <span class="ident">RequestMeta</span>,
+    <span class="ident">envelope_meta</span>: <span class="ident">EnvelopeMeta</span>,
     <span class="ident">request</span>: <span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">ServiceState</span><span class="op">&gt;</span>,
 ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">HttpResponse</span>, <span class="ident">BadStoreRequest</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">envelope_meta</span>.<span class="ident">into_inner</span>();
     <span class="ident">common</span>::<span class="ident">handle_store_like_request</span>(<span class="ident">meta</span>, <span class="ident">request</span>, <span class="ident">extract_envelope</span>, <span class="ident">create_response</span>, <span class="bool-val">true</span>)
 }
 
