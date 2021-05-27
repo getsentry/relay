@@ -6,6 +6,14 @@
 
 - Support self-contained envelopes without authentication headers or query parameters. ([#1000](https://github.com/getsentry/relay/pull/1000))
 
+**Bug Fixes**:
+
+- Explicitly declare reprocessing context. ([#1009](https://github.com/getsentry/relay/pull/1009))
+
+**Internal**:
+
+- Gather metrics for corrupted Events with unprintable fields. ([#1008](https://github.com/getsentry/relay/pull/1008))
+
 ## 21.5.1
 
 **Bug Fixes**:

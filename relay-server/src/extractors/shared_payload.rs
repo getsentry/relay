@@ -63,7 +63,6 @@ impl Stream for SharedPayload {
     #[inline]
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         if self.done.load(Ordering::Relaxed) {
-            relay_log::info!("done");
             return Ok(Async::Ready(None));
         }
 

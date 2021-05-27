@@ -276,6 +276,33 @@ impl BrowserContext {
     }
 }
 
+/// Auxilliary data that Sentry attaches for reprocessed events.
+// This context is explicitly typed out such that we can disable datascrubbing for it, and for
+// documentation. We need to disble datascrubbing because it can retract information from the
+// context that is necessary for basic operation, or worse, mangle it such that the Snuba consumer
+// crashes: https://github.com/getsentry/snuba/pull/1896/
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct ReprocessingContext {
+    /// The issue ID that this event originally belonged to.
+    #[metastructure(pii = "false")]
+    pub original_issue_id: Annotated<u64>,
+
+    #[metastructure(pii = "false")]
+    pub original_primary_hash: Annotated<String>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties, retain = "true", pii = "false")]
+    pub other: Object<Value>,
+}
+
+impl ReprocessingContext {
+    /// The key under which a reprocessing context is generally stored (in `Contexts`)
+    pub fn default_key() -> &'static str {
+        "reprocessing"
+    }
+}
+
 /// Operation type such as `db.statement` for database queries or `http` for external HTTP calls.
 /// Tries to follow OpenCensus/OpenTracing's span types.
 pub type OperationType = String;
@@ -442,6 +469,7 @@ impl FromValue for SpanId {
 /// Trace context
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+#[metastructure(process_func = "process_trace_context")]
 pub struct TraceContext {
     /// The trace ID.
     #[metastructure(required = "true")]
@@ -569,6 +597,9 @@ pub enum Context {
     Trace(Box<TraceContext>),
     /// Information related to Monitors feature.
     Monitor(Box<MonitorContext>),
+    /// Auxilliary information for reprocessing.
+    #[metastructure(omit_from_schema)]
+    Reprocessing(Box<ReprocessingContext>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
     Other(#[metastructure(pii = "true")] Object<Value>),
@@ -585,10 +616,11 @@ impl Context {
             Context::Runtime(_) => Some(RuntimeContext::default_key()),
             Context::App(_) => Some(AppContext::default_key()),
             Context::Browser(_) => Some(BrowserContext::default_key()),
+            Context::Reprocessing(_) => Some(ReprocessingContext::default_key()),
             Context::Gpu(_) => Some(GpuContext::default_key()),
             Context::Trace(_) => Some(TraceContext::default_key()),
             Context::Monitor(_) => Some(MonitorContext::default_key()),
-            _ => None,
+            Context::Other(_) => None,
         }
     }
 }
@@ -632,6 +664,7 @@ impl From<Context> for ContextInner {
 /// Additional Data](https://docs.sentry.io/enriching-error-data/additional-data/).
 #[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue, Default)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+#[metastructure(process_func = "process_contexts")]
 pub struct Contexts(pub Object<ContextInner>);
 
 impl Contexts {
@@ -1035,4 +1068,29 @@ fn test_context_processing() {
     let mut processor = FooProcessor { called: false };
     crate::processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert!(processor.called);
+}
+
+#[test]
+fn test_reprocessing_context_roundtrip() {
+    let json = r#"{
+  "original_issue_id": 123,
+  "original_primary_hash": "9f3ee8ff49e6ca0a2bee80d76fee8f0c",
+  "random": "stuff",
+  "type": "reprocessing"
+}"#;
+    let context = Annotated::new(Context::Reprocessing(Box::new(ReprocessingContext {
+        original_issue_id: Annotated::new(123),
+        original_primary_hash: Annotated::new("9f3ee8ff49e6ca0a2bee80d76fee8f0c".to_string()),
+        other: {
+            let mut map = Object::new();
+            map.insert(
+                "random".to_string(),
+                Annotated::new(Value::String("stuff".to_string())),
+            );
+            map
+        },
+    })));
+
+    assert_eq_dbg!(context, Annotated::from_json(json).unwrap());
+    assert_eq_str!(json, context.to_json_pretty().unwrap());
 }
