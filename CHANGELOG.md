@@ -6,6 +6,14 @@
 
 - Support statically configured relays. ([#991](https://github.com/getsentry/relay/pull/991))
 
+**Bug Fixes**:
+
+- Explicitly declare reprocessing context. ([#1009](https://github.com/getsentry/relay/pull/1009))
+
+**Internal**:
+
+- Gather metrics for corrupted Events with unprintable fields. ([#1008](https://github.com/getsentry/relay/pull/1008))
+
 ## 21.5.1
 
 **Bug Fixes**:

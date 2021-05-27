@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::io;
 
 use actix::prelude::*;
-use actix_web::{dev::Payload, error::PayloadError, multipart, HttpMessage, HttpRequest};
+use actix_web::{error::PayloadError, multipart, HttpMessage, HttpRequest};
 use bytes::Bytes;
 use failure::Fail;
 use futures::{future, Async, Future, Poll, Stream};
@@ -24,14 +24,14 @@ pub enum MultipartError {
 /// A wrapper around an actix payload that always ends with a newline.
 #[derive(Clone, Debug)]
 struct TerminatedPayload {
-    inner: Option<Payload>,
+    inner: SharedPayload,
     end: Option<Bytes>,
 }
 
 impl TerminatedPayload {
-    pub fn new(payload: Payload) -> Self {
+    pub fn new(payload: SharedPayload) -> Self {
         Self {
-            inner: Some(payload),
+            inner: payload,
             end: Some(Bytes::from_static(b"\r\n")),
         }
     }
@@ -43,17 +43,10 @@ impl Stream for TerminatedPayload {
 
     #[inline]
     fn poll(&mut self) -> Poll<Option<Bytes>, PayloadError> {
-        if let Some(ref mut inner) = self.inner {
-            match inner.poll() {
-                Ok(Async::Ready(option)) if option.is_none() => {
-                    // Remove the stream to fuse, then fall through.
-                    self.inner = None;
-                }
-                poll => return poll,
-            }
+        match self.inner.poll() {
+            Ok(Async::Ready(None)) => Ok(Async::Ready(self.end.take())),
+            poll => poll,
         }
-
-        Ok(Async::Ready(self.end.take()))
     }
 }
 

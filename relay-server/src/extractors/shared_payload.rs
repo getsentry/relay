@@ -1,6 +1,9 @@
+use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use actix_web::dev::Payload;
 use actix_web::{FromRequest, HttpMessage, HttpRequest};
-use futures::{Poll, Stream};
+use futures::{Async, Poll, Stream};
 
 /// A shared reference to an actix request payload.
 ///
@@ -10,18 +13,28 @@ use futures::{Poll, Stream};
 /// To obtain a reference, call [`SharedPayload::get`]. The first time, this takes the body out of
 /// the request. Subsequent calls to `request.payload()` or `request.body()` will return empty. This
 /// type also implements [`FromRequest`] for the use in actix request handlers.
-#[derive(Clone)]
-pub struct SharedPayload(Payload);
+#[derive(Clone, Debug)]
+pub struct SharedPayload {
+    inner: Payload,
+    done: Rc<AtomicBool>,
+}
 
 impl SharedPayload {
-    /// Extracts the shared clone of the request payload from the given request.
-    pub fn get<S>(request: &HttpRequest<S>) -> Payload {
-        Self::extract(request).into_inner()
-    }
+    /// Extracts the shared request payload from the given request.
+    pub fn get<S>(request: &HttpRequest<S>) -> Self {
+        let mut extensions = request.extensions_mut();
 
-    /// Unwraps the shared clone of the request payload.
-    pub fn into_inner(self) -> Payload {
-        self.0
+        if let Some(payload) = extensions.get::<Self>() {
+            return payload.clone();
+        }
+
+        let payload = Self {
+            inner: request.payload(),
+            done: Rc::new(AtomicBool::new(false)),
+        };
+
+        extensions.insert(payload.clone());
+        payload
     }
 }
 
@@ -30,15 +43,7 @@ impl<S> FromRequest<S> for SharedPayload {
     type Result = Self;
 
     fn from_request(request: &HttpRequest<S>, _config: &Self::Config) -> Self::Result {
-        let mut extensions = request.extensions_mut();
-
-        if let Some(payload) = extensions.get::<Self>() {
-            return payload.clone();
-        }
-
-        let payload = Self(request.payload());
-        extensions.insert(payload.clone());
-        payload
+        Self::get(request)
     }
 }
 
@@ -48,6 +53,17 @@ impl Stream for SharedPayload {
 
     #[inline]
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        self.0.poll()
+        if self.done.load(Ordering::Relaxed) {
+            return Ok(Async::Ready(None));
+        }
+
+        let poll = self.inner.poll();
+
+        // Fuse the stream on error. Subsequent polls will never be ready
+        if matches!(poll, Ok(Async::Ready(None)) | Err(_)) {
+            self.done.store(true, Ordering::Relaxed);
+        }
+
+        poll
     }
 }

@@ -303,6 +303,12 @@ impl TimerMetric for RelayTimers {
 
 /// Counter metrics used by Relay
 pub enum RelayCounters {
+    /// Number of Events that had corrupted (unprintable) event attributes.
+    ///
+    /// This currently checks for `environment` and `release`, for which we know that
+    /// some SDKs may send corrupted values.
+    #[cfg(feature = "processing")]
+    EventCorrupted,
     /// Number of envelopes accepted in the current time slot.
     ///
     /// This represents requests that have successfully passed rate limits and filters, and have
@@ -458,6 +464,8 @@ pub enum RelayCounters {
 impl CounterMetric for RelayCounters {
     fn name(&self) -> &'static str {
         match self {
+            #[cfg(feature = "processing")]
+            RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
             #[cfg(feature = "processing")]
