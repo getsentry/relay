@@ -73,16 +73,15 @@ def relay(mini_sentry, random_port, background_process, config_dir):
             "processing": {"enabled": False, "kafka_config": [], "redis": ""},
         }
 
+        if static_relays is not None:
+            default_opts["static_auth"] = static_relays
+
         if options is not None:
             for key in options:
                 default_opts.setdefault(key, {}).update(options[key])
 
         dir = config_dir("relay")
         dir.join("config.yml").write(json.dumps(default_opts))
-
-        if static_relays is not None:
-            # since json is yml write it with json (so we don't add another dependency)
-            dir.join("static_relays.yml").write(json.dumps(static_relays))
 
         output = subprocess.check_output(
             RELAY_BIN + ["-c", str(dir), "credentials", "generate"]

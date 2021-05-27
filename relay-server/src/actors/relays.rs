@@ -114,7 +114,7 @@ pub struct RelayCache {
 
 impl RelayCache {
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
-        let static_relays = config.static_relays().relays.clone();
+        let static_relays = config.static_relays().clone();
         RelayCache {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             config,

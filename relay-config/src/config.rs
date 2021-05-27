@@ -299,27 +299,6 @@ impl RelayInfo {
     }
 }
 
-/// Contains a list of Relays that are statically configured in a config file.
-///
-/// For statically configured Relays there will be no upstream key lookup.
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct StaticRelays {
-    /// A list of Relays that will be resolved statically.
-    ///
-    /// Relay IDs must be unique within this list. Duplicate entries lead to undefined behavior.
-    pub relays: HashMap<RelayId, RelayInfo>,
-}
-
-impl ConfigObject for StaticRelays {
-    fn format() -> ConfigFormat {
-        ConfigFormat::Yaml
-    }
-    fn name() -> &'static str {
-        "static_relays"
-    }
-}
-
 /// The operation mode of a relay.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -901,6 +880,8 @@ struct ConfigValues {
     outcomes: Outcomes,
     #[serde(default)]
     aggregator: AggregatorConfig,
+    #[serde(default)]
+    static_auth: HashMap<RelayId, RelayInfo>,
 }
 
 impl ConfigObject for ConfigValues {
@@ -917,7 +898,6 @@ impl ConfigObject for ConfigValues {
 pub struct Config {
     values: ConfigValues,
     credentials: Option<Credentials>,
-    static_relays: StaticRelays,
     path: PathBuf,
 }
 
@@ -943,11 +923,6 @@ impl Config {
                 Some(Credentials::load(&path)?)
             } else {
                 None
-            },
-            static_relays: if StaticRelays::path(&path).exists() {
-                StaticRelays::load(&path)?
-            } else {
-                StaticRelays::default()
             },
             path: path.clone(),
         };
@@ -1109,11 +1084,6 @@ impl Config {
     /// Return the current credentials
     pub fn credentials(&self) -> Option<&Credentials> {
         self.credentials.as_ref()
-    }
-
-    /// Return the statically configured Relays
-    pub fn static_relays(&self) -> &StaticRelays {
-        &self.static_relays
     }
 
     /// Set new credentials.
@@ -1545,6 +1515,11 @@ impl Config {
     pub fn aggregator_config(&self) -> AggregatorConfig {
         self.values.aggregator.clone()
     }
+
+    /// Return the statically configured Relays
+    pub fn static_relays(&self) -> &HashMap<RelayId, RelayInfo> {
+        &self.values.static_auth
+    }
 }
 
 impl Default for Config {
@@ -1552,7 +1527,6 @@ impl Default for Config {
         Self {
             values: ConfigValues::default(),
             credentials: None,
-            static_relays: StaticRelays::default(),
             path: PathBuf::new(),
         }
     }
