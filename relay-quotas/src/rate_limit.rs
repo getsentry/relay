@@ -378,7 +378,7 @@ mod tests {
         assert!(retry_after.expired());
 
         // large inputs that would overflow are treated as zero
-        let retry_after = "100000000000000000"
+        let retry_after = "100000000000000000000"
             .parse::<RetryAfter>()
             .expect("parse RetryAfter");
         assert_eq!(retry_after.remaining_seconds(), 0);
