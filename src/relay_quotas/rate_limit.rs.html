@@ -851,6 +851,31 @@
 <span id="850">850</span>
 <span id="851">851</span>
 <span id="852">852</span>
+<span id="853">853</span>
+<span id="854">854</span>
+<span id="855">855</span>
+<span id="856">856</span>
+<span id="857">857</span>
+<span id="858">858</span>
+<span id="859">859</span>
+<span id="860">860</span>
+<span id="861">861</span>
+<span id="862">862</span>
+<span id="863">863</span>
+<span id="864">864</span>
+<span id="865">865</span>
+<span id="866">866</span>
+<span id="867">867</span>
+<span id="868">868</span>
+<span id="869">869</span>
+<span id="870">870</span>
+<span id="871">871</span>
+<span id="872">872</span>
+<span id="873">873</span>
+<span id="874">874</span>
+<span id="875">875</span>
+<span id="876">876</span>
+<span id="877">877</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">FromStr</span>;
@@ -874,7 +899,8 @@
     <span class="doccomment">/// Creates a retry after instance.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_secs</span>(<span class="ident">seconds</span>: <span class="ident">u64</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="ident">when</span> <span class="op">=</span> <span class="ident">Instant</span>::<span class="ident">now</span>() <span class="op">+</span> <span class="ident">Duration</span>::<span class="ident">from_secs</span>(<span class="ident">seconds</span>);
+        <span class="kw">let</span> <span class="ident">now</span> <span class="op">=</span> <span class="ident">Instant</span>::<span class="ident">now</span>();
+        <span class="kw">let</span> <span class="ident">when</span> <span class="op">=</span> <span class="ident">now</span>.<span class="ident">checked_add</span>(<span class="ident">Duration</span>::<span class="ident">from_secs</span>(<span class="ident">seconds</span>)).<span class="ident">unwrap_or</span>(<span class="ident">now</span>);
         <span class="self">Self</span> { <span class="ident">when</span> }
     }
 
@@ -1201,7 +1227,10 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_parse_retry_after</span>() {
-        <span class="comment">// positive float</span>
+        <span class="comment">// positive float always rounds up to the next integer</span>
+        <span class="kw">let</span> <span class="ident">retry_after</span> <span class="op">=</span> <span class="string">&quot;17.1&quot;</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">RetryAfter</span><span class="op">&gt;</span>().<span class="ident">expect</span>(<span class="string">&quot;parse RetryAfter&quot;</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">retry_after</span>.<span class="ident">remaining_seconds</span>(), <span class="number">18</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">retry_after</span>.<span class="ident">expired</span>());
         <span class="kw">let</span> <span class="ident">retry_after</span> <span class="op">=</span> <span class="string">&quot;17.7&quot;</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">RetryAfter</span><span class="op">&gt;</span>().<span class="ident">expect</span>(<span class="string">&quot;parse RetryAfter&quot;</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">retry_after</span>.<span class="ident">remaining_seconds</span>(), <span class="number">18</span>);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">retry_after</span>.<span class="ident">expired</span>());
@@ -1211,13 +1240,34 @@
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">retry_after</span>.<span class="ident">remaining_seconds</span>(), <span class="number">17</span>);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">retry_after</span>.<span class="ident">expired</span>());
 
-        <span class="comment">// negative number</span>
+        <span class="comment">// negative numbers are treated as zero</span>
         <span class="kw">let</span> <span class="ident">retry_after</span> <span class="op">=</span> <span class="string">&quot;-2&quot;</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">RetryAfter</span><span class="op">&gt;</span>().<span class="ident">expect</span>(<span class="string">&quot;parse RetryAfter&quot;</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">retry_after</span>.<span class="ident">remaining_seconds</span>(), <span class="number">0</span>);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">retry_after</span>.<span class="ident">expired</span>());
+        <span class="kw">let</span> <span class="ident">retry_after</span> <span class="op">=</span> <span class="string">&quot;-inf&quot;</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">RetryAfter</span><span class="op">&gt;</span>().<span class="ident">expect</span>(<span class="string">&quot;parse RetryAfter&quot;</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">retry_after</span>.<span class="ident">remaining_seconds</span>(), <span class="number">0</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">retry_after</span>.<span class="ident">expired</span>());
 
-        <span class="comment">// invalid string</span>
+        <span class="comment">// inf and NaN are valid input and treated as zero</span>
+        <span class="kw">let</span> <span class="ident">retry_after</span> <span class="op">=</span> <span class="string">&quot;inf&quot;</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">RetryAfter</span><span class="op">&gt;</span>().<span class="ident">expect</span>(<span class="string">&quot;parse RetryAfter&quot;</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">retry_after</span>.<span class="ident">remaining_seconds</span>(), <span class="number">0</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">retry_after</span>.<span class="ident">expired</span>());
+        <span class="kw">let</span> <span class="ident">retry_after</span> <span class="op">=</span> <span class="string">&quot;NaN&quot;</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">RetryAfter</span><span class="op">&gt;</span>().<span class="ident">expect</span>(<span class="string">&quot;parse RetryAfter&quot;</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">retry_after</span>.<span class="ident">remaining_seconds</span>(), <span class="number">0</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">retry_after</span>.<span class="ident">expired</span>());
+
+        <span class="comment">// large inputs that would overflow are treated as zero</span>
+        <span class="kw">let</span> <span class="ident">retry_after</span> <span class="op">=</span> <span class="string">&quot;100000000000000000000&quot;</span>
+            .<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">RetryAfter</span><span class="op">&gt;</span>()
+            .<span class="ident">expect</span>(<span class="string">&quot;parse RetryAfter&quot;</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">retry_after</span>.<span class="ident">remaining_seconds</span>(), <span class="number">0</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">retry_after</span>.<span class="ident">expired</span>());
+
+        <span class="comment">// invalid strings cause parse error</span>
+        <span class="string">&quot;&quot;</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">RetryAfter</span><span class="op">&gt;</span>().<span class="ident">expect_err</span>(<span class="string">&quot;error RetryAfter&quot;</span>);
         <span class="string">&quot;nope&quot;</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">RetryAfter</span><span class="op">&gt;</span>().<span class="ident">expect_err</span>(<span class="string">&quot;error RetryAfter&quot;</span>);
+        <span class="string">&quot; 2 &quot;</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">RetryAfter</span><span class="op">&gt;</span>().<span class="ident">expect_err</span>(<span class="string">&quot;error RetryAfter&quot;</span>);
+        <span class="string">&quot;6 0&quot;</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">RetryAfter</span><span class="op">&gt;</span>().<span class="ident">expect_err</span>(<span class="string">&quot;error RetryAfter&quot;</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
