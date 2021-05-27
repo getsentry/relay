@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use actix_web::dev::Payload;
 use actix_web::{FromRequest, HttpMessage, HttpRequest};
+use bytes::Bytes;
 use futures::{Async, Poll, Stream};
 
 /// A shared reference to an actix request payload.
@@ -35,6 +36,14 @@ impl SharedPayload {
 
         extensions.insert(payload.clone());
         payload
+    }
+
+    /// Puts unused data back into the payload to be consumed again.
+    ///
+    /// The chunk will be prepended to the stream. When called multiple times, data will be polled
+    /// in reverse order from unreading.
+    pub fn unread_data(&mut self, chunk: Bytes) {
+        self.inner.unread_data(chunk);
     }
 }
 

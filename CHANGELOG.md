@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Support self-contained envelopes without authentication headers or query parameters. ([#1000](https://github.com/getsentry/relay/pull/1000))
+
 **Bug Fixes**:
 
 - Explicitly declare reprocessing context. ([#1009](https://github.com/getsentry/relay/pull/1009))

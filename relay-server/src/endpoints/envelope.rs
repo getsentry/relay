@@ -10,7 +10,7 @@ use relay_general::protocol::EventId;
 use crate::body::StoreBody;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::Envelope;
-use crate::extractors::RequestMeta;
+use crate::extractors::{EnvelopeMeta, RequestMeta};
 use crate::service::{ServiceApp, ServiceState};
 
 fn extract_envelope(
@@ -43,9 +43,10 @@ fn create_response(id: Option<EventId>) -> HttpResponse {
 
 /// Handler for the envelope store endpoint.
 fn store_envelope(
-    meta: RequestMeta,
+    envelope_meta: EnvelopeMeta,
     request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
+    let meta = envelope_meta.into_inner();
     common::handle_store_like_request(meta, request, extract_envelope, create_response, true)
 }
 

@@ -14,7 +14,6 @@ def test_envelope(mini_sentry, relay_chain):
     relay.send_envelope(project_id, envelope)
 
     event = mini_sentry.captured_events.get(timeout=1).get_event()
-
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
@@ -29,6 +28,23 @@ def test_envelope_empty(mini_sentry, relay):
         relay.send_envelope(PROJECT_ID, envelope)
 
     assert excinfo.value.response.status_code == 400
+
+
+def test_envelope_without_header(mini_sentry, relay):
+    relay = relay(mini_sentry)
+    PROJECT_ID = 42
+    mini_sentry.add_basic_project_config(PROJECT_ID)
+
+    envelope = Envelope(headers={"dsn": relay.get_dsn(PROJECT_ID)})
+    envelope.add_event({"message": "Hello, World!"})
+    relay.send_envelope(
+        PROJECT_ID,
+        envelope,
+        headers={"X-Sentry-Auth": ""},  # Empty auth header is ignored by Relay
+    )
+
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+    assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
 def generate_transaction_item():

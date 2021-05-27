@@ -65,6 +65,11 @@ class SentryLike(object):
 
         return key_config["publicKey"]
 
+    def get_dsn(self, project_id, index=0):
+        dsn_key = self.get_dsn_public_key(project_id, index)
+        host, port = self.server_address
+        return f"http://{dsn_key}:@{host}:{port}/{project_id}"
+
     @property
     def url(self):
         return "http://{}:{}".format(*self.server_address)

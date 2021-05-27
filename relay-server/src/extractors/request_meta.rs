@@ -3,9 +3,11 @@ use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::Instant;
 
+use actix::ResponseFuture;
 use actix_web::http::header;
 use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
+use futures::{future, Future};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -15,7 +17,8 @@ use relay_common::{
 };
 use relay_quotas::Scoping;
 
-use crate::extractors::ForwardedFor;
+use crate::body::PeekLine;
+use crate::extractors::{ForwardedFor, SharedPayload};
 use crate::middlewares::StartTime;
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
@@ -27,6 +30,9 @@ pub enum BadEventMeta {
 
     #[fail(display = "multiple authorization payloads detected")]
     MultipleAuth,
+
+    #[fail(display = "bad envelope authentication header")]
+    BadEnvelopeAuth(#[cause] serde_json::Error),
 
     #[fail(display = "bad project path parameter")]
     BadProject(#[cause] ParseProjectIdError),
@@ -41,9 +47,10 @@ pub enum BadEventMeta {
 impl ResponseError for BadEventMeta {
     fn error_response(&self) -> HttpResponse {
         let mut builder = match *self {
-            Self::MissingAuth | Self::MultipleAuth | Self::BadAuth(_) => {
-                HttpResponse::Unauthorized()
-            }
+            Self::MissingAuth
+            | Self::MultipleAuth
+            | Self::BadAuth(_)
+            | Self::BadEnvelopeAuth(_) => HttpResponse::Unauthorized(),
             Self::BadProject(_) | Self::BadPublicKey(_) => HttpResponse::BadRequest(),
         };
 
@@ -344,6 +351,26 @@ impl RequestMeta {
 pub type PartialMeta = RequestMeta<Option<PartialDsn>>;
 
 impl PartialMeta {
+    /// Extracts header information except for auth info.
+    fn from_headers<S>(request: &HttpRequest<S>) -> Self {
+        RequestMeta {
+            dsn: None,
+            version: default_version(),
+            client: None,
+            origin: parse_header_url(request, header::ORIGIN)
+                .or_else(|| parse_header_url(request, header::REFERER)),
+            remote_addr: request.peer_addr().map(|peer| peer.ip()),
+            forwarded_for: ForwardedFor::from(request).into_inner(),
+            user_agent: request
+                .headers()
+                .get(header::USER_AGENT)
+                .and_then(|h| h.to_str().ok())
+                .map(str::to_owned),
+            no_cache: false,
+            start_time: StartTime::extract(request).into_inner(),
+        }
+    }
+
     /// Returns a reference to the DSN.
     ///
     /// The DSN declares the project and auth information and upstream address. When RequestMeta is
@@ -449,8 +476,8 @@ impl FromRequest<ServiceState> for RequestMeta {
     type Result = Result<Self, BadEventMeta>;
 
     fn from_request(request: &HttpRequest<ServiceState>, _cfg: &Self::Config) -> Self::Result {
-        let start_time = StartTime::from_request(request, &()).into_inner();
         let auth = auth_from_request(request)?;
+        let partial_meta = PartialMeta::from_headers(request);
 
         let project_id = match request.match_info().get("project") {
             // The project_id was declared in the URL. Use it directly.
@@ -481,17 +508,59 @@ impl FromRequest<ServiceState> for RequestMeta {
             dsn,
             version: auth.version(),
             client: auth.client_agent().map(str::to_owned),
-            origin: parse_header_url(request, header::ORIGIN)
-                .or_else(|| parse_header_url(request, header::REFERER)),
-            remote_addr: request.peer_addr().map(|peer| peer.ip()),
-            forwarded_for: ForwardedFor::from(request).into_inner(),
-            user_agent: request
-                .headers()
-                .get(header::USER_AGENT)
-                .and_then(|h| h.to_str().ok())
-                .map(str::to_owned),
+            origin: partial_meta.origin,
+            remote_addr: partial_meta.remote_addr,
+            forwarded_for: partial_meta.forwarded_for,
+            user_agent: partial_meta.user_agent,
             no_cache: key_flags.contains(&"no-cache"),
-            start_time,
+            start_time: partial_meta.start_time,
         })
+    }
+}
+
+/// A wrapper type for [`RequestMeta`] that considers envelope headers in the first line of the
+/// request body.
+#[derive(Debug)]
+pub struct EnvelopeMeta {
+    request_meta: RequestMeta,
+}
+
+impl EnvelopeMeta {
+    const MAX_HEADER_SIZE: usize = 2048;
+
+    fn new(request_meta: RequestMeta) -> Self {
+        Self { request_meta }
+    }
+
+    /// Returns the request meta data.
+    pub fn into_inner(self) -> RequestMeta {
+        self.request_meta
+    }
+}
+
+impl FromRequest<ServiceState> for EnvelopeMeta {
+    type Config = ();
+    type Result = Result<ResponseFuture<Self, BadEventMeta>, BadEventMeta>;
+
+    fn from_request(request: &HttpRequest<ServiceState>, _config: &Self::Config) -> Self::Result {
+        let result = RequestMeta::extract(request).map(EnvelopeMeta::new);
+        if !matches!(result, Err(BadEventMeta::MissingAuth)) {
+            return Ok(Box::new(future::result(result)));
+        }
+
+        let partial_meta = PartialMeta::from_headers(request);
+        let future = PeekLine::new(SharedPayload::get(request))
+            .limit(Self::MAX_HEADER_SIZE)
+            .then(move |result| {
+                let request_meta = if let Ok(Some(json)) = result {
+                    serde_json::from_slice(&json).map_err(BadEventMeta::BadEnvelopeAuth)?
+                } else {
+                    return Err(BadEventMeta::MissingAuth);
+                };
+
+                Ok(EnvelopeMeta::new(partial_meta.copy_to(request_meta)))
+            });
+
+        Ok(Box::new(future))
     }
 }
