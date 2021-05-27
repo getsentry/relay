@@ -123,9 +123,6 @@ fn store_event(
 
     common::handle_store_like_request(
         meta,
-        // XXX: This is wrong. In case of external relays, store can receive event-less envelopes.
-        // We need to fix this before external relays go live or we will create outcomes and rate
-        // limits for individual attachment requests.
         request,
         extract_envelope,
         move |id| create_response(id, is_get_request),

@@ -20,7 +20,8 @@ impl RetryAfter {
     /// Creates a retry after instance.
     #[inline]
     pub fn from_secs(seconds: u64) -> Self {
-        let when = Instant::now() + Duration::from_secs(seconds);
+        let now = Instant::now();
+        let when = now.checked_add(Duration::from_secs(seconds)).unwrap_or(now);
         Self { when }
     }
 
@@ -347,7 +348,10 @@ mod tests {
 
     #[test]
     fn test_parse_retry_after() {
-        // positive float
+        // positive float always rounds up to the next integer
+        let retry_after = "17.1".parse::<RetryAfter>().expect("parse RetryAfter");
+        assert_eq!(retry_after.remaining_seconds(), 18);
+        assert!(!retry_after.expired());
         let retry_after = "17.7".parse::<RetryAfter>().expect("parse RetryAfter");
         assert_eq!(retry_after.remaining_seconds(), 18);
         assert!(!retry_after.expired());
@@ -357,13 +361,34 @@ mod tests {
         assert_eq!(retry_after.remaining_seconds(), 17);
         assert!(!retry_after.expired());
 
-        // negative number
+        // negative numbers are treated as zero
         let retry_after = "-2".parse::<RetryAfter>().expect("parse RetryAfter");
         assert_eq!(retry_after.remaining_seconds(), 0);
         assert!(retry_after.expired());
+        let retry_after = "-inf".parse::<RetryAfter>().expect("parse RetryAfter");
+        assert_eq!(retry_after.remaining_seconds(), 0);
+        assert!(retry_after.expired());
 
-        // invalid string
+        // inf and NaN are valid input and treated as zero
+        let retry_after = "inf".parse::<RetryAfter>().expect("parse RetryAfter");
+        assert_eq!(retry_after.remaining_seconds(), 0);
+        assert!(retry_after.expired());
+        let retry_after = "NaN".parse::<RetryAfter>().expect("parse RetryAfter");
+        assert_eq!(retry_after.remaining_seconds(), 0);
+        assert!(retry_after.expired());
+
+        // large inputs that would overflow are treated as zero
+        let retry_after = "100000000000000000000"
+            .parse::<RetryAfter>()
+            .expect("parse RetryAfter");
+        assert_eq!(retry_after.remaining_seconds(), 0);
+        assert!(retry_after.expired());
+
+        // invalid strings cause parse error
+        "".parse::<RetryAfter>().expect_err("error RetryAfter");
         "nope".parse::<RetryAfter>().expect_err("error RetryAfter");
+        " 2 ".parse::<RetryAfter>().expect_err("error RetryAfter");
+        "6 0".parse::<RetryAfter>().expect_err("error RetryAfter");
     }
 
     #[test]

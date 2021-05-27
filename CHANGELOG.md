@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Support self-contained envelopes without authentication headers or query parameters. ([#1000](https://github.com/getsentry/relay/pull/1000))
 - Support statically configured relays. ([#991](https://github.com/getsentry/relay/pull/991))
 
 **Bug Fixes**:
@@ -31,6 +32,7 @@
 **Bug Fixes**:
 
 - Fix roundtrip error when PII selector starts with number. ([#982](https://github.com/getsentry/relay/pull/982))
+- Avoid overflow panic for large retry-after durations. ([#992](https://github.com/getsentry/relay/pull/992))
 
 **Internal**:
 
