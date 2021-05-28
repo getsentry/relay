@@ -13,6 +13,7 @@
 **Internal**:
 
 - Gather metrics for corrupted Events with unprintable fields. ([#1008](https://github.com/getsentry/relay/pull/1008))
+- Bump release parser to 1.0.0. ([#1013](https://github.com/getsentry/relay/pull/1013))
 
 ## 21.5.1
 
