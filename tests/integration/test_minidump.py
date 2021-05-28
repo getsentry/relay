@@ -198,10 +198,7 @@ def test_minidump_sentry_namespace_json(mini_sentry, relay):
 
     event_json = '{"event_id":"2dd132e467174db48dbaddabd3cbed57"}'
     namespace_json = '{"user":{"id":"123"}}'
-    params = [
-        ("sentry", event_json),
-        ("sentry___global", namespace_json)
-    ]
+    params = [("sentry", event_json), ("sentry___global", namespace_json)]
 
     relay.send_minidump(project_id=project_id, files=attachments, params=params)
     envelope = mini_sentry.captured_events.get(timeout=1)
