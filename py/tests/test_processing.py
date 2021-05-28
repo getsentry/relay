@@ -165,6 +165,8 @@ def test_parse_release():
             "minor": 0,
             "patch": 0,
             "pre": "rc1",
+            "raw_quad": ["1", "0", None, None],
+            "revision": 0,
         },
         "version_raw": "1.0rc1+20200101100",
     }
