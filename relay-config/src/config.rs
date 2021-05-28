@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use failure::{Backtrace, Context, Fail};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
 
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::{ProjectId, Uuid};
@@ -287,6 +287,35 @@ pub struct RelayInfo {
     /// Marks an internal relay that has privileged access to more project configuration.
     #[serde(default)]
     pub internal: bool,
+}
+impl From<RelayInfoConfig> for RelayInfo {
+    fn from(v: RelayInfoConfig) -> Self {
+        RelayInfo {
+            public_key: v.public_key,
+            internal: v.internal,
+        }
+    }
+}
+
+/// Alternative serialization of RelayInfo for config file (that doesn't use camel case
+#[derive(Debug, Serialize, Deserialize, Clone)]
+// #[serde(remote = "RelayInfo")]
+pub struct RelayInfoConfig {
+    /// The public key that this Relay uses to authenticate and sign requests.
+    pub public_key: PublicKey,
+
+    /// Marks an internal relay that has privileged access to more project configuration.
+    #[serde(default)]
+    pub internal: bool,
+}
+
+impl From<RelayInfo> for RelayInfoConfig {
+    fn from(v: RelayInfo) -> Self {
+        RelayInfoConfig {
+            public_key: v.public_key,
+            internal: v.internal,
+        }
+    }
 }
 
 impl RelayInfo {
@@ -858,6 +887,23 @@ impl ConfigObject for MinimalConfig {
     }
 }
 
+fn des_func<'de, D>(des: D) -> Result<HashMap<RelayId, RelayInfo>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let mut temp = HashMap::<RelayId, RelayInfoConfig>::deserialize(des)?;
+    Ok(temp.drain().map(|(k, v)| (k, v.into())).collect())
+}
+fn ser_func<S>(elm: &HashMap<RelayId, RelayInfo>, ser: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let x: HashMap<RelayId, RelayInfoConfig> =
+        elm.iter().map(|(k, v)| (*k, v.clone().into())).collect();
+
+    x.serialize(ser)
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
     #[serde(default)]
@@ -881,6 +927,8 @@ struct ConfigValues {
     #[serde(default)]
     aggregator: AggregatorConfig,
     #[serde(default)]
+    #[serde(deserialize_with = "des_func")]
+    #[serde(serialize_with = "ser_func")]
     static_auth: HashMap<RelayId, RelayInfo>,
 }
 

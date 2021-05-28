@@ -28,8 +28,8 @@ def test_dynamic_relays(mini_sentry, relay, caller, projects):
 
     # create configuration containing the static relays
     relays_conf = {
-        id1: {"publicKey": str(pk1), "internal": True},
-        id2: {"publicKey": str(pk2), "internal": False},
+        id1: {"public_key": str(pk1), "internal": True},
+        id2: {"public_key": str(pk2), "internal": False},
     }
 
     relay1 = relay(mini_sentry, wait_healthcheck=True, static_relays=relays_conf)
