@@ -437,9 +437,6 @@ pub struct Relay {
     pub tls_identity_path: Option<PathBuf>,
     /// Password for the PKCS12 archive.
     pub tls_identity_password: Option<String>,
-    /// Controls responses from the readiness health check endpoint based on authentication.
-    #[serde(skip_serializing_if = "ReadinessCondition::is_default")]
-    pub ready: ReadinessCondition,
 }
 
 impl Default for Relay {
@@ -452,7 +449,6 @@ impl Default for Relay {
             tls_port: None,
             tls_identity_path: None,
             tls_identity_password: None,
-            ready: ReadinessCondition::default(),
         }
     }
 }
@@ -904,6 +900,21 @@ where
     x.serialize(ser)
 }
 
+/// Authentication options
+#[derive(Serialize, Deserialize, Debug, Default)]
+struct AuthConfig {
+    /// Controls responses from the readiness health check endpoint based on authentication.
+    #[serde(skip_serializing_if = "ReadinessCondition::is_default")]
+    #[serde(default)]
+    pub ready: ReadinessCondition,
+    /// Defines statically authenticated downstream relays
+    #[serde(deserialize_with = "des_func")]
+    #[serde(serialize_with = "ser_func")]
+    #[serde(default)]
+    #[serde(rename = "static")]
+    static_auth: HashMap<RelayId, RelayInfo>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
     #[serde(default)]
@@ -927,9 +938,7 @@ struct ConfigValues {
     #[serde(default)]
     aggregator: AggregatorConfig,
     #[serde(default)]
-    #[serde(deserialize_with = "des_func")]
-    #[serde(serialize_with = "ser_func")]
-    static_auth: HashMap<RelayId, RelayInfo>,
+    auth: AuthConfig,
 }
 
 impl ConfigObject for ConfigValues {
@@ -1227,7 +1236,7 @@ impl Config {
     ///
     /// See [`ReadinessCondition`] for more information.
     pub fn requires_auth(&self) -> bool {
-        match self.values.relay.ready {
+        match self.values.auth.ready {
             ReadinessCondition::Authenticated => self.relay_mode() == RelayMode::Managed,
             ReadinessCondition::Always => false,
         }
@@ -1566,7 +1575,7 @@ impl Config {
 
     /// Return the statically configured Relays
     pub fn static_relays(&self) -> &HashMap<RelayId, RelayInfo> {
-        &self.values.static_auth
+        &self.values.auth.static_auth
     }
 }
 
