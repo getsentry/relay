@@ -74,7 +74,7 @@ def relay(mini_sentry, random_port, background_process, config_dir):
         }
 
         if static_relays is not None:
-            default_opts["auth"] = {"static": static_relays}
+            default_opts["auth"] = {"static_relays": static_relays}
 
         if options is not None:
             for key in options:
