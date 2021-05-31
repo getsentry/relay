@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use relay_auth::{PublicKey, RelayId};
 use relay_common::RetryBackoff;
-use relay_config::Config;
+use relay_config::{Config, RelayInfo};
 use relay_log::LogError;
 
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
@@ -108,6 +108,7 @@ pub struct RelayCache {
     config: Arc<Config>,
     upstream: Addr<UpstreamRelay>,
     relays: HashMap<RelayId, RelayState>,
+    static_relays: HashMap<RelayId, RelayInfo>,
     relay_channels: HashMap<RelayId, RelayInfoChannel>,
 }
 
@@ -115,6 +116,7 @@ impl RelayCache {
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
         RelayCache {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
+            static_relays: config.static_relays().clone(),
             config,
             upstream,
             relays: HashMap::new(),
@@ -192,6 +194,11 @@ impl RelayCache {
         relay_id: RelayId,
         context: &mut Context<Self>,
     ) -> Response<(RelayId, Option<RelayInfo>), KeyError> {
+        //first check the statically configured relays
+        if let Some(key) = self.static_relays.get(&relay_id) {
+            return Response::ok((relay_id, Some(key.clone())));
+        }
+
         if let Some(key) = self.relays.get(&relay_id) {
             if key.is_valid_cache(&self.config) {
                 return Response::ok((relay_id, key.as_option().cloned()));
@@ -296,27 +303,6 @@ pub struct PublicKeysResultCompatibility {
     /// A map from Relay's identifier to its information.
     #[serde(default)]
     pub relays: HashMap<RelayId, Option<RelayInfo>>,
-}
-
-/// Information on a downstream Relay.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct RelayInfo {
-    /// The public key that this Relay uses to authenticate and sign requests.
-    pub public_key: PublicKey,
-
-    /// Marks an internal relay that has privileged access to more project configuration.
-    #[serde(default)]
-    pub internal: bool,
-}
-
-impl RelayInfo {
-    pub fn new(public_key: PublicKey) -> Self {
-        Self {
-            public_key,
-            internal: false,
-        }
-    }
 }
 
 impl Message for GetRelays {

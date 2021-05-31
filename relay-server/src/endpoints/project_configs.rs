@@ -32,11 +32,9 @@ impl<S> actix_web::pred::Predicate<S> for VersionPredicate {
 }
 
 /// Wrapper on top the project state which encapsulates information about how ProjectState
-/// should be deserialized
+/// should be deserialized. The `Limited` deserializes using a class with a subset of the
+/// original fields.
 #[derive(Debug, Clone, Serialize)]
-// the wrapper will always deserialize as an internal ProjectState
-// we can manually force it to serialize back into an external ProjectState by
-// converting it to an external variant with (to_external)
 #[serde(untagged)]
 enum ProjectStateWrapper {
     Full(ProjectState),

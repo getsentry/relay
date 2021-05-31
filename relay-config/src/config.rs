@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::env;
 use std::fmt;
 use std::fs;
@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use failure::{Backtrace, Context, Fail};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
 
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::{ProjectId, Uuid};
@@ -277,6 +277,28 @@ impl ConfigObject for Credentials {
     }
 }
 
+/// Information on a downstream Relay.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RelayInfo {
+    /// The public key that this Relay uses to authenticate and sign requests.
+    pub public_key: PublicKey,
+
+    /// Marks an internal relay that has privileged access to more project configuration.
+    #[serde(default)]
+    pub internal: bool,
+}
+
+impl RelayInfo {
+    /// Creates a new RelayInfo
+    pub fn new(public_key: PublicKey) -> Self {
+        Self {
+            public_key,
+            internal: false,
+        }
+    }
+}
+
 /// The operation mode of a relay.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -386,9 +408,6 @@ pub struct Relay {
     pub tls_identity_path: Option<PathBuf>,
     /// Password for the PKCS12 archive.
     pub tls_identity_password: Option<String>,
-    /// Controls responses from the readiness health check endpoint based on authentication.
-    #[serde(skip_serializing_if = "ReadinessCondition::is_default")]
-    pub ready: ReadinessCondition,
 }
 
 impl Default for Relay {
@@ -401,7 +420,6 @@ impl Default for Relay {
             tls_port: None,
             tls_identity_path: None,
             tls_identity_password: None,
-            ready: ReadinessCondition::default(),
         }
     }
 }
@@ -836,6 +854,72 @@ impl ConfigObject for MinimalConfig {
     }
 }
 
+/// Alternative serialization of RelayInfo for config file using snake case.
+mod config_relay_info {
+    use super::*;
+
+    use serde::ser::SerializeMap;
+
+    // Uses snake_case as opposed to camelCase.
+    #[derive(Debug, Serialize, Deserialize, Clone)]
+    struct RelayInfoConfig {
+        public_key: PublicKey,
+        #[serde(default)]
+        internal: bool,
+    }
+
+    impl From<RelayInfoConfig> for RelayInfo {
+        fn from(v: RelayInfoConfig) -> Self {
+            RelayInfo {
+                public_key: v.public_key,
+                internal: v.internal,
+            }
+        }
+    }
+
+    impl From<RelayInfo> for RelayInfoConfig {
+        fn from(v: RelayInfo) -> Self {
+            RelayInfoConfig {
+                public_key: v.public_key,
+                internal: v.internal,
+            }
+        }
+    }
+
+    pub(super) fn deserialize<'de, D>(des: D) -> Result<HashMap<RelayId, RelayInfo>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let map = HashMap::<RelayId, RelayInfoConfig>::deserialize(des)?;
+        Ok(map.into_iter().map(|(k, v)| (k, v.into())).collect())
+    }
+
+    pub(super) fn serialize<S>(elm: &HashMap<RelayId, RelayInfo>, ser: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = ser.serialize_map(Some(elm.len()))?;
+
+        for (k, v) in elm {
+            map.serialize_entry(k, &RelayInfoConfig::from(v.clone()))?;
+        }
+
+        map.end()
+    }
+}
+
+/// Authentication options.
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct AuthConfig {
+    /// Controls responses from the readiness health check endpoint based on authentication.
+    #[serde(default, skip_serializing_if = "ReadinessCondition::is_default")]
+    pub ready: ReadinessCondition,
+
+    /// Statically authenticated downstream relays.
+    #[serde(default, with = "config_relay_info")]
+    pub static_relays: HashMap<RelayId, RelayInfo>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
     #[serde(default)]
@@ -858,6 +942,8 @@ struct ConfigValues {
     outcomes: Outcomes,
     #[serde(default)]
     aggregator: AggregatorConfig,
+    #[serde(default)]
+    auth: AuthConfig,
 }
 
 impl ConfigObject for ConfigValues {
@@ -895,9 +981,10 @@ impl Config {
 
         let config = Config {
             values: ConfigValues::load(&path)?,
-            credentials: match fs::metadata(Credentials::path(&path)) {
-                Ok(_) => Some(Credentials::load(&path)?),
-                Err(_) => None,
+            credentials: if Credentials::path(&path).exists() {
+                Some(Credentials::load(&path)?)
+            } else {
+                None
             },
             path: path.clone(),
         };
@@ -1154,7 +1241,7 @@ impl Config {
     ///
     /// See [`ReadinessCondition`] for more information.
     pub fn requires_auth(&self) -> bool {
-        match self.values.relay.ready {
+        match self.values.auth.ready {
             ReadinessCondition::Authenticated => self.relay_mode() == RelayMode::Managed,
             ReadinessCondition::Always => false,
         }
@@ -1489,6 +1576,11 @@ impl Config {
     /// Returns configuration for the metrics [aggregator](relay_metrics::Aggregator).
     pub fn aggregator_config(&self) -> AggregatorConfig {
         self.values.aggregator.clone()
+    }
+
+    /// Return the statically configured Relays.
+    pub fn static_relays(&self) -> &HashMap<RelayId, RelayInfo> {
+        &self.values.auth.static_relays
     }
 }
 

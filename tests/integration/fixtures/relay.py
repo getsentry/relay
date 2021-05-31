@@ -20,6 +20,7 @@ class Relay(SentryLike):
         process,
         upstream,
         public_key,
+        secret_key,
         relay_id,
         config_dir,
         options,
@@ -28,6 +29,7 @@ class Relay(SentryLike):
 
         self.process = process
         self.relay_id = relay_id
+        self.secret_key = secret_key
         self.config_dir = config_dir
         self.options = options
 
@@ -44,7 +46,12 @@ class Relay(SentryLike):
 @pytest.fixture
 def relay(mini_sentry, random_port, background_process, config_dir):
     def inner(
-        upstream, options=None, prepare=None, external=None, wait_healthcheck=True
+        upstream,
+        options=None,
+        prepare=None,
+        external=None,
+        wait_healthcheck=True,
+        static_relays=None,
     ):
         host = "127.0.0.1"
         port = random_port()
@@ -66,6 +73,9 @@ def relay(mini_sentry, random_port, background_process, config_dir):
             "processing": {"enabled": False, "kafka_config": [], "redis": ""},
         }
 
+        if static_relays is not None:
+            default_opts["auth"] = {"static_relays": static_relays}
+
         if options is not None:
             for key in options:
                 default_opts.setdefault(key, {}).update(options[key])
@@ -77,20 +87,18 @@ def relay(mini_sentry, random_port, background_process, config_dir):
             RELAY_BIN + ["-c", str(dir), "credentials", "generate"]
         )
 
+        # now that we have generated a credentials file get the details
+        with open(dir.join("credentials.json"), "r") as f:
+            credentials = json.load(f)
+        public_key = credentials.get("public_key")
+        assert public_key is not None
+        secret_key = credentials.get("secret_key")
+        assert secret_key is not None
+        relay_id = credentials.get("id")
+        assert relay_id is not None
+
         if prepare is not None:
             prepare(dir)
-
-        public_key = None
-        relay_id = None
-
-        for line in output.splitlines():
-            if b"public key" in line:
-                public_key = line.split()[-1].decode("ascii")
-            if b"relay id" in line:
-                relay_id = line.split()[-1].decode("ascii")
-
-        assert public_key
-        assert relay_id
 
         mini_sentry.known_relays[relay_id] = {
             "publicKey": public_key,
@@ -100,7 +108,14 @@ def relay(mini_sentry, random_port, background_process, config_dir):
         process = background_process(RELAY_BIN + ["-c", str(dir), "run"])
 
         relay = Relay(
-            (host, port), process, upstream, public_key, relay_id, dir, default_opts
+            (host, port),
+            process,
+            upstream,
+            public_key,
+            secret_key,
+            relay_id,
+            dir,
+            default_opts,
         )
 
         if wait_healthcheck:
