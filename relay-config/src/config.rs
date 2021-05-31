@@ -288,35 +288,6 @@ pub struct RelayInfo {
     #[serde(default)]
     pub internal: bool,
 }
-impl From<RelayInfoConfig> for RelayInfo {
-    fn from(v: RelayInfoConfig) -> Self {
-        RelayInfo {
-            public_key: v.public_key,
-            internal: v.internal,
-        }
-    }
-}
-
-/// Alternative serialization of RelayInfo for config file (that doesn't use camel case
-#[derive(Debug, Serialize, Deserialize, Clone)]
-// #[serde(remote = "RelayInfo")]
-pub struct RelayInfoConfig {
-    /// The public key that this Relay uses to authenticate and sign requests.
-    pub public_key: PublicKey,
-
-    /// Marks an internal relay that has privileged access to more project configuration.
-    #[serde(default)]
-    pub internal: bool,
-}
-
-impl From<RelayInfo> for RelayInfoConfig {
-    fn from(v: RelayInfo) -> Self {
-        RelayInfoConfig {
-            public_key: v.public_key,
-            internal: v.internal,
-        }
-    }
-}
 
 impl RelayInfo {
     /// Creates a new RelayInfo
@@ -883,36 +854,70 @@ impl ConfigObject for MinimalConfig {
     }
 }
 
-fn des_func<'de, D>(des: D) -> Result<HashMap<RelayId, RelayInfo>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let mut temp = HashMap::<RelayId, RelayInfoConfig>::deserialize(des)?;
-    Ok(temp.drain().map(|(k, v)| (k, v.into())).collect())
-}
-fn ser_func<S>(elm: &HashMap<RelayId, RelayInfo>, ser: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let x: HashMap<RelayId, RelayInfoConfig> =
-        elm.iter().map(|(k, v)| (*k, v.clone().into())).collect();
+/// Alternative serialization of RelayInfo for config file using snake case.
+mod config_relay_info {
+    use super::*;
 
-    x.serialize(ser)
+    use serde::ser::SerializeMap;
+
+    // Uses snake_case as opposed to camelCase.
+    #[derive(Debug, Serialize, Deserialize, Clone)]
+    struct RelayInfoConfig {
+        public_key: PublicKey,
+        #[serde(default)]
+        internal: bool,
+    }
+
+    impl From<RelayInfoConfig> for RelayInfo {
+        fn from(v: RelayInfoConfig) -> Self {
+            RelayInfo {
+                public_key: v.public_key,
+                internal: v.internal,
+            }
+        }
+    }
+
+    impl From<RelayInfo> for RelayInfoConfig {
+        fn from(v: RelayInfo) -> Self {
+            RelayInfoConfig {
+                public_key: v.public_key,
+                internal: v.internal,
+            }
+        }
+    }
+
+    pub(super) fn deserialize<'de, D>(des: D) -> Result<HashMap<RelayId, RelayInfo>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let map = HashMap::<RelayId, RelayInfoConfig>::deserialize(des)?;
+        Ok(map.into_iter().map(|(k, v)| (k, v.into())).collect())
+    }
+
+    pub(super) fn serialize<S>(elm: &HashMap<RelayId, RelayInfo>, ser: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = ser.serialize_map(Some(elm.len()))?;
+
+        for (k, v) in elm {
+            map.serialize_entry(k, &RelayInfoConfig::from(v.clone()))?;
+        }
+
+        map.end()
+    }
 }
 
-/// Authentication options
+/// Authentication options.
 #[derive(Serialize, Deserialize, Debug, Default)]
-struct AuthConfig {
+pub struct AuthConfig {
     /// Controls responses from the readiness health check endpoint based on authentication.
-    #[serde(skip_serializing_if = "ReadinessCondition::is_default")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "ReadinessCondition::is_default")]
     pub ready: ReadinessCondition,
-    /// Defines statically authenticated downstream relays
-    #[serde(deserialize_with = "des_func")]
-    #[serde(serialize_with = "ser_func")]
-    #[serde(default)]
-    #[serde(rename = "static")]
-    static_auth: HashMap<RelayId, RelayInfo>,
+
+    /// Statically authenticated downstream relays.
+    #[serde(default, with = "config_relay_info")]
+    pub static_relays: HashMap<RelayId, RelayInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -1573,9 +1578,9 @@ impl Config {
         self.values.aggregator.clone()
     }
 
-    /// Return the statically configured Relays
+    /// Return the statically configured Relays.
     pub fn static_relays(&self) -> &HashMap<RelayId, RelayInfo> {
-        &self.values.auth.static_auth
+        &self.values.auth.static_relays
     }
 }
 
