@@ -6,6 +6,7 @@
 
 - Support self-contained envelopes without authentication headers or query parameters. ([#1000](https://github.com/getsentry/relay/pull/1000))
 - Support statically configured relays. ([#991](https://github.com/getsentry/relay/pull/991))
+- Support namespaced event payloads in multipart minidump submission for Electron Framework. The field has to follow the format `sentry___<namespace>`. ([#1012](https://github.com/getsentry/relay/pull/1012))
 
 **Bug Fixes**:
 

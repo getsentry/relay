@@ -770,9 +770,9 @@ impl EnvelopeProcessor {
         let mut aggregator = ChunkedFormDataAggregator::new();
 
         for entry in FormDataIter::new(&payload) {
-            if entry.key() == "sentry" {
+            if entry.key() == "sentry" || entry.key().starts_with("sentry___") {
                 // Custom clients can submit longer payloads and should JSON encode event data into
-                // the optional `sentry` field.
+                // the optional `sentry` field or a `sentry___<namespace>` field.
                 match serde_json::from_str(entry.value()) {
                     Ok(event) => utils::merge_values(target, event),
                     Err(_) => relay_log::debug!("invalid json event payload in sentry form field"),

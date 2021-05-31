@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.7
+
+- Bump release parser to 1.0.0. ([#1013](https://github.com/getsentry/relay/pull/1013))
+
 ## 0.8.6
 
 - Add back `breadcrumb.event_id`. ([#977](https://github.com/getsentry/relay/pull/977))
