@@ -1,32 +1,32 @@
 minVersion: 0.23.0
 changelogPolicy: auto
 targets:
-- name: github
-- name: registry
-  apps:
-    app:relay:
-      name: registry
-      urlTemplate: https://downloads.sentry-cdn.com/relay/{{version}}/{{file}}
-      includeNames: /^relay-(Darwin|Linux|Windows).*$/i
-- name: gcs
-  bucket: sentry-sdk-assets
-  includeNames: /^relay-(Darwin|Windows|Linux).*$/
-  paths:
-  - path: /relay/{{version}}/
-    metadata:
-      cacheControl: public, max-age=2592000
-  - path: /relay/latest/
-    metadata:
-      cacheControl: public, max-age=600
-- id: release
-  name: docker
-  source: us.gcr.io/sentryio/relay
-  target: getsentry/relay
-- id: latest
-  name: docker
-  source: us.gcr.io/sentryio/relay
-  target: getsentry/relay
-  targetFormat: '{{{target}}}:latest'
+  - name: github
+  - name: registry
+    apps:
+      app:relay:
+        name: registry
+        urlTemplate: https://downloads.sentry-cdn.com/relay/{{version}}/{{file}}
+        includeNames: /^relay-(Darwin|Linux|Windows).*$/i
+  - name: gcs
+    bucket: sentry-sdk-assets
+    includeNames: /^relay-(Darwin|Windows|Linux).*$/
+    paths:
+      - path: /relay/{{version}}/
+        metadata:
+          cacheControl: public, max-age=2592000
+      - path: /relay/latest/
+        metadata:
+          cacheControl: public, max-age=600
+  - id: release
+    name: docker
+    source: us.gcr.io/sentryio/relay
+    target: getsentry/relay
+  - id: latest
+    name: docker
+    source: us.gcr.io/sentryio/relay
+    target: getsentry/relay
+    targetFormat: '{{{target}}}:latest'
 requireNames:
 - /^relay-Darwin-x86_64$/
 - /^relay-Darwin-x86_64-dsym.zip$/
