@@ -5,7 +5,6 @@ targets:
   - name: registry
     apps:
       app:relay:
-        name: registry
         urlTemplate: https://downloads.sentry-cdn.com/relay/{{version}}/{{file}}
         includeNames: /^relay-(Darwin|Linux|Windows).*$/i
   - name: gcs
