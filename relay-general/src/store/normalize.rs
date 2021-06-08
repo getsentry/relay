@@ -11,10 +11,9 @@ use smallvec::SmallVec;
 
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId, EventType,
-    Exception, Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry, Request,
-    SpanStatus, Stacktrace, Tags, TraceContext, User, INVALID_ENVIRONMENTS, INVALID_RELEASES,
-    VALID_PLATFORMS,
+    self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId,
+    EventType, Exception, Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry,
+    Request, SpanStatus, Stacktrace, Tags, TraceContext, User, VALID_PLATFORMS,
 };
 use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig};
 use crate::types::{
@@ -62,18 +61,8 @@ impl DedupCache {
     }
 }
 
-pub fn is_valid_platform(platform: &str) -> bool {
+fn is_valid_platform(platform: &str) -> bool {
     VALID_PLATFORMS.contains(&platform)
-}
-
-pub fn is_valid_environment(environment: &str) -> bool {
-    !INVALID_ENVIRONMENTS.contains(&environment)
-}
-
-pub fn is_valid_release(release: &str) -> bool {
-    !INVALID_RELEASES
-        .iter()
-        .any(|invalid| release.eq_ignore_ascii_case(invalid))
 }
 
 /// The processor that normalizes events for store.
@@ -465,7 +454,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         })?;
 
         event.environment.apply(|environment, meta| {
-            if is_valid_environment(&environment) {
+            if protocol::validate_environment(&environment).is_ok() {
                 Ok(())
             } else {
                 meta.add_error(ErrorKind::InvalidData);
@@ -474,7 +463,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         })?;
 
         event.release.apply(|release, meta| {
-            if is_valid_release(&release) {
+            if protocol::validate_release(&release).is_ok() {
                 Ok(())
             } else {
                 meta.add_error(ErrorKind::InvalidData);

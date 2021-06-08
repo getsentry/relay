@@ -468,3 +468,25 @@ def test_session_auto_ip(mini_sentry, relay_with_processing, sessions_consumer):
     # Can't test ip_address since it's not posted to Kafka. Just test that it is accepted.
     session = sessions_consumer.get_session()
     assert session
+
+
+def test_session_invalid_release(mini_sentry, relay_with_processing, sessions_consumer):
+    relay = relay_with_processing()
+    sessions_consumer = sessions_consumer()
+
+    PROJECT_ID = 42
+    project_config = mini_sentry.add_full_project_config(PROJECT_ID)
+    project_config["config"]["eventRetention"] = 17
+
+    timestamp = datetime.now(tz=timezone.utc)
+    relay.send_session(
+        PROJECT_ID,
+        {
+            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+            "timestamp": timestamp.isoformat(),
+            "started": timestamp.isoformat(),
+            "attrs": {"release": "latest"},
+        },
+    )
+
+    sessions_consumer.assert_empty()
