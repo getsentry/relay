@@ -490,3 +490,26 @@ def test_session_invalid_release(mini_sentry, relay_with_processing, sessions_co
     )
 
     sessions_consumer.assert_empty()
+
+
+def test_session_invalid_environment(mini_sentry, relay_with_processing, sessions_consumer):
+    relay = relay_with_processing()
+    sessions_consumer = sessions_consumer()
+
+    PROJECT_ID = 42
+    project_config = mini_sentry.add_full_project_config(PROJECT_ID)
+    project_config["config"]["eventRetention"] = 17
+
+    timestamp = datetime.now(tz=timezone.utc)
+    relay.send_session(
+        PROJECT_ID,
+        {
+            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+            "timestamp": timestamp.isoformat(),
+            "started": timestamp.isoformat(),
+            "attrs": {"release": "sentry-test@1.0.0", "environment": "none"},
+        },
+    )
+
+    session = sessions_consumer.get_session()
+    assert session.get("environment") is None
