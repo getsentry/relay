@@ -492,7 +492,9 @@ def test_session_invalid_release(mini_sentry, relay_with_processing, sessions_co
     sessions_consumer.assert_empty()
 
 
-def test_session_invalid_environment(mini_sentry, relay_with_processing, sessions_consumer):
+def test_session_invalid_environment(
+    mini_sentry, relay_with_processing, sessions_consumer
+):
     relay = relay_with_processing()
     sessions_consumer = sessions_consumer()
 
