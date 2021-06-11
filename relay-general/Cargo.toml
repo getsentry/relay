@@ -30,7 +30,7 @@ relay-common = { path = "../relay-common" }
 relay-general-derive = { path = "derive" }
 schemars = { version = "0.8.1", features = ["uuid", "chrono"], optional = true }
 scroll = "0.10.2"
-sentry-release-parser = { version = "1.1.0" }
+sentry-release-parser = { version = "1.1.1" }
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
 serde_urlencoded = "0.5.5"

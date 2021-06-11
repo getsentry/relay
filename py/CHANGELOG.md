@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Bump release parser to 1.1.1. ([#1018](https://github.com/getsentry/relay/pull/1018))
+
 ## 0.8.7
 
 - Bump release parser to 1.0.0. ([#1013](https://github.com/getsentry/relay/pull/1013))
