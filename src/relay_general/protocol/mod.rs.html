@@ -69,6 +69,8 @@
 <span id="68">68</span>
 <span id="69">69</span>
 <span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Implements the sentry event protocol.</span>
 
@@ -99,10 +101,12 @@
 <span class="kw">mod</span> <span class="ident">user</span>;
 <span class="kw">mod</span> <span class="ident">user_report</span>;
 
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">sentry_release_parser</span>::{<span class="ident">validate_environment</span>, <span class="ident">validate_release</span>};
+
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">breadcrumb</span>::<span class="ident">Breadcrumb</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">breakdowns</span>::<span class="ident">Breakdowns</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">clientsdk</span>::{<span class="ident">ClientSdkInfo</span>, <span class="ident">ClientSdkPackage</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">constants</span>::{<span class="ident">INVALID_ENVIRONMENTS</span>, <span class="ident">INVALID_RELEASES</span>, <span class="ident">VALID_PLATFORMS</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">constants</span>::<span class="ident">VALID_PLATFORMS</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">contexts</span>::{
     <span class="ident">AppContext</span>, <span class="ident">BrowserContext</span>, <span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Contexts</span>, <span class="ident">DeviceContext</span>, <span class="ident">GpuContext</span>,
     <span class="ident">OperationType</span>, <span class="ident">OsContext</span>, <span class="ident">RuntimeContext</span>, <span class="ident">SpanId</span>, <span class="ident">SpanStatus</span>, <span class="ident">TraceContext</span>, <span class="ident">TraceId</span>,
