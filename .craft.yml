@@ -1,5 +1,6 @@
 minVersion: 0.23.1
 changelogPolicy: auto
+
 targets:
   - name: github
   - name: registry
@@ -26,6 +27,7 @@ targets:
     source: us.gcr.io/sentryio/relay
     target: getsentry/relay
     targetFormat: "{{{target}}}:latest"
+
 requireNames:
   - /^relay-Darwin-x86_64$/
   - /^relay-Darwin-x86_64-dsym.zip$/
