@@ -25,11 +25,11 @@ targets:
     name: docker
     source: us.gcr.io/sentryio/relay
     target: getsentry/relay
-    targetFormat: '{{{target}}}:latest'
+    targetFormat: "{{{target}}}:latest"
 requireNames:
-- /^relay-Darwin-x86_64$/
-- /^relay-Darwin-x86_64-dsym.zip$/
-- /^relay-Linux-x86_64$/
-- /^relay-Linux-x86_64-debug.zip$/
-- /^relay-Windows-x86_64-pdb.zip$/
-- /^relay-Windows-x86_64\.exe$/
+  - /^relay-Darwin-x86_64$/
+  - /^relay-Darwin-x86_64-dsym.zip$/
+  - /^relay-Linux-x86_64$/
+  - /^relay-Linux-x86_64-debug.zip$/
+  - /^relay-Windows-x86_64-pdb.zip$/
+  - /^relay-Windows-x86_64\.exe$/
