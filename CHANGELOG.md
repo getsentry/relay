@@ -11,6 +11,7 @@
 **Bug Fixes**:
 
 - Explicitly declare reprocessing context. ([#1009](https://github.com/getsentry/relay/pull/1009))
+- Validate the environment attribute in sessions, and drop sessions with invalid releases. ([#1018](https://github.com/getsentry/relay/pull/1018))
 
 **Internal**:
 

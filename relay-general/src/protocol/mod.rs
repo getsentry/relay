@@ -27,10 +27,12 @@ mod types;
 mod user;
 mod user_report;
 
+pub use sentry_release_parser::{validate_environment, validate_release};
+
 pub use self::breadcrumb::Breadcrumb;
 pub use self::breakdowns::Breakdowns;
 pub use self::clientsdk::{ClientSdkInfo, ClientSdkPackage};
-pub use self::constants::{INVALID_ENVIRONMENTS, INVALID_RELEASES, VALID_PLATFORMS};
+pub use self::constants::VALID_PLATFORMS;
 pub use self::contexts::{
     AppContext, BrowserContext, Context, ContextInner, Contexts, DeviceContext, GpuContext,
     OperationType, OsContext, RuntimeContext, SpanId, SpanStatus, TraceContext, TraceId,

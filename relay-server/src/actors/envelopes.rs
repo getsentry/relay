@@ -17,7 +17,7 @@ use relay_config::{Config, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
-    Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
+    self, Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
     LenientString, Metrics, SecurityReportType, SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
@@ -571,6 +571,20 @@ impl EnvelopeProcessor {
                     max_future.num_seconds()
                 );
                 return false;
+            }
+
+            let release = &session.attributes.release;
+            if let Err(e) = protocol::validate_release(release) {
+                relay_log::trace!("skipping session with invalid release '{}': {}", release, e);
+                return false;
+            }
+
+            if let Some(ref env) = session.attributes.environment {
+                if let Err(e) = protocol::validate_environment(env) {
+                    relay_log::trace!("removing invalid environment '{}': {}", env, e);
+                    session.attributes.environment = None;
+                    changed = true;
+                }
             }
 
             if let Some(ref ip_address) = session.attributes.ip_address {

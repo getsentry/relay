@@ -3208,6 +3208,7 @@ dependencies = [
  "relay-general-derive",
  "schemars",
  "scroll",
+ "sentry-release-parser",
  "serde",
  "serde_json",
  "serde_urlencoded 0.5.5",
@@ -3737,9 +3738,9 @@ dependencies = [
 
 [[package]]
 name = "sentry-release-parser"
-version = "1.0.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99bfd3ce6bebc014c7261538b396793e9830d318c9d3608f119eb257d5e5c605"
+checksum = "846b55bede1207d53b49824aca08578d58f9255b6e91fb5d164d91540a02dda0"
 dependencies = [
  "lazy_static",
  "regex",
