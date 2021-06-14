@@ -16,7 +16,7 @@
 **Internal**:
 
 - Gather metrics for corrupted Events with unprintable fields. ([#1008](https://github.com/getsentry/relay/pull/1008))
-- All fields in breakdown config should be camelCase; plus add safeguards. ([#XXXX](https://github.com/getsentry/relay/pull/XXXX))
+- All fields in breakdown config should be camelCase; plus add safeguards. ([#1020](https://github.com/getsentry/relay/pull/1020))
 
 ## 21.5.1
 
