@@ -16,6 +16,7 @@
 **Internal**:
 
 - Gather metrics for corrupted Events with unprintable fields. ([#1008](https://github.com/getsentry/relay/pull/1008))
+- All fields in breakdown config should be camelCase; plus add safeguards. ([#XXXX](https://github.com/getsentry/relay/pull/XXXX))
 
 ## 21.5.1
 
@@ -41,7 +42,6 @@
 - Update internal representation of distribution metrics. ([#979](https://github.com/getsentry/relay/pull/979))
 - Extract metrics for transaction breakdowns and sessions when the feature is enabled for the organizaiton. ([#986](https://github.com/getsentry/relay/pull/986))
 - Assign explicit values to DataCategory enum. ([#987](https://github.com/getsentry/relay/pull/987))
-- All fields in breakdown config should be camelCase. ([#993](https://github.com/getsentry/relay/pull/993))
 
 ## 21.4.1
 
