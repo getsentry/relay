@@ -177,6 +177,10 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
                 "type": "spanOperations",
                 "matches": ["http", "db", "browser", "resource"],
             },
+            "span_ops_3": {
+                "type": "whatever",
+                "matches": ["http", "db", "browser", "resource"],
+            },
         },
     )
 

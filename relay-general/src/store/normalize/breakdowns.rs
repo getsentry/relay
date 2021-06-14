@@ -206,12 +206,15 @@ impl EmitBreakdowns for SpanOperationsConfig {
 pub enum BreakdownConfig {
     #[serde(alias = "span_operations")]
     SpanOperations(SpanOperationsConfig),
+    #[serde(other)]
+    Unsupported,
 }
 
 impl EmitBreakdowns for BreakdownConfig {
     fn emit_breakdowns(&self, event: &Event) -> Option<Measurements> {
         match self {
             BreakdownConfig::SpanOperations(config) => config.emit_breakdowns(event),
+            _ => None,
         }
     }
 }
