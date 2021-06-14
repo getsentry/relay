@@ -166,8 +166,9 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
 
     relay = relay_with_processing()
     config = mini_sentry.add_basic_project_config(42)
+
     config["config"].setdefault(
-        "breakdowns",
+        "breakdownsV2",
         {
             "span_ops": {
                 "type": "span_operations",
@@ -178,6 +179,25 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
                 "matches": ["http", "db", "browser", "resource"],
             },
             "span_ops_3": {
+                "type": "whatever",
+                "matches": ["http", "db", "browser", "resource"],
+            },
+        },
+    )
+
+    config["config"].setdefault(
+        # old name of span operation breakdown key. we expect these to not generate anything at all
+        "breakdowns",
+        {
+            "span_ops_4": {
+                "type": "span_operations",
+                "matches": ["http", "db", "browser", "resource"],
+            },
+            "span_ops_5": {
+                "type": "spanOperations",
+                "matches": ["http", "db", "browser", "resource"],
+            },
+            "span_ops_6": {
                 "type": "whatever",
                 "matches": ["http", "db", "browser", "resource"],
             },

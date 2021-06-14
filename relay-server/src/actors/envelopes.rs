@@ -1173,7 +1173,7 @@ impl EnvelopeProcessor {
             normalize_user_agent: Some(true),
             sent_at: envelope.sent_at(),
             received_at: Some(received_at),
-            breakdowns: project_state.config.breakdowns.clone(),
+            breakdowns_v2: project_state.config.breakdowns_v2.clone(),
         };
 
         let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_deref());

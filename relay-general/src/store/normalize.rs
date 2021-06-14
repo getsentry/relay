@@ -105,7 +105,7 @@ impl<'a> NormalizeProcessor<'a> {
 
     /// Emit any breakdowns
     fn normalize_breakdowns(&self, event: &mut Event) {
-        match &self.config.breakdowns {
+        match &self.config.breakdowns_v2 {
             None => {}
             Some(breakdowns_config) => breakdowns::normalize_breakdowns(event, &breakdowns_config),
         }

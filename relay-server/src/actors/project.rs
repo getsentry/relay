@@ -85,7 +85,7 @@ pub struct ProjectConfig {
     pub dynamic_sampling: Option<SamplingConfig>,
     /// Configuration for operation breakdown. Will be emitted only if present.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub breakdowns: Option<BreakdownsConfig>,
+    pub breakdowns_v2: Option<BreakdownsConfig>,
     /// Exposable features enabled for this project
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub features: BTreeSet<Feature>,
@@ -103,7 +103,7 @@ impl Default for ProjectConfig {
             event_retention: None,
             quotas: Vec::new(),
             dynamic_sampling: None,
-            breakdowns: None,
+            breakdowns_v2: None,
             features: BTreeSet::new(),
         }
     }
