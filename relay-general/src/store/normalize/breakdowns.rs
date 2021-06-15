@@ -214,7 +214,7 @@ impl EmitBreakdowns for BreakdownConfig {
     fn emit_breakdowns(&self, event: &Event) -> Option<Measurements> {
         match self {
             BreakdownConfig::SpanOperations(config) => config.emit_breakdowns(event),
-            _ => None,
+            BreakdownConfig::Unsupported => None,
         }
     }
 }
