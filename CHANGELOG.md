@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- All fields in breakdown config should be camelCase, and rename the breakdown key name in project options. ([#1020](https://github.com/getsentry/relay/pull/1020))
+
 ## 21.6.1
 
 - No documented changes.
@@ -20,7 +26,6 @@
 **Internal**:
 
 - Gather metrics for corrupted Events with unprintable fields. ([#1008](https://github.com/getsentry/relay/pull/1008))
-- All fields in breakdown config should be camelCase, and rename the breakdown key name in project options. ([#1020](https://github.com/getsentry/relay/pull/1020))
 
 ## 21.5.1
 
