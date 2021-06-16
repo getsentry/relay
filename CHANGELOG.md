@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 21.6.1
+
+- No documented changes.
+
+## 21.6.0
 
 **Features**:
 
