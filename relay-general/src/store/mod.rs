@@ -52,7 +52,7 @@ pub struct StoreConfig {
     pub normalize_user_agent: Option<bool>,
 
     /// Emit breakdowns based on given configuration.
-    pub breakdowns_v2: Option<normalize::breakdowns::BreakdownsConfig>,
+    pub breakdowns: Option<normalize::breakdowns::BreakdownsConfig>,
 }
 
 /// The processor that normalizes events for store.

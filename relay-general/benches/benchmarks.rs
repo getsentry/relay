@@ -90,7 +90,7 @@ fn bench_store_processor(c: &mut Criterion) {
         user_agent: None,
         sent_at: None,
         received_at: None,
-        breakdowns_v2: None,
+        breakdowns: None,
     };
 
     let mut processor = StoreProcessor::new(config, None);
