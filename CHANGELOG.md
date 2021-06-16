@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- All fields in breakdown config should be camelCase, and rename the breakdown key name in project options. ([#1020](https://github.com/getsentry/relay/pull/1020))
+
 ## 21.6.1
 
 - No documented changes.
