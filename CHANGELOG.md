@@ -2,7 +2,9 @@
 
 ## 21.6.1
 
-- No documented changes.
+**Bug Fixes**:
+
+- Remove connection metrics reported under `connector.*`. They have been fully disabled since version `21.3.0`. ([#1021](https://github.com/getsentry/relay/pull/1021))
 
 ## 21.6.0
 
