@@ -32,7 +32,6 @@
 //!     .expect("failed to start relay");
 //! ```
 
-pub mod connector;
 pub mod controller;
 pub mod envelopes;
 pub mod healthcheck;
