@@ -9,7 +9,7 @@ use actix::prelude::*;
 use float_ord::FloatOrd;
 use serde::{Deserialize, Serialize};
 
-use relay_common::{MonotonicResult, UnixTimestamp};
+use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 
 use crate::{Metric, MetricType, MetricUnit, MetricValue};
 
@@ -846,13 +846,17 @@ impl Ord for QueuedBucket {
 ///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
 #[derive(Clone, Debug)]
 pub struct FlushBuckets {
+    pub public_key: ProjectKey,
     buckets: Vec<Bucket>,
 }
 
 impl FlushBuckets {
     /// Creates a new message by consuming a vector of buckets.
-    pub fn new(buckets: Vec<Bucket>) -> Self {
-        Self { buckets }
+    pub fn new(public_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
+        Self {
+            public_key,
+            buckets,
+        }
     }
 
     /// Consumes the buckets contained in this message.
@@ -914,6 +918,7 @@ impl Message for FlushBuckets {
 /// }
 /// ```
 pub struct Aggregator {
+    public_key: ProjectKey,
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, BucketValue>,
     queue: BinaryHeap<QueuedBucket>,
@@ -925,8 +930,13 @@ impl Aggregator {
     ///
     /// The aggregator will flush a list of buckets to the receiver in regular intervals based on
     /// the given `config`.
-    pub fn new(config: AggregatorConfig, receiver: Recipient<FlushBuckets>) -> Self {
+    pub fn new(
+        public_key: ProjectKey,
+        config: AggregatorConfig,
+        receiver: Recipient<FlushBuckets>,
+    ) -> Self {
         Self {
+            public_key,
             config,
             buckets: HashMap::new(),
             queue: BinaryHeap::new(),
@@ -1030,7 +1040,7 @@ impl Aggregator {
         relay_log::trace!("flushing {} buckets to receiver", buckets.len());
 
         self.receiver
-            .send(FlushBuckets::new(buckets))
+            .send(FlushBuckets::new(self.public_key, buckets))
             .into_actor(self)
             .and_then(|result, slf, _ctx| {
                 if let Err(buckets) = result {
@@ -1076,16 +1086,18 @@ impl Actor for Aggregator {
 /// A message containing a list of [`Metric`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct InsertMetrics {
+    pub public_key: ProjectKey,
     metrics: Vec<Metric>,
 }
 
 impl InsertMetrics {
     /// Creates a new message containing a list of [`Metric`]s.
-    pub fn new<I>(metrics: I) -> Self
+    pub fn new<I>(public_key: ProjectKey, metrics: I) -> Self
     where
         I: IntoIterator<Item = Metric>,
     {
         Self {
+            public_key,
             metrics: metrics.into_iter().collect(),
         }
     }
@@ -1110,13 +1122,17 @@ impl Handler<InsertMetrics> for Aggregator {
 /// A message containing a list of [`Bucket`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct MergeBuckets {
+    pub public_key: ProjectKey,
     buckets: Vec<Bucket>,
 }
 
 impl MergeBuckets {
     /// Creates a new message containing a list of [`Bucket`]s.
-    pub fn new(buckets: Vec<Bucket>) -> Self {
-        Self { buckets }
+    pub fn new(public_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
+        Self {
+            public_key,
+            buckets,
+        }
     }
 }
 

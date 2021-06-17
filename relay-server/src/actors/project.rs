@@ -520,7 +520,11 @@ impl Project {
     ) -> Option<Addr<Aggregator>> {
         if matches!(self.aggregator, AggregatorState::Unknown) {
             let flush_receiver = context.address().recipient();
-            let aggregator = Aggregator::new(self.config.aggregator_config(), flush_receiver);
+            let aggregator = Aggregator::new(
+                self.public_key,
+                self.config.aggregator_config(),
+                flush_receiver,
+            );
             // TODO: This starts the aggregator on the project arbiter, but we want a separate
             // thread or thread pool for this.
             self.aggregator = AggregatorState::Available(aggregator.start());
@@ -749,7 +753,9 @@ impl Actor for Project {
 /// This is used for cases when we only want to perform operations that do
 /// not require waiting for network requests.
 #[derive(Debug)]
-pub struct GetCachedProjectState;
+pub struct GetCachedProjectState {
+    pub public_key: ProjectKey,
+}
 
 impl Message for GetCachedProjectState {
     type Result = Option<Arc<ProjectState>>;
@@ -773,18 +779,25 @@ impl Handler<GetCachedProjectState> for Project {
 /// state is always refreshed.
 #[derive(Debug)]
 pub struct GetProjectState {
+    pub public_key: ProjectKey,
     no_cache: bool,
 }
 
 impl GetProjectState {
     /// Fetches the project state and uses the cached version if up-to-date.
-    pub fn new() -> Self {
-        Self { no_cache: false }
+    pub fn new(public_key: ProjectKey) -> Self {
+        Self {
+            public_key,
+            no_cache: false,
+        }
     }
 
     /// Fetches the project state and conditionally skips the cache.
-    pub fn no_cache(no_cache: bool) -> Self {
-        Self { no_cache }
+    pub fn no_cache(public_key: ProjectKey, no_cache: bool) -> Self {
+        Self {
+            public_key,
+            no_cache,
+        }
     }
 }
 
@@ -811,22 +824,25 @@ impl Handler<GetProjectState> for Project {
 ///  - Cached rate limits
 #[derive(Debug)]
 pub struct CheckEnvelope {
+    pub public_key: ProjectKey,
     envelope: Envelope,
     fetch: bool,
 }
 
 impl CheckEnvelope {
     /// Fetches the project state and checks the envelope.
-    pub fn fetched(envelope: Envelope) -> Self {
+    pub fn fetched(public_key: ProjectKey, envelope: Envelope) -> Self {
         Self {
+            public_key,
             envelope,
             fetch: true,
         }
     }
 
     /// Uses a cached project state and checks the envelope.
-    pub fn cached(envelope: Envelope) -> Self {
+    pub fn cached(public_key: ProjectKey, envelope: Envelope) -> Self {
         Self {
+            public_key,
             envelope,
             fetch: false,
         }
@@ -879,7 +895,10 @@ impl Handler<CheckEnvelope> for Project {
     }
 }
 
-pub struct UpdateRateLimits(pub RateLimits);
+pub struct UpdateRateLimits {
+    pub public_key: ProjectKey,
+    pub rate_limits: RateLimits,
+}
 
 impl Message for UpdateRateLimits {
     type Result = ();
@@ -889,7 +908,10 @@ impl Handler<UpdateRateLimits> for Project {
     type Result = ();
 
     fn handle(&mut self, message: UpdateRateLimits, _context: &mut Self::Context) -> Self::Result {
-        let UpdateRateLimits(rate_limits) = message;
+        let UpdateRateLimits {
+            public_key,
+            rate_limits,
+        } = message;
         self.rate_limits.merge(rate_limits);
     }
 }
@@ -956,7 +978,8 @@ impl Handler<FlushBuckets> for Project {
             .send(SendMetrics {
                 buckets: message.into_buckets(),
                 scoping,
-                project: context.address(),
+                public_key: self.public_key,
+                project_cache: self.manager.clone(),
             })
             .then(move |send_result| match send_result {
                 Ok(Ok(())) => Ok(()),

@@ -5,12 +5,14 @@ use std::net::IpAddr;
 use actix::prelude::*;
 use futures::{future, prelude::*};
 
+use relay_common::ProjectKey;
 use relay_general::protocol::{Event, EventId};
 use relay_sampling::{
     get_matching_event_rule, pseudo_random_from_uuid, rule_type_for_event, RuleId, SamplingResult,
 };
 
-use crate::actors::project::{GetCachedProjectState, GetProjectState, Project, ProjectState};
+use crate::actors::project::{GetCachedProjectState, GetProjectState, ProjectState};
+use crate::actors::project_cache::ProjectCache;
 use crate::envelope::{Envelope, ItemType};
 
 /// Checks whether an event should be kept or removed by dynamic sampling.
@@ -120,11 +122,12 @@ fn sample_transaction_internal(
 /// identifier if all elements have been removed.
 pub fn sample_trace(
     envelope: Envelope,
-    project: Option<Addr<Project>>,
+    public_key: Option<ProjectKey>,
+    project_cache: Addr<ProjectCache>,
     fast_processing: bool,
     processing_enabled: bool,
 ) -> ResponseFuture<Envelope, RuleId> {
-    let project = match project {
+    let public_key = match public_key {
         None => return Box::new(future::ok(envelope)),
         Some(project) => project,
     };
@@ -137,8 +140,8 @@ pub fn sample_trace(
     }
     //we have a trace_context and we have a transaction_item see if we can sample them
     if fast_processing {
-        let fut = project
-            .send(GetCachedProjectState)
+        let fut = project_cache
+            .send(GetCachedProjectState { public_key })
             .then(move |project_state| {
                 let project_state = match project_state {
                     // error getting the project, give up and return envelope unchanged
@@ -149,8 +152,8 @@ pub fn sample_trace(
             });
         Box::new(fut) as ResponseFuture<_, _>
     } else {
-        let fut = project
-            .send(GetProjectState::new())
+        let fut = project_cache
+            .send(GetProjectState::new(public_key))
             .then(move |project_state| {
                 let project_state = match project_state {
                     // error getting the project, give up and return envelope unchanged

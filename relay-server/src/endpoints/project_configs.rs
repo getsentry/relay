@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use relay_common::ProjectKey;
 
 use crate::actors::project::{GetProjectState, LimitedProjectState, ProjectState};
-use crate::actors::project_cache::GetProject;
 use crate::actors::project_upstream::GetProjectStates;
 use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;
@@ -66,17 +65,12 @@ fn get_project_configs(
     let full = relay.internal && body.inner.full_config;
     let no_cache = body.inner.no_cache;
 
+    let project_cache = state.project_cache();
     let futures = body.inner.public_keys.into_iter().map(move |public_key| {
         let relay = relay.clone();
-        state
-            .project_cache()
-            .send(GetProject { public_key })
+        project_cache
+            .send(GetProjectState::no_cache(public_key, no_cache))
             .map_err(Error::from)
-            .and_then(move |project| {
-                project
-                    .send(GetProjectState::no_cache(no_cache))
-                    .map_err(Error::from)
-            })
             .map(move |project_state| {
                 let project_state = project_state.ok()?;
                 // If public key is known (even if rate-limited, which is Some(false)), it has

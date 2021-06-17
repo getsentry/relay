@@ -1,4 +1,4 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -10,11 +10,15 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::{metric, ProjectKey};
 use relay_config::{Config, RelayMode};
+use relay_metrics::{AggregateMetricsError, Bucket, FlushBuckets, InsertMetrics, MergeBuckets};
 use relay_redis::RedisPool;
 
 use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::outcome::OutcomeProducer;
-use crate::actors::project::{Project, ProjectState};
+use crate::actors::project::{
+    CheckEnvelope, CheckEnvelopeResponse, GetCachedProjectState, GetProjectState, Project,
+    ProjectState, UpdateRateLimits,
+};
 use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::actors::upstream::UpstreamRelay;
@@ -37,7 +41,7 @@ impl ResponseError for ProjectError {}
 
 struct ProjectEntry {
     last_updated_at: Instant,
-    project: Addr<Project>,
+    project: Project,
 }
 
 pub struct ProjectCache {
@@ -77,7 +81,6 @@ impl ProjectCache {
         ProjectCache {
             config,
             projects: HashMap::new(),
-
             event_manager,
             outcome_producer,
             local_source,
@@ -97,6 +100,30 @@ impl ProjectCache {
 
         metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
     }
+
+    // TODO enable it when we get rid of Project Addr
+    // fn get_project(&mut self, public_key: ProjectKey, ctx: &mut Context<Self>) -> &mut Project {
+    //     metric!(histogram(RelayHistograms::ProjectStateCacheSize) = self.projects.len() as u64);
+    //
+    //     let cfg = self.config.clone();
+    //     let evt_mgr = self.event_manager.clone();
+    //     let outcome_prod = self.outcome_producer.clone();
+    //
+    //     &mut self
+    //         .projects
+    //         .entry(public_key)
+    //         .and_modify(|_| {
+    //             metric!(counter(RelayCounters::ProjectCacheHit) += 1);
+    //         })
+    //         .or_insert_with(move || {
+    //             let project = Project::new(public_key, cfg, ctx.address(), evt_mgr, outcome_prod);
+    //             ProjectEntry {
+    //                 last_updated_at: Instant::now(),
+    //                 project: project,
+    //             }
+    //         })
+    //         .project
+    // }
 }
 
 impl Actor for ProjectCache {
@@ -118,59 +145,6 @@ impl Actor for ProjectCache {
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         relay_log::info!("project cache stopped");
-    }
-}
-
-/// Resolves the project with the given identifier.
-///
-/// The returned `Project` is an actor that synchronizes state access internally. When it is fetched
-/// for the first time, its state is unpopulated. Only when `GetProjectState` is sent to the project
-/// for the first time, it starts to resolve the state from one of the sources.
-///
-/// If the optional `public_key` is set, then the public keys of the project are checked for a
-/// redirect. If a redirect is detected, then the target project is resolved and returned instead.
-///
-/// **Note** that due to redirects, the returned project may have a different identifier.
-#[derive(Debug, Deserialize, Serialize)]
-pub struct GetProject {
-    pub public_key: ProjectKey,
-}
-
-impl Message for GetProject {
-    type Result = Addr<Project>;
-}
-
-impl Handler<GetProject> for ProjectCache {
-    type Result = Addr<Project>;
-
-    fn handle(&mut self, message: GetProject, context: &mut Context<Self>) -> Self::Result {
-        let GetProject { public_key } = message;
-        let config = self.config.clone();
-        metric!(histogram(RelayHistograms::ProjectStateCacheSize) = self.projects.len() as u64);
-
-        match self.projects.entry(public_key) {
-            Entry::Occupied(entry) => {
-                metric!(counter(RelayCounters::ProjectCacheHit) += 1);
-                entry.get().project.clone()
-            }
-            Entry::Vacant(entry) => {
-                metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
-                let project = Project::new(
-                    public_key,
-                    config,
-                    context.address(),
-                    self.event_manager.clone(),
-                    self.outcome_producer.clone(),
-                )
-                .start();
-
-                entry.insert(ProjectEntry {
-                    last_updated_at: Instant::now(),
-                    project: project.clone(),
-                });
-                project
-            }
-        }
     }
 }
 
@@ -306,5 +280,64 @@ impl Handler<FetchProjectState> for ProjectCache {
         });
 
         Response::future(future)
+    }
+}
+
+impl Handler<GetProjectState> for ProjectCache {
+    type Result = Response<Arc<ProjectState>, ProjectError>;
+
+    fn handle(&mut self, _message: GetProjectState, _context: &mut Context<Self>) -> Self::Result {
+        unimplemented!();
+    }
+}
+
+impl Handler<GetCachedProjectState> for ProjectCache {
+    type Result = Option<Arc<ProjectState>>;
+
+    fn handle(
+        &mut self,
+        _message: GetCachedProjectState,
+        _context: &mut Context<Self>,
+    ) -> Self::Result {
+        unimplemented!();
+    }
+}
+
+impl Handler<CheckEnvelope> for ProjectCache {
+    type Result = ActorResponse<Self, CheckEnvelopeResponse, ProjectError>;
+
+    fn handle(&mut self, message: CheckEnvelope, context: &mut Self::Context) -> Self::Result {
+        unimplemented!();
+    }
+}
+impl Handler<UpdateRateLimits> for ProjectCache {
+    type Result = ();
+
+    fn handle(&mut self, message: UpdateRateLimits, _context: &mut Self::Context) -> Self::Result {
+        unimplemented!();
+    }
+}
+
+impl Handler<InsertMetrics> for ProjectCache {
+    type Result = Result<(), AggregateMetricsError>;
+
+    fn handle(&mut self, message: InsertMetrics, context: &mut Self::Context) -> Self::Result {
+        unimplemented!();
+    }
+}
+
+impl Handler<MergeBuckets> for ProjectCache {
+    type Result = Result<(), AggregateMetricsError>;
+
+    fn handle(&mut self, message: MergeBuckets, context: &mut Self::Context) -> Self::Result {
+        unimplemented!();
+    }
+}
+
+impl Handler<FlushBuckets> for ProjectCache {
+    type Result = ResponseFuture<(), Vec<Bucket>>;
+
+    fn handle(&mut self, message: FlushBuckets, context: &mut Self::Context) -> Self::Result {
+        unimplemented!();
     }
 }
