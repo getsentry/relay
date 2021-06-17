@@ -11,7 +11,6 @@ use relay_common::clone;
 use relay_config::Config;
 use relay_redis::RedisPool;
 
-use crate::actors::connector::MeteredConnector;
 use crate::actors::controller::{Configure, Controller};
 use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::healthcheck::Healthcheck;
@@ -303,10 +302,6 @@ pub fn start(config: Config) -> Result<Recipient<server::StopServer>, ServerErro
     Controller::from_registry().do_send(Configure {
         shutdown_timeout: config.shutdown_timeout(),
     });
-
-    // Start the connector before creating the ServiceState. The service state will spawn Arbiters
-    // that immediately start the authentication process. The connector must be available before.
-    MeteredConnector::start(config.clone());
 
     let state = ServiceState::start(config.clone())?;
     let mut server = server::new(move || make_app(state.clone()));

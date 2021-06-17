@@ -101,11 +101,6 @@ pub enum RelayHistograms {
     ///
     /// There is no limit to the number of cached projects.
     ProjectStateCacheSize,
-    /// The number of upstream requests queued up for a connection in the connection pool.
-    ///
-    /// Relay uses explicit queueing for most requests. This wait queue should almost always be
-    /// empty, and a large number of queued requests indicates a severe bug.
-    ConnectorWaitQueue,
     /// The number of upstream requests queued up for sending.
     ///
     /// Relay employs connection keep-alive whenever possible. Connections are kept open for _15_
@@ -147,7 +142,6 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
             RelayHistograms::ProjectStateReceived => "project_state.received",
             RelayHistograms::ProjectStateCacheSize => "project_cache.size",
-            RelayHistograms::ConnectorWaitQueue => "connector.wait_queue",
             RelayHistograms::UpstreamMessageQueueSize => "http_queue.size",
             RelayHistograms::UpstreamRetries => "upstream.retries",
         }
@@ -437,22 +431,6 @@ pub enum RelayCounters {
     ///    be used to ingest events. Once the grace period expires, the cache is evicted and new
     ///    requests wait for an update.
     EvictingStaleProjectCaches,
-    /// Number of requests that reused an already open upstream connection.
-    ///
-    /// Relay employs connection keep-alive whenever possible. Connections are kept open for _15_
-    /// seconds of inactivity or _75_ seconds of activity.
-    ConnectorReused,
-    /// Number of upstream connections opened.
-    ConnectorOpened,
-    /// Number of upstream connections closed due to connection timeouts.
-    ///
-    /// Relay employs connection keep-alive whenever possible. Connections are kept open for _15_
-    /// seconds of inactivity or _75_ seconds of activity.
-    ConnectorClosed,
-    /// Number of upstream connections that experienced errors.
-    ConnectorErrors,
-    /// Number of upstream connections that experienced a timeout.
-    ConnectorTimeouts,
     /// An event has been produced to Kafka for one of the configured "internal" projects.
     #[cfg(feature = "processing")]
     InternalCapturedEventStoreActor,
@@ -484,11 +462,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::Requests => "requests",
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
-            RelayCounters::ConnectorReused => "connector.reused",
-            RelayCounters::ConnectorOpened => "connector.opened",
-            RelayCounters::ConnectorClosed => "connector.closed",
-            RelayCounters::ConnectorErrors => "connector.errors",
-            RelayCounters::ConnectorTimeouts => "connector.timeouts",
             #[cfg(feature = "processing")]
             RelayCounters::InternalCapturedEventStoreActor => "internal.captured.event.store_actor",
             RelayCounters::InternalCapturedEventEndpoint => "internal.captured.event.endpoint",
