@@ -78,8 +78,10 @@ impl StoreForwarder {
 
     fn produce(&self, topic: KafkaTopic, message: KafkaMessage) -> Result<(), StoreError> {
         let serialized = message.serialize()?;
+        let key = message.key();
+
         let record = BaseRecord::to(self.config.kafka_topic_name(topic))
-            .key(message.key())
+            .key(&key)
             .payload(&serialized);
 
         match self.producer.send(record) {
