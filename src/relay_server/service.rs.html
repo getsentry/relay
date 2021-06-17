@@ -320,11 +320,6 @@
 <span id="319">319</span>
 <span id="320">320</span>
 <span id="321">321</span>
-<span id="322">322</span>
-<span id="323">323</span>
-<span id="324">324</span>
-<span id="325">325</span>
-<span id="326">326</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
@@ -339,7 +334,6 @@
 <span class="kw">use</span> <span class="ident">relay_config</span>::<span class="ident">Config</span>;
 <span class="kw">use</span> <span class="ident">relay_redis</span>::<span class="ident">RedisPool</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">connector</span>::<span class="ident">MeteredConnector</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">controller</span>::{<span class="ident">Configure</span>, <span class="ident">Controller</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">envelopes</span>::<span class="ident">EnvelopeManager</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">healthcheck</span>::<span class="ident">Healthcheck</span>;
@@ -631,10 +625,6 @@
     <span class="ident">Controller</span>::<span class="ident">from_registry</span>().<span class="ident">do_send</span>(<span class="ident">Configure</span> {
         <span class="ident">shutdown_timeout</span>: <span class="ident">config</span>.<span class="ident">shutdown_timeout</span>(),
     });
-
-    <span class="comment">// Start the connector before creating the ServiceState. The service state will spawn Arbiters</span>
-    <span class="comment">// that immediately start the authentication process. The connector must be available before.</span>
-    <span class="ident">MeteredConnector</span>::<span class="ident">start</span>(<span class="ident">config</span>.<span class="ident">clone</span>());
 
     <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">ServiceState</span>::<span class="ident">start</span>(<span class="ident">config</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">server</span>::<span class="ident">new</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> <span class="ident">make_app</span>(<span class="ident">state</span>.<span class="ident">clone</span>()));
