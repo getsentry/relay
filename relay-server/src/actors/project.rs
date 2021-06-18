@@ -4,7 +4,6 @@ use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
-use futures::future;
 use futures::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -23,7 +22,7 @@ use relay_metrics::{
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 
-use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
+use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::outcome::DiscardReason;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::{
@@ -32,7 +31,7 @@ use crate::actors::project_cache::{
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
-use crate::utils::{ActorResponse, EnvelopeLimiter, Response};
+use crate::utils::{EnvelopeLimiter, Response};
 
 /// The current status of a project state. Return value of `ProjectState::outdated`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -735,7 +734,7 @@ impl Project {
         })
     }
 
-    fn check_envelope_scoped(&mut self, message: CheckEnvelope) -> CheckEnvelopeResponse {
+    pub fn check_envelope_scoped(&mut self, message: CheckEnvelope) -> CheckEnvelopeResponse {
         let scoping = self.scope_request(message.envelope.meta());
         let result = self.check_envelope(message.envelope, &scoping);
         CheckEnvelopeResponse { result, scoping }
@@ -811,8 +810,8 @@ impl Message for GetProjectState {
 #[derive(Debug)]
 pub struct CheckEnvelope {
     pub public_key: ProjectKey,
-    envelope: Envelope,
-    fetch: bool,
+    pub envelope: Envelope,
+    pub fetch: bool,
 }
 
 impl CheckEnvelope {
@@ -854,34 +853,6 @@ pub struct CheckEnvelopeResponse {
 
 impl Message for CheckEnvelope {
     type Result = Result<CheckEnvelopeResponse, ProjectError>;
-}
-
-impl Handler<CheckEnvelope> for Project {
-    type Result = ActorResponse<Self, CheckEnvelopeResponse, ProjectError>;
-
-    fn handle(&mut self, message: CheckEnvelope, context: &mut Self::Context) -> Self::Result {
-        unimplemented!();
-        /*
-        if message.fetch {
-            // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
-            // This will return synchronously if the state is still cached.
-            self.get_or_fetch_state(message.envelope.meta().no_cache(), context)
-                .into_actor()
-                .map(self, context, move |_, slf, _ctx| {
-                    slf.check_envelope_scoped(message)
-                })
-        } else {
-            // Preload the project cache so that it arrives a little earlier in processing. However,
-            // do not pass `no_cache`. In case the project is rate limited, we do not want to force
-            // a full reload.
-            self.get_or_fetch_state(false, context);
-
-            // message.fetch == false: Fetching must not block the store request. The
-            // EnvelopeManager will later fetch the project state.
-            ActorResponse::ok(self.check_envelope_scoped(message))
-        }
-        */
-    }
 }
 
 pub struct UpdateRateLimits {

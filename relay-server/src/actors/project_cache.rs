@@ -23,7 +23,7 @@ use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::actors::upstream::UpstreamRelay;
 use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::Response;
+use crate::utils::{ActorResponse, EnvelopeLimiter, Response};
 
 use itertools::Update;
 #[cfg(feature = "processing")]
@@ -333,7 +333,29 @@ impl Handler<CheckEnvelope> for ProjectCache {
     type Result = ActorResponse<Self, CheckEnvelopeResponse, ProjectError>;
 
     fn handle(&mut self, message: CheckEnvelope, context: &mut Self::Context) -> Self::Result {
-        unimplemented!();
+        let project = self.get_project(message.public_key, context);
+        if message.fetch {
+            // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
+            // This will return synchronously if the state is still cached.
+            project
+                .get_or_fetch_state(message.envelope.meta().no_cache(), context)
+                .into_actor()
+                .map(self, context, move |_, slf, ctx| {
+                    // TODO RaduW can we do better that this ????
+                    // (need to retrieve project again to get around borwoing problems)
+                    let project = slf.get_project(message.public_key, ctx);
+                    project.check_envelope_scoped(message)
+                })
+        } else {
+            // Preload the project cache so that it arrives a little earlier in processing. However,
+            // do not pass `no_cache`. In case the project is rate limited, we do not want to force
+            // a full reload.
+            project.get_or_fetch_state(false, context);
+
+            // message.fetch == false: Fetching must not block the store request. The
+            // EnvelopeManager will later fetch the project state.
+            ActorResponse::ok(project.check_envelope_scoped(message))
+        }
     }
 }
 impl Handler<UpdateRateLimits> for ProjectCache {

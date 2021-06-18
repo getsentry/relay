@@ -846,6 +846,7 @@ impl Ord for QueuedBucket {
 ///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
 #[derive(Clone, Debug)]
 pub struct FlushBuckets {
+    /// the project key
     pub public_key: ProjectKey,
     buckets: Vec<Bucket>,
 }
@@ -1086,6 +1087,7 @@ impl Actor for Aggregator {
 /// A message containing a list of [`Metric`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct InsertMetrics {
+    /// The project key
     pub public_key: ProjectKey,
     metrics: Vec<Metric>,
 }
@@ -1122,6 +1124,7 @@ impl Handler<InsertMetrics> for Aggregator {
 /// A message containing a list of [`Bucket`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct MergeBuckets {
+    /// The Project Key
     pub public_key: ProjectKey,
     buckets: Vec<Bucket>,
 }
