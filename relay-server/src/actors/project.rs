@@ -510,6 +510,11 @@ impl Project {
         self.state.as_deref()
     }
 
+    /// Returns a reference to the project state if available.
+    pub fn state_clone(&self) -> Option<Arc<ProjectState>> {
+        self.state.clone()
+    }
+
     /// Creates the aggregator if it is uninitialized and returns it.
     ///
     /// Returns `None` if the aggregator is permanently disabled, primarily for disabled projects.
@@ -760,18 +765,6 @@ pub struct GetCachedProjectState {
 
 impl Message for GetCachedProjectState {
     type Result = Option<Arc<ProjectState>>;
-}
-
-impl Handler<GetCachedProjectState> for Project {
-    type Result = Option<Arc<ProjectState>>;
-
-    fn handle(
-        &mut self,
-        _message: GetCachedProjectState,
-        _context: &mut Context<Self>,
-    ) -> Self::Result {
-        self.state.clone()
-    }
 }
 
 /// Returns the project state.

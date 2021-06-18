@@ -322,10 +322,10 @@ impl Handler<GetCachedProjectState> for ProjectCache {
 
     fn handle(
         &mut self,
-        _message: GetCachedProjectState,
-        _context: &mut Context<Self>,
+        message: GetCachedProjectState,
+        context: &mut Context<Self>,
     ) -> Self::Result {
-        unimplemented!();
+        self.get_project(message.public_key, context).state_clone()
     }
 }
 
