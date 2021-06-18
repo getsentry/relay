@@ -431,7 +431,7 @@ impl Handler<FlushBuckets> for ProjectCache {
             .send(SendMetrics {
                 buckets: message.into_buckets(),
                 scoping,
-                public_key: public_key,
+                public_key,
                 project_cache: context.address(),
             })
             .then(move |send_result| match send_result {
