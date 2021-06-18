@@ -25,6 +25,7 @@ use crate::actors::upstream::UpstreamRelay;
 use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::Response;
 
+use itertools::Update;
 #[cfg(feature = "processing")]
 use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};
 
@@ -101,29 +102,29 @@ impl ProjectCache {
         metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
     }
 
-    // TODO enable it when we get rid of Project Addr
-    // fn get_project(&mut self, public_key: ProjectKey, ctx: &mut Context<Self>) -> &mut Project {
-    //     metric!(histogram(RelayHistograms::ProjectStateCacheSize) = self.projects.len() as u64);
-    //
-    //     let cfg = self.config.clone();
-    //     let evt_mgr = self.event_manager.clone();
-    //     let outcome_prod = self.outcome_producer.clone();
-    //
-    //     &mut self
-    //         .projects
-    //         .entry(public_key)
-    //         .and_modify(|_| {
-    //             metric!(counter(RelayCounters::ProjectCacheHit) += 1);
-    //         })
-    //         .or_insert_with(move || {
-    //             let project = Project::new(public_key, cfg, ctx.address(), evt_mgr, outcome_prod);
-    //             ProjectEntry {
-    //                 last_updated_at: Instant::now(),
-    //                 project: project,
-    //             }
-    //         })
-    //         .project
-    // }
+    fn get_project(&mut self, public_key: ProjectKey, ctx: &mut Context<Self>) -> &mut Project {
+        metric!(histogram(RelayHistograms::ProjectStateCacheSize) = self.projects.len() as u64);
+
+        let cfg = self.config.clone();
+        let evt_mgr = self.event_manager.clone();
+        let outcome_prod = self.outcome_producer.clone();
+
+        &mut self
+            .projects
+            .entry(public_key)
+            .and_modify(|_| {
+                metric!(counter(RelayCounters::ProjectCacheHit) += 1);
+            })
+            .or_insert_with(move || {
+                metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
+                let project = Project::new(public_key, cfg, evt_mgr, outcome_prod);
+                ProjectEntry {
+                    last_updated_at: Instant::now(),
+                    project,
+                }
+            })
+            .project
+    }
 }
 
 impl Actor for ProjectCache {
@@ -148,16 +149,6 @@ impl Actor for ProjectCache {
     }
 }
 
-/// Fetches a project state from one of the available sources.
-///
-/// The project state is resolved in the following precedence:
-///
-///  1. Local file system
-///  2. Redis cache (processing mode only)
-///  3. Upstream (managed and processing mode only)
-///
-/// Requests to the upstream are performed via `UpstreamProjectSource`, which internally batches
-/// individual requests.
 #[derive(Clone)]
 pub struct FetchProjectState {
     /// The public key to fetch the project by.
@@ -167,6 +158,11 @@ pub struct FetchProjectState {
     pub no_cache: bool,
 }
 
+impl Message for FetchProjectState {
+    type Result = Result<ProjectStateResponse, ()>;
+}
+
+//TODO remove at some point
 #[derive(Debug)]
 pub struct ProjectStateResponse {
     pub state: Arc<ProjectState>,
@@ -178,10 +174,6 @@ impl ProjectStateResponse {
     }
 }
 
-impl Message for FetchProjectState {
-    type Result = Result<ProjectStateResponse, ()>;
-}
-
 #[derive(Clone, Debug)]
 pub struct FetchOptionalProjectState {
     pub public_key: ProjectKey,
@@ -191,11 +183,37 @@ impl Message for FetchOptionalProjectState {
     type Result = Option<Arc<ProjectState>>;
 }
 
-impl Handler<FetchProjectState> for ProjectCache {
-    type Result = Response<ProjectStateResponse, ()>;
+/// Fetches a project state from one of the available sources.
+///
+/// The project state is resolved in the following precedence:
+///
+///  1. Local file system
+///  2. Redis cache (processing mode only)
+///  3. Upstream (managed and processing mode only)
+///
+/// Requests to the upstream are performed via `UpstreamProjectSource`, which internally batches
+/// individual requests.
+#[derive(Clone)]
+pub struct UpdateProjectState {
+    /// The public key to fetch the project by.
+    pub public_key: ProjectKey,
 
-    fn handle(&mut self, message: FetchProjectState, _context: &mut Self::Context) -> Self::Result {
-        let public_key = message.public_key;
+    /// If true, all caches should be skipped and a fresh state should be computed.
+    pub no_cache: bool,
+}
+
+impl Message for UpdateProjectState {
+    type Result = ();
+}
+
+impl Handler<UpdateProjectState> for ProjectCache {
+    type Result = ();
+
+    fn handle(&mut self, message: UpdateProjectState, context: &mut Self::Context) -> Self::Result {
+        let UpdateProjectState {
+            public_key,
+            no_cache,
+        } = message;
 
         if let Some(mut entry) = self.projects.get_mut(&public_key) {
             // Bump the update time of the project in our hashmap to evade eviction. Eviction is a
@@ -216,78 +234,86 @@ impl Handler<FetchProjectState> for ProjectCache {
         #[cfg(feature = "processing")]
         let redis_source = self.redis_source.clone();
 
-        let fetch_local = self
-            .local_source
+        self.local_source
             .send(FetchOptionalProjectState { public_key })
-            .map_err(|_| ());
-
-        let future = fetch_local.and_then(move |response| {
-            if let Some(state) = response {
-                return Box::new(future::ok(ProjectStateResponse::new(state)))
-                    as ResponseFuture<_, _>;
-            }
-
-            match relay_mode {
-                RelayMode::Proxy => {
-                    return Box::new(future::ok(ProjectStateResponse::new(Arc::new(
-                        ProjectState::allowed(),
-                    ))));
-                }
-                RelayMode::Static => {
-                    return Box::new(future::ok(ProjectStateResponse::new(Arc::new(
-                        ProjectState::missing(),
-                    ))));
-                }
-                RelayMode::Capture => {
-                    return Box::new(future::ok(ProjectStateResponse::new(Arc::new(
-                        ProjectState::allowed(),
-                    ))));
-                }
-                RelayMode::Managed => {
-                    // Proceed with loading the config from redis or upstream
-                }
-            }
-
-            #[cfg(not(feature = "processing"))]
-            let fetch_redis = future::ok(None);
-
-            #[cfg(feature = "processing")]
-            let fetch_redis: ResponseFuture<_, _> = if let Some(ref redis_source) = redis_source {
-                Box::new(
-                    redis_source
-                        .send(FetchOptionalProjectState { public_key })
-                        .map_err(|_| ()),
-                )
-            } else {
-                Box::new(future::ok(None))
-            };
-
-            let fetch_redis = fetch_redis.and_then(move |response| {
+            .map_err(|_| ())
+            .and_then(move |response| {
                 if let Some(state) = response {
                     return Box::new(future::ok(ProjectStateResponse::new(state)))
                         as ResponseFuture<_, _>;
                 }
 
-                let fetch_upstream = upstream_source
-                    .send(message)
-                    .map_err(|_| ())
-                    .and_then(move |result| result.map_err(|_| ()));
+                match relay_mode {
+                    RelayMode::Proxy => {
+                        return Box::new(future::ok(ProjectStateResponse::new(Arc::new(
+                            ProjectState::allowed(),
+                        ))));
+                    }
+                    RelayMode::Static => {
+                        return Box::new(future::ok(ProjectStateResponse::new(Arc::new(
+                            ProjectState::missing(),
+                        ))));
+                    }
+                    RelayMode::Capture => {
+                        return Box::new(future::ok(ProjectStateResponse::new(Arc::new(
+                            ProjectState::allowed(),
+                        ))));
+                    }
+                    RelayMode::Managed => {
+                        // Proceed with loading the config from redis or upstream
+                    }
+                }
 
-                Box::new(fetch_upstream)
-            });
+                #[cfg(not(feature = "processing"))]
+                let fetch_redis = future::ok(None);
 
-            Box::new(fetch_redis)
-        });
+                #[cfg(feature = "processing")]
+                let fetch_redis: ResponseFuture<_, _> = if let Some(ref redis_source) = redis_source
+                {
+                    Box::new(
+                        redis_source
+                            .send(FetchOptionalProjectState { public_key })
+                            .map_err(|_| ()),
+                    )
+                } else {
+                    Box::new(future::ok(None))
+                };
 
-        Response::future(future)
+                let fetch_redis = fetch_redis.and_then(move |response| {
+                    if let Some(state) = response {
+                        return Box::new(future::ok(ProjectStateResponse::new(state)))
+                            as ResponseFuture<_, _>;
+                    }
+
+                    let fetch_upstream = upstream_source
+                        .send(FetchProjectState {
+                            public_key,
+                            no_cache,
+                        })
+                        .map_err(|_| ())
+                        .and_then(move |result| result.map_err(|_| ()));
+
+                    Box::new(fetch_upstream)
+                });
+
+                Box::new(fetch_redis)
+            })
+            .into_actor(self)
+            .then(move |state_result, slf, context| {
+                let proj = slf.get_project(public_key, context);
+                proj.update_state(state_result, no_cache, context);
+                fut::ok::<_, (), _>(())
+            })
+            .spawn(context);
     }
 }
 
 impl Handler<GetProjectState> for ProjectCache {
     type Result = Response<Arc<ProjectState>, ProjectError>;
 
-    fn handle(&mut self, _message: GetProjectState, _context: &mut Context<Self>) -> Self::Result {
-        unimplemented!();
+    fn handle(&mut self, message: GetProjectState, context: &mut Context<Self>) -> Self::Result {
+        let proj = self.get_project(message.public_key, context);
+        proj.get_or_fetch_state(message.no_cache, context)
     }
 }
 
