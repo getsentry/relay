@@ -6,7 +6,6 @@ use actix::prelude::*;
 use actix_web::ResponseError;
 use failure::Fail;
 use futures::{future, Future};
-use serde::{Deserialize, Serialize};
 
 use relay_common::{metric, ProjectKey};
 use relay_config::{Config, RelayMode};
@@ -23,7 +22,7 @@ use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::actors::upstream::UpstreamRelay;
 use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{ActorResponse, EnvelopeLimiter, Response};
+use crate::utils::{ActorResponse, Response};
 
 #[cfg(feature = "processing")]
 use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};
@@ -101,11 +100,10 @@ impl ProjectCache {
         metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
     }
 
-    fn get_project(&mut self, public_key: ProjectKey, ctx: &mut Context<Self>) -> &mut Project {
+    fn get_project(&mut self, public_key: ProjectKey) -> &mut Project {
         metric!(histogram(RelayHistograms::ProjectStateCacheSize) = self.projects.len() as u64);
 
         let cfg = self.config.clone();
-        let evt_mgr = self.event_manager.clone();
         let outcome_prod = self.outcome_producer.clone();
 
         &mut self
@@ -116,7 +114,7 @@ impl ProjectCache {
             })
             .or_insert_with(move || {
                 metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
-                let project = Project::new(public_key, cfg, evt_mgr, outcome_prod);
+                let project = Project::new(public_key, cfg, outcome_prod);
                 ProjectEntry {
                     last_updated_at: Instant::now(),
                     project,
@@ -299,7 +297,7 @@ impl Handler<UpdateProjectState> for ProjectCache {
             })
             .into_actor(self)
             .then(move |state_result, slf, context| {
-                let proj = slf.get_project(public_key, context);
+                let proj = slf.get_project(public_key);
                 proj.update_state(state_result, no_cache, context);
                 fut::ok::<_, (), _>(())
             })
@@ -311,7 +309,7 @@ impl Handler<GetProjectState> for ProjectCache {
     type Result = Response<Arc<ProjectState>, ProjectError>;
 
     fn handle(&mut self, message: GetProjectState, context: &mut Context<Self>) -> Self::Result {
-        let proj = self.get_project(message.public_key, context);
+        let proj = self.get_project(message.public_key);
         proj.get_or_fetch_state(message.no_cache, context)
     }
 }
@@ -319,12 +317,8 @@ impl Handler<GetProjectState> for ProjectCache {
 impl Handler<GetCachedProjectState> for ProjectCache {
     type Result = Option<Arc<ProjectState>>;
 
-    fn handle(
-        &mut self,
-        message: GetCachedProjectState,
-        context: &mut Context<Self>,
-    ) -> Self::Result {
-        self.get_project(message.public_key, context).state_clone()
+    fn handle(&mut self, message: GetCachedProjectState, _ctx: &mut Context<Self>) -> Self::Result {
+        self.get_project(message.public_key).state_clone()
     }
 }
 
@@ -332,17 +326,17 @@ impl Handler<CheckEnvelope> for ProjectCache {
     type Result = ActorResponse<Self, CheckEnvelopeResponse, ProjectError>;
 
     fn handle(&mut self, message: CheckEnvelope, context: &mut Self::Context) -> Self::Result {
-        let project = self.get_project(message.public_key, context);
+        let project = self.get_project(message.public_key);
         if message.fetch {
             // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
             // This will return synchronously if the state is still cached.
             project
                 .get_or_fetch_state(message.envelope.meta().no_cache(), context)
                 .into_actor()
-                .map(self, context, move |_, slf, ctx| {
+                .map(self, context, move |_, slf, _ctx| {
                     // TODO RaduW can we do better that this ????
                     // (need to retrieve project again to get around borwoing problems)
-                    let project = slf.get_project(message.public_key, ctx);
+                    let project = slf.get_project(message.public_key);
                     project.check_envelope_scoped(message)
                 })
         } else {
@@ -360,12 +354,12 @@ impl Handler<CheckEnvelope> for ProjectCache {
 impl Handler<UpdateRateLimits> for ProjectCache {
     type Result = ();
 
-    fn handle(&mut self, message: UpdateRateLimits, context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: UpdateRateLimits, _ctx: &mut Self::Context) -> Self::Result {
         let UpdateRateLimits {
             public_key,
             rate_limits,
         } = message;
-        let project = self.get_project(public_key, context);
+        let project = self.get_project(public_key);
         project.merge_rate_limits(rate_limits);
     }
 }
@@ -375,7 +369,7 @@ impl Handler<InsertMetrics> for ProjectCache {
 
     fn handle(&mut self, message: InsertMetrics, context: &mut Self::Context) -> Self::Result {
         // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
-        let project = self.get_project(message.public_key, context);
+        let project = self.get_project(message.public_key);
         if let Some(aggregator) = project.get_or_create_aggregator(context) {
             aggregator.do_send(message);
         }
@@ -389,7 +383,7 @@ impl Handler<MergeBuckets> for ProjectCache {
 
     fn handle(&mut self, message: MergeBuckets, context: &mut Self::Context) -> Self::Result {
         // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
-        let project = self.get_project(message.public_key, context);
+        let project = self.get_project(message.public_key);
         if let Some(aggregator) = project.get_or_create_aggregator(context) {
             aggregator.do_send(message);
         }
@@ -404,7 +398,7 @@ impl Handler<FlushBuckets> for ProjectCache {
     fn handle(&mut self, message: FlushBuckets, context: &mut Self::Context) -> Self::Result {
         let config = self.config.clone();
         let public_key = message.public_key;
-        let project = self.get_project(public_key, context);
+        let project = self.get_project(public_key);
         let outdated = match project.state() {
             Some(state) => state.outdated(config.as_ref()),
             None => Outdated::HardOutdated,

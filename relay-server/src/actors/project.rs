@@ -16,11 +16,10 @@ use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_general::store::BreakdownsConfig;
-use relay_metrics::{AggregateMetricsError, Aggregator, Bucket, FlushBuckets, MergeBuckets};
+use relay_metrics::Aggregator;
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 
-use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::outcome::DiscardReason;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::{
@@ -472,7 +471,6 @@ enum AggregatorState {
 pub struct Project {
     public_key: ProjectKey,
     config: Arc<Config>,
-    event_manager: Addr<EnvelopeManager>,
     outcome_producer: Addr<OutcomeProducer>,
     aggregator: AggregatorState,
     state: Option<Arc<ProjectState>>,
@@ -486,13 +484,11 @@ impl Project {
     pub fn new(
         key: ProjectKey,
         config: Arc<Config>,
-        event_manager: Addr<EnvelopeManager>,
         outcome_producer: Addr<OutcomeProducer>,
     ) -> Self {
         Project {
             public_key: key,
             config,
-            event_manager,
             outcome_producer,
             aggregator: AggregatorState::Unknown,
             state: None,

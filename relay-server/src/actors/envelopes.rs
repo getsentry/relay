@@ -1841,7 +1841,7 @@ impl Message for QueueEnvelope {
 impl Handler<QueueEnvelope> for EnvelopeManager {
     type Result = Result<Option<EventId>, QueueEnvelopeError>;
 
-    fn handle(&mut self, mut message: QueueEnvelope, context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: QueueEnvelope, context: &mut Self::Context) -> Self::Result {
         metric!(histogram(RelayHistograms::EnvelopeQueueSize) = u64::from(self.active_envelopes));
 
         metric!(
