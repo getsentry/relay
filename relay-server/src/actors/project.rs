@@ -504,6 +504,10 @@ impl Project {
         }
     }
 
+    pub fn merge_rate_limits(&mut self, rate_limits: RateLimits) {
+        self.rate_limits.merge(rate_limits);
+    }
+
     /// Returns a reference to the project state if available.
     pub fn state(&self) -> Option<&ProjectState> {
         self.state.as_deref()
@@ -862,21 +866,6 @@ pub struct UpdateRateLimits {
 
 impl Message for UpdateRateLimits {
     type Result = ();
-}
-
-impl Handler<UpdateRateLimits> for Project {
-    type Result = ();
-
-    fn handle(&mut self, message: UpdateRateLimits, _context: &mut Self::Context) -> Self::Result {
-        unimplemented!();
-        /*
-                let UpdateRateLimits {
-                    public_key,
-                    rate_limits,
-                } = message;
-                self.rate_limits.merge(rate_limits);
-        */
-    }
 }
 
 impl Handler<InsertMetrics> for Project {

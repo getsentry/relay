@@ -361,8 +361,13 @@ impl Handler<CheckEnvelope> for ProjectCache {
 impl Handler<UpdateRateLimits> for ProjectCache {
     type Result = ();
 
-    fn handle(&mut self, message: UpdateRateLimits, _context: &mut Self::Context) -> Self::Result {
-        unimplemented!();
+    fn handle(&mut self, message: UpdateRateLimits, context: &mut Self::Context) -> Self::Result {
+        let UpdateRateLimits {
+            public_key,
+            rate_limits,
+        } = message;
+        let project = self.get_project(public_key, context);
+        project.merge_rate_limits(rate_limits);
     }
 }
 
