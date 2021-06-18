@@ -866,22 +866,6 @@ impl Message for UpdateRateLimits {
     type Result = ();
 }
 
-impl Handler<MergeBuckets> for Project {
-    type Result = Result<(), AggregateMetricsError>;
-
-    fn handle(&mut self, message: MergeBuckets, context: &mut Self::Context) -> Self::Result {
-        unimplemented!();
-        /*
-        // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
-        if let Some(aggregator) = self.get_or_create_aggregator(context) {
-            aggregator.do_send(message);
-        }
-
-        Ok(())
-         */
-    }
-}
-
 impl Handler<FlushBuckets> for Project {
     type Result = ResponseFuture<(), Vec<Bucket>>;
 

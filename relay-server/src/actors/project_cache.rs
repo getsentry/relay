@@ -389,7 +389,13 @@ impl Handler<MergeBuckets> for ProjectCache {
     type Result = Result<(), AggregateMetricsError>;
 
     fn handle(&mut self, message: MergeBuckets, context: &mut Self::Context) -> Self::Result {
-        unimplemented!();
+        // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
+        let project = self.get_project(message.public_key, context);
+        if let Some(aggregator) = project.get_or_create_aggregator(context) {
+            aggregator.do_send(message);
+        }
+
+        Ok(())
     }
 }
 
