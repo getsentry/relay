@@ -464,10 +464,10 @@ enum AggregatorState {
     Unavailable,
 }
 
-/// Actor representing organization and project configuration for a project key.
+/// Structure representing organization and project configuration for a project key.
 ///
-/// This actor no longer uniquely identifies a project. Instead, it identifies a project key.
-/// Projects can define multiple keys, in which case this actor is duplicated for each instance.
+/// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
+/// Projects can define multiple keys, in which case this structure is duplicated for each instance.
 pub struct Project {
     public_key: ProjectKey,
     config: Arc<Config>,
@@ -480,7 +480,7 @@ pub struct Project {
 }
 
 impl Project {
-    /// Creates a new `Project` actor.
+    /// Creates a new `Project`.
     pub fn new(
         key: ProjectKey,
         config: Arc<Config>,
@@ -736,18 +736,6 @@ impl Project {
         let scoping = self.scope_request(message.envelope.meta());
         let result = self.check_envelope(message.envelope, &scoping);
         CheckEnvelopeResponse { result, scoping }
-    }
-}
-
-impl Actor for Project {
-    type Context = Context<Self>;
-
-    fn started(&mut self, _ctx: &mut Self::Context) {
-        relay_log::debug!("project {} initialized without state", self.public_key);
-    }
-
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
-        relay_log::debug!("project {} removed from cache", self.public_key);
     }
 }
 
