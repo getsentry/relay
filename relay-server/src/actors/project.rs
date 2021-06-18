@@ -681,7 +681,7 @@ impl Project {
     ///
     /// Returns `Some` if the project state has been fetched and contains a project identifier,
     /// otherwise `None`.
-    fn scoping(&self) -> Option<Scoping> {
+    pub fn scoping(&self) -> Option<Scoping> {
         let state = self.state()?;
         Some(Scoping {
             organization_id: state.organization_id.unwrap_or(0),
@@ -864,59 +864,4 @@ pub struct UpdateRateLimits {
 
 impl Message for UpdateRateLimits {
     type Result = ();
-}
-
-impl Handler<FlushBuckets> for Project {
-    type Result = ResponseFuture<(), Vec<Bucket>>;
-
-    fn handle(&mut self, message: FlushBuckets, context: &mut Self::Context) -> Self::Result {
-        unimplemented!();
-        /*
-        let outdated = match self.state() {
-            Some(state) => state.outdated(&self.config),
-            None => Outdated::HardOutdated,
-        };
-
-        // Schedule an update to the project state if it is outdated, regardless of whether the
-        // metrics can be forwarded or not. We never wait for this update.
-        if outdated != Outdated::Updated {
-            self.get_or_fetch_state(false, context);
-        }
-
-        // If the state is outdated, we need to wait for an updated state. Put them back into the
-        // aggregator and wait for the next flush cycle.
-        if outdated == Outdated::HardOutdated {
-            return Box::new(future::err(message.into_buckets()));
-        }
-
-        let (state, scoping) = match (self.state(), self.scoping()) {
-            (Some(state), Some(scoping)) => (state, scoping),
-            _ => return Box::new(future::err(message.into_buckets())),
-        };
-
-        // Only send if the project state is valid, otherwise drop this bucket.
-        if state.check_disabled(&self.config).is_err() {
-            return Box::new(future::ok(()));
-        }
-
-        let future = self
-            .event_manager
-            .send(SendMetrics {
-                buckets: message.into_buckets(),
-                scoping,
-                public_key: self.public_key,
-                project_cache: self.manager.clone(),
-            })
-            .then(move |send_result| match send_result {
-                Ok(Ok(())) => Ok(()),
-                Ok(Err(buckets)) => Err(buckets),
-                Err(_) => {
-                    relay_log::error!("dropped metric buckets: envelope manager mailbox full");
-                    Ok(())
-                }
-            });
-
-        Box::new(future)
-        */
-    }
 }

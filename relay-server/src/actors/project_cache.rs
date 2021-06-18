@@ -13,11 +13,11 @@ use relay_config::{Config, RelayMode};
 use relay_metrics::{AggregateMetricsError, Bucket, FlushBuckets, InsertMetrics, MergeBuckets};
 use relay_redis::RedisPool;
 
-use crate::actors::envelopes::EnvelopeManager;
+use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project::{
-    CheckEnvelope, CheckEnvelopeResponse, GetCachedProjectState, GetProjectState, Project,
-    ProjectState, UpdateRateLimits,
+    CheckEnvelope, CheckEnvelopeResponse, GetCachedProjectState, GetProjectState, Outdated,
+    Project, ProjectState, UpdateRateLimits,
 };
 use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
@@ -25,7 +25,6 @@ use crate::actors::upstream::UpstreamRelay;
 use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{ActorResponse, EnvelopeLimiter, Response};
 
-use itertools::Update;
 #[cfg(feature = "processing")]
 use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};
 
@@ -403,6 +402,53 @@ impl Handler<FlushBuckets> for ProjectCache {
     type Result = ResponseFuture<(), Vec<Bucket>>;
 
     fn handle(&mut self, message: FlushBuckets, context: &mut Self::Context) -> Self::Result {
-        unimplemented!();
+        let config = self.config.clone();
+        let public_key = message.public_key;
+        let project = self.get_project(public_key, context);
+        let outdated = match project.state() {
+            Some(state) => state.outdated(config.as_ref()),
+            None => Outdated::HardOutdated,
+        };
+
+        // Schedule an update to the project state if it is outdated, regardless of whether the
+        // metrics can be forwarded or not. We never wait for this update.
+        if outdated != Outdated::Updated {
+            project.get_or_fetch_state(false, context);
+        }
+
+        // If the state is outdated, we need to wait for an updated state. Put them back into the
+        // aggregator and wait for the next flush cycle.
+        if outdated == Outdated::HardOutdated {
+            return Box::new(future::err(message.into_buckets()));
+        }
+
+        let (state, scoping) = match (project.state(), project.scoping()) {
+            (Some(state), Some(scoping)) => (state, scoping),
+            _ => return Box::new(future::err(message.into_buckets())),
+        };
+
+        // Only send if the project state is valid, otherwise drop this bucket.
+        if state.check_disabled(config.as_ref()).is_err() {
+            return Box::new(future::ok(()));
+        }
+
+        let future = self
+            .event_manager
+            .send(SendMetrics {
+                buckets: message.into_buckets(),
+                scoping,
+                public_key: public_key,
+                project_cache: context.address(),
+            })
+            .then(move |send_result| match send_result {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(buckets)) => Err(buckets),
+                Err(_) => {
+                    relay_log::error!("dropped metric buckets: envelope manager mailbox full");
+                    Ok(())
+                }
+            });
+
+        Box::new(future)
     }
 }
