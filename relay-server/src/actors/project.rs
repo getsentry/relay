@@ -16,9 +16,7 @@ use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_general::store::BreakdownsConfig;
-use relay_metrics::{
-    AggregateMetricsError, Aggregator, Bucket, FlushBuckets, InsertMetrics, MergeBuckets,
-};
+use relay_metrics::{AggregateMetricsError, Aggregator, Bucket, FlushBuckets, MergeBuckets};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 
@@ -521,7 +519,7 @@ impl Project {
     /// Creates the aggregator if it is uninitialized and returns it.
     ///
     /// Returns `None` if the aggregator is permanently disabled, primarily for disabled projects.
-    fn get_or_create_aggregator(
+    pub fn get_or_create_aggregator(
         &mut self,
         context: &mut Context<ProjectCache>,
     ) -> Option<Addr<Aggregator>> {
@@ -866,23 +864,6 @@ pub struct UpdateRateLimits {
 
 impl Message for UpdateRateLimits {
     type Result = ();
-}
-
-impl Handler<InsertMetrics> for Project {
-    type Result = Result<(), AggregateMetricsError>;
-
-    fn handle(&mut self, message: InsertMetrics, context: &mut Self::Context) -> Self::Result {
-        unimplemented!();
-        /*
-        // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
-        if let Some(aggregator) = self.get_or_create_aggregator(context) {
-            aggregator.do_send(message);
-        }
-
-        Ok(())
-
-         */
-    }
 }
 
 impl Handler<MergeBuckets> for Project {
