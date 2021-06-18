@@ -1511,10 +1511,11 @@ mod tests {
     #[test]
     fn test_aggregator_merge_counters() {
         relay_test::setup();
+        let public_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
         let config = AggregatorConfig::default();
         let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = Aggregator::new(config, receiver);
+        let mut aggregator = Aggregator::new(public_key, config, receiver);
 
         let metric1 = some_metric();
 
@@ -1546,7 +1547,9 @@ mod tests {
             ..AggregatorConfig::default()
         };
         let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = Aggregator::new(config, receiver);
+        let public_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+
+        let mut aggregator = Aggregator::new(public_key, config, receiver);
 
         let metric1 = some_metric();
 
@@ -1601,7 +1604,9 @@ mod tests {
         };
 
         let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = Aggregator::new(config, receiver);
+        let public_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+
+        let mut aggregator = Aggregator::new(public_key, config, receiver);
 
         let metric1 = some_metric();
 
@@ -1624,7 +1629,9 @@ mod tests {
         };
 
         let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = Aggregator::new(config, receiver);
+        let public_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+
+        let mut aggregator = Aggregator::new(public_key, config, receiver);
 
         let metric1 = some_metric();
 
@@ -1650,12 +1657,14 @@ mod tests {
                 debounce_delay: 0,
             };
             let recipient = receiver.clone().start().recipient();
-            let aggregator = Aggregator::new(config, recipient).start();
+            let public_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+            let aggregator = Aggregator::new(public_key, config, recipient).start();
 
             let mut metric = some_metric();
             metric.timestamp = UnixTimestamp::now();
             aggregator
                 .send(InsertMetrics {
+                    public_key,
                     metrics: vec![metric],
                 })
                 .and_then(move |_| aggregator.send(BucketCountInquiry))
@@ -1696,12 +1705,15 @@ mod tests {
                 debounce_delay: 0,
             };
             let recipient = receiver.clone().start().recipient();
-            let aggregator = Aggregator::new(config, recipient).start();
+            let public_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+
+            let aggregator = Aggregator::new(public_key, config, recipient).start();
 
             let mut metric = some_metric();
             metric.timestamp = UnixTimestamp::now();
             aggregator
                 .send(InsertMetrics {
+                    public_key,
                     metrics: vec![metric],
                 })
                 .map_err(|_| ())
