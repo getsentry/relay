@@ -1906,7 +1906,7 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
                 envelope,
                 public_key,
                 sampling_project_key,
-                project_cache: project_cache.clone(),
+                project_cache,
                 start_time,
             });
         }
