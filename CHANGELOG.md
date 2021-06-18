@@ -16,6 +16,7 @@
 **Internal**:
 
 - Gather metrics for corrupted Events with unprintable fields. ([#1008](https://github.com/getsentry/relay/pull/1008))
+- Remove project actors. ([#1025](https://github.com/getsentry/relay/pull/1025))
 
 ## 21.5.1
 
