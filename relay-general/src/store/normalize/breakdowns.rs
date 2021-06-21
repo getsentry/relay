@@ -94,7 +94,7 @@ pub trait EmitBreakdowns {
 
 /// Configuration to define breakdowns based on span operation name.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "camelCase")]
 pub struct SpanOperationsConfig {
     /// Operation names are matched against an array of strings. The match is successful if the span
     /// operation name starts with any string in the array. If any string in the array has at least
@@ -202,15 +202,19 @@ impl EmitBreakdowns for SpanOperationsConfig {
 
 /// Configuration to define breakdown to be generated based on properties and breakdown type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum BreakdownConfig {
+    #[serde(alias = "span_operations")]
     SpanOperations(SpanOperationsConfig),
+    #[serde(other)]
+    Unsupported,
 }
 
 impl EmitBreakdowns for BreakdownConfig {
     fn emit_breakdowns(&self, event: &Event) -> Option<Measurements> {
         match self {
             BreakdownConfig::SpanOperations(config) => config.emit_breakdowns(event),
+            BreakdownConfig::Unsupported => None,
         }
     }
 }
