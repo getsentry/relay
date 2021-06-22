@@ -370,7 +370,7 @@ mod tests {
 
     use super::{BUILTIN_RULES, BUILTIN_RULES_MAP};
 
-    #[derive(Clone, Debug, PartialEq, Empty, FromValue, ProcessValue, ToValue)]
+    #[derive(Clone, Debug, PartialEq, Empty, FromValue, ProcessValue, IntoValue)]
     struct FreeformRoot {
         #[metastructure(pii = "true")]
         value: Annotated<String>,

@@ -14,15 +14,15 @@ use uuid::Uuid;
 use crate::processor::{ProcessValue, ProcessingState, Processor, ValueType};
 use crate::protocol::Addr;
 use crate::types::{
-    Annotated, Array, Empty, Error, FromValue, Meta, Object, ProcessingResult, SkipSerialization,
-    ToValue, Value,
+    Annotated, Array, Empty, Error, FromValue, IntoValue, Meta, Object, ProcessingResult,
+    SkipSerialization, Value,
 };
 
 /// A type for strings that are generally paths, might contain system user names, but still cannot
 /// be stripped liberally because it would break processing for certain platforms.
 ///
 /// Those strings get special treatment in our PII processor to avoid stripping the basename.
-#[derive(Debug, FromValue, ToValue, Empty, Clone, PartialEq)]
+#[derive(Debug, FromValue, IntoValue, Empty, Clone, PartialEq)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct NativeImagePath(pub String);
 
@@ -79,7 +79,7 @@ impl ProcessValue for NativeImagePath {
 ///
 /// This is relevant for iOS and other platforms that have a system
 /// SDK.  Not to be confused with the client SDK.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SystemSdkInfo {
     /// The internal name of the SDK.
@@ -102,7 +102,7 @@ pub struct SystemSdkInfo {
 /// Legacy apple debug images (MachO).
 ///
 /// This was also used for non-apple platforms with similar debug setups.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct AppleDebugImage {
     /// Path and name of the debug image (required).
@@ -179,9 +179,8 @@ macro_rules! impl_traits {
             }
         }
 
-        impl ToValue for $type {
-            #[allow(clippy::wrong_self_convention)]
-            fn to_value(self) -> Value {
+        impl IntoValue for $type {
+            fn into_value(self) -> Value {
                 Value::String(self.to_string())
             }
 
@@ -305,7 +304,7 @@ where
 ///   "arch": "x86_64",
 /// }
 /// ```
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct NativeDebugImage {
     /// Optional identifier of the code file.
@@ -407,7 +406,7 @@ pub struct NativeDebugImage {
 /// Proguard mapping file.
 ///
 /// Proguard images refer to `mapping.txt` files generated when Proguard obfuscates function names. The Java SDK integrations assign this file a unique identifier, which has to be included in the list of images.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ProguardDebugImage {
     /// UUID computed from the file contents, assigned by the Java SDK.
@@ -420,7 +419,7 @@ pub struct ProguardDebugImage {
 }
 
 /// A debug information file (debug image).
-#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_debug_image")]
 pub enum DebugImage {
@@ -463,7 +462,7 @@ pub enum DebugImage {
 ///   }
 /// }
 /// ```
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_debug_meta")]
 pub struct DebugMeta {

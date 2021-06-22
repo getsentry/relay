@@ -1,7 +1,7 @@
 use crate::processor::ProcessValue;
 use crate::protocol::LenientString;
 use crate::types::{
-    Annotated, Empty, Error, ErrorKind, FromValue, SkipSerialization, ToValue, Value,
+    Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, SkipSerialization, Value,
 };
 
 /// A fingerprint value.
@@ -89,9 +89,8 @@ impl FromValue for Fingerprint {
     }
 }
 
-impl ToValue for Fingerprint {
-    #[allow(clippy::wrong_self_convention)]
-    fn to_value(self) -> Value
+impl IntoValue for Fingerprint {
+    fn into_value(self) -> Value
     where
         Self: Sized,
     {

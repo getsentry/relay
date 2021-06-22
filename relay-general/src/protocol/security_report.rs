@@ -440,7 +440,7 @@ struct CspReportRaw {
 ///
 ///
 /// See <https://www.w3.org/TR/CSP3/>
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct Csp {
     /// The directive whose enforcement caused the violation.
     #[metastructure(pii = "true")]
@@ -681,7 +681,7 @@ struct ExpectCtReportRaw {
 /// Object used in ExpectCt reports
 ///
 /// See https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct SingleCertificateTimestamp {
     pub version: Annotated<i64>,
     pub status: Annotated<String>,
@@ -692,7 +692,7 @@ pub struct SingleCertificateTimestamp {
 /// Expect CT security report sent by user agent (browser).
 ///
 /// See <https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1>
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct ExpectCt {
     /// Date time in rfc3339 format YYYY-MM-DDTHH:MM:DD{.FFFFFF}(Z|+/-HH:MM)
     /// UTC time that the UA observed the CT compliance failure
@@ -818,7 +818,7 @@ impl HpkpRaw {
 }
 
 /// Schema as defined in RFC7469, Section 3
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct Hpkp {
     /// Indicates the time the UA observed the Pin Validation failure.
     pub date_time: Annotated<String>,
@@ -1011,7 +1011,7 @@ impl ExpectStapleRaw {
 /// Represents an Expect Staple security report.
 ///
 /// See <https://scotthelme.co.uk/ocsp-expect-staple/> for specification.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct ExpectStaple {
     date_time: Annotated<String>,
     hostname: Annotated<String>,

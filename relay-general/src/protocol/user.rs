@@ -2,7 +2,7 @@ use crate::protocol::{IpAddr, LenientString};
 use crate::types::{Annotated, Object, Value};
 
 /// Geographical location of the end user or device.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_geo")]
 pub struct Geo {
@@ -36,7 +36,7 @@ pub struct Geo {
 ///   }
 /// }
 /// ```
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_user", value_type = "User")]
 pub struct User {

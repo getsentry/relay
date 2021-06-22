@@ -10,7 +10,7 @@ use schemars::schema::Schema;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::types::{Empty, Error, FromValue, Map, Meta, SkipSerialization, ToValue, Value};
+use crate::types::{Empty, Error, FromValue, IntoValue, Map, Meta, SkipSerialization, Value};
 
 /// Represents a tree of meta objects.
 #[derive(Default, Debug, Serialize)]
@@ -87,7 +87,7 @@ pub struct Annotated<T>(pub Option<T>, pub Meta);
 /// An utility to serialize annotated objects with payload.
 pub struct SerializableAnnotated<'a, T>(pub &'a Annotated<T>);
 
-impl<'a, T: ToValue> Serialize for SerializableAnnotated<'a, T> {
+impl<'a, T: IntoValue> Serialize for SerializableAnnotated<'a, T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -283,16 +283,16 @@ where
 
 impl<T> Annotated<T>
 where
-    T: ToValue,
+    T: IntoValue,
 {
     /// Serializes an annotated value into a serializer.
     pub fn serialize_with_meta<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map_ser = serializer.serialize_map(None)?;
-        let meta_tree = ToValue::extract_meta_tree(self);
+        let meta_tree = IntoValue::extract_meta_tree(self);
 
         if let Some(value) = self.value() {
             use serde::private::ser::FlatMapSerializer;
-            ToValue::serialize_payload(
+            IntoValue::serialize_payload(
                 value,
                 FlatMapSerializer(&mut map_ser),
                 SkipSerialization::default(),
@@ -327,7 +327,7 @@ where
 
         match self.value() {
             Some(value) => {
-                ToValue::serialize_payload(value, &mut ser, SkipSerialization::default())?
+                IntoValue::serialize_payload(value, &mut ser, SkipSerialization::default())?
             }
             None => ser.serialize_unit()?,
         }
@@ -341,7 +341,7 @@ where
 
         match self.value() {
             Some(value) => {
-                ToValue::serialize_payload(value, &mut ser, SkipSerialization::default())?
+                IntoValue::serialize_payload(value, &mut ser, SkipSerialization::default())?
             }
             None => ser.serialize_unit()?,
         }
@@ -441,7 +441,7 @@ where
 fn test_annotated_deserialize_with_meta() {
     use crate::types::ErrorKind;
 
-    #[derive(Debug, Empty, FromValue, ToValue)]
+    #[derive(Debug, Empty, FromValue, IntoValue)]
     struct Foo {
         id: Annotated<u64>,
         #[metastructure(field = "type")]

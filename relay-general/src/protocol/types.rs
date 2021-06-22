@@ -19,12 +19,12 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::types::{
-    Annotated, Array, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingResult,
-    SkipSerialization, ToValue, Value,
+    Annotated, Array, Empty, Error, ErrorKind, FromValue, IntoValue, Meta, Object,
+    ProcessingResult, SkipSerialization, Value,
 };
 
 /// A array like wrapper used in various places.
-#[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Empty, IntoValue, ProcessValue)]
 #[metastructure(process_func = "process_values")]
 pub struct Values<T> {
     /// The values of the collection.
@@ -190,7 +190,7 @@ where
 }
 
 /// A mixture of a hashmap and an array.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue)]
 pub struct PairList<T>(pub Array<T>);
 
 impl<T, K, V> PairList<T>
@@ -416,9 +416,8 @@ macro_rules! hex_metrastructure {
             }
         }
 
-        impl ToValue for $type {
-            #[allow(clippy::wrong_self_convention)]
-            fn to_value(self) -> Value {
+        impl IntoValue for $type {
+            fn into_value(self) -> Value {
                 Value::String(self.to_string())
             }
             fn serialize_payload<S>(
@@ -471,7 +470,7 @@ hex_metrastructure!(Addr, "address");
 
 /// An ip address.
 #[derive(
-    Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue, Serialize,
+    Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue, Serialize,
 )]
 pub struct IpAddr(pub String);
 
@@ -694,9 +693,8 @@ impl FromValue for Level {
     }
 }
 
-impl ToValue for Level {
-    #[allow(clippy::wrong_self_convention)]
-    fn to_value(self) -> Value {
+impl IntoValue for Level {
+    fn into_value(self) -> Value {
         Value::String(self.to_string())
     }
 
@@ -719,7 +717,7 @@ impl Empty for Level {
 }
 
 /// A "into-string" type of value. Emulates an invocation of `str(x)` in Python
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue)]
 pub struct LenientString(pub String);
 
 #[cfg(feature = "jsonschema")]
@@ -805,7 +803,7 @@ impl FromValue for LenientString {
 }
 
 /// A "into-string" type of value. All non-string values are serialized as JSON.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct JsonLenientString(pub String);
 
@@ -954,7 +952,7 @@ pub fn datetime_to_timestamp(dt: DateTime<Utc>) -> f64 {
     dt.timestamp() as f64 + (micros / 1_000_000f64)
 }
 
-fn utc_result_to_annotated<V: ToValue>(
+fn utc_result_to_annotated<V: IntoValue>(
     result: LocalResult<DateTime<Utc>>,
     original_value: V,
     mut meta: Meta,
@@ -1030,9 +1028,8 @@ impl FromValue for Timestamp {
     }
 }
 
-impl ToValue for Timestamp {
-    #[allow(clippy::wrong_self_convention)]
-    fn to_value(self) -> Value {
+impl IntoValue for Timestamp {
+    fn into_value(self) -> Value {
         Value::F64(datetime_to_timestamp(self.0))
     }
 
@@ -1089,7 +1086,7 @@ fn test_values_serialization() {
 
 #[test]
 fn test_values_deserialization() {
-    #[derive(Clone, Debug, Empty, FromValue, ToValue, PartialEq)]
+    #[derive(Clone, Debug, Empty, FromValue, IntoValue, PartialEq)]
     struct Exception {
         #[metastructure(field = "type")]
         ty: Annotated<String>,
@@ -1213,7 +1210,7 @@ fn test_ip_addr() {
 
 #[test]
 fn test_timestamp_year_out_of_range() {
-    #[derive(Debug, FromValue, Default, Empty, ToValue)]
+    #[derive(Debug, FromValue, Default, Empty, IntoValue)]
     struct Helper {
         foo: Annotated<Timestamp>,
     }
@@ -1244,7 +1241,7 @@ fn test_timestamp_year_out_of_range() {
 
 #[test]
 fn test_timestamp_completely_out_of_range() {
-    #[derive(Debug, FromValue, Default, Empty, ToValue)]
+    #[derive(Debug, FromValue, Default, Empty, IntoValue)]
     struct Helper {
         foo: Annotated<Timestamp>,
     }

@@ -86,11 +86,9 @@ pub trait FromValue: Debug {
 }
 
 /// Implemented for all meta structures.
-// TODO: This trait should be named `IntoValue`.
-pub trait ToValue: Debug + Empty {
+pub trait IntoValue: Debug + Empty {
     /// Boxes the meta structure back into a value.
-    #[allow(clippy::wrong_self_convention)]
-    fn to_value(self) -> Value
+    fn into_value(self) -> Value
     where
         Self: Sized;
 
@@ -119,7 +117,7 @@ pub trait ToValue: Debug + Empty {
         MetaTree {
             meta: value.1.clone(),
             children: match value.0 {
-                Some(ref value) => ToValue::extract_child_meta(value),
+                Some(ref value) => IntoValue::extract_child_meta(value),
                 None => BTreeMap::default(),
             },
         }
