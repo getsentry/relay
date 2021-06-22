@@ -1394,7 +1394,7 @@ mod tests {
 
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
-        insta::assert_debug_snapshot!(event.culprit, @r###""style-src \'self\'""###);
+        insta::assert_debug_snapshot!(event.culprit, @r###""style-src 'self'""###);
     }
 
     #[test]
@@ -1409,7 +1409,7 @@ mod tests {
 
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
-        insta::assert_debug_snapshot!(event.culprit, @r###""style-src http://example2.com \'self\'""###);
+        insta::assert_debug_snapshot!(event.culprit, @r###""style-src http://example2.com 'self'""###);
     }
 
     #[test]
@@ -1458,7 +1458,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked \'image\' from \'google.com\'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked 'image' from 'google.com'""###);
     }
 
     #[test]
@@ -1474,7 +1474,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked inline \'style\'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked inline 'style'""###);
     }
 
     #[test]
@@ -1491,7 +1491,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked unsafe inline \'script\'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked unsafe inline 'script'""###);
     }
 
     #[test]
@@ -1508,7 +1508,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked unsafe eval() \'script\'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked unsafe eval() 'script'""###);
     }
 
     #[test]
@@ -1525,7 +1525,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked unsafe (eval() or inline) \'script\'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked unsafe (eval() or inline) 'script'""###);
     }
 
     #[test]
@@ -1541,7 +1541,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked \'script\' from \'data:\'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked 'script' from 'data:'""###);
     }
 
     #[test]
@@ -1557,7 +1557,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked \'script\' from \'data:\'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked 'script' from 'data:'""###);
     }
 
     #[test]
@@ -1573,7 +1573,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked \'style\' from \'fonts.google.com\'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked 'style' from 'fonts.google.com'""###);
     }
 
     #[test]
@@ -1589,7 +1589,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked \'script\' from \'cdn.ajaxapis.com\'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked 'script' from 'cdn.ajaxapis.com'""###);
     }
 
     #[test]
@@ -1605,7 +1605,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked \'style\' from \'notlocalhost:8000\'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked 'style' from 'notlocalhost:8000'""###);
     }
 
     #[test]
