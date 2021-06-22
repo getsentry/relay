@@ -2,7 +2,7 @@ use std::mem;
 
 use crate::processor::{ProcessingState, Processor};
 use crate::protocol::{DebugId, DebugImage, NativeDebugImage};
-use crate::types::{Annotated, Meta, Object, ProcessingResult};
+use crate::types::{Annotated, Meta, ProcessingResult};
 
 /// Converts legacy data structures to current format.
 pub struct LegacyProcessor;
@@ -25,7 +25,7 @@ impl Processor for LegacyProcessor {
                 image_addr: mem::replace(&mut apple.image_addr, Annotated::empty()),
                 image_size: mem::replace(&mut apple.image_size, Annotated::empty()),
                 image_vmaddr: mem::replace(&mut apple.image_vmaddr, Annotated::empty()),
-                other: mem::replace(&mut apple.other, Object::new()),
+                other: mem::take(&mut apple.other),
             };
 
             *image = DebugImage::MachO(Box::new(native));
