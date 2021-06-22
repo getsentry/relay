@@ -90,6 +90,7 @@ impl FromValue for Fingerprint {
 }
 
 impl ToValue for Fingerprint {
+    #[allow(clippy::wrong_self_convention)]
     fn to_value(self) -> Value
     where
         Self: Sized,

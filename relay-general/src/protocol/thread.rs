@@ -37,6 +37,7 @@ impl FromValue for ThreadId {
 }
 
 impl ToValue for ThreadId {
+    #[allow(clippy::wrong_self_convention)]
     fn to_value(self) -> Value {
         match self {
             ThreadId::String(value) => Value::String(value),

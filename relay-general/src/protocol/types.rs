@@ -417,6 +417,7 @@ macro_rules! hex_metrastructure {
         }
 
         impl ToValue for $type {
+            #[allow(clippy::wrong_self_convention)]
             fn to_value(self) -> Value {
                 Value::String(self.to_string())
             }
@@ -694,6 +695,7 @@ impl FromValue for Level {
 }
 
 impl ToValue for Level {
+    #[allow(clippy::wrong_self_convention)]
     fn to_value(self) -> Value {
         Value::String(self.to_string())
     }
@@ -1029,6 +1031,7 @@ impl FromValue for Timestamp {
 }
 
 impl ToValue for Timestamp {
+    #[allow(clippy::wrong_self_convention)]
     fn to_value(self) -> Value {
         Value::F64(datetime_to_timestamp(self.0))
     }

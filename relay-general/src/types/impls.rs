@@ -43,7 +43,9 @@ macro_rules! derive_from_value {
 
 macro_rules! derive_to_value {
     ($type:ident, $meta_type:ident) => {
+        #[allow(clippy::wrong_self_convention)]
         impl ToValue for $type {
+            #[allow(clippy::wrong_self_convention)]
             fn to_value(self) -> Value {
                 Value::$meta_type(self)
             }
@@ -207,6 +209,7 @@ impl<T> ToValue for Array<T>
 where
     T: ToValue,
 {
+    #[allow(clippy::wrong_self_convention)]
     fn to_value(self) -> Value {
         Value::Array(
             self.into_iter()
@@ -288,6 +291,7 @@ impl<T> ToValue for Object<T>
 where
     T: ToValue,
 {
+    #[allow(clippy::wrong_self_convention)]
     fn to_value(self) -> Value {
         Value::Object(
             self.into_iter()
@@ -361,6 +365,7 @@ impl FromValue for Value {
 }
 
 impl ToValue for Value {
+    #[allow(clippy::wrong_self_convention)]
     fn to_value(self) -> Value {
         self
     }
@@ -418,6 +423,7 @@ impl<T> ToValue for Box<T>
 where
     T: ToValue,
 {
+    #[allow(clippy::wrong_self_convention)]
     fn to_value(self) -> Value
     where
         Self: Sized,
@@ -519,7 +525,7 @@ macro_rules! tuple_meta_structure {
         }
 
         impl< $( $name: ToValue ),* > ToValue for ( $( Annotated<$name>, )* ) {
-            #[allow(non_snake_case, unused_variables)]
+            #[allow(non_snake_case, unused_variables, clippy::wrong_self_convention)]
             fn to_value(self) -> Value {
                 let ($($name,)*) = self;
                 Value::Array(vec![$(Annotated::map_value($name, ToValue::to_value),)*])

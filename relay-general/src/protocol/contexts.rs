@@ -556,6 +556,7 @@ impl FromValue for SpanStatus {
 }
 
 impl ToValue for SpanStatus {
+    #[allow(clippy::wrong_self_convention)]
     fn to_value(self) -> Value {
         Value::String(self.to_string())
     }

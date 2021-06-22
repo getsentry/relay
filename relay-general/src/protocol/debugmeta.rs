@@ -180,6 +180,7 @@ macro_rules! impl_traits {
         }
 
         impl ToValue for $type {
+            #[allow(clippy::wrong_self_convention)]
             fn to_value(self) -> Value {
                 Value::String(self.to_string())
             }
