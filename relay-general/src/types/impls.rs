@@ -3,15 +3,15 @@ use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
 use crate::types::{
-    Annotated, Array, Empty, Error, FromValue, Map, Meta, MetaMap, MetaTree, Object,
-    SkipSerialization, ToValue, Value,
+    Annotated, Array, Empty, Error, FromValue, IntoValue, Map, Meta, MetaMap, MetaTree, Object,
+    SkipSerialization, Value,
 };
 
 // This needs to be public because the derive crate emits it
 #[doc(hidden)]
 pub struct SerializePayload<'a, T>(pub &'a Annotated<T>, pub SkipSerialization);
 
-impl<'a, T: ToValue> Serialize for SerializePayload<'a, T> {
+impl<'a, T: IntoValue> Serialize for SerializePayload<'a, T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -43,8 +43,8 @@ macro_rules! derive_from_value {
 
 macro_rules! derive_to_value {
     ($type:ident, $meta_type:ident) => {
-        impl ToValue for $type {
-            fn to_value(self) -> Value {
+        impl IntoValue for $type {
+            fn into_value(self) -> Value {
                 Value::$meta_type(self)
             }
 
@@ -203,14 +203,14 @@ where
     }
 }
 
-impl<T> ToValue for Array<T>
+impl<T> IntoValue for Array<T>
 where
-    T: ToValue,
+    T: IntoValue,
 {
-    fn to_value(self) -> Value {
+    fn into_value(self) -> Value {
         Value::Array(
             self.into_iter()
-                .map(|x| Annotated::map_value(x, ToValue::to_value))
+                .map(|x| Annotated::map_value(x, IntoValue::into_value))
                 .collect(),
         )
     }
@@ -236,7 +236,7 @@ where
     {
         let mut children = MetaMap::new();
         for (idx, item) in self.iter().enumerate() {
-            let tree = ToValue::extract_meta_tree(item);
+            let tree = IntoValue::extract_meta_tree(item);
             if !tree.is_empty() {
                 children.insert(idx.to_string(), tree);
             }
@@ -284,14 +284,14 @@ where
     }
 }
 
-impl<T> ToValue for Object<T>
+impl<T> IntoValue for Object<T>
 where
-    T: ToValue,
+    T: IntoValue,
 {
-    fn to_value(self) -> Value {
+    fn into_value(self) -> Value {
         Value::Object(
             self.into_iter()
-                .map(|(k, v)| (k, Annotated::map_value(v, ToValue::to_value)))
+                .map(|(k, v)| (k, Annotated::map_value(v, IntoValue::into_value)))
                 .collect(),
         )
     }
@@ -318,7 +318,7 @@ where
     {
         let mut children = MetaMap::new();
         for (key, value) in self.iter() {
-            let tree = ToValue::extract_meta_tree(value);
+            let tree = IntoValue::extract_meta_tree(value);
             if !tree.is_empty() {
                 children.insert(key.to_string(), tree);
             }
@@ -360,8 +360,8 @@ impl FromValue for Value {
     }
 }
 
-impl ToValue for Value {
-    fn to_value(self) -> Value {
+impl IntoValue for Value {
+    fn into_value(self) -> Value {
         self
     }
 
@@ -381,7 +381,7 @@ impl ToValue for Value {
         match self {
             Value::Object(items) => {
                 for (key, value) in items.iter() {
-                    let tree = ToValue::extract_meta_tree(value);
+                    let tree = IntoValue::extract_meta_tree(value);
                     if !tree.is_empty() {
                         children.insert(key.to_string(), tree);
                     }
@@ -389,7 +389,7 @@ impl ToValue for Value {
             }
             Value::Array(items) => {
                 for (idx, item) in items.iter().enumerate() {
-                    let tree = ToValue::extract_meta_tree(item);
+                    let tree = IntoValue::extract_meta_tree(item);
                     if !tree.is_empty() {
                         children.insert(idx.to_string(), tree);
                     }
@@ -414,22 +414,22 @@ where
     }
 }
 
-impl<T> ToValue for Box<T>
+impl<T> IntoValue for Box<T>
 where
-    T: ToValue,
+    T: IntoValue,
 {
-    fn to_value(self) -> Value
+    fn into_value(self) -> Value
     where
         Self: Sized,
     {
-        ToValue::to_value(*self)
+        IntoValue::into_value(*self)
     }
 
     fn extract_child_meta(&self) -> MetaMap
     where
         Self: Sized,
     {
-        ToValue::extract_child_meta(&**self)
+        IntoValue::extract_child_meta(&**self)
     }
 
     fn serialize_payload<S>(&self, s: S, behavior: SkipSerialization) -> Result<S::Ok, S::Error>
@@ -437,7 +437,7 @@ where
         Self: Sized,
         S: Serializer,
     {
-        ToValue::serialize_payload(&**self, s, behavior)
+        IntoValue::serialize_payload(&**self, s, behavior)
     }
 }
 
@@ -518,11 +518,11 @@ macro_rules! tuple_meta_structure {
             }
         }
 
-        impl< $( $name: ToValue ),* > ToValue for ( $( Annotated<$name>, )* ) {
+        impl< $( $name: IntoValue ),* > IntoValue for ( $( Annotated<$name>, )* ) {
             #[allow(non_snake_case, unused_variables)]
-            fn to_value(self) -> Value {
+            fn into_value(self) -> Value {
                 let ($($name,)*) = self;
-                Value::Array(vec![$(Annotated::map_value($name, ToValue::to_value),)*])
+                Value::Array(vec![$(Annotated::map_value($name, IntoValue::into_value),)*])
             }
 
             #[allow(non_snake_case, unused_variables)]
@@ -546,7 +546,7 @@ macro_rules! tuple_meta_structure {
                 let ($($name,)*) = self;
                 let mut idx = 0;
                 $({
-                    let tree = ToValue::extract_meta_tree($name);
+                    let tree = IntoValue::extract_meta_tree($name);
                     if !tree.is_empty() {
                         children.insert(idx.to_string(), tree);
                     }
@@ -619,7 +619,7 @@ fn test_floats() {
 
 #[test]
 fn test_skip_array_never() {
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     struct Helper {
         #[metastructure(skip_serialization = "never")]
         items: Annotated<Array<String>>,
@@ -634,7 +634,7 @@ fn test_skip_array_never() {
 
 #[test]
 fn test_skip_array_null() {
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     struct Helper {
         #[metastructure(skip_serialization = "null")]
         items: Annotated<Array<String>>,
@@ -655,7 +655,7 @@ fn test_skip_array_null() {
 
 #[test]
 fn test_skip_array_null_deep() {
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     struct Helper {
         #[metastructure(skip_serialization = "null_deep")]
         items: Annotated<Array<String>>,
@@ -682,7 +682,7 @@ fn test_skip_array_null_deep() {
 
 #[test]
 fn test_skip_array_empty() {
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     struct Helper {
         #[metastructure(skip_serialization = "empty")]
         items: Annotated<Array<String>>,
@@ -715,7 +715,7 @@ fn test_skip_array_empty() {
 
 #[test]
 fn test_skip_array_empty_deep() {
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     struct Helper {
         #[metastructure(skip_serialization = "empty_deep")]
         items: Annotated<Array<String>>,
@@ -742,7 +742,7 @@ fn test_skip_array_empty_deep() {
 
 #[test]
 fn test_skip_object_never() {
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     struct Helper {
         #[metastructure(skip_serialization = "never")]
         items: Annotated<Object<String>>,
@@ -757,7 +757,7 @@ fn test_skip_object_never() {
 
 #[test]
 fn test_skip_object_null() {
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     struct Helper {
         #[metastructure(skip_serialization = "null")]
         items: Annotated<Object<String>>,
@@ -778,7 +778,7 @@ fn test_skip_object_null() {
 
 #[test]
 fn test_skip_object_null_deep() {
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     struct Helper {
         #[metastructure(skip_serialization = "null_deep")]
         items: Annotated<Object<String>>,
@@ -813,7 +813,7 @@ fn test_skip_object_null_deep() {
 
 #[test]
 fn test_skip_object_empty() {
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     struct Helper {
         #[metastructure(skip_serialization = "empty")]
         items: Annotated<Object<String>>,
@@ -854,7 +854,7 @@ fn test_skip_object_empty() {
 
 #[test]
 fn test_skip_object_empty_deep() {
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     struct Helper {
         #[metastructure(skip_serialization = "empty_deep")]
         items: Annotated<Object<String>>,
@@ -889,7 +889,7 @@ fn test_skip_object_empty_deep() {
 
 #[test]
 fn test_skip_tuple_never() {
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     struct Helper {
         #[metastructure(skip_serialization = "never")]
         items: Annotated<(Annotated<String>,)>,
@@ -904,7 +904,7 @@ fn test_skip_tuple_never() {
 
 #[test]
 fn test_skip_tuple_null() {
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     struct Helper {
         #[metastructure(skip_serialization = "null")]
         items: Annotated<(Annotated<String>,)>,
@@ -925,7 +925,7 @@ fn test_skip_tuple_null() {
 
 #[test]
 fn test_skip_tuple_null_deep() {
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     struct Helper {
         #[metastructure(skip_serialization = "null_deep")]
         items: Annotated<(Annotated<String>,)>,
@@ -952,7 +952,7 @@ fn test_skip_tuple_null_deep() {
 
 #[test]
 fn test_skip_tuple_empty() {
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     struct Helper {
         #[metastructure(skip_serialization = "empty")]
         items: Annotated<(Annotated<String>,)>,
@@ -979,7 +979,7 @@ fn test_skip_tuple_empty() {
 
 #[test]
 fn test_skip_tuple_empty_deep() {
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     struct Helper {
         #[metastructure(skip_serialization = "empty_deep")]
         items: Annotated<(Annotated<String>,)>,
@@ -1006,10 +1006,10 @@ fn test_skip_tuple_empty_deep() {
 
 #[test]
 fn test_wrapper_structs_and_skip_serialization() {
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     struct BasicWrapper(Array<String>);
 
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     struct BasicHelper {
         #[metastructure(skip_serialization = "empty")]
         items: Annotated<BasicWrapper>,
@@ -1023,12 +1023,12 @@ fn test_wrapper_structs_and_skip_serialization() {
 
 #[test]
 fn test_skip_serialization_on_regular_structs() {
-    #[derive(Debug, Default, Empty, ToValue)]
+    #[derive(Debug, Default, Empty, IntoValue)]
     struct Wrapper {
         foo: Annotated<u64>,
     }
 
-    #[derive(Debug, Default, Empty, ToValue)]
+    #[derive(Debug, Default, Empty, IntoValue)]
     struct Helper {
         #[metastructure(skip_serialization = "null")]
         foo: Annotated<Wrapper>,

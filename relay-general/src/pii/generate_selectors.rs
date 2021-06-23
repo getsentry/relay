@@ -44,7 +44,7 @@ impl Processor for GenerateSelectorsProcessor {
             if state.path().matches_selector(&path) {
                 let mut string_value = None;
                 if let Some(value) = value {
-                    if let Value::String(s) = value.clone().to_value() {
+                    if let Value::String(s) = value.clone().into_value() {
                         string_value = Some(s);
                     }
                 }

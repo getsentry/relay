@@ -1,7 +1,7 @@
 use crate::protocol::{JsonLenientString, OperationType, SpanId, SpanStatus, Timestamp, TraceId};
 use crate::types::{Annotated, Object, Value};
 
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_span", value_type = "Span")]
 pub struct Span {
