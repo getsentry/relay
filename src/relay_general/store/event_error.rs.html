@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/event_error.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>event_error.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/event_error.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>event_error.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
                 <a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -241,9 +241,9 @@
 <span id="240">240</span>
 <span id="241">241</span>
 </pre><div class="example-wrap"><pre class="rust ">
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">processor</span>::{<span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">protocol</span>::{<span class="ident">Event</span>, <span class="ident">EventProcessingError</span>};
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::{<span class="ident">Annotated</span>, <span class="ident">Meta</span>, <span class="ident">ProcessingResult</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::processor</span>::{<span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::protocol</span>::{<span class="ident">Event</span>, <span class="ident">EventProcessingError</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Meta</span>, <span class="ident">ProcessingResult</span>};
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">EmitEventErrors</span> {
     <span class="ident">errors</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">EventProcessingError</span><span class="op">&gt;</span>,
@@ -251,7 +251,7 @@
 
 <span class="kw">impl</span> <span class="ident">EmitEventErrors</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="ident">EmitEventErrors</span> { <span class="ident">errors</span>: <span class="ident">Vec</span>::<span class="ident">new</span>() }
+        <span class="ident">EmitEventErrors</span> { <span class="ident">errors</span>: <span class="ident">Vec::new</span>() }
     }
 }
 
@@ -271,12 +271,12 @@
 
         <span class="kw">for</span> <span class="ident">error</span> <span class="kw">in</span> <span class="ident">meta</span>.<span class="ident">iter_errors</span>() {
             <span class="self">self</span>.<span class="ident">errors</span>.<span class="ident">push</span>(<span class="ident">EventProcessingError</span> {
-                <span class="ident">ty</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">error</span>.<span class="ident">kind</span>().<span class="ident">to_string</span>()),
-                <span class="ident">name</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">state</span>.<span class="ident">path</span>().<span class="ident">to_string</span>()),
-                <span class="ident">value</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">original_value</span>.<span class="ident">take</span>()),
+                <span class="ident">ty</span>: <span class="ident">Annotated::from</span>(<span class="ident">error</span>.<span class="ident">kind</span>().<span class="ident">to_string</span>()),
+                <span class="ident">name</span>: <span class="ident">Annotated::from</span>(<span class="ident">state</span>.<span class="ident">path</span>().<span class="ident">to_string</span>()),
+                <span class="ident">value</span>: <span class="ident">Annotated::from</span>(<span class="ident">original_value</span>.<span class="ident">take</span>()),
                 <span class="ident">other</span>: <span class="ident">error</span>
                     .<span class="ident">data</span>()
-                    .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">k</span>, <span class="ident">v</span>)<span class="op">|</span> (<span class="ident">k</span>.<span class="ident">to_string</span>(), <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">v</span>.<span class="ident">clone</span>())))
+                    .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">k</span>, <span class="ident">v</span>)<span class="op">|</span> (<span class="ident">k</span>.<span class="ident">to_string</span>(), <span class="ident">Annotated::from</span>(<span class="ident">v</span>.<span class="ident">clone</span>())))
                     .<span class="ident">collect</span>(),
             });
         }
@@ -295,8 +295,8 @@
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">errors</span>.<span class="ident">is_empty</span>() {
             <span class="ident">event</span>
                 .<span class="ident">errors</span>
-                .<span class="ident">get_or_insert_with</span>(<span class="ident">Vec</span>::<span class="ident">new</span>)
-                .<span class="ident">extend</span>(<span class="self">self</span>.<span class="ident">errors</span>.<span class="ident">drain</span>(..).<span class="ident">map</span>(<span class="ident">Annotated</span>::<span class="ident">from</span>));
+                .<span class="ident">get_or_insert_with</span>(<span class="ident">Vec::new</span>)
+                .<span class="ident">extend</span>(<span class="self">self</span>.<span class="ident">errors</span>.<span class="ident">drain</span>(..).<span class="ident">map</span>(<span class="ident">Annotated::from</span>));
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -305,142 +305,142 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">use</span> {
-    <span class="kw">crate</span>::<span class="ident">processor</span>::<span class="ident">process_value</span>,
-    <span class="kw">crate</span>::<span class="ident">types</span>::{<span class="ident">ErrorKind</span>, <span class="ident">Object</span>, <span class="ident">Value</span>},
+    <span class="kw">crate</span><span class="ident">::processor::process_value</span>,
+    <span class="kw">crate</span><span class="ident">::types</span>::{<span class="ident">ErrorKind</span>, <span class="ident">Object</span>, <span class="ident">Value</span>},
 };
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_no_errors</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">Event</span>::<span class="ident">default</span>());
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from</span>(<span class="ident">Event::default</span>());
 
     <span class="ident">process_value</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>,
-        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EmitEventErrors</span>::<span class="ident">new</span>(),
-        <span class="ident">ProcessingState</span>::<span class="ident">root</span>(),
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EmitEventErrors::new</span>(),
+        <span class="ident">ProcessingState::root</span>(),
     )
     .<span class="ident">unwrap</span>();
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">errors</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">errors</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_top_level_errors</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">Event</span> {
-        <span class="ident">id</span>: <span class="ident">Annotated</span>::<span class="ident">from_error</span>(<span class="ident">ErrorKind</span>::<span class="ident">InvalidData</span>, <span class="prelude-val">None</span>),
-        ..<span class="ident">Event</span>::<span class="ident">default</span>()
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from</span>(<span class="ident">Event</span> {
+        <span class="ident">id</span>: <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::InvalidData</span>, <span class="prelude-val">None</span>),
+        ..<span class="ident">Event::default</span>()
     });
 
     <span class="ident">process_value</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>,
-        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EmitEventErrors</span>::<span class="ident">new</span>(),
-        <span class="ident">ProcessingState</span>::<span class="ident">root</span>(),
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EmitEventErrors::new</span>(),
+        <span class="ident">ProcessingState::root</span>(),
     )
     .<span class="ident">unwrap</span>();
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
+    <span class="macro">assert_eq_dbg!</span>(
         <span class="kw-2">*</span><span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">errors</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(),
-        <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">EventProcessingError</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="string">&quot;invalid_data&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">name</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="string">&quot;event_id&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">value</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-            <span class="ident">other</span>: <span class="ident">Object</span>::<span class="ident">default</span>(),
+        <span class="macro">vec!</span>[<span class="ident">Annotated::from</span>(<span class="ident">EventProcessingError</span> {
+            <span class="ident">ty</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;invalid_data&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">name</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;event_id&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">value</span>: <span class="ident">Annotated::empty</span>(),
+            <span class="ident">other</span>: <span class="ident">Object::default</span>(),
         })]
     );
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_errors_in_other</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">Event</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from</span>(<span class="ident">Event</span> {
         <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">Object::new</span>();
             <span class="ident">other</span>.<span class="ident">insert</span>(
                 <span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated</span>::<span class="ident">from_error</span>(<span class="ident">ErrorKind</span>::<span class="ident">InvalidData</span>, <span class="prelude-val">None</span>),
+                <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::InvalidData</span>, <span class="prelude-val">None</span>),
             );
             <span class="ident">other</span>
         },
-        ..<span class="ident">Event</span>::<span class="ident">default</span>()
+        ..<span class="ident">Event::default</span>()
     });
 
     <span class="ident">process_value</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>,
-        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EmitEventErrors</span>::<span class="ident">new</span>(),
-        <span class="ident">ProcessingState</span>::<span class="ident">root</span>(),
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EmitEventErrors::new</span>(),
+        <span class="ident">ProcessingState::root</span>(),
     )
     .<span class="ident">unwrap</span>();
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
+    <span class="macro">assert_eq_dbg!</span>(
         <span class="kw-2">*</span><span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">errors</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(),
-        <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">EventProcessingError</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="string">&quot;invalid_data&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">name</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">value</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-            <span class="ident">other</span>: <span class="ident">Object</span>::<span class="ident">default</span>(),
+        <span class="macro">vec!</span>[<span class="ident">Annotated::from</span>(<span class="ident">EventProcessingError</span> {
+            <span class="ident">ty</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;invalid_data&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">name</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">value</span>: <span class="ident">Annotated::empty</span>(),
+            <span class="ident">other</span>: <span class="ident">Object::default</span>(),
         })]
     );
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_nested_errors</span>() {
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">protocol</span>::{<span class="ident">Breadcrumb</span>, <span class="ident">Values</span>};
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::protocol</span>::{<span class="ident">Breadcrumb</span>, <span class="ident">Values</span>};
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">Event</span> {
-        <span class="ident">breadcrumbs</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">Values</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">Breadcrumb</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated</span>::<span class="ident">from_error</span>(<span class="ident">ErrorKind</span>::<span class="ident">InvalidData</span>, <span class="prelude-val">None</span>),
-            ..<span class="ident">Breadcrumb</span>::<span class="ident">default</span>()
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from</span>(<span class="ident">Event</span> {
+        <span class="ident">breadcrumbs</span>: <span class="ident">Annotated::from</span>(<span class="ident">Values::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::from</span>(<span class="ident">Breadcrumb</span> {
+            <span class="ident">ty</span>: <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::InvalidData</span>, <span class="prelude-val">None</span>),
+            ..<span class="ident">Breadcrumb::default</span>()
         })])),
-        ..<span class="ident">Event</span>::<span class="ident">default</span>()
+        ..<span class="ident">Event::default</span>()
     });
 
     <span class="ident">process_value</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>,
-        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EmitEventErrors</span>::<span class="ident">new</span>(),
-        <span class="ident">ProcessingState</span>::<span class="ident">root</span>(),
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EmitEventErrors::new</span>(),
+        <span class="ident">ProcessingState::root</span>(),
     )
     .<span class="ident">unwrap</span>();
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
+    <span class="macro">assert_eq_dbg!</span>(
         <span class="kw-2">*</span><span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">errors</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(),
-        <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">EventProcessingError</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="string">&quot;invalid_data&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">name</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="string">&quot;breadcrumbs.values.0.type&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">value</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-            <span class="ident">other</span>: <span class="ident">Object</span>::<span class="ident">default</span>(),
+        <span class="macro">vec!</span>[<span class="ident">Annotated::from</span>(<span class="ident">EventProcessingError</span> {
+            <span class="ident">ty</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;invalid_data&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">name</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;breadcrumbs.values.0.type&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">value</span>: <span class="ident">Annotated::empty</span>(),
+            <span class="ident">other</span>: <span class="ident">Object::default</span>(),
         })]
     );
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_multiple_errors</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta</span>::<span class="ident">from_error</span>(<span class="ident">ErrorKind</span>::<span class="ident">InvalidData</span>);
-    <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">ErrorKind</span>::<span class="ident">MissingAttribute</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::from_error</span>(<span class="ident">ErrorKind::InvalidData</span>);
+    <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">ErrorKind::MissingAttribute</span>);
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">Event</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from</span>(<span class="ident">Event</span> {
         <span class="ident">id</span>: <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
-        ..<span class="ident">Event</span>::<span class="ident">default</span>()
+        ..<span class="ident">Event::default</span>()
     });
 
     <span class="ident">process_value</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>,
-        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EmitEventErrors</span>::<span class="ident">new</span>(),
-        <span class="ident">ProcessingState</span>::<span class="ident">root</span>(),
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EmitEventErrors::new</span>(),
+        <span class="ident">ProcessingState::root</span>(),
     )
     .<span class="ident">unwrap</span>();
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
+    <span class="macro">assert_eq_dbg!</span>(
         <span class="kw-2">*</span><span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">errors</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(),
-        <span class="macro">vec</span><span class="macro">!</span>[
-            <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">EventProcessingError</span> {
-                <span class="ident">ty</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="string">&quot;invalid_data&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">name</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="string">&quot;event_id&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">value</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-                <span class="ident">other</span>: <span class="ident">Object</span>::<span class="ident">default</span>(),
+        <span class="macro">vec!</span>[
+            <span class="ident">Annotated::from</span>(<span class="ident">EventProcessingError</span> {
+                <span class="ident">ty</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;invalid_data&quot;</span>.<span class="ident">to_string</span>()),
+                <span class="ident">name</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;event_id&quot;</span>.<span class="ident">to_string</span>()),
+                <span class="ident">value</span>: <span class="ident">Annotated::empty</span>(),
+                <span class="ident">other</span>: <span class="ident">Object::default</span>(),
             }),
-            <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">EventProcessingError</span> {
-                <span class="ident">ty</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="string">&quot;missing_attribute&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">name</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="string">&quot;event_id&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">value</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-                <span class="ident">other</span>: <span class="ident">Object</span>::<span class="ident">default</span>(),
+            <span class="ident">Annotated::from</span>(<span class="ident">EventProcessingError</span> {
+                <span class="ident">ty</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;missing_attribute&quot;</span>.<span class="ident">to_string</span>()),
+                <span class="ident">name</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;event_id&quot;</span>.<span class="ident">to_string</span>()),
+                <span class="ident">value</span>: <span class="ident">Annotated::empty</span>(),
+                <span class="ident">other</span>: <span class="ident">Object::default</span>(),
             })
         ]
     );
@@ -448,40 +448,40 @@
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_original_value</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta</span>::<span class="ident">from_error</span>(<span class="ident">ErrorKind</span>::<span class="ident">InvalidData</span>);
-    <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">ErrorKind</span>::<span class="ident">MissingAttribute</span>);
-    <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">I64</span>(<span class="number">42</span>)));
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::from_error</span>(<span class="ident">ErrorKind::InvalidData</span>);
+    <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">ErrorKind::MissingAttribute</span>);
+    <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::I64</span>(<span class="number">42</span>)));
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">Event</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from</span>(<span class="ident">Event</span> {
         <span class="ident">id</span>: <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
-        ..<span class="ident">Event</span>::<span class="ident">default</span>()
+        ..<span class="ident">Event::default</span>()
     });
 
     <span class="ident">process_value</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>,
-        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EmitEventErrors</span>::<span class="ident">new</span>(),
-        <span class="ident">ProcessingState</span>::<span class="ident">root</span>(),
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">EmitEventErrors::new</span>(),
+        <span class="ident">ProcessingState::root</span>(),
     )
     .<span class="ident">unwrap</span>();
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
+    <span class="macro">assert_eq_dbg!</span>(
         <span class="kw-2">*</span><span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">errors</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(),
-        <span class="macro">vec</span><span class="macro">!</span>[
-            <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">EventProcessingError</span> {
-                <span class="ident">ty</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="string">&quot;invalid_data&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">name</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="string">&quot;event_id&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">value</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">Value</span>::<span class="ident">I64</span>(<span class="number">42</span>)),
-                <span class="ident">other</span>: <span class="ident">Object</span>::<span class="ident">default</span>(),
+        <span class="macro">vec!</span>[
+            <span class="ident">Annotated::from</span>(<span class="ident">EventProcessingError</span> {
+                <span class="ident">ty</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;invalid_data&quot;</span>.<span class="ident">to_string</span>()),
+                <span class="ident">name</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;event_id&quot;</span>.<span class="ident">to_string</span>()),
+                <span class="ident">value</span>: <span class="ident">Annotated::from</span>(<span class="ident">Value::I64</span>(<span class="number">42</span>)),
+                <span class="ident">other</span>: <span class="ident">Object::default</span>(),
             }),
-            <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="ident">EventProcessingError</span> {
-                <span class="ident">ty</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="string">&quot;missing_attribute&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">name</span>: <span class="ident">Annotated</span>::<span class="ident">from</span>(<span class="string">&quot;event_id&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">value</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-                <span class="ident">other</span>: <span class="ident">Object</span>::<span class="ident">default</span>(),
+            <span class="ident">Annotated::from</span>(<span class="ident">EventProcessingError</span> {
+                <span class="ident">ty</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;missing_attribute&quot;</span>.<span class="ident">to_string</span>()),
+                <span class="ident">name</span>: <span class="ident">Annotated::from</span>(<span class="string">&quot;event_id&quot;</span>.<span class="ident">to_string</span>()),
+                <span class="ident">value</span>: <span class="ident">Annotated::empty</span>(),
+                <span class="ident">other</span>: <span class="ident">Object::default</span>(),
             })
         ]
     );
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-search-js="../../../search-index.js"></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-search-index-js="../../../search-index.js" data-search-js="../../../search.js"></div>
     <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script></body></html>

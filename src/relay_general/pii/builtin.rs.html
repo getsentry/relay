@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/pii/builtin.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>builtin.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/pii/builtin.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>builtin.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
                 <a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
@@ -1026,22 +1026,22 @@
 <span id="1025">1025</span>
 <span id="1026">1026</span>
 </pre><div class="example-wrap"><pre class="rust ">
-<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy</span>::<span class="ident">needless_update</span>)]</span>
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
+<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::needless_update</span>)]</span>
+<span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 
-<span class="kw">use</span> <span class="ident">lazy_static</span>::<span class="ident">lazy_static</span>;
+<span class="kw">use</span> <span class="ident">lazy_static::lazy_static</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">pii</span>::{
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::pii</span>::{
     <span class="ident">AliasRule</span>, <span class="ident">MultipleRule</span>, <span class="ident">PatternRule</span>, <span class="ident">Redaction</span>, <span class="ident">ReplaceRedaction</span>, <span class="ident">RuleSpec</span>, <span class="ident">RuleType</span>,
 };
 
-<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">declare_builtin_rules</span> {
+<span class="macro">macro_rules!</span> <span class="ident">declare_builtin_rules</span> {
     ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rule_id</span>:<span class="ident">expr</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">spec</span>:<span class="ident">expr</span>;)<span class="kw-2">*</span>) <span class="op">=</span><span class="op">&gt;</span> {
-        <span class="macro">lazy_static</span><span class="macro">!</span> {
+        <span class="macro">lazy_static!</span> {
             <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">BUILTIN_RULES_MAP</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">RuleSpec</span><span class="op">&gt;</span> <span class="op">=</span> {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">BTreeMap</span>::<span class="ident">new</span>();
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
                 $(
-                    <span class="ident">map</span>.<span class="ident">insert</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rule_id</span>, <span class="ident">Box</span>::<span class="ident">leak</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">spec</span>)) <span class="kw">as</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="kw">_</span>);
+                    <span class="ident">map</span>.<span class="ident">insert</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rule_id</span>, <span class="ident">Box::leak</span>(<span class="ident">Box::new</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">spec</span>)) <span class="kw">as</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="kw">_</span>);
                 )<span class="op">*</span>
                 <span class="ident">map</span>
             };
@@ -1054,23 +1054,23 @@
     }
 }
 
-<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">rule_alias</span> {
+<span class="macro">macro_rules!</span> <span class="ident">rule_alias</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">target</span>:<span class="ident">expr</span>) <span class="op">=</span><span class="op">&gt;</span> {
         <span class="ident">RuleSpec</span> {
-            <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Alias</span>(<span class="ident">AliasRule</span> {
+            <span class="ident">ty</span>: <span class="ident">RuleType::Alias</span>(<span class="ident">AliasRule</span> {
                 <span class="ident">rule</span>: (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">target</span>).<span class="ident">into</span>(),
                 <span class="ident">hide_inner</span>: <span class="bool-val">true</span>,
             }),
-            <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Default</span>,
+            <span class="ident">redaction</span>: <span class="ident">Redaction::Default</span>,
         }
     };
 }
 
-<span class="macro">declare_builtin_rules</span><span class="macro">!</span> {
+<span class="macro">declare_builtin_rules!</span> {
     <span class="comment">// collections</span>
     <span class="string">&quot;@common&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Multiple</span>(<span class="ident">MultipleRule</span> {
-            <span class="ident">rules</span>: <span class="macro">vec</span><span class="macro">!</span>[
+        <span class="ident">ty</span>: <span class="ident">RuleType::Multiple</span>(<span class="ident">MultipleRule</span> {
+            <span class="ident">rules</span>: <span class="macro">vec!</span>[
                 <span class="string">&quot;@ip&quot;</span>.<span class="ident">into</span>(),
                 <span class="string">&quot;@email&quot;</span>.<span class="ident">into</span>(),
                 <span class="string">&quot;@creditcard&quot;</span>.<span class="ident">into</span>(),
@@ -1082,12 +1082,12 @@
             ],
             <span class="ident">hide_inner</span>: <span class="bool-val">false</span>,
         }),
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Default</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Default</span>,
     };
     <span class="comment">// legacy data scrubbing equivalent. Note</span>
     <span class="string">&quot;@common:filter&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Multiple</span>(<span class="ident">MultipleRule</span> {
-            <span class="ident">rules</span>: <span class="macro">vec</span><span class="macro">!</span>[
+        <span class="ident">ty</span>: <span class="ident">RuleType::Multiple</span>(<span class="ident">MultipleRule</span> {
+            <span class="ident">rules</span>: <span class="macro">vec!</span>[
                 <span class="string">&quot;@creditcard:filter&quot;</span>.<span class="ident">into</span>(),
                 <span class="string">&quot;@pemkey:filter&quot;</span>.<span class="ident">into</span>(),
                 <span class="string">&quot;@urlauth:legacy&quot;</span>.<span class="ident">into</span>(),
@@ -1097,343 +1097,343 @@
             ],
             <span class="ident">hide_inner</span>: <span class="bool-val">false</span>,
         }),
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Default</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Default</span>,
     };
 
     <span class="comment">// anything</span>
-    <span class="string">&quot;@anything&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias</span><span class="macro">!</span>(<span class="string">&quot;@anything:replace&quot;</span>);
+    <span class="string">&quot;@anything&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@anything:replace&quot;</span>);
     <span class="string">&quot;@anything:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Anything</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Remove</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Anything</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
     <span class="string">&quot;@anything:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Anything</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span>::<span class="ident">default</span>()),
+        <span class="ident">ty</span>: <span class="ident">RuleType::Anything</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction::default</span>()),
     };
     <span class="string">&quot;@anything:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Anything</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Anything</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
     <span class="string">&quot;@anything:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Anything</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Anything</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
 
     <span class="comment">// ip rules</span>
-    <span class="string">&quot;@ip&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias</span><span class="macro">!</span>(<span class="string">&quot;@ip:replace&quot;</span>);
+    <span class="string">&quot;@ip&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@ip:replace&quot;</span>);
     <span class="string">&quot;@ip:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Ip</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span> {
+        <span class="ident">ty</span>: <span class="ident">RuleType::Ip</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[ip]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
     <span class="string">&quot;@ip:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Ip</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Ip</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
     <span class="string">&quot;@ip:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Ip</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Ip</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
     <span class="string">&quot;@ip:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Ip</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Remove</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Ip</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
 
     <span class="comment">// imei rules</span>
-    <span class="string">&quot;@imei&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias</span><span class="macro">!</span>(<span class="string">&quot;@imei:replace&quot;</span>);
+    <span class="string">&quot;@imei&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@imei:replace&quot;</span>);
     <span class="string">&quot;@imei:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Imei</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span> {
+        <span class="ident">ty</span>: <span class="ident">RuleType::Imei</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[imei]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
     <span class="string">&quot;@imei:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Imei</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Imei</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
     <span class="string">&quot;@imei:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Imei</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Imei</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
     <span class="string">&quot;@imei:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Imei</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Remove</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Imei</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
 
     <span class="comment">// mac rules</span>
-    <span class="string">&quot;@mac&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias</span><span class="macro">!</span>(<span class="string">&quot;@mac:mask&quot;</span>);
+    <span class="string">&quot;@mac&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@mac:mask&quot;</span>);
     <span class="string">&quot;@mac:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Mac</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span> {
+        <span class="ident">ty</span>: <span class="ident">RuleType::Mac</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[mac]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
     <span class="string">&quot;@mac:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Mac</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Mac</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
     <span class="string">&quot;@mac:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Mac</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Mac</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
     <span class="string">&quot;@mac:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Mac</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Remove</span>
+        <span class="ident">ty</span>: <span class="ident">RuleType::Mac</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>
     };
 
     <span class="comment">// uuid rules</span>
-    <span class="string">&quot;@uuid&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias</span><span class="macro">!</span>(<span class="string">&quot;@uuid:mask&quot;</span>);
+    <span class="string">&quot;@uuid&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@uuid:mask&quot;</span>);
     <span class="string">&quot;@uuid:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Uuid</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span> {
+        <span class="ident">ty</span>: <span class="ident">RuleType::Uuid</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[uuid]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
     <span class="string">&quot;@uuid:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Uuid</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Uuid</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
     <span class="string">&quot;@uuid:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Uuid</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Uuid</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
     <span class="string">&quot;@uuid:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Uuid</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Remove</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Uuid</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
 
     <span class="comment">// email rules</span>
-    <span class="string">&quot;@email&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias</span><span class="macro">!</span>(<span class="string">&quot;@email:replace&quot;</span>);
+    <span class="string">&quot;@email&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@email:replace&quot;</span>);
     <span class="string">&quot;@email:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Email</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span> {
+        <span class="ident">ty</span>: <span class="ident">RuleType::Email</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[email]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
     <span class="string">&quot;@email:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Email</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Email</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
     <span class="string">&quot;@email:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Email</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Email</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
     <span class="string">&quot;@email:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Email</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Remove</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Email</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
 
     <span class="comment">// creditcard rules</span>
-    <span class="string">&quot;@creditcard&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias</span><span class="macro">!</span>(<span class="string">&quot;@creditcard:replace&quot;</span>);
+    <span class="string">&quot;@creditcard&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@creditcard:replace&quot;</span>);
     <span class="string">&quot;@creditcard:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Creditcard</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Creditcard</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
     <span class="string">&quot;@creditcard:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Creditcard</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span> {
+        <span class="ident">ty</span>: <span class="ident">RuleType::Creditcard</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[creditcard]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
     <span class="string">&quot;@creditcard:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Creditcard</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Creditcard</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
     <span class="string">&quot;@creditcard:filter&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Creditcard</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span> {
+        <span class="ident">ty</span>: <span class="ident">RuleType::Creditcard</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[Filtered]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
     <span class="string">&quot;@creditcard:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Creditcard</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Remove</span>
+        <span class="ident">ty</span>: <span class="ident">RuleType::Creditcard</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>
     };
 
     <span class="comment">// pem rules</span>
-    <span class="string">&quot;@pemkey&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias</span><span class="macro">!</span>(<span class="string">&quot;@pemkey:replace&quot;</span>);
+    <span class="string">&quot;@pemkey&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@pemkey:replace&quot;</span>);
     <span class="string">&quot;@pemkey:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Pemkey</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span> {
+        <span class="ident">ty</span>: <span class="ident">RuleType::Pemkey</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[pemkey]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
     <span class="string">&quot;@pemkey:filter&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Pemkey</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span> {
+        <span class="ident">ty</span>: <span class="ident">RuleType::Pemkey</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[Filtered]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
     <span class="string">&quot;@pemkey:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Pemkey</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Pemkey</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
     <span class="string">&quot;@pemkey:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Pemkey</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Pemkey</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
     <span class="string">&quot;@pemkey:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Pemkey</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Remove</span>
+        <span class="ident">ty</span>: <span class="ident">RuleType::Pemkey</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>
     };
 
     <span class="comment">// url secrets</span>
-    <span class="string">&quot;@urlauth&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias</span><span class="macro">!</span>(<span class="string">&quot;@urlauth:replace&quot;</span>);
+    <span class="string">&quot;@urlauth&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@urlauth:replace&quot;</span>);
     <span class="string">&quot;@urlauth:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">UrlAuth</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span> {
+        <span class="ident">ty</span>: <span class="ident">RuleType::UrlAuth</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[auth]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
     <span class="string">&quot;@urlauth:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">UrlAuth</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::UrlAuth</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
     <span class="string">&quot;@urlauth:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">UrlAuth</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::UrlAuth</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
     <span class="string">&quot;@urlauth:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">UrlAuth</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Remove</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::UrlAuth</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
     <span class="string">&quot;@urlauth:legacy&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Pattern</span>(<span class="ident">PatternRule</span> {
+        <span class="ident">ty</span>: <span class="ident">RuleType::Pattern</span>(<span class="ident">PatternRule</span> {
             <span class="comment">// Regex copied from legacy Sentry `URL_PASSWORD_RE`</span>
             <span class="ident">pattern</span>: <span class="string">r&quot;\b((?:[a-z0-9]+:)?//[a-zA-Z0-9%_.-]+:)([a-zA-Z0-9%_.-]+)@&quot;</span>.<span class="ident">into</span>(),
             <span class="ident">replace_groups</span>: <span class="prelude-val">Some</span>([<span class="number">2</span>].<span class="ident">iter</span>().<span class="ident">copied</span>().<span class="ident">collect</span>()),
         }),
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span> {
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[Filtered]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
 
     <span class="comment">// US SSN</span>
-    <span class="string">&quot;@usssn&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias</span><span class="macro">!</span>(<span class="string">&quot;@usssn:mask&quot;</span>);
+    <span class="string">&quot;@usssn&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@usssn:mask&quot;</span>);
     <span class="string">&quot;@usssn:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">UsSsn</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span> {
+        <span class="ident">ty</span>: <span class="ident">RuleType::UsSsn</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[us-ssn]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
     <span class="string">&quot;@usssn:filter&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">UsSsn</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span> {
+        <span class="ident">ty</span>: <span class="ident">RuleType::UsSsn</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[Filtered]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
     <span class="string">&quot;@usssn:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">UsSsn</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::UsSsn</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
     <span class="string">&quot;@usssn:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">UsSsn</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::UsSsn</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
     <span class="string">&quot;@usssn:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">UsSsn</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Remove</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::UsSsn</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
 
     <span class="comment">// user path rules</span>
-    <span class="string">&quot;@userpath&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias</span><span class="macro">!</span>(<span class="string">&quot;@userpath:replace&quot;</span>);
+    <span class="string">&quot;@userpath&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@userpath:replace&quot;</span>);
     <span class="string">&quot;@userpath:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Userpath</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span> {
+        <span class="ident">ty</span>: <span class="ident">RuleType::Userpath</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[user]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
     <span class="string">&quot;@userpath:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Userpath</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Userpath</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
     <span class="string">&quot;@userpath:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Userpath</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Userpath</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
     <span class="string">&quot;@userpath:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Userpath</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Remove</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Userpath</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
 
     <span class="comment">// password field removal</span>
-    <span class="string">&quot;@password&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias</span><span class="macro">!</span>(<span class="string">&quot;@password:remove&quot;</span>);
+    <span class="string">&quot;@password&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@password:remove&quot;</span>);
     <span class="string">&quot;@password:filter&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Password</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span> {
+        <span class="ident">ty</span>: <span class="ident">RuleType::Password</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[Filtered]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
     <span class="string">&quot;@password:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Password</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Password</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
     <span class="string">&quot;@password:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Password</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span> {
+        <span class="ident">ty</span>: <span class="ident">RuleType::Password</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[password]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
     <span class="string">&quot;@password:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Password</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Password</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
     <span class="string">&quot;@password:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
-        <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">Password</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Remove</span>,
+        <span class="ident">ty</span>: <span class="ident">RuleType::Password</span>,
+        <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
 }
 
 <span class="comment">// TODO: Move these tests to /tests</span>
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
+    <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">pii</span>::<span class="ident">config</span>::{<span class="ident">PiiConfig</span>, <span class="ident">RuleSpec</span>, <span class="ident">RuleType</span>};
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">pii</span>::<span class="ident">processor</span>::<span class="ident">PiiProcessor</span>;
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">pii</span>::{<span class="ident">Redaction</span>, <span class="ident">ReplaceRedaction</span>};
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessingState</span>, <span class="ident">ValueType</span>};
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::{<span class="ident">Annotated</span>, <span class="ident">Remark</span>, <span class="ident">RemarkType</span>};
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::pii::config</span>::{<span class="ident">PiiConfig</span>, <span class="ident">RuleSpec</span>, <span class="ident">RuleType</span>};
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::pii::processor::PiiProcessor</span>;
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::pii</span>::{<span class="ident">Redaction</span>, <span class="ident">ReplaceRedaction</span>};
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessingState</span>, <span class="ident">ValueType</span>};
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Remark</span>, <span class="ident">RemarkType</span>};
 
     <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">BUILTIN_RULES</span>, <span class="ident">BUILTIN_RULES_MAP</span>};
 
-    <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">ProcessValue</span>, <span class="ident">ToValue</span>)]</span>
+    <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">ProcessValue</span>, <span class="ident">IntoValue</span>)]</span>
     <span class="kw">struct</span> <span class="ident">FreeformRoot</span> {
         <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
         <span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     }
 
-    <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">assert_text_rule</span> {
+    <span class="macro">macro_rules!</span> <span class="ident">assert_text_rule</span> {
         (
             <span class="ident">rule</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">rule</span>:<span class="ident">expr</span>; <span class="ident">input</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">input</span>:<span class="ident">expr</span>; <span class="ident">output</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">output</span>:<span class="ident">expr</span>; <span class="ident">remarks</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">remarks</span>:<span class="ident">expr</span>;
         ) <span class="op">=</span><span class="op">&gt;</span> {{
             <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig</span> {
                 <span class="ident">applications</span>: {
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">BTreeMap</span>::<span class="ident">new</span>();
-                    <span class="ident">map</span>.<span class="ident">insert</span>(<span class="ident">ValueType</span>::<span class="ident">String</span>.<span class="ident">into</span>(), <span class="macro">vec</span><span class="macro">!</span>[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rule</span>.<span class="ident">to_string</span>()]);
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
+                    <span class="ident">map</span>.<span class="ident">insert</span>(<span class="ident">ValueType::String</span>.<span class="ident">into</span>(), <span class="macro">vec!</span>[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rule</span>.<span class="ident">to_string</span>()]);
                     <span class="ident">map</span>
                 },
-                ..<span class="ident">PiiConfig</span>::<span class="ident">default</span>()
+                ..<span class="ident">PiiConfig::default</span>()
             };
             <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">input</span>.<span class="ident">to_string</span>();
             <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">root</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">FreeformRoot</span> {
-                <span class="ident">value</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">input</span>),
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">root</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">FreeformRoot</span> {
+                <span class="ident">value</span>: <span class="ident">Annotated::new</span>(<span class="ident">input</span>),
             });
-            <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">root</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
+            <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">root</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="ident">root</span> <span class="op">=</span> <span class="ident">root</span>.<span class="number">0</span>.<span class="ident">unwrap</span>();
-            <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">root</span>.<span class="ident">value</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">output</span>);
+            <span class="macro">assert_eq_str!</span>(<span class="ident">root</span>.<span class="ident">value</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">output</span>);
             <span class="kw">let</span> <span class="ident">remarks</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Remark</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">remarks</span>;
-            <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
+            <span class="macro">assert_eq_dbg!</span>(
                 <span class="ident">root</span>.<span class="ident">value</span>.<span class="ident">meta</span>().<span class="ident">iter_remarks</span>().<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>(),
                 <span class="ident">remarks</span>.<span class="ident">iter</span>().<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>()
             );
         }};
     }
 
-    <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">assert_custom_rulespec</span> {
+    <span class="macro">macro_rules!</span> <span class="ident">assert_custom_rulespec</span> {
         (
             <span class="ident">rule</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">rule</span>:<span class="ident">expr</span>; <span class="ident">input</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">input</span>:<span class="ident">expr</span>; <span class="ident">output</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">output</span>:<span class="ident">expr</span>; <span class="ident">remarks</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">remarks</span>:<span class="ident">expr</span>;
         ) <span class="op">=</span><span class="op">&gt;</span> {{
@@ -1443,49 +1443,49 @@
 
             <span class="kw">let</span> <span class="ident">config2</span> <span class="op">=</span> <span class="ident">PiiConfig</span> {
                 <span class="ident">rules</span>: {
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">BTreeMap</span>::<span class="ident">new</span>();
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
                     <span class="ident">map</span>.<span class="ident">insert</span>(
                         <span class="string">&quot;0&quot;</span>.<span class="ident">to_owned</span>(),
                         <span class="ident">RuleSpec</span> {
                             <span class="ident">ty</span>: <span class="kw">match</span> <span class="ident">a</span> {
-                                <span class="string">&quot;ip&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType</span>::<span class="ident">Ip</span>,
-                                <span class="string">&quot;email&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType</span>::<span class="ident">Email</span>,
-                                <span class="string">&quot;creditcard&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType</span>::<span class="ident">Creditcard</span>,
-                                <span class="string">&quot;mac&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType</span>::<span class="ident">Mac</span>,
-                                <span class="string">&quot;uuid&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType</span>::<span class="ident">Uuid</span>,
-                                <span class="string">&quot;imei&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType</span>::<span class="ident">Imei</span>,
-                                <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Unknown RuleType&quot;</span>),
+                                <span class="string">&quot;ip&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType::Ip</span>,
+                                <span class="string">&quot;email&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType::Email</span>,
+                                <span class="string">&quot;creditcard&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType::Creditcard</span>,
+                                <span class="string">&quot;mac&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType::Mac</span>,
+                                <span class="string">&quot;uuid&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType::Uuid</span>,
+                                <span class="string">&quot;imei&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType::Imei</span>,
+                                <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">panic!</span>(<span class="string">&quot;Unknown RuleType&quot;</span>),
                             },
                             <span class="ident">redaction</span>: <span class="kw">match</span> <span class="ident">b</span> {
-                                <span class="string">&quot;remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction</span>::<span class="ident">Remove</span>,
-                                <span class="string">&quot;replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="ident">ReplaceRedaction</span>::<span class="ident">default</span>()),
-                                <span class="string">&quot;mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction</span>::<span class="ident">Mask</span>,
-                                <span class="string">&quot;hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction</span>::<span class="ident">Hash</span>,
-                                <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Unknown redaction method&quot;</span>),
+                                <span class="string">&quot;remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction::Remove</span>,
+                                <span class="string">&quot;replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction::default</span>()),
+                                <span class="string">&quot;mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction::Mask</span>,
+                                <span class="string">&quot;hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction::Hash</span>,
+                                <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">panic!</span>(<span class="string">&quot;Unknown redaction method&quot;</span>),
                             },
                         },
                     );
                     <span class="ident">map</span>
                 },
                 <span class="ident">applications</span>: {
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">BTreeMap</span>::<span class="ident">new</span>();
-                    <span class="ident">map</span>.<span class="ident">insert</span>(<span class="ident">ValueType</span>::<span class="ident">String</span>.<span class="ident">into</span>(), <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;0&quot;</span>.<span class="ident">to_owned</span>()]);
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
+                    <span class="ident">map</span>.<span class="ident">insert</span>(<span class="ident">ValueType::String</span>.<span class="ident">into</span>(), <span class="macro">vec!</span>[<span class="string">&quot;0&quot;</span>.<span class="ident">to_owned</span>()]);
                     <span class="ident">map</span>
                 },
-                ..<span class="ident">Default</span>::<span class="ident">default</span>()
+                ..<span class="ident">Default::default</span>()
             };
 
             <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">input</span>.<span class="ident">to_string</span>();
             <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config2</span>.<span class="ident">compiled</span>();
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">root</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">FreeformRoot</span> {
-                <span class="ident">value</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">input</span>),
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">root</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">FreeformRoot</span> {
+                <span class="ident">value</span>: <span class="ident">Annotated::new</span>(<span class="ident">input</span>),
             });
-            <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">root</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
+            <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">root</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="ident">root</span> <span class="op">=</span> <span class="ident">root</span>.<span class="number">0</span>.<span class="ident">unwrap</span>();
-            <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">root</span>.<span class="ident">value</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">output</span>);
+            <span class="macro">assert_eq_str!</span>(<span class="ident">root</span>.<span class="ident">value</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">output</span>);
             <span class="kw">let</span> <span class="ident">remarks</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Remark</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">remarks</span>;
-            <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
+            <span class="macro">assert_eq_dbg!</span>(
                 <span class="ident">root</span>.<span class="ident">value</span>.<span class="ident">meta</span>().<span class="ident">iter_remarks</span>().<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>(),
                 <span class="ident">remarks</span>.<span class="ident">iter</span>().<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>()
             );
@@ -1494,393 +1494,393 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_ipv4</span>() {
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@ip&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;before 127.0.0.1 after&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;before [ip] after&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@ip&quot;</span>, (<span class="number">7</span>, <span class="number">11</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@ip&quot;</span>, (<span class="number">7</span>, <span class="number">11</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@ip:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;before 127.0.0.1 after&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;before [ip] after&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@ip:replace&quot;</span>, (<span class="number">7</span>, <span class="number">11</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@ip:replace&quot;</span>, (<span class="number">7</span>, <span class="number">11</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@ip:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;before 127.0.0.1 after&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;before [Filtered] after&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">7</span>, <span class="number">17</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">7</span>, <span class="number">17</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@ip:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;before 127.0.0.1 after&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;before AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741 after&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;@ip:hash&quot;</span>, (<span class="number">7</span>, <span class="number">47</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;@ip:hash&quot;</span>, (<span class="number">7</span>, <span class="number">47</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@ip:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;before 127.0.0.1 after&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;before AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741 after&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">7</span>, <span class="number">47</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">7</span>, <span class="number">47</span>)),
             ];
         );
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_ipv6</span>() {
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@ip&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;before ::1 after&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;before [ip] after&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@ip&quot;</span>, (<span class="number">7</span>, <span class="number">11</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@ip&quot;</span>, (<span class="number">7</span>, <span class="number">11</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@ip:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;[2001:0db8:85a3:0000:0000:8a2e:0370:7334]&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;[[ip]]&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@ip:replace&quot;</span>, (<span class="number">1</span>, <span class="number">5</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@ip:replace&quot;</span>, (<span class="number">1</span>, <span class="number">5</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@ip:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;[2001:0db8:85a3:0000:0000:8a2e:0370:7334]&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;[[Filtered]]&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">1</span>, <span class="number">11</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">1</span>, <span class="number">11</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@ip:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;before 2001:0db8:85a3:0000:0000:8a2e:0370:7334 after&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;before 8C3DC9BEED9ADE493670547E24E4E45EDE69FF03 after&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;@ip:hash&quot;</span>, (<span class="number">7</span>, <span class="number">47</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;@ip:hash&quot;</span>, (<span class="number">7</span>, <span class="number">47</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@ip:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;before 2001:0db8:85a3:0000:0000:8a2e:0370:7334 after&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;before 8C3DC9BEED9ADE493670547E24E4E45EDE69FF03 after&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">7</span>, <span class="number">47</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">7</span>, <span class="number">47</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@ip&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;foo::1&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;foo::1&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[];
         );
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_imei</span>() {
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@imei&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;before 356938035643809 after&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;before [imei] after&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@imei&quot;</span>, (<span class="number">7</span>, <span class="number">13</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@imei&quot;</span>, (<span class="number">7</span>, <span class="number">13</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@imei:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;before 356938035643809 after&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;before [imei] after&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@imei:replace&quot;</span>, (<span class="number">7</span>, <span class="number">13</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@imei:replace&quot;</span>, (<span class="number">7</span>, <span class="number">13</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@imei:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;before 356938035643809 after&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;before [Filtered] after&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">7</span>, <span class="number">17</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">7</span>, <span class="number">17</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@imei:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;before 356938035643809 after&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;before 3888108AA99417402969D0B47A2CA4ECD2A1AAD3 after&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;@imei:hash&quot;</span>, (<span class="number">7</span>, <span class="number">47</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;@imei:hash&quot;</span>, (<span class="number">7</span>, <span class="number">47</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@imei:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;before 356938035643809 after&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;before 3888108AA99417402969D0B47A2CA4ECD2A1AAD3 after&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">7</span>, <span class="number">47</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">7</span>, <span class="number">47</span>)),
             ];
         );
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_mac</span>() {
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@mac&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;ether 4a:00:04:10:9b:50&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;ether *****************&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;@mac&quot;</span>, (<span class="number">6</span>, <span class="number">23</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Masked</span>, <span class="string">&quot;@mac&quot;</span>, (<span class="number">6</span>, <span class="number">23</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@mac:mask&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;ether 4a:00:04:10:9b:50&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;ether *****************&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;@mac:mask&quot;</span>, (<span class="number">6</span>, <span class="number">23</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Masked</span>, <span class="string">&quot;@mac:mask&quot;</span>, (<span class="number">6</span>, <span class="number">23</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@mac:mask&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;ether 4a:00:04:10:9b:50&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;ether *****************&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">6</span>, <span class="number">23</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Masked</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">6</span>, <span class="number">23</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@mac:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;ether 4a:00:04:10:9b:50&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;ether [mac]&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@mac:replace&quot;</span>, (<span class="number">6</span>, <span class="number">11</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@mac:replace&quot;</span>, (<span class="number">6</span>, <span class="number">11</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@mac:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;ether 4a:00:04:10:9b:50&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;ether [Filtered]&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">6</span>, <span class="number">16</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">6</span>, <span class="number">16</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@mac:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;ether 4a:00:04:10:9b:50&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;ether 6220F3EE59BF56B32C98323D7DE43286AAF1F8F1&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;@mac:hash&quot;</span>, (<span class="number">6</span>, <span class="number">46</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;@mac:hash&quot;</span>, (<span class="number">6</span>, <span class="number">46</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@mac:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;ether 4a:00:04:10:9b:50&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;ether 6220F3EE59BF56B32C98323D7DE43286AAF1F8F1&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">6</span>, <span class="number">46</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">6</span>, <span class="number">46</span>)),
             ];
         );
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_uuid</span>() {
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@uuid&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;user id ceee0822-ed8f-4622-b2a3-789e73e75cd1&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;user id ************************************&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;@uuid&quot;</span>, (<span class="number">8</span>, <span class="number">44</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Masked</span>, <span class="string">&quot;@uuid&quot;</span>, (<span class="number">8</span>, <span class="number">44</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@uuid:mask&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;user id ceee0822-ed8f-4622-b2a3-789e73e75cd1&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;user id ************************************&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;@uuid:mask&quot;</span>, (<span class="number">8</span>, <span class="number">44</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Masked</span>, <span class="string">&quot;@uuid:mask&quot;</span>, (<span class="number">8</span>, <span class="number">44</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@uuid:mask&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;user id ceee0822-ed8f-4622-b2a3-789e73e75cd1&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;user id ************************************&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">8</span>, <span class="number">44</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Masked</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">8</span>, <span class="number">44</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@uuid:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;user id ceee0822-ed8f-4622-b2a3-789e73e75cd1&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;user id EBFA4DBDAA4A619F10B6DE2ABB630DE0122F5CDB&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;@uuid:hash&quot;</span>, (<span class="number">8</span>, <span class="number">48</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;@uuid:hash&quot;</span>, (<span class="number">8</span>, <span class="number">48</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@uuid:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;user id ceee0822-ed8f-4622-b2a3-789e73e75cd1&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;user id EBFA4DBDAA4A619F10B6DE2ABB630DE0122F5CDB&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">8</span>, <span class="number">48</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">8</span>, <span class="number">48</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@uuid:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;user id ceee0822-ed8f-4622-b2a3-789e73e75cd1&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;user id [uuid]&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@uuid:replace&quot;</span>, (<span class="number">8</span>, <span class="number">14</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@uuid:replace&quot;</span>, (<span class="number">8</span>, <span class="number">14</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@uuid:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;user id ceee0822-ed8f-4622-b2a3-789e73e75cd1&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;user id [Filtered]&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">8</span>, <span class="number">18</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">8</span>, <span class="number">18</span>)),
             ];
         );
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_email</span>() {
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@email&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;John Appleseed &lt;john@appleseed.com&gt;&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed &lt;[email]&gt;&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@email&quot;</span>, (<span class="number">16</span>, <span class="number">23</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@email&quot;</span>, (<span class="number">16</span>, <span class="number">23</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@email:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;John Appleseed &lt;john@appleseed.com&gt;&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed &lt;[email]&gt;&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@email:replace&quot;</span>, (<span class="number">16</span>, <span class="number">23</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@email:replace&quot;</span>, (<span class="number">16</span>, <span class="number">23</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@email:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;John Appleseed &lt;john@appleseed.com&gt;&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed &lt;[Filtered]&gt;&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">16</span>, <span class="number">26</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">16</span>, <span class="number">26</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@email:mask&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;John Appleseed &lt;john@appleseed.com&gt;&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed &lt;******************&gt;&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;@email:mask&quot;</span>, (<span class="number">16</span>, <span class="number">34</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Masked</span>, <span class="string">&quot;@email:mask&quot;</span>, (<span class="number">16</span>, <span class="number">34</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@email:mask&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;John Appleseed &lt;john@appleseed.com&gt;&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed &lt;******************&gt;&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">16</span>, <span class="number">34</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Masked</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">16</span>, <span class="number">34</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@email:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;John Appleseed &lt;john@appleseed.com&gt;&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed &lt;33835528AC0FFF1B46D167C35FEAAA6F08FD3F46&gt;&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;@email:hash&quot;</span>, (<span class="number">16</span>, <span class="number">56</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;@email:hash&quot;</span>, (<span class="number">16</span>, <span class="number">56</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@email:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;John Appleseed &lt;john@appleseed.com&gt;&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed &lt;33835528AC0FFF1B46D167C35FEAAA6F08FD3F46&gt;&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">16</span>, <span class="number">56</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">16</span>, <span class="number">56</span>)),
             ];
         );
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_creditcard</span>() {
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@creditcard&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;John Appleseed 4571234567890111!&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed [creditcard]!&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@creditcard&quot;</span>, (<span class="number">15</span>, <span class="number">27</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@creditcard&quot;</span>, (<span class="number">15</span>, <span class="number">27</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@creditcard&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;John Appleseed 4571 2345 6789 0111!&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed [creditcard]!&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@creditcard&quot;</span>, (<span class="number">15</span>, <span class="number">27</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@creditcard&quot;</span>, (<span class="number">15</span>, <span class="number">27</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@creditcard:mask&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;John Appleseed 4571234567890111!&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed ****************!&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;@creditcard:mask&quot;</span>, (<span class="number">15</span>, <span class="number">31</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Masked</span>, <span class="string">&quot;@creditcard:mask&quot;</span>, (<span class="number">15</span>, <span class="number">31</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@creditcard:mask&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;John Appleseed 4571234567890111!&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed ****************!&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">15</span>, <span class="number">31</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Masked</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">15</span>, <span class="number">31</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@creditcard:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;John Appleseed 4571234567890111!&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed [creditcard]!&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@creditcard:replace&quot;</span>, (<span class="number">15</span>, <span class="number">27</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@creditcard:replace&quot;</span>, (<span class="number">15</span>, <span class="number">27</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@creditcard:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;John Appleseed 4571234567890111!&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed [Filtered]!&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">15</span>, <span class="number">25</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">15</span>, <span class="number">25</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@creditcard:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;John Appleseed 4571234567890111!&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed 68C796A9ED3FB51BF850A11140FCADD8E2D88466!&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;@creditcard:hash&quot;</span>, (<span class="number">15</span>, <span class="number">55</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;@creditcard:hash&quot;</span>, (<span class="number">15</span>, <span class="number">55</span>)),
             ];
         );
-        <span class="macro">assert_custom_rulespec</span><span class="macro">!</span>(
+        <span class="macro">assert_custom_rulespec!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@creditcard:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;John Appleseed 4571234567890111!&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;John Appleseed 68C796A9ED3FB51BF850A11140FCADD8E2D88466!&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">15</span>, <span class="number">55</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;0&quot;</span>, (<span class="number">15</span>, <span class="number">55</span>)),
             ];
         );
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_pemkey</span>() {
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@pemkey&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;This is a comment I left on my key
 
@@ -1896,11 +1896,11 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
             -----BEGIN EC PRIVATE KEY-----
 [pemkey]
 -----END EC PRIVATE KEY-----&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@pemkey&quot;</span>, (<span class="number">79</span>, <span class="number">87</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@pemkey&quot;</span>, (<span class="number">79</span>, <span class="number">87</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@pemkey:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;This is a comment I left on my key
 
@@ -1916,108 +1916,108 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
             -----BEGIN EC PRIVATE KEY-----
 291134FEC77C62B11E2DC6D89910BB43157294BC
 -----END EC PRIVATE KEY-----&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;@pemkey:hash&quot;</span>, (<span class="number">79</span>, <span class="number">119</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;@pemkey:hash&quot;</span>, (<span class="number">79</span>, <span class="number">119</span>)),
             ];
         );
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_urlauth</span>() {
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@urlauth&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;https://username:password@example.com/&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;https://[auth]@example.com/&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@urlauth&quot;</span>, (<span class="number">8</span>, <span class="number">14</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@urlauth&quot;</span>, (<span class="number">8</span>, <span class="number">14</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@urlauth:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;https://username:password@example.com/&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;https://[auth]@example.com/&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@urlauth:replace&quot;</span>, (<span class="number">8</span>, <span class="number">14</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@urlauth:replace&quot;</span>, (<span class="number">8</span>, <span class="number">14</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@urlauth:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;https://username:password@example.com/&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;https://2F82AB8A5E3FAD655B5F81E3BEA30D2A14FEF2AC@example.com/&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;@urlauth:hash&quot;</span>, (<span class="number">8</span>, <span class="number">48</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;@urlauth:hash&quot;</span>, (<span class="number">8</span>, <span class="number">48</span>)),
             ];
         );
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_usssn</span>() {
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@usssn&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;Hi I&#39;m Hilda and my SSN is 078-05-1120&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;Hi I&#39;m Hilda and my SSN is ***********&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;@usssn&quot;</span>, (<span class="number">27</span>, <span class="number">38</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Masked</span>, <span class="string">&quot;@usssn&quot;</span>, (<span class="number">27</span>, <span class="number">38</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@usssn:mask&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;Hi I&#39;m Hilda and my SSN is 078-05-1120&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;Hi I&#39;m Hilda and my SSN is ***********&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Masked</span>, <span class="string">&quot;@usssn:mask&quot;</span>, (<span class="number">27</span>, <span class="number">38</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Masked</span>, <span class="string">&quot;@usssn:mask&quot;</span>, (<span class="number">27</span>, <span class="number">38</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@usssn:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;Hi I&#39;m Hilda and my SSN is 078-05-1120&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;Hi I&#39;m Hilda and my SSN is [us-ssn]&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@usssn:replace&quot;</span>, (<span class="number">27</span>, <span class="number">35</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@usssn:replace&quot;</span>, (<span class="number">27</span>, <span class="number">35</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@usssn:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;Hi I&#39;m Hilda and my SSN is 078-05-1120&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;Hi I&#39;m Hilda and my SSN is 01328BB9C55B35F354FBC7B60CADAC789DC2035C&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;@usssn:hash&quot;</span>, (<span class="number">27</span>, <span class="number">67</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;@usssn:hash&quot;</span>, (<span class="number">27</span>, <span class="number">67</span>)),
             ];
         );
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_userpath</span>() {
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@userpath&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;C:\\Users\\mitsuhiko\\Desktop&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;C:\\Users\\[user]\\Desktop&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@userpath&quot;</span>, (<span class="number">9</span>, <span class="number">15</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@userpath&quot;</span>, (<span class="number">9</span>, <span class="number">15</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@userpath:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;File in /Users/mitsuhiko/Development/sentry-stripping&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;File in /Users/[user]/Development/sentry-stripping&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@userpath:replace&quot;</span>, (<span class="number">15</span>, <span class="number">21</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@userpath:replace&quot;</span>, (<span class="number">15</span>, <span class="number">21</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@userpath:replace&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;C:\\Windows\\Profiles\\Armin\\Temp&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;C:\\Windows\\Profiles\\[user]\\Temp&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Substituted</span>, <span class="string">&quot;@userpath:replace&quot;</span>, (<span class="number">20</span>, <span class="number">26</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Substituted</span>, <span class="string">&quot;@userpath:replace&quot;</span>, (<span class="number">20</span>, <span class="number">26</span>)),
             ];
         );
-        <span class="macro">assert_text_rule</span><span class="macro">!</span>(
+        <span class="macro">assert_text_rule!</span>(
             <span class="ident">rule</span> <span class="op">=</span> <span class="string">&quot;@userpath:hash&quot;</span>;
             <span class="ident">input</span> <span class="op">=</span> <span class="string">&quot;File in /Users/mitsuhiko/Development/sentry-stripping&quot;</span>;
             <span class="ident">output</span> <span class="op">=</span> <span class="string">&quot;File in /Users/A8791A1A8D11583E0200CC1B9AB971B4D78B8A69/Development/sentry-stripping&quot;</span>;
-            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">Remark</span>::<span class="ident">with_range</span>(<span class="ident">RemarkType</span>::<span class="ident">Pseudonymized</span>, <span class="string">&quot;@userpath:hash&quot;</span>, (<span class="number">15</span>, <span class="number">55</span>)),
+            <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                <span class="ident">Remark::with_range</span>(<span class="ident">RemarkType::Pseudonymized</span>, <span class="string">&quot;@userpath:hash&quot;</span>, (<span class="number">15</span>, <span class="number">55</span>)),
             ];
         );
     }
@@ -2044,14 +2044,14 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
             <span class="string">&quot;anything&quot;</span>,
         ] {
             <span class="kw">for</span> <span class="ident">redaction_method</span> <span class="kw">in</span> <span class="kw-2">&amp;</span>[<span class="string">&quot;mask&quot;</span>, <span class="string">&quot;remove&quot;</span>, <span class="string">&quot;hash&quot;</span>, <span class="string">&quot;replace&quot;</span>] {
-                <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;@{}:{}&quot;</span>, <span class="ident">rule_type</span>, <span class="ident">redaction_method</span>);
-                <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;looking up {}&quot;</span>, <span class="ident">key</span>);
-                <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">BUILTIN_RULES</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">key</span>.<span class="ident">as_str</span>()));
-                <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">BUILTIN_RULES_MAP</span>.<span class="ident">contains_key</span>(<span class="ident">key</span>.<span class="ident">as_str</span>()));
+                <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;@{}:{}&quot;</span>, <span class="ident">rule_type</span>, <span class="ident">redaction_method</span>);
+                <span class="macro">println!</span>(<span class="string">&quot;looking up {}&quot;</span>, <span class="ident">key</span>);
+                <span class="macro">assert!</span>(<span class="ident">BUILTIN_RULES</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">key</span>.<span class="ident">as_str</span>()));
+                <span class="macro">assert!</span>(<span class="ident">BUILTIN_RULES_MAP</span>.<span class="ident">contains_key</span>(<span class="ident">key</span>.<span class="ident">as_str</span>()));
             }
         }
     }
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-search-js="../../../search-index.js"></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-search-index-js="../../../search-index.js" data-search-js="../../../search.js"></div>
     <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script></body></html>

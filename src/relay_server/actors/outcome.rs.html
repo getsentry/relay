@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/outcome.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>outcome.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_server/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/outcome.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>outcome.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_server/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
                 <a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -636,37 +636,37 @@
 <span class="doccomment">//! must be emitted in the entire ingestion pipeline. Since Relay is only one part in this pipeline,</span>
 <span class="doccomment">//! outcomes may not be emitted if the event is accepted.</span>
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">net</span>::<span class="ident">IpAddr</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::<span class="ident">Instant</span>;
+<span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
+<span class="kw">use</span> <span class="ident">std::mem</span>;
+<span class="kw">use</span> <span class="ident">std::net::IpAddr</span>;
+<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
+<span class="kw">use</span> <span class="ident">std::time::Instant</span>;
 
-<span class="kw">use</span> <span class="ident">actix</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">actix_web</span>::<span class="ident">http</span>::<span class="ident">Method</span>;
-<span class="kw">use</span> <span class="ident">chrono</span>::<span class="ident">SecondsFormat</span>;
-<span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">future</span>::<span class="ident">Future</span>;
+<span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">actix_web::http::Method</span>;
+<span class="kw">use</span> <span class="ident">chrono::SecondsFormat</span>;
+<span class="kw">use</span> <span class="ident">futures::future::Future</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">DataCategory</span>, <span class="ident">ProjectId</span>};
-<span class="kw">use</span> <span class="ident">relay_config</span>::<span class="ident">Config</span>;
-<span class="kw">use</span> <span class="ident">relay_filter</span>::<span class="ident">FilterStatKey</span>;
-<span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">protocol</span>::<span class="ident">EventId</span>;
-<span class="kw">use</span> <span class="ident">relay_log</span>::<span class="ident">LogError</span>;
+<span class="kw">use</span> <span class="ident">relay_config::Config</span>;
+<span class="kw">use</span> <span class="ident">relay_filter::FilterStatKey</span>;
+<span class="kw">use</span> <span class="ident">relay_general::protocol::EventId</span>;
+<span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">ReasonCode</span>, <span class="ident">Scoping</span>};
-<span class="kw">use</span> <span class="ident">relay_sampling</span>::<span class="ident">RuleId</span>;
+<span class="kw">use</span> <span class="ident">relay_sampling::RuleId</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">upstream</span>::<span class="ident">SendQuery</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">upstream</span>::{<span class="ident">UpstreamQuery</span>, <span class="ident">UpstreamRelay</span>};
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">ServerError</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::upstream::SendQuery</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::upstream</span>::{<span class="ident">UpstreamQuery</span>, <span class="ident">UpstreamRelay</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::ServerError</span>;
 
 <span class="comment">// Choose the outcome module implementation (either processing or non-processing).</span>
 <span class="comment">// Processing outcome implementation</span>
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">processing</span>::<span class="kw-2">*</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span><span class="ident">::processing</span>::<span class="kw-2">*</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">OutcomeProducer</span> <span class="op">=</span> <span class="ident">processing</span>::<span class="ident">ProcessingOutcomeProducer</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">OutcomeProducer</span> <span class="op">=</span> <span class="ident">processing::ProcessingOutcomeProducer</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>))]</span>
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">OutcomeProducer</span> <span class="op">=</span> <span class="ident">HttpOutcomeProducer</span>;
 
@@ -681,11 +681,11 @@
     <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">SendOutcomesResponse</span>;
 
     <span class="kw">fn</span> <span class="ident">method</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Method</span> {
-        <span class="ident">Method</span>::<span class="ident">POST</span>
+        <span class="ident">Method::POST</span>
     }
 
     <span class="kw">fn</span> <span class="ident">path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="ident">str</span><span class="op">&gt;</span> {
-        <span class="ident">Cow</span>::<span class="ident">Borrowed</span>(<span class="string">&quot;/api/0/relays/outcomes/&quot;</span>)
+        <span class="ident">Cow::Borrowed</span>(<span class="string">&quot;/api/0/relays/outcomes/&quot;</span>)
     }
 
     <span class="kw">fn</span> <span class="ident">retry</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
@@ -755,25 +755,25 @@
 <span class="kw">impl</span> <span class="ident">Outcome</span> {
     <span class="kw">fn</span> <span class="ident">to_outcome_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u8</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Outcome</span>::<span class="ident">Accepted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="number">0</span>,
-            <span class="ident">Outcome</span>::<span class="ident">Filtered</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">Outcome</span>::<span class="ident">FilteredSampling</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="number">1</span>,
-            <span class="ident">Outcome</span>::<span class="ident">RateLimited</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="number">2</span>,
-            <span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="number">3</span>,
-            <span class="ident">Outcome</span>::<span class="ident">Abuse</span> <span class="op">=</span><span class="op">&gt;</span> <span class="number">4</span>,
+            <span class="ident">Outcome::Accepted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="number">0</span>,
+            <span class="ident">Outcome::Filtered</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">Outcome::FilteredSampling</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="number">1</span>,
+            <span class="ident">Outcome::RateLimited</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="number">2</span>,
+            <span class="ident">Outcome::Invalid</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="number">3</span>,
+            <span class="ident">Outcome::Abuse</span> <span class="op">=</span><span class="op">&gt;</span> <span class="number">4</span>,
         }
     }
 
     <span class="kw">fn</span> <span class="ident">to_reason</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Outcome</span>::<span class="ident">Accepted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-            <span class="ident">Outcome</span>::<span class="ident">Invalid</span>(<span class="ident">discard_reason</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Cow</span>::<span class="ident">Borrowed</span>(<span class="ident">discard_reason</span>.<span class="ident">name</span>())),
-            <span class="ident">Outcome</span>::<span class="ident">Filtered</span>(<span class="ident">filter_key</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Cow</span>::<span class="ident">Borrowed</span>(<span class="ident">filter_key</span>.<span class="ident">name</span>())),
-            <span class="ident">Outcome</span>::<span class="ident">FilteredSampling</span>(<span class="ident">rule_id</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Sampled:{}&quot;</span>, <span class="ident">rule_id</span>))),
+            <span class="ident">Outcome::Accepted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">Outcome::Invalid</span>(<span class="ident">discard_reason</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Cow::Borrowed</span>(<span class="ident">discard_reason</span>.<span class="ident">name</span>())),
+            <span class="ident">Outcome::Filtered</span>(<span class="ident">filter_key</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Cow::Borrowed</span>(<span class="ident">filter_key</span>.<span class="ident">name</span>())),
+            <span class="ident">Outcome::FilteredSampling</span>(<span class="ident">rule_id</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Cow::Owned</span>(<span class="macro">format!</span>(<span class="string">&quot;Sampled:{}&quot;</span>, <span class="ident">rule_id</span>))),
             <span class="comment">//TODO can we do better ? (not re copying the string )</span>
-            <span class="ident">Outcome</span>::<span class="ident">RateLimited</span>(<span class="ident">code_opt</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">code_opt</span>
+            <span class="ident">Outcome::RateLimited</span>(<span class="ident">code_opt</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">code_opt</span>
                 .<span class="ident">as_ref</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">code</span><span class="op">|</span> <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">code</span>.<span class="ident">as_str</span>().<span class="ident">into</span>())),
-            <span class="ident">Outcome</span>::<span class="ident">Abuse</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">code</span><span class="op">|</span> <span class="ident">Cow::Owned</span>(<span class="ident">code</span>.<span class="ident">as_str</span>().<span class="ident">into</span>())),
+            <span class="ident">Outcome::Abuse</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 }
@@ -886,35 +886,35 @@
 <span class="kw">impl</span> <span class="ident">DiscardReason</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">DiscardReason</span>::<span class="ident">Duplicate</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;duplicate&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">ProjectId</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_id&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">AuthVersion</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;auth_version&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">AuthClient</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;auth_client&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">NoData</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;no_data&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">TooLarge</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;too_large&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">DisallowedMethod</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;disallowed_method&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">ContentType</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;content_type&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">MultiProjectId</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;multi_project_id&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">MissingMinidumpUpload</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;missing_minidump_upload&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">InvalidMinidump</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_minidump&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">SecurityReportType</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;security_report_type&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">SecurityReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;security_report&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">Cors</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;cors&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">ProcessUnreal</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;process_unreal&quot;</span>,
+            <span class="ident">DiscardReason::Duplicate</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;duplicate&quot;</span>,
+            <span class="ident">DiscardReason::ProjectId</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_id&quot;</span>,
+            <span class="ident">DiscardReason::AuthVersion</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;auth_version&quot;</span>,
+            <span class="ident">DiscardReason::AuthClient</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;auth_client&quot;</span>,
+            <span class="ident">DiscardReason::NoData</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;no_data&quot;</span>,
+            <span class="ident">DiscardReason::TooLarge</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;too_large&quot;</span>,
+            <span class="ident">DiscardReason::DisallowedMethod</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;disallowed_method&quot;</span>,
+            <span class="ident">DiscardReason::ContentType</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;content_type&quot;</span>,
+            <span class="ident">DiscardReason::MultiProjectId</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;multi_project_id&quot;</span>,
+            <span class="ident">DiscardReason::MissingMinidumpUpload</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;missing_minidump_upload&quot;</span>,
+            <span class="ident">DiscardReason::InvalidMinidump</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_minidump&quot;</span>,
+            <span class="ident">DiscardReason::SecurityReportType</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;security_report_type&quot;</span>,
+            <span class="ident">DiscardReason::SecurityReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;security_report&quot;</span>,
+            <span class="ident">DiscardReason::Cors</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;cors&quot;</span>,
+            <span class="ident">DiscardReason::ProcessUnreal</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;process_unreal&quot;</span>,
 
             <span class="comment">// Relay specific reasons (not present in Sentry)</span>
-            <span class="ident">DiscardReason</span>::<span class="ident">Payload</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;payload&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">InvalidJson</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_json&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">InvalidMultipart</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_multipart&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">InvalidMsgpack</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_msgpack&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">InvalidTransaction</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_transaction&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">InvalidEnvelope</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_envelope&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">ProjectState</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">DuplicateItem</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;duplicate_item&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">NoEventPayload</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;no_event_payload&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">Internal</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;internal&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">TransactionSampled</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;transaction_sampled&quot;</span>,
-            <span class="ident">DiscardReason</span>::<span class="ident">EmptyEnvelope</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;empty_envelope&quot;</span>,
+            <span class="ident">DiscardReason::Payload</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;payload&quot;</span>,
+            <span class="ident">DiscardReason::InvalidJson</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_json&quot;</span>,
+            <span class="ident">DiscardReason::InvalidMultipart</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_multipart&quot;</span>,
+            <span class="ident">DiscardReason::InvalidMsgpack</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_msgpack&quot;</span>,
+            <span class="ident">DiscardReason::InvalidTransaction</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_transaction&quot;</span>,
+            <span class="ident">DiscardReason::InvalidEnvelope</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_envelope&quot;</span>,
+            <span class="ident">DiscardReason::ProjectState</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state&quot;</span>,
+            <span class="ident">DiscardReason::DuplicateItem</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;duplicate_item&quot;</span>,
+            <span class="ident">DiscardReason::NoEventPayload</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;no_event_payload&quot;</span>,
+            <span class="ident">DiscardReason::Internal</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;internal&quot;</span>,
+            <span class="ident">DiscardReason::TransactionSampled</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;transaction_sampled&quot;</span>,
+            <span class="ident">DiscardReason::EmptyEnvelope</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;empty_envelope&quot;</span>,
         }
     }
 }
@@ -958,11 +958,11 @@
 <span class="kw">impl</span> <span class="ident">TrackRawOutcome</span> {
     <span class="kw">fn</span> <span class="ident">from_outcome</span>(<span class="ident">msg</span>: <span class="ident">TrackOutcome</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">reason</span> <span class="op">=</span> <span class="ident">msg</span>.<span class="ident">outcome</span>.<span class="ident">to_reason</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">reason</span><span class="op">|</span> <span class="ident">reason</span>.<span class="ident">to_string</span>());
-        <span class="kw">let</span> <span class="ident">date_time</span> <span class="op">=</span> <span class="ident">relay_common</span>::<span class="ident">instant_to_date_time</span>(<span class="ident">msg</span>.<span class="ident">timestamp</span>);
+        <span class="kw">let</span> <span class="ident">date_time</span> <span class="op">=</span> <span class="ident">relay_common::instant_to_date_time</span>(<span class="ident">msg</span>.<span class="ident">timestamp</span>);
 
         <span class="comment">// convert to a RFC 3339 formatted date with the shape YYYY-MM-DDTHH:MM:SS.mmmmmmZ</span>
         <span class="comment">// e.g. something like: &quot;2019-09-29T09:46:40.123456Z&quot;</span>
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">date_time</span>.<span class="ident">to_rfc3339_opts</span>(<span class="ident">SecondsFormat</span>::<span class="ident">Micros</span>, <span class="bool-val">true</span>);
+        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">date_time</span>.<span class="ident">to_rfc3339_opts</span>(<span class="ident">SecondsFormat::Micros</span>, <span class="bool-val">true</span>);
 
         <span class="kw">let</span> <span class="ident">org_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">msg</span>.<span class="ident">scoping</span>.<span class="ident">organization_id</span> {
             <span class="number">0</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
@@ -971,7 +971,7 @@
 
         <span class="comment">// since TrackOutcome objects come only from this Relay (and not any downstream</span>
         <span class="comment">// Relays), set the source to whatever our current outcome source is.</span>
-        <span class="kw">let</span> <span class="ident">source</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">outcome_source</span>().<span class="ident">map</span>(<span class="ident">str</span>::<span class="ident">to_owned</span>);
+        <span class="kw">let</span> <span class="ident">source</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">outcome_source</span>().<span class="ident">map</span>(<span class="ident">str::to_owned</span>);
 
         <span class="ident">TrackRawOutcome</span> {
             <span class="ident">timestamp</span>,
@@ -999,17 +999,17 @@
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">use</span> <span class="ident">failure</span>::{<span class="ident">Fail</span>, <span class="ident">ResultExt</span>};
-    <span class="kw">use</span> <span class="ident">rdkafka</span>::<span class="ident">error</span>::<span class="ident">KafkaError</span>;
-    <span class="kw">use</span> <span class="ident">rdkafka</span>::<span class="ident">producer</span>::<span class="ident">BaseRecord</span>;
-    <span class="kw">use</span> <span class="ident">rdkafka</span>::<span class="ident">ClientConfig</span>;
-    <span class="kw">use</span> <span class="ident">serde_json</span>::<span class="ident">Error</span> <span class="kw">as</span> <span class="ident">SerdeSerializationError</span>;
+    <span class="kw">use</span> <span class="ident">rdkafka::error::KafkaError</span>;
+    <span class="kw">use</span> <span class="ident">rdkafka::producer::BaseRecord</span>;
+    <span class="kw">use</span> <span class="ident">rdkafka::ClientConfig</span>;
+    <span class="kw">use</span> <span class="ident">serde_json::Error</span> <span class="kw">as</span> <span class="ident">SerdeSerializationError</span>;
 
-    <span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">metric</span>;
-    <span class="kw">use</span> <span class="ident">relay_config</span>::<span class="ident">KafkaTopic</span>;
+    <span class="kw">use</span> <span class="ident">relay_common::metric</span>;
+    <span class="kw">use</span> <span class="ident">relay_config::KafkaTopic</span>;
 
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">metrics</span>::<span class="ident">RelayCounters</span>;
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">service</span>::<span class="ident">ServerErrorKind</span>;
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">utils</span>::{<span class="ident">CaptureErrorContext</span>, <span class="ident">ThreadedProducer</span>};
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::metrics::RelayCounters</span>;
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::service::ServerErrorKind</span>;
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::utils</span>::{<span class="ident">CaptureErrorContext</span>, <span class="ident">ThreadedProducer</span>};
 
     <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Fail</span>, <span class="ident">Debug</span>)]</span>
     <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">OutcomeError</span> {
@@ -1044,19 +1044,19 @@
             <span class="ident">upstream</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">UpstreamRelay</span><span class="op">&gt;</span>,
         ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
             <span class="kw">let</span> (<span class="ident">future_producer</span>, <span class="ident">http_producer</span>) <span class="op">=</span> <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">processing_enabled</span>() {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">client_config</span> <span class="op">=</span> <span class="ident">ClientConfig</span>::<span class="ident">new</span>();
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">client_config</span> <span class="op">=</span> <span class="ident">ClientConfig::new</span>();
                 <span class="kw">for</span> <span class="ident">config_p</span> <span class="kw">in</span> <span class="ident">config</span>.<span class="ident">kafka_config</span>() {
                     <span class="ident">client_config</span>.<span class="ident">set</span>(<span class="ident">config_p</span>.<span class="ident">name</span>.<span class="ident">as_str</span>(), <span class="ident">config_p</span>.<span class="ident">value</span>.<span class="ident">as_str</span>());
                 }
                 <span class="kw">let</span> <span class="ident">future_producer</span> <span class="op">=</span> <span class="ident">client_config</span>
                     .<span class="ident">create_with_context</span>(<span class="ident">CaptureErrorContext</span>)
-                    .<span class="ident">context</span>(<span class="ident">ServerErrorKind</span>::<span class="ident">KafkaError</span>)<span class="question-mark">?</span>;
+                    .<span class="ident">context</span>(<span class="ident">ServerErrorKind::KafkaError</span>)<span class="question-mark">?</span>;
                 (<span class="prelude-val">Some</span>(<span class="ident">future_producer</span>), <span class="prelude-val">None</span>)
             } <span class="kw">else</span> {
-                <span class="kw">let</span> <span class="ident">http_producer</span> <span class="op">=</span> <span class="ident">HttpOutcomeProducer</span>::<span class="ident">create</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">upstream</span>)
+                <span class="kw">let</span> <span class="ident">http_producer</span> <span class="op">=</span> <span class="ident">HttpOutcomeProducer::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">upstream</span>)
                     .<span class="ident">map</span>(<span class="op">|</span><span class="ident">producer</span><span class="op">|</span> <span class="ident">producer</span>.<span class="ident">start</span>())
                     .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">error</span><span class="op">|</span> {
-                        <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;Failed to start http producer: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
+                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;Failed to start http producer: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
                         <span class="ident">error</span>
                     })
                     .<span class="ident">ok</span>();
@@ -1071,7 +1071,7 @@
         }
 
         <span class="kw">fn</span> <span class="ident">send_kafka_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">OutcomeError</span><span class="op">&gt;</span> {
-            <span class="ident">relay_log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;Tracking kafka outcome: {:?}&quot;</span>, <span class="ident">message</span>);
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Tracking kafka outcome: {:?}&quot;</span>, <span class="ident">message</span>);
 
             <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">producer</span> {
                 <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">producer</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">producer</span>,
@@ -1079,10 +1079,10 @@
             };
 
             <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span>
-                <span class="ident">serde_json</span>::<span class="ident">to_string</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>).<span class="ident">map_err</span>(<span class="ident">OutcomeError</span>::<span class="ident">SerializationError</span>)<span class="question-mark">?</span>;
+                <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>).<span class="ident">map_err</span>(<span class="ident">OutcomeError::SerializationError</span>)<span class="question-mark">?</span>;
 
-            <span class="macro">metric</span><span class="macro">!</span>(
-                <span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">Outcomes</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
+            <span class="macro">metric!</span>(
+                <span class="ident">counter</span>(<span class="ident">RelayCounters::Outcomes</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
                 <span class="ident">reason</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">reason</span>.<span class="ident">as_deref</span>().<span class="ident">unwrap_or</span>(<span class="string">&quot;&quot;</span>),
                 <span class="ident">outcome</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">tag_name</span>(),
                 <span class="ident">to</span> <span class="op">=</span> <span class="string">&quot;kafka&quot;</span>,
@@ -1092,31 +1092,31 @@
             <span class="comment">// Here we create a fake EventId, when we don&#39;t have the real one, so that we can</span>
             <span class="comment">// create a kafka message key that spreads the events nicely over all the</span>
             <span class="comment">// kafka consumer groups.</span>
-            <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">event_id</span>.<span class="ident">unwrap_or_else</span>(<span class="ident">EventId</span>::<span class="ident">new</span>).<span class="number">0</span>;
+            <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">event_id</span>.<span class="ident">unwrap_or_else</span>(<span class="ident">EventId::new</span>).<span class="number">0</span>;
 
-            <span class="kw">let</span> <span class="ident">record</span> <span class="op">=</span> <span class="ident">BaseRecord</span>::<span class="ident">to</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">kafka_topic_name</span>(<span class="ident">KafkaTopic</span>::<span class="ident">Outcomes</span>))
+            <span class="kw">let</span> <span class="ident">record</span> <span class="op">=</span> <span class="ident">BaseRecord::to</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">kafka_topic_name</span>(<span class="ident">KafkaTopic::Outcomes</span>))
                 .<span class="ident">payload</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>)
                 .<span class="ident">key</span>(<span class="ident">key</span>.<span class="ident">as_bytes</span>().<span class="ident">as_ref</span>());
 
             <span class="kw">match</span> <span class="ident">producer</span>.<span class="ident">send</span>(<span class="ident">record</span>) {
                 <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
-                <span class="prelude-val">Err</span>((<span class="ident">kafka_error</span>, <span class="ident">_message</span>)) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">OutcomeError</span>::<span class="ident">SendFailed</span>(<span class="ident">kafka_error</span>)),
+                <span class="prelude-val">Err</span>((<span class="ident">kafka_error</span>, <span class="ident">_message</span>)) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">OutcomeError::SendFailed</span>(<span class="ident">kafka_error</span>)),
             }
         }
 
         <span class="kw">fn</span> <span class="ident">send_http_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>) {
-            <span class="ident">relay_log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;Tracking http outcome: {:?}&quot;</span>, <span class="ident">message</span>);
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Tracking http outcome: {:?}&quot;</span>, <span class="ident">message</span>);
 
             <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">http_producer</span> {
                 <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">producer</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">producer</span>,
                 <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> {
-                    <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;send_http_message called with invalid http_producer&quot;</span>);
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;send_http_message called with invalid http_producer&quot;</span>);
                     <span class="kw">return</span>;
                 }
             };
 
-            <span class="macro">metric</span><span class="macro">!</span>(
-                <span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">Outcomes</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
+            <span class="macro">metric!</span>(
+                <span class="ident">counter</span>(<span class="ident">RelayCounters::Outcomes</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
                 <span class="ident">reason</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">reason</span>.<span class="ident">as_deref</span>().<span class="ident">unwrap_or</span>(<span class="string">&quot;&quot;</span>),
                 <span class="ident">outcome</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">tag_name</span>(),
                 <span class="ident">to</span> <span class="op">=</span> <span class="string">&quot;http&quot;</span>,
@@ -1129,32 +1129,32 @@
     <span class="kw">impl</span> <span class="ident">Actor</span> <span class="kw">for</span> <span class="ident">ProcessingOutcomeProducer</span> {
         <span class="kw">type</span> <span class="ident">Context</span> <span class="op">=</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
 
-        <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) {
+        <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) {
             <span class="comment">// Set the mailbox size to the size of the envelope buffer. This is a rough estimate but</span>
             <span class="comment">// should ensure that we&#39;re not dropping outcomes unintentionally.</span>
             <span class="kw">let</span> <span class="ident">mailbox_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">envelope_buffer_size</span>() <span class="kw">as</span> <span class="ident">usize</span>;
             <span class="ident">context</span>.<span class="ident">set_mailbox_capacity</span>(<span class="ident">mailbox_size</span>);
 
-            <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;OutcomeProducer started.&quot;</span>);
+            <span class="macro">relay_log::info!</span>(<span class="string">&quot;OutcomeProducer started.&quot;</span>);
         }
 
-        <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) {
-            <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;OutcomeProducer stopped.&quot;</span>);
+        <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) {
+            <span class="macro">relay_log::info!</span>(<span class="string">&quot;OutcomeProducer stopped.&quot;</span>);
         }
     }
 
     <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">TrackOutcome</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ProcessingOutcomeProducer</span> {
         <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">OutcomeError</span><span class="op">&gt;</span>;
 
-        <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackOutcome</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
-            <span class="self">self</span>.<span class="ident">handle</span>(<span class="ident">TrackRawOutcome</span>::<span class="ident">from_outcome</span>(<span class="ident">message</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>), <span class="ident">_ctx</span>)
+        <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackOutcome</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
+            <span class="self">self</span>.<span class="ident">handle</span>(<span class="ident">TrackRawOutcome::from_outcome</span>(<span class="ident">message</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>), <span class="ident">_ctx</span>)
         }
     }
 
     <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">TrackRawOutcome</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ProcessingOutcomeProducer</span> {
         <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">OutcomeError</span><span class="op">&gt;</span>;
-        <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
-            <span class="ident">relay_log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;handling outcome&quot;</span>);
+        <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;handling outcome&quot;</span>);
             <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>() {
                 <span class="self">self</span>.<span class="ident">send_kafka_message</span>(<span class="ident">message</span>)
             } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">emit_outcomes</span>() {
@@ -1185,7 +1185,7 @@
         <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
             <span class="ident">config</span>,
             <span class="ident">upstream</span>,
-            <span class="ident">unsent_outcomes</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
+            <span class="ident">unsent_outcomes</span>: <span class="ident">Vec::new</span>(),
             <span class="ident">pending_flush_handle</span>: <span class="prelude-val">None</span>,
         })
     }
@@ -1198,31 +1198,31 @@
         <span class="self">self</span>.<span class="ident">pending_flush_handle</span> <span class="op">=</span> <span class="prelude-val">None</span>;
 
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">unsent_outcomes</span>.<span class="ident">is_empty</span>() {
-            <span class="ident">relay_log</span>::<span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;unexpected send_batch scheduled with no outcomes to send.&quot;</span>);
+            <span class="macro">relay_log::warn!</span>(<span class="string">&quot;unexpected send_batch scheduled with no outcomes to send.&quot;</span>);
             <span class="kw">return</span>;
         } <span class="kw">else</span> {
-            <span class="ident">relay_log</span>::<span class="macro">trace</span><span class="macro">!</span>(
+            <span class="macro">relay_log::trace!</span>(
                 <span class="string">&quot;sending outcome batch of size:{}&quot;</span>,
                 <span class="self">self</span>.<span class="ident">unsent_outcomes</span>.<span class="ident">len</span>()
             );
         }
 
         <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">SendOutcomes</span> {
-            <span class="ident">outcomes</span>: <span class="ident">mem</span>::<span class="ident">take</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">unsent_outcomes</span>),
+            <span class="ident">outcomes</span>: <span class="ident">mem::take</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">unsent_outcomes</span>),
         };
 
         <span class="self">self</span>.<span class="ident">upstream</span>
             .<span class="ident">send</span>(<span class="ident">SendQuery</span>(<span class="ident">request</span>))
-            .<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">relay_log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;outcome batch sent.&quot;</span>))
+            .<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="macro">relay_log::trace!</span>(<span class="string">&quot;outcome batch sent.&quot;</span>))
             .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">error</span><span class="op">|</span> {
-                <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;outcome batch sending failed with: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>))
+                <span class="macro">relay_log::error!</span>(<span class="string">&quot;outcome batch sending failed with: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>))
             })
             .<span class="ident">into_actor</span>(<span class="self">self</span>)
             .<span class="ident">spawn</span>(<span class="ident">context</span>);
     }
 
     <span class="kw">fn</span> <span class="ident">send_http_message</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) {
-        <span class="ident">relay_log</span>::<span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;Batching outcome&quot;</span>);
+        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Batching outcome&quot;</span>);
         <span class="self">self</span>.<span class="ident">unsent_outcomes</span>.<span class="ident">push</span>(<span class="ident">message</span>);
 
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">unsent_outcomes</span>.<span class="ident">len</span>() <span class="op">&gt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">outcome_batch_size</span>() {
@@ -1233,7 +1233,7 @@
             <span class="self">self</span>.<span class="ident">send_batch</span>(<span class="ident">context</span>)
         } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">pending_flush_handle</span>.<span class="ident">is_none</span>() {
             <span class="self">self</span>.<span class="ident">pending_flush_handle</span> <span class="op">=</span>
-                <span class="prelude-val">Some</span>(<span class="ident">context</span>.<span class="ident">run_later</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">outcome_batch_interval</span>(), <span class="self">Self</span>::<span class="ident">send_batch</span>));
+                <span class="prelude-val">Some</span>(<span class="ident">context</span>.<span class="ident">run_later</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">outcome_batch_interval</span>(), <span class="self">Self</span><span class="ident">::send_batch</span>));
         }
     }
 }
@@ -1244,7 +1244,7 @@
 
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">TrackRawOutcome</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HttpOutcomeProducer</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">OutcomeError</span><span class="op">&gt;</span>;
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">emit_outcomes</span>() {
             <span class="self">self</span>.<span class="ident">send_http_message</span>(<span class="ident">message</span>, <span class="ident">ctx</span>);
         }
@@ -1256,10 +1256,10 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">TrackOutcome</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HttpOutcomeProducer</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">OutcomeError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackOutcome</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
-        <span class="self">self</span>.<span class="ident">handle</span>(<span class="ident">TrackRawOutcome</span>::<span class="ident">from_outcome</span>(<span class="ident">message</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>), <span class="ident">_ctx</span>)
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackOutcome</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
+        <span class="self">self</span>.<span class="ident">handle</span>(<span class="ident">TrackRawOutcome::from_outcome</span>(<span class="ident">message</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>), <span class="ident">_ctx</span>)
     }
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-search-js="../../../search-index.js"></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-search-index-js="../../../search-index.js" data-search-js="../../../search.js"></div>
     <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script></body></html>

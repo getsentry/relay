@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/debugmeta.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>debugmeta.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/debugmeta.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>debugmeta.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
                 <a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -866,31 +866,31 @@
 <span id="865">865</span>
 <span id="866">866</span>
 </pre><div class="example-wrap"><pre class="rust ">
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::{<span class="ident">Deref</span>, <span class="ident">DerefMut</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">FromStr</span>;
+<span class="kw">use</span> <span class="ident">std::fmt</span>;
+<span class="kw">use</span> <span class="ident">std::ops</span>::{<span class="ident">Deref</span>, <span class="ident">DerefMut</span>};
+<span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">schemars</span>::<span class="ident">gen</span>::<span class="ident">SchemaGenerator</span>;
+<span class="kw">use</span> <span class="ident">schemars::gen::SchemaGenerator</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">schemars</span>::<span class="ident">schema</span>::<span class="ident">Schema</span>;
+<span class="kw">use</span> <span class="ident">schemars::schema::Schema</span>;
 
-<span class="kw">use</span> <span class="ident">enumset</span>::<span class="ident">EnumSet</span>;
+<span class="kw">use</span> <span class="ident">enumset::EnumSet</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
-<span class="kw">use</span> <span class="ident">uuid</span>::<span class="ident">Uuid</span>;
+<span class="kw">use</span> <span class="ident">uuid::Uuid</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">processor</span>::{<span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>, <span class="ident">ValueType</span>};
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">protocol</span>::<span class="ident">Addr</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::{
-    <span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">Empty</span>, <span class="ident">Error</span>, <span class="ident">FromValue</span>, <span class="ident">Meta</span>, <span class="ident">Object</span>, <span class="ident">ProcessingResult</span>, <span class="ident">SkipSerialization</span>,
-    <span class="ident">ToValue</span>, <span class="ident">Value</span>,
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::processor</span>::{<span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>, <span class="ident">ValueType</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::protocol::Addr</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types</span>::{
+    <span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">Empty</span>, <span class="ident">Error</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">Meta</span>, <span class="ident">Object</span>, <span class="ident">ProcessingResult</span>,
+    <span class="ident">SkipSerialization</span>, <span class="ident">Value</span>,
 };
 
 <span class="doccomment">/// A type for strings that are generally paths, might contain system user names, but still cannot</span>
 <span class="doccomment">/// be stripped liberally because it would break processing for certain platforms.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Those strings get special treatment in our PII processor to avoid stripping the basename.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">FromValue</span>, <span class="ident">ToValue</span>, <span class="ident">Empty</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">Empty</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NativeImagePath</span>(<span class="kw">pub</span> <span class="ident">String</span>);
 
@@ -915,7 +915,7 @@
         <span class="comment">// Also decided against exposing a $filepath (&quot;things that may contain filenames&quot;) because</span>
         <span class="comment">// ruletypes/regexes are better suited for this, and in the case of $frame.package (where</span>
         <span class="comment">// it depends on platform) it&#39;s really not that useful.</span>
-        <span class="ident">EnumSet</span>::<span class="ident">only</span>(<span class="ident">ValueType</span>::<span class="ident">String</span>)
+        <span class="ident">EnumSet::only</span>(<span class="ident">ValueType::String</span>)
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
@@ -947,7 +947,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// This is relevant for iOS and other platforms that have a system</span>
 <span class="doccomment">/// SDK.  Not to be confused with the client SDK.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">ToValue</span>, <span class="ident">ProcessValue</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SystemSdkInfo</span> {
     <span class="doccomment">/// The internal name of the SDK.</span>
@@ -970,7 +970,7 @@
 <span class="doccomment">/// Legacy apple debug images (MachO).</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// This was also used for non-apple platforms with similar debug setups.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">ToValue</span>, <span class="ident">ProcessValue</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AppleDebugImage</span> {
     <span class="doccomment">/// Path and name of the debug image (required).</span>
@@ -1006,16 +1006,16 @@
     <span class="kw">pub</span> <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
 }
 
-<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">impl_traits</span> {
+<span class="macro">macro_rules!</span> <span class="ident">impl_traits</span> {
     (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">inner</span>:<span class="ident">path</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>:<span class="ident">literal</span>) <span class="op">=</span><span class="op">&gt;</span> {
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
-        <span class="kw">impl</span> <span class="ident">schemars</span>::<span class="ident">JsonSchema</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
+        <span class="kw">impl</span> <span class="ident">schemars::JsonSchema</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
             <span class="kw">fn</span> <span class="macro-nonterminal">schema_name</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
-                <span class="macro">stringify</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="kw">type</span>).<span class="macro-nonterminal">to_owned</span>()
+                <span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="kw">type</span>).<span class="macro-nonterminal">to_owned</span>()
             }
 
             <span class="kw">fn</span> <span class="ident">json_schema</span>(<span class="ident">gen</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SchemaGenerator</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Schema</span> {
-                <span class="ident">String</span>::<span class="ident">json_schema</span>(<span class="ident">gen</span>)
+                <span class="ident">String::json_schema</span>(<span class="ident">gen</span>)
             }
         }
 
@@ -1029,16 +1029,16 @@
         <span class="kw">impl</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
             <span class="kw">fn</span> <span class="macro-nonterminal">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
                 <span class="kw">match</span> <span class="ident">value</span> {
-                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="ident">value</span>)), <span class="kw-2">mut</span> <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">value</span>.<span class="ident">parse</span>() {
+                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::String</span>(<span class="ident">value</span>)), <span class="kw-2">mut</span> <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">value</span>.<span class="ident">parse</span>() {
                         <span class="prelude-val">Ok</span>(<span class="ident">value</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="ident">meta</span>),
                         <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                            <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error</span>::<span class="ident">invalid</span>(<span class="ident">err</span>));
+                            <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::invalid</span>(<span class="ident">err</span>));
                             <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
                             <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
                         }
                     },
                     <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                        <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error</span>::<span class="ident">expected</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>));
+                        <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>));
                         <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
                         <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
                     }
@@ -1047,49 +1047,49 @@
             }
         }
 
-        <span class="kw">impl</span> <span class="ident">ToValue</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">to_value</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Value</span> {
-                <span class="ident">Value</span>::<span class="ident">String</span>(<span class="self">self</span>.<span class="ident">to_string</span>())
+        <span class="kw">impl</span> <span class="ident">IntoValue</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
+            <span class="kw">fn</span> <span class="macro-nonterminal">into_value</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Value</span> {
+                <span class="ident">Value::String</span>(<span class="self">self</span>.<span class="ident">to_string</span>())
             }
 
             <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
                 <span class="ident">s</span>: <span class="ident">S</span>,
                 <span class="ident">_behavior</span>: <span class="ident">SkipSerialization</span>,
-            ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+            ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
             <span class="kw">where</span>
-                <span class="ident">S</span>: <span class="ident">serde</span>::<span class="ident">Serializer</span>,
+                <span class="ident">S</span>: <span class="ident">serde::Serializer</span>,
             {
-                <span class="ident">serde</span>::<span class="ident">Serialize</span>::<span class="ident">serialize</span>(<span class="self">self</span>, <span class="ident">s</span>)
+                <span class="ident">serde::Serialize::serialize</span>(<span class="self">self</span>, <span class="ident">s</span>)
             }
         }
 
         <span class="kw">impl</span> <span class="ident">ProcessValue</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {}
 
-        <span class="kw">impl</span> <span class="macro-nonterminal">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="kw">impl</span> <span class="macro-nonterminal">fmt::Display</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
+            <span class="kw">fn</span> <span class="macro-nonterminal">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
                 <span class="self">self</span>.<span class="number">0</span>.<span class="ident">fmt</span>(<span class="ident">f</span>)
             }
         }
 
         <span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">inner</span> <span class="kw">as</span> <span class="ident">FromStr</span><span class="op">&gt;</span>::<span class="prelude-val">Err</span>;
+            <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">inner</span> <span class="kw">as</span> <span class="ident">FromStr</span><span class="op">&gt;</span><span class="ident">::Err</span>;
 
-            <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="self">Self</span>::<span class="prelude-val">Err</span><span class="op">&gt;</span> {
-                <span class="ident">FromStr</span>::<span class="ident">from_str</span>(<span class="ident">s</span>).<span class="ident">map</span>(<span class="macro-nonterminal">$</span><span class="kw">type</span>)
+            <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="self">Self</span><span class="ident">::Err</span><span class="op">&gt;</span> {
+                <span class="ident">FromStr::from_str</span>(<span class="ident">s</span>).<span class="ident">map</span>(<span class="macro-nonterminal">$</span><span class="kw">type</span>)
             }
         }
 
         <span class="kw">impl</span> <span class="macro-nonterminal">Deref</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
             <span class="kw">type</span> <span class="macro-nonterminal">Target</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">inner</span>;
 
-            <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">Self</span>::<span class="ident">Target</span> {
+            <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">Self</span><span class="ident">::Target</span> {
                 <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
             }
         }
 
         <span class="kw">impl</span> <span class="ident">DerefMut</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">deref_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Target</span> {
+            <span class="kw">fn</span> <span class="macro-nonterminal">deref_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Target</span> {
                 <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="number">0</span>
             }
         }
@@ -1097,17 +1097,17 @@
 }
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">DebugId</span>(<span class="kw">pub</span> <span class="ident">debugid</span>::<span class="ident">DebugId</span>);
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">DebugId</span>(<span class="kw">pub</span> <span class="ident">debugid::DebugId</span>);
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CodeId</span>(<span class="kw">pub</span> <span class="ident">debugid</span>::<span class="ident">CodeId</span>);
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CodeId</span>(<span class="kw">pub</span> <span class="ident">debugid::CodeId</span>);
 
-<span class="macro">impl_traits</span><span class="macro">!</span>(<span class="ident">CodeId</span>, <span class="ident">debugid</span>::<span class="ident">CodeId</span>, <span class="string">&quot;a code identifier&quot;</span>);
-<span class="macro">impl_traits</span><span class="macro">!</span>(<span class="ident">DebugId</span>, <span class="ident">debugid</span>::<span class="ident">DebugId</span>, <span class="string">&quot;a debug identifier&quot;</span>);
+<span class="macro">impl_traits!</span>(<span class="ident">CodeId</span>, <span class="ident">debugid::CodeId</span>, <span class="string">&quot;a code identifier&quot;</span>);
+<span class="macro">impl_traits!</span>(<span class="ident">DebugId</span>, <span class="ident">debugid::DebugId</span>, <span class="string">&quot;a debug identifier&quot;</span>);
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DebugId</span>
 <span class="kw">where</span>
-    <span class="ident">debugid</span>::<span class="ident">DebugId</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
+    <span class="ident">debugid::DebugId</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
 {
     <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">t</span>: <span class="ident">T</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="ident">DebugId</span>(<span class="ident">t</span>.<span class="ident">into</span>())
@@ -1116,7 +1116,7 @@
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">CodeId</span>
 <span class="kw">where</span>
-    <span class="ident">debugid</span>::<span class="ident">CodeId</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
+    <span class="ident">debugid::CodeId</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
 {
     <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">t</span>: <span class="ident">T</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="ident">CodeId</span>(<span class="ident">t</span>.<span class="ident">into</span>())
@@ -1172,7 +1172,7 @@
 <span class="doccomment">///   &quot;arch&quot;: &quot;x86_64&quot;,</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">ToValue</span>, <span class="ident">ProcessValue</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NativeDebugImage</span> {
     <span class="doccomment">/// Optional identifier of the code file.</span>
@@ -1274,7 +1274,7 @@
 <span class="doccomment">/// Proguard mapping file.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Proguard images refer to `mapping.txt` files generated when Proguard obfuscates function names. The Java SDK integrations assign this file a unique identifier, which has to be included in the list of images.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">ToValue</span>, <span class="ident">ProcessValue</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProguardDebugImage</span> {
     <span class="doccomment">/// UUID computed from the file contents, assigned by the Java SDK.</span>
@@ -1287,7 +1287,7 @@
 }
 
 <span class="doccomment">/// A debug information file (debug image).</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">ToValue</span>, <span class="ident">ProcessValue</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
 <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">process_func</span> <span class="op">=</span> <span class="string">&quot;process_debug_image&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">DebugImage</span> {
@@ -1330,7 +1330,7 @@
 <span class="doccomment">///   }</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">ToValue</span>, <span class="ident">ProcessValue</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
 <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">process_func</span> <span class="op">=</span> <span class="string">&quot;process_debug_meta&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">DebugMeta</span> {
@@ -1349,7 +1349,7 @@
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::<span class="ident">Map</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types::Map</span>;
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_debug_image_proguard_roundtrip</span>() {
@@ -1358,20 +1358,20 @@
   &quot;other&quot;: &quot;value&quot;,
   &quot;type&quot;: &quot;proguard&quot;
 }&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">DebugImage</span>::<span class="ident">Proguard</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">ProguardDebugImage</span> {
-        <span class="ident">uuid</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;395835f4-03e0-4436-80d3-136f0749a893&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Proguard</span>(<span class="ident">Box::new</span>(<span class="ident">ProguardDebugImage</span> {
+        <span class="ident">uuid</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;395835f4-03e0-4436-80d3-136f0749a893&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
         <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
             <span class="ident">map</span>.<span class="ident">insert</span>(
                 <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
             );
             <span class="ident">map</span>
         },
     })));
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">image</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1389,27 +1389,27 @@
   &quot;type&quot;: &quot;apple&quot;
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">DebugImage</span>::<span class="ident">Apple</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">AppleDebugImage</span> {
-        <span class="ident">name</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;CoreFoundation&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">arch</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">cpu_type</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="number">1233</span>),
-        <span class="ident">cpu_subtype</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="number">3</span>),
-        <span class="ident">image_addr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-        <span class="ident">image_size</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="number">4096</span>),
-        <span class="ident">image_vmaddr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
-        <span class="ident">uuid</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;494f3aea-88fa-4296-9644-fa8ef5d139b6&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Apple</span>(<span class="ident">Box::new</span>(<span class="ident">AppleDebugImage</span> {
+        <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;CoreFoundation&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">cpu_type</span>: <span class="ident">Annotated::new</span>(<span class="number">1233</span>),
+        <span class="ident">cpu_subtype</span>: <span class="ident">Annotated::new</span>(<span class="number">3</span>),
+        <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
+        <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
+        <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
+        <span class="ident">uuid</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;494f3aea-88fa-4296-9644-fa8ef5d139b6&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
         <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
             <span class="ident">map</span>.<span class="ident">insert</span>(
                 <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
             );
             <span class="ident">map</span>
         },
     })));
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">image</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1422,16 +1422,16 @@
   &quot;type&quot;: &quot;apple&quot;
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">DebugImage</span>::<span class="ident">Apple</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">AppleDebugImage</span> {
-        <span class="ident">name</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;CoreFoundation&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">image_addr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-        <span class="ident">image_size</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="number">4096</span>),
-        <span class="ident">uuid</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;494f3aea-88fa-4296-9644-fa8ef5d139b6&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-        ..<span class="ident">Default</span>::<span class="ident">default</span>()
+    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Apple</span>(<span class="ident">Box::new</span>(<span class="ident">AppleDebugImage</span> {
+        <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;CoreFoundation&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
+        <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
+        <span class="ident">uuid</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;494f3aea-88fa-4296-9644-fa8ef5d139b6&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+        ..<span class="ident">Default::default</span>()
     })));
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">image</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1449,27 +1449,27 @@
   &quot;type&quot;: &quot;symbolic&quot;
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">DebugImage</span>::<span class="ident">Symbolic</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">NativeDebugImage</span> {
-        <span class="ident">code_id</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;59b0d8f3183000&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-        <span class="ident">code_file</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.<span class="ident">into</span>()),
-        <span class="ident">debug_id</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-        <span class="ident">debug_file</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;wntdll.pdb&quot;</span>.<span class="ident">into</span>()),
-        <span class="ident">arch</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">image_addr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-        <span class="ident">image_size</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="number">4096</span>),
-        <span class="ident">image_vmaddr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
+    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Symbolic</span>(<span class="ident">Box::new</span>(<span class="ident">NativeDebugImage</span> {
+        <span class="ident">code_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;59b0d8f3183000&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+        <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.<span class="ident">into</span>()),
+        <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+        <span class="ident">debug_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;wntdll.pdb&quot;</span>.<span class="ident">into</span>()),
+        <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
+        <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
+        <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
         <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
             <span class="ident">map</span>.<span class="ident">insert</span>(
                 <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
             );
             <span class="ident">map</span>
         },
     })));
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">image</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1485,26 +1485,26 @@
   &quot;type&quot;: &quot;symbolic&quot;
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">DebugImage</span>::<span class="ident">Symbolic</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">NativeDebugImage</span> {
-        <span class="ident">code_id</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-        <span class="ident">code_file</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;CoreFoundation&quot;</span>.<span class="ident">into</span>()),
-        <span class="ident">debug_id</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;494f3aea-88fa-4296-9644-fa8ef5d139b6-1234&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-        <span class="ident">debug_file</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-        <span class="ident">arch</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">image_addr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-        <span class="ident">image_size</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="number">4096</span>),
-        <span class="ident">image_vmaddr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
+    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Symbolic</span>(<span class="ident">Box::new</span>(<span class="ident">NativeDebugImage</span> {
+        <span class="ident">code_id</span>: <span class="ident">Annotated::empty</span>(),
+        <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;CoreFoundation&quot;</span>.<span class="ident">into</span>()),
+        <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;494f3aea-88fa-4296-9644-fa8ef5d139b6-1234&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+        <span class="ident">debug_file</span>: <span class="ident">Annotated::empty</span>(),
+        <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
+        <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
+        <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
         <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
             <span class="ident">map</span>.<span class="ident">insert</span>(
                 <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
             );
             <span class="ident">map</span>
         },
     })));
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">image</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1517,20 +1517,20 @@
   &quot;type&quot;: &quot;symbolic&quot;
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">DebugImage</span>::<span class="ident">Symbolic</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">NativeDebugImage</span> {
-        <span class="ident">code_file</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;CoreFoundation&quot;</span>.<span class="ident">into</span>()),
-        <span class="ident">debug_id</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(
+    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Symbolic</span>(<span class="ident">Box::new</span>(<span class="ident">NativeDebugImage</span> {
+        <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;CoreFoundation&quot;</span>.<span class="ident">into</span>()),
+        <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(
             <span class="string">&quot;494f3aea-88fa-4296-9644-fa8ef5d139b6-1234&quot;</span>
                 .<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">DebugId</span><span class="op">&gt;</span>()
                 .<span class="ident">unwrap</span>(),
         ),
-        <span class="ident">image_addr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-        <span class="ident">image_size</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="number">4096</span>),
-        ..<span class="ident">Default</span>::<span class="ident">default</span>()
+        <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
+        <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
+        ..<span class="ident">Default::default</span>()
     })));
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">image</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1547,27 +1547,27 @@
   &quot;type&quot;: &quot;elf&quot;
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">DebugImage</span>::<span class="ident">Elf</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">NativeDebugImage</span> {
-        <span class="ident">code_id</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;f1c3bcc0279865fe3058404b2831d9e64135386c&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-        <span class="ident">code_file</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;crash&quot;</span>.<span class="ident">into</span>()),
-        <span class="ident">debug_id</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;c0bcc3f1-9827-fe65-3058-404b2831d9e6&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-        <span class="ident">debug_file</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-        <span class="ident">arch</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">image_addr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-        <span class="ident">image_size</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="number">4096</span>),
-        <span class="ident">image_vmaddr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
+    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Elf</span>(<span class="ident">Box::new</span>(<span class="ident">NativeDebugImage</span> {
+        <span class="ident">code_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;f1c3bcc0279865fe3058404b2831d9e64135386c&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+        <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;crash&quot;</span>.<span class="ident">into</span>()),
+        <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;c0bcc3f1-9827-fe65-3058-404b2831d9e6&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+        <span class="ident">debug_file</span>: <span class="ident">Annotated::empty</span>(),
+        <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
+        <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
+        <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
         <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
             <span class="ident">map</span>.<span class="ident">insert</span>(
                 <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
             );
             <span class="ident">map</span>
         },
     })));
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">image</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1584,26 +1584,26 @@
   &quot;type&quot;: &quot;macho&quot;
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">DebugImage</span>::<span class="ident">MachO</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">NativeDebugImage</span> {
-        <span class="ident">code_id</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;67E9247C-814E-392B-A027-DBDE6748FCBF&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-        <span class="ident">code_file</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;crash&quot;</span>.<span class="ident">into</span>()),
-        <span class="ident">debug_id</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;67e9247c-814e-392b-a027-dbde6748fcbf&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-        <span class="ident">debug_file</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-        <span class="ident">arch</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">image_addr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-        <span class="ident">image_size</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="number">4096</span>),
-        <span class="ident">image_vmaddr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
+    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::MachO</span>(<span class="ident">Box::new</span>(<span class="ident">NativeDebugImage</span> {
+        <span class="ident">code_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;67E9247C-814E-392B-A027-DBDE6748FCBF&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+        <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;crash&quot;</span>.<span class="ident">into</span>()),
+        <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;67e9247c-814e-392b-a027-dbde6748fcbf&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+        <span class="ident">debug_file</span>: <span class="ident">Annotated::empty</span>(),
+        <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
+        <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
+        <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
         <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
             <span class="ident">map</span>.<span class="ident">insert</span>(
                 <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
             );
             <span class="ident">map</span>
         },
     })));
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">image</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1621,68 +1621,68 @@
   &quot;type&quot;: &quot;pe&quot;
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">DebugImage</span>::<span class="ident">Pe</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">NativeDebugImage</span> {
-        <span class="ident">code_id</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;59b0d8f3183000&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-        <span class="ident">code_file</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.<span class="ident">into</span>()),
-        <span class="ident">debug_id</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-        <span class="ident">debug_file</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;wntdll.pdb&quot;</span>.<span class="ident">into</span>()),
-        <span class="ident">arch</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">image_addr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-        <span class="ident">image_size</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="number">4096</span>),
-        <span class="ident">image_vmaddr</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
+    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Pe</span>(<span class="ident">Box::new</span>(<span class="ident">NativeDebugImage</span> {
+        <span class="ident">code_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;59b0d8f3183000&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+        <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.<span class="ident">into</span>()),
+        <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+        <span class="ident">debug_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;wntdll.pdb&quot;</span>.<span class="ident">into</span>()),
+        <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
+        <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
+        <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
         <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
             <span class="ident">map</span>.<span class="ident">insert</span>(
                 <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
             );
             <span class="ident">map</span>
         },
     })));
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">image</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_debug_image_other_roundtrip</span>() {
     <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;other&quot;:&quot;value&quot;,&quot;type&quot;:&quot;mytype&quot;}&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">DebugImage</span>::<span class="ident">Other</span>({
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map</span>::<span class="ident">new</span>();
+    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Other</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
         <span class="ident">map</span>.<span class="ident">insert</span>(
             <span class="string">&quot;type&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;mytype&quot;</span>.<span class="ident">to_string</span>())),
+            <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;mytype&quot;</span>.<span class="ident">to_string</span>())),
         );
         <span class="ident">map</span>.<span class="ident">insert</span>(
             <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+            <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
         );
         <span class="ident">map</span>
     }));
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">image</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_debug_image_untagged_roundtrip</span>() {
     <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;other&quot;:&quot;value&quot;}&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">DebugImage</span>::<span class="ident">Other</span>({
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map</span>::<span class="ident">new</span>();
+    <span class="kw">let</span> <span class="ident">image</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Other</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
         <span class="ident">map</span>.<span class="ident">insert</span>(
             <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+            <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
         );
         <span class="ident">map</span>
     }));
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">image</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">image</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">image</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_debug_meta_roundtrip</span>() {
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::<span class="ident">Map</span>;
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types::Map</span>;
     <span class="comment">// NOTE: images are tested separately</span>
     <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
   &quot;sdk_info&quot;: {
@@ -1694,44 +1694,44 @@
   },
   &quot;other&quot;: &quot;value&quot;
 }&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">DebugMeta</span> {
-        <span class="ident">system_sdk</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">SystemSdkInfo</span> {
-            <span class="ident">sdk_name</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;iOS&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">version_major</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="number">10</span>),
-            <span class="ident">version_minor</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="number">3</span>),
-            <span class="ident">version_patchlevel</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="number">0</span>),
+    <span class="kw">let</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugMeta</span> {
+        <span class="ident">system_sdk</span>: <span class="ident">Annotated::new</span>(<span class="ident">SystemSdkInfo</span> {
+            <span class="ident">sdk_name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iOS&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">version_major</span>: <span class="ident">Annotated::new</span>(<span class="number">10</span>),
+            <span class="ident">version_minor</span>: <span class="ident">Annotated::new</span>(<span class="number">3</span>),
+            <span class="ident">version_patchlevel</span>: <span class="ident">Annotated::new</span>(<span class="number">0</span>),
             <span class="ident">other</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map</span>::<span class="ident">new</span>();
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
                 <span class="ident">map</span>.<span class="ident">insert</span>(
                     <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
                 );
                 <span class="ident">map</span>
             },
         }),
         <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map</span>::<span class="ident">new</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
             <span class="ident">map</span>.<span class="ident">insert</span>(
                 <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
             );
             <span class="ident">map</span>
         },
-        ..<span class="ident">Default</span>::<span class="ident">default</span>()
+        ..<span class="ident">Default::default</span>()
     });
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">meta</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">json</span>, <span class="ident">meta</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">meta</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">meta</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_debug_meta_default_values</span>() {
     <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">&quot;{}&quot;</span>;
-    <span class="kw">let</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">DebugMeta</span>::<span class="ident">default</span>());
+    <span class="kw">let</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">DebugMeta::default</span>());
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">meta</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">json</span>, <span class="ident">meta</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">meta</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">meta</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-search-js="../../../search-index.js"></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-search-index-js="../../../search-index.js" data-search-js="../../../search.js"></div>
     <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script></body></html>

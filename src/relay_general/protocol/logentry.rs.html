@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/logentry.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>logentry.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/logentry.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>logentry.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
                 <a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -234,8 +234,8 @@
 <span id="233">233</span>
 <span id="234">234</span>
 </pre><div class="example-wrap"><pre class="rust ">
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">protocol</span>::<span class="ident">JsonLenientString</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::{<span class="ident">Annotated</span>, <span class="ident">Error</span>, <span class="ident">FromValue</span>, <span class="ident">Meta</span>, <span class="ident">Object</span>, <span class="ident">Value</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::protocol::JsonLenientString</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Error</span>, <span class="ident">FromValue</span>, <span class="ident">Meta</span>, <span class="ident">Object</span>, <span class="ident">Value</span>};
 
 <span class="doccomment">/// A log entry message.</span>
 <span class="doccomment">///</span>
@@ -259,7 +259,7 @@
 <span class="doccomment">///   }</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">ToValue</span>, <span class="ident">ProcessValue</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
 <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">process_func</span> <span class="op">=</span> <span class="string">&quot;process_logentry&quot;</span>, <span class="ident">value_type</span> <span class="op">=</span> <span class="string">&quot;LogEntry&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LogEntry</span> {
@@ -293,13 +293,13 @@
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">LogEntry</span> {
     <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">formatted_msg</span>: <span class="ident">String</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="ident">LogEntry</span> {
-            <span class="ident">formatted</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">formatted_msg</span>.<span class="ident">into</span>()),
-            ..<span class="self">Self</span>::<span class="ident">default</span>()
+            <span class="ident">formatted</span>: <span class="ident">Annotated::new</span>(<span class="ident">formatted_msg</span>.<span class="ident">into</span>()),
+            ..<span class="self">Self</span><span class="ident">::default</span>()
         }
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">ToValue</span>, <span class="ident">ProcessValue</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
 <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">value_type</span> <span class="op">=</span> <span class="string">&quot;Message&quot;</span>, <span class="ident">value_type</span> <span class="op">=</span> <span class="string">&quot;String&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Message</span>(<span class="ident">String</span>);
@@ -323,7 +323,7 @@
         <span class="comment">// add the former as the &#39;formatted&#39; attribute of the latter.</span>
         <span class="comment">// See GH-3248</span>
         <span class="kw">match</span> <span class="ident">value</span> {
-            <span class="ident">x</span> @ <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">Object</span>(<span class="kw">_</span>)), <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">x</span> @ <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Object</span>(<span class="kw">_</span>)), <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">FromValue</span>)]</span>
                 <span class="kw">struct</span> <span class="ident">Helper</span> {
                     <span class="ident">message</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
@@ -333,13 +333,13 @@
                     <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
                 }
 
-                <span class="ident">Helper</span>::<span class="ident">from_value</span>(<span class="ident">x</span>).<span class="ident">map_value</span>(<span class="op">|</span><span class="ident">helper</span><span class="op">|</span> {
+                <span class="ident">Helper::from_value</span>(<span class="ident">x</span>).<span class="ident">map_value</span>(<span class="op">|</span><span class="ident">helper</span><span class="op">|</span> {
                     <span class="kw">let</span> <span class="ident">params</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">helper</span>.<span class="ident">params</span> {
-                        <span class="ident">a</span> @ <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">Object</span>(<span class="kw">_</span>)), <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">a</span>,
-                        <span class="ident">a</span> @ <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">Array</span>(<span class="kw">_</span>)), <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">a</span>,
+                        <span class="ident">a</span> @ <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Object</span>(<span class="kw">_</span>)), <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">a</span>,
+                        <span class="ident">a</span> @ <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Array</span>(<span class="kw">_</span>)), <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">a</span>,
                         <span class="ident">a</span> @ <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">a</span>,
-                        <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated</span>::<span class="ident">from_error</span>(
-                            <span class="ident">Error</span>::<span class="ident">expected</span>(<span class="string">&quot;message parameters&quot;</span>),
+                        <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated::from_error</span>(
+                            <span class="ident">Error::expected</span>(<span class="string">&quot;message parameters&quot;</span>),
                             <span class="prelude-val">Some</span>(<span class="ident">value</span>),
                         ),
                     };
@@ -356,12 +356,12 @@
             <span class="comment">// The next two cases handle the legacy top-level `message` attribute, which was sent as</span>
             <span class="comment">// literal string, false (which should be ignored) or even as deep JSON object. Sentry</span>
             <span class="comment">// historically JSONified this field.</span>
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">Bool</span>(<span class="bool-val">false</span>)), <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">Meta</span>::<span class="ident">default</span>()),
-            <span class="ident">x</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">LogEntry</span> {
-                <span class="ident">formatted</span>: <span class="ident">JsonLenientString</span>::<span class="ident">from_value</span>(<span class="ident">x</span>)
-                    .<span class="ident">map_value</span>(<span class="ident">JsonLenientString</span>::<span class="ident">into_inner</span>)
+            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Bool</span>(<span class="bool-val">false</span>)), <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">Meta::default</span>()),
+            <span class="ident">x</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated::new</span>(<span class="ident">LogEntry</span> {
+                <span class="ident">formatted</span>: <span class="ident">JsonLenientString::from_value</span>(<span class="ident">x</span>)
+                    .<span class="ident">map_value</span>(<span class="ident">JsonLenientString::into_inner</span>)
                     .<span class="ident">map_value</span>(<span class="ident">Message</span>),
-                ..<span class="ident">Default</span>::<span class="ident">default</span>()
+                ..<span class="ident">Default::default</span>()
             }),
         }
     }
@@ -378,25 +378,25 @@
   &quot;other&quot;: &quot;value&quot;
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="ident">entry</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">LogEntry</span> {
-        <span class="ident">message</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;Hello, %s %s!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        <span class="ident">formatted</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-        <span class="ident">params</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">Array</span>(<span class="macro">vec</span><span class="macro">!</span>[
-            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;World&quot;</span>.<span class="ident">to_string</span>())),
-            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">I64</span>(<span class="number">1</span>)),
+    <span class="kw">let</span> <span class="ident">entry</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">LogEntry</span> {
+        <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Hello, %s %s!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+        <span class="ident">formatted</span>: <span class="ident">Annotated::empty</span>(),
+        <span class="ident">params</span>: <span class="ident">Annotated::new</span>(<span class="ident">Value::Array</span>(<span class="macro">vec!</span>[
+            <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;World&quot;</span>.<span class="ident">to_string</span>())),
+            <span class="ident">Annotated::new</span>(<span class="ident">Value::I64</span>(<span class="number">1</span>)),
         ])),
         <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
             <span class="ident">map</span>.<span class="ident">insert</span>(
                 <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
             );
             <span class="ident">map</span>
         },
     });
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">entry</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">json</span>, <span class="ident">entry</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">entry</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">entry</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -406,25 +406,25 @@
   &quot;formatted&quot;: &quot;hi&quot;
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="ident">entry</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">LogEntry</span> {
-        <span class="ident">formatted</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;hi&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        ..<span class="ident">Default</span>::<span class="ident">default</span>()
+    <span class="kw">let</span> <span class="ident">entry</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">LogEntry</span> {
+        <span class="ident">formatted</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hi&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+        ..<span class="ident">Default::default</span>()
     });
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">entry</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">input</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">output</span>, <span class="ident">entry</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">entry</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">input</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">output</span>, <span class="ident">entry</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_logentry_empty_params</span>() {
     <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;params&quot;:[]}&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">entry</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">LogEntry</span> {
-        <span class="ident">params</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">Array</span>(<span class="macro">vec</span><span class="macro">!</span>[])),
-        ..<span class="ident">Default</span>::<span class="ident">default</span>()
+    <span class="kw">let</span> <span class="ident">entry</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">LogEntry</span> {
+        <span class="ident">params</span>: <span class="ident">Annotated::new</span>(<span class="ident">Value::Array</span>(<span class="macro">vec!</span>[])),
+        ..<span class="ident">Default::default</span>()
     });
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">entry</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">input</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">input</span>, <span class="ident">entry</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">entry</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">input</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">input</span>, <span class="ident">entry</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -436,21 +436,21 @@
   }
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="ident">entry</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">LogEntry</span> {
-        <span class="ident">message</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;Hello, %s!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        <span class="ident">params</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">Object</span>({
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">object</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
+    <span class="kw">let</span> <span class="ident">entry</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">LogEntry</span> {
+        <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Hello, %s!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+        <span class="ident">params</span>: <span class="ident">Annotated::new</span>(<span class="ident">Value::Object</span>({
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">object</span> <span class="op">=</span> <span class="ident">Object::new</span>();
             <span class="ident">object</span>.<span class="ident">insert</span>(
                 <span class="string">&quot;name&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;World&quot;</span>.<span class="ident">to_string</span>())),
+                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;World&quot;</span>.<span class="ident">to_string</span>())),
             );
             <span class="ident">object</span>
         })),
-        ..<span class="ident">LogEntry</span>::<span class="ident">default</span>()
+        ..<span class="ident">LogEntry::default</span>()
     });
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">entry</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">json</span>, <span class="ident">entry</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">entry</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">entry</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -460,14 +460,14 @@
   &quot;params&quot;: 42
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="ident">entry</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">LogEntry</span> {
-        <span class="ident">message</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;Hello, %s!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        <span class="ident">params</span>: <span class="ident">Annotated</span>::<span class="ident">from_error</span>(<span class="ident">Error</span>::<span class="ident">expected</span>(<span class="string">&quot;message parameters&quot;</span>), <span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">I64</span>(<span class="number">42</span>))),
-        ..<span class="ident">LogEntry</span>::<span class="ident">default</span>()
+    <span class="kw">let</span> <span class="ident">entry</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">LogEntry</span> {
+        <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Hello, %s!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+        <span class="ident">params</span>: <span class="ident">Annotated::from_error</span>(<span class="ident">Error::expected</span>(<span class="string">&quot;message parameters&quot;</span>), <span class="prelude-val">Some</span>(<span class="ident">Value::I64</span>(<span class="number">42</span>))),
+        ..<span class="ident">LogEntry::default</span>()
     });
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">entry</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">entry</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-search-js="../../../search-index.js"></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-search-index-js="../../../search-index.js" data-search-js="../../../search.js"></div>
     <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script></body></html>

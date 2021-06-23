@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/pii/convert.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>convert.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/pii/convert.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>convert.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
                 <a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
@@ -1389,16 +1389,16 @@
 <span id="1388">1388</span>
 <span id="1389">1389</span>
 </pre><div class="example-wrap"><pre class="rust ">
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
+<span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 
-<span class="kw">use</span> <span class="ident">regex</span>::<span class="ident">RegexBuilder</span>;
+<span class="kw">use</span> <span class="ident">regex::RegexBuilder</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">pii</span>::{
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::pii</span>::{
     <span class="ident">DataScrubbingConfig</span>, <span class="ident">Pattern</span>, <span class="ident">PiiConfig</span>, <span class="ident">RedactPairRule</span>, <span class="ident">Redaction</span>, <span class="ident">RuleSpec</span>, <span class="ident">RuleType</span>, <span class="ident">Vars</span>,
 };
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">processor</span>::{<span class="ident">SelectorPathItem</span>, <span class="ident">SelectorSpec</span>, <span class="ident">ValueType</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::processor</span>::{<span class="ident">SelectorPathItem</span>, <span class="ident">SelectorSpec</span>, <span class="ident">ValueType</span>};
 
-<span class="ident">lazy_static</span>::<span class="macro">lazy_static</span><span class="macro">!</span> {
+<span class="macro">lazy_static::lazy_static!</span> {
     <span class="comment">// XXX: Move to @ip rule for better IP address scrubbing. Right now we just try to keep</span>
     <span class="comment">// compatibility with Python.</span>
     <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">KNOWN_IP_FIELDS</span>: <span class="ident">SelectorSpec</span> <span class="op">=</span> <span class="string">&quot;($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip)&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>();
@@ -1415,16 +1415,16 @@
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_pii_config</span>(<span class="ident">datascrubbing_config</span>: <span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">custom_rules</span> <span class="op">=</span> <span class="ident">BTreeMap</span>::<span class="ident">new</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">applied_rules</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">applications</span> <span class="op">=</span> <span class="ident">BTreeMap</span>::<span class="ident">new</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">custom_rules</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">applied_rules</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">applications</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
 
     <span class="kw">if</span> <span class="ident">datascrubbing_config</span>.<span class="ident">scrub_data</span> <span class="op">&amp;&amp;</span> <span class="ident">datascrubbing_config</span>.<span class="ident">scrub_defaults</span> {
         <span class="ident">applied_rules</span>.<span class="ident">push</span>(<span class="string">&quot;@common:filter&quot;</span>.<span class="ident">to_owned</span>());
     }
 
     <span class="kw">if</span> <span class="ident">datascrubbing_config</span>.<span class="ident">scrub_ip_addresses</span> {
-        <span class="ident">applications</span>.<span class="ident">insert</span>(<span class="ident">KNOWN_IP_FIELDS</span>.<span class="ident">clone</span>(), <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;@anything:remove&quot;</span>.<span class="ident">to_owned</span>()]);
+        <span class="ident">applications</span>.<span class="ident">insert</span>(<span class="ident">KNOWN_IP_FIELDS</span>.<span class="ident">clone</span>(), <span class="macro">vec!</span>[<span class="string">&quot;@anything:remove&quot;</span>.<span class="ident">to_owned</span>()]);
     }
 
     <span class="kw">if</span> <span class="ident">datascrubbing_config</span>.<span class="ident">scrub_data</span> {
@@ -1444,7 +1444,7 @@
                 }
 
                 <span class="comment">// ugly: regex::escape returns owned string</span>
-                <span class="ident">re</span>.<span class="ident">push_str</span>(<span class="kw-2">&amp;</span><span class="ident">regex</span>::<span class="ident">escape</span>(<span class="ident">field</span>));
+                <span class="ident">re</span>.<span class="ident">push_str</span>(<span class="kw-2">&amp;</span><span class="ident">regex::escape</span>(<span class="ident">field</span>));
             }
 
             <span class="ident">re</span>.<span class="ident">push_str</span>(<span class="string">&quot;&quot;</span>);
@@ -1457,15 +1457,15 @@
             <span class="ident">custom_rules</span>.<span class="ident">insert</span>(
                 <span class="string">&quot;strip-fields&quot;</span>.<span class="ident">to_owned</span>(),
                 <span class="ident">RuleSpec</span> {
-                    <span class="ident">ty</span>: <span class="ident">RuleType</span>::<span class="ident">RedactPair</span>(<span class="ident">RedactPairRule</span> {
+                    <span class="ident">ty</span>: <span class="ident">RuleType::RedactPair</span>(<span class="ident">RedactPairRule</span> {
                         <span class="ident">key_pattern</span>: <span class="ident">Pattern</span>(
-                            <span class="ident">RegexBuilder</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">key_pattern</span>)
+                            <span class="ident">RegexBuilder::new</span>(<span class="kw-2">&amp;</span><span class="ident">key_pattern</span>)
                                 .<span class="ident">case_insensitive</span>(<span class="bool-val">true</span>)
                                 .<span class="ident">build</span>()
                                 .<span class="ident">unwrap</span>(),
                         ),
                     }),
-                    <span class="ident">redaction</span>: <span class="ident">Redaction</span>::<span class="ident">Replace</span>(<span class="string">&quot;[Filtered]&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>()),
+                    <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="string">&quot;[Filtered]&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>()),
                 },
             );
 
@@ -1477,13 +1477,13 @@
         <span class="kw">return</span> <span class="prelude-val">None</span>;
     }
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">conjunctions</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-        <span class="ident">SelectorSpec</span>::<span class="ident">Or</span>(<span class="macro">vec</span><span class="macro">!</span>[
-            <span class="ident">ValueType</span>::<span class="ident">String</span>.<span class="ident">into</span>(),
-            <span class="ident">ValueType</span>::<span class="ident">Number</span>.<span class="ident">into</span>(),
-            <span class="ident">ValueType</span>::<span class="ident">Array</span>.<span class="ident">into</span>(),
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">conjunctions</span> <span class="op">=</span> <span class="macro">vec!</span>[
+        <span class="ident">SelectorSpec::Or</span>(<span class="macro">vec!</span>[
+            <span class="ident">ValueType::String</span>.<span class="ident">into</span>(),
+            <span class="ident">ValueType::Number</span>.<span class="ident">into</span>(),
+            <span class="ident">ValueType::Array</span>.<span class="ident">into</span>(),
         ]),
-        <span class="ident">SelectorSpec</span>::<span class="ident">Not</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DATASCRUBBER_IGNORE</span>.<span class="ident">clone</span>())),
+        <span class="ident">SelectorSpec::Not</span>(<span class="ident">Box::new</span>(<span class="ident">DATASCRUBBER_IGNORE</span>.<span class="ident">clone</span>())),
     ];
 
     <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">datascrubbing_config</span>.<span class="ident">exclude_fields</span> {
@@ -1493,12 +1493,12 @@
             <span class="kw">continue</span>;
         }
 
-        <span class="ident">conjunctions</span>.<span class="ident">push</span>(<span class="ident">SelectorSpec</span>::<span class="ident">Not</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">SelectorSpec</span>::<span class="ident">Path</span>(<span class="macro">vec</span><span class="macro">!</span>[
-            <span class="ident">SelectorPathItem</span>::<span class="ident">Key</span>(<span class="ident">field</span>.<span class="ident">to_owned</span>()),
+        <span class="ident">conjunctions</span>.<span class="ident">push</span>(<span class="ident">SelectorSpec::Not</span>(<span class="ident">Box::new</span>(<span class="ident">SelectorSpec::Path</span>(<span class="macro">vec!</span>[
+            <span class="ident">SelectorPathItem::Key</span>(<span class="ident">field</span>.<span class="ident">to_owned</span>()),
         ]))));
     }
 
-    <span class="kw">let</span> <span class="ident">applied_selector</span> <span class="op">=</span> <span class="ident">SelectorSpec</span>::<span class="ident">And</span>(<span class="ident">conjunctions</span>);
+    <span class="kw">let</span> <span class="ident">applied_selector</span> <span class="op">=</span> <span class="ident">SelectorSpec::And</span>(<span class="ident">conjunctions</span>);
 
     <span class="kw">if</span> <span class="op">!</span><span class="ident">applied_rules</span>.<span class="ident">is_empty</span>() {
         <span class="ident">applications</span>.<span class="ident">insert</span>(<span class="ident">applied_selector</span>, <span class="ident">applied_rules</span>);
@@ -1506,9 +1506,9 @@
 
     <span class="prelude-val">Some</span>(<span class="ident">PiiConfig</span> {
         <span class="ident">rules</span>: <span class="ident">custom_rules</span>,
-        <span class="ident">vars</span>: <span class="ident">Vars</span>::<span class="ident">default</span>(),
+        <span class="ident">vars</span>: <span class="ident">Vars::default</span>(),
         <span class="ident">applications</span>,
-        ..<span class="ident">Default</span>::<span class="ident">default</span>()
+        ..<span class="ident">Default::default</span>()
     })
 }
 
@@ -1516,25 +1516,25 @@
 <span class="kw">mod</span> <span class="ident">tests</span> {
     <span class="doccomment">/// These tests are ported from Sentry&#39;s Python testsuite (test_data_scrubber). Each testcase</span>
     <span class="doccomment">/// has an equivalent testcase in Python.</span>
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">pii</span>::{<span class="ident">DataScrubbingConfig</span>, <span class="ident">PiiConfig</span>, <span class="ident">PiiProcessor</span>};
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessingState</span>};
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">protocol</span>::<span class="ident">Event</span>;
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::<span class="ident">FromValue</span>;
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::pii</span>::{<span class="ident">DataScrubbingConfig</span>, <span class="ident">PiiConfig</span>, <span class="ident">PiiProcessor</span>};
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessingState</span>};
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::protocol::Event</span>;
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types::FromValue</span>;
 
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">to_pii_config</span> <span class="kw">as</span> <span class="ident">to_pii_config_impl</span>;
+    <span class="kw">use</span> <span class="kw">super</span><span class="ident">::to_pii_config</span> <span class="kw">as</span> <span class="ident">to_pii_config_impl</span>;
 
     <span class="kw">fn</span> <span class="ident">to_pii_config</span>(<span class="ident">datascrubbing_config</span>: <span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">rv</span> <span class="op">=</span> <span class="ident">to_pii_config_impl</span>(<span class="ident">datascrubbing_config</span>);
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">config</span>) <span class="op">=</span> <span class="ident">rv</span> {
             <span class="kw">let</span> <span class="ident">roundtrip</span>: <span class="ident">PiiConfig</span> <span class="op">=</span>
-                <span class="ident">serde_json</span>::<span class="ident">from_value</span>(<span class="ident">serde_json</span>::<span class="ident">to_value</span>(<span class="ident">config</span>).<span class="ident">unwrap</span>()).<span class="ident">unwrap</span>();
-            <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">roundtrip</span>, <span class="ident">config</span>);
+                <span class="ident">serde_json::from_value</span>(<span class="ident">serde_json::to_value</span>(<span class="ident">config</span>).<span class="ident">unwrap</span>()).<span class="ident">unwrap</span>();
+            <span class="macro">assert_eq_dbg!</span>(<span class="kw-2">&amp;</span><span class="ident">roundtrip</span>, <span class="ident">config</span>);
         }
         <span class="ident">rv</span>
     }
 
-    <span class="ident">lazy_static</span>::<span class="macro">lazy_static</span><span class="macro">!</span> {
-        <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">SENSITIVE_VARS</span>: <span class="ident">serde_json</span>::<span class="ident">Value</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+    <span class="macro">lazy_static::lazy_static!</span> {
+        <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">SENSITIVE_VARS</span>: <span class="ident">serde_json::Value</span> <span class="op">=</span> <span class="macro">serde_json::json!</span>({
             <span class="string">&quot;foo&quot;</span>: <span class="string">&quot;bar&quot;</span>,
             <span class="string">&quot;password&quot;</span>: <span class="string">&quot;hello&quot;</span>,
             <span class="string">&quot;the_secret&quot;</span>: <span class="string">&quot;hello&quot;</span>,
@@ -1579,18 +1579,18 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             <span class="ident">scrub_data</span>: <span class="bool-val">true</span>,
             <span class="ident">scrub_ip_addresses</span>: <span class="bool-val">true</span>,
             <span class="ident">scrub_defaults</span>: <span class="bool-val">true</span>,
-            ..<span class="ident">Default</span>::<span class="ident">default</span>()
+            ..<span class="ident">Default::default</span>()
         }
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_datascrubbing_default</span>() {
-        <span class="ident">insta</span>::<span class="macro">assert_json_snapshot</span><span class="macro">!</span>(<span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span>::<span class="ident">default</span>()), @<span class="string">&quot;null&quot;</span>);
+        <span class="macro">insta::assert_json_snapshot!</span>(<span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig::default</span>()), @<span class="string">&quot;null&quot;</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_convert_default_pii_config</span>() {
-        <span class="ident">insta</span>::<span class="macro">assert_json_snapshot</span><span class="macro">!</span>(<span class="ident">simple_enabled_pii_config</span>(), @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(<span class="ident">simple_enabled_pii_config</span>(), @<span class="string">r###&quot;
         {
           &quot;rules&quot;: {},
           &quot;vars&quot;: {
@@ -1611,11 +1611,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_convert_empty_sensitive_field</span>() {
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">sensitive_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>(), <span class="string">&quot; &quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>(), <span class="string">&quot; &quot;</span>.<span class="ident">to_owned</span>()],
             ..<span class="ident">simple_enabled_config</span>()
         });
 
-        <span class="ident">insta</span>::<span class="macro">assert_json_snapshot</span><span class="macro">!</span>(<span class="ident">pii_config</span>, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(<span class="ident">pii_config</span>, @<span class="string">r###&quot;
         {
           &quot;rules&quot;: {},
           &quot;vars&quot;: {
@@ -1636,11 +1636,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_convert_sensitive_fields</span>() {
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">sensitive_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;fieldy_field&quot;</span>.<span class="ident">to_owned</span>(), <span class="string">&quot;moar_other_field&quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;fieldy_field&quot;</span>.<span class="ident">to_owned</span>(), <span class="string">&quot;moar_other_field&quot;</span>.<span class="ident">to_owned</span>()],
             ..<span class="ident">simple_enabled_config</span>()
         });
 
-        <span class="ident">insta</span>::<span class="macro">assert_json_snapshot</span><span class="macro">!</span>(<span class="ident">pii_config</span>, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(<span class="ident">pii_config</span>, @<span class="string">r###&quot;
         {
           &quot;rules&quot;: {
             &quot;strip-fields&quot;: {
@@ -1671,11 +1671,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_convert_exclude_field</span>() {
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">exclude_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;foobar&quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">exclude_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;foobar&quot;</span>.<span class="ident">to_owned</span>()],
             ..<span class="ident">simple_enabled_config</span>()
         });
 
-        <span class="ident">insta</span>::<span class="macro">assert_json_snapshot</span><span class="macro">!</span>(<span class="ident">pii_config</span>, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(<span class="ident">pii_config</span>, @<span class="string">r###&quot;
         {
           &quot;rules&quot;: {},
           &quot;vars&quot;: {
@@ -1699,10 +1699,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             <span class="ident">scrub_data</span>: <span class="bool-val">false</span>,
             <span class="ident">scrub_ip_addresses</span>: <span class="bool-val">true</span>,
             <span class="ident">scrub_defaults</span>: <span class="bool-val">false</span>,
-            ..<span class="ident">Default</span>::<span class="ident">default</span>()
+            ..<span class="ident">Default::default</span>()
         });
 
-        <span class="ident">insta</span>::<span class="macro">assert_json_snapshot</span><span class="macro">!</span>(<span class="ident">pii_config</span>, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(<span class="ident">pii_config</span>, @<span class="string">r###&quot;
         {
           &quot;rules&quot;: {},
           &quot;vars&quot;: {
@@ -1719,8 +1719,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_stacktrace</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;stacktrace&quot;</span>: {
                     <span class="string">&quot;frames&quot;</span>: [
                     {
@@ -1734,15 +1734,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_http</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;request&quot;</span>: {
                     <span class="string">&quot;data&quot;</span>: <span class="ident">SENSITIVE_VARS</span>.<span class="ident">clone</span>(),
                     <span class="string">&quot;env&quot;</span>: <span class="ident">SENSITIVE_VARS</span>.<span class="ident">clone</span>(),
@@ -1755,15 +1755,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_http_remote_addr_stripped</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;request&quot;</span>: {
                     <span class="string">&quot;env&quot;</span>: {
                         <span class="string">&quot;REMOTE_ADDR&quot;</span>: <span class="string">&quot;127.0.0.1&quot;</span>
@@ -1775,15 +1775,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sdk_client_ip_stripped</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;sdk&quot;</span>: {
                     <span class="string">&quot;client_ip&quot;</span>: <span class="string">&quot;127.0.0.1&quot;</span>
                 }
@@ -1793,15 +1793,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_user</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;user&quot;</span>: {
                     <span class="string">&quot;username&quot;</span>: <span class="string">&quot;secret&quot;</span>,
                     <span class="string">&quot;ip_address&quot;</span>: <span class="string">&quot;73.133.27.120&quot;</span>,
@@ -1813,15 +1813,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_user_ip_stripped</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;user&quot;</span>: {
                     <span class="string">&quot;username&quot;</span>: <span class="string">&quot;secret&quot;</span>,
                     <span class="string">&quot;ip_address&quot;</span>: <span class="string">&quot;73.133.27.120&quot;</span>,
@@ -1835,20 +1835,20 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             <span class="ident">scrub_data</span>: <span class="bool-val">false</span>,
             <span class="ident">scrub_ip_addresses</span>: <span class="bool-val">true</span>,
             <span class="ident">scrub_defaults</span>: <span class="bool-val">false</span>,
-            ..<span class="ident">Default</span>::<span class="ident">default</span>()
+            ..<span class="ident">Default::default</span>()
         };
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">scrubbing_config</span>).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_extra</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;foo&quot;</span>: <span class="string">&quot;bar&quot;</span>,
                     <span class="string">&quot;password&quot;</span>: <span class="string">&quot;hello&quot;</span>,
@@ -1865,15 +1865,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_contexts</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;contexts&quot;</span>: {
                     <span class="string">&quot;secret&quot;</span>: <span class="ident">SENSITIVE_VARS</span>.<span class="ident">clone</span>(),
                     <span class="string">&quot;biz&quot;</span>: <span class="ident">SENSITIVE_VARS</span>.<span class="ident">clone</span>(),
@@ -1898,17 +1898,17 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
 
         <span class="comment">// n.b.: This diverges from Python behavior because it would strip a context that is called</span>
         <span class="comment">// &quot;secret&quot;, not just a string. We accept this difference.</span>
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_querystring_as_string</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(<span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(<span class="macro">serde_json::json!</span>({
             <span class="string">&quot;request&quot;</span>: {
                 <span class="string">&quot;query_string&quot;</span>: <span class="string">&quot;foo=bar&amp;password=hello&amp;the_secret=hello&amp;a_password_here=hello&amp;api_key=secret_key&quot;</span>,
             }
@@ -1916,15 +1916,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_querystring_as_pairlist</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;request&quot;</span>: {
                     <span class="string">&quot;query_string&quot;</span>: [
                         [<span class="string">&quot;foo&quot;</span>, <span class="string">&quot;bar&quot;</span>],
@@ -1940,15 +1940,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_querystring_as_string_with_partials</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;request&quot;</span>: {
                     <span class="string">&quot;query_string&quot;</span>: <span class="string">&quot;foo=bar&amp;password&amp;baz=bar&quot;</span>
                 }
@@ -1958,15 +1958,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_querystring_as_pairlist_with_partials</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;request&quot;</span>: {
                     <span class="string">&quot;query_string&quot;</span>: [[<span class="string">&quot;foo&quot;</span>, <span class="string">&quot;bar&quot;</span>], [<span class="string">&quot;password&quot;</span>, <span class="string">&quot;&quot;</span>], [<span class="string">&quot;baz&quot;</span>, <span class="string">&quot;bar&quot;</span>]]
                 }
@@ -1976,9 +1976,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1986,31 +1986,31 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">extra</span> <span class="op">=</span> <span class="ident">SENSITIVE_VARS</span>.<span class="ident">clone</span>();
         {
             <span class="kw">let</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">extra</span>.<span class="ident">as_object_mut</span>().<span class="ident">unwrap</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(<span class="string">&quot;fieldy_field&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>(<span class="string">&quot;value&quot;</span>));
+            <span class="ident">map</span>.<span class="ident">insert</span>(<span class="string">&quot;fieldy_field&quot;</span>.<span class="ident">to_owned</span>(), <span class="macro">serde_json::json!</span>(<span class="string">&quot;value&quot;</span>));
             <span class="ident">map</span>.<span class="ident">insert</span>(
                 <span class="string">&quot;moar_other_field&quot;</span>.<span class="ident">to_owned</span>(),
-                <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>(<span class="string">&quot;another value&quot;</span>),
+                <span class="macro">serde_json::json!</span>(<span class="string">&quot;another value&quot;</span>),
             );
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(<span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({ <span class="string">&quot;extra&quot;</span>: <span class="ident">extra</span> }).<span class="ident">into</span>());
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(<span class="macro">serde_json::json!</span>({ <span class="string">&quot;extra&quot;</span>: <span class="ident">extra</span> }).<span class="ident">into</span>());
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">sensitive_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;fieldy_field&quot;</span>.<span class="ident">to_owned</span>(), <span class="string">&quot;moar_other_field&quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;fieldy_field&quot;</span>.<span class="ident">to_owned</span>(), <span class="string">&quot;moar_other_field&quot;</span>.<span class="ident">to_owned</span>()],
             ..<span class="ident">simple_enabled_config</span>()
         });
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sanitize_credit_card</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;foo&quot;</span>: <span class="string">&quot;4571234567890111&quot;</span>
                 }
@@ -2020,16 +2020,16 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sanitize_credit_card_amex</span>() {
         <span class="comment">// AMEX numbers are 15 digits, not 16</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;foo&quot;</span>: <span class="string">&quot;378282246310005&quot;</span>
                 }
@@ -2039,15 +2039,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sanitize_credit_card_discover</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;foo&quot;</span>: <span class="string">&quot;6011111111111117&quot;</span>
                 }
@@ -2057,15 +2057,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sanitize_credit_card_visa</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;foo&quot;</span>: <span class="string">&quot;4111111111111111&quot;</span>
                 }
@@ -2075,15 +2075,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sanitize_credit_card_mastercard</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;foo&quot;</span>: <span class="string">&quot;5555555555554444&quot;</span>
                 }
@@ -2093,9 +2093,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -2109,8 +2109,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     <span class="kw">fn</span> <span class="ident">sanitize_credit_card_within_value_test</span>(<span class="ident">cc</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;foo&quot;</span>: <span class="ident">cc</span>
                 }
@@ -2120,15 +2120,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_does_not_sanitize_timestamp_looks_like_card</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;foo&quot;</span>: <span class="string">&quot;1453843029218310&quot;</span>
                 }
@@ -2138,9 +2138,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>, @<span class="string">r###&quot;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>, @<span class="string">r###&quot;
         {
           &quot;extra&quot;: {
             &quot;foo&quot;: &quot;1453843029218310&quot;
@@ -2191,8 +2191,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     <span class="kw">fn</span> <span class="ident">sanitize_url_test</span>(<span class="ident">url</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;foo&quot;</span>: <span class="ident">url</span>
                 }
@@ -2202,19 +2202,19 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="doccomment">/// Ensure that valid JSON as request body is parsed as such, and that the PII stripping is</span>
     <span class="doccomment">/// then more granular/sophisticated because we now understand the structure.</span>
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sanitize_http_body</span>() {
-        <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">store</span>::{<span class="ident">StoreConfig</span>, <span class="ident">StoreProcessor</span>};
+        <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::store</span>::{<span class="ident">StoreConfig</span>, <span class="ident">StoreProcessor</span>};
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;request&quot;</span>: {
                     <span class="string">&quot;data&quot;</span>: <span class="string">r#&quot;{&quot;email&quot;:&quot;zzzz@gmail.com&quot;,&quot;password&quot;:&quot;zzzzz&quot;}&quot;#</span>
                 }
@@ -2224,24 +2224,24 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="comment">// n.b.: In Rust we rely on store normalization to parse inline JSON</span>
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">store_processor</span> <span class="op">=</span> <span class="ident">StoreProcessor</span>::<span class="ident">new</span>(<span class="ident">StoreConfig</span>::<span class="ident">default</span>(), <span class="prelude-val">None</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">store_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">store_processor</span> <span class="op">=</span> <span class="ident">StoreProcessor::new</span>(<span class="ident">StoreConfig::default</span>(), <span class="prelude-val">None</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">store_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">request</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">request</span>);
     }
 
     <span class="doccomment">/// Ensure that a request body that cannot be parsed by the store processor gets PII stripped</span>
     <span class="doccomment">/// nevertheless.</span>
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sanitize_http_body_string</span>() {
-        <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">store</span>::{<span class="ident">StoreConfig</span>, <span class="ident">StoreProcessor</span>};
+        <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::store</span>::{<span class="ident">StoreConfig</span>, <span class="ident">StoreProcessor</span>};
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;request&quot;</span>: {
                     <span class="string">&quot;data&quot;</span>: <span class="string">r#&quot;{&quot;email&quot;:&quot;zzzz@gmail.com&quot;,&quot;password&quot;:&quot;zzzzz&quot;}xxx&quot;#</span>
                 }
@@ -2251,20 +2251,20 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="comment">// n.b.: In Rust we rely on store normalization to parse inline JSON.</span>
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">store_processor</span> <span class="op">=</span> <span class="ident">StoreProcessor</span>::<span class="ident">new</span>(<span class="ident">StoreConfig</span>::<span class="ident">default</span>(), <span class="prelude-val">None</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">store_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">store_processor</span> <span class="op">=</span> <span class="ident">StoreProcessor::new</span>(<span class="ident">StoreConfig::default</span>(), <span class="prelude-val">None</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">store_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">request</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">request</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_does_not_fail_on_non_string</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;foo&quot;</span>: <span class="number">1</span>
                 }
@@ -2274,10 +2274,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
 
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>, @<span class="string">r###&quot;
         {
           &quot;extra&quot;: {
             &quot;foo&quot;: 1
@@ -2288,8 +2288,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_does_sanitize_public_key</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;s&quot;</span>: <span class="ident">PUBLIC_KEY</span>,
                 }
@@ -2299,15 +2299,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_does_sanitize_private_key</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;s&quot;</span>: <span class="ident">PRIVATE_KEY</span>,
                 }
@@ -2317,15 +2317,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_does_sanitize_encrypted_private_key</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;s&quot;</span>: <span class="ident">ENCRYPTED_PRIVATE_KEY</span>,
                 }
@@ -2335,15 +2335,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_does_sanitize_rsa_private_key</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;s&quot;</span>: <span class="ident">RSA_PRIVATE_KEY</span>,
                 }
@@ -2353,15 +2353,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_does_sanitize_social_security_number</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;s&quot;</span>: <span class="string">&quot;123-45-6789&quot;</span>
                 }
@@ -2371,15 +2371,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_exclude_fields_on_field_name</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {<span class="string">&quot;password&quot;</span>: <span class="string">&quot;123-45-6789&quot;</span>}
             })
             .<span class="ident">into</span>(),
@@ -2387,73 +2387,73 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_explicit_fields</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {<span class="string">&quot;mystuff&quot;</span>: <span class="string">&quot;xxx&quot;</span>}
             })
             .<span class="ident">into</span>(),
         );
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">sensitive_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;mystuff&quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;mystuff&quot;</span>.<span class="ident">to_owned</span>()],
             ..<span class="ident">simple_enabled_config</span>()
         });
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_explicit_fields_case_insensitive</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {<span class="string">&quot;MYSTUFF&quot;</span>: <span class="string">&quot;xxx&quot;</span>}
             })
             .<span class="ident">into</span>(),
         );
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">sensitive_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;myStuff&quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;myStuff&quot;</span>.<span class="ident">to_owned</span>()],
             ..<span class="ident">simple_enabled_config</span>()
         });
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_exclude_fields_on_field_value</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {<span class="string">&quot;foobar&quot;</span>: <span class="string">&quot;123-45-6789&quot;</span>}
             })
             .<span class="ident">into</span>(),
         );
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">exclude_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;foobar&quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">exclude_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;foobar&quot;</span>.<span class="ident">to_owned</span>()],
             ..<span class="ident">simple_enabled_config</span>()
         });
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
 
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>, @<span class="string">r###&quot;
         {
           &quot;extra&quot;: {
             &quot;foobar&quot;: &quot;123-45-6789&quot;
@@ -2464,25 +2464,25 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_empty_field</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {<span class="string">&quot;foobar&quot;</span>: <span class="string">&quot;xxx&quot;</span>}
             })
             .<span class="ident">into</span>(),
         );
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">sensitive_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>(), <span class="string">&quot; &quot;</span>.<span class="ident">to_owned</span>()],
-            <span class="ident">exclude_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>(), <span class="string">&quot; &quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>(), <span class="string">&quot; &quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">exclude_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>(), <span class="string">&quot; &quot;</span>.<span class="ident">to_owned</span>()],
             ..<span class="ident">simple_enabled_config</span>()
         });
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
 
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>, @<span class="string">r###&quot;
         {
           &quot;extra&quot;: {
             &quot;foobar&quot;: &quot;xxx&quot;
@@ -2502,8 +2502,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     <span class="kw">fn</span> <span class="ident">should_have_mysql_pwd_as_a_default_test</span>(<span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="kw-2">*</span><span class="ident">key</span>: <span class="string">&quot;the one&quot;</span>,
                 }
@@ -2512,21 +2512,21 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">sensitive_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>()],
             ..<span class="ident">simple_enabled_config</span>()
         });
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_authorization_scrubbing</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;authorization&quot;</span>: <span class="string">&quot;foobar&quot;</span>,
                     <span class="string">&quot;auth&quot;</span>: <span class="string">&quot;foobar&quot;</span>,
@@ -2537,21 +2537,21 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">sensitive_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>()],
             ..<span class="ident">simple_enabled_config</span>()
         });
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_doesnt_scrub_not_scrubbed</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;test1&quot;</span>: {
                         <span class="string">&quot;is_authenticated&quot;</span>: <span class="string">&quot;foobar&quot;</span>,
@@ -2570,21 +2570,21 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">sensitive_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>()],
             ..<span class="ident">simple_enabled_config</span>()
         });
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_csp_blocked_uri</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;csp&quot;</span>: {<span class="string">&quot;blocked_uri&quot;</span>: <span class="string">&quot;https://example.com/?foo=4571234567890111&amp;bar=baz&quot;</span>}
             })
             .<span class="ident">into</span>(),
@@ -2592,15 +2592,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_breadcrumb_message</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;breadcrumbs&quot;</span>: {
                     <span class="string">&quot;values&quot;</span>: [
                         {
@@ -2613,11 +2613,11 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">sensitive_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;session_key&quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;session_key&quot;</span>.<span class="ident">to_owned</span>()],
             ..<span class="ident">simple_enabled_config</span>()
         });
 
-        <span class="ident">insta</span>::<span class="macro">assert_json_snapshot</span><span class="macro">!</span>(<span class="ident">pii_config</span>, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(<span class="ident">pii_config</span>, @<span class="string">r###&quot;
         {
           &quot;rules&quot;: {
             &quot;strip-fields&quot;: {
@@ -2646,15 +2646,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_event_message_not_strippable</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;logentry&quot;</span>: {
                     <span class="string">&quot;formatted&quot;</span>: <span class="string">&quot;hello world!&quot;</span>
                 }
@@ -2663,21 +2663,21 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">sensitive_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;formatted&quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;formatted&quot;</span>.<span class="ident">to_owned</span>()],
             ..<span class="ident">simple_enabled_config</span>()
         });
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_debug_meta_files_not_strippable</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;debug_meta&quot;</span>: {
                     <span class="string">&quot;images&quot;</span>: [
                         {
@@ -2692,21 +2692,21 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">sensitive_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;debug_file&quot;</span>.<span class="ident">to_owned</span>(), <span class="string">&quot;code_file&quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;debug_file&quot;</span>.<span class="ident">to_owned</span>(), <span class="string">&quot;code_file&quot;</span>.<span class="ident">to_owned</span>()],
             ..<span class="ident">simple_enabled_config</span>()
         });
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_stacktrace_paths_not_strippable</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;stacktrace&quot;</span>: {
                     <span class="string">&quot;frames&quot;</span>: [
                         {
@@ -2720,21 +2720,21 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">sensitive_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;filename&quot;</span>.<span class="ident">to_owned</span>(), <span class="string">&quot;abs_path&quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;filename&quot;</span>.<span class="ident">to_owned</span>(), <span class="string">&quot;abs_path&quot;</span>.<span class="ident">to_owned</span>()],
             ..<span class="ident">simple_enabled_config</span>()
         });
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_odd_keys</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event</span>::<span class="ident">from_value</span>(
-            <span class="ident">serde_json</span>::<span class="macro">json</span><span class="macro">!</span>({
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+            <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;extra&quot;</span>: {
                     <span class="string">&quot;do not ,./&lt;&gt;?!@#$%^&amp;*())&#39;ßtrip&#39;&quot;</span>: <span class="string">&quot;foo&quot;</span>,
                     <span class="string">&quot;special ,./&lt;&gt;?!@#$%^&amp;*())&#39;gärbage&#39;&quot;</span>: <span class="string">&quot;bar&quot;</span>,
@@ -2744,8 +2744,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         );
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">sensitive_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;special ,./&lt;&gt;?!@#$%^&amp;*())&#39;gärbage&#39;&quot;</span>.<span class="ident">to_owned</span>()],
-            <span class="ident">exclude_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[
+            <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;special ,./&lt;&gt;?!@#$%^&amp;*())&#39;gärbage&#39;&quot;</span>.<span class="ident">to_owned</span>()],
+            <span class="ident">exclude_fields</span>: <span class="macro">vec!</span>[
                 <span class="string">&quot;do not ,./&lt;&gt;?!@#$%^&amp;*())&#39;ßtrip&#39;&quot;</span>.<span class="ident">to_owned</span>(),
                 <span class="string">&quot;2abc&quot;</span>.<span class="ident">to_owned</span>(),
             ],
@@ -2754,16 +2754,16 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState</span>::<span class="ident">root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot</span><span class="macro">!</span>(<span class="ident">data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_regression_more_odd_keys</span>() {
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">sensitive_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[],
-            <span class="ident">exclude_fields</span>: <span class="macro">vec</span><span class="macro">!</span>[
+            <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[],
+            <span class="ident">exclude_fields</span>: <span class="macro">vec!</span>[
                 <span class="string">&quot;url&quot;</span>.<span class="ident">to_owned</span>(),
                 <span class="string">&quot;message&quot;</span>.<span class="ident">to_owned</span>(),
                 <span class="string">&quot;http.request.url&quot;</span>.<span class="ident">to_owned</span>(),
@@ -2775,9 +2775,9 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         });
 
         <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">unwrap</span>();
-        <span class="ident">insta</span>::<span class="macro">assert_json_snapshot</span><span class="macro">!</span>(<span class="ident">pii_config</span>);
+        <span class="macro">insta::assert_json_snapshot!</span>(<span class="ident">pii_config</span>);
     }
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-search-js="../../../search-index.js"></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-search-index-js="../../../search-index.js" data-search-js="../../../search.js"></div>
     <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script></body></html>

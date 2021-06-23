@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/user.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>user.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/user.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>user.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
                 <a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -205,11 +205,11 @@
 <span id="204">204</span>
 <span id="205">205</span>
 </pre><div class="example-wrap"><pre class="rust ">
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">protocol</span>::{<span class="ident">IpAddr</span>, <span class="ident">LenientString</span>};
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::{<span class="ident">Annotated</span>, <span class="ident">Object</span>, <span class="ident">Value</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::protocol</span>::{<span class="ident">IpAddr</span>, <span class="ident">LenientString</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Object</span>, <span class="ident">Value</span>};
 
 <span class="doccomment">/// Geographical location of the end user or device.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">ToValue</span>, <span class="ident">ProcessValue</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
 <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">process_func</span> <span class="op">=</span> <span class="string">&quot;process_geo&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Geo</span> {
@@ -243,7 +243,7 @@
 <span class="doccomment">///   }</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">ToValue</span>, <span class="ident">ProcessValue</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">PartialEq</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">ProcessValue</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
 <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">process_func</span> <span class="op">=</span> <span class="string">&quot;process_user&quot;</span>, <span class="ident">value_type</span> <span class="op">=</span> <span class="string">&quot;User&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">User</span> {
@@ -287,7 +287,7 @@
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_geo_roundtrip</span>() {
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::<span class="ident">Map</span>;
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types::Map</span>;
 
     <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
   &quot;country_code&quot;: &quot;US&quot;,
@@ -295,36 +295,36 @@
   &quot;region&quot;: &quot;CA&quot;,
   &quot;other&quot;: &quot;value&quot;
 }&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">geo</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Geo</span> {
-        <span class="ident">country_code</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;US&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">city</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;San Francisco&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">region</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;CA&quot;</span>.<span class="ident">to_string</span>()),
+    <span class="kw">let</span> <span class="ident">geo</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Geo</span> {
+        <span class="ident">country_code</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;US&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">city</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;San Francisco&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">region</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;CA&quot;</span>.<span class="ident">to_string</span>()),
         <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map</span>::<span class="ident">new</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
             <span class="ident">map</span>.<span class="ident">insert</span>(
                 <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
             );
             <span class="ident">map</span>
         },
     });
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">geo</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">json</span>, <span class="ident">geo</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">geo</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">geo</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_geo_default_values</span>() {
     <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">&quot;{}&quot;</span>;
-    <span class="kw">let</span> <span class="ident">geo</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Geo</span> {
-        <span class="ident">country_code</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-        <span class="ident">city</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-        <span class="ident">region</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-        <span class="ident">other</span>: <span class="ident">Object</span>::<span class="ident">default</span>(),
+    <span class="kw">let</span> <span class="ident">geo</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Geo</span> {
+        <span class="ident">country_code</span>: <span class="ident">Annotated::empty</span>(),
+        <span class="ident">city</span>: <span class="ident">Annotated::empty</span>(),
+        <span class="ident">region</span>: <span class="ident">Annotated::empty</span>(),
+        <span class="ident">other</span>: <span class="ident">Object::default</span>(),
     });
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">geo</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">json</span>, <span class="ident">geo</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">geo</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">geo</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -341,62 +341,62 @@
   },
   &quot;other&quot;: &quot;value&quot;
 }&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">User</span> {
-        <span class="ident">id</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;e4e24881-8238-4539-a32b-d3c3ecd40568&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        <span class="ident">email</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;mail@example.org&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">ip_address</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">IpAddr</span>::<span class="ident">auto</span>()),
-        <span class="ident">name</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;John Doe&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">username</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;john_doe&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">geo</span>: <span class="ident">Annotated</span>::<span class="ident">empty</span>(),
-        <span class="ident">segment</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;vip&quot;</span>.<span class="ident">to_string</span>()),
+    <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">User</span> {
+        <span class="ident">id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;e4e24881-8238-4539-a32b-d3c3ecd40568&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+        <span class="ident">email</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;mail@example.org&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">ip_address</span>: <span class="ident">Annotated::new</span>(<span class="ident">IpAddr::auto</span>()),
+        <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;John Doe&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">username</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;john_doe&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">geo</span>: <span class="ident">Annotated::empty</span>(),
+        <span class="ident">segment</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;vip&quot;</span>.<span class="ident">to_string</span>()),
         <span class="ident">data</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
             <span class="ident">map</span>.<span class="ident">insert</span>(
                 <span class="string">&quot;data&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
             );
-            <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">map</span>)
+            <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
         },
         <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object</span>::<span class="ident">new</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
             <span class="ident">map</span>.<span class="ident">insert</span>(
                 <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
             );
             <span class="ident">map</span>
         },
     });
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">user</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">json</span>, <span class="ident">user</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">user</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">user</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_user_lenient_id</span>() {
     <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;id&quot;:42}&quot;#</span>;
     <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;id&quot;:&quot;42&quot;}&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">User</span> {
-        <span class="ident">id</span>: <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="string">&quot;42&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        ..<span class="ident">User</span>::<span class="ident">default</span>()
+    <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">User</span> {
+        <span class="ident">id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;42&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+        ..<span class="ident">User::default</span>()
     });
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">user</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">input</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="ident">output</span>, <span class="ident">user</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">user</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">input</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="ident">output</span>, <span class="ident">user</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_user_invalid_id</span>() {
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::<span class="ident">Error</span>;
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types::Error</span>;
     <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;id&quot;:[]}&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">User</span> {
-        <span class="ident">id</span>: <span class="ident">Annotated</span>::<span class="ident">from_error</span>(
-            <span class="ident">Error</span>::<span class="ident">expected</span>(<span class="string">&quot;a primitive value&quot;</span>),
-            <span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">Array</span>(<span class="macro">vec</span><span class="macro">!</span>[])),
+    <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">User</span> {
+        <span class="ident">id</span>: <span class="ident">Annotated::from_error</span>(
+            <span class="ident">Error::expected</span>(<span class="string">&quot;a primitive value&quot;</span>),
+            <span class="prelude-val">Some</span>(<span class="ident">Value::Array</span>(<span class="macro">vec!</span>[])),
         ),
-        ..<span class="ident">User</span>::<span class="ident">default</span>()
+        ..<span class="ident">User::default</span>()
     });
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">user</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">user</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -405,11 +405,11 @@
   &quot;id&quot;: null
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">User</span>::<span class="ident">default</span>());
+    <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">User::default</span>());
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="ident">user</span>, <span class="ident">Annotated</span>::<span class="ident">from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">user</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="ident">user</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    <span class="macro">assert_eq_str!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">user</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-search-js="../../../search-index.js"></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-search-index-js="../../../search-index.js" data-search-js="../../../search.js"></div>
     <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script></body></html>

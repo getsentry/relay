@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/normalize/contexts.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>contexts.rs - source</title><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../../storage.js"></script><script src="../../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../../relay_general/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/store/normalize/contexts.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>contexts.rs - source</title><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../../storage.js"></script><script src="../../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../../relay_general/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
                 <a id="settings-menu" href="../../../../settings.html"><img src="../../../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -352,24 +352,24 @@
 <span id="351">351</span>
 <span id="352">352</span>
 </pre><div class="example-wrap"><pre class="rust ">
-<span class="kw">use</span> <span class="ident">regex</span>::<span class="ident">Regex</span>;
+<span class="kw">use</span> <span class="ident">regex::Regex</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">protocol</span>::{<span class="ident">Context</span>, <span class="ident">OsContext</span>, <span class="ident">RuntimeContext</span>};
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::<span class="ident">Empty</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::protocol</span>::{<span class="ident">Context</span>, <span class="ident">OsContext</span>, <span class="ident">RuntimeContext</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types::Empty</span>;
 
-<span class="ident">lazy_static</span>::<span class="macro">lazy_static</span><span class="macro">!</span> {
+<span class="macro">lazy_static::lazy_static!</span> {
     <span class="doccomment">/// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows</span>
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_WINDOWS_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex</span>::<span class="ident">new</span>(<span class="string">r#&quot;^(Microsoft )?Windows (NT )?(?P&lt;version&gt;\d+\.\d+\.\d+).*$&quot;#</span>).<span class="ident">unwrap</span>();
+    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_WINDOWS_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(Microsoft )?Windows (NT )?(?P&lt;version&gt;\d+\.\d+\.\d+).*$&quot;#</span>).<span class="ident">unwrap</span>();
 
     <span class="doccomment">/// Format sent by Unreal Engine on macOS</span>
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_MACOS_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex</span>::<span class="ident">new</span>(<span class="string">r#&quot;^Mac OS X (?P&lt;version&gt;\d+\.\d+\.\d+)( \((?P&lt;build&gt;[a-fA-F0-9]+)\))?$&quot;#</span>).<span class="ident">unwrap</span>();
+    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_MACOS_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Mac OS X (?P&lt;version&gt;\d+\.\d+\.\d+)( \((?P&lt;build&gt;[a-fA-F0-9]+)\))?$&quot;#</span>).<span class="ident">unwrap</span>();
 
     <span class="doccomment">/// Environment.OSVersion or RuntimeInformation.OSDescription (uname) on Mono and CoreCLR on</span>
     <span class="doccomment">/// macOS, iOS, Linux, etc.</span>
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_UNAME_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex</span>::<span class="ident">new</span>(<span class="string">r#&quot;^(?P&lt;name&gt;[a-zA-Z]+) (?P&lt;version&gt;\d+\.\d+\.\d+(\.[1-9]+)?).*$&quot;#</span>).<span class="ident">unwrap</span>();
+    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_UNAME_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(?P&lt;name&gt;[a-zA-Z]+) (?P&lt;version&gt;\d+\.\d+\.\d+(\.[1-9]+)?).*$&quot;#</span>).<span class="ident">unwrap</span>();
 
     <span class="doccomment">/// Mono 5.4, .NET Core 2.0</span>
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">RUNTIME_DOTNET_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex</span>::<span class="ident">new</span>(<span class="string">r#&quot;^(?P&lt;name&gt;.*) (?P&lt;version&gt;\d+\.\d+(\.\d+){0,2}).*$&quot;#</span>).<span class="ident">unwrap</span>();
+    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">RUNTIME_DOTNET_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(?P&lt;name&gt;.*) (?P&lt;version&gt;\d+\.\d+(\.\d+){0,2}).*$&quot;#</span>).<span class="ident">unwrap</span>();
 }
 
 <span class="kw">fn</span> <span class="ident">normalize_runtime_context</span>(<span class="ident">runtime</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">RuntimeContext</span>) {
@@ -457,25 +457,25 @@
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">normalize_context</span>(<span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) {
     <span class="kw">match</span> <span class="ident">context</span> {
-        <span class="ident">Context</span>::<span class="ident">Runtime</span>(<span class="ident">runtime</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">normalize_runtime_context</span>(<span class="ident">runtime</span>),
-        <span class="ident">Context</span>::<span class="ident">Os</span>(<span class="ident">os</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">normalize_os_context</span>(<span class="ident">os</span>),
+        <span class="ident">Context::Runtime</span>(<span class="ident">runtime</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">normalize_runtime_context</span>(<span class="ident">runtime</span>),
+        <span class="ident">Context::Os</span>(<span class="ident">os</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">normalize_os_context</span>(<span class="ident">os</span>),
         <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> (),
     }
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">protocol</span>::<span class="ident">LenientString</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::protocol::LenientString</span>;
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_dotnet_framework_48_without_build_id</span>() {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">runtime</span> <span class="op">=</span> <span class="ident">RuntimeContext</span> {
         <span class="ident">raw_description</span>: <span class="string">&quot;.NET Framework 4.8.4250.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-        ..<span class="ident">RuntimeContext</span>::<span class="ident">default</span>()
+        ..<span class="ident">RuntimeContext::default</span>()
     };
 
     <span class="ident">normalize_runtime_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">runtime</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Framework&quot;</span>), <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;4.8.4250.0&quot;</span>), <span class="ident">runtime</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Framework&quot;</span>), <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;4.8.4250.0&quot;</span>), <span class="ident">runtime</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -483,12 +483,12 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">runtime</span> <span class="op">=</span> <span class="ident">RuntimeContext</span> {
         <span class="ident">raw_description</span>: <span class="string">&quot;.NET Framework 4.7.3056.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
         <span class="ident">build</span>: <span class="ident">LenientString</span>(<span class="string">&quot;461814&quot;</span>.<span class="ident">to_string</span>()).<span class="ident">into</span>(),
-        ..<span class="ident">RuntimeContext</span>::<span class="ident">default</span>()
+        ..<span class="ident">RuntimeContext::default</span>()
     };
 
     <span class="ident">normalize_runtime_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">runtime</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Framework&quot;</span>), <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;4.7.2&quot;</span>), <span class="ident">runtime</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Framework&quot;</span>), <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;4.7.2&quot;</span>), <span class="ident">runtime</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -496,37 +496,37 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">runtime</span> <span class="op">=</span> <span class="ident">RuntimeContext</span> {
         <span class="ident">raw_description</span>: <span class="string">&quot;.NET Framework 200.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
         <span class="ident">build</span>: <span class="ident">LenientString</span>(<span class="string">&quot;999999&quot;</span>.<span class="ident">to_string</span>()).<span class="ident">into</span>(),
-        ..<span class="ident">RuntimeContext</span>::<span class="ident">default</span>()
+        ..<span class="ident">RuntimeContext::default</span>()
     };
 
     <span class="comment">// Unmapped build number doesn&#39;t override version</span>
     <span class="ident">normalize_runtime_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">runtime</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Framework&quot;</span>), <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;200.0&quot;</span>), <span class="ident">runtime</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Framework&quot;</span>), <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;200.0&quot;</span>), <span class="ident">runtime</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_dotnet_native</span>() {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">runtime</span> <span class="op">=</span> <span class="ident">RuntimeContext</span> {
         <span class="ident">raw_description</span>: <span class="string">&quot;.NET Native 2.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-        ..<span class="ident">RuntimeContext</span>::<span class="ident">default</span>()
+        ..<span class="ident">RuntimeContext::default</span>()
     };
 
     <span class="ident">normalize_runtime_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">runtime</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Native&quot;</span>), <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;2.0&quot;</span>), <span class="ident">runtime</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Native&quot;</span>), <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;2.0&quot;</span>), <span class="ident">runtime</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_dotnet_core</span>() {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">runtime</span> <span class="op">=</span> <span class="ident">RuntimeContext</span> {
         <span class="ident">raw_description</span>: <span class="string">&quot;.NET Core 2.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-        ..<span class="ident">RuntimeContext</span>::<span class="ident">default</span>()
+        ..<span class="ident">RuntimeContext::default</span>()
     };
 
     <span class="ident">normalize_runtime_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">runtime</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Core&quot;</span>), <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;2.0&quot;</span>), <span class="ident">runtime</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;.NET Core&quot;</span>), <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;2.0&quot;</span>), <span class="ident">runtime</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -536,12 +536,12 @@
         <span class="ident">raw_description</span>: <span class="string">&quot;Microsoft Windows NT 6.1.7601 Service Pack 1&quot;</span>
             .<span class="ident">to_string</span>()
             .<span class="ident">into</span>(),
-        ..<span class="ident">OsContext</span>::<span class="ident">default</span>()
+        ..<span class="ident">OsContext::default</span>()
     };
 
     <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;6.1.7601&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;6.1.7601&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -552,12 +552,12 @@
     <span class="comment">// Only used if RuntimeInformation.OSDescription is not available (old runtimes)</span>
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
         <span class="ident">raw_description</span>: <span class="string">&quot;Microsoft Windows NT 6.2.9200.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-        ..<span class="ident">OsContext</span>::<span class="ident">default</span>()
+        ..<span class="ident">OsContext::default</span>()
     };
 
     <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;6.2.9200&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;6.2.9200&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -566,12 +566,12 @@
     <span class="comment">// Framework 4.7.1+, Mono 5.4+)</span>
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
         <span class="ident">raw_description</span>: <span class="string">&quot;Microsoft Windows 10.0.16299&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-        ..<span class="ident">OsContext</span>::<span class="ident">default</span>()
+        ..<span class="ident">OsContext::default</span>()
     };
 
     <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10.0.16299&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10.0.16299&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -579,12 +579,12 @@
     <span class="comment">// Environment.OSVersion on macOS (CoreCLR 1.0+, Mono 1+)</span>
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
         <span class="ident">raw_description</span>: <span class="string">&quot;Unix 17.5.0.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-        ..<span class="ident">OsContext</span>::<span class="ident">default</span>()
+        ..<span class="ident">OsContext::default</span>()
     };
 
     <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Unix&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;17.5.0&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Unix&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;17.5.0&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -592,12 +592,12 @@
     <span class="comment">// RuntimeInformation.OSDescription on macOS (CoreCLR 2.0+, Mono 5.4+)</span>
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
         <span class="ident">raw_description</span>: <span class="string">&quot;Darwin 17.5.0 Darwin Kernel Version 17.5.0: Mon Mar  5 22:24:32 PST 2018; root:xnu-4570.51.1~1/RELEASE_X86_64&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-        ..<span class="ident">OsContext</span>::<span class="ident">default</span>()
+        ..<span class="ident">OsContext::default</span>()
     };
 
     <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Darwin&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;17.5.0&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Darwin&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;17.5.0&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -605,12 +605,12 @@
     <span class="comment">// Environment.OSVersion on CentOS 7 (CoreCLR 1.0+, Mono 1+)</span>
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
         <span class="ident">raw_description</span>: <span class="string">&quot;Unix 3.10.0.693&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-        ..<span class="ident">OsContext</span>::<span class="ident">default</span>()
+        ..<span class="ident">OsContext::default</span>()
     };
 
     <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Unix&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;3.10.0.693&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Unix&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;3.10.0.693&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -620,12 +620,12 @@
         <span class="ident">raw_description</span>: <span class="string">&quot;Linux 3.10.0-693.21.1.el7.x86_64 #1 SMP Wed Mar 7 19:03:37 UTC 2018&quot;</span>
             .<span class="ident">to_string</span>()
             .<span class="ident">into</span>(),
-        ..<span class="ident">OsContext</span>::<span class="ident">default</span>()
+        ..<span class="ident">OsContext::default</span>()
     };
 
     <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Linux&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;3.10.0&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Linux&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;3.10.0&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -636,38 +636,38 @@
         <span class="ident">raw_description</span>: <span class="string">&quot;Linux 4.4.0-43-Microsoft #1-Microsoft Wed Dec 31 14:42:53 PST 2014&quot;</span>
             .<span class="ident">to_string</span>()
             .<span class="ident">into</span>(),
-        ..<span class="ident">OsContext</span>::<span class="ident">default</span>()
+        ..<span class="ident">OsContext::default</span>()
     };
 
     <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Linux&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;4.4.0&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Linux&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;4.4.0&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_macos_with_build</span>() {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
         <span class="ident">raw_description</span>: <span class="string">&quot;Mac OS X 10.14.2 (18C54)&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-        ..<span class="ident">OsContext</span>::<span class="ident">default</span>()
+        ..<span class="ident">OsContext::default</span>()
     };
 
     <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;macOS&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10.14.2&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;18C54&quot;</span>), <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;macOS&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10.14.2&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;18C54&quot;</span>), <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_macos_without_build</span>() {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
         <span class="ident">raw_description</span>: <span class="string">&quot;Mac OS X 10.14.2&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-        ..<span class="ident">OsContext</span>::<span class="ident">default</span>()
+        ..<span class="ident">OsContext::default</span>()
     };
 
     <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;macOS&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10.14.2&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">value</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;macOS&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10.14.2&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">value</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -675,11 +675,11 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
         <span class="ident">name</span>: <span class="string">&quot;Properly defined name&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
         <span class="ident">raw_description</span>: <span class="string">&quot;Linux 4.4.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-        ..<span class="ident">OsContext</span>::<span class="ident">default</span>()
+        ..<span class="ident">OsContext::default</span>()
     };
 
     <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Properly defined name&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Properly defined name&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -687,23 +687,23 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
         <span class="ident">version</span>: <span class="string">&quot;Properly defined version&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
         <span class="ident">raw_description</span>: <span class="string">&quot;Linux 4.4.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
-        ..<span class="ident">OsContext</span>::<span class="ident">default</span>()
+        ..<span class="ident">OsContext::default</span>()
     };
 
     <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Properly defined version&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Properly defined version&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_no_name</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span>::<span class="ident">default</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext::default</span>();
 
     <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>);
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">value</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">value</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">value</span>());
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">raw_description</span>.<span class="ident">value</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">value</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">value</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">value</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">raw_description</span>.<span class="ident">value</span>());
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-search-js="../../../../search-index.js"></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-search-index-js="../../../../search-index.js" data-search-js="../../../../search.js"></div>
     <script src="../../../../main.js"></script><script src="../../../../source-script.js"></script><script src="../../../../source-files.js"></script></body></html>

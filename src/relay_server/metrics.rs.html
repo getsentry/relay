@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/metrics.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>metrics.rs - source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script id="default-settings"></script><script src="../../storage.js"></script><script src="../../crates.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../relay_server/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/metrics.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>metrics.rs - source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script id="default-settings"></script><script src="../../storage.js"></script><script src="../../crates.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../relay_server/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
                 <a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -470,7 +470,7 @@
 <span id="469">469</span>
 <span id="470">470</span>
 </pre><div class="example-wrap"><pre class="rust ">
-<span class="kw">use</span> <span class="ident">relay_common</span>::<span class="ident">metrics</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
+<span class="kw">use</span> <span class="ident">relay_common::metrics</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Gauge metrics used by Relay</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">RelayGauges</span> {
@@ -482,7 +482,7 @@
 <span class="kw">impl</span> <span class="ident">GaugeMetric</span> <span class="kw">for</span> <span class="ident">RelayGauges</span> {
     <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RelayGauges</span>::<span class="ident">NetworkOutage</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;upstream.network_outage&quot;</span>,
+            <span class="ident">RelayGauges::NetworkOutage</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;upstream.network_outage&quot;</span>,
         }
     }
 }
@@ -496,7 +496,7 @@
 <span class="kw">impl</span> <span class="ident">SetMetric</span> <span class="kw">for</span> <span class="ident">RelaySets</span> {
     <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RelaySets</span>::<span class="ident">UniqueProjects</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;unique_projects&quot;</span>,
+            <span class="ident">RelaySets::UniqueProjects</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;unique_projects&quot;</span>,
         }
     }
 }
@@ -606,16 +606,16 @@
 <span class="kw">impl</span> <span class="ident">HistogramMetric</span> <span class="kw">for</span> <span class="ident">RelayHistograms</span> {
     <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RelayHistograms</span>::<span class="ident">EnvelopeQueueSizePct</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.queue_size.pct&quot;</span>,
-            <span class="ident">RelayHistograms</span>::<span class="ident">EnvelopeQueueSize</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.queue_size&quot;</span>,
-            <span class="ident">RelayHistograms</span>::<span class="ident">RequestSizeBytesRaw</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.size_bytes.raw&quot;</span>,
-            <span class="ident">RelayHistograms</span>::<span class="ident">RequestSizeBytesUncompressed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.size_bytes.uncompressed&quot;</span>,
-            <span class="ident">RelayHistograms</span>::<span class="ident">ProjectStatePending</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.pending&quot;</span>,
-            <span class="ident">RelayHistograms</span>::<span class="ident">ProjectStateRequestBatchSize</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.request.batch_size&quot;</span>,
-            <span class="ident">RelayHistograms</span>::<span class="ident">ProjectStateReceived</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.received&quot;</span>,
-            <span class="ident">RelayHistograms</span>::<span class="ident">ProjectStateCacheSize</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_cache.size&quot;</span>,
-            <span class="ident">RelayHistograms</span>::<span class="ident">UpstreamMessageQueueSize</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;http_queue.size&quot;</span>,
-            <span class="ident">RelayHistograms</span>::<span class="ident">UpstreamRetries</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;upstream.retries&quot;</span>,
+            <span class="ident">RelayHistograms::EnvelopeQueueSizePct</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.queue_size.pct&quot;</span>,
+            <span class="ident">RelayHistograms::EnvelopeQueueSize</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.queue_size&quot;</span>,
+            <span class="ident">RelayHistograms::RequestSizeBytesRaw</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.size_bytes.raw&quot;</span>,
+            <span class="ident">RelayHistograms::RequestSizeBytesUncompressed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.size_bytes.uncompressed&quot;</span>,
+            <span class="ident">RelayHistograms::ProjectStatePending</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.pending&quot;</span>,
+            <span class="ident">RelayHistograms::ProjectStateRequestBatchSize</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.request.batch_size&quot;</span>,
+            <span class="ident">RelayHistograms::ProjectStateReceived</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.received&quot;</span>,
+            <span class="ident">RelayHistograms::ProjectStateCacheSize</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_cache.size&quot;</span>,
+            <span class="ident">RelayHistograms::UpstreamMessageQueueSize</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;http_queue.size&quot;</span>,
+            <span class="ident">RelayHistograms::UpstreamRetries</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;upstream.retries&quot;</span>,
         }
     }
 }
@@ -744,25 +744,25 @@
 <span class="kw">impl</span> <span class="ident">TimerMetric</span> <span class="kw">for</span> <span class="ident">RelayTimers</span> {
     <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RelayTimers</span>::<span class="ident">EventProcessingDeserialize</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.deserialize&quot;</span>,
+            <span class="ident">RelayTimers::EventProcessingDeserialize</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.deserialize&quot;</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayTimers</span>::<span class="ident">EventProcessingProcess</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.process&quot;</span>,
+            <span class="ident">RelayTimers::EventProcessingProcess</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.process&quot;</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayTimers</span>::<span class="ident">EventProcessingFiltering</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.filtering&quot;</span>,
+            <span class="ident">RelayTimers::EventProcessingFiltering</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.filtering&quot;</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayTimers</span>::<span class="ident">EventProcessingRateLimiting</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.rate_limiting&quot;</span>,
-            <span class="ident">RelayTimers</span>::<span class="ident">EventProcessingPii</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.pii&quot;</span>,
-            <span class="ident">RelayTimers</span>::<span class="ident">EventProcessingSerialization</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.serialization&quot;</span>,
-            <span class="ident">RelayTimers</span>::<span class="ident">EnvelopeWaitTime</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.wait_time&quot;</span>,
-            <span class="ident">RelayTimers</span>::<span class="ident">EnvelopeProcessingTime</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.processing_time&quot;</span>,
-            <span class="ident">RelayTimers</span>::<span class="ident">EnvelopeTotalTime</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.total_time&quot;</span>,
-            <span class="ident">RelayTimers</span>::<span class="ident">ProjectStateEvictionDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.eviction.duration&quot;</span>,
-            <span class="ident">RelayTimers</span>::<span class="ident">ProjectStateRequestDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.request.duration&quot;</span>,
-            <span class="ident">RelayTimers</span>::<span class="ident">RequestsDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;requests.duration&quot;</span>,
-            <span class="ident">RelayTimers</span>::<span class="ident">MinidumpScrubbing</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;scrubbing.minidumps.duration&quot;</span>,
-            <span class="ident">RelayTimers</span>::<span class="ident">AttachmentScrubbing</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;scrubbing.attachments.duration&quot;</span>,
-            <span class="ident">RelayTimers</span>::<span class="ident">UpstreamRequestsDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;upstream.requests.duration&quot;</span>,
-            <span class="ident">RelayTimers</span>::<span class="ident">TimestampDelay</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;requests.timestamp_delay&quot;</span>,
+            <span class="ident">RelayTimers::EventProcessingRateLimiting</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.rate_limiting&quot;</span>,
+            <span class="ident">RelayTimers::EventProcessingPii</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.pii&quot;</span>,
+            <span class="ident">RelayTimers::EventProcessingSerialization</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.serialization&quot;</span>,
+            <span class="ident">RelayTimers::EnvelopeWaitTime</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.wait_time&quot;</span>,
+            <span class="ident">RelayTimers::EnvelopeProcessingTime</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.processing_time&quot;</span>,
+            <span class="ident">RelayTimers::EnvelopeTotalTime</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.total_time&quot;</span>,
+            <span class="ident">RelayTimers::ProjectStateEvictionDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.eviction.duration&quot;</span>,
+            <span class="ident">RelayTimers::ProjectStateRequestDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.request.duration&quot;</span>,
+            <span class="ident">RelayTimers::RequestsDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;requests.duration&quot;</span>,
+            <span class="ident">RelayTimers::MinidumpScrubbing</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;scrubbing.minidumps.duration&quot;</span>,
+            <span class="ident">RelayTimers::AttachmentScrubbing</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;scrubbing.attachments.duration&quot;</span>,
+            <span class="ident">RelayTimers::UpstreamRequestsDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;upstream.requests.duration&quot;</span>,
+            <span class="ident">RelayTimers::TimestampDelay</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;requests.timestamp_delay&quot;</span>,
         }
     }
 }
@@ -915,31 +915,31 @@
     <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayCounters</span>::<span class="ident">EventCorrupted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.corrupted&quot;</span>,
-            <span class="ident">RelayCounters</span>::<span class="ident">EnvelopeAccepted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.accepted&quot;</span>,
-            <span class="ident">RelayCounters</span>::<span class="ident">EnvelopeRejected</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.rejected&quot;</span>,
+            <span class="ident">RelayCounters::EventCorrupted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.corrupted&quot;</span>,
+            <span class="ident">RelayCounters::EnvelopeAccepted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.accepted&quot;</span>,
+            <span class="ident">RelayCounters::EnvelopeRejected</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.rejected&quot;</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayCounters</span>::<span class="ident">Outcomes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;events.outcomes&quot;</span>,
-            <span class="ident">RelayCounters</span>::<span class="ident">ProjectStateGet</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.get&quot;</span>,
-            <span class="ident">RelayCounters</span>::<span class="ident">ProjectStateRequest</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.request&quot;</span>,
-            <span class="ident">RelayCounters</span>::<span class="ident">ProjectStateNoCache</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.no_cache&quot;</span>,
-            <span class="ident">RelayCounters</span>::<span class="ident">ProjectCacheHit</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_cache.hit&quot;</span>,
-            <span class="ident">RelayCounters</span>::<span class="ident">ProjectCacheMiss</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_cache.miss&quot;</span>,
-            <span class="ident">RelayCounters</span>::<span class="ident">ServerStarting</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;server.starting&quot;</span>,
+            <span class="ident">RelayCounters::Outcomes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;events.outcomes&quot;</span>,
+            <span class="ident">RelayCounters::ProjectStateGet</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.get&quot;</span>,
+            <span class="ident">RelayCounters::ProjectStateRequest</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.request&quot;</span>,
+            <span class="ident">RelayCounters::ProjectStateNoCache</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.no_cache&quot;</span>,
+            <span class="ident">RelayCounters::ProjectCacheHit</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_cache.hit&quot;</span>,
+            <span class="ident">RelayCounters::ProjectCacheMiss</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_cache.miss&quot;</span>,
+            <span class="ident">RelayCounters::ServerStarting</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;server.starting&quot;</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayCounters</span>::<span class="ident">ProcessingMessageProduced</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;processing.event.produced&quot;</span>,
+            <span class="ident">RelayCounters::ProcessingMessageProduced</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;processing.event.produced&quot;</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayCounters</span>::<span class="ident">ProcessingProduceError</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;processing.produce.error&quot;</span>,
-            <span class="ident">RelayCounters</span>::<span class="ident">EventProtocol</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.protocol&quot;</span>,
-            <span class="ident">RelayCounters</span>::<span class="ident">Requests</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;requests&quot;</span>,
-            <span class="ident">RelayCounters</span>::<span class="ident">ResponsesStatusCodes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;responses.status_codes&quot;</span>,
-            <span class="ident">RelayCounters</span>::<span class="ident">EvictingStaleProjectCaches</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_cache.eviction&quot;</span>,
+            <span class="ident">RelayCounters::ProcessingProduceError</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;processing.produce.error&quot;</span>,
+            <span class="ident">RelayCounters::EventProtocol</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.protocol&quot;</span>,
+            <span class="ident">RelayCounters::Requests</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;requests&quot;</span>,
+            <span class="ident">RelayCounters::ResponsesStatusCodes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;responses.status_codes&quot;</span>,
+            <span class="ident">RelayCounters::EvictingStaleProjectCaches</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_cache.eviction&quot;</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayCounters</span>::<span class="ident">InternalCapturedEventStoreActor</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;internal.captured.event.store_actor&quot;</span>,
-            <span class="ident">RelayCounters</span>::<span class="ident">InternalCapturedEventEndpoint</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;internal.captured.event.endpoint&quot;</span>,
+            <span class="ident">RelayCounters::InternalCapturedEventStoreActor</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;internal.captured.event.store_actor&quot;</span>,
+            <span class="ident">RelayCounters::InternalCapturedEventEndpoint</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;internal.captured.event.endpoint&quot;</span>,
         }
     }
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_server" data-search-js="../../search-index.js"></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_server" data-search-index-js="../../search-index.js" data-search-js="../../search.js"></div>
     <script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script></body></html>

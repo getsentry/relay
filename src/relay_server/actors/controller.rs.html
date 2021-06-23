@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/controller.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>controller.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_server/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/controller.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>controller.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_server/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
                 <a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -258,16 +258,16 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! See the [`Controller`] struct for more information.</span>
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::<span class="ident">Duration</span>;
+<span class="kw">use</span> <span class="ident">std::fmt</span>;
+<span class="kw">use</span> <span class="ident">std::time::Duration</span>;
 
-<span class="kw">use</span> ::<span class="ident">actix</span>::<span class="ident">actors</span>::<span class="ident">signal</span>;
-<span class="kw">use</span> ::<span class="ident">actix</span>::<span class="ident">fut</span>;
-<span class="kw">use</span> ::<span class="ident">actix</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">future</span>;
-<span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">::actix::actors::signal</span>;
+<span class="kw">use</span> <span class="ident">::actix::fut</span>;
+<span class="kw">use</span> <span class="ident">::actix::prelude</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">futures::future</span>;
+<span class="kw">use</span> <span class="ident">futures::prelude</span>::<span class="kw-2">*</span>;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">service</span>::<span class="ident">ServerError</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::service::ServerError</span>;
 
 <span class="doccomment">/// Actor to start and gracefully stop an actix system.</span>
 <span class="doccomment">///</span>
@@ -328,7 +328,7 @@
     <span class="kw">where</span>
         <span class="ident">F</span>: <span class="ident">FnOnce</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">R</span>, <span class="ident">E</span><span class="op">&gt;</span>,
     {
-        <span class="kw">let</span> <span class="ident">sys</span> <span class="op">=</span> <span class="ident">System</span>::<span class="ident">new</span>(<span class="string">&quot;relay&quot;</span>);
+        <span class="kw">let</span> <span class="ident">sys</span> <span class="op">=</span> <span class="ident">System::new</span>(<span class="string">&quot;relay&quot;</span>);
 
         <span class="comment">// Run the factory and exit early if an error happens. The return value of the factory is</span>
         <span class="comment">// discarded for convenience, to allow shorthand notations.</span>
@@ -337,13 +337,13 @@
         <span class="comment">// Ensure that the controller starts if no actor has started it yet. It will register with</span>
         <span class="comment">// `ProcessSignals` shut down even if no actors have subscribed. If we remove this line, the</span>
         <span class="comment">// controller will not be instantiated and our system will not listen for signals.</span>
-        <span class="ident">Controller</span>::<span class="ident">from_registry</span>();
+        <span class="ident">Controller::from_registry</span>();
 
         <span class="comment">// All actors have started successfully. Run the system, which blocks the current thread</span>
         <span class="comment">// until a signal arrives or `Controller::stop` is called.</span>
-        <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;relay server starting&quot;</span>);
+        <span class="macro">relay_log::info!</span>(<span class="string">&quot;relay server starting&quot;</span>);
         <span class="ident">sys</span>.<span class="ident">run</span>();
-        <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;relay shutdown complete&quot;</span>);
+        <span class="macro">relay_log::info!</span>(<span class="string">&quot;relay shutdown complete&quot;</span>);
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -352,9 +352,9 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">subscribe</span><span class="op">&lt;</span><span class="ident">A</span><span class="op">&gt;</span>(<span class="ident">addr</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">A</span><span class="op">&gt;</span>)
     <span class="kw">where</span>
         <span class="ident">A</span>: <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">Shutdown</span><span class="op">&gt;</span>,
-        <span class="ident">A</span>::<span class="ident">Context</span>: <span class="ident">actix</span>::<span class="ident">dev</span>::<span class="ident">ToEnvelope</span><span class="op">&lt;</span><span class="ident">A</span>, <span class="ident">Shutdown</span><span class="op">&gt;</span>,
+        <span class="ident">A::Context</span>: <span class="ident">actix::dev::ToEnvelope</span><span class="op">&lt;</span><span class="ident">A</span>, <span class="ident">Shutdown</span><span class="op">&gt;</span>,
     {
-        <span class="ident">Controller</span>::<span class="ident">from_registry</span>().<span class="ident">do_send</span>(<span class="ident">Subscribe</span>(<span class="ident">addr</span>.<span class="ident">recipient</span>()))
+        <span class="ident">Controller::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">Subscribe</span>(<span class="ident">addr</span>.<span class="ident">recipient</span>()))
     }
 
     <span class="doccomment">/// Performs a graceful shutdown with the given timeout.</span>
@@ -372,7 +372,7 @@
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">future</span><span class="op">|</span> <span class="ident">future</span>.<span class="ident">then</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="prelude-val">Ok</span>(())))
             .<span class="ident">collect</span>();
 
-        <span class="ident">future</span>::<span class="ident">join_all</span>(<span class="ident">futures</span>)
+        <span class="ident">future::join_all</span>(<span class="ident">futures</span>)
             .<span class="ident">into_actor</span>(<span class="self">self</span>)
             .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="ident">ctx</span><span class="op">|</span> {
                 <span class="comment">// Once all shutdowns have completed, we can schedule a stop of the actix system. It is</span>
@@ -383,12 +383,12 @@
                 <span class="comment">// handlers. Once `System::stop` is called, futures won&#39;t be polled anymore and we will not</span>
                 <span class="comment">// be able to print error messages.</span>
                 <span class="kw">let</span> <span class="ident">when</span> <span class="op">=</span>
-                    <span class="ident">timeout</span>.<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Duration</span>::<span class="ident">from_secs</span>(<span class="number">0</span>)) <span class="op">+</span> <span class="ident">Duration</span>::<span class="ident">from_millis</span>(<span class="number">100</span>);
+                    <span class="ident">timeout</span>.<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Duration::from_secs</span>(<span class="number">0</span>)) <span class="op">+</span> <span class="ident">Duration::from_millis</span>(<span class="number">100</span>);
 
                 <span class="ident">ctx</span>.<span class="ident">run_later</span>(<span class="ident">when</span>, <span class="op">|</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">|</span> {
-                    <span class="ident">System</span>::<span class="ident">current</span>().<span class="ident">stop</span>();
+                    <span class="ident">System::current</span>().<span class="ident">stop</span>();
                 });
-                <span class="ident">fut</span>::<span class="ident">ok</span>(())
+                <span class="ident">fut::ok</span>(())
             })
             .<span class="ident">spawn</span>(<span class="ident">context</span>);
     }
@@ -397,14 +397,14 @@
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Controller</span> {
     <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="ident">Controller</span> {
-            <span class="ident">timeout</span>: <span class="ident">Duration</span>::<span class="ident">from_secs</span>(<span class="number">0</span>),
-            <span class="ident">subscribers</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
+            <span class="ident">timeout</span>: <span class="ident">Duration::from_secs</span>(<span class="number">0</span>),
+            <span class="ident">subscribers</span>: <span class="ident">Vec::new</span>(),
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">Controller</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Controller</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
         <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;Controller&quot;</span>)
             .<span class="ident">field</span>(<span class="string">&quot;timeout&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">timeout</span>)
             .<span class="ident">field</span>(<span class="string">&quot;subscribers&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">subscribers</span>.<span class="ident">len</span>())
@@ -415,9 +415,9 @@
 <span class="kw">impl</span> <span class="ident">Actor</span> <span class="kw">for</span> <span class="ident">Controller</span> {
     <span class="kw">type</span> <span class="ident">Context</span> <span class="op">=</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) {
-        <span class="ident">signal</span>::<span class="ident">ProcessSignals</span>::<span class="ident">from_registry</span>()
-            .<span class="ident">do_send</span>(<span class="ident">signal</span>::<span class="ident">Subscribe</span>(<span class="ident">context</span>.<span class="ident">address</span>().<span class="ident">recipient</span>()));
+    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) {
+        <span class="ident">signal::ProcessSignals::from_registry</span>()
+            .<span class="ident">do_send</span>(<span class="ident">signal::Subscribe</span>(<span class="ident">context</span>.<span class="ident">address</span>().<span class="ident">recipient</span>()));
     }
 }
 
@@ -425,22 +425,22 @@
 
 <span class="kw">impl</span> <span class="ident">SystemService</span> <span class="kw">for</span> <span class="ident">Controller</span> {}
 
-<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">signal</span>::<span class="ident">Signal</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Controller</span> {
+<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">signal::Signal</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Controller</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">signal</span>::<span class="ident">Signal</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">signal::Signal</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
         <span class="kw">match</span> <span class="ident">message</span>.<span class="number">0</span> {
-            <span class="ident">signal</span>::<span class="ident">SignalType</span>::<span class="ident">Int</span> <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;SIGINT received, exiting&quot;</span>);
+            <span class="ident">signal::SignalType::Int</span> <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="macro">relay_log::info!</span>(<span class="string">&quot;SIGINT received, exiting&quot;</span>);
                 <span class="self">self</span>.<span class="ident">shutdown</span>(<span class="ident">context</span>, <span class="prelude-val">None</span>);
             }
-            <span class="ident">signal</span>::<span class="ident">SignalType</span>::<span class="ident">Quit</span> <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;SIGQUIT received, exiting&quot;</span>);
+            <span class="ident">signal::SignalType::Quit</span> <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="macro">relay_log::info!</span>(<span class="string">&quot;SIGQUIT received, exiting&quot;</span>);
                 <span class="self">self</span>.<span class="ident">shutdown</span>(<span class="ident">context</span>, <span class="prelude-val">None</span>);
             }
-            <span class="ident">signal</span>::<span class="ident">SignalType</span>::<span class="ident">Term</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">signal::SignalType::Term</span> <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="kw">let</span> <span class="ident">timeout</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">timeout</span>;
-                <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;SIGTERM received, stopping in {}s&quot;</span>, <span class="ident">timeout</span>.<span class="ident">as_secs</span>());
+                <span class="macro">relay_log::info!</span>(<span class="string">&quot;SIGTERM received, stopping in {}s&quot;</span>, <span class="ident">timeout</span>.<span class="ident">as_secs</span>());
                 <span class="self">self</span>.<span class="ident">shutdown</span>(<span class="ident">context</span>, <span class="prelude-val">Some</span>(<span class="ident">timeout</span>));
             }
             <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> (),
@@ -462,7 +462,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">Configure</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Controller</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">Configure</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">Configure</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
         <span class="self">self</span>.<span class="ident">timeout</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">shutdown_timeout</span>;
     }
 }
@@ -470,9 +470,9 @@
 <span class="doccomment">/// Subscribtion message for [`Shutdown`] events.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Subscribe</span>(<span class="kw">pub</span> <span class="ident">Recipient</span><span class="op">&lt;</span><span class="ident">Shutdown</span><span class="op">&gt;</span>);
 
-<span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">Subscribe</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-        <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;Subscribe(Shutdown)&quot;</span>)
+<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Subscribe</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;Subscribe(Shutdown)&quot;</span>)
     }
 }
 
@@ -483,7 +483,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">Subscribe</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Controller</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">Subscribe</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">Subscribe</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
         <span class="self">self</span>.<span class="ident">subscribers</span>.<span class="ident">push</span>(<span class="ident">message</span>.<span class="number">0</span>)
     }
 }
@@ -509,5 +509,5 @@
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span>;
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-search-js="../../../search-index.js"></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-search-index-js="../../../search-index.js" data-search-js="../../../search.js"></div>
     <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script></body></html>

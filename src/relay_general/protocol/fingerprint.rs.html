@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/fingerprint.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>fingerprint.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general/src/protocol/fingerprint.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>fingerprint.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
                 <a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -210,10 +210,10 @@
 <span id="209">209</span>
 <span id="210">210</span>
 </pre><div class="example-wrap"><pre class="rust ">
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">processor</span>::<span class="ident">ProcessValue</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">protocol</span>::<span class="ident">LenientString</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::{
-    <span class="ident">Annotated</span>, <span class="ident">Empty</span>, <span class="ident">Error</span>, <span class="ident">ErrorKind</span>, <span class="ident">FromValue</span>, <span class="ident">SkipSerialization</span>, <span class="ident">ToValue</span>, <span class="ident">Value</span>,
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::processor::ProcessValue</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::protocol::LenientString</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types</span>::{
+    <span class="ident">Annotated</span>, <span class="ident">Empty</span>, <span class="ident">Error</span>, <span class="ident">ErrorKind</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">SkipSerialization</span>, <span class="ident">Value</span>,
 };
 
 <span class="doccomment">/// A fingerprint value.</span>
@@ -221,16 +221,16 @@
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Fingerprint</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>);
 
-<span class="kw">impl</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">Fingerprint</span> {
+<span class="kw">impl</span> <span class="ident">std::ops::Deref</span> <span class="kw">for</span> <span class="ident">Fingerprint</span> {
     <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">Self</span>::<span class="ident">Target</span> {
+    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">Self</span><span class="ident">::Target</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
     }
 }
 
-<span class="kw">impl</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">DerefMut</span> <span class="kw">for</span> <span class="ident">Fingerprint</span> {
-    <span class="kw">fn</span> <span class="ident">deref_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Target</span> {
+<span class="kw">impl</span> <span class="ident">std::ops::DerefMut</span> <span class="kw">for</span> <span class="ident">Fingerprint</span> {
+    <span class="kw">fn</span> <span class="ident">deref_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Target</span> {
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="number">0</span>
     }
 }
@@ -247,7 +247,7 @@
     }
 
     <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="ident">Empty</span>::<span class="ident">is_deep_empty</span>)
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="ident">Empty::is_deep_empty</span>)
     }
 }
 
@@ -258,17 +258,17 @@
     {
         <span class="kw">match</span> <span class="ident">value</span> {
             <span class="comment">// TODO: check error reporting here, this seems wrong</span>
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">Array</span>(<span class="ident">array</span>)), <span class="kw-2">mut</span> <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fingerprint</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bad_values</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
+            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Array</span>(<span class="ident">array</span>)), <span class="kw-2">mut</span> <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fingerprint</span> <span class="op">=</span> <span class="macro">vec!</span>[];
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bad_values</span> <span class="op">=</span> <span class="macro">vec!</span>[];
 
                 <span class="kw">for</span> <span class="ident">elem</span> <span class="kw">in</span> <span class="ident">array</span> {
-                    <span class="kw">let</span> <span class="ident">Annotated</span>(<span class="ident">value</span>, <span class="kw-2">mut</span> <span class="ident">elem_meta</span>) <span class="op">=</span> <span class="ident">LenientString</span>::<span class="ident">from_value</span>(<span class="ident">elem</span>);
+                    <span class="kw">let</span> <span class="ident">Annotated</span>(<span class="ident">value</span>, <span class="kw-2">mut</span> <span class="ident">elem_meta</span>) <span class="op">=</span> <span class="ident">LenientString::from_value</span>(<span class="ident">elem</span>);
                     <span class="kw">if</span> <span class="kw">let</span> (<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="bool-val">false</span>) <span class="op">=</span> (<span class="ident">value</span>, <span class="ident">elem_meta</span>.<span class="ident">has_errors</span>()) {
                         <span class="ident">fingerprint</span>.<span class="ident">push</span>(<span class="ident">value</span>.<span class="number">0</span>);
                     }
                     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">bad_value</span>) <span class="op">=</span> <span class="ident">elem_meta</span>.<span class="ident">take_original_value</span>() {
-                        <span class="ident">bad_values</span>.<span class="ident">push</span>(<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">bad_value</span>));
+                        <span class="ident">bad_values</span>.<span class="ident">push</span>(<span class="ident">Annotated::new</span>(<span class="ident">bad_value</span>));
                     }
                 }
 
@@ -277,7 +277,7 @@
                         <span class="ident">meta</span>.<span class="ident">set_original_length</span>(<span class="prelude-val">Some</span>(<span class="ident">fingerprint</span>.<span class="ident">len</span>() <span class="op">+</span> <span class="ident">bad_values</span>.<span class="ident">len</span>()));
                     }
 
-                    <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error</span>::<span class="ident">with</span>(<span class="ident">ErrorKind</span>::<span class="ident">InvalidData</span>, <span class="op">|</span><span class="ident">error</span><span class="op">|</span> {
+                    <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::with</span>(<span class="ident">ErrorKind::InvalidData</span>, <span class="op">|</span><span class="ident">error</span><span class="op">|</span> {
                         <span class="ident">error</span>.<span class="ident">insert</span>(<span class="string">&quot;value&quot;</span>, <span class="ident">bad_values</span>);
                     }));
                 }
@@ -292,7 +292,7 @@
                 )
             }
             <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error</span>::<span class="ident">expected</span>(<span class="string">&quot;an array&quot;</span>));
+                <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="string">&quot;an array&quot;</span>));
                 <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
                 <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
             }
@@ -301,25 +301,25 @@
     }
 }
 
-<span class="kw">impl</span> <span class="ident">ToValue</span> <span class="kw">for</span> <span class="ident">Fingerprint</span> {
-    <span class="kw">fn</span> <span class="ident">to_value</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Value</span>
+<span class="kw">impl</span> <span class="ident">IntoValue</span> <span class="kw">for</span> <span class="ident">Fingerprint</span> {
+    <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Value</span>
     <span class="kw">where</span>
         <span class="self">Self</span>: <span class="ident">Sized</span>,
     {
-        <span class="ident">Value</span>::<span class="ident">Array</span>(
+        <span class="ident">Value::Array</span>(
             <span class="self">self</span>.<span class="number">0</span>
                 .<span class="ident">into_iter</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">String</span>(<span class="ident">x</span>)))
+                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="ident">x</span>)))
                 .<span class="ident">collect</span>(),
         )
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">_behavior</span>: <span class="ident">SkipSerialization</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">_behavior</span>: <span class="ident">SkipSerialization</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="self">Self</span>: <span class="ident">Sized</span>,
-        <span class="ident">S</span>: <span class="ident">serde</span>::<span class="ident">Serializer</span>,
+        <span class="ident">S</span>: <span class="ident">serde::Serializer</span>,
     {
-        <span class="ident">serde</span>::<span class="ident">Serialize</span>::<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="ident">s</span>)
+        <span class="ident">serde::Serialize::serialize</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="ident">s</span>)
     }
 }
 
@@ -328,98 +328,98 @@
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_fingerprint_string</span>() {
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;fingerprint&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span>::<span class="ident">from_json</span>(<span class="string">&quot;[\&quot;fingerprint\&quot;]&quot;</span>).<span class="ident">unwrap</span>()
+    <span class="macro">assert_eq_dbg!</span>(
+        <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;fingerprint&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
+        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[\&quot;fingerprint\&quot;]&quot;</span>).<span class="ident">unwrap</span>()
     );
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_fingerprint_bool</span>() {
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;True&quot;</span>.<span class="ident">to_string</span>(), <span class="string">&quot;False&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span>::<span class="ident">from_json</span>(<span class="string">&quot;[true, false]&quot;</span>).<span class="ident">unwrap</span>()
+    <span class="macro">assert_eq_dbg!</span>(
+        <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;True&quot;</span>.<span class="ident">to_string</span>(), <span class="string">&quot;False&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
+        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[true, false]&quot;</span>).<span class="ident">unwrap</span>()
     );
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_fingerprint_number</span>() {
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;-22&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span>::<span class="ident">from_json</span>(<span class="string">&quot;[-22]&quot;</span>).<span class="ident">unwrap</span>()
+    <span class="macro">assert_eq_dbg!</span>(
+        <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;-22&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
+        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[-22]&quot;</span>).<span class="ident">unwrap</span>()
     );
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_fingerprint_float</span>() {
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;3&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span>::<span class="ident">from_json</span>(<span class="string">&quot;[3.0]&quot;</span>).<span class="ident">unwrap</span>()
+    <span class="macro">assert_eq_dbg!</span>(
+        <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;3&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
+        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[3.0]&quot;</span>).<span class="ident">unwrap</span>()
     );
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_fingerprint_float_trunc</span>() {
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;3&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span>::<span class="ident">from_json</span>(<span class="string">&quot;[3.5]&quot;</span>).<span class="ident">unwrap</span>()
+    <span class="macro">assert_eq_dbg!</span>(
+        <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;3&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
+        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[3.5]&quot;</span>).<span class="ident">unwrap</span>()
     );
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_fingerprint_float_strip</span>() {
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::<span class="ident">Meta</span>;
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types::Meta</span>;
 
-    <span class="kw">let</span> <span class="ident">bad_values</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">F64</span>(<span class="op">-</span><span class="number">1e100</span>))];
+    <span class="kw">let</span> <span class="ident">bad_values</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Value::F64</span>(<span class="op">-</span><span class="number">1e100</span>))];
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta</span>::<span class="ident">from_error</span>(<span class="ident">Error</span>::<span class="ident">with</span>(<span class="ident">ErrorKind</span>::<span class="ident">InvalidData</span>, <span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::from_error</span>(<span class="ident">Error::with</span>(<span class="ident">ErrorKind::InvalidData</span>, <span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
         <span class="ident">e</span>.<span class="ident">insert</span>(<span class="string">&quot;value&quot;</span>, <span class="ident">bad_values</span>);
     }));
     <span class="ident">meta</span>.<span class="ident">set_original_length</span>(<span class="prelude-val">Some</span>(<span class="number">1</span>));
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
+    <span class="macro">assert_eq_dbg!</span>(
         <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span>::<span class="ident">from_json</span>(<span class="string">&quot;[-1e100]&quot;</span>).<span class="ident">unwrap</span>()
+        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[-1e100]&quot;</span>).<span class="ident">unwrap</span>()
     );
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_fingerprint_float_bounds</span>() {
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">types</span>::<span class="ident">Meta</span>;
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types::Meta</span>;
 
-    <span class="kw">let</span> <span class="ident">bad_values</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Value</span>::<span class="ident">F64</span>(
-        <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy</span>::<span class="ident">excessive_precision</span>)]</span>
+    <span class="kw">let</span> <span class="ident">bad_values</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Value::F64</span>(
+        <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::excessive_precision</span>)]</span>
         <span class="number">1.797_693_134_862_315_7e+308</span>,
     ))];
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta</span>::<span class="ident">from_error</span>(<span class="ident">Error</span>::<span class="ident">with</span>(<span class="ident">ErrorKind</span>::<span class="ident">InvalidData</span>, <span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::from_error</span>(<span class="ident">Error::with</span>(<span class="ident">ErrorKind::InvalidData</span>, <span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
         <span class="ident">e</span>.<span class="ident">insert</span>(<span class="string">&quot;value&quot;</span>, <span class="ident">bad_values</span>);
     }));
     <span class="ident">meta</span>.<span class="ident">set_original_length</span>(<span class="prelude-val">Some</span>(<span class="number">1</span>));
 
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
+    <span class="macro">assert_eq_dbg!</span>(
         <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span>::<span class="ident">from_json</span>(<span class="string">&quot;[1.7976931348623157e+308]&quot;</span>).<span class="ident">unwrap</span>()
+        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[1.7976931348623157e+308]&quot;</span>).<span class="ident">unwrap</span>()
     );
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_fingerprint_invalid_fallback</span>() {
     <span class="comment">// XXX: review, this was changed after refactor</span>
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="ident">Fingerprint</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(), <span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>()])),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span>::<span class="ident">from_json</span>(<span class="string">&quot;[\&quot;a\&quot;, null, \&quot;d\&quot;]&quot;</span>).<span class="ident">unwrap</span>()
+    <span class="macro">assert_eq_dbg!</span>(
+        <span class="ident">Annotated::new</span>(<span class="ident">Fingerprint</span>(<span class="macro">vec!</span>[<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(), <span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>()])),
+        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[\&quot;a\&quot;, null, \&quot;d\&quot;]&quot;</span>).<span class="ident">unwrap</span>()
     );
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_fingerprint_empty</span>() {
     <span class="comment">// XXX: review, this was changed after refactor</span>
-    <span class="macro">assert_eq_dbg</span><span class="macro">!</span>(
-        <span class="ident">Annotated</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[].<span class="ident">into</span>()),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span>::<span class="ident">from_json</span>(<span class="string">&quot;[]&quot;</span>).<span class="ident">unwrap</span>()
+    <span class="macro">assert_eq_dbg!</span>(
+        <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[].<span class="ident">into</span>()),
+        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[]&quot;</span>).<span class="ident">unwrap</span>()
     );
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-search-js="../../../search-index.js"></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-search-index-js="../../../search-index.js" data-search-js="../../../search.js"></div>
     <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script></body></html>

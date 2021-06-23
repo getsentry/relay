@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/project.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>project.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_server/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/project.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>project.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_server/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
                 <a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -972,39 +972,39 @@
 <span id="971">971</span>
 <span id="972">972</span>
 </pre><div class="example-wrap"><pre class="rust ">
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeSet</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
+<span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
+<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
+<span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
 
-<span class="kw">use</span> <span class="ident">actix</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Utc</span>};
-<span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">future</span>;
-<span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">future</span>::<span class="ident">Shared</span>, <span class="ident">sync</span>::<span class="ident">oneshot</span>, <span class="ident">Future</span>};
+<span class="kw">use</span> <span class="ident">futures::future</span>;
+<span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">future::Shared</span>, <span class="ident">sync::oneshot</span>, <span class="ident">Future</span>};
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
-<span class="kw">use</span> <span class="ident">serde_json</span>::<span class="ident">Value</span>;
-<span class="kw">use</span> <span class="ident">smallvec</span>::<span class="ident">SmallVec</span>;
-<span class="kw">use</span> <span class="ident">url</span>::<span class="ident">Url</span>;
+<span class="kw">use</span> <span class="ident">serde_json::Value</span>;
+<span class="kw">use</span> <span class="ident">smallvec::SmallVec</span>;
+<span class="kw">use</span> <span class="ident">url::Url</span>;
 
-<span class="kw">use</span> <span class="ident">relay_auth</span>::<span class="ident">PublicKey</span>;
+<span class="kw">use</span> <span class="ident">relay_auth::PublicKey</span>;
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>};
-<span class="kw">use</span> <span class="ident">relay_config</span>::<span class="ident">Config</span>;
+<span class="kw">use</span> <span class="ident">relay_config::Config</span>;
 <span class="kw">use</span> <span class="ident">relay_filter</span>::{<span class="ident">matches_any_origin</span>, <span class="ident">FiltersConfig</span>};
-<span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">pii</span>::{<span class="ident">DataScrubbingConfig</span>, <span class="ident">PiiConfig</span>};
-<span class="kw">use</span> <span class="ident">relay_general</span>::<span class="ident">store</span>::<span class="ident">BreakdownsConfig</span>;
+<span class="kw">use</span> <span class="ident">relay_general::pii</span>::{<span class="ident">DataScrubbingConfig</span>, <span class="ident">PiiConfig</span>};
+<span class="kw">use</span> <span class="ident">relay_general::store::BreakdownsConfig</span>;
 <span class="kw">use</span> <span class="ident">relay_metrics</span>::{
     <span class="ident">AggregateMetricsError</span>, <span class="ident">Aggregator</span>, <span class="ident">Bucket</span>, <span class="ident">FlushBuckets</span>, <span class="ident">InsertMetrics</span>, <span class="ident">MergeBuckets</span>,
 };
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">Quota</span>, <span class="ident">RateLimits</span>, <span class="ident">Scoping</span>};
-<span class="kw">use</span> <span class="ident">relay_sampling</span>::<span class="ident">SamplingConfig</span>;
+<span class="kw">use</span> <span class="ident">relay_sampling::SamplingConfig</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">SendMetrics</span>};
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">outcome</span>::<span class="ident">DiscardReason</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">outcome</span>::<span class="ident">OutcomeProducer</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">actors</span>::<span class="ident">project_cache</span>::{<span class="ident">FetchProjectState</span>, <span class="ident">ProjectCache</span>, <span class="ident">ProjectError</span>};
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">envelope</span>::<span class="ident">Envelope</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">extractors</span>::<span class="ident">RequestMeta</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">metrics</span>::<span class="ident">RelayCounters</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">utils</span>::{<span class="ident">ActorResponse</span>, <span class="ident">EnvelopeLimiter</span>, <span class="ident">Response</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">SendMetrics</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::outcome::DiscardReason</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::outcome::OutcomeProducer</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project_cache</span>::{<span class="ident">FetchProjectState</span>, <span class="ident">ProjectCache</span>, <span class="ident">ProjectError</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::envelope::Envelope</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::extractors::RequestMeta</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::metrics::RelayCounters</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::utils</span>::{<span class="ident">ActorResponse</span>, <span class="ident">EnvelopeLimiter</span>, <span class="ident">Response</span>};
 
 <span class="doccomment">/// The current status of a project state. Return value of `ProjectState::outdated`.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
@@ -1068,17 +1068,17 @@
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">ProjectConfig</span> {
     <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="ident">ProjectConfig</span> {
-            <span class="ident">allowed_domains</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;*&quot;</span>.<span class="ident">to_string</span>()],
-            <span class="ident">trusted_relays</span>: <span class="macro">vec</span><span class="macro">!</span>[],
+            <span class="ident">allowed_domains</span>: <span class="macro">vec!</span>[<span class="string">&quot;*&quot;</span>.<span class="ident">to_string</span>()],
+            <span class="ident">trusted_relays</span>: <span class="macro">vec!</span>[],
             <span class="ident">pii_config</span>: <span class="prelude-val">None</span>,
             <span class="ident">grouping_config</span>: <span class="prelude-val">None</span>,
-            <span class="ident">filter_settings</span>: <span class="ident">FiltersConfig</span>::<span class="ident">default</span>(),
-            <span class="ident">datascrubbing_settings</span>: <span class="ident">DataScrubbingConfig</span>::<span class="ident">default</span>(),
+            <span class="ident">filter_settings</span>: <span class="ident">FiltersConfig::default</span>(),
+            <span class="ident">datascrubbing_settings</span>: <span class="ident">DataScrubbingConfig::default</span>(),
             <span class="ident">event_retention</span>: <span class="prelude-val">None</span>,
-            <span class="ident">quotas</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
+            <span class="ident">quotas</span>: <span class="ident">Vec::new</span>(),
             <span class="ident">dynamic_sampling</span>: <span class="prelude-val">None</span>,
             <span class="ident">breakdowns_v2</span>: <span class="prelude-val">None</span>,
-            <span class="ident">features</span>: <span class="ident">BTreeSet</span>::<span class="ident">new</span>(),
+            <span class="ident">features</span>: <span class="ident">BTreeSet::new</span>(),
         }
     }
 }
@@ -1155,11 +1155,11 @@
             <span class="ident">project_id</span>: <span class="prelude-val">None</span>,
             <span class="ident">last_change</span>: <span class="prelude-val">None</span>,
             <span class="ident">disabled</span>: <span class="bool-val">true</span>,
-            <span class="ident">public_keys</span>: <span class="ident">SmallVec</span>::<span class="ident">new</span>(),
+            <span class="ident">public_keys</span>: <span class="ident">SmallVec::new</span>(),
             <span class="ident">slug</span>: <span class="prelude-val">None</span>,
-            <span class="ident">config</span>: <span class="ident">ProjectConfig</span>::<span class="ident">default</span>(),
+            <span class="ident">config</span>: <span class="ident">ProjectConfig::default</span>(),
             <span class="ident">organization_id</span>: <span class="prelude-val">None</span>,
-            <span class="ident">last_fetch</span>: <span class="ident">Instant</span>::<span class="ident">now</span>(),
+            <span class="ident">last_fetch</span>: <span class="ident">Instant::now</span>(),
             <span class="ident">invalid</span>: <span class="bool-val">false</span>,
         }
     }
@@ -1168,14 +1168,14 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// This state is used for forwarding in Proxy mode.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">allowed</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">ProjectState</span>::<span class="ident">missing</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">ProjectState::missing</span>();
         <span class="ident">state</span>.<span class="ident">disabled</span> <span class="op">=</span> <span class="bool-val">false</span>;
         <span class="ident">state</span>
     }
 
     <span class="doccomment">/// Project state for a deserialization error.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">err</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">ProjectState</span>::<span class="ident">missing</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">ProjectState::missing</span>();
         <span class="ident">state</span>.<span class="ident">invalid</span> <span class="op">=</span> <span class="bool-val">true</span>;
         <span class="ident">state</span>
     }
@@ -1207,11 +1207,11 @@
 
         <span class="kw">let</span> <span class="ident">elapsed</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">last_fetch</span>.<span class="ident">elapsed</span>();
         <span class="kw">if</span> <span class="ident">elapsed</span> <span class="op">&gt;</span><span class="op">=</span> <span class="ident">expiry</span> <span class="op">+</span> <span class="ident">config</span>.<span class="ident">project_grace_period</span>() {
-            <span class="ident">Outdated</span>::<span class="ident">HardOutdated</span>
+            <span class="ident">Outdated::HardOutdated</span>
         } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">elapsed</span> <span class="op">&gt;</span><span class="op">=</span> <span class="ident">expiry</span> {
-            <span class="ident">Outdated</span>::<span class="ident">SoftOutdated</span>
+            <span class="ident">Outdated::SoftOutdated</span>
         } <span class="kw">else</span> {
-            <span class="ident">Outdated</span>::<span class="ident">Updated</span>
+            <span class="ident">Outdated::Updated</span>
         }
     }
 
@@ -1321,19 +1321,19 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_disabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">DiscardReason</span><span class="op">&gt;</span> {
         <span class="comment">// if the state is out of date, we proceed as if it was still up to date. The</span>
         <span class="comment">// upstream relay (or sentry) will still filter events.</span>
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">outdated</span>(<span class="ident">config</span>) <span class="op">=</span><span class="op">=</span> <span class="ident">Outdated</span>::<span class="ident">HardOutdated</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">outdated</span>(<span class="ident">config</span>) <span class="op">=</span><span class="op">=</span> <span class="ident">Outdated::HardOutdated</span> {
             <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
         }
 
         <span class="comment">// if we recorded an invalid project state response from the upstream (i.e. parsing</span>
         <span class="comment">// failed), discard the event with a state reason.</span>
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">invalid</span>() {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason</span>::<span class="ident">ProjectState</span>);
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason::ProjectState</span>);
         }
 
         <span class="comment">// only drop events if we know for sure the project or key are disabled.</span>
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">disabled</span>() {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason</span>::<span class="ident">ProjectId</span>);
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason::ProjectId</span>);
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -1351,18 +1351,18 @@
         <span class="comment">// Verify that the stated project id in the DSN matches the public key used to retrieve this</span>
         <span class="comment">// project state.</span>
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_valid_project_id</span>(<span class="ident">meta</span>.<span class="ident">project_id</span>()) {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason</span>::<span class="ident">ProjectId</span>);
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason::ProjectId</span>);
         }
 
         <span class="comment">// Try to verify the request origin with the project config.</span>
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_valid_origin</span>(<span class="ident">meta</span>.<span class="ident">origin</span>()) {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason</span>::<span class="ident">Cors</span>);
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason::Cors</span>);
         }
 
         <span class="comment">// sanity-check that the state has a matching public key loaded.</span>
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_matching_key</span>(<span class="ident">meta</span>.<span class="ident">public_key</span>()) {
-            <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;public key mismatch on state {}&quot;</span>, <span class="ident">meta</span>.<span class="ident">public_key</span>());
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason</span>::<span class="ident">ProjectId</span>);
+            <span class="macro">relay_log::error!</span>(<span class="string">&quot;public key mismatch on state {}&quot;</span>, <span class="ident">meta</span>.<span class="ident">public_key</span>());
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason::ProjectId</span>);
         }
 
         <span class="comment">// Check for invalid or disabled projects.</span>
@@ -1373,7 +1373,7 @@
 
     <span class="doccomment">/// Validates data in this project state and removes values that are partially invalid.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sanitize</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">quotas</span>.<span class="ident">retain</span>(<span class="ident">Quota</span>::<span class="ident">is_valid</span>);
+        <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">quotas</span>.<span class="ident">retain</span>(<span class="ident">Quota::is_valid</span>);
         <span class="self">self</span>
     }
 
@@ -1395,14 +1395,14 @@
 }
 
 <span class="kw">struct</span> <span class="ident">StateChannel</span> {
-    <span class="ident">sender</span>: <span class="ident">oneshot</span>::<span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">receiver</span>: <span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">oneshot</span>::<span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">sender</span>: <span class="ident">oneshot::Sender</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">receiver</span>: <span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">oneshot::Receiver</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">no_cache</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">StateChannel</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="kw">let</span> (<span class="ident">sender</span>, <span class="ident">receiver</span>) <span class="op">=</span> <span class="ident">oneshot</span>::<span class="ident">channel</span>();
+        <span class="kw">let</span> (<span class="ident">sender</span>, <span class="ident">receiver</span>) <span class="op">=</span> <span class="ident">oneshot::channel</span>();
         <span class="self">Self</span> {
             <span class="ident">sender</span>,
             <span class="ident">receiver</span>: <span class="ident">receiver</span>.<span class="ident">shared</span>(),
@@ -1415,7 +1415,7 @@
         <span class="self">self</span>
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">receiver</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">oneshot</span>::<span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">receiver</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">oneshot::Receiver</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">receiver</span>.<span class="ident">clone</span>()
     }
 
@@ -1472,11 +1472,11 @@
             <span class="ident">manager</span>,
             <span class="ident">event_manager</span>,
             <span class="ident">outcome_producer</span>,
-            <span class="ident">aggregator</span>: <span class="ident">AggregatorState</span>::<span class="ident">Unknown</span>,
+            <span class="ident">aggregator</span>: <span class="ident">AggregatorState::Unknown</span>,
             <span class="ident">state</span>: <span class="prelude-val">None</span>,
             <span class="ident">state_channel</span>: <span class="prelude-val">None</span>,
-            <span class="ident">rate_limits</span>: <span class="ident">RateLimits</span>::<span class="ident">new</span>(),
-            <span class="ident">last_no_cache</span>: <span class="ident">Instant</span>::<span class="ident">now</span>(),
+            <span class="ident">rate_limits</span>: <span class="ident">RateLimits::new</span>(),
+            <span class="ident">last_no_cache</span>: <span class="ident">Instant::now</span>(),
         }
     }
 
@@ -1492,15 +1492,15 @@
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">Aggregator</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="macro">matches</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">aggregator</span>, <span class="ident">AggregatorState</span>::<span class="ident">Unknown</span>) {
+        <span class="kw">if</span> <span class="macro">matches!</span>(<span class="self">self</span>.<span class="ident">aggregator</span>, <span class="ident">AggregatorState::Unknown</span>) {
             <span class="kw">let</span> <span class="ident">flush_receiver</span> <span class="op">=</span> <span class="ident">context</span>.<span class="ident">address</span>().<span class="ident">recipient</span>();
-            <span class="kw">let</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">aggregator_config</span>(), <span class="ident">flush_receiver</span>);
+            <span class="kw">let</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">aggregator_config</span>(), <span class="ident">flush_receiver</span>);
             <span class="comment">// TODO: This starts the aggregator on the project arbiter, but we want a separate</span>
             <span class="comment">// thread or thread pool for this.</span>
-            <span class="self">self</span>.<span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">AggregatorState</span>::<span class="ident">Available</span>(<span class="ident">aggregator</span>.<span class="ident">start</span>());
+            <span class="self">self</span>.<span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">AggregatorState::Available</span>(<span class="ident">aggregator</span>.<span class="ident">start</span>());
         }
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">AggregatorState</span>::<span class="ident">Available</span>(<span class="kw-2">ref</span> <span class="ident">aggregator</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">aggregator</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">AggregatorState::Available</span>(<span class="kw-2">ref</span> <span class="ident">aggregator</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">aggregator</span> {
             <span class="prelude-val">Some</span>(<span class="ident">aggregator</span>.<span class="ident">clone</span>())
         } <span class="kw">else</span> {
             <span class="prelude-val">None</span>
@@ -1526,10 +1526,10 @@
             <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span>,
         };
 
-        <span class="kw">if</span> <span class="ident">metrics_allowed</span> <span class="op">&amp;&amp;</span> <span class="macro">matches</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">aggregator</span>, <span class="ident">AggregatorState</span>::<span class="ident">Unavailable</span>) {
+        <span class="kw">if</span> <span class="ident">metrics_allowed</span> <span class="op">&amp;&amp;</span> <span class="macro">matches!</span>(<span class="self">self</span>.<span class="ident">aggregator</span>, <span class="ident">AggregatorState::Unavailable</span>) {
             <span class="self">self</span>.<span class="ident">get_or_create_aggregator</span>(<span class="ident">context</span>);
         } <span class="kw">else</span> <span class="kw">if</span> <span class="op">!</span><span class="ident">metrics_allowed</span> {
-            <span class="self">self</span>.<span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">AggregatorState</span>::<span class="ident">Unavailable</span>;
+            <span class="self">self</span>.<span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">AggregatorState::Unavailable</span>;
         }
     }
 
@@ -1539,48 +1539,48 @@
         <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Response</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>, <span class="ident">ProjectError</span><span class="op">&gt;</span> {
         <span class="comment">// count number of times we are looking for the project state</span>
-        <span class="macro">metric</span><span class="macro">!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">ProjectStateGet</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
+        <span class="macro">metric!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters::ProjectStateGet</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
 
         <span class="comment">// Allow at most 1 no_cache request per second. Gracefully degrade to cached requests.</span>
         <span class="kw">if</span> <span class="ident">no_cache</span> {
-            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">last_no_cache</span>.<span class="ident">elapsed</span>() <span class="op">&lt;</span> <span class="ident">Duration</span>::<span class="ident">from_secs</span>(<span class="number">1</span>) {
+            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">last_no_cache</span>.<span class="ident">elapsed</span>() <span class="op">&lt;</span> <span class="ident">Duration::from_secs</span>(<span class="number">1</span>) {
                 <span class="ident">no_cache</span> <span class="op">=</span> <span class="bool-val">false</span>;
             } <span class="kw">else</span> {
-                <span class="macro">metric</span><span class="macro">!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters</span>::<span class="ident">ProjectStateNoCache</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
-                <span class="self">self</span>.<span class="ident">last_no_cache</span> <span class="op">=</span> <span class="ident">Instant</span>::<span class="ident">now</span>();
+                <span class="macro">metric!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters::ProjectStateNoCache</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
+                <span class="self">self</span>.<span class="ident">last_no_cache</span> <span class="op">=</span> <span class="ident">Instant::now</span>();
             }
         }
 
         <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">as_ref</span>();
         <span class="kw">let</span> <span class="ident">outdated</span> <span class="op">=</span> <span class="ident">state</span>
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">outdated</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>))
-            .<span class="ident">unwrap_or</span>(<span class="ident">Outdated</span>::<span class="ident">HardOutdated</span>);
+            .<span class="ident">unwrap_or</span>(<span class="ident">Outdated::HardOutdated</span>);
 
         <span class="kw">let</span> <span class="ident">cached_state</span> <span class="op">=</span> <span class="kw">match</span> (<span class="ident">state</span>, <span class="ident">outdated</span>) {
             <span class="comment">// Never use the cached state if `no_cache` is set.</span>
             <span class="kw">_</span> <span class="kw">if</span> <span class="ident">no_cache</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
 
             <span class="comment">// There is no project state that can be used, fetch a state and return it.</span>
-            (<span class="prelude-val">None</span>, <span class="kw">_</span>) <span class="op">|</span> (<span class="kw">_</span>, <span class="ident">Outdated</span>::<span class="ident">HardOutdated</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            (<span class="prelude-val">None</span>, <span class="kw">_</span>) <span class="op">|</span> (<span class="kw">_</span>, <span class="ident">Outdated::HardOutdated</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
 
             <span class="comment">// The project is semi-outdated, fetch new state but return old one.</span>
-            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="ident">Outdated</span>::<span class="ident">SoftOutdated</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
+            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="ident">Outdated::SoftOutdated</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
 
             <span class="comment">// The project is not outdated, return early here to jump over fetching logic below.</span>
-            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="ident">Outdated</span>::<span class="ident">Updated</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">Response</span>::<span class="ident">ok</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
+            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="ident">Outdated::Updated</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">Response::ok</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
         };
 
         <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state_channel</span> {
             <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">channel</span>) <span class="kw">if</span> <span class="ident">channel</span>.<span class="ident">no_cache</span> <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">no_cache</span> <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project {} state request amended&quot;</span>, <span class="self">self</span>.<span class="ident">public_key</span>);
+                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;project {} state request amended&quot;</span>, <span class="self">self</span>.<span class="ident">public_key</span>);
                 <span class="ident">channel</span>.<span class="ident">receiver</span>()
             }
             <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project {} state requested&quot;</span>, <span class="self">self</span>.<span class="ident">public_key</span>);
+                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;project {} state requested&quot;</span>, <span class="self">self</span>.<span class="ident">public_key</span>);
 
                 <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="self">self</span>
                     .<span class="ident">state_channel</span>
-                    .<span class="ident">get_or_insert_with</span>(<span class="ident">StateChannel</span>::<span class="ident">new</span>)
+                    .<span class="ident">get_or_insert_with</span>(<span class="ident">StateChannel::new</span>)
                     .<span class="ident">no_cache</span>(<span class="ident">no_cache</span>)
                     .<span class="ident">receiver</span>();
 
@@ -1594,18 +1594,18 @@
         };
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rv</span>) <span class="op">=</span> <span class="ident">cached_state</span> {
-            <span class="kw">return</span> <span class="ident">Response</span>::<span class="ident">ok</span>(<span class="ident">rv</span>);
+            <span class="kw">return</span> <span class="ident">Response::ok</span>(<span class="ident">rv</span>);
         }
 
         <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">receiver</span>
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">shared</span><span class="op">|</span> (<span class="kw-2">*</span><span class="ident">shared</span>).<span class="ident">clone</span>())
-            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ProjectError</span>::<span class="ident">FetchFailed</span>);
+            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ProjectError::FetchFailed</span>);
 
-        <span class="ident">Response</span>::<span class="ident">future</span>(<span class="ident">future</span>)
+        <span class="ident">Response::future</span>(<span class="ident">future</span>)
     }
 
     <span class="kw">fn</span> <span class="ident">fetch_state</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">no_cache</span>: <span class="ident">bool</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) {
-        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">state_channel</span>.<span class="ident">is_some</span>());
+        <span class="macro">debug_assert!</span>(<span class="self">self</span>.<span class="ident">state_channel</span>.<span class="ident">is_some</span>());
         <span class="kw">let</span> <span class="ident">public_key</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">public_key</span>;
 
         <span class="self">self</span>.<span class="ident">manager</span>
@@ -1632,7 +1632,7 @@
                 <span class="ident">slf</span>.<span class="ident">update_aggregator</span>(<span class="ident">context</span>);
 
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">state</span>) <span class="op">=</span> <span class="ident">slf</span>.<span class="ident">state</span> {
-                    <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project state {} updated&quot;</span>, <span class="ident">public_key</span>);
+                    <span class="macro">relay_log::debug!</span>(<span class="string">&quot;project state {} updated&quot;</span>, <span class="ident">public_key</span>);
                     <span class="ident">channel</span>.<span class="ident">send</span>(<span class="ident">state</span>.<span class="ident">clone</span>());
                 }
             })
@@ -1680,7 +1680,7 @@
         <span class="self">self</span>.<span class="ident">rate_limits</span>.<span class="ident">clean_expired</span>();
 
         <span class="kw">let</span> <span class="ident">quotas</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">state</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">get_quotas</span>()).<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span>[]);
-        <span class="kw">let</span> <span class="ident">envelope_limiter</span> <span class="op">=</span> <span class="ident">EnvelopeLimiter</span>::<span class="ident">new</span>(<span class="op">|</span><span class="ident">item_scoping</span>, <span class="kw">_</span><span class="op">|</span> {
+        <span class="kw">let</span> <span class="ident">envelope_limiter</span> <span class="op">=</span> <span class="ident">EnvelopeLimiter::new</span>(<span class="op">|</span><span class="ident">item_scoping</span>, <span class="kw">_</span><span class="op">|</span> {
             <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">rate_limits</span>.<span class="ident">check_with_quotas</span>(<span class="ident">quotas</span>, <span class="ident">item_scoping</span>))
         });
 
@@ -1709,12 +1709,12 @@
 <span class="kw">impl</span> <span class="ident">Actor</span> <span class="kw">for</span> <span class="ident">Project</span> {
     <span class="kw">type</span> <span class="ident">Context</span> <span class="op">=</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) {
-        <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project {} initialized without state&quot;</span>, <span class="self">self</span>.<span class="ident">public_key</span>);
+    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) {
+        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;project {} initialized without state&quot;</span>, <span class="self">self</span>.<span class="ident">public_key</span>);
     }
 
-    <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) {
-        <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;project {} removed from cache&quot;</span>, <span class="self">self</span>.<span class="ident">public_key</span>);
+    <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) {
+        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;project {} removed from cache&quot;</span>, <span class="self">self</span>.<span class="ident">public_key</span>);
     }
 }
 
@@ -1736,7 +1736,7 @@
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="ident">_message</span>: <span class="ident">GetCachedProjectState</span>,
         <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
         <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">clone</span>()
     }
 }
@@ -1769,7 +1769,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">GetProjectState</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Project</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">Response</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>, <span class="ident">ProjectError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">GetProjectState</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">GetProjectState</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
         <span class="self">self</span>.<span class="ident">get_or_fetch_state</span>(<span class="ident">message</span>.<span class="ident">no_cache</span>, <span class="ident">context</span>)
     }
 }
@@ -1831,7 +1831,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">CheckEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Project</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ActorResponse</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">CheckEnvelopeResponse</span>, <span class="ident">ProjectError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">CheckEnvelope</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">CheckEnvelope</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
         <span class="kw">if</span> <span class="ident">message</span>.<span class="ident">fetch</span> {
             <span class="comment">// Project state fetching is allowed, so ensure the state is fetched and up-to-date.</span>
             <span class="comment">// This will return synchronously if the state is still cached.</span>
@@ -1848,7 +1848,7 @@
 
             <span class="comment">// message.fetch == false: Fetching must not block the store request. The</span>
             <span class="comment">// EnvelopeManager will later fetch the project state.</span>
-            <span class="ident">ActorResponse</span>::<span class="ident">ok</span>(<span class="self">self</span>.<span class="ident">check_envelope_scoped</span>(<span class="ident">message</span>))
+            <span class="ident">ActorResponse::ok</span>(<span class="self">self</span>.<span class="ident">check_envelope_scoped</span>(<span class="ident">message</span>))
         }
     }
 }
@@ -1862,7 +1862,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">UpdateRateLimits</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Project</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">UpdateRateLimits</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">UpdateRateLimits</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
         <span class="kw">let</span> <span class="ident">UpdateRateLimits</span>(<span class="ident">rate_limits</span>) <span class="op">=</span> <span class="ident">message</span>;
         <span class="self">self</span>.<span class="ident">rate_limits</span>.<span class="ident">merge</span>(<span class="ident">rate_limits</span>);
     }
@@ -1871,7 +1871,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">InsertMetrics</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Project</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">InsertMetrics</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">InsertMetrics</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
         <span class="comment">// Only keep if we have an aggregator, otherwise drop because we know that we were disabled.</span>
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">aggregator</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_aggregator</span>(<span class="ident">context</span>) {
             <span class="ident">aggregator</span>.<span class="ident">do_send</span>(<span class="ident">message</span>);
@@ -1884,7 +1884,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">MergeBuckets</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Project</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">MergeBuckets</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">MergeBuckets</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
         <span class="comment">// Only keep if we have an aggregator, otherwise drop because we know that we were disabled.</span>
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">aggregator</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_aggregator</span>(<span class="ident">context</span>) {
             <span class="ident">aggregator</span>.<span class="ident">do_send</span>(<span class="ident">message</span>);
@@ -1897,32 +1897,32 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">FlushBuckets</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Project</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">FlushBuckets</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>::<span class="ident">Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">FlushBuckets</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
         <span class="kw">let</span> <span class="ident">outdated</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state</span>() {
             <span class="prelude-val">Some</span>(<span class="ident">state</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">state</span>.<span class="ident">outdated</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>),
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Outdated</span>::<span class="ident">HardOutdated</span>,
+            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Outdated::HardOutdated</span>,
         };
 
         <span class="comment">// Schedule an update to the project state if it is outdated, regardless of whether the</span>
         <span class="comment">// metrics can be forwarded or not. We never wait for this update.</span>
-        <span class="kw">if</span> <span class="ident">outdated</span> <span class="op">!</span><span class="op">=</span> <span class="ident">Outdated</span>::<span class="ident">Updated</span> {
+        <span class="kw">if</span> <span class="ident">outdated</span> <span class="op">!</span><span class="op">=</span> <span class="ident">Outdated::Updated</span> {
             <span class="self">self</span>.<span class="ident">get_or_fetch_state</span>(<span class="bool-val">false</span>, <span class="ident">context</span>);
         }
 
         <span class="comment">// If the state is outdated, we need to wait for an updated state. Put them back into the</span>
         <span class="comment">// aggregator and wait for the next flush cycle.</span>
-        <span class="kw">if</span> <span class="ident">outdated</span> <span class="op">=</span><span class="op">=</span> <span class="ident">Outdated</span>::<span class="ident">HardOutdated</span> {
-            <span class="kw">return</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">future</span>::<span class="ident">err</span>(<span class="ident">message</span>.<span class="ident">into_buckets</span>()));
+        <span class="kw">if</span> <span class="ident">outdated</span> <span class="op">=</span><span class="op">=</span> <span class="ident">Outdated::HardOutdated</span> {
+            <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::err</span>(<span class="ident">message</span>.<span class="ident">into_buckets</span>()));
         }
 
         <span class="kw">let</span> (<span class="ident">state</span>, <span class="ident">scoping</span>) <span class="op">=</span> <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">state</span>(), <span class="self">self</span>.<span class="ident">scoping</span>()) {
             (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="prelude-val">Some</span>(<span class="ident">scoping</span>)) <span class="op">=</span><span class="op">&gt;</span> (<span class="ident">state</span>, <span class="ident">scoping</span>),
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">future</span>::<span class="ident">err</span>(<span class="ident">message</span>.<span class="ident">into_buckets</span>())),
+            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::err</span>(<span class="ident">message</span>.<span class="ident">into_buckets</span>())),
         };
 
         <span class="comment">// Only send if the project state is valid, otherwise drop this bucket.</span>
         <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">check_disabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>).<span class="ident">is_err</span>() {
-            <span class="kw">return</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">future</span>::<span class="ident">ok</span>(()));
+            <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::ok</span>(()));
         }
 
         <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="self">self</span>
@@ -1936,14 +1936,14 @@
                 <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(())) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
                 <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(<span class="ident">buckets</span>)) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">buckets</span>),
                 <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                    <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;dropped metric buckets: envelope manager mailbox full&quot;</span>);
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;dropped metric buckets: envelope manager mailbox full&quot;</span>);
                     <span class="prelude-val">Ok</span>(())
                 }
             });
 
-        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">future</span>)
+        <span class="ident">Box::new</span>(<span class="ident">future</span>)
     }
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-search-js="../../../search-index.js"></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-search-index-js="../../../search-index.js" data-search-js="../../../search.js"></div>
     <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script></body></html>

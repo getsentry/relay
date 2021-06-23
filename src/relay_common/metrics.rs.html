@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-common/src/metrics.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>metrics.rs - source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script id="default-settings"></script><script src="../../storage.js"></script><script src="../../crates.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../relay_common/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-common/src/metrics.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>metrics.rs - source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script id="default-settings"></script><script src="../../storage.js"></script><script src="../../crates.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../relay_common/index.html'><div class='logo-container'><img src='https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
                 <a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -619,19 +619,19 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md</span>
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">net</span>::{<span class="ident">ToSocketAddrs</span>, <span class="ident">UdpSocket</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::{<span class="ident">Deref</span>, <span class="ident">DerefMut</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
+<span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
+<span class="kw">use</span> <span class="ident">std::net</span>::{<span class="ident">ToSocketAddrs</span>, <span class="ident">UdpSocket</span>};
+<span class="kw">use</span> <span class="ident">std::ops</span>::{<span class="ident">Deref</span>, <span class="ident">DerefMut</span>};
+<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 
 <span class="kw">use</span> <span class="ident">cadence</span>::{
     <span class="ident">BufferedUdpMetricSink</span>, <span class="ident">Metric</span>, <span class="ident">MetricBuilder</span>, <span class="ident">QueuingMetricSink</span>, <span class="ident">StatsdClient</span>, <span class="ident">UdpMetricSink</span>,
 };
-<span class="kw">use</span> <span class="ident">lazy_static</span>::<span class="ident">lazy_static</span>;
-<span class="kw">use</span> <span class="ident">parking_lot</span>::<span class="ident">RwLock</span>;
-<span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">distributions</span>::{<span class="ident">Distribution</span>, <span class="ident">Uniform</span>};
+<span class="kw">use</span> <span class="ident">lazy_static::lazy_static</span>;
+<span class="kw">use</span> <span class="ident">parking_lot::RwLock</span>;
+<span class="kw">use</span> <span class="ident">rand::distributions</span>::{<span class="ident">Distribution</span>, <span class="ident">Uniform</span>};
 
-<span class="kw">use</span> <span class="ident">relay_log</span>::<span class="ident">LogError</span>;
+<span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
 
 <span class="doccomment">/// Maximum number of metric events that can be queued before we start dropping them</span>
 <span class="kw">const</span> <span class="ident">METRICS_MAX_QUEUE_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">100_000</span>;
@@ -677,7 +677,7 @@
         }
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span> <span class="ident">metric</span>.<span class="ident">try_send</span>() {
-            <span class="ident">relay_log</span>::<span class="macro">error</span><span class="macro">!</span>(
+            <span class="macro">relay_log::error!</span>(
                 <span class="string">&quot;Error sending a metric: {}, maximum capacity: {}&quot;</span>,
                 <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>),
                 <span class="ident">METRICS_MAX_QUEUE_SIZE</span>
@@ -695,36 +695,36 @@
             <span class="comment">// &quot;optimized for the case that only a single sample is made from the given range&quot;.</span>
             <span class="comment">// See https://docs.rs/rand/0.7.3/rand/distributions/uniform/struct.Uniform.html for more</span>
             <span class="comment">// details.</span>
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> <span class="ident">rand</span>::<span class="ident">thread_rng</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> <span class="ident">rand::thread_rng</span>();
             <span class="ident">RNG_UNIFORM_DISTRIBUTION</span>
                 .<span class="ident">with</span>(<span class="op">|</span><span class="ident">uniform_dist</span><span class="op">|</span> <span class="ident">uniform_dist</span>.<span class="ident">sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>) <span class="op">&lt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">sample_rate</span>)
         }
     }
 }
 
-<span class="macro">lazy_static</span><span class="macro">!</span> {
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">METRICS_CLIENT</span>: <span class="ident">RwLock</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">MetricsClient</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">RwLock</span>::<span class="ident">new</span>(<span class="prelude-val">None</span>);
+<span class="macro">lazy_static!</span> {
+    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">METRICS_CLIENT</span>: <span class="ident">RwLock</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">MetricsClient</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">RwLock::new</span>(<span class="prelude-val">None</span>);
 }
 
-<span class="macro">thread_local</span><span class="macro">!</span> {
+<span class="macro">thread_local!</span> {
     <span class="kw">static</span> <span class="ident">CURRENT_CLIENT</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">MetricsClient</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">METRICS_CLIENT</span>.<span class="ident">read</span>().<span class="ident">clone</span>();
-    <span class="kw">static</span> <span class="ident">RNG_UNIFORM_DISTRIBUTION</span>: <span class="ident">Uniform</span><span class="op">&lt;</span><span class="ident">f32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Uniform</span>::<span class="ident">new</span>(<span class="number">0.0</span>, <span class="number">1.0</span>);
+    <span class="kw">static</span> <span class="ident">RNG_UNIFORM_DISTRIBUTION</span>: <span class="ident">Uniform</span><span class="op">&lt;</span><span class="ident">f32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Uniform::new</span>(<span class="number">0.0</span>, <span class="number">1.0</span>);
 }
 
 <span class="doccomment">/// Internal prelude for the macro</span>
 <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">_pred</span> {
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">cadence</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">cadence::prelude</span>::<span class="kw-2">*</span>;
 }
 
 <span class="doccomment">/// The metrics prelude that is necessary to use the client.</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">prelude</span> {
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">cadence</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">cadence::prelude</span>::<span class="kw-2">*</span>;
 }
 
 <span class="doccomment">/// Set a new statsd client.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_client</span>(<span class="ident">client</span>: <span class="ident">MetricsClient</span>) {
-    <span class="kw-2">*</span><span class="ident">METRICS_CLIENT</span>.<span class="ident">write</span>() <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">client</span>));
+    <span class="kw-2">*</span><span class="ident">METRICS_CLIENT</span>.<span class="ident">write</span>() <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Arc::new</span>(<span class="ident">client</span>));
 }
 
 <span class="doccomment">/// Disable the client again.</span>
@@ -742,12 +742,12 @@
 ) {
     <span class="kw">let</span> <span class="ident">addrs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">host</span>.<span class="ident">to_socket_addrs</span>().<span class="ident">unwrap</span>().<span class="ident">collect</span>();
     <span class="kw">if</span> <span class="op">!</span><span class="ident">addrs</span>.<span class="ident">is_empty</span>() {
-        <span class="ident">relay_log</span>::<span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;reporting metrics to statsd at {}&quot;</span>, <span class="ident">addrs</span>[<span class="number">0</span>]);
+        <span class="macro">relay_log::info!</span>(<span class="string">&quot;reporting metrics to statsd at {}&quot;</span>, <span class="ident">addrs</span>[<span class="number">0</span>]);
     }
 
     <span class="comment">// Normalize sample_rate</span>
     <span class="kw">let</span> <span class="ident">sample_rate</span> <span class="op">=</span> <span class="ident">sample_rate</span>.<span class="ident">max</span>(<span class="number">0.</span>).<span class="ident">min</span>(<span class="number">1.</span>);
-    <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(
+    <span class="macro">relay_log::debug!</span>(
         <span class="string">&quot;metrics sample rate is set to {}{}&quot;</span>,
         <span class="ident">sample_rate</span>,
         <span class="kw">if</span> <span class="ident">sample_rate</span> <span class="op">=</span><span class="op">=</span> <span class="number">0.0</span> {
@@ -757,18 +757,18 @@
         }
     );
 
-    <span class="kw">let</span> <span class="ident">socket</span> <span class="op">=</span> <span class="ident">UdpSocket</span>::<span class="ident">bind</span>(<span class="string">&quot;0.0.0.0:0&quot;</span>).<span class="ident">unwrap</span>();
+    <span class="kw">let</span> <span class="ident">socket</span> <span class="op">=</span> <span class="ident">UdpSocket::bind</span>(<span class="string">&quot;0.0.0.0:0&quot;</span>).<span class="ident">unwrap</span>();
     <span class="ident">socket</span>.<span class="ident">set_nonblocking</span>(<span class="bool-val">true</span>).<span class="ident">unwrap</span>();
 
     <span class="kw">let</span> <span class="ident">statsd_client</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">buffering</span> {
-        <span class="kw">let</span> <span class="ident">udp_sink</span> <span class="op">=</span> <span class="ident">BufferedUdpMetricSink</span>::<span class="ident">from</span>(<span class="ident">host</span>, <span class="ident">socket</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">queuing_sink</span> <span class="op">=</span> <span class="ident">QueuingMetricSink</span>::<span class="ident">with_capacity</span>(<span class="ident">udp_sink</span>, <span class="ident">METRICS_MAX_QUEUE_SIZE</span>);
-        <span class="ident">StatsdClient</span>::<span class="ident">from_sink</span>(<span class="ident">prefix</span>, <span class="ident">queuing_sink</span>)
+        <span class="kw">let</span> <span class="ident">udp_sink</span> <span class="op">=</span> <span class="ident">BufferedUdpMetricSink::from</span>(<span class="ident">host</span>, <span class="ident">socket</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">queuing_sink</span> <span class="op">=</span> <span class="ident">QueuingMetricSink::with_capacity</span>(<span class="ident">udp_sink</span>, <span class="ident">METRICS_MAX_QUEUE_SIZE</span>);
+        <span class="ident">StatsdClient::from_sink</span>(<span class="ident">prefix</span>, <span class="ident">queuing_sink</span>)
     } <span class="kw">else</span> {
-        <span class="kw">let</span> <span class="ident">simple_sink</span> <span class="op">=</span> <span class="ident">UdpMetricSink</span>::<span class="ident">from</span>(<span class="ident">host</span>, <span class="ident">socket</span>).<span class="ident">unwrap</span>();
-        <span class="ident">StatsdClient</span>::<span class="ident">from_sink</span>(<span class="ident">prefix</span>, <span class="ident">simple_sink</span>)
+        <span class="kw">let</span> <span class="ident">simple_sink</span> <span class="op">=</span> <span class="ident">UdpMetricSink::from</span>(<span class="ident">host</span>, <span class="ident">socket</span>).<span class="ident">unwrap</span>();
+        <span class="ident">StatsdClient::from_sink</span>(<span class="ident">prefix</span>, <span class="ident">simple_sink</span>)
     };
-    <span class="ident">relay_log</span>::<span class="macro">debug</span><span class="macro">!</span>(
+    <span class="macro">relay_log::debug!</span>(
         <span class="string">&quot;metrics buffering is {}&quot;</span>,
         <span class="kw">if</span> <span class="ident">buffering</span> { <span class="string">&quot;enabled&quot;</span> } <span class="kw">else</span> { <span class="string">&quot;disabled&quot;</span> }
     );
@@ -794,7 +794,7 @@
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">client</span>) <span class="op">=</span> <span class="ident">client</span> {
             <span class="ident">f</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">client</span>)
         } <span class="kw">else</span> {
-            <span class="ident">R</span>::<span class="ident">default</span>()
+            <span class="ident">R::default</span>()
         }
     })
 }
@@ -1035,87 +1035,87 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// See [module-level documentation](self) for examples.</span>
 <span class="attribute">#[<span class="ident">macro_export</span>]</span>
-<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">metric</span> {
+<span class="macro">macro_rules!</span> <span class="ident">metric</span> {
     <span class="comment">// counter increment</span>
     (<span class="ident">counter</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>:<span class="ident">expr</span>) <span class="op">+</span><span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>:<span class="ident">expr</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>:<span class="ident">ident</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>:<span class="ident">expr</span>)<span class="op">*</span> $(,)<span class="question-mark">?</span>) <span class="op">=</span><span class="op">&gt;</span> {
-        <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
-            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">_pred</span>::<span class="kw-2">*</span>;
+        <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
+            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::_pred</span>::<span class="kw-2">*</span>;
             <span class="ident">client</span>.<span class="ident">send_metric</span>(
-                <span class="ident">client</span>.<span class="ident">count_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">CounterMetric</span>::<span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
-                $(.<span class="ident">with_tag</span>(<span class="macro">stringify</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
+                <span class="ident">client</span>.<span class="ident">count_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::CounterMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
+                $(.<span class="ident">with_tag</span>(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
             )
         })
     };
 
     <span class="comment">// counter decrement</span>
     (<span class="ident">counter</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>:<span class="ident">expr</span>) <span class="op">-</span><span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>:<span class="ident">expr</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>:<span class="ident">ident</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>:<span class="ident">expr</span>)<span class="op">*</span> $(,)<span class="question-mark">?</span>) <span class="op">=</span><span class="op">&gt;</span> {
-        <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
-            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">_pred</span>::<span class="kw-2">*</span>;
+        <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
+            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::_pred</span>::<span class="kw-2">*</span>;
             <span class="ident">client</span>.<span class="ident">send_metric</span>(
-                <span class="ident">client</span>.<span class="ident">count_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">CounterMetric</span>::<span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="op">-</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
-                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
+                <span class="ident">client</span>.<span class="ident">count_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::CounterMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="op">-</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
+                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
             )
         })
     };
 
     <span class="comment">// gauge set</span>
     (<span class="ident">gauge</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>:<span class="ident">expr</span>) <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>:<span class="ident">expr</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>:<span class="ident">ident</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>:<span class="ident">expr</span>)<span class="op">*</span> $(,)<span class="question-mark">?</span>) <span class="op">=</span><span class="op">&gt;</span> {
-        <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
-            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">_pred</span>::<span class="kw-2">*</span>;
+        <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
+            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::_pred</span>::<span class="kw-2">*</span>;
             <span class="ident">client</span>.<span class="ident">send_metric</span>(
-                <span class="ident">client</span>.<span class="ident">gauge_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">GaugeMetric</span>::<span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
-                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
+                <span class="ident">client</span>.<span class="ident">gauge_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::GaugeMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
+                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
             )
         })
     };
 
     <span class="comment">// histogram</span>
     (<span class="ident">histogram</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>:<span class="ident">expr</span>) <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>:<span class="ident">expr</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>:<span class="ident">ident</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>:<span class="ident">expr</span>)<span class="op">*</span> $(,)<span class="question-mark">?</span>) <span class="op">=</span><span class="op">&gt;</span> {
-        <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
-            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">_pred</span>::<span class="kw-2">*</span>;
+        <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
+            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::_pred</span>::<span class="kw-2">*</span>;
             <span class="ident">client</span>.<span class="ident">send_metric</span>(
-                <span class="ident">client</span>.<span class="ident">histogram_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">HistogramMetric</span>::<span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
-                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
+                <span class="ident">client</span>.<span class="ident">histogram_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::HistogramMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
+                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
             )
         })
     };
 
     <span class="comment">// sets (count unique occurrences of a value per time interval)</span>
     (<span class="ident">set</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>:<span class="ident">expr</span>) <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>:<span class="ident">expr</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>:<span class="ident">ident</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>:<span class="ident">expr</span>)<span class="op">*</span> $(,)<span class="question-mark">?</span>) <span class="op">=</span><span class="op">&gt;</span> {
-        <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
-            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">_pred</span>::<span class="kw-2">*</span>;
+        <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
+            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::_pred</span>::<span class="kw-2">*</span>;
             <span class="ident">client</span>.<span class="ident">send_metric</span>(
-                <span class="ident">client</span>.<span class="ident">set_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">SetMetric</span>::<span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
-                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
+                <span class="ident">client</span>.<span class="ident">set_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::SetMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
+                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
             )
         })
     };
 
     <span class="comment">// timer value (duration)</span>
     (<span class="ident">timer</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>:<span class="ident">expr</span>) <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>:<span class="ident">expr</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>:<span class="ident">ident</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>:<span class="ident">expr</span>)<span class="op">*</span> $(,)<span class="question-mark">?</span>) <span class="op">=</span><span class="op">&gt;</span> {
-        <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
-            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">_pred</span>::<span class="kw-2">*</span>;
+        <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
+            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::_pred</span>::<span class="kw-2">*</span>;
             <span class="ident">client</span>.<span class="ident">send_metric</span>(
-                <span class="ident">client</span>.<span class="ident">time_duration_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">TimerMetric</span>::<span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
-                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
+                <span class="ident">client</span>.<span class="ident">time_duration_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::TimerMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
+                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
             )
         })
     };
 
     <span class="comment">// timed block</span>
     (<span class="ident">timer</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>:<span class="ident">expr</span>), $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>:<span class="ident">ident</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>:<span class="ident">expr</span>,)<span class="op">*</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">block</span>:<span class="ident">block</span>) <span class="op">=</span><span class="op">&gt;</span> {{
-        <span class="kw">let</span> <span class="ident">now</span> <span class="op">=</span> <span class="ident">std</span>::<span class="ident">time</span>::<span class="ident">Instant</span>::<span class="ident">now</span>();
+        <span class="kw">let</span> <span class="ident">now</span> <span class="op">=</span> <span class="ident">std::time::Instant::now</span>();
         <span class="kw">let</span> <span class="ident">rv</span> <span class="op">=</span> {<span class="macro-nonterminal">$</span><span class="macro-nonterminal">block</span>};
-        <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
-            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">_pred</span>::<span class="kw-2">*</span>;
+        <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
+            <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::_pred</span>::<span class="kw-2">*</span>;
             <span class="ident">client</span>.<span class="ident">send_metric</span>(
-                <span class="ident">client</span>.<span class="ident">time_duration_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">metrics</span>::<span class="ident">TimerMetric</span>::<span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="ident">now</span>.<span class="ident">elapsed</span>())
-                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
+                <span class="ident">client</span>.<span class="ident">time_duration_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::TimerMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="ident">now</span>.<span class="ident">elapsed</span>())
+                    $(.<span class="ident">with_tag</span>(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
             )
         });
         <span class="ident">rv</span>
     }};
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_common" data-search-js="../../search-index.js"></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_common" data-search-index-js="../../search-index.js" data-search-js="../../search.js"></div>
     <script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script></body></html>
