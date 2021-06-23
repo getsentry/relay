@@ -78,8 +78,10 @@ impl StoreForwarder {
 
     fn produce(&self, topic: KafkaTopic, message: KafkaMessage) -> Result<(), StoreError> {
         let serialized = message.serialize()?;
+        let key = message.key();
+
         let record = BaseRecord::to(self.config.kafka_topic_name(topic))
-            .key(message.key())
+            .key(&key)
             .payload(&serialized);
 
         match self.producer.send(record) {
@@ -522,17 +524,21 @@ enum KafkaMessage {
 
 impl KafkaMessage {
     /// Returns the partitioning key for this kafka message determining.
-    fn key(&self) -> &[u8] {
-        let event_id = match self {
-            Self::Event(message) => &message.event_id.0,
-            Self::Attachment(message) => &message.event_id.0,
-            Self::AttachmentChunk(message) => &message.event_id.0,
-            Self::UserReport(message) => &message.event_id.0,
-            Self::Session(message) => &message.session_id,
-            Self::Metric(_message) => return &[], // TODO(ja): Determine a partitioning key
+    fn key(&self) -> [u8; 16] {
+        let mut uuid = match self {
+            Self::Event(message) => message.event_id.0,
+            Self::Attachment(message) => message.event_id.0,
+            Self::AttachmentChunk(message) => message.event_id.0,
+            Self::UserReport(message) => message.event_id.0,
+            Self::Session(message) => message.session_id,
+            Self::Metric(_message) => Uuid::nil(), // TODO(ja): Determine a partitioning key
         };
 
-        event_id.as_bytes()
+        if uuid.is_nil() {
+            uuid = Uuid::new_v4();
+        }
+
+        *uuid.as_bytes()
     }
 
     /// Serializes the message into its binary format.
