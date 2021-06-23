@@ -111,7 +111,7 @@ mod tests {
     where
         T: Default + PartialEq + crate::processor::ProcessValue,
     {
-        #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+        #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
         struct Foo<T> {
             #[metastructure(required = "true", nonempty = "true")]
             bar: Annotated<T>,

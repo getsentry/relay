@@ -3,13 +3,15 @@ use serde::{Serialize, Serializer};
 
 use crate::processor::ProcessValue;
 use crate::protocol::LenientString;
-use crate::types::{Annotated, Empty, Error, FromValue, Object, SkipSerialization, ToValue, Value};
+use crate::types::{
+    Annotated, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
+};
 
 /// Device information.
 ///
 /// Device context describes the device that caused the event. This is most appropriate for mobile
 /// applications.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct DeviceContext {
     /// Name of the device.
@@ -130,7 +132,7 @@ impl DeviceContext {
 ///
 /// OS context describes the operating system on which the event was created. In web contexts, this
 /// is the operating system of the browser (generally pulled from the User-Agent string).
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct OsContext {
     /// Name of the operating system.
@@ -177,7 +179,7 @@ impl OsContext {
 /// Runtime context describes a runtime in more detail. Typically, this context is present in
 /// `contexts` multiple times if multiple runtimes are involved (for instance, if you have a
 /// JavaScript application running on top of JVM).
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct RuntimeContext {
     /// Runtime name.
@@ -214,7 +216,7 @@ impl RuntimeContext {
 ///
 /// App context describes the application. As opposed to the runtime, this is the actual
 /// application that was running and carries metadata about the current session.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct AppContext {
     /// Start time of the app.
@@ -255,7 +257,7 @@ impl AppContext {
 }
 
 /// Web browser information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct BrowserContext {
     /// Display name of the browser application.
@@ -281,7 +283,7 @@ impl BrowserContext {
 // documentation. We need to disble datascrubbing because it can retract information from the
 // context that is necessary for basic operation, or worse, mangle it such that the Snuba consumer
 // crashes: https://github.com/getsentry/snuba/pull/1896/
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ReprocessingContext {
     /// The issue ID that this event originally belonged to.
@@ -327,7 +329,7 @@ lazy_static::lazy_static! {
 ///   "npot_support": "Full"
 /// }
 /// ```
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct GpuContext {
     /// The name of the graphics device.
@@ -381,7 +383,7 @@ impl GpuContext {
 }
 
 /// Monitor information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct MonitorContext(#[metastructure(pii = "maybe")] pub Object<Value>);
 
@@ -413,7 +415,7 @@ impl MonitorContext {
 }
 
 /// A 32-character hex string as described in the W3C trace context spec.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct TraceId(pub String);
 
@@ -440,7 +442,7 @@ impl FromValue for TraceId {
 }
 
 /// A 16-character hex string as described in the W3C trace context spec.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SpanId(pub String);
 
@@ -467,7 +469,7 @@ impl FromValue for SpanId {
 }
 
 /// Trace context
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_trace_context")]
 pub struct TraceContext {
@@ -555,8 +557,8 @@ impl FromValue for SpanStatus {
     }
 }
 
-impl ToValue for SpanStatus {
-    fn to_value(self) -> Value {
+impl IntoValue for SpanStatus {
+    fn into_value(self) -> Value {
         Value::String(self.to_string())
     }
 
@@ -577,7 +579,7 @@ impl TraceContext {
 }
 
 /// A context describes environment info (e.g. device, os or browser).
-#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_context")]
 pub enum Context {
@@ -625,7 +627,7 @@ impl Context {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ContextInner(#[metastructure(bag_size = "large")] pub Context);
 
@@ -662,7 +664,7 @@ impl From<Context> for ContextInner {
 ///
 /// For more details about sending additional data with your event, see the [full documentation on
 /// Additional Data](https://docs.sentry.io/enriching-error-data/additional-data/).
-#[derive(Clone, Debug, PartialEq, Empty, ToValue, ProcessValue, Default)]
+#[derive(Clone, Debug, PartialEq, Empty, IntoValue, ProcessValue, Default)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_contexts")]
 pub struct Contexts(pub Object<ContextInner>);

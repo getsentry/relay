@@ -94,9 +94,8 @@ fn test_globs() {
         ($value:expr, $pat:expr, $is_match:expr, {$($k:ident: $v:expr),*}) => {{
             #[allow(clippy::needless_update)]
             let options = GlobOptions { $($k: $v,)* ..Default::default() };
-            assert_eq!(
-                glob_match($value, $pat, options),
-                $is_match,
+            assert!(
+                glob_match($value, $pat, options) == $is_match,
                 "expected that {} {} {} with options {:?}",
                 $pat,
                 if $is_match { "matches" } else { "does not match" },

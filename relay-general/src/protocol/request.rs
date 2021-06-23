@@ -14,7 +14,7 @@ use crate::types::{Annotated, Error, FromValue, Object, Value};
 type CookieEntry = Annotated<(Annotated<String>, Annotated<String>)>;
 
 /// A map holding cookies.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Cookies(pub PairList<(Annotated<String>, Annotated<String>)>);
 
@@ -89,7 +89,7 @@ impl FromValue for Cookies {
 }
 
 /// A "into-string" type that normalizes header names.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_header_name")]
 pub struct HeaderName(String);
@@ -162,7 +162,7 @@ impl FromValue for HeaderName {
 }
 
 /// A "into-string" type that normalizes header values.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct HeaderValue(String);
 
@@ -232,7 +232,7 @@ impl FromValue for HeaderValue {
 }
 
 /// A map holding headers.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Headers(pub PairList<(Annotated<HeaderName>, Annotated<HeaderValue>)>);
 
@@ -285,7 +285,7 @@ impl FromValue for Headers {
 }
 
 /// A map holding query string pairs.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
 pub struct Query(pub PairList<(Annotated<String>, Annotated<JsonLenientString>)>);
 
 impl Query {
@@ -431,7 +431,7 @@ impl schemars::JsonSchema for Query {
 ///   }
 /// }
 /// ```
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_request", value_type = "Request")]
 pub struct Request {
@@ -553,7 +553,7 @@ fn test_header_from_sequence() {
   23
 ]"#;
     let headers = Annotated::<Headers>::from_json(json).unwrap();
-    #[derive(Debug, Empty, ToValue)]
+    #[derive(Debug, Empty, IntoValue)]
     pub struct Container {
         headers: Annotated<Headers>,
     }
