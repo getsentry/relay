@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use crate::types::{Annotated, Error, FromValue, Object, Value};
 
 /// An individual observed measurement.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct Measurement {
     /// Value of observed measurement value.
     #[metastructure(required = "true", skip_serialization = "never")]
@@ -13,7 +13,7 @@ pub struct Measurement {
 /// A map of observed measurement values.
 ///
 /// They contain measurement values of observed values such as Largest Contentful Paint (LCP).
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
 pub struct Measurements(pub Object<Measurement>);
 
 impl Measurements {

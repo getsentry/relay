@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use enumset::EnumSet;
 
 use crate::processor::{process_value, ProcessingState, ValueType};
-use crate::types::{FromValue, Meta, ProcessingResult, ToValue};
+use crate::types::{FromValue, IntoValue, Meta, ProcessingResult};
 
 macro_rules! process_method {
     ($name: ident, $ty:ident $(::$path:ident)*) => {
@@ -115,7 +115,7 @@ pub trait Processor: Sized {
 }
 
 /// A recursively processable value.
-pub trait ProcessValue: FromValue + ToValue + Debug + Clone {
+pub trait ProcessValue: FromValue + IntoValue + Debug + Clone {
     /// Returns the type of the value.
     #[inline]
     fn value_type(&self) -> EnumSet<ValueType> {

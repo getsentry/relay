@@ -15,7 +15,7 @@ use crate::protocol::{
     Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, User, Values,
 };
 use crate::types::{
-    Annotated, Array, Empty, ErrorKind, FromValue, Object, SkipSerialization, ToValue, Value,
+    Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
 
 /// Wrapper around a UUID with slightly different formatting.
@@ -90,8 +90,8 @@ impl FromValue for EventType {
     }
 }
 
-impl ToValue for EventType {
-    fn to_value(self) -> Value
+impl IntoValue for EventType {
+    fn into_value(self) -> Value
     where
         Self: Sized,
     {
@@ -109,7 +109,7 @@ impl ToValue for EventType {
 
 impl ProcessValue for EventType {}
 
-#[derive(Debug, FromValue, ToValue, ProcessValue, Empty, Clone, PartialEq)]
+#[derive(Debug, FromValue, IntoValue, ProcessValue, Empty, Clone, PartialEq)]
 pub struct ExtraValue(#[metastructure(bag_size = "larger")] pub Value);
 
 #[cfg(feature = "jsonschema")]
@@ -134,7 +134,7 @@ impl<T: Into<Value>> From<T> for ExtraValue {
 }
 
 /// An event processing error.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct EventProcessingError {
     /// The error kind.
@@ -156,7 +156,7 @@ pub struct EventProcessingError {
 ///
 /// This is currently only supplied as part of normalization and the payload
 /// only permits the ID of the algorithm to be set and no parameters yet.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct GroupingConfig {
     /// The id of the grouping config.
     #[metastructure(max_chars = "enumlike")]
@@ -166,7 +166,7 @@ pub struct GroupingConfig {
 }
 
 /// The sentry v7 event structure.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_event", value_type = "Event")]
 pub struct Event {

@@ -21,8 +21,8 @@ macro_rules! derive_string_meta_structure {
             }
         }
 
-        impl crate::types::ToValue for $type {
-            fn to_value(self) -> Value {
+        impl crate::types::IntoValue for $type {
+            fn into_value(self) -> Value {
                 Value::String(self.to_string())
             }
 
