@@ -5,7 +5,7 @@ use crate::types::{Annotated, Error, FromValue, Object, Value};
 /// Error codes set by Linux system calls and some library functions as specified in ISO C99,
 /// POSIX.1-2001, and POSIX.1-2008. See
 /// [`errno(3)`](https://man7.org/linux/man-pages/man3/errno.3.html) for more information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct CError {
     /// The error code as specified by ISO C99, POSIX.1-2001 or POSIX.1-2008.
@@ -16,7 +16,7 @@ pub struct CError {
 }
 
 /// Mach exception information.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct MachException {
     /// The mach exception type.
@@ -34,7 +34,7 @@ pub struct MachException {
 }
 
 /// NSError informaiton.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct NsError {
     /// The error code.
@@ -48,7 +48,7 @@ pub struct NsError {
 ///
 /// On Apple systems, signals also carry a code in addition to the signal number describing the
 /// signal in more detail. On Linux, this code does not exist.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct PosixSignal {
     /// The POSIX signal number.
@@ -71,7 +71,7 @@ pub struct PosixSignal {
 /// and descriptions for well-known error codes, as it will be filled out by Sentry. For
 /// proprietary or vendor-specific error codes, adding these values will give additional
 /// information to the user.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct MechanismMeta {
     /// Optional ISO C standard error code.
@@ -97,7 +97,7 @@ pub struct MechanismMeta {
 /// It carries additional information about the way the exception was created on the target system.
 /// This includes general exception values obtained from the operating system or runtime APIs, as
 /// well as mechanism-specific values.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Mechanism {
     /// Mechanism type (required).

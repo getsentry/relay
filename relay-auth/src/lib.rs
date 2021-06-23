@@ -745,11 +745,11 @@ fn test_signatures() {
     let data = b"Hello World!";
 
     let sig = sk.sign(data);
-    assert_eq!(pk.verify(data, &sig), true);
+    assert!(pk.verify(data, &sig));
 
     let bad_sig =
         "jgubwSf2wb2wuiRpgt2H9_bdDSMr88hXLp5zVuhbr65EGkSxOfT5ILIWr623twLgLd0bDgHg6xzOaUCX7XvUCw";
-    assert_eq!(pk.verify(data, &bad_sig), false);
+    assert!(!pk.verify(data, &bad_sig));
 }
 
 #[test]

@@ -2,23 +2,23 @@ use serde::de::value::Error;
 use serde::{ser, Serialize};
 use smallvec::SmallVec;
 
-use crate::types::{SkipSerialization, ToValue};
+use crate::types::{IntoValue, SkipSerialization};
 
 /// Estimates the size in bytes this would be in JSON.
-pub fn estimate_size<T: ToValue>(value: Option<&T>) -> usize {
+pub fn estimate_size<T: IntoValue>(value: Option<&T>) -> usize {
     let mut ser = SizeEstimatingSerializer::new();
     if let Some(value) = value {
-        ToValue::serialize_payload(value, &mut ser, SkipSerialization::default()).unwrap();
+        IntoValue::serialize_payload(value, &mut ser, SkipSerialization::default()).unwrap();
     }
     ser.size()
 }
 
 /// Estimates the size in bytes this would be in JSON, but does not recurse into objects or arrays.
-pub fn estimate_size_flat<T: ToValue>(value: Option<&T>) -> usize {
+pub fn estimate_size_flat<T: IntoValue>(value: Option<&T>) -> usize {
     let mut ser = SizeEstimatingSerializer::new();
     ser.flat = true;
     if let Some(value) = value {
-        ToValue::serialize_payload(value, &mut ser, SkipSerialization::default()).unwrap();
+        IntoValue::serialize_payload(value, &mut ser, SkipSerialization::default()).unwrap();
     }
     ser.size()
 }

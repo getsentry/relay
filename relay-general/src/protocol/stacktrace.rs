@@ -6,7 +6,7 @@ use crate::types::{Annotated, Array, FromValue, Object, Value};
 /// Holds information about a single stacktrace frame.
 ///
 /// Each object should contain **at least** a `filename`, `function` or `instruction_addr` attribute. All values are optional, but recommended.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_frame", value_type = "Frame")]
 pub struct Frame {
@@ -171,14 +171,14 @@ pub struct Frame {
 }
 
 /// Frame local variables.
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct FrameVars(#[metastructure(skip_serialization = "empty")] pub Object<Value>);
 
 /// Additional frame data information.
 ///
 /// This value is set by the server and should not be set by the SDK.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct FrameData {
     /// A reference to the sourcemap used.
@@ -300,7 +300,7 @@ impl FromValue for FrameVars {
 ///   }
 /// }
 /// ```
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_raw_stacktrace", value_type = "Stacktrace")]
 pub struct RawStacktrace {
@@ -335,7 +335,7 @@ pub struct RawStacktrace {
 
 // NOTE: This is not a doc comment because otherwise it will show up in public docs.
 // Newtype to distinguish `raw_stacktrace` attributes from the rest.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace(pub RawStacktrace);

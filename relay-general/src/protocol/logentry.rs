@@ -23,7 +23,7 @@ use crate::types::{Annotated, Error, FromValue, Meta, Object, Value};
 ///   }
 /// }
 /// ```
-#[derive(Clone, Debug, Default, PartialEq, Empty, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_logentry", value_type = "LogEntry")]
 pub struct LogEntry {
@@ -63,7 +63,7 @@ impl From<String> for LogEntry {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(value_type = "Message", value_type = "String")]
 pub struct Message(String);

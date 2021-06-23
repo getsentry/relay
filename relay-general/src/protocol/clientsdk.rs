@@ -2,7 +2,7 @@ use crate::protocol::IpAddr;
 use crate::types::{Annotated, Array, Object, Value};
 
 /// An installed and loaded package as part of the Sentry SDK.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ClientSdkPackage {
     /// Name of the package.
@@ -12,7 +12,7 @@ pub struct ClientSdkPackage {
 }
 
 /// The SDK Interface describes the Sentry SDK and its configuration used to capture and transmit an event.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_client_sdk_info", value_type = "ClientSdkInfo")]
 pub struct ClientSdkInfo {

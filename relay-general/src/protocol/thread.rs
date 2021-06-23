@@ -3,7 +3,9 @@ use serde::{Deserialize, Serialize, Serializer};
 use crate::processor::ProcessValue;
 use crate::protocol::RawStacktrace;
 use crate::protocol::Stacktrace;
-use crate::types::{Annotated, Empty, Error, FromValue, Object, SkipSerialization, ToValue, Value};
+use crate::types::{
+    Annotated, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
+};
 
 /// Represents a thread id.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
@@ -36,8 +38,8 @@ impl FromValue for ThreadId {
     }
 }
 
-impl ToValue for ThreadId {
-    fn to_value(self) -> Value {
+impl IntoValue for ThreadId {
+    fn into_value(self) -> Value {
         match self {
             ThreadId::String(value) => Value::String(value),
             ThreadId::Int(value) => Value::U64(value),
@@ -90,7 +92,7 @@ impl Empty for ThreadId {
 ///   }
 /// }
 /// ```
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, ToValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_thread", value_type = "Thread")]
 pub struct Thread {

@@ -142,7 +142,7 @@ impl RelayCache {
     /// This assumes that currently no request is running. If the upstream request fails or new
     /// channels are pushed in the meanwhile, this will reschedule automatically.
     fn fetch_relays(&mut self, context: &mut Context<Self>) {
-        let channels = mem::replace(&mut self.relay_channels, HashMap::new());
+        let channels = mem::take(&mut self.relay_channels);
         relay_log::debug!(
             "updating public keys for {} relays (attempt {})",
             channels.len(),

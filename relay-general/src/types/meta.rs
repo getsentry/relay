@@ -5,7 +5,7 @@ use serde::{de, ser::SerializeSeq, Deserialize, Deserializer, Serialize, Seriali
 use smallvec::SmallVec;
 
 use crate::processor::estimate_size;
-use crate::types::{Map, ToValue, Value};
+use crate::types::{IntoValue, Map, Value};
 
 /// The start (inclusive) and end (exclusive) indices of a `Remark`.
 pub type Range = (usize, usize);
@@ -551,12 +551,12 @@ impl Meta {
     /// Sets the original value.
     pub fn set_original_value<T>(&mut self, original_value: Option<T>)
     where
-        T: ToValue,
+        T: IntoValue,
     {
         // XXX: Since metadata is currently not subject to trimming, only allow really small values
         // in original_value for now.
         if estimate_size(original_value.as_ref()) < 500 {
-            self.upsert().original_value = original_value.map(ToValue::to_value);
+            self.upsert().original_value = original_value.map(IntoValue::into_value);
         }
     }
 
