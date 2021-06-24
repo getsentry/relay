@@ -200,7 +200,9 @@ def mini_sentry(request):
         if relay_id not in sentry.known_relays:
             abort(403, "unknown relay")
 
-        if version != CURRENT_VERSION:
+        registered_version = sentry.known_relays[relay_id]['version']
+
+        if version != registered_version and not (registered_version == "latest" and version == CURRENT_VERSION):
             abort(403, "outdated version")
 
         authenticated_relays[relay_id] = sentry.known_relays[relay_id]

@@ -172,8 +172,14 @@ jobs:
         run: pytest -v py
 
   test_integration:
-    name: Integration Tests
+    name: Integration Tests ${{ matrix.relay_version_chain }}
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        relay_version_chain:
+          - "20.6.0,latest"
+          - ""
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -228,4 +234,4 @@ jobs:
         run: pip install -U -r requirements-test.txt
 
       - name: Run tests
-        run: pytest tests -n auto -v
+        run: RELAY_VERSION_CHAIN=${{ matrix.relay_version_chain }} pytest tests -n auto -v

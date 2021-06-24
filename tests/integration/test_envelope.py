@@ -117,7 +117,7 @@ def test_normalize_measurement_interface(
 
 
 def test_empty_measurement_interface(mini_sentry, relay_chain):
-    relay = relay_chain()
+    relay = relay_chain(min_relay_version="20.10.0")
     mini_sentry.add_basic_project_config(42)
 
     transaction_item = generate_transaction_item()
@@ -282,7 +282,7 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
 
 
 def test_sample_rates(mini_sentry, relay_chain):
-    relay = relay_chain()
+    relay = relay_chain(min_relay_version="21.1.0")
     mini_sentry.add_basic_project_config(42)
 
     sample_rates = [

@@ -87,9 +87,7 @@ def relay_chain(request, mini_sentry, relay, gobetween, haproxy):  # noqa
         if not configured_versions:
             versions_iter = itertools.repeat("latest")
         else:
-            configured_versions.reverse()
-            configured_versions.append("latest")
-            versions_iter = iter(configured_versions)
+            versions_iter = iter(reversed(configured_versions))
 
         def relay_with_version(upstream, **kwargs):
             version = next(versions_iter)

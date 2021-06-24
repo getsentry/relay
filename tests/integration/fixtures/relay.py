@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import signal
 import stat
 import requests
@@ -53,7 +54,13 @@ def get_relay_binary():
         if version == "latest":
             return RELAY_BIN
 
-        filename = "relay-Darwin-x86_64"  # TODO
+        if sys.platform == "linux" or sys.platform == "linux2":
+            filename = "relay-Linux-x86_64"
+        elif sys.platform == "darwin":
+            filename = "relay-Darwin-x86_64"
+        elif sys.platform == "win32":
+            filename = "relay-Windows-x86_64.exe"
+
         download_path = f"target/relay_releases_cache/{filename}_{version}"
 
         if not os.path.exists(download_path):
@@ -144,6 +151,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         mini_sentry.known_relays[relay_id] = {
             "publicKey": public_key,
             "internal": not external,
+            "version": version,
         }
 
         process = background_process(relay_bin + ["-c", str(dir), "run"])
