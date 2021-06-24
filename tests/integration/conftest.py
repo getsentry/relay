@@ -1,5 +1,7 @@
 import socket
 import subprocess
+import itertools
+import os
 from os import path
 from typing import Optional
 import json
@@ -10,7 +12,7 @@ import pytest
 from .fixtures.gobetween import gobetween  # noqa
 from .fixtures.haproxy import haproxy  # noqa
 from .fixtures.mini_sentry import mini_sentry  # noqa
-from .fixtures.relay import relay  # noqa
+from .fixtures.relay import relay, get_relay_binary  # noqa
 from .fixtures.processing import (
     kafka_consumer,
     get_topic_name,
@@ -61,6 +63,13 @@ def config_dir(tmpdir):
     return inner
 
 
+def _parse_version(version):
+    if version == "latest":
+        return (float("inf"),)
+
+    return tuple(map(int, version.split(".")))
+
+
 @pytest.fixture(  # noqa
     params=[
         "relay->sentry",
@@ -70,15 +79,35 @@ def config_dir(tmpdir):
     ],
 )
 def relay_chain(request, mini_sentry, relay, gobetween, haproxy):  # noqa
-    parts = iter(reversed(request.param.split("->")))
-    assert next(parts) == "sentry"
+    configured_versions = list(
+        filter(bool, (os.environ.get("RELAY_VERSION_CHAIN") or "").split(","))
+    )
 
-    factories = {"relay": relay, "gb": gobetween, "ha": haproxy}
+    def inner(min_relay_version="0"):
+        if not configured_versions:
+            versions_iter = itertools.repeat("latest")
+        else:
+            configured_versions.reverse()
+            configured_versions.append("latest")
+            versions_iter = iter(configured_versions)
 
-    def inner():
+        def relay_with_version(upstream, **kwargs):
+            version = next(versions_iter)
+
+            if _parse_version(version) < _parse_version(min_relay_version):
+                version = min_relay_version
+
+            return relay(upstream, version=version, **kwargs)
+
+        factories = {"gb": gobetween, "ha": haproxy, "relay": relay_with_version}
+
+        parts = iter(reversed(request.param.split("->")))
+        assert next(parts) == "sentry"
+
         rv = mini_sentry
         for part in parts:
             rv = factories[part](rv)
+
         return rv
 
     return inner
