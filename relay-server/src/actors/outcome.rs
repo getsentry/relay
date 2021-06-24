@@ -26,6 +26,7 @@ use relay_sampling::RuleId;
 
 use crate::actors::upstream::SendQuery;
 use crate::actors::upstream::{UpstreamQuery, UpstreamRelay};
+use crate::utils::EnvelopeSummary;
 use crate::ServerError;
 
 // Choose the outcome module implementation (either processing or non-processing).
@@ -359,6 +360,52 @@ impl TrackRawOutcome {
 
 impl Message for TrackRawOutcome {
     type Result = Result<(), OutcomeError>;
+}
+
+/// Contains the required information to create an outcome
+pub struct OutcomeContext<'a> {
+    pub envelope_summary: &'a EnvelopeSummary,
+    pub timestamp: Instant,
+    pub outcome: Outcome,
+    pub event_id: Option<EventId>,
+    pub remote_addr: Option<IpAddr>,
+    pub scoping: Scoping,
+}
+
+/// Sends outcomes for an envelope summary
+pub fn send_outcomes(outcome_context: OutcomeContext, outcome_producer: Addr<OutcomeProducer>) {
+    let OutcomeContext {
+        envelope_summary,
+        timestamp,
+        outcome,
+        event_id,
+        remote_addr,
+        scoping,
+    } = outcome_context;
+
+    if let Some(category) = envelope_summary.event_category {
+        outcome_producer.do_send(TrackOutcome {
+            timestamp,
+            scoping,
+            outcome: outcome.clone(),
+            event_id,
+            remote_addr,
+            category,
+            quantity: 1,
+        });
+    }
+
+    if envelope_summary.attachment_quantity > 0 {
+        outcome_producer.do_send(TrackOutcome {
+            timestamp,
+            scoping,
+            outcome,
+            event_id,
+            remote_addr,
+            category: DataCategory::Attachment,
+            quantity: envelope_summary.attachment_quantity,
+        });
+    }
 }
 
 /// This is the implementation that uses kafka queues and does stuff

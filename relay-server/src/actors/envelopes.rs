@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt;
+use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -28,7 +29,9 @@ use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{RuleId, SamplingResult};
 
-use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
+use crate::actors::outcome::{
+    send_outcomes, DiscardReason, Outcome, OutcomeContext, OutcomeProducer,
+};
 use crate::actors::project::{
     CheckEnvelope, Feature, GetProjectState, ProjectState, UpdateRateLimits,
 };
@@ -157,7 +160,8 @@ impl ProcessingError {
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
             #[cfg(feature = "processing")]
             Self::EventFiltered(ref filter_stat_key) => Some(Outcome::Filtered(*filter_stat_key)),
-            Self::TraceSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
+            // Trace sampled outcomes are handled in sample_trace
+            Self::TraceSampled(_) => None,
             Self::EventSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
 
             // Internal errors
@@ -2004,16 +2008,25 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     None => Err(ProcessingError::RateLimited(checked.rate_limits)),
                 }
             }))
-            .and_then(clone!(project_cache, |envelope| {
-                utils::sample_trace(
-                    envelope,
-                    sampling_project_key,
-                    project_cache,
-                    false,
-                    processing_enabled,
-                )
-                .map_err(ProcessingError::TraceSampled)
-            }))
+            .and_then(clone!(
+                project_cache,
+                outcome_producer,
+                scoping,
+                |envelope| {
+                    let scoping: Scoping = *scoping.borrow().deref();
+                    utils::sample_trace(
+                        envelope,
+                        sampling_project_key,
+                        project_cache,
+                        outcome_producer,
+                        false,
+                        processing_enabled,
+                        start_time,
+                        scoping,
+                    )
+                    .map_err(ProcessingError::TraceSampled)
+                }
+            ))
             .and_then(clone!(project_cache, |envelope| {
                 // get the state for the current project. we can always fetch the cached version
                 // even if the no_cache flag was passed, as the cache was updated prior in
@@ -2130,29 +2143,17 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
 
                 let envelope_summary = envelope_summary.borrow();
                 if let Some(outcome) = outcome {
-                    if let Some(category) = envelope_summary.event_category {
-                        outcome_producer.do_send(TrackOutcome {
-                            timestamp: Instant::now(),
-                            scoping: *scoping.borrow(),
+                    send_outcomes(
+                        OutcomeContext {
+                            envelope_summary: &envelope_summary,
+                            timestamp: start_time,
                             outcome: outcome.clone(),
                             event_id,
                             remote_addr,
-                            category,
-                            quantity: 1,
-                        });
-                    }
-
-                    if envelope_summary.attachment_quantity > 0 {
-                        outcome_producer.do_send(TrackOutcome {
-                            timestamp: start_time,
                             scoping: *scoping.borrow(),
-                            outcome,
-                            event_id,
-                            remote_addr,
-                            category: DataCategory::Attachment,
-                            quantity: envelope_summary.attachment_quantity,
-                        });
-                    }
+                        },
+                        outcome_producer,
+                    );
                 }
             })
             .then(move |x, slf, _| {
