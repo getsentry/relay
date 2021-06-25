@@ -239,8 +239,9 @@ impl Enforcement {
         // Do not report outcomes for sessions.
         for limit in std::array::IntoIter::new([self.event, self.attachments]) {
             if limit.is_active() {
+                let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
                 producer.do_send(TrackOutcome {
-                    timestamp: envelope.meta().start_time(),
+                    timestamp,
                     scoping: *scoping,
                     outcome: Outcome::RateLimited(limit.reason_code),
                     event_id: envelope.event_id(),
