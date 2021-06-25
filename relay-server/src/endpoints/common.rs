@@ -530,9 +530,10 @@ where
 
             let envelope_summary = envelope_summary.borrow();
             if let Some(outcome) = error.to_outcome() {
+                let timestamp = relay_common::instant_to_date_time(start_time);
                 if let Some(category) = envelope_summary.event_category {
                     outcome_producer.do_send(TrackOutcome {
-                        timestamp: start_time,
+                        timestamp,
                         scoping: *scoping.borrow(),
                         outcome: outcome.clone(),
                         event_id: *event_id.borrow(),
@@ -544,7 +545,7 @@ where
 
                 if envelope_summary.attachment_quantity > 0 {
                     outcome_producer.do_send(TrackOutcome {
-                        timestamp: start_time,
+                        timestamp,
                         scoping: *scoping.borrow(),
                         outcome,
                         event_id: *event_id.borrow(),
