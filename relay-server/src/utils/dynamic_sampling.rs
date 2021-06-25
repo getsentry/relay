@@ -187,7 +187,7 @@ pub fn sample_trace(
         send_outcomes(
             OutcomeContext {
                 envelope_summary: &envelope_summary,
-                timestamp,
+                timestamp: relay_common::instant_to_date_time(timestamp),
                 outcome: FilteredSampling(err),
                 event_id,
                 remote_addr,

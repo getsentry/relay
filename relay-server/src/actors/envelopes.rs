@@ -162,7 +162,7 @@ impl ProcessingError {
             Self::EventFiltered(ref filter_stat_key) => Some(Outcome::Filtered(*filter_stat_key)),
             // Trace sampled outcomes are handled in sample_trace
             Self::TraceSampled(_) => None,
-            Self::EventSampled(rule_id) => Some(Outcome::FilteredSampling(rule_id)),
+            Self::EventSampled(_rule_id) => None,
 
             // Internal errors
             Self::SerializeFailed(_)
@@ -241,6 +241,12 @@ struct ProcessEnvelopeState {
 
     /// UTC date time converted from the `start_time` instant.
     received_at: DateTime<Utc>,
+
+    /// The request scoping
+    scoping: Scoping,
+
+    /// The envelope summary before processing
+    summary: EnvelopeSummary,
 }
 
 impl ProcessEnvelopeState {
@@ -662,6 +668,7 @@ impl EnvelopeProcessor {
             mut envelope,
             project_state,
             start_time,
+            scoping,
         } = message;
 
         // Set the event retention. Effectively, this value will only be available in processing
@@ -686,7 +693,7 @@ impl EnvelopeProcessor {
         //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
-
+        let summary = EnvelopeSummary::compute(&envelope);
         Ok(ProcessEnvelopeState {
             envelope,
             event: Annotated::empty(),
@@ -697,6 +704,8 @@ impl EnvelopeProcessor {
             project_state,
             project_id,
             received_at: relay_common::instant_to_date_time(start_time),
+            scoping,
+            summary,
         })
     }
 
@@ -1385,6 +1394,7 @@ impl EnvelopeProcessor {
             None => return Ok(()), // can't process without an event
             Some(event) => event,
         };
+        relay_log::trace!("ENVELOPE IS: {:?}", &state.envelope);
         let client_ip = state.envelope.meta().client_addr();
         match utils::should_keep_event(
             event,
@@ -1392,7 +1402,24 @@ impl EnvelopeProcessor {
             &state.project_state,
             self.config.processing_enabled(),
         ) {
-            SamplingResult::Drop(rule_id) => Err(ProcessingError::EventSampled(rule_id)),
+            SamplingResult::Drop(rule_id) => {
+                relay_log::trace!("About SEND OUTCOMES !!!!");
+                if let Some(ref outcome_producer) = self.outcome_producer {
+                    relay_log::trace!("SENDING OUTCOMES !!!!");
+                    send_outcomes(
+                        OutcomeContext {
+                            envelope_summary: &state.summary,
+                            timestamp: state.received_at,
+                            outcome: Outcome::FilteredSampling(rule_id),
+                            event_id: state.envelope.event_id(),
+                            remote_addr: client_ip,
+                            scoping: state.scoping,
+                        },
+                        outcome_producer.clone(),
+                    );
+                }
+                Err(ProcessingError::EventSampled(rule_id))
+            }
             SamplingResult::Keep => Ok(()),
             // Not enough info to make a definite evaluation, keep the event
             SamplingResult::NoDecision => Ok(()),
@@ -1487,6 +1514,7 @@ struct ProcessEnvelope {
     pub envelope: Envelope,
     pub project_state: Arc<ProjectState>,
     pub start_time: Instant,
+    pub scoping: Scoping,
 }
 
 #[cfg_attr(not(feature = "processing"), allow(dead_code))]
@@ -2027,7 +2055,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     .map_err(ProcessingError::TraceSampled)
                 }
             ))
-            .and_then(clone!(project_cache, |envelope| {
+            .and_then(clone!(project_cache, scoping, |envelope| {
                 // get the state for the current project. we can always fetch the cached version
                 // even if the no_cache flag was passed, as the cache was updated prior in
                 // `CheckEnvelope`.
@@ -2035,14 +2063,15 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     .send(GetProjectState::new(public_key))
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
-                    .map(|state| (envelope, state))
+                    .map(|state| (envelope, state, scoping))
             }))
-            .and_then(move |(envelope, project_state)| {
+            .and_then(move |(envelope, project_state, scoping)| {
                 processor
                     .send(ProcessEnvelope {
                         envelope,
                         project_state,
                         start_time,
+                        scoping: *scoping.borrow().deref(),
                     })
                     .map_err(ProcessingError::ScheduleFailed)
                     .flatten()
@@ -2123,7 +2152,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         relay_log::debug!("dropping failed envelope without event");
                     }
                 }
-
+                relay_log::trace!("Envelope Error {:?}", error);
                 let outcome = error.to_outcome();
                 if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome {
                     // Errors are only logged for what we consider an internal discard reason. These
@@ -2143,10 +2172,11 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
 
                 let envelope_summary = envelope_summary.borrow();
                 if let Some(outcome) = outcome {
+                    let timestamp = relay_common::instant_to_date_time(start_time);
                     send_outcomes(
                         OutcomeContext {
                             envelope_summary: &envelope_summary,
-                            timestamp: start_time,
+                            timestamp,
                             outcome: outcome.clone(),
                             event_id,
                             remote_addr,
@@ -2451,6 +2481,12 @@ mod tests {
                 envelope,
                 project_state: Arc::new(ProjectState::allowed()),
                 start_time: Instant::now(),
+                scoping: Scoping {
+                    public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                    organization_id: 1,
+                    project_id: ProjectId::new(1),
+                    key_id: None,
+                },
             })
             .unwrap();
 

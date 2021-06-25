@@ -509,10 +509,11 @@ where
             let envelope_summary = envelope_summary.borrow();
 
             if let Some(outcome) = error.to_outcome() {
+                let timestamp = relay_common::instant_to_date_time(start_time);
                 send_outcomes(
                     OutcomeContext {
                         envelope_summary: &envelope_summary,
-                        timestamp: start_time,
+                        timestamp,
                         outcome: outcome.clone(),
                         event_id: *event_id.borrow(),
                         remote_addr,

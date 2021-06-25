@@ -8,11 +8,10 @@ use std::borrow::Cow;
 use std::mem;
 use std::net::IpAddr;
 use std::sync::Arc;
-use std::time::Instant;
 
 use actix::prelude::*;
 use actix_web::http::Method;
-use chrono::SecondsFormat;
+use chrono::{DateTime, SecondsFormat, Utc};
 use futures::future::Future;
 use serde::{Deserialize, Serialize};
 
@@ -74,7 +73,7 @@ pub struct SendOutcomesResponse {
 #[derive(Clone, Debug)]
 pub struct TrackOutcome {
     /// The timespan of the event outcome.
-    pub timestamp: Instant,
+    pub timestamp: DateTime<Utc>,
     /// Scoping of the request.
     pub scoping: Scoping,
     /// The outcome.
@@ -327,11 +326,10 @@ pub struct TrackRawOutcome {
 impl TrackRawOutcome {
     fn from_outcome(msg: TrackOutcome, config: &Config) -> Self {
         let reason = msg.outcome.to_reason().map(|reason| reason.to_string());
-        let date_time = relay_common::instant_to_date_time(msg.timestamp);
 
         // convert to a RFC 3339 formatted date with the shape YYYY-MM-DDTHH:MM:SS.mmmmmmZ
         // e.g. something like: "2019-09-29T09:46:40.123456Z"
-        let timestamp = date_time.to_rfc3339_opts(SecondsFormat::Micros, true);
+        let timestamp = msg.timestamp.to_rfc3339_opts(SecondsFormat::Micros, true);
 
         let org_id = match msg.scoping.organization_id {
             0 => None,
@@ -365,7 +363,7 @@ impl Message for TrackRawOutcome {
 /// Contains the required information to create an outcome
 pub struct OutcomeContext<'a> {
     pub envelope_summary: &'a EnvelopeSummary,
-    pub timestamp: Instant,
+    pub timestamp: DateTime<Utc>,
     pub outcome: Outcome,
     pub event_id: Option<EventId>,
     pub remote_addr: Option<IpAddr>,
@@ -383,7 +381,9 @@ pub fn send_outcomes(outcome_context: OutcomeContext, outcome_producer: Addr<Out
         scoping,
     } = outcome_context;
 
+    relay_log::trace!("In send_outcomes() !!! {:?}", envelope_summary);
     if let Some(category) = envelope_summary.event_category {
+        relay_log::trace!(" data category outcome");
         outcome_producer.do_send(TrackOutcome {
             timestamp,
             scoping,
@@ -396,6 +396,7 @@ pub fn send_outcomes(outcome_context: OutcomeContext, outcome_producer: Addr<Out
     }
 
     if envelope_summary.attachment_quantity > 0 {
+        relay_log::trace!(" data category outcome");
         outcome_producer.do_send(TrackOutcome {
             timestamp,
             scoping,
