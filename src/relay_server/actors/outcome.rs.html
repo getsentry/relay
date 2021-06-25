@@ -627,8 +627,6 @@
 <span id="626">626</span>
 <span id="627">627</span>
 <span id="628">628</span>
-<span id="629">629</span>
-<span id="630">630</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module contains the actor that tracks event outcomes.</span>
 <span class="doccomment">//!</span>
@@ -640,11 +638,10 @@
 <span class="kw">use</span> <span class="ident">std::mem</span>;
 <span class="kw">use</span> <span class="ident">std::net::IpAddr</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
-<span class="kw">use</span> <span class="ident">std::time::Instant</span>;
 
 <span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">actix_web::http::Method</span>;
-<span class="kw">use</span> <span class="ident">chrono::SecondsFormat</span>;
+<span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">SecondsFormat</span>, <span class="ident">Utc</span>};
 <span class="kw">use</span> <span class="ident">futures::future::Future</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
@@ -705,7 +702,7 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TrackOutcome</span> {
     <span class="doccomment">/// The timespan of the event outcome.</span>
-    <span class="kw">pub</span> <span class="ident">timestamp</span>: <span class="ident">Instant</span>,
+    <span class="kw">pub</span> <span class="ident">timestamp</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>,
     <span class="doccomment">/// Scoping of the request.</span>
     <span class="kw">pub</span> <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
     <span class="doccomment">/// The outcome.</span>
@@ -958,11 +955,10 @@
 <span class="kw">impl</span> <span class="ident">TrackRawOutcome</span> {
     <span class="kw">fn</span> <span class="ident">from_outcome</span>(<span class="ident">msg</span>: <span class="ident">TrackOutcome</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">reason</span> <span class="op">=</span> <span class="ident">msg</span>.<span class="ident">outcome</span>.<span class="ident">to_reason</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">reason</span><span class="op">|</span> <span class="ident">reason</span>.<span class="ident">to_string</span>());
-        <span class="kw">let</span> <span class="ident">date_time</span> <span class="op">=</span> <span class="ident">relay_common::instant_to_date_time</span>(<span class="ident">msg</span>.<span class="ident">timestamp</span>);
 
         <span class="comment">// convert to a RFC 3339 formatted date with the shape YYYY-MM-DDTHH:MM:SS.mmmmmmZ</span>
         <span class="comment">// e.g. something like: &quot;2019-09-29T09:46:40.123456Z&quot;</span>
-        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">date_time</span>.<span class="ident">to_rfc3339_opts</span>(<span class="ident">SecondsFormat::Micros</span>, <span class="bool-val">true</span>);
+        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">msg</span>.<span class="ident">timestamp</span>.<span class="ident">to_rfc3339_opts</span>(<span class="ident">SecondsFormat::Micros</span>, <span class="bool-val">true</span>);
 
         <span class="kw">let</span> <span class="ident">org_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">msg</span>.<span class="ident">scoping</span>.<span class="ident">organization_id</span> {
             <span class="number">0</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,

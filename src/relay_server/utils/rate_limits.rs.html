@@ -810,6 +810,7 @@
 <span id="809">809</span>
 <span id="810">810</span>
 <span id="811">811</span>
+<span id="812">812</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std::fmt</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
 
@@ -1052,8 +1053,9 @@
         <span class="comment">// Do not report outcomes for sessions.</span>
         <span class="kw">for</span> <span class="ident">limit</span> <span class="kw">in</span> <span class="ident">std::array::IntoIter::new</span>([<span class="self">self</span>.<span class="ident">event</span>, <span class="self">self</span>.<span class="ident">attachments</span>]) {
             <span class="kw">if</span> <span class="ident">limit</span>.<span class="ident">is_active</span>() {
+                <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">relay_common::instant_to_date_time</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">start_time</span>());
                 <span class="ident">producer</span>.<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
-                    <span class="ident">timestamp</span>: <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">start_time</span>(),
+                    <span class="ident">timestamp</span>,
                     <span class="ident">scoping</span>: <span class="kw-2">*</span><span class="ident">scoping</span>,
                     <span class="ident">outcome</span>: <span class="ident">Outcome::RateLimited</span>(<span class="ident">limit</span>.<span class="ident">reason_code</span>),
                     <span class="ident">event_id</span>: <span class="ident">envelope</span>.<span class="ident">event_id</span>(),

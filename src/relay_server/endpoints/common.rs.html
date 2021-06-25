@@ -679,6 +679,7 @@
 <span id="678">678</span>
 <span id="679">679</span>
 <span id="680">680</span>
+<span id="681">681</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.</span>
 
@@ -1212,9 +1213,10 @@
 
             <span class="kw">let</span> <span class="ident">envelope_summary</span> <span class="op">=</span> <span class="ident">envelope_summary</span>.<span class="ident">borrow</span>();
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">outcome</span>) <span class="op">=</span> <span class="ident">error</span>.<span class="ident">to_outcome</span>() {
+                <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">relay_common::instant_to_date_time</span>(<span class="ident">start_time</span>);
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">category</span>) <span class="op">=</span> <span class="ident">envelope_summary</span>.<span class="ident">event_category</span> {
                     <span class="ident">outcome_producer</span>.<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
-                        <span class="ident">timestamp</span>: <span class="ident">start_time</span>,
+                        <span class="ident">timestamp</span>,
                         <span class="ident">scoping</span>: <span class="kw-2">*</span><span class="ident">scoping</span>.<span class="ident">borrow</span>(),
                         <span class="ident">outcome</span>: <span class="ident">outcome</span>.<span class="ident">clone</span>(),
                         <span class="ident">event_id</span>: <span class="kw-2">*</span><span class="ident">event_id</span>.<span class="ident">borrow</span>(),
@@ -1226,7 +1228,7 @@
 
                 <span class="kw">if</span> <span class="ident">envelope_summary</span>.<span class="ident">attachment_quantity</span> <span class="op">&gt;</span> <span class="number">0</span> {
                     <span class="ident">outcome_producer</span>.<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
-                        <span class="ident">timestamp</span>: <span class="ident">start_time</span>,
+                        <span class="ident">timestamp</span>,
                         <span class="ident">scoping</span>: <span class="kw-2">*</span><span class="ident">scoping</span>.<span class="ident">borrow</span>(),
                         <span class="ident">outcome</span>,
                         <span class="ident">event_id</span>: <span class="kw-2">*</span><span class="ident">event_id</span>.<span class="ident">borrow</span>(),

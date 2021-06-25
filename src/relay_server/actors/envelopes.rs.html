@@ -2676,6 +2676,7 @@
 <span id="2675">2675</span>
 <span id="2676">2676</span>
 <span id="2677">2677</span>
+<span id="2678">2678</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
@@ -4775,9 +4776,10 @@
 
                 <span class="kw">let</span> <span class="ident">envelope_summary</span> <span class="op">=</span> <span class="ident">envelope_summary</span>.<span class="ident">borrow</span>();
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">outcome</span>) <span class="op">=</span> <span class="ident">outcome</span> {
+                    <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">relay_common::instant_to_date_time</span>(<span class="ident">start_time</span>);
                     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">category</span>) <span class="op">=</span> <span class="ident">envelope_summary</span>.<span class="ident">event_category</span> {
                         <span class="ident">outcome_producer</span>.<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
-                            <span class="ident">timestamp</span>: <span class="ident">Instant::now</span>(),
+                            <span class="ident">timestamp</span>,
                             <span class="ident">scoping</span>: <span class="kw-2">*</span><span class="ident">scoping</span>.<span class="ident">borrow</span>(),
                             <span class="ident">outcome</span>: <span class="ident">outcome</span>.<span class="ident">clone</span>(),
                             <span class="ident">event_id</span>,
@@ -4789,7 +4791,7 @@
 
                     <span class="kw">if</span> <span class="ident">envelope_summary</span>.<span class="ident">attachment_quantity</span> <span class="op">&gt;</span> <span class="number">0</span> {
                         <span class="ident">outcome_producer</span>.<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
-                            <span class="ident">timestamp</span>: <span class="ident">start_time</span>,
+                            <span class="ident">timestamp</span>,
                             <span class="ident">scoping</span>: <span class="kw-2">*</span><span class="ident">scoping</span>.<span class="ident">borrow</span>(),
                             <span class="ident">outcome</span>,
                             <span class="ident">event_id</span>,
