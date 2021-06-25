@@ -10,6 +10,10 @@
 
 - Remove connection metrics reported under `connector.*`. They have been fully disabled since version `21.3.0`. ([#1021](https://github.com/getsentry/relay/pull/1021))
 
+**Internal**:
+
+- Assign a random Kafka partition key for session aggregates and metrics to distribute messages evenly. ([#1022](https://github.com/getsentry/relay/pull/1022))
+
 ## 21.6.1
 
 - No documented changes.

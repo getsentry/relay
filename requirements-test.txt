@@ -1,5 +1,5 @@
 confluent-kafka==1.6.0
-flask==1.1.1
+flask==2.0.1
 msgpack==1.0.0
 pytest-localserver==0.5.0
 pytest-sentry==0.1.1
@@ -8,5 +8,5 @@ pytest==5.3.5
 redis==3.4.1
 requests==2.23.0
 git+git://github.com/getsentry/sentry-python@e234998ae82a9cffa6fb3718801c55ba24a86bab#egg=sentry_sdk
-werkzeug==0.15.5
+werkzeug==2.0.1
 sentry-relay==0.8.5
