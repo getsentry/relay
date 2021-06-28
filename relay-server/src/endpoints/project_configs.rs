@@ -70,7 +70,7 @@ fn get_project_configs(
     let futures = body.inner.public_keys.into_iter().map(move |project_key| {
         let relay = relay.clone();
         project_cache
-            .send(GetProjectState::no_cache(project_key, no_cache))
+            .send(GetProjectState::new(project_key).no_cache(no_cache))
             .map_err(Error::from)
             .map(move |project_state| {
                 let project_state = project_state.ok()?;

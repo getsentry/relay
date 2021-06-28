@@ -319,11 +319,9 @@ impl GetProjectState {
     }
 
     /// Fetches the project state and conditionally skips the cache.
-    pub fn no_cache(project_key: ProjectKey, no_cache: bool) -> Self {
-        Self {
-            project_key,
-            no_cache,
-        }
+    pub fn no_cache(mut self, no_cache: bool) -> Self {
+        self.no_cache = no_cache;
+        self
     }
 }
 
