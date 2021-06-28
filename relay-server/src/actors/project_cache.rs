@@ -9,7 +9,7 @@ use futures::{future, Future};
 
 use relay_common::{metric, ProjectKey};
 use relay_config::{Config, RelayMode};
-use relay_metrics::{self, AggregateMetricsError, Bucket, FlushBuckets, MergeBuckets, Metric};
+use relay_metrics::{self, AggregateMetricsError, Bucket, FlushBuckets, Metric};
 use relay_quotas::{RateLimits, Scoping};
 use relay_redis::RedisPool;
 
@@ -518,6 +518,26 @@ impl Handler<InsertMetrics> for ProjectCache {
     }
 }
 
+#[derive(Debug)]
+pub struct MergeBuckets {
+    project_key: ProjectKey,
+    buckets: Vec<Bucket>,
+}
+
+impl MergeBuckets {
+    /// Creates a new message containing a list of [`Bucket`]s.
+    pub fn new(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
+        Self {
+            project_key,
+            buckets,
+        }
+    }
+}
+
+impl Message for MergeBuckets {
+    type Result = Result<(), AggregateMetricsError>;
+}
+
 impl Handler<MergeBuckets> for ProjectCache {
     type Result = Result<(), AggregateMetricsError>;
 
@@ -525,7 +545,7 @@ impl Handler<MergeBuckets> for ProjectCache {
         // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
         let project = self.get_or_create_project(message.project_key);
         if let Some(aggregator) = project.get_or_create_aggregator(context) {
-            aggregator.do_send(message);
+            aggregator.do_send(relay_metrics::MergeBuckets::new(message.buckets));
         }
 
         Ok(())

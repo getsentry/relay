@@ -1126,18 +1126,13 @@ impl Handler<InsertMetrics> for Aggregator {
 /// A message containing a list of [`Bucket`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct MergeBuckets {
-    /// The Project Key
-    pub project_key: ProjectKey,
     buckets: Vec<Bucket>,
 }
 
 impl MergeBuckets {
     /// Creates a new message containing a list of [`Bucket`]s.
-    pub fn new(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
-        Self {
-            project_key,
-            buckets,
-        }
+    pub fn new(buckets: Vec<Bucket>) -> Self {
+        Self { buckets }
     }
 }
 
