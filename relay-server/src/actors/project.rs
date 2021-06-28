@@ -474,6 +474,7 @@ pub struct Project {
     project_key: ProjectKey,
     config: Arc<Config>,
     outcome_producer: Addr<OutcomeProducer>,
+    project_cache: Addr<ProjectCache>,
     aggregator: AggregatorState,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<StateChannel>,
@@ -487,6 +488,7 @@ impl Project {
         key: ProjectKey,
         config: Arc<Config>,
         outcome_producer: Addr<OutcomeProducer>,
+        project_cache: Addr<ProjectCache>,
     ) -> Self {
         Project {
             last_updated_at: Instant::now(),
@@ -498,6 +500,7 @@ impl Project {
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
+            project_cache,
         }
     }
 
@@ -518,12 +521,9 @@ impl Project {
     /// Creates the aggregator if it is uninitialized and returns it.
     ///
     /// Returns `None` if the aggregator is permanently disabled, primarily for disabled projects.
-    pub fn get_or_create_aggregator(
-        &mut self,
-        context: &mut Context<ProjectCache>,
-    ) -> Option<Addr<Aggregator>> {
+    pub fn get_or_create_aggregator(&mut self) -> Option<Addr<Aggregator>> {
         if matches!(self.aggregator, AggregatorState::Unknown) {
-            let flush_receiver = context.address().recipient();
+            let flush_receiver = self.project_cache.clone().recipient();
             let aggregator = Aggregator::new(
                 self.project_key,
                 self.config.aggregator_config(),
@@ -554,14 +554,14 @@ impl Project {
     ///
     /// If the aggregator is not stopped immediately. Existing requests can continue and the
     /// aggregator will be stopped when the last reference drops.
-    fn update_aggregator(&mut self, context: &mut Context<ProjectCache>) {
+    fn update_aggregator(&mut self) {
         let metrics_allowed = match self.state() {
             Some(state) => state.check_disabled(&self.config).is_ok(),
             None => return,
         };
 
         if metrics_allowed && matches!(self.aggregator, AggregatorState::Unavailable) {
-            self.get_or_create_aggregator(context);
+            self.get_or_create_aggregator();
         } else if !metrics_allowed {
             self.aggregator = AggregatorState::Unavailable;
         }
@@ -570,7 +570,6 @@ impl Project {
     pub fn get_or_fetch_state(
         &mut self,
         mut no_cache: bool,
-        context: &mut Context<ProjectCache>,
     ) -> Response<Arc<ProjectState>, ProjectError> {
         // count number of times we are looking for the project state
         metric!(counter(RelayCounters::ProjectStateGet) += 1);
@@ -621,7 +620,7 @@ impl Project {
                 // Either there is no running request, or the current request does not have
                 // `no_cache` set. In both cases, start a new request. All in-flight receivers will
                 // get the latest state.
-                self.fetch_state(no_cache, context);
+                self.fetch_state(no_cache);
 
                 receiver
             }
@@ -638,12 +637,7 @@ impl Project {
         Response::future(future)
     }
 
-    pub fn update_state(
-        &mut self,
-        state_result: Option<ProjectStateResponse>,
-        no_cache: bool,
-        context: &mut Context<ProjectCache>,
-    ) {
+    pub fn update_state(&mut self, state_result: Option<ProjectStateResponse>, no_cache: bool) {
         let channel = match self.state_channel.take() {
             Some(channel) => channel,
             None => return,
@@ -658,7 +652,7 @@ impl Project {
 
         self.state_channel = None;
         self.state = state_result.map(|resp| resp.state);
-        self.update_aggregator(context);
+        self.update_aggregator();
 
         if let Some(ref state) = self.state {
             relay_log::debug!("project state {} updated", self.project_key);
@@ -666,9 +660,10 @@ impl Project {
         }
     }
 
-    fn fetch_state(&mut self, no_cache: bool, context: &mut Context<ProjectCache>) {
+    fn fetch_state(&mut self, no_cache: bool) {
         debug_assert!(self.state_channel.is_some());
-        context.notify(UpdateProjectState::new(self.project_key, no_cache));
+        self.project_cache
+            .do_send(UpdateProjectState::new(self.project_key, no_cache));
     }
 
     /// Creates `Scoping` for this project if the state is loaded.
