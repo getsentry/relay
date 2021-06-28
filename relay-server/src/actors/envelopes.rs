@@ -23,7 +23,7 @@ use relay_general::protocol::{
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
-use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
+use relay_metrics::{Bucket, MergeBuckets, Metric};
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{RuleId, SamplingResult};
@@ -32,7 +32,7 @@ use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutco
 use crate::actors::project::{
     CheckEnvelope, Feature, GetProjectState, ProjectState, UpdateRateLimits,
 };
-use crate::actors::project_cache::{ProjectCache, ProjectError};
+use crate::actors::project_cache::{InsertMetrics, ProjectCache, ProjectError};
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};

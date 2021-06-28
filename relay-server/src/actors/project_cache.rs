@@ -9,7 +9,7 @@ use futures::{future, Future};
 
 use relay_common::{metric, ProjectKey};
 use relay_config::{Config, RelayMode};
-use relay_metrics::{AggregateMetricsError, Bucket, FlushBuckets, InsertMetrics, MergeBuckets};
+use relay_metrics::{self, AggregateMetricsError, Bucket, FlushBuckets, MergeBuckets, Metric};
 use relay_redis::RedisPool;
 
 use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
@@ -345,6 +345,30 @@ impl Handler<UpdateRateLimits> for ProjectCache {
         project.merge_rate_limits(rate_limits);
     }
 }
+/// A message containing a list of [`Metric`]s to be inserted into the aggregator.
+#[derive(Debug)]
+pub struct InsertMetrics {
+    /// The project key
+    pub project_key: ProjectKey,
+    metrics: Vec<Metric>,
+}
+
+impl InsertMetrics {
+    /// Creates a new message containing a list of [`Metric`]s.
+    pub fn new<I>(project_key: ProjectKey, metrics: I) -> Self
+    where
+        I: IntoIterator<Item = Metric>,
+    {
+        Self {
+            project_key,
+            metrics: metrics.into_iter().collect(),
+        }
+    }
+}
+
+impl Message for InsertMetrics {
+    type Result = Result<(), AggregateMetricsError>;
+}
 
 impl Handler<InsertMetrics> for ProjectCache {
     type Result = Result<(), AggregateMetricsError>;
@@ -353,7 +377,7 @@ impl Handler<InsertMetrics> for ProjectCache {
         // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
         let project = self.get_or_create_project(message.project_key);
         if let Some(aggregator) = project.get_or_create_aggregator(context) {
-            aggregator.do_send(message);
+            aggregator.do_send(relay_metrics::InsertMetrics::new(message.metrics));
         }
 
         Ok(())

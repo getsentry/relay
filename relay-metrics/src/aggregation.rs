@@ -1092,19 +1092,16 @@ impl Actor for Aggregator {
 /// A message containing a list of [`Metric`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct InsertMetrics {
-    /// The project key
-    pub project_key: ProjectKey,
     metrics: Vec<Metric>,
 }
 
 impl InsertMetrics {
     /// Creates a new message containing a list of [`Metric`]s.
-    pub fn new<I>(project_key: ProjectKey, metrics: I) -> Self
+    pub fn new<I>(metrics: I) -> Self
     where
         I: IntoIterator<Item = Metric>,
     {
         Self {
-            project_key,
             metrics: metrics.into_iter().collect(),
         }
     }
@@ -1669,7 +1666,6 @@ mod tests {
             metric.timestamp = UnixTimestamp::now();
             aggregator
                 .send(InsertMetrics {
-                    project_key,
                     metrics: vec![metric],
                 })
                 .and_then(move |_| aggregator.send(BucketCountInquiry))
@@ -1718,7 +1714,6 @@ mod tests {
             metric.timestamp = UnixTimestamp::now();
             aggregator
                 .send(InsertMetrics {
-                    project_key,
                     metrics: vec![metric],
                 })
                 .map_err(|_| ())
