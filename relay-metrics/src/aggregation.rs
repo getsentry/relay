@@ -847,7 +847,7 @@ impl Ord for QueuedBucket {
 #[derive(Clone, Debug)]
 pub struct FlushBuckets {
     /// the project key
-    pub project_key: ProjectKey,
+    project_key: ProjectKey,
     buckets: Vec<Bucket>,
 }
 
@@ -863,6 +863,11 @@ impl FlushBuckets {
     /// Consumes the buckets contained in this message.
     pub fn into_buckets(self) -> Vec<Bucket> {
         self.buckets
+    }
+
+    /// Returns the project key (formally project public key)
+    pub fn project_key(&self) -> ProjectKey {
+        self.project_key
     }
 }
 

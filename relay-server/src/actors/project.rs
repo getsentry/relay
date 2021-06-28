@@ -637,7 +637,7 @@ impl Project {
 
     pub fn update_state(
         &mut self,
-        state_result: Result<ProjectStateResponse, ()>,
+        state_result: Option<ProjectStateResponse>,
         no_cache: bool,
         context: &mut Context<ProjectCache>,
     ) {
@@ -654,7 +654,7 @@ impl Project {
         }
 
         self.state_channel = None;
-        self.state = state_result.map(|resp| resp.state).ok();
+        self.state = state_result.map(|resp| resp.state);
         self.update_aggregator(context);
 
         if let Some(ref state) = self.state {

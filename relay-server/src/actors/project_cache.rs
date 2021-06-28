@@ -298,7 +298,7 @@ impl Handler<UpdateProjectState> for ProjectCache {
             .into_actor(self)
             .then(move |state_result, slf, context| {
                 let proj = slf.get_project(project_key);
-                proj.update_state(state_result, no_cache, context);
+                proj.update_state(state_result.ok(), no_cache, context);
                 fut::ok::<_, (), _>(())
             })
             .spawn(context);
@@ -397,7 +397,7 @@ impl Handler<FlushBuckets> for ProjectCache {
 
     fn handle(&mut self, message: FlushBuckets, context: &mut Self::Context) -> Self::Result {
         let config = self.config.clone();
-        let project_key = message.project_key;
+        let project_key = message.project_key();
         let project = self.get_project(project_key);
         let outdated = match project.state() {
             Some(state) => state.outdated(config.as_ref()),
