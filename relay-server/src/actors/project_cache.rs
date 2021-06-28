@@ -337,7 +337,7 @@ impl Handler<CheckEnvelope> for ProjectCache {
                     // TODO RaduW can we do better that this ????
                     // (need to retrieve project again to get around borwoing problems)
                     let project = slf.get_project(message.project_key);
-                    project.check_envelope_scoped(message)
+                    project.check_envelope(message)
                 })
         } else {
             // Preload the project cache so that it arrives a little earlier in processing. However,
@@ -347,7 +347,7 @@ impl Handler<CheckEnvelope> for ProjectCache {
 
             // message.fetch == false: Fetching must not block the store request. The
             // EnvelopeManager will later fetch the project state.
-            ActorResponse::ok(project.check_envelope_scoped(message))
+            ActorResponse::ok(project.check_envelope(message))
         }
     }
 }

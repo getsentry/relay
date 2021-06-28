@@ -701,7 +701,7 @@ impl Project {
         }
     }
 
-    fn check_envelope(
+    fn check_envelope_scoped(
         &mut self,
         mut envelope: Envelope,
         scoping: &Scoping,
@@ -732,9 +732,9 @@ impl Project {
         })
     }
 
-    pub fn check_envelope_scoped(&mut self, message: CheckEnvelope) -> CheckEnvelopeResponse {
+    pub fn check_envelope(&mut self, message: CheckEnvelope) -> CheckEnvelopeResponse {
         let scoping = self.scope_request(message.envelope.meta());
-        let result = self.check_envelope(message.envelope, &scoping);
+        let result = self.check_envelope_scoped(message.envelope, &scoping);
         CheckEnvelopeResponse { result, scoping }
     }
 }
