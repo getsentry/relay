@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Bump release parser to 1.1.2. ([#1023](https://github.com/getsentry/relay/pull/1023))
+- Bump release parser to 1.1.4. ([#1031](https://github.com/getsentry/relay/pull/1031))
 
 ## 0.8.7
 
