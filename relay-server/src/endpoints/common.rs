@@ -476,7 +476,7 @@ where
             event_manager
                 .send(QueueEnvelope {
                     envelope,
-                    project_key: project_key,
+                    project_key,
                     sampling_project_key,
                     project_cache: project_manager.clone(),
                     start_time,

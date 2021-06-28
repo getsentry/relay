@@ -1780,7 +1780,7 @@ impl EnvelopeManager {
                 if let Err(UpstreamRequestError::RateLimited(upstream_limits)) = result {
                     let limits = upstream_limits.scope(&scoping);
                     project_cache.do_send(UpdateRateLimits {
-                        project_key: project_key,
+                        project_key,
                         rate_limits: limits.clone(),
                     });
                     Err(SendEnvelopeError::RateLimited(limits))
