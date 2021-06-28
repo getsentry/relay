@@ -38,14 +38,9 @@ pub enum ProjectError {
 
 impl ResponseError for ProjectError {}
 
-struct ProjectEntry {
-    last_updated_at: Instant,
-    project: Project,
-}
-
 pub struct ProjectCache {
     config: Arc<Config>,
-    projects: HashMap<ProjectKey, ProjectEntry>,
+    projects: HashMap<ProjectKey, Project>,
 
     event_manager: Addr<EnvelopeManager>,
     outcome_producer: Addr<OutcomeProducer>,
@@ -106,21 +101,15 @@ impl ProjectCache {
         let config = self.config.clone();
         let outcome_producer = self.outcome_producer.clone();
 
-        &mut self
-            .projects
+        self.projects
             .entry(project_key)
             .and_modify(|_| {
                 metric!(counter(RelayCounters::ProjectCacheHit) += 1);
             })
             .or_insert_with(move || {
                 metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
-                let project = Project::new(project_key, config, outcome_producer);
-                ProjectEntry {
-                    last_updated_at: Instant::now(),
-                    project,
-                }
+                Project::new(project_key, config, outcome_producer)
             })
-            .project
     }
 }
 

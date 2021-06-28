@@ -469,6 +469,7 @@ enum AggregatorState {
 /// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
 /// Projects can define multiple keys, in which case this structure is duplicated for each instance.
 pub struct Project {
+    pub last_updated_at: Instant,
     project_key: ProjectKey,
     config: Arc<Config>,
     outcome_producer: Addr<OutcomeProducer>,
@@ -487,6 +488,7 @@ impl Project {
         outcome_producer: Addr<OutcomeProducer>,
     ) -> Self {
         Project {
+            last_updated_at: Instant::now(),
             project_key: key,
             config,
             outcome_producer,
