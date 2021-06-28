@@ -58,7 +58,7 @@ impl Handler<FetchOptionalProjectState> for LocalProjectSource {
         message: FetchOptionalProjectState,
         _context: &mut Self::Context,
     ) -> Self::Result {
-        self.local_states.get(&message.public_key).cloned()
+        self.local_states.get(&message.project_key).cloned()
     }
 }
 

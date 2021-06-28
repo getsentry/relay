@@ -396,7 +396,7 @@ where
         version = &format!("{}", version)
     );
 
-    let public_key = meta.public_key();
+    let project_key = meta.public_key();
 
     let event_manager = request.state().envelope_manager();
     let project_manager = request.state().project_cache();
@@ -435,7 +435,7 @@ where
         }))
         .and_then(clone!(project_manager, |envelope| {
             project_manager
-                .send(CheckEnvelope::cached(public_key, envelope))
+                .send(CheckEnvelope::cached(project_key, envelope))
                 .map_err(BadStoreRequest::ScheduleFailed)
                 .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
         }))
@@ -476,7 +476,7 @@ where
             event_manager
                 .send(QueueEnvelope {
                     envelope,
-                    public_key,
+                    project_key: project_key,
                     sampling_project_key,
                     project_cache: project_manager.clone(),
                     start_time,

@@ -847,15 +847,15 @@ impl Ord for QueuedBucket {
 #[derive(Clone, Debug)]
 pub struct FlushBuckets {
     /// the project key
-    pub public_key: ProjectKey,
+    pub project_key: ProjectKey,
     buckets: Vec<Bucket>,
 }
 
 impl FlushBuckets {
     /// Creates a new message by consuming a vector of buckets.
-    pub fn new(public_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
+    pub fn new(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
         Self {
-            public_key,
+            project_key,
             buckets,
         }
     }
@@ -919,7 +919,7 @@ impl Message for FlushBuckets {
 /// }
 /// ```
 pub struct Aggregator {
-    public_key: ProjectKey,
+    project_key: ProjectKey,
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, BucketValue>,
     queue: BinaryHeap<QueuedBucket>,
@@ -932,12 +932,12 @@ impl Aggregator {
     /// The aggregator will flush a list of buckets to the receiver in regular intervals based on
     /// the given `config`.
     pub fn new(
-        public_key: ProjectKey,
+        project_key: ProjectKey,
         config: AggregatorConfig,
         receiver: Recipient<FlushBuckets>,
     ) -> Self {
         Self {
-            public_key,
+            project_key,
             config,
             buckets: HashMap::new(),
             queue: BinaryHeap::new(),
@@ -1041,7 +1041,7 @@ impl Aggregator {
         relay_log::trace!("flushing {} buckets to receiver", buckets.len());
 
         self.receiver
-            .send(FlushBuckets::new(self.public_key, buckets))
+            .send(FlushBuckets::new(self.project_key, buckets))
             .into_actor(self)
             .and_then(|result, slf, _ctx| {
                 if let Err(buckets) = result {
@@ -1088,18 +1088,18 @@ impl Actor for Aggregator {
 #[derive(Debug)]
 pub struct InsertMetrics {
     /// The project key
-    pub public_key: ProjectKey,
+    pub project_key: ProjectKey,
     metrics: Vec<Metric>,
 }
 
 impl InsertMetrics {
     /// Creates a new message containing a list of [`Metric`]s.
-    pub fn new<I>(public_key: ProjectKey, metrics: I) -> Self
+    pub fn new<I>(project_key: ProjectKey, metrics: I) -> Self
     where
         I: IntoIterator<Item = Metric>,
     {
         Self {
-            public_key,
+            project_key,
             metrics: metrics.into_iter().collect(),
         }
     }
@@ -1125,15 +1125,15 @@ impl Handler<InsertMetrics> for Aggregator {
 #[derive(Debug)]
 pub struct MergeBuckets {
     /// The Project Key
-    pub public_key: ProjectKey,
+    pub project_key: ProjectKey,
     buckets: Vec<Bucket>,
 }
 
 impl MergeBuckets {
     /// Creates a new message containing a list of [`Bucket`]s.
-    pub fn new(public_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
+    pub fn new(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
         Self {
-            public_key,
+            project_key,
             buckets,
         }
     }
@@ -1511,11 +1511,11 @@ mod tests {
     #[test]
     fn test_aggregator_merge_counters() {
         relay_test::setup();
-        let public_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
         let config = AggregatorConfig::default();
         let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = Aggregator::new(public_key, config, receiver);
+        let mut aggregator = Aggregator::new(project_key, config, receiver);
 
         let metric1 = some_metric();
 
@@ -1547,9 +1547,9 @@ mod tests {
             ..AggregatorConfig::default()
         };
         let receiver = TestReceiver::start_default().recipient();
-        let public_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-        let mut aggregator = Aggregator::new(public_key, config, receiver);
+        let mut aggregator = Aggregator::new(project_key, config, receiver);
 
         let metric1 = some_metric();
 
@@ -1604,9 +1604,9 @@ mod tests {
         };
 
         let receiver = TestReceiver::start_default().recipient();
-        let public_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-        let mut aggregator = Aggregator::new(public_key, config, receiver);
+        let mut aggregator = Aggregator::new(project_key, config, receiver);
 
         let metric1 = some_metric();
 
@@ -1629,9 +1629,9 @@ mod tests {
         };
 
         let receiver = TestReceiver::start_default().recipient();
-        let public_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-        let mut aggregator = Aggregator::new(public_key, config, receiver);
+        let mut aggregator = Aggregator::new(project_key, config, receiver);
 
         let metric1 = some_metric();
 
@@ -1657,14 +1657,14 @@ mod tests {
                 debounce_delay: 0,
             };
             let recipient = receiver.clone().start().recipient();
-            let public_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-            let aggregator = Aggregator::new(public_key, config, recipient).start();
+            let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+            let aggregator = Aggregator::new(project_key, config, recipient).start();
 
             let mut metric = some_metric();
             metric.timestamp = UnixTimestamp::now();
             aggregator
                 .send(InsertMetrics {
-                    public_key,
+                    project_key,
                     metrics: vec![metric],
                 })
                 .and_then(move |_| aggregator.send(BucketCountInquiry))
@@ -1705,15 +1705,15 @@ mod tests {
                 debounce_delay: 0,
             };
             let recipient = receiver.clone().start().recipient();
-            let public_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+            let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-            let aggregator = Aggregator::new(public_key, config, recipient).start();
+            let aggregator = Aggregator::new(project_key, config, recipient).start();
 
             let mut metric = some_metric();
             metric.timestamp = UnixTimestamp::now();
             aggregator
                 .send(InsertMetrics {
-                    public_key,
+                    project_key,
                     metrics: vec![metric],
                 })
                 .map_err(|_| ())

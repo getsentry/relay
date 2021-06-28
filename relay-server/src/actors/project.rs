@@ -282,10 +282,10 @@ impl ProjectState {
     ///
     /// This is a sanity check since project states are keyed by the DSN public key. Unless the
     /// state is invalid or unloaded, it must always match the public key.
-    pub fn is_matching_key(&self, public_key: ProjectKey) -> bool {
+    pub fn is_matching_key(&self, project_key: ProjectKey) -> bool {
         if let Some(key_config) = self.get_public_key_config() {
             // Always validate if we have a key config.
-            key_config.public_key == public_key
+            key_config.public_key == project_key
         } else {
             // Loaded states must have a key config, but ignore missing and invalid states.
             self.project_id.is_none()
@@ -469,7 +469,7 @@ enum AggregatorState {
 /// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
 /// Projects can define multiple keys, in which case this structure is duplicated for each instance.
 pub struct Project {
-    public_key: ProjectKey,
+    project_key: ProjectKey,
     config: Arc<Config>,
     outcome_producer: Addr<OutcomeProducer>,
     aggregator: AggregatorState,
@@ -487,7 +487,7 @@ impl Project {
         outcome_producer: Addr<OutcomeProducer>,
     ) -> Self {
         Project {
-            public_key: key,
+            project_key: key,
             config,
             outcome_producer,
             aggregator: AggregatorState::Unknown,
@@ -522,7 +522,7 @@ impl Project {
         if matches!(self.aggregator, AggregatorState::Unknown) {
             let flush_receiver = context.address().recipient();
             let aggregator = Aggregator::new(
-                self.public_key,
+                self.project_key,
                 self.config.aggregator_config(),
                 flush_receiver,
             );
@@ -603,11 +603,11 @@ impl Project {
 
         let receiver = match self.state_channel {
             Some(ref channel) if channel.no_cache || !no_cache => {
-                relay_log::debug!("project {} state request amended", self.public_key);
+                relay_log::debug!("project {} state request amended", self.project_key);
                 channel.receiver()
             }
             _ => {
-                relay_log::debug!("project {} state requested", self.public_key);
+                relay_log::debug!("project {} state requested", self.project_key);
 
                 let receiver = self
                     .state_channel
@@ -658,17 +658,17 @@ impl Project {
         self.update_aggregator(context);
 
         if let Some(ref state) = self.state {
-            relay_log::debug!("project state {} updated", self.public_key);
+            relay_log::debug!("project state {} updated", self.project_key);
             channel.send(state.clone());
         }
     }
 
     fn fetch_state(&mut self, no_cache: bool, context: &mut Context<ProjectCache>) {
         debug_assert!(self.state_channel.is_some());
-        let public_key = self.public_key;
+        let public_key = self.project_key;
 
         context.notify(UpdateProjectState {
-            public_key,
+            project_key: public_key,
             no_cache,
         });
     }
@@ -682,7 +682,7 @@ impl Project {
         Some(Scoping {
             organization_id: state.organization_id.unwrap_or(0),
             project_id: state.project_id?,
-            public_key: self.public_key,
+            project_key: self.project_key,
             key_id: state
                 .get_public_key_config()
                 .and_then(|config| config.numeric_id),
@@ -745,7 +745,7 @@ impl Project {
 /// not require waiting for network requests.
 #[derive(Debug)]
 pub struct GetCachedProjectState {
-    pub public_key: ProjectKey,
+    pub project_key: ProjectKey,
 }
 
 impl Message for GetCachedProjectState {
@@ -758,23 +758,23 @@ impl Message for GetCachedProjectState {
 /// state is always refreshed.
 #[derive(Debug)]
 pub struct GetProjectState {
-    pub public_key: ProjectKey,
+    pub project_key: ProjectKey,
     pub no_cache: bool,
 }
 
 impl GetProjectState {
     /// Fetches the project state and uses the cached version if up-to-date.
-    pub fn new(public_key: ProjectKey) -> Self {
+    pub fn new(project_key: ProjectKey) -> Self {
         Self {
-            public_key,
+            project_key,
             no_cache: false,
         }
     }
 
     /// Fetches the project state and conditionally skips the cache.
-    pub fn no_cache(public_key: ProjectKey, no_cache: bool) -> Self {
+    pub fn no_cache(project_key: ProjectKey, no_cache: bool) -> Self {
         Self {
-            public_key,
+            project_key,
             no_cache,
         }
     }
@@ -795,25 +795,25 @@ impl Message for GetProjectState {
 ///  - Cached rate limits
 #[derive(Debug)]
 pub struct CheckEnvelope {
-    pub public_key: ProjectKey,
+    pub project_key: ProjectKey,
     pub envelope: Envelope,
     pub fetch: bool,
 }
 
 impl CheckEnvelope {
     /// Fetches the project state and checks the envelope.
-    pub fn fetched(public_key: ProjectKey, envelope: Envelope) -> Self {
+    pub fn fetched(project_key: ProjectKey, envelope: Envelope) -> Self {
         Self {
-            public_key,
+            project_key,
             envelope,
             fetch: true,
         }
     }
 
     /// Uses a cached project state and checks the envelope.
-    pub fn cached(public_key: ProjectKey, envelope: Envelope) -> Self {
+    pub fn cached(project_key: ProjectKey, envelope: Envelope) -> Self {
         Self {
-            public_key,
+            project_key,
             envelope,
             fetch: false,
         }
@@ -842,7 +842,7 @@ impl Message for CheckEnvelope {
 }
 
 pub struct UpdateRateLimits {
-    pub public_key: ProjectKey,
+    pub project_key: ProjectKey,
     pub rate_limits: RateLimits,
 }
 
