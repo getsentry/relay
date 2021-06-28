@@ -103,8 +103,8 @@ impl ProjectCache {
     fn get_project(&mut self, project_key: ProjectKey) -> &mut Project {
         metric!(histogram(RelayHistograms::ProjectStateCacheSize) = self.projects.len() as u64);
 
-        let cfg = self.config.clone();
-        let outcome_prod = self.outcome_producer.clone();
+        let config = self.config.clone();
+        let outcome_producer = self.outcome_producer.clone();
 
         &mut self
             .projects
@@ -114,7 +114,7 @@ impl ProjectCache {
             })
             .or_insert_with(move || {
                 metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
-                let project = Project::new(project_key, cfg, outcome_prod);
+                let project = Project::new(project_key, config, outcome_producer);
                 ProjectEntry {
                     last_updated_at: Instant::now(),
                     project,
@@ -297,8 +297,8 @@ impl Handler<UpdateProjectState> for ProjectCache {
             })
             .into_actor(self)
             .then(move |state_result, slf, context| {
-                let proj = slf.get_project(project_key);
-                proj.update_state(state_result.ok(), no_cache, context);
+                let project = slf.get_project(project_key);
+                project.update_state(state_result.ok(), no_cache, context);
                 fut::ok::<_, (), _>(())
             })
             .spawn(context);
@@ -309,8 +309,8 @@ impl Handler<GetProjectState> for ProjectCache {
     type Result = Response<Arc<ProjectState>, ProjectError>;
 
     fn handle(&mut self, message: GetProjectState, context: &mut Context<Self>) -> Self::Result {
-        let proj = self.get_project(message.project_key);
-        proj.get_or_fetch_state(message.no_cache, context)
+        let project = self.get_project(message.project_key);
+        project.get_or_fetch_state(message.no_cache, context)
     }
 }
 
