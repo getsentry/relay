@@ -23,7 +23,8 @@ use relay_sampling::SamplingConfig;
 use crate::actors::outcome::DiscardReason;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::{
-    ProjectCache, ProjectError, ProjectStateResponse, UpdateProjectState,
+    CheckEnvelope, CheckEnvelopeResponse, CheckedEnvelope, ProjectCache, ProjectError,
+    ProjectStateResponse, UpdateProjectState,
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
@@ -735,119 +736,8 @@ impl Project {
     }
 
     pub fn check_envelope(&mut self, message: CheckEnvelope) -> CheckEnvelopeResponse {
-        let scoping = self.scope_request(message.envelope.meta());
-        let result = self.check_envelope_scoped(message.envelope, &scoping);
+        let scoping = self.scope_request(message.envelope_ref().meta());
+        let result = self.check_envelope_scoped(message.envelope(), &scoping);
         CheckEnvelopeResponse { result, scoping }
     }
-}
-
-/// Returns the project state if it is already cached.
-///
-/// This is used for cases when we only want to perform operations that do
-/// not require waiting for network requests.
-#[derive(Debug)]
-pub struct GetCachedProjectState {
-    pub project_key: ProjectKey,
-}
-
-impl Message for GetCachedProjectState {
-    type Result = Option<Arc<ProjectState>>;
-}
-
-/// Returns the project state.
-///
-/// The project state is fetched if it is missing or outdated. If `no_cache` is specified, then the
-/// state is always refreshed.
-#[derive(Debug)]
-pub struct GetProjectState {
-    pub project_key: ProjectKey,
-    pub no_cache: bool,
-}
-
-impl GetProjectState {
-    /// Fetches the project state and uses the cached version if up-to-date.
-    pub fn new(project_key: ProjectKey) -> Self {
-        Self {
-            project_key,
-            no_cache: false,
-        }
-    }
-
-    /// Fetches the project state and conditionally skips the cache.
-    pub fn no_cache(project_key: ProjectKey, no_cache: bool) -> Self {
-        Self {
-            project_key,
-            no_cache,
-        }
-    }
-}
-
-impl Message for GetProjectState {
-    type Result = Result<Arc<ProjectState>, ProjectError>;
-}
-
-/// Checks the envelope against project configuration and rate limits.
-///
-/// When `fetched`, then the project state is ensured to be up to date. When `cached`, an outdated
-/// project state may be used, or otherwise the envelope is passed through unaltered.
-///
-/// To check the envelope, this runs:
-///  - Validate origins and public keys
-///  - Quotas with a limit of `0`
-///  - Cached rate limits
-#[derive(Debug)]
-pub struct CheckEnvelope {
-    pub project_key: ProjectKey,
-    pub envelope: Envelope,
-    pub fetch: bool,
-}
-
-impl CheckEnvelope {
-    /// Fetches the project state and checks the envelope.
-    pub fn fetched(project_key: ProjectKey, envelope: Envelope) -> Self {
-        Self {
-            project_key,
-            envelope,
-            fetch: true,
-        }
-    }
-
-    /// Uses a cached project state and checks the envelope.
-    pub fn cached(project_key: ProjectKey, envelope: Envelope) -> Self {
-        Self {
-            project_key,
-            envelope,
-            fetch: false,
-        }
-    }
-}
-
-/// A checked envelope and associated rate limits.
-///
-/// Items violating the rate limits have been removed from the envelope. If all items are removed
-/// from the envelope, `None` is returned in place of the envelope.
-#[derive(Debug)]
-pub struct CheckedEnvelope {
-    pub envelope: Option<Envelope>,
-    pub rate_limits: RateLimits,
-}
-
-/// Scoping information along with a checked envelope.
-#[derive(Debug)]
-pub struct CheckEnvelopeResponse {
-    pub result: Result<CheckedEnvelope, DiscardReason>,
-    pub scoping: Scoping,
-}
-
-impl Message for CheckEnvelope {
-    type Result = Result<CheckEnvelopeResponse, ProjectError>;
-}
-
-pub struct UpdateRateLimits {
-    pub project_key: ProjectKey,
-    pub rate_limits: RateLimits,
-}
-
-impl Message for UpdateRateLimits {
-    type Result = ();
 }

@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::ProjectKey;
 
-use crate::actors::project::{GetProjectState, LimitedProjectState, ProjectState};
+use crate::actors::project::{LimitedProjectState, ProjectState};
+use crate::actors::project_cache::GetProjectState;
 use crate::actors::project_upstream::GetProjectStates;
 use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;

@@ -29,10 +29,10 @@ use relay_redis::RedisPool;
 use relay_sampling::{RuleId, SamplingResult};
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
-use crate::actors::project::{
-    CheckEnvelope, Feature, GetProjectState, ProjectState, UpdateRateLimits,
+use crate::actors::project::{Feature, ProjectState};
+use crate::actors::project_cache::{
+    CheckEnvelope, GetProjectState, InsertMetrics, ProjectCache, ProjectError, UpdateRateLimits,
 };
-use crate::actors::project_cache::{InsertMetrics, ProjectCache, ProjectError};
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
@@ -1779,10 +1779,7 @@ impl EnvelopeManager {
             .and_then(move |result| {
                 if let Err(UpstreamRequestError::RateLimited(upstream_limits)) = result {
                     let limits = upstream_limits.scope(&scoping);
-                    project_cache.do_send(UpdateRateLimits {
-                        project_key,
-                        rate_limits: limits.clone(),
-                    });
+                    project_cache.do_send(UpdateRateLimits::new(project_key, limits.clone()));
                     Err(SendEnvelopeError::RateLimited(limits))
                 } else {
                     result.map_err(SendEnvelopeError::SendFailed)
@@ -2040,10 +2037,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 // Processing returned new rate limits. Cache them on the project to avoid expensive
                 // processing while the limit is active.
                 if rate_limits.is_limited() {
-                    project_cache.do_send(UpdateRateLimits {
-                        project_key,
-                        rate_limits: rate_limits.clone(),
-                    });
+                    project_cache.do_send(UpdateRateLimits::new(project_key, rate_limits.clone()));
                 }
 
                 if !processed.metrics.is_empty() {

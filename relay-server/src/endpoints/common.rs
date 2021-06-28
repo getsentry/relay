@@ -20,8 +20,7 @@ use relay_sampling::RuleId;
 
 use crate::actors::envelopes::{QueueEnvelope, QueueEnvelopeError};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::CheckEnvelope;
-use crate::actors::project_cache::ProjectError;
+use crate::actors::project_cache::{CheckEnvelope, ProjectError};
 use crate::body::StorePayloadError;
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;

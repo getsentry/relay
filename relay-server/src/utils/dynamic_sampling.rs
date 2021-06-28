@@ -11,8 +11,8 @@ use relay_sampling::{
     get_matching_event_rule, pseudo_random_from_uuid, rule_type_for_event, RuleId, SamplingResult,
 };
 
-use crate::actors::project::{GetCachedProjectState, GetProjectState, ProjectState};
-use crate::actors::project_cache::ProjectCache;
+use crate::actors::project::ProjectState;
+use crate::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
 use crate::envelope::{Envelope, ItemType};
 
 /// Checks whether an event should be kept or removed by dynamic sampling.
@@ -141,7 +141,7 @@ pub fn sample_trace(
     //we have a trace_context and we have a transaction_item see if we can sample them
     if fast_processing {
         let fut = project_cache
-            .send(GetCachedProjectState { project_key })
+            .send(GetCachedProjectState::new(project_key))
             .then(move |project_state| {
                 let project_state = match project_state {
                     // error getting the project, give up and return envelope unchanged
