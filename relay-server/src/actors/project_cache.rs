@@ -530,10 +530,7 @@ impl Handler<InsertMetrics> for ProjectCache {
     fn handle(&mut self, message: InsertMetrics, context: &mut Self::Context) -> Self::Result {
         // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
         let project = self.get_or_create_project(message.project_key, context.address());
-        if let Some(aggregator) = project.get_or_create_aggregator() {
-            aggregator.do_send(relay_metrics::InsertMetrics::new(message.metrics));
-        }
-
+        project.insert_metrics(message.metrics);
         Ok(())
     }
 }
@@ -564,10 +561,7 @@ impl Handler<MergeBuckets> for ProjectCache {
     fn handle(&mut self, message: MergeBuckets, context: &mut Self::Context) -> Self::Result {
         // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
         let project = self.get_or_create_project(message.project_key, context.address());
-        if let Some(aggregator) = project.get_or_create_aggregator() {
-            aggregator.do_send(relay_metrics::MergeBuckets::new(message.buckets));
-        }
-
+        project.merge_buckets(message.buckets);
         Ok(())
     }
 }

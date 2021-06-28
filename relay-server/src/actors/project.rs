@@ -16,7 +16,7 @@ use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_general::store::BreakdownsConfig;
-use relay_metrics::Aggregator;
+use relay_metrics::{self, Aggregator, Bucket, Metric};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 
@@ -521,7 +521,7 @@ impl Project {
     /// Creates the aggregator if it is uninitialized and returns it.
     ///
     /// Returns `None` if the aggregator is permanently disabled, primarily for disabled projects.
-    pub fn get_or_create_aggregator(&mut self) -> Option<Addr<Aggregator>> {
+    fn get_or_create_aggregator(&mut self) -> Option<Addr<Aggregator>> {
         if matches!(self.aggregator, AggregatorState::Unknown) {
             let flush_receiver = self.project_cache.clone().recipient();
             let aggregator = Aggregator::new(
@@ -538,6 +538,18 @@ impl Project {
             Some(aggregator.clone())
         } else {
             None
+        }
+    }
+
+    pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
+        if let Some(aggregator) = self.get_or_create_aggregator() {
+            aggregator.do_send(relay_metrics::MergeBuckets::new(buckets));
+        }
+    }
+
+    pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
+        if let Some(aggregator) = self.get_or_create_aggregator() {
+            aggregator.do_send(relay_metrics::InsertMetrics::new(metrics));
         }
     }
 
