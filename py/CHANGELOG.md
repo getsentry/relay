@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.4
 
 - Bump release parser to 1.1.4. ([#1031](https://github.com/getsentry/relay/pull/1031))
 
