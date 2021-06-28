@@ -80,7 +80,7 @@ impl Handler<FetchOptionalProjectState> for RedisProjectSource {
         message: FetchOptionalProjectState,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        match self.get_config(message.project_key) {
+        match self.get_config(message.project_key()) {
             Ok(x) => x.map(ProjectState::sanitize).map(Arc::new),
             Err(e) => {
                 relay_log::error!("Failed to fetch project from Redis: {}", LogError(&e));

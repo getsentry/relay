@@ -668,12 +668,7 @@ impl Project {
 
     fn fetch_state(&mut self, no_cache: bool, context: &mut Context<ProjectCache>) {
         debug_assert!(self.state_channel.is_some());
-        let public_key = self.project_key;
-
-        context.notify(UpdateProjectState {
-            project_key: public_key,
-            no_cache,
-        });
+        context.notify(UpdateProjectState::new(self.project_key, no_cache));
     }
 
     /// Creates `Scoping` for this project if the state is loaded.

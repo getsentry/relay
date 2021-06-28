@@ -134,6 +134,17 @@ impl Actor for ProjectCache {
     }
 }
 
+#[derive(Debug)]
+pub struct ProjectStateResponse {
+    pub state: Arc<ProjectState>,
+}
+
+impl ProjectStateResponse {
+    pub fn new(state: Arc<ProjectState>) -> Self {
+        ProjectStateResponse { state }
+    }
+}
+
 #[derive(Clone)]
 pub struct FetchProjectState {
     /// The public key to fetch the project by.
@@ -147,21 +158,15 @@ impl Message for FetchProjectState {
     type Result = Result<ProjectStateResponse, ()>;
 }
 
-//TODO remove at some point
-#[derive(Debug)]
-pub struct ProjectStateResponse {
-    pub state: Arc<ProjectState>,
-}
-
-impl ProjectStateResponse {
-    pub fn new(state: Arc<ProjectState>) -> Self {
-        ProjectStateResponse { state }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct FetchOptionalProjectState {
-    pub project_key: ProjectKey,
+    project_key: ProjectKey,
+}
+
+impl FetchOptionalProjectState {
+    pub fn project_key(&self) -> ProjectKey {
+        self.project_key
+    }
 }
 
 impl Message for FetchOptionalProjectState {
@@ -181,10 +186,19 @@ impl Message for FetchOptionalProjectState {
 #[derive(Clone)]
 pub struct UpdateProjectState {
     /// The public key to fetch the project by.
-    pub project_key: ProjectKey,
+    project_key: ProjectKey,
 
     /// If true, all caches should be skipped and a fresh state should be computed.
-    pub no_cache: bool,
+    no_cache: bool,
+}
+
+impl UpdateProjectState {
+    pub fn new(project_key: ProjectKey, no_cache: bool) -> Self {
+        Self {
+            project_key,
+            no_cache,
+        }
+    }
 }
 
 impl Message for UpdateProjectState {
@@ -483,7 +497,7 @@ impl Handler<UpdateRateLimits> for ProjectCache {
 #[derive(Debug)]
 pub struct InsertMetrics {
     /// The project key
-    pub project_key: ProjectKey,
+    project_key: ProjectKey,
     metrics: Vec<Metric>,
 }
 
