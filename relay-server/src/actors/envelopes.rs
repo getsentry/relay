@@ -159,7 +159,7 @@ impl ProcessingError {
             #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
             #[cfg(feature = "processing")]
-            Self::EventFiltered(ref filter_stat_key) => Some(Outcome::Filtered(*filter_stat_key)),
+            Self::EventFiltered(_filter_stat_key) => None,
             // Trace sampled outcomes are handled in sample_trace
             Self::TraceSampled(_) => None,
             Self::EventSampled(_rule_id) => None,
@@ -1212,8 +1212,23 @@ impl EnvelopeProcessor {
         let filter_settings = &state.project_state.config.filter_settings;
 
         metric!(timer(RelayTimers::EventProcessingFiltering), {
-            relay_filter::should_filter(event, client_ip, filter_settings)
-                .map_err(ProcessingError::EventFiltered)
+            relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
+                if let Some(ref outcome_producer) = self.outcome_producer {
+                    send_outcomes(
+                        OutcomeContext {
+                            envelope_summary: &state.summary,
+                            timestamp: state.received_at,
+                            outcome: Outcome::Filtered(err),
+                            event_id: state.envelope.event_id(),
+                            remote_addr: client_ip,
+                            scoping: state.scoping,
+                        },
+                        outcome_producer.clone(),
+                    );
+                }
+
+                ProcessingError::EventFiltered(err)
+            })
         })
     }
 
@@ -1394,7 +1409,6 @@ impl EnvelopeProcessor {
             None => return Ok(()), // can't process without an event
             Some(event) => event,
         };
-        relay_log::trace!("ENVELOPE IS: {:?}", &state.envelope);
         let client_ip = state.envelope.meta().client_addr();
         match utils::should_keep_event(
             event,
@@ -1403,9 +1417,7 @@ impl EnvelopeProcessor {
             self.config.processing_enabled(),
         ) {
             SamplingResult::Drop(rule_id) => {
-                relay_log::trace!("About SEND OUTCOMES !!!!");
                 if let Some(ref outcome_producer) = self.outcome_producer {
-                    relay_log::trace!("SENDING OUTCOMES !!!!");
                     send_outcomes(
                         OutcomeContext {
                             envelope_summary: &state.summary,
