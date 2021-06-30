@@ -295,7 +295,7 @@ jobs:
           source .venv/bin/activate
           make install-py-dev
           sentry init
-          sentry devservices up postgress redis snuba
+          sentry devservices up postgres redis snuba
           docker run \
             --name sentry_zookeeper \
             -d --network host \
