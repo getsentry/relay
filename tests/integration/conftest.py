@@ -70,28 +70,52 @@ def _parse_version(version):
     return tuple(map(int, version.split(".")))
 
 
-@pytest.fixture(  # noqa
-    params=[
+def _get_relay_chains():
+    rv = [
         "relay->sentry",
         "relay->relay->sentry",
         "relay->ha->relay->gb->sentry",
         "relay->gb->relay->ha->sentry",
-    ],
-)
-def relay_chain(request, mini_sentry, relay, gobetween, haproxy):  # noqa
+    ]
+
     configured_versions = list(
         filter(bool, (os.environ.get("RELAY_VERSION_CHAIN") or "").split(","))
     )
 
+    if configured_versions:
+        rv.append(
+            "->".join(f"relay(version='{version}')" for version in configured_versions)
+            + "->sentry"
+        )
+
+    return rv
+
+
+@pytest.fixture(params=_get_relay_chains())
+def relay_chain(request, mini_sentry, relay, gobetween, haproxy):  # noqa
+    """
+    test fixture that nests relays with mini_sentry and some random proxy
+    services. Is parametrized using strings following this syntax:
+
+        service1->service2->sentry
+        service1(arg=1, arg2=2)->service2->sentry
+
+    Which arguments are accepted by a
+    service depends on the service type:
+
+    - `gb` to configure and start gobetween. `haproxy` to configure and start
+      HAProxy. Those two are not run in CI, they used to be included because we
+      had transport-layer problems with actix-web client that were only
+      reproducible by adding more proxies.
+
+    - `relay` to spawn relay.
+
+    - `sentry` to start mini_sentry. Must be the last service and cannot appear
+      before.
+    """
+
     def inner(min_relay_version="0"):
-        if not configured_versions:
-            versions_iter = itertools.repeat("latest")
-        else:
-            versions_iter = iter(reversed(configured_versions))
-
-        def relay_with_version(upstream, **kwargs):
-            version = next(versions_iter)
-
+        def relay_with_version(upstream, version="latest", **kwargs):
             if _parse_version(version) < _parse_version(min_relay_version):
                 version = min_relay_version
 
@@ -104,7 +128,14 @@ def relay_chain(request, mini_sentry, relay, gobetween, haproxy):  # noqa
 
         rv = mini_sentry
         for part in parts:
-            rv = factories[part](rv)
+            if "(" in part and part.endswith(")"):
+                service_name, service_args = part.rstrip(")").split("(")
+                service_args = eval(f"dict({service_args})")
+            else:
+                service_name = part
+                service_args = {}
+
+            rv = factories[service_name](rv, **service_args)
 
         return rv
 
