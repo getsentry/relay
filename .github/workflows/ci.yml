@@ -2,10 +2,11 @@ name: CI
 
 on:
   push:
-    branches:
-      - master
-      - release/**
-      - release-library/**
+    # XXX: Temporary
+    # branches:
+    #   - master
+    #   - release/**
+    #   - release-library/**
 
   pull_request:
 
@@ -229,3 +230,68 @@ jobs:
 
       - name: Run tests
         run: pytest tests -n auto -v
+
+  test_latest_sentry_integration:
+    name: Sentry Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
+        image: redis
+        ports:
+          - 6379:6379
+
+      zookeeper:
+        image: confluentinc/cp-zookeeper
+        env:
+          ZOOKEEPER_CLIENT_PORT: 2181
+
+      kafka:
+        image: confluentinc/cp-kafka
+        env:
+          KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
+        ports:
+          - 9092:9092
+
+    steps:
+      - name: Checkout Relay
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - uses: swatinem/rust-cache@v1
+        with:
+          key: ${{ github.job }}
+
+      - name: Cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all-features
+
+      # Checkout Sentry and run integreation tests against latest Relay
+      - name: Checkout sentry
+        uses: actions/checkout@v2
+        with:
+          repository: 'getsentry/sentry'
+          path: sentry
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.7
+
+      # sentry devservices up redis postgres
+      # sentry devservices up snuba kafka
+      - name: Run Sentry integration tests
+        working-directory: sentry
+        run: |
+          make test-relay-integration
