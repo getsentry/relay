@@ -9,7 +9,7 @@ use actix::prelude::*;
 use float_ord::FloatOrd;
 use serde::{Deserialize, Serialize};
 
-use relay_common::{MonotonicResult, UnixTimestamp};
+use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 
 use crate::{Metric, MetricType, MetricUnit, MetricValue};
 
@@ -846,18 +846,28 @@ impl Ord for QueuedBucket {
 ///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
 #[derive(Clone, Debug)]
 pub struct FlushBuckets {
+    /// the project key
+    project_key: ProjectKey,
     buckets: Vec<Bucket>,
 }
 
 impl FlushBuckets {
     /// Creates a new message by consuming a vector of buckets.
-    pub fn new(buckets: Vec<Bucket>) -> Self {
-        Self { buckets }
+    pub fn new(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
+        Self {
+            project_key,
+            buckets,
+        }
     }
 
     /// Consumes the buckets contained in this message.
     pub fn into_buckets(self) -> Vec<Bucket> {
         self.buckets
+    }
+
+    /// Returns the project key (formally project public key)
+    pub fn project_key(&self) -> ProjectKey {
+        self.project_key
     }
 }
 
@@ -914,6 +924,7 @@ impl Message for FlushBuckets {
 /// }
 /// ```
 pub struct Aggregator {
+    project_key: ProjectKey,
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, BucketValue>,
     queue: BinaryHeap<QueuedBucket>,
@@ -925,8 +936,13 @@ impl Aggregator {
     ///
     /// The aggregator will flush a list of buckets to the receiver in regular intervals based on
     /// the given `config`.
-    pub fn new(config: AggregatorConfig, receiver: Recipient<FlushBuckets>) -> Self {
+    pub fn new(
+        project_key: ProjectKey,
+        config: AggregatorConfig,
+        receiver: Recipient<FlushBuckets>,
+    ) -> Self {
         Self {
+            project_key,
             config,
             buckets: HashMap::new(),
             queue: BinaryHeap::new(),
@@ -1030,7 +1046,7 @@ impl Aggregator {
         relay_log::trace!("flushing {} buckets to receiver", buckets.len());
 
         self.receiver
-            .send(FlushBuckets::new(buckets))
+            .send(FlushBuckets::new(self.project_key, buckets))
             .into_actor(self)
             .and_then(|result, slf, _ctx| {
                 if let Err(buckets) = result {
@@ -1492,10 +1508,11 @@ mod tests {
     #[test]
     fn test_aggregator_merge_counters() {
         relay_test::setup();
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
         let config = AggregatorConfig::default();
         let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = Aggregator::new(config, receiver);
+        let mut aggregator = Aggregator::new(project_key, config, receiver);
 
         let metric1 = some_metric();
 
@@ -1527,7 +1544,9 @@ mod tests {
             ..AggregatorConfig::default()
         };
         let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = Aggregator::new(config, receiver);
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+
+        let mut aggregator = Aggregator::new(project_key, config, receiver);
 
         let metric1 = some_metric();
 
@@ -1582,7 +1601,9 @@ mod tests {
         };
 
         let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = Aggregator::new(config, receiver);
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+
+        let mut aggregator = Aggregator::new(project_key, config, receiver);
 
         let metric1 = some_metric();
 
@@ -1605,7 +1626,9 @@ mod tests {
         };
 
         let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = Aggregator::new(config, receiver);
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+
+        let mut aggregator = Aggregator::new(project_key, config, receiver);
 
         let metric1 = some_metric();
 
@@ -1631,7 +1654,8 @@ mod tests {
                 debounce_delay: 0,
             };
             let recipient = receiver.clone().start().recipient();
-            let aggregator = Aggregator::new(config, recipient).start();
+            let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+            let aggregator = Aggregator::new(project_key, config, recipient).start();
 
             let mut metric = some_metric();
             metric.timestamp = UnixTimestamp::now();
@@ -1677,7 +1701,9 @@ mod tests {
                 debounce_delay: 0,
             };
             let recipient = receiver.clone().start().recipient();
-            let aggregator = Aggregator::new(config, recipient).start();
+            let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+
+            let aggregator = Aggregator::new(project_key, config, recipient).start();
 
             let mut metric = some_metric();
             metric.timestamp = UnixTimestamp::now();
