@@ -317,5 +317,5 @@ jobs:
         working-directory: sentry
         run: |
           source .venv/bin/activate
-          sentry devservices snuba
+          sentry devservices up snuba
           make test-relay-integration
