@@ -518,13 +518,18 @@ impl Project {
         self.state.clone()
     }
 
+    /// The last time the project state was updated
     pub fn last_updated_at(&self) -> Instant {
         self.last_updated_at
     }
 
+    /// Refresh the update time of the project in order to delay eviction.
+    ///
+    /// Called by the project cache when the project state is refreshed.
     pub fn refresh_updated_timestamp(&mut self) {
         self.last_updated_at = Instant::now();
     }
+
     /// Creates the aggregator if it is uninitialized and returns it.
     ///
     /// Returns `None` if the aggregator is permanently disabled, primarily for disabled projects.
