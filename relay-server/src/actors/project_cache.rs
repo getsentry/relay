@@ -89,7 +89,7 @@ impl ProjectCache {
         let delta = 2 * self.config.project_cache_expiry() + self.config.project_grace_period();
 
         self.projects
-            .retain(|_, entry| entry.last_updated_at + delta > eviction_start);
+            .retain(|_, entry| entry.last_updated_at() + delta > eviction_start);
 
         metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
     }
@@ -221,7 +221,7 @@ impl Handler<UpdateProjectState> for ProjectCache {
         let project = self.get_or_create_project(project_key, context.address());
 
         // Bump the update time of the project in our hashmap to evade eviction.
-        project.last_updated_at = Instant::now();
+        project.refresh_updated_timestamp();
 
         let relay_mode = self.config.relay_mode();
 
@@ -297,7 +297,7 @@ impl Handler<UpdateProjectState> for ProjectCache {
             .then(move |state_result, slf, context| {
                 let project = slf.get_or_create_project(project_key, context.address());
                 project.update_state(state_result.ok(), no_cache);
-                fut::ok::<_, (), _>(())
+                fut::ok(())
             })
             .spawn(context);
     }
@@ -408,14 +408,6 @@ impl CheckEnvelope {
             fetch: false,
         }
     }
-
-    pub fn envelope_ref(&self) -> &Envelope {
-        &self.envelope
-    }
-
-    pub fn envelope(self) -> Envelope {
-        self.envelope
-    }
 }
 
 /// A checked envelope and associated rate limits.
@@ -454,7 +446,7 @@ impl Handler<CheckEnvelope> for ProjectCache {
                     // TODO RaduW can we do better that this ????
                     // (need to retrieve project again to get around borwoing problems)
                     let project = slf.get_or_create_project(message.project_key, context.address());
-                    project.check_envelope(message)
+                    project.check_envelope(message.envelope)
                 })
         } else {
             // Preload the project cache so that it arrives a little earlier in processing. However,
@@ -464,7 +456,7 @@ impl Handler<CheckEnvelope> for ProjectCache {
 
             // message.fetch == false: Fetching must not block the store request. The
             // EnvelopeManager will later fetch the project state.
-            ActorResponse::ok(project.check_envelope(message))
+            ActorResponse::ok(project.check_envelope(message.envelope))
         }
     }
 }

@@ -23,8 +23,8 @@ use relay_sampling::SamplingConfig;
 use crate::actors::outcome::DiscardReason;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::{
-    CheckEnvelope, CheckEnvelopeResponse, CheckedEnvelope, ProjectCache, ProjectError,
-    ProjectStateResponse, UpdateProjectState,
+    CheckEnvelopeResponse, CheckedEnvelope, ProjectCache, ProjectError, ProjectStateResponse,
+    UpdateProjectState,
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
@@ -470,7 +470,7 @@ enum AggregatorState {
 /// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
 /// Projects can define multiple keys, in which case this structure is duplicated for each instance.
 pub struct Project {
-    pub last_updated_at: Instant,
+    last_updated_at: Instant,
     project_key: ProjectKey,
     config: Arc<Config>,
     outcome_producer: Addr<OutcomeProducer>,
@@ -518,6 +518,13 @@ impl Project {
         self.state.clone()
     }
 
+    pub fn last_updated_at(&self) -> Instant {
+        self.last_updated_at
+    }
+
+    pub fn refresh_updated_timestamp(&mut self) {
+        self.last_updated_at = Instant::now();
+    }
     /// Creates the aggregator if it is uninitialized and returns it.
     ///
     /// Returns `None` if the aggregator is permanently disabled, primarily for disabled projects.
@@ -737,9 +744,9 @@ impl Project {
         })
     }
 
-    pub fn check_envelope(&mut self, message: CheckEnvelope) -> CheckEnvelopeResponse {
-        let scoping = self.scope_request(message.envelope_ref().meta());
-        let result = self.check_envelope_scoped(message.envelope(), &scoping);
+    pub fn check_envelope(&mut self, envelope: Envelope) -> CheckEnvelopeResponse {
+        let scoping = self.scope_request(envelope.meta());
+        let result = self.check_envelope_scoped(envelope, &scoping);
         CheckEnvelopeResponse { result, scoping }
     }
 }
