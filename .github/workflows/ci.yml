@@ -14,222 +14,222 @@ env:
   RUSTFLAGS: -Dwarnings
 
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
+  # lint:
+  #   name: Lint
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #       with:
+  #         submodules: recursive
 
-      - uses: actions/setup-python@v2
-        with:
-          python-version: 3.7
+  #     - uses: actions/setup-python@v2
+  #       with:
+  #         python-version: 3.7
 
-      - name: Install Dependencies
-        run: pip install -U -r requirements-dev.txt
+  #     - name: Install Dependencies
+  #       run: pip install -U -r requirements-dev.txt
 
-      - name: Run Black
-        run: black --check py tests --exclude '\.eggs|sentry_relay/_lowlevel.*'
+  #     - name: Run Black
+  #       run: black --check py tests --exclude '\.eggs|sentry_relay/_lowlevel.*'
 
-      - name: Run Flake8
-        run: flake8 py
+  #     - name: Run Flake8
+  #       run: flake8 py
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          components: clippy, rustfmt
-          override: true
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: stable
+  #         profile: minimal
+  #         components: clippy, rustfmt
+  #         override: true
 
-      - uses: swatinem/rust-cache@v1
-        with:
-          key: ${{ github.job }}
+  #     - uses: swatinem/rust-cache@v1
+  #       with:
+  #         key: ${{ github.job }}
 
-      - name: Run Rustfmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+  #     - name: Run Rustfmt
+  #       uses: actions-rs/cargo@v1
+  #       with:
+  #         command: fmt
+  #         args: --all -- --check
 
-      - name: Run Clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --workspace --all-features --tests -- -D clippy::all
+  #     - name: Run Clippy
+  #       uses: actions-rs/cargo@v1
+  #       with:
+  #         command: clippy
+  #         args: --workspace --all-features --tests -- -D clippy::all
 
-  test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, windows-latest]
+  # test:
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       os: [macos-latest, windows-latest]
 
-    name: Test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+  #   name: Test (${{ matrix.os }})
+  #   runs-on: ${{ matrix.os }}
 
-    # Skip redundant checks for library releases
-    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+  #   # Skip redundant checks for library releases
+  #   if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #       with:
+  #         submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: stable
+  #         profile: minimal
+  #         override: true
 
-      - uses: swatinem/rust-cache@v1
-        with:
-          key: ${{ github.job }}
+  #     - uses: swatinem/rust-cache@v1
+  #       with:
+  #         key: ${{ github.job }}
 
-      - name: Run Cargo Tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --workspace
+  #     - name: Run Cargo Tests
+  #       uses: actions-rs/cargo@v1
+  #       with:
+  #         command: test
+  #         args: --workspace
 
-  test_all:
-    name: Test All Features (ubuntu-latest)
-    runs-on: ubuntu-latest
+  # test_all:
+  #   name: Test All Features (ubuntu-latest)
+  #   runs-on: ubuntu-latest
 
-    # Skip redundant checks for library releases
-    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+  #   # Skip redundant checks for library releases
+  #   if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
-    # Testing all features requires Docker container operations that are only available on
-    # `ubuntu-latest`. This `test-all` job is to be seen as complementary to the `test` job. If
-    # services become available on other platforms, the jobs should be consolidated. See
-    # https://docs.github.com/en/actions/guides/about-service-containers
+  #   # Testing all features requires Docker container operations that are only available on
+  #   # `ubuntu-latest`. This `test-all` job is to be seen as complementary to the `test` job. If
+  #   # services become available on other platforms, the jobs should be consolidated. See
+  #   # https://docs.github.com/en/actions/guides/about-service-containers
 
-    services:
-      redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
-        image: redis
-        ports:
-          - 6379:6379
+  #   services:
+  #     redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
+  #       image: redis
+  #       ports:
+  #         - 6379:6379
 
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #       with:
+  #         submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: stable
+  #         profile: minimal
+  #         override: true
 
-      - uses: swatinem/rust-cache@v1
-        with:
-          key: ${{ github.job }}
+  #     - uses: swatinem/rust-cache@v1
+  #       with:
+  #         key: ${{ github.job }}
 
-      - name: Run Cargo Tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --workspace --all-features
+  #     - name: Run Cargo Tests
+  #       uses: actions-rs/cargo@v1
+  #       with:
+  #         command: test
+  #         args: --workspace --all-features
 
-  test_py:
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: [3.7]
+  # test_py:
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       python-version: [3.7]
 
-    # Skip redundant checks for binary releases
-    if: "!startsWith(github.ref, 'refs/heads/release/')"
+  #   # Skip redundant checks for binary releases
+  #   if: "!startsWith(github.ref, 'refs/heads/release/')"
 
-    name: Test Python ${{ matrix.python-version }}
-    runs-on: ubuntu-latest
+  #   name: Test Python ${{ matrix.python-version }}
+  #   runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #       with:
+  #         submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: stable
+  #         profile: minimal
+  #         override: true
 
-      - uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python-version }}
+  #     - uses: actions/setup-python@v2
+  #       with:
+  #         python-version: ${{ matrix.python-version }}
 
-      - name: Install Dependencies
-        run: pip install -U pytest
+  #     - name: Install Dependencies
+  #       run: pip install -U pytest
 
-      - uses: swatinem/rust-cache@v1
-        with:
-          key: ${{ github.job }}
+  #     - uses: swatinem/rust-cache@v1
+  #       with:
+  #         key: ${{ github.job }}
 
-      - name: Build and Install Library
-        run: pip install -v --editable py
-        env:
-          RELAY_DEBUG: 1
+  #     - name: Build and Install Library
+  #       run: pip install -v --editable py
+  #       env:
+  #         RELAY_DEBUG: 1
 
-      - name: Run Python Tests
-        run: pytest -v py
+  #     - name: Run Python Tests
+  #       run: pytest -v py
 
-  test_integration:
-    name: Integration Tests
-    runs-on: ubuntu-latest
+  # test_integration:
+  #   name: Integration Tests
+  #   runs-on: ubuntu-latest
 
-    # Skip redundant checks for library releases
-    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+  #   # Skip redundant checks for library releases
+  #   if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
-    services:
-      redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
-        image: redis
-        ports:
-          - 6379:6379
+  #   services:
+  #     redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
+  #       image: redis
+  #       ports:
+  #         - 6379:6379
 
-      zookeeper:
-        image: confluentinc/cp-zookeeper
-        env:
-          ZOOKEEPER_CLIENT_PORT: 2181
+  #     zookeeper:
+  #       image: confluentinc/cp-zookeeper
+  #       env:
+  #         ZOOKEEPER_CLIENT_PORT: 2181
 
-      kafka:
-        image: confluentinc/cp-kafka
-        env:
-          KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
-          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-          KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
-        ports:
-          - 9092:9092
+  #     kafka:
+  #       image: confluentinc/cp-kafka
+  #       env:
+  #         KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+  #         KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
+  #         KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+  #         KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
+  #       ports:
+  #         - 9092:9092
 
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #       with:
+  #         submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: stable
+  #         profile: minimal
+  #         override: true
 
-      - uses: swatinem/rust-cache@v1
-        with:
-          key: ${{ github.job }}
+  #     - uses: swatinem/rust-cache@v1
+  #       with:
+  #         key: ${{ github.job }}
 
-      - name: Cargo build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --all-features
+  #     - name: Cargo build
+  #       uses: actions-rs/cargo@v1
+  #       with:
+  #         command: build
+  #         args: --all-features
 
-      - uses: actions/setup-python@v2
-        with:
-          python-version: 3.7
+  #     - uses: actions/setup-python@v2
+  #       with:
+  #         python-version: 3.7
 
-      - name: Install dependencies
-        run: pip install -U -r requirements-test.txt
+  #     - name: Install dependencies
+  #       run: pip install -U -r requirements-test.txt
 
-      - name: Run tests
-        run: pytest tests -n auto -v
+  #     - name: Run tests
+  #       run: pytest tests -n auto -v
 
   test_latest_sentry_integration:
     name: Sentry Integration Tests
