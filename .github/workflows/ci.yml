@@ -172,7 +172,7 @@ jobs:
         run: pytest -v py
 
   test_integration:
-    name: Integration Tests ${{ matrix.relay_version_chain }}
+    name: Integration Tests
     runs-on: ubuntu-latest
 
     # Skip redundant checks for library releases
