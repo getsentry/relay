@@ -230,4 +230,4 @@ jobs:
       - name: Run tests
         run: pytest tests -n auto -v
         env:
-          RELAY_VERSION_CHAIN=20.6.0,latest
+          RELAY_VERSION_CHAIN: '20.6.0,latest'
