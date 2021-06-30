@@ -287,12 +287,14 @@ jobs:
 
       - uses: actions/setup-python@v2
         with:
-          python-version: 3.7
+          python-version: 3.6
 
       # sentry devservices up redis postgres
       # sentry devservices up snuba kafka
       - name: Run Sentry integration tests
         working-directory: sentry
         run: |
+          python -m venv .venv
+          source .venv/bin/activate
           make install-py-dev
           make test-relay-integration
