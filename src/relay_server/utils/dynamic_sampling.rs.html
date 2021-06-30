@@ -353,6 +353,10 @@
 <span id="352">352</span>
 <span id="353">353</span>
 <span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.</span>
 <span class="doccomment">//!</span>
@@ -361,12 +365,14 @@
 <span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">future</span>, <span class="ident">prelude</span>::<span class="kw-2">*</span>};
 
+<span class="kw">use</span> <span class="ident">relay_common::ProjectKey</span>;
 <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">Event</span>, <span class="ident">EventId</span>};
 <span class="kw">use</span> <span class="ident">relay_sampling</span>::{
     <span class="ident">get_matching_event_rule</span>, <span class="ident">pseudo_random_from_uuid</span>, <span class="ident">rule_type_for_event</span>, <span class="ident">RuleId</span>, <span class="ident">SamplingResult</span>,
 };
 
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project</span>::{<span class="ident">GetCachedProjectState</span>, <span class="ident">GetProjectState</span>, <span class="ident">Project</span>, <span class="ident">ProjectState</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project::ProjectState</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project_cache</span>::{<span class="ident">GetCachedProjectState</span>, <span class="ident">GetProjectState</span>, <span class="ident">ProjectCache</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::envelope</span>::{<span class="ident">Envelope</span>, <span class="ident">ItemType</span>};
 
 <span class="doccomment">/// Checks whether an event should be kept or removed by dynamic sampling.</span>
@@ -476,11 +482,12 @@
 <span class="doccomment">/// identifier if all elements have been removed.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sample_trace</span>(
     <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
-    <span class="ident">project</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">Project</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">project_key</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ProjectKey</span><span class="op">&gt;</span>,
+    <span class="ident">project_cache</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">ProjectCache</span><span class="op">&gt;</span>,
     <span class="ident">fast_processing</span>: <span class="ident">bool</span>,
     <span class="ident">processing_enabled</span>: <span class="ident">bool</span>,
 ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">Envelope</span>, <span class="ident">RuleId</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">project</span> {
+    <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">project_key</span> {
         <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::ok</span>(<span class="ident">envelope</span>)),
         <span class="prelude-val">Some</span>(<span class="ident">project</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">project</span>,
     };
@@ -493,8 +500,8 @@
     }
     <span class="comment">//we have a trace_context and we have a transaction_item see if we can sample them</span>
     <span class="kw">if</span> <span class="ident">fast_processing</span> {
-        <span class="kw">let</span> <span class="ident">fut</span> <span class="op">=</span> <span class="ident">project</span>
-            .<span class="ident">send</span>(<span class="ident">GetCachedProjectState</span>)
+        <span class="kw">let</span> <span class="ident">fut</span> <span class="op">=</span> <span class="ident">project_cache</span>
+            .<span class="ident">send</span>(<span class="ident">GetCachedProjectState::new</span>(<span class="ident">project_key</span>))
             .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">project_state</span><span class="op">|</span> {
                 <span class="kw">let</span> <span class="ident">project_state</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">project_state</span> {
                     <span class="comment">// error getting the project, give up and return envelope unchanged</span>
@@ -505,20 +512,21 @@
             });
         <span class="ident">Box::new</span>(<span class="ident">fut</span>) <span class="kw">as</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>
     } <span class="kw">else</span> {
-        <span class="kw">let</span> <span class="ident">fut</span> <span class="op">=</span> <span class="ident">project</span>
-            .<span class="ident">send</span>(<span class="ident">GetProjectState::new</span>())
-            .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">project_state</span><span class="op">|</span> {
-                <span class="kw">let</span> <span class="ident">project_state</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">project_state</span> {
-                    <span class="comment">// error getting the project, give up and return envelope unchanged</span>
-                    <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>),
-                    <span class="prelude-val">Ok</span>(<span class="ident">project_state</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">project_state</span>,
-                };
-                <span class="ident">sample_transaction_internal</span>(
-                    <span class="ident">envelope</span>,
-                    <span class="ident">project_state</span>.<span class="ident">ok</span>().<span class="ident">as_deref</span>(),
-                    <span class="ident">processing_enabled</span>,
-                )
-            });
+        <span class="kw">let</span> <span class="ident">fut</span> <span class="op">=</span>
+            <span class="ident">project_cache</span>
+                .<span class="ident">send</span>(<span class="ident">GetProjectState::new</span>(<span class="ident">project_key</span>))
+                .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">project_state</span><span class="op">|</span> {
+                    <span class="kw">let</span> <span class="ident">project_state</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">project_state</span> {
+                        <span class="comment">// error getting the project, give up and return envelope unchanged</span>
+                        <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>),
+                        <span class="prelude-val">Ok</span>(<span class="ident">project_state</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">project_state</span>,
+                    };
+                    <span class="ident">sample_transaction_internal</span>(
+                        <span class="ident">envelope</span>,
+                        <span class="ident">project_state</span>.<span class="ident">ok</span>().<span class="ident">as_deref</span>(),
+                        <span class="ident">processing_enabled</span>,
+                    )
+                });
         <span class="ident">Box::new</span>(<span class="ident">fut</span>) <span class="kw">as</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>
     }
 }
@@ -585,11 +593,11 @@
 
         <span class="kw">let</span> <span class="ident">raw_event</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">with_trace_context</span> {
             <span class="kw">let</span> <span class="ident">trace_id</span> <span class="op">=</span> <span class="ident">uuid::Uuid::new_v4</span>();
-            <span class="kw">let</span> <span class="ident">public_key</span> <span class="op">=</span> <span class="string">&quot;12345678901234567890123456789012&quot;</span>;
+            <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="string">&quot;12345678901234567890123456789012&quot;</span>;
             <span class="kw">let</span> <span class="ident">trace_context_raw</span> <span class="op">=</span> <span class="macro">format!</span>(
                 <span class="string">r#&quot;{{&quot;trace_id&quot;: &quot;{}&quot;, &quot;public_key&quot;: &quot;{}&quot;}}&quot;#</span>,
                 <span class="ident">trace_id</span>.<span class="ident">to_simple</span>(),
-                <span class="ident">public_key</span>,
+                <span class="ident">project_key</span>,
             );
             <span class="macro">format!</span>(
                 <span class="string">&quot;{{\&quot;event_id\&quot;:\&quot;{}\&quot;,\&quot;dsn\&quot;:\&quot;{}\&quot;, \&quot;trace\&quot;: {}}}\n&quot;</span>,

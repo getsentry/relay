@@ -1709,6 +1709,32 @@
 <span id="1708">1708</span>
 <span id="1709">1709</span>
 <span id="1710">1710</span>
+<span id="1711">1711</span>
+<span id="1712">1712</span>
+<span id="1713">1713</span>
+<span id="1714">1714</span>
+<span id="1715">1715</span>
+<span id="1716">1716</span>
+<span id="1717">1717</span>
+<span id="1718">1718</span>
+<span id="1719">1719</span>
+<span id="1720">1720</span>
+<span id="1721">1721</span>
+<span id="1722">1722</span>
+<span id="1723">1723</span>
+<span id="1724">1724</span>
+<span id="1725">1725</span>
+<span id="1726">1726</span>
+<span id="1727">1727</span>
+<span id="1728">1728</span>
+<span id="1729">1729</span>
+<span id="1730">1730</span>
+<span id="1731">1731</span>
+<span id="1732">1732</span>
+<span id="1733">1733</span>
+<span id="1734">1734</span>
+<span id="1735">1735</span>
+<span id="1736">1736</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">btree_map</span>, <span class="ident">BinaryHeap</span>};
 <span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">hash_map::Entry</span>, <span class="ident">BTreeMap</span>, <span class="ident">BTreeSet</span>, <span class="ident">HashMap</span>};
@@ -1721,7 +1747,7 @@
 <span class="kw">use</span> <span class="ident">float_ord::FloatOrd</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">MonotonicResult</span>, <span class="ident">UnixTimestamp</span>};
+<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">MonotonicResult</span>, <span class="ident">ProjectKey</span>, <span class="ident">UnixTimestamp</span>};
 
 <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">Metric</span>, <span class="ident">MetricType</span>, <span class="ident">MetricUnit</span>, <span class="ident">MetricValue</span>};
 
@@ -2558,18 +2584,28 @@
 <span class="doccomment">///   failed buckets. They will be merged back into the aggregator and flushed at a later time.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FlushBuckets</span> {
+    <span class="doccomment">/// the project key</span>
+    <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
     <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">FlushBuckets</span> {
     <span class="doccomment">/// Creates a new message by consuming a vector of buckets.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="self">Self</span> { <span class="ident">buckets</span> }
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">project_key</span>: <span class="ident">ProjectKey</span>, <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="self">Self</span> {
+            <span class="ident">project_key</span>,
+            <span class="ident">buckets</span>,
+        }
     }
 
     <span class="doccomment">/// Consumes the buckets contained in this message.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_buckets</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">buckets</span>
+    }
+
+    <span class="doccomment">/// Returns the project key (formally project public key)</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">project_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProjectKey</span> {
+        <span class="self">self</span>.<span class="ident">project_key</span>
     }
 }
 
@@ -2626,6 +2662,7 @@
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Aggregator</span> {
+    <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
     <span class="ident">config</span>: <span class="ident">AggregatorConfig</span>,
     <span class="ident">buckets</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">BucketKey</span>, <span class="ident">BucketValue</span><span class="op">&gt;</span>,
     <span class="ident">queue</span>: <span class="ident">BinaryHeap</span><span class="op">&lt;</span><span class="ident">QueuedBucket</span><span class="op">&gt;</span>,
@@ -2637,8 +2674,13 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// The aggregator will flush a list of buckets to the receiver in regular intervals based on</span>
     <span class="doccomment">/// the given `config`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="ident">AggregatorConfig</span>, <span class="ident">receiver</span>: <span class="ident">Recipient</span><span class="op">&lt;</span><span class="ident">FlushBuckets</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(
+        <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
+        <span class="ident">config</span>: <span class="ident">AggregatorConfig</span>,
+        <span class="ident">receiver</span>: <span class="ident">Recipient</span><span class="op">&lt;</span><span class="ident">FlushBuckets</span><span class="op">&gt;</span>,
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="self">Self</span> {
+            <span class="ident">project_key</span>,
             <span class="ident">config</span>,
             <span class="ident">buckets</span>: <span class="ident">HashMap::new</span>(),
             <span class="ident">queue</span>: <span class="ident">BinaryHeap::new</span>(),
@@ -2742,7 +2784,7 @@
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;flushing {} buckets to receiver&quot;</span>, <span class="ident">buckets</span>.<span class="ident">len</span>());
 
         <span class="self">self</span>.<span class="ident">receiver</span>
-            .<span class="ident">send</span>(<span class="ident">FlushBuckets::new</span>(<span class="ident">buckets</span>))
+            .<span class="ident">send</span>(<span class="ident">FlushBuckets::new</span>(<span class="self">self</span>.<span class="ident">project_key</span>, <span class="ident">buckets</span>))
             .<span class="ident">into_actor</span>(<span class="self">self</span>)
             .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">result</span>, <span class="ident">slf</span>, <span class="ident">_ctx</span><span class="op">|</span> {
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">buckets</span>) <span class="op">=</span> <span class="ident">result</span> {
@@ -3204,10 +3246,11 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_aggregator_merge_counters</span>() {
         <span class="ident">relay_test::setup</span>();
+        <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">AggregatorConfig::default</span>();
         <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="ident">TestReceiver::start_default</span>().<span class="ident">recipient</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">config</span>, <span class="ident">receiver</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">project_key</span>, <span class="ident">config</span>, <span class="ident">receiver</span>);
 
         <span class="kw">let</span> <span class="ident">metric1</span> <span class="op">=</span> <span class="ident">some_metric</span>();
 
@@ -3239,7 +3282,9 @@
             ..<span class="ident">AggregatorConfig::default</span>()
         };
         <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="ident">TestReceiver::start_default</span>().<span class="ident">recipient</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">config</span>, <span class="ident">receiver</span>);
+        <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">project_key</span>, <span class="ident">config</span>, <span class="ident">receiver</span>);
 
         <span class="kw">let</span> <span class="ident">metric1</span> <span class="op">=</span> <span class="ident">some_metric</span>();
 
@@ -3294,7 +3339,9 @@
         };
 
         <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="ident">TestReceiver::start_default</span>().<span class="ident">recipient</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">config</span>, <span class="ident">receiver</span>);
+        <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">project_key</span>, <span class="ident">config</span>, <span class="ident">receiver</span>);
 
         <span class="kw">let</span> <span class="ident">metric1</span> <span class="op">=</span> <span class="ident">some_metric</span>();
 
@@ -3317,7 +3364,9 @@
         };
 
         <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="ident">TestReceiver::start_default</span>().<span class="ident">recipient</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">config</span>, <span class="ident">receiver</span>);
+        <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">project_key</span>, <span class="ident">config</span>, <span class="ident">receiver</span>);
 
         <span class="kw">let</span> <span class="ident">metric1</span> <span class="op">=</span> <span class="ident">some_metric</span>();
 
@@ -3343,7 +3392,8 @@
                 <span class="ident">debounce_delay</span>: <span class="number">0</span>,
             };
             <span class="kw">let</span> <span class="ident">recipient</span> <span class="op">=</span> <span class="ident">receiver</span>.<span class="ident">clone</span>().<span class="ident">start</span>().<span class="ident">recipient</span>();
-            <span class="kw">let</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">config</span>, <span class="ident">recipient</span>).<span class="ident">start</span>();
+            <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">project_key</span>, <span class="ident">config</span>, <span class="ident">recipient</span>).<span class="ident">start</span>();
 
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">some_metric</span>();
             <span class="ident">metric</span>.<span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::now</span>();
@@ -3389,7 +3439,9 @@
                 <span class="ident">debounce_delay</span>: <span class="number">0</span>,
             };
             <span class="kw">let</span> <span class="ident">recipient</span> <span class="op">=</span> <span class="ident">receiver</span>.<span class="ident">clone</span>().<span class="ident">start</span>().<span class="ident">recipient</span>();
-            <span class="kw">let</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">config</span>, <span class="ident">recipient</span>).<span class="ident">start</span>();
+            <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>();
+
+            <span class="kw">let</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">project_key</span>, <span class="ident">config</span>, <span class="ident">recipient</span>).<span class="ident">start</span>();
 
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">some_metric</span>();
             <span class="ident">metric</span>.<span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::now</span>();
