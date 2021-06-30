@@ -256,6 +256,19 @@ jobs:
         ports:
           - 9092:9092
 
+      postgres:
+        # Docker Hub image
+        image: postgres
+        # Provide the password for postgres
+        env:
+          POSTGRES_PASSWORD: postgres
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       # - name: Checkout Relay
       #   uses: actions/checkout@v2
@@ -290,6 +303,7 @@ jobs:
           python-version: 3.6
 
       - name: Set up Sentry
+        working-directory: sentry
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -299,11 +313,8 @@ jobs:
           source .venv/bin/activate
           make install-py-dev
 
-      # sentry devservices up redis postgres
-      # sentry devservices up snuba kafka
       - name: Run Sentry integration tests
         working-directory: sentry
         run: |
           source .venv/bin/activate
-          sentry devservices up postgress
           make test-relay-integration
