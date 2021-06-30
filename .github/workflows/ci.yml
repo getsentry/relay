@@ -2,11 +2,11 @@ name: CI
 
 on:
   push:
-    # XXX: Temporary
-    # branches:
-    #   - master
-    #   - release/**
-    #   - release-library/**
+  # XXX: Temporary
+  # branches:
+  #   - master
+  #   - release/**
+  #   - release-library/**
 
   pull_request:
 
@@ -257,10 +257,10 @@ jobs:
           - 9092:9092
 
     steps:
-      - name: Checkout Relay
-        uses: actions/checkout@v2
-        with:
-          submodules: recursive
+      # - name: Checkout Relay
+      #   uses: actions/checkout@v2
+      #   with:
+      #     submodules: recursive
 
       - uses: actions-rs/toolchain@v1
         with:
@@ -268,21 +268,21 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: swatinem/rust-cache@v1
-        with:
-          key: ${{ github.job }}
+      # - uses: swatinem/rust-cache@v1
+      #   with:
+      #     key: ${{ github.job }}
 
-      - name: Cargo build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --all-features
+      # - name: Cargo build
+      #   uses: actions-rs/cargo@v1
+      #   with:
+      #     command: build
+      #     args: --all-features
 
       # Checkout Sentry and run integreation tests against latest Relay
       - name: Checkout sentry
         uses: actions/checkout@v2
         with:
-          repository: 'getsentry/sentry'
+          repository: "getsentry/sentry"
           path: sentry
 
       - uses: actions/setup-python@v2
@@ -294,4 +294,5 @@ jobs:
       - name: Run Sentry integration tests
         working-directory: sentry
         run: |
+          make install-py-dev
           make test-relay-integration
