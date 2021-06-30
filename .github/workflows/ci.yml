@@ -302,6 +302,21 @@ jobs:
         with:
           python-version: 3.6
 
+      # The next few steps are to set up the cache quickly
+      - name: Set pip cache dir
+        id: info
+        # Upgrade pip because older versions don't have `pip cache dir`
+        run: |
+          pip3 install --upgrade pip
+          echo "::set-output name=pip-cache-dir::$(pip3 cache dir)"
+
+      - name: Cache (pip)
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.info.outputs.pip-cache-dir }}
+          key: sentry-deps-${{ hashFiles('**/requirements**.txt') }}
+          restore-keys: sentry-deps-
+
       - name: Set up Sentry
         working-directory: sentry
         run: |
