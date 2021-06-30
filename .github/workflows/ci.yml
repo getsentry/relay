@@ -235,40 +235,6 @@ jobs:
     name: Sentry Integration Tests
     runs-on: ubuntu-latest
 
-    services:
-      redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
-        image: redis
-        ports:
-          - 6379:6379
-
-      zookeeper:
-        image: confluentinc/cp-zookeeper
-        env:
-          ZOOKEEPER_CLIENT_PORT: 2181
-
-      kafka:
-        image: confluentinc/cp-kafka
-        env:
-          KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
-          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-          KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
-        ports:
-          - 9092:9092
-
-      postgres:
-        # Docker Hub image
-        image: postgres
-        # Provide the password for postgres
-        env:
-          POSTGRES_PASSWORD: postgres
-        # Set health checks to wait until postgres has started
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       # - name: Checkout Relay
       #   uses: actions/checkout@v2
@@ -317,6 +283,7 @@ jobs:
           key: sentry-deps-${{ hashFiles('**/requirements**.txt') }}
           restore-keys: sentry-deps-
 
+      # XXX: Can we run the action from Sentry?
       - name: Set up Sentry
         working-directory: sentry
         run: |
@@ -327,10 +294,26 @@ jobs:
           python -m venv .venv
           source .venv/bin/activate
           make install-py-dev
+          sentry init
+          sentry devservices up postgress redis snuba
+          docker run \
+            --name sentry_zookeeper \
+            -d --network host \
+            -e ZOOKEEPER_CLIENT_PORT=2181 \
+            confluentinc/cp-zookeeper:4.1.0
+          docker run \
+            --name sentry_kafka \
+            -d --network host \
+            -e KAFKA_ZOOKEEPER_CONNECT=127.0.0.1:2181 \
+            -e KAFKA_LISTENERS=INTERNAL://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092 \
+            -e KAFKA_ADVERTISED_LISTENERS=INTERNAL://127.0.0.1:9093,EXTERNAL://127.0.0.1:9092 \
+            -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT \
+            -e KAFKA_INTER_BROKER_LISTENER_NAME=INTERNAL \
+            -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+            confluentinc/cp-kafka:5.1.2
 
       - name: Run Sentry integration tests
         working-directory: sentry
         run: |
           source .venv/bin/activate
-          sentry devservices up snuba
           make test-relay-integration
