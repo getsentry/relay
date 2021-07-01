@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::Deref;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -968,6 +967,15 @@ impl EnvelopeProcessor {
     ///  4. A multipart form data body.
     ///  5. If none match, `Annotated::empty()`.
     fn extract_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        self.extract_event_internal(state).map_err(|err| {
+            relay_log::trace!("hello");
+            err
+        })
+    }
+    fn extract_event_internal(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
         let envelope = &mut state.envelope;
 
         // Remove all items first, and then process them. After this function returns, only
@@ -1512,7 +1520,31 @@ impl EnvelopeProcessor {
                     scope.set_extra("user_agent", user_agent.into());
                 }
             },
-            || self.process_state(state),
+            || {
+                let scoping = state.scoping;
+                let remote_addr = state.envelope.meta().remote_addr();
+                let envelope_summary = state.summary;
+                let timestamp = state.received_at;
+                let event_id = state.envelope.event_id();
+                self.process_state(state).map_err(|err| {
+                    if let Some(ref outcome_producer) = self.outcome_producer {
+                        if let Some(outcome) = err.to_outcome() {
+                            send_outcomes(
+                                OutcomeContext {
+                                    envelope_summary: &envelope_summary,
+                                    timestamp,
+                                    event_id,
+                                    outcome,
+                                    remote_addr,
+                                    scoping,
+                                },
+                                outcome_producer.clone(),
+                            );
+                        }
+                    }
+                    err
+                })
+            },
         )
     }
 }
@@ -2025,29 +2057,70 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
         let remote_addr = envelope.meta().client_addr();
 
         let scoping = Rc::new(RefCell::new(envelope.meta().get_partial_scoping()));
-        let is_received = Rc::new(AtomicBool::from(false));
         let envelope_summary = Rc::new(RefCell::new(EnvelopeSummary::compute(&envelope)));
 
         let future = project_cache
             .send(CheckEnvelope::fetched(public_key, envelope))
             .map_err(ProcessingError::ScheduleFailed)
             .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
-            .and_then(clone!(scoping, envelope_summary, |response| {
-                // Use the project id from the loaded project state to account for redirects.
-                let project_id = response.scoping.project_id.value();
-                metric!(set(RelaySets::UniqueProjects) = project_id as i64);
-
-                scoping.replace(response.scoping);
-
-                let checked = response.result.map_err(ProcessingError::Rejected)?;
-                match checked.envelope {
-                    Some(envelope) => {
-                        envelope_summary.replace(EnvelopeSummary::compute(&envelope));
-                        Ok(envelope)
-                    }
-                    None => Err(ProcessingError::RateLimited(checked.rate_limits)),
+            .map_err(clone!(scoping, outcome_producer, envelope_summary, |err| {
+                if let Some(outcome) = err.to_outcome() {
+                    send_outcomes(
+                        OutcomeContext {
+                            envelope_summary: envelope_summary.borrow().deref(),
+                            timestamp: relay_common::instant_to_date_time(start_time),
+                            event_id,
+                            outcome,
+                            remote_addr,
+                            scoping: *scoping.borrow().deref(),
+                        },
+                        outcome_producer,
+                    );
                 }
+                err
             }))
+            .and_then(clone!(
+                scoping,
+                envelope_summary,
+                outcome_producer,
+                |response| {
+                    // Use the project id from the loaded project state to account for redirects.
+                    let project_id = response.scoping.project_id.value();
+                    metric!(set(RelaySets::UniqueProjects) = project_id as i64);
+
+                    scoping.replace(response.scoping);
+
+                    let checked = match response.result {
+                        Err(err) => {
+                            let err = ProcessingError::Rejected(err);
+                            if let Some(outcome) = err.to_outcome() {
+                                send_outcomes(
+                                    OutcomeContext {
+                                        envelope_summary: envelope_summary.borrow().deref(),
+                                        timestamp: relay_common::instant_to_date_time(start_time),
+                                        event_id,
+                                        outcome,
+                                        remote_addr,
+                                        scoping: *scoping.borrow().deref(),
+                                    },
+                                    outcome_producer,
+                                );
+                            }
+                            return Err(err);
+                        }
+                        Ok(checked) => checked,
+                    };
+
+                    match checked.envelope {
+                        Some(envelope) => {
+                            envelope_summary.replace(EnvelopeSummary::compute(&envelope));
+                            Ok(envelope)
+                        }
+                        // errors from rate limiting already produced outcomes nothing more to do
+                        None => Err(ProcessingError::RateLimited(checked.rate_limits)),
+                    }
+                }
+            ))
             .and_then(clone!(
                 project_cache,
                 outcome_producer,
@@ -2064,20 +2137,47 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         start_time,
                         scoping,
                     )
-                    .map_err(ProcessingError::TraceSampled)
+                    // outcomes already handled
+                    .map_err(|err| ProcessingError::TraceSampled(err))
                 }
             ))
-            .and_then(clone!(project_cache, scoping, |envelope| {
-                // get the state for the current project. we can always fetch the cached version
-                // even if the no_cache flag was passed, as the cache was updated prior in
-                // `CheckEnvelope`.
-                project_cache
-                    .send(GetProjectState::new(public_key))
-                    .map_err(ProcessingError::ScheduleFailed)
-                    .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
-                    .map(|state| (envelope, state, scoping))
-            }))
-            .and_then(move |(envelope, project_state, scoping)| {
+            .and_then(clone!(
+                project_cache,
+                scoping,
+                outcome_producer,
+                envelope_summary,
+                |envelope| {
+                    // get the state for the current project. we can always fetch the cached version
+                    // even if the no_cache flag was passed, as the cache was updated prior in
+                    // `CheckEnvelope`.
+                    project_cache
+                        .send(GetProjectState::new(public_key))
+                        .map_err(ProcessingError::ScheduleFailed)
+                        .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
+                        .map_err(clone!(scoping, |err| {
+                            if let Some(outcome) = err.to_outcome() {
+                                send_outcomes(
+                                    OutcomeContext {
+                                        envelope_summary: envelope_summary.borrow().deref(),
+                                        timestamp: relay_common::instant_to_date_time(start_time),
+                                        event_id,
+                                        outcome,
+                                        remote_addr,
+                                        scoping: *scoping.borrow().deref(),
+                                    },
+                                    outcome_producer,
+                                );
+                            }
+                            err
+                        }))
+                        .map(|state| (envelope, state, scoping))
+                }
+            ))
+            .and_then(clone!(outcome_producer, envelope_summary, |(
+                envelope,
+                project_state,
+                scoping,
+            )| {
                 processor
                     .send(ProcessEnvelope {
                         envelope,
@@ -2085,9 +2185,25 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         start_time,
                         scoping: *scoping.borrow().deref(),
                     })
-                    .map_err(ProcessingError::ScheduleFailed)
+                    .map_err(clone!(scoping, |err| {
+                        let err = ProcessingError::ScheduleFailed(err);
+                        if let Some(outcome) = err.to_outcome() {
+                            send_outcomes(
+                                OutcomeContext {
+                                    envelope_summary: envelope_summary.borrow().deref(),
+                                    timestamp: relay_common::instant_to_date_time(start_time),
+                                    event_id,
+                                    outcome,
+                                    remote_addr,
+                                    scoping: *scoping.borrow().deref(),
+                                },
+                                outcome_producer,
+                            );
+                        }
+                        err
+                    }))
                     .flatten()
-            })
+            }))
             .and_then(clone!(project_cache, envelope_summary, |processed| {
                 let rate_limits = processed.rate_limits;
 
@@ -2115,36 +2231,67 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 }
             }))
             .into_actor(self)
-            .and_then(clone!(scoping, is_received, |envelope, slf, _| {
-                slf.send_envelope(
-                    public_key,
-                    project_cache,
-                    envelope,
-                    *scoping.borrow(),
-                    start_time,
-                )
-                .then(move |result| {
-                    let received = match result {
-                        Ok(_) => true,
-                        Err(SendEnvelopeError::RateLimited(_)) => true,
-                        Err(SendEnvelopeError::SendFailed(ref e)) => e.is_received(),
-                        Err(_) => false,
-                    };
+            .and_then(clone!(
+                scoping,
+                outcome_producer,
+                envelope_summary,
+                |envelope, slf, _| {
+                    slf.send_envelope(
+                        public_key,
+                        project_cache,
+                        envelope,
+                        *scoping.borrow(),
+                        start_time,
+                    )
+                    .then(clone!(scoping, |result| {
+                        let received = match result {
+                            Ok(_) => true,
+                            Err(SendEnvelopeError::RateLimited(_)) => true,
+                            Err(SendEnvelopeError::SendFailed(ref e)) => e.is_received(),
+                            Err(_) => false,
+                        };
 
-                    // Flag that upstream has received the request, which will skip outcome
-                    // generation below.
-                    is_received.store(received, Ordering::SeqCst);
-
-                    result.map_err(|error| match error {
-                        SendEnvelopeError::ScheduleFailed(e) => ProcessingError::ScheduleFailed(e),
-                        #[cfg(feature = "processing")]
-                        SendEnvelopeError::StoreFailed(e) => ProcessingError::StoreFailed(e),
-                        SendEnvelopeError::SendFailed(e) => ProcessingError::SendFailed(e),
-                        SendEnvelopeError::RateLimited(e) => ProcessingError::RateLimited(e),
-                    })
-                })
-                .into_actor(slf)
-            }))
+                        result.map_err(|error| {
+                            let error = match error {
+                                SendEnvelopeError::ScheduleFailed(e) => {
+                                    ProcessingError::ScheduleFailed(e)
+                                }
+                                #[cfg(feature = "processing")]
+                                SendEnvelopeError::StoreFailed(e) => {
+                                    ProcessingError::StoreFailed(e)
+                                }
+                                // do not emit outcomes
+                                SendEnvelopeError::SendFailed(e) => {
+                                    return ProcessingError::SendFailed(e)
+                                }
+                                // do not emit outcomes
+                                SendEnvelopeError::RateLimited(e) => {
+                                    return ProcessingError::RateLimited(e)
+                                }
+                            };
+                            if !received {
+                                if let Some(outcome) = error.to_outcome() {
+                                    send_outcomes(
+                                        OutcomeContext {
+                                            envelope_summary: envelope_summary.borrow().deref(),
+                                            timestamp: relay_common::instant_to_date_time(
+                                                start_time,
+                                            ),
+                                            event_id,
+                                            outcome,
+                                            remote_addr,
+                                            scoping: *scoping.borrow().deref(),
+                                        },
+                                        outcome_producer,
+                                    );
+                                }
+                            }
+                            error
+                        })
+                    }))
+                    .into_actor(slf)
+                }
+            ))
             .timeout(
                 self.config.envelope_buffer_expiry(),
                 ProcessingError::Timeout,
@@ -2164,7 +2311,6 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         relay_log::debug!("dropping failed envelope without event");
                     }
                 }
-                relay_log::trace!("Envelope Error {:?}", error);
                 let outcome = error.to_outcome();
                 if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome {
                     // Errors are only logged for what we consider an internal discard reason. These
@@ -2175,27 +2321,23 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     relay_log::debug!("dropped envelope: {}", LogError(&error));
                 }
 
-                // Do not emit outcomes for requests that have been accepted by the upstream. In
-                // such a case, the upstream assumes ownership and logs the outcome, instead. This
-                // is irrelevant to processing Relays, since they never send to the upstream.
-                if is_received.load(Ordering::SeqCst) {
-                    return;
-                }
-
-                let envelope_summary = envelope_summary.borrow();
-                if let Some(outcome) = outcome {
-                    let timestamp = relay_common::instant_to_date_time(start_time);
-                    send_outcomes(
-                        OutcomeContext {
-                            envelope_summary: &envelope_summary,
-                            timestamp,
-                            outcome: outcome.clone(),
-                            event_id,
-                            remote_addr,
-                            scoping: *scoping.borrow(),
-                        },
-                        outcome_producer,
-                    );
+                if let ProcessingError::Timeout = error {
+                    // handle the last failure (the timeout)
+                    let envelope_summary = envelope_summary.borrow();
+                    if let Some(outcome) = outcome {
+                        let timestamp = relay_common::instant_to_date_time(start_time);
+                        send_outcomes(
+                            OutcomeContext {
+                                envelope_summary: &envelope_summary,
+                                timestamp,
+                                outcome: outcome.clone(),
+                                event_id,
+                                remote_addr,
+                                scoping: *scoping.borrow(),
+                            },
+                            outcome_producer,
+                        );
+                    }
                 }
             })
             .then(move |x, slf, _| {

@@ -381,9 +381,7 @@ pub fn send_outcomes(outcome_context: OutcomeContext, outcome_producer: Addr<Out
         scoping,
     } = outcome_context;
 
-    relay_log::trace!("In send_outcomes() !!! {:?}", envelope_summary);
     if let Some(category) = envelope_summary.event_category {
-        relay_log::trace!(" data category outcome");
         outcome_producer.do_send(TrackOutcome {
             timestamp,
             scoping,
@@ -396,7 +394,6 @@ pub fn send_outcomes(outcome_context: OutcomeContext, outcome_producer: Addr<Out
     }
 
     if envelope_summary.attachment_quantity > 0 {
-        relay_log::trace!(" data category outcome");
         outcome_producer.do_send(TrackOutcome {
             timestamp,
             scoping,
