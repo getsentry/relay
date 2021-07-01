@@ -3091,7 +3091,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.7"
+version = "1.1.4"
 dependencies = [
  "chrono",
  "failure",
@@ -3738,9 +3738,9 @@ dependencies = [
 
 [[package]]
 name = "sentry-release-parser"
-version = "1.1.2"
+version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ce4fa96e25a44f5182858170f9603807b723f4e9c5806c11bf825b63eb80c5c"
+checksum = "9786829b8a55e9f9d46920d594ed351b6344aa9c2d0996ba886f0a5eae2724d3"
 dependencies = [
  "lazy_static",
  "regex",

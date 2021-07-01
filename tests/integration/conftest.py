@@ -1,5 +1,7 @@
 import socket
 import subprocess
+import itertools
+import os
 from os import path
 from typing import Optional
 import json
@@ -10,7 +12,7 @@ import pytest
 from .fixtures.gobetween import gobetween  # noqa
 from .fixtures.haproxy import haproxy  # noqa
 from .fixtures.mini_sentry import mini_sentry  # noqa
-from .fixtures.relay import relay  # noqa
+from .fixtures.relay import relay, get_relay_binary  # noqa
 from .fixtures.processing import (
     kafka_consumer,
     get_topic_name,
@@ -61,24 +63,80 @@ def config_dir(tmpdir):
     return inner
 
 
-@pytest.fixture(  # noqa
-    params=[
+def _parse_version(version):
+    if version == "latest":
+        return (float("inf"),)
+
+    return tuple(map(int, version.split(".")))
+
+
+def _get_relay_chains():
+    rv = [
         "relay->sentry",
         "relay->relay->sentry",
         "relay->ha->relay->gb->sentry",
         "relay->gb->relay->ha->sentry",
-    ],
-)
+    ]
+
+    configured_versions = list(
+        filter(bool, (os.environ.get("RELAY_VERSION_CHAIN") or "").split(","))
+    )
+
+    if configured_versions:
+        rv.append(
+            "->".join(f"relay(version='{version}')" for version in configured_versions)
+            + "->sentry"
+        )
+
+    return rv
+
+
+@pytest.fixture(params=_get_relay_chains())
 def relay_chain(request, mini_sentry, relay, gobetween, haproxy):  # noqa
-    parts = iter(reversed(request.param.split("->")))
-    assert next(parts) == "sentry"
+    """
+    test fixture that nests relays with mini_sentry and some random proxy
+    services. Is parametrized using strings following this syntax:
 
-    factories = {"relay": relay, "gb": gobetween, "ha": haproxy}
+        service1->service2->sentry
+        service1(arg=1, arg2=2)->service2->sentry
 
-    def inner():
+    Which arguments are accepted by a
+    service depends on the service type:
+
+    - `gb` to configure and start gobetween. `haproxy` to configure and start
+      HAProxy. Those two are not run in CI, they used to be included because we
+      had transport-layer problems with actix-web client that were only
+      reproducible by adding more proxies.
+
+    - `relay` to spawn relay.
+
+    - `sentry` to start mini_sentry. Must be the last service and cannot appear
+      before.
+    """
+
+    def inner(min_relay_version="0"):
+        def relay_with_version(upstream, version="latest", **kwargs):
+            if _parse_version(version) < _parse_version(min_relay_version):
+                version = min_relay_version
+
+            return relay(upstream, version=version, **kwargs)
+
+        factories = {"gb": gobetween, "ha": haproxy, "relay": relay_with_version}
+
+        parts = iter(reversed(request.param.split("->")))
+        assert next(parts) == "sentry"
+
         rv = mini_sentry
         for part in parts:
-            rv = factories[part](rv)
+            if "(" in part and part.endswith(")"):
+                service_name, service_args = part.rstrip(")").split("(")
+                service_args = eval(f"dict({service_args})")
+            else:
+                service_name = part
+                service_args = {}
+
+            rv = factories[service_name](rv, **service_args)
+
         return rv
 
     return inner

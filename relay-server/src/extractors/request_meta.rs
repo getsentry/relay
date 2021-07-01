@@ -342,7 +342,7 @@ impl RequestMeta {
         Scoping {
             organization_id: 0,
             project_id: self.project_id().unwrap_or_else(|| ProjectId::new(0)),
-            public_key: self.public_key(),
+            project_key: self.public_key(),
             key_id: None,
         }
     }

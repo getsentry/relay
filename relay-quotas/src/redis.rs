@@ -295,7 +295,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
-                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
         };
@@ -334,7 +334,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
-                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
         };
@@ -371,7 +371,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
-                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
         };
@@ -413,7 +413,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
-                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
         };
@@ -460,7 +460,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 42,
                 project_id: ProjectId::new(43),
-                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
         };
@@ -507,7 +507,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 69420,
                 project_id: ProjectId::new(42),
-                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
         };
@@ -534,7 +534,7 @@ mod tests {
             scoping: &Scoping {
                 organization_id: 69420,
                 project_id: ProjectId::new(42),
-                public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
         };

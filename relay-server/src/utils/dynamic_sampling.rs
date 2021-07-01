@@ -13,8 +13,8 @@ use relay_sampling::{
 
 use crate::actors::outcome::Outcome::FilteredSampling;
 use crate::actors::outcome::{send_outcomes, OutcomeContext, OutcomeProducer};
-use crate::actors::project::{GetCachedProjectState, GetProjectState, ProjectState};
-use crate::actors::project_cache::ProjectCache;
+use crate::actors::project::ProjectState;
+use crate::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
 use crate::envelope::{Envelope, ItemType};
 use crate::utils::EnvelopeSummary;
 use relay_quotas::Scoping;
@@ -135,7 +135,7 @@ pub fn sample_trace(
     timestamp: Instant,
     scoping: Scoping,
 ) -> ResponseFuture<Envelope, RuleId> {
-    let public_key = match public_key {
+    let project_key = match public_key {
         None => return Box::new(future::ok(envelope)),
         Some(project) => project,
     };
@@ -154,7 +154,7 @@ pub fn sample_trace(
     //we have a trace_context and we have a transaction_item see if we can sample them
     let future = if fast_processing {
         let fut = project_cache
-            .send(GetCachedProjectState { public_key })
+            .send(GetCachedProjectState::new(project_key))
             .then(move |project_state| {
                 let project_state = match project_state {
                     // error getting the project, give up and return envelope unchanged
@@ -165,20 +165,21 @@ pub fn sample_trace(
             });
         Box::new(fut) as ResponseFuture<_, _>
     } else {
-        let fut = project_cache
-            .send(GetProjectState::new(public_key))
-            .then(move |project_state| {
-                let project_state = match project_state {
-                    // error getting the project, give up and return envelope unchanged
-                    Err(_) => return Ok(envelope),
-                    Ok(project_state) => project_state,
-                };
-                sample_transaction_internal(
-                    envelope,
-                    project_state.ok().as_deref(),
-                    processing_enabled,
-                )
-            });
+        let fut =
+            project_cache
+                .send(GetProjectState::new(project_key))
+                .then(move |project_state| {
+                    let project_state = match project_state {
+                        // error getting the project, give up and return envelope unchanged
+                        Err(_) => return Ok(envelope),
+                        Ok(project_state) => project_state,
+                    };
+                    sample_transaction_internal(
+                        envelope,
+                        project_state.ok().as_deref(),
+                        processing_enabled,
+                    )
+                });
         Box::new(fut) as ResponseFuture<_, _>
     };
 
@@ -261,11 +262,11 @@ mod tests {
 
         let raw_event = if with_trace_context {
             let trace_id = uuid::Uuid::new_v4();
-            let public_key = "12345678901234567890123456789012";
+            let project_key = "12345678901234567890123456789012";
             let trace_context_raw = format!(
                 r#"{{"trace_id": "{}", "public_key": "{}"}}"#,
                 trace_id.to_simple(),
-                public_key,
+                project_key,
             );
             format!(
                 "{{\"event_id\":\"{}\",\"dsn\":\"{}\", \"trace\": {}}}\n",

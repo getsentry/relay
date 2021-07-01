@@ -38,7 +38,7 @@ def test_forwarding_content_encoding(
 
         return Response(_data, headers=headers)
 
-    relay = relay_chain()
+    relay = relay_chain(min_relay_version="21.6.1")
 
     headers = {"Content-Type": "application/octet-stream"}
 

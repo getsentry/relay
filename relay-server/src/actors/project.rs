@@ -16,14 +16,15 @@ use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_general::store::BreakdownsConfig;
-use relay_metrics::Aggregator;
+use relay_metrics::{self, Aggregator, Bucket, Metric};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::{
-    ProjectCache, ProjectError, ProjectStateResponse, UpdateProjectState,
+    CheckEnvelopeResponse, CheckedEnvelope, ProjectCache, ProjectError, ProjectStateResponse,
+    UpdateProjectState,
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
@@ -282,10 +283,10 @@ impl ProjectState {
     ///
     /// This is a sanity check since project states are keyed by the DSN public key. Unless the
     /// state is invalid or unloaded, it must always match the public key.
-    pub fn is_matching_key(&self, public_key: ProjectKey) -> bool {
+    pub fn is_matching_key(&self, project_key: ProjectKey) -> bool {
         if let Some(key_config) = self.get_public_key_config() {
             // Always validate if we have a key config.
-            key_config.public_key == public_key
+            key_config.public_key == project_key
         } else {
             // Loaded states must have a key config, but ignore missing and invalid states.
             self.project_id.is_none()
@@ -469,9 +470,11 @@ enum AggregatorState {
 /// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
 /// Projects can define multiple keys, in which case this structure is duplicated for each instance.
 pub struct Project {
-    public_key: ProjectKey,
+    last_updated_at: Instant,
+    project_key: ProjectKey,
     config: Arc<Config>,
     outcome_producer: Addr<OutcomeProducer>,
+    project_cache: Addr<ProjectCache>,
     aggregator: AggregatorState,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<StateChannel>,
@@ -485,9 +488,11 @@ impl Project {
         key: ProjectKey,
         config: Arc<Config>,
         outcome_producer: Addr<OutcomeProducer>,
+        project_cache: Addr<ProjectCache>,
     ) -> Self {
         Project {
-            public_key: key,
+            last_updated_at: Instant::now(),
+            project_key: key,
             config,
             outcome_producer,
             aggregator: AggregatorState::Unknown,
@@ -495,6 +500,7 @@ impl Project {
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
+            project_cache,
         }
     }
 
@@ -512,17 +518,26 @@ impl Project {
         self.state.clone()
     }
 
+    /// The last time the project state was updated
+    pub fn last_updated_at(&self) -> Instant {
+        self.last_updated_at
+    }
+
+    /// Refresh the update time of the project in order to delay eviction.
+    ///
+    /// Called by the project cache when the project state is refreshed.
+    pub fn refresh_updated_timestamp(&mut self) {
+        self.last_updated_at = Instant::now();
+    }
+
     /// Creates the aggregator if it is uninitialized and returns it.
     ///
     /// Returns `None` if the aggregator is permanently disabled, primarily for disabled projects.
-    pub fn get_or_create_aggregator(
-        &mut self,
-        context: &mut Context<ProjectCache>,
-    ) -> Option<Addr<Aggregator>> {
+    fn get_or_create_aggregator(&mut self) -> Option<Addr<Aggregator>> {
         if matches!(self.aggregator, AggregatorState::Unknown) {
-            let flush_receiver = context.address().recipient();
+            let flush_receiver = self.project_cache.clone().recipient();
             let aggregator = Aggregator::new(
-                self.public_key,
+                self.project_key,
                 self.config.aggregator_config(),
                 flush_receiver,
             );
@@ -535,6 +550,18 @@ impl Project {
             Some(aggregator.clone())
         } else {
             None
+        }
+    }
+
+    pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
+        if let Some(aggregator) = self.get_or_create_aggregator() {
+            aggregator.do_send(relay_metrics::MergeBuckets::new(buckets));
+        }
+    }
+
+    pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
+        if let Some(aggregator) = self.get_or_create_aggregator() {
+            aggregator.do_send(relay_metrics::InsertMetrics::new(metrics));
         }
     }
 
@@ -551,14 +578,14 @@ impl Project {
     ///
     /// If the aggregator is not stopped immediately. Existing requests can continue and the
     /// aggregator will be stopped when the last reference drops.
-    fn update_aggregator(&mut self, context: &mut Context<ProjectCache>) {
+    fn update_aggregator(&mut self) {
         let metrics_allowed = match self.state() {
             Some(state) => state.check_disabled(&self.config).is_ok(),
             None => return,
         };
 
         if metrics_allowed && matches!(self.aggregator, AggregatorState::Unavailable) {
-            self.get_or_create_aggregator(context);
+            self.get_or_create_aggregator();
         } else if !metrics_allowed {
             self.aggregator = AggregatorState::Unavailable;
         }
@@ -567,7 +594,6 @@ impl Project {
     pub fn get_or_fetch_state(
         &mut self,
         mut no_cache: bool,
-        context: &mut Context<ProjectCache>,
     ) -> Response<Arc<ProjectState>, ProjectError> {
         // count number of times we are looking for the project state
         metric!(counter(RelayCounters::ProjectStateGet) += 1);
@@ -603,11 +629,11 @@ impl Project {
 
         let receiver = match self.state_channel {
             Some(ref channel) if channel.no_cache || !no_cache => {
-                relay_log::debug!("project {} state request amended", self.public_key);
+                relay_log::debug!("project {} state request amended", self.project_key);
                 channel.receiver()
             }
             _ => {
-                relay_log::debug!("project {} state requested", self.public_key);
+                relay_log::debug!("project {} state requested", self.project_key);
 
                 let receiver = self
                     .state_channel
@@ -618,7 +644,7 @@ impl Project {
                 // Either there is no running request, or the current request does not have
                 // `no_cache` set. In both cases, start a new request. All in-flight receivers will
                 // get the latest state.
-                self.fetch_state(no_cache, context);
+                self.fetch_state(no_cache);
 
                 receiver
             }
@@ -635,12 +661,7 @@ impl Project {
         Response::future(future)
     }
 
-    pub fn update_state(
-        &mut self,
-        state_result: Result<ProjectStateResponse, ()>,
-        no_cache: bool,
-        context: &mut Context<ProjectCache>,
-    ) {
+    pub fn update_state(&mut self, state_result: Option<ProjectStateResponse>, no_cache: bool) {
         let channel = match self.state_channel.take() {
             Some(channel) => channel,
             None => return,
@@ -654,23 +675,19 @@ impl Project {
         }
 
         self.state_channel = None;
-        self.state = state_result.map(|resp| resp.state).ok();
-        self.update_aggregator(context);
+        self.state = state_result.map(|resp| resp.state);
+        self.update_aggregator();
 
         if let Some(ref state) = self.state {
-            relay_log::debug!("project state {} updated", self.public_key);
+            relay_log::debug!("project state {} updated", self.project_key);
             channel.send(state.clone());
         }
     }
 
-    fn fetch_state(&mut self, no_cache: bool, context: &mut Context<ProjectCache>) {
+    fn fetch_state(&mut self, no_cache: bool) {
         debug_assert!(self.state_channel.is_some());
-        let public_key = self.public_key;
-
-        context.notify(UpdateProjectState {
-            public_key,
-            no_cache,
-        });
+        self.project_cache
+            .do_send(UpdateProjectState::new(self.project_key, no_cache));
     }
 
     /// Creates `Scoping` for this project if the state is loaded.
@@ -682,7 +699,7 @@ impl Project {
         Some(Scoping {
             organization_id: state.organization_id.unwrap_or(0),
             project_id: state.project_id?,
-            public_key: self.public_key,
+            project_key: self.project_key,
             key_id: state
                 .get_public_key_config()
                 .and_then(|config| config.numeric_id),
@@ -701,7 +718,7 @@ impl Project {
         }
     }
 
-    fn check_envelope(
+    fn check_envelope_scoped(
         &mut self,
         mut envelope: Envelope,
         scoping: &Scoping,
@@ -732,120 +749,9 @@ impl Project {
         })
     }
 
-    pub fn check_envelope_scoped(&mut self, message: CheckEnvelope) -> CheckEnvelopeResponse {
-        let scoping = self.scope_request(message.envelope.meta());
-        let result = self.check_envelope(message.envelope, &scoping);
+    pub fn check_envelope(&mut self, envelope: Envelope) -> CheckEnvelopeResponse {
+        let scoping = self.scope_request(envelope.meta());
+        let result = self.check_envelope_scoped(envelope, &scoping);
         CheckEnvelopeResponse { result, scoping }
     }
-}
-
-/// Returns the project state if it is already cached.
-///
-/// This is used for cases when we only want to perform operations that do
-/// not require waiting for network requests.
-#[derive(Debug)]
-pub struct GetCachedProjectState {
-    pub public_key: ProjectKey,
-}
-
-impl Message for GetCachedProjectState {
-    type Result = Option<Arc<ProjectState>>;
-}
-
-/// Returns the project state.
-///
-/// The project state is fetched if it is missing or outdated. If `no_cache` is specified, then the
-/// state is always refreshed.
-#[derive(Debug)]
-pub struct GetProjectState {
-    pub public_key: ProjectKey,
-    pub no_cache: bool,
-}
-
-impl GetProjectState {
-    /// Fetches the project state and uses the cached version if up-to-date.
-    pub fn new(public_key: ProjectKey) -> Self {
-        Self {
-            public_key,
-            no_cache: false,
-        }
-    }
-
-    /// Fetches the project state and conditionally skips the cache.
-    pub fn no_cache(public_key: ProjectKey, no_cache: bool) -> Self {
-        Self {
-            public_key,
-            no_cache,
-        }
-    }
-}
-
-impl Message for GetProjectState {
-    type Result = Result<Arc<ProjectState>, ProjectError>;
-}
-
-/// Checks the envelope against project configuration and rate limits.
-///
-/// When `fetched`, then the project state is ensured to be up to date. When `cached`, an outdated
-/// project state may be used, or otherwise the envelope is passed through unaltered.
-///
-/// To check the envelope, this runs:
-///  - Validate origins and public keys
-///  - Quotas with a limit of `0`
-///  - Cached rate limits
-#[derive(Debug)]
-pub struct CheckEnvelope {
-    pub public_key: ProjectKey,
-    pub envelope: Envelope,
-    pub fetch: bool,
-}
-
-impl CheckEnvelope {
-    /// Fetches the project state and checks the envelope.
-    pub fn fetched(public_key: ProjectKey, envelope: Envelope) -> Self {
-        Self {
-            public_key,
-            envelope,
-            fetch: true,
-        }
-    }
-
-    /// Uses a cached project state and checks the envelope.
-    pub fn cached(public_key: ProjectKey, envelope: Envelope) -> Self {
-        Self {
-            public_key,
-            envelope,
-            fetch: false,
-        }
-    }
-}
-
-/// A checked envelope and associated rate limits.
-///
-/// Items violating the rate limits have been removed from the envelope. If all items are removed
-/// from the envelope, `None` is returned in place of the envelope.
-#[derive(Debug)]
-pub struct CheckedEnvelope {
-    pub envelope: Option<Envelope>,
-    pub rate_limits: RateLimits,
-}
-
-/// Scoping information along with a checked envelope.
-#[derive(Debug)]
-pub struct CheckEnvelopeResponse {
-    pub result: Result<CheckedEnvelope, DiscardReason>,
-    pub scoping: Scoping,
-}
-
-impl Message for CheckEnvelope {
-    type Result = Result<CheckEnvelopeResponse, ProjectError>;
-}
-
-pub struct UpdateRateLimits {
-    pub public_key: ProjectKey,
-    pub rate_limits: RateLimits,
-}
-
-impl Message for UpdateRateLimits {
-    type Result = ();
 }

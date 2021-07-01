@@ -23,7 +23,7 @@ use relay_general::protocol::{
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
-use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
+use relay_metrics::{Bucket, Metric};
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{RuleId, SamplingResult};
@@ -31,10 +31,11 @@ use relay_sampling::{RuleId, SamplingResult};
 use crate::actors::outcome::{
     send_outcomes, DiscardReason, Outcome, OutcomeContext, OutcomeProducer,
 };
-use crate::actors::project::{
-    CheckEnvelope, Feature, GetProjectState, ProjectState, UpdateRateLimits,
+use crate::actors::project::{Feature, ProjectState};
+use crate::actors::project_cache::{
+    CheckEnvelope, GetProjectState, InsertMetrics, MergeBuckets, ProjectCache, ProjectError,
+    UpdateRateLimits,
 };
-use crate::actors::project_cache::{ProjectCache, ProjectError};
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
@@ -1609,7 +1610,7 @@ struct ProcessMetrics {
     pub items: Vec<Item>,
 
     /// The target project.
-    pub public_key: ProjectKey,
+    pub project_key: ProjectKey,
 
     /// The project cache.
     pub project_cache: Addr<ProjectCache>,
@@ -1632,7 +1633,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
     fn handle(&mut self, message: ProcessMetrics, _context: &mut Self::Context) -> Self::Result {
         let ProcessMetrics {
             items,
-            public_key,
+            project_key: public_key,
             project_cache,
             start_time,
             sent_at,
@@ -1767,7 +1768,7 @@ impl EnvelopeManager {
     /// Sends an envelope to the upstream or Kafka and handles returned rate limits.
     fn send_envelope(
         &mut self,
-        public_key: ProjectKey,
+        project_key: ProjectKey,
         project_cache: Addr<ProjectCache>,
         mut envelope: Envelope,
         scoping: Scoping,
@@ -1855,10 +1856,7 @@ impl EnvelopeManager {
             .and_then(move |result| {
                 if let Err(UpstreamRequestError::RateLimited(upstream_limits)) = result {
                     let limits = upstream_limits.scope(&scoping);
-                    project_cache.do_send(UpdateRateLimits {
-                        public_key,
-                        rate_limits: limits.clone(),
-                    });
+                    project_cache.do_send(UpdateRateLimits::new(project_key, limits.clone()));
                     Err(SendEnvelopeError::RateLimited(limits))
                 } else {
                     result.map_err(SendEnvelopeError::SendFailed)
@@ -1904,7 +1902,7 @@ impl Actor for EnvelopeManager {
 /// `Some(EventId)`.
 pub struct QueueEnvelope {
     pub envelope: Envelope,
-    pub public_key: ProjectKey,
+    pub project_key: ProjectKey,
     pub sampling_project_key: Option<ProjectKey>,
     pub project_cache: Addr<ProjectCache>,
     pub start_time: Instant,
@@ -1929,7 +1927,7 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
         );
         let QueueEnvelope {
             mut envelope,
-            public_key,
+            project_key,
             sampling_project_key,
             project_cache,
             start_time,
@@ -1952,7 +1950,7 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
             relay_log::trace!("sending metrics into processing queue");
             self.processor.do_send(ProcessMetrics {
                 items: metric_items,
-                public_key,
+                project_key,
                 project_cache: project_cache.clone(),
                 start_time,
                 sent_at: envelope.sent_at(),
@@ -1969,7 +1967,7 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
             context.notify(HandleEnvelope {
                 envelope: event_envelope,
                 sampling_project_key,
-                public_key,
+                project_key,
                 project_cache: project_cache.clone(),
                 start_time,
             });
@@ -1980,7 +1978,7 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
             self.active_envelopes += 1;
             context.notify(HandleEnvelope {
                 envelope,
-                public_key,
+                project_key,
                 sampling_project_key,
                 project_cache,
                 start_time,
@@ -2010,7 +2008,7 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
 /// metrics.
 struct HandleEnvelope {
     pub envelope: Envelope,
-    pub public_key: ProjectKey,
+    pub project_key: ProjectKey,
     pub sampling_project_key: Option<ProjectKey>,
     pub project_cache: Addr<ProjectCache>,
     pub start_time: Instant,
@@ -2047,7 +2045,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
 
         let HandleEnvelope {
             envelope,
-            public_key,
+            project_key,
             start_time,
             sampling_project_key,
             project_cache,
@@ -2060,7 +2058,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
         let envelope_summary = Rc::new(RefCell::new(EnvelopeSummary::compute(&envelope)));
 
         let future = project_cache
-            .send(CheckEnvelope::fetched(public_key, envelope))
+            .send(CheckEnvelope::fetched(project_key, envelope))
             .map_err(ProcessingError::ScheduleFailed)
             .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
             .map_err(clone!(scoping, outcome_producer, envelope_summary, |err| {
@@ -2151,7 +2149,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     // even if the no_cache flag was passed, as the cache was updated prior in
                     // `CheckEnvelope`.
                     project_cache
-                        .send(GetProjectState::new(public_key))
+                        .send(GetProjectState::new(project_key))
                         .map_err(ProcessingError::ScheduleFailed)
                         .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
                         .map_err(clone!(scoping, |err| {
@@ -2210,16 +2208,13 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 // Processing returned new rate limits. Cache them on the project to avoid expensive
                 // processing while the limit is active.
                 if rate_limits.is_limited() {
-                    project_cache.do_send(UpdateRateLimits {
-                        public_key,
-                        rate_limits: rate_limits.clone(),
-                    });
+                    project_cache.do_send(UpdateRateLimits::new(project_key, rate_limits.clone()));
                 }
 
                 if !processed.metrics.is_empty() {
                     // Capture extracted metrics in the project's aggregator, independent of dropped
                     // items. This allows us to retain metrics while also sampling.
-                    project_cache.do_send(InsertMetrics::new(public_key, processed.metrics));
+                    project_cache.do_send(InsertMetrics::new(project_key, processed.metrics));
                 }
 
                 match processed.envelope {
@@ -2237,7 +2232,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 envelope_summary,
                 |envelope, slf, _| {
                     slf.send_envelope(
-                        public_key,
+                        project_key,
                         project_cache,
                         envelope,
                         *scoping.borrow(),
@@ -2361,7 +2356,7 @@ pub struct SendMetrics {
     /// Scoping information for the metrics.
     pub scoping: Scoping,
     /// The project of the metrics.
-    pub public_key: ProjectKey,
+    pub project_key: ProjectKey,
     /// The project cache
     pub project_cache: Addr<ProjectCache>,
 }
@@ -2387,14 +2382,14 @@ impl Handler<SendMetrics> for EnvelopeManager {
         let SendMetrics {
             buckets,
             scoping,
-            public_key,
+            project_key,
             project_cache,
         } = message;
 
         let upstream = self.config.upstream_descriptor();
         let dsn = PartialDsn {
             scheme: upstream.scheme(),
-            public_key: scoping.public_key,
+            public_key: scoping.project_key,
             host: upstream.host().to_owned(),
             port: upstream.port(),
             path: "".to_owned(),
@@ -2407,7 +2402,13 @@ impl Handler<SendMetrics> for EnvelopeManager {
         envelope.add_item(item);
 
         let future = self
-            .send_envelope(public_key, project_cache, envelope, scoping, Instant::now())
+            .send_envelope(
+                project_key,
+                project_cache,
+                envelope,
+                scoping,
+                Instant::now(),
+            )
             .map_err(|_| buckets);
 
         Box::new(future)
@@ -2636,7 +2637,7 @@ mod tests {
                 project_state: Arc::new(ProjectState::allowed()),
                 start_time: Instant::now(),
                 scoping: Scoping {
-                    public_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                    project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                     organization_id: 1,
                     project_id: ProjectId::new(1),
                     key_id: None,
