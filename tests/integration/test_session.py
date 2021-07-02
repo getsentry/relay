@@ -355,20 +355,16 @@ def test_session_release_required(
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(days=5, hours=1)
 
-    try:
-        relay.send_session(
-            project_id,
-            {
-                "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
-                "timestamp": timestamp.isoformat(),
-                "started": started.isoformat(),
-            },
-        )
+    relay.send_session(
+        project_id,
+        {
+            "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+            "timestamp": timestamp.isoformat(),
+            "started": started.isoformat(),
+        },
+    )
 
-        sessions_consumer.assert_empty()
-        assert mini_sentry.test_failures
-    finally:
-        mini_sentry.test_failures.clear()
+    sessions_consumer.assert_empty()
 
 
 def test_session_quotas(mini_sentry, relay_with_processing, sessions_consumer):
