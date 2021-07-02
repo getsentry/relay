@@ -991,11 +991,10 @@ impl EnvelopeProcessor {
         } else if let Some(mut item) = raw_security_item {
             relay_log::trace!("processing security report");
             state.sample_rates = item.take_sample_rates();
-            let result = self.event_from_security_report(item);
-            if let Err(ref error) = result {
-                relay_log::error!("failed to extract security report: {}", LogError(error));
-            }
-            result?
+            self.event_from_security_report(item).map_err(|error| {
+                relay_log::error!("failed to extract security report: {}", LogError(&error));
+                error
+            })?
         } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
             relay_log::trace!("extracting attached event data");
             Self::event_from_attachments(&self.config, attachment_item, breadcrumbs1, breadcrumbs2)?
