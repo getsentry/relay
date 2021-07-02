@@ -521,14 +521,8 @@ impl EnvelopeProcessor {
             let mut session = match SessionUpdate::parse(&payload) {
                 Ok(session) => session,
                 Err(error) => {
-                    return relay_log::with_scope(
-                        |s| s.set_extra("session", String::from_utf8_lossy(&payload).into()),
-                        || {
-                            // Skip gracefully here to allow sending other sessions.
-                            relay_log::error!("failed to store session: {}", LogError(&error));
-                            false
-                        },
-                    );
+                    relay_log::trace!("skipping invalid session payload: {}", LogError(&error));
+                    return false;
                 }
             };
 
@@ -749,7 +743,7 @@ impl EnvelopeProcessor {
         };
 
         if let Err(json_error) = apply_result {
-            // logged at call site of extract_event
+            // logged in extract_event
             relay_log::configure_scope(|scope| {
                 scope.set_extra("payload", String::from_utf8_lossy(&data).into());
             });
@@ -997,7 +991,10 @@ impl EnvelopeProcessor {
         } else if let Some(mut item) = raw_security_item {
             relay_log::trace!("processing security report");
             state.sample_rates = item.take_sample_rates();
-            self.event_from_security_report(item)?
+            self.event_from_security_report(item).map_err(|error| {
+                relay_log::error!("failed to extract security report: {}", LogError(&error));
+                error
+            })?
         } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
             relay_log::trace!("extracting attached event data");
             Self::event_from_attachments(&self.config, attachment_item, breadcrumbs1, breadcrumbs2)?
@@ -1416,10 +1413,7 @@ impl EnvelopeProcessor {
                 self.expand_unreal(&mut state)?;
             });
 
-            self.extract_event(&mut state).map_err(|error| {
-                relay_log::error!("failed to extract event: {}", LogError(&error));
-                error
-            })?;
+            self.extract_event(&mut state)?;
 
             if_processing!({
                 self.process_unreal(&mut state)?;
