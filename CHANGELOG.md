@@ -13,6 +13,7 @@
 **Internal**:
 
 - Assign a random Kafka partition key for session aggregates and metrics to distribute messages evenly. ([#1022](https://github.com/getsentry/relay/pull/1022))
+- ref(server) Handle outcomes locally. ([#1030](https://github.com/getsentry/relay/pull/1030))
 
 ## 21.6.1
 
