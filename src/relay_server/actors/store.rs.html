@@ -694,6 +694,10 @@
 <span id="693">693</span>
 <span id="694">694</span>
 <span id="695">695</span>
+<span id="696">696</span>
+<span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module contains the actor that forwards events and attachments to the Sentry store.</span>
 <span class="doccomment">//! The actor uses kafka topics to forward data to Sentry</span>
@@ -708,13 +712,14 @@
 <span class="kw">use</span> <span class="ident">rdkafka::error::KafkaError</span>;
 <span class="kw">use</span> <span class="ident">rdkafka::producer::BaseRecord</span>;
 <span class="kw">use</span> <span class="ident">rdkafka::ClientConfig</span>;
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">BucketValue</span>, <span class="ident">MetricUnit</span>};
 <span class="kw">use</span> <span class="ident">rmp_serde::encode::Error</span> <span class="kw">as</span> <span class="ident">RmpError</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">ser::Error</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">ProjectId</span>, <span class="ident">UnixTimestamp</span>, <span class="ident">Uuid</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">KafkaTopic</span>};
 <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="self">self</span>, <span class="ident">EventId</span>, <span class="ident">SessionAggregates</span>, <span class="ident">SessionStatus</span>, <span class="ident">SessionUpdate</span>};
+<span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
+<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">BucketValue</span>, <span class="ident">MetricUnit</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas::Scoping</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::envelope</span>::{<span class="ident">AttachmentType</span>, <span class="ident">Envelope</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
@@ -867,7 +872,10 @@
             <span class="ident">ItemType::Session</span> <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">session</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">SessionUpdate::parse</span>(<span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">payload</span>()) {
                     <span class="prelude-val">Ok</span>(<span class="ident">session</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">session</span>,
-                    <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
+                    <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to store session: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
+                        <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+                    }
                 };
 
                 <span class="kw">if</span> <span class="ident">session</span>.<span class="ident">status</span> <span class="op">=</span><span class="op">=</span> <span class="ident">SessionStatus::Errored</span> {

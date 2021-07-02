@@ -2709,12 +2709,6 @@
 <span id="2708">2708</span>
 <span id="2709">2709</span>
 <span id="2710">2710</span>
-<span id="2711">2711</span>
-<span id="2712">2712</span>
-<span id="2713">2713</span>
-<span id="2714">2714</span>
-<span id="2715">2715</span>
-<span id="2716">2716</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
@@ -3239,14 +3233,8 @@
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">session</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">SessionUpdate::parse</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>) {
                 <span class="prelude-val">Ok</span>(<span class="ident">session</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">session</span>,
                 <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                    <span class="kw">return</span> <span class="ident">relay_log::with_scope</span>(
-                        <span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">set_extra</span>(<span class="string">&quot;session&quot;</span>, <span class="ident">String::from_utf8_lossy</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>).<span class="ident">into</span>()),
-                        <span class="op">|</span><span class="op">|</span> {
-                            <span class="comment">// Skip gracefully here to allow sending other sessions.</span>
-                            <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to store session: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
-                            <span class="bool-val">false</span>
-                        },
-                    );
+                    <span class="macro">relay_log::trace!</span>(<span class="string">&quot;skipping invalid session payload: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
+                    <span class="kw">return</span> <span class="bool-val">false</span>;
                 }
             };
 
@@ -3467,7 +3455,7 @@
         };
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">json_error</span>) <span class="op">=</span> <span class="ident">apply_result</span> {
-            <span class="comment">// logged at call site of extract_event</span>
+            <span class="comment">// logged in extract_event</span>
             <span class="ident">relay_log::configure_scope</span>(<span class="op">|</span><span class="ident">scope</span><span class="op">|</span> {
                 <span class="ident">scope</span>.<span class="ident">set_extra</span>(<span class="string">&quot;payload&quot;</span>, <span class="ident">String::from_utf8_lossy</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>).<span class="ident">into</span>());
             });
@@ -3715,7 +3703,10 @@
         } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">item</span>) <span class="op">=</span> <span class="ident">raw_security_item</span> {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;processing security report&quot;</span>);
             <span class="ident">state</span>.<span class="ident">sample_rates</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">take_sample_rates</span>();
-            <span class="self">self</span>.<span class="ident">event_from_security_report</span>(<span class="ident">item</span>)<span class="question-mark">?</span>
+            <span class="self">self</span>.<span class="ident">event_from_security_report</span>(<span class="ident">item</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">error</span><span class="op">|</span> {
+                <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to extract security report: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
+                <span class="ident">error</span>
+            })<span class="question-mark">?</span>
         } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">attachment_item</span>.<span class="ident">is_some</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">breadcrumbs1</span>.<span class="ident">is_some</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">breadcrumbs2</span>.<span class="ident">is_some</span>() {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;extracting attached event data&quot;</span>);
             <span class="self">Self</span><span class="ident">::event_from_attachments</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>, <span class="ident">attachment_item</span>, <span class="ident">breadcrumbs1</span>, <span class="ident">breadcrumbs2</span>)<span class="question-mark">?</span>
@@ -4134,10 +4125,7 @@
                 <span class="self">self</span>.<span class="ident">expand_unreal</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
             });
 
-            <span class="self">self</span>.<span class="ident">extract_event</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">error</span><span class="op">|</span> {
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to extract event: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
-                <span class="ident">error</span>
-            })<span class="question-mark">?</span>;
+            <span class="self">self</span>.<span class="ident">extract_event</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
 
             <span class="macro">if_processing!</span>({
                 <span class="self">self</span>.<span class="ident">process_unreal</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>)<span class="question-mark">?</span>;
