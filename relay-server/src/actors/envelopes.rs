@@ -2136,7 +2136,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         scoping,
                     )
                     // outcomes already handled
-                    .map_err(|err| ProcessingError::TraceSampled(err))
+                    .map_err(ProcessingError::TraceSampled)
                 }
             ))
             .and_then(clone!(
@@ -2325,7 +2325,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                             OutcomeContext {
                                 envelope_summary: &envelope_summary,
                                 timestamp,
-                                outcome: outcome.clone(),
+                                outcome,
                                 event_id,
                                 remote_addr,
                                 scoping: *scoping.borrow(),

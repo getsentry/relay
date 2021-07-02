@@ -125,6 +125,7 @@ fn sample_transaction_internal(
 ///
 /// Returns `Ok` if there are remaining items in the envelope. Returns `Err` with the matching rule
 /// identifier if all elements have been removed.
+#[allow(clippy::too_many_arguments)]
 pub fn sample_trace(
     envelope: Envelope,
     public_key: Option<ProjectKey>,
