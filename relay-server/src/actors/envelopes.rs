@@ -464,7 +464,6 @@ pub struct EnvelopeProcessor {
     rate_limiter: Option<RedisRateLimiter>,
     #[cfg(feature = "processing")]
     geoip_lookup: Option<Arc<GeoIpLookup>>,
-    #[cfg(feature = "processing")]
     outcome_producer: Option<Addr<OutcomeProducer>>,
 }
 
@@ -477,7 +476,6 @@ impl EnvelopeProcessor {
             rate_limiter: None,
             #[cfg(feature = "processing")]
             geoip_lookup: None,
-            #[cfg(feature = "processing")]
             outcome_producer: None,
         }
     }
