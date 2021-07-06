@@ -330,6 +330,12 @@ jobs:
       #       -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
       #       confluentinc/cp-kafka:5.1.2
 
+      - name: Pull relay image
+        run: |
+          # pull relay we'll run and kill it for each test
+          docker pull us.gcr.io/sentryio/relay:nightly
+          docker ps -a
+
       - name: Run Sentry integration tests
         working-directory: sentry
         run: |
