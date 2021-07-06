@@ -88,7 +88,11 @@ runs:
 
     - name: Install python dependencies
       shell: bash
+      # Modified from upstream to make things work
       run: |
+        pwd
+        ls
+        cd sentry
         python setup.py install_egg_info
         pip install wheel # GitHub Actions does not have `wheel` installed by default
         pip install -U -e ".[dev]"
