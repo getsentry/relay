@@ -236,10 +236,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # - name: Checkout Relay
-      #   uses: actions/checkout@v2
-      #   with:
-      #     submodules: recursive
+      - name: Checkout Relay
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
 
       - uses: actions-rs/toolchain@v1
         with:
