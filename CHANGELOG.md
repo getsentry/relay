@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 21.6.2
 
 **Internal**:
 
@@ -9,6 +9,7 @@
 **Bug Fixes**:
 
 - Remove connection metrics reported under `connector.*`. They have been fully disabled since version `21.3.0`. ([#1021](https://github.com/getsentry/relay/pull/1021))
+- Remove error logs for "failed to extract event" and "failed to store session". ([#1032](https://github.com/getsentry/relay/pull/1032))
 
 **Internal**:
 
