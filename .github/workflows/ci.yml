@@ -268,13 +268,14 @@ jobs:
         with:
           python-version: 3.6
 
-      # The next few steps are to set up the cache quickly
-      - name: Set pip cache dir
+      - name: Prep steps
         id: info
         # Upgrade pip because older versions don't have `pip cache dir`
         run: |
           pip3 install --upgrade pip
           echo "::set-output name=pip-cache-dir::$(pip3 cache dir)"
+          mkdir -p .github/actions/setup-sentry/
+          cp ../sentry/.github/actions/setup-sentry/action.yml .github/actions/setup-sentry/action.yml
 
       - name: Cache (pip)
         uses: actions/cache@v2
@@ -283,37 +284,53 @@ jobs:
           key: sentry-deps-${{ hashFiles('**/requirements**.txt') }}
           restore-keys: sentry-deps-
 
+      - name: Setup sentry env
+        uses: ./.github/actions/setup-sentry
+        id: setup
+        with:
+          snuba: true
+          kafka: true
+
       # XXX: Can we run the action from Sentry?
-      - name: Set up Sentry
-        working-directory: sentry
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libxmlsec1-dev \
-            libmaxminddb-dev
-          python -m venv .venv
-          source .venv/bin/activate
-          make install-py-dev
-          sentry init
-          sentry devservices up postgres redis snuba
-          docker run \
-            --name sentry_zookeeper \
-            -d --network host \
-            -e ZOOKEEPER_CLIENT_PORT=2181 \
-            confluentinc/cp-zookeeper:4.1.0
-          docker run \
-            --name sentry_kafka \
-            -d --network host \
-            -e KAFKA_ZOOKEEPER_CONNECT=127.0.0.1:2181 \
-            -e KAFKA_LISTENERS=INTERNAL://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092 \
-            -e KAFKA_ADVERTISED_LISTENERS=INTERNAL://127.0.0.1:9093,EXTERNAL://127.0.0.1:9092 \
-            -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT \
-            -e KAFKA_INTER_BROKER_LISTENER_NAME=INTERNAL \
-            -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
-            confluentinc/cp-kafka:5.1.2
+      # - name: Set up Sentry
+      #   working-directory: sentry
+      #   env:
+      #     PIP_DISABLE_PIP_VERSION_CHECK: 1
+      #     MIGRATIONS_TEST_MIGRATE: 0
+      #     NODE_ENV: development
+      #     NODE_OPTIONS: --max-old-space-size=4096
+      #     SENTRY_LIGHT_BUILD: 1
+      #     SENTRY_SKIP_BACKEND_VALIDATION: 1
+      #     PYTEST_SENTRY_DSN: https://6fd5cfea2d4d46b182ad214ac7810508@sentry.io/2423079
+      #     PYTEST_ADDOPTS: --reruns 5
+      #   run: |
+      #     [ "$GITHUB_REF" = "refs/heads/master" ] && export PYTEST_SENTRY_ALWAYS_REPORT=1
+      #     sudo apt-get update
+      #     sudo apt-get install -y --no-install-recommends \
+      #       libxmlsec1-dev \
+      #       libmaxminddb-dev
+      #     python -m venv .venv
+      #     source .venv/bin/activate
+      #     make install-py-dev
+      #     sentry init
+      #     sentry devservices up postgres redis snuba
+      #     docker run \
+      #       --name sentry_zookeeper \
+      #       -d --network host \
+      #       -e ZOOKEEPER_CLIENT_PORT=2181 \
+      #       confluentinc/cp-zookeeper:4.1.0
+      #     docker run \
+      #       --name sentry_kafka \
+      #       -d --network host \
+      #       -e KAFKA_ZOOKEEPER_CONNECT=127.0.0.1:2181 \
+      #       -e KAFKA_LISTENERS=INTERNAL://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092 \
+      #       -e KAFKA_ADVERTISED_LISTENERS=INTERNAL://127.0.0.1:9093,EXTERNAL://127.0.0.1:9092 \
+      #       -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT \
+      #       -e KAFKA_INTER_BROKER_LISTENER_NAME=INTERNAL \
+      #       -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+      #       confluentinc/cp-kafka:5.1.2
 
       - name: Run Sentry integration tests
         working-directory: sentry
         run: |
-          source .venv/bin/activate
           make test-relay-integration
