@@ -364,11 +364,11 @@ impl Message for TrackRawOutcome {
 /// Contains the required information to create an outcome
 #[derive(Clone, Copy)]
 pub struct OutcomeContext {
-    pub envelope_summary: EnvelopeSummary,
-    pub timestamp: DateTime<Utc>,
-    pub event_id: Option<EventId>,
-    pub remote_addr: Option<IpAddr>,
-    pub scoping: Scoping,
+    envelope_summary: EnvelopeSummary,
+    timestamp: DateTime<Utc>,
+    event_id: Option<EventId>,
+    remote_addr: Option<IpAddr>,
+    scoping: Scoping,
 }
 
 impl OutcomeContext {
@@ -386,6 +386,17 @@ impl OutcomeContext {
             remote_addr,
             scoping,
         }
+    }
+
+    pub fn set_scoping(&mut self, scoping: Scoping) {
+        self.scoping = scoping;
+    }
+    pub fn scoping(&self) -> Scoping {
+        self.scoping
+    }
+
+    pub fn set_envelope_summary(&mut self, summary: EnvelopeSummary) {
+        self.envelope_summary = summary;
     }
 }
 

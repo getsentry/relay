@@ -2045,77 +2045,58 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
         let event_id = envelope.event_id();
         let remote_addr = envelope.meta().client_addr();
 
-        let scoping = Rc::new(RefCell::new(envelope.meta().get_partial_scoping()));
-        let envelope_summary = Rc::new(RefCell::new(EnvelopeSummary::compute(&envelope)));
+        let outcome_context = Rc::new(RefCell::new(OutcomeContext::new(
+            EnvelopeSummary::compute(&envelope),
+            relay_common::instant_to_date_time(start_time),
+            event_id,
+            remote_addr,
+            envelope.meta().get_partial_scoping(),
+        )));
 
         let future = project_cache
             .send(CheckEnvelope::fetched(project_key, envelope))
             .map_err(ProcessingError::ScheduleFailed)
             .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
-            .map_err(clone!(scoping, outcome_producer, envelope_summary, |err| {
+            .map_err(clone!(outcome_context, outcome_producer, |err| {
                 if let Some(outcome) = err.to_outcome() {
-                    send_outcomes(
-                        &OutcomeContext::new(
-                            *envelope_summary.borrow(),
-                            relay_common::instant_to_date_time(start_time),
-                            event_id,
-                            remote_addr,
-                            *scoping.borrow(),
-                        ),
-                        outcome,
-                        outcome_producer,
-                    );
+                    send_outcomes(outcome_context.borrow(), outcome, outcome_producer);
                 }
                 err
             }))
-            .and_then(clone!(
-                scoping,
-                envelope_summary,
-                outcome_producer,
-                |response| {
-                    // Use the project id from the loaded project state to account for redirects.
-                    let project_id = response.scoping.project_id.value();
-                    metric!(set(RelaySets::UniqueProjects) = project_id as i64);
+            .and_then(clone!(outcome_context, outcome_producer, |response| {
+                // Use the project id from the loaded project state to account for redirects.
+                let project_id = response.scoping.project_id.value();
+                metric!(set(RelaySets::UniqueProjects) = project_id as i64);
 
-                    scoping.replace(response.scoping);
+                outcome_context.borrow_mut().set_scoping(response.scoping);
 
-                    let checked = match response.result {
-                        Err(err) => {
-                            let err = ProcessingError::Rejected(err);
-                            if let Some(outcome) = err.to_outcome() {
-                                send_outcomes(
-                                    &OutcomeContext::new(
-                                        *envelope_summary.borrow(),
-                                        relay_common::instant_to_date_time(start_time),
-                                        event_id,
-                                        remote_addr,
-                                        *scoping.borrow(),
-                                    ),
-                                    outcome,
-                                    outcome_producer,
-                                );
-                            }
-                            return Err(err);
+                let checked = match response.result {
+                    Err(err) => {
+                        let err = ProcessingError::Rejected(err);
+                        if let Some(outcome) = err.to_outcome() {
+                            send_outcomes(outcome_context.borrow(), outcome, outcome_producer);
                         }
-                        Ok(checked) => checked,
-                    };
-
-                    match checked.envelope {
-                        Some(envelope) => {
-                            envelope_summary.replace(EnvelopeSummary::compute(&envelope));
-                            Ok(envelope)
-                        }
-                        // errors from rate limiting already produced outcomes nothing more to do
-                        None => Err(ProcessingError::RateLimited(checked.rate_limits)),
+                        return Err(err);
                     }
+                    Ok(checked) => checked,
+                };
+
+                match checked.envelope {
+                    Some(envelope) => {
+                        outcome_context
+                            .borrow_mut()
+                            .set_envelope_summary(EnvelopeSummary::compute(&envelope));
+                        Ok(envelope)
+                    }
+                    // errors from rate limiting already produced outcomes nothing more to do
+                    None => Err(ProcessingError::RateLimited(checked.rate_limits)),
                 }
-            ))
+            }))
             .and_then(clone!(
                 project_cache,
                 outcome_producer,
-                scoping,
+                outcome_context,
                 |envelope| {
-                    let scoping: Scoping = *scoping.borrow();
                     utils::sample_trace(
                         envelope,
                         sampling_project_key,
@@ -2124,7 +2105,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         false,
                         processing_enabled,
                         start_time,
-                        scoping,
+                        outcome_context.borrow().scoping(),
                     )
                     // outcomes already handled
                     .map_err(ProcessingError::TraceSampled)
@@ -2132,9 +2113,8 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             ))
             .and_then(clone!(
                 project_cache,
-                scoping,
+                outcome_context,
                 outcome_producer,
-                envelope_summary,
                 |envelope| {
                     // get the state for the current project. we can always fetch the cached version
                     // even if the no_cache flag was passed, as the cache was updated prior in
@@ -2143,57 +2123,36 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         .send(GetProjectState::new(project_key))
                         .map_err(ProcessingError::ScheduleFailed)
                         .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
-                        .map_err(clone!(scoping, |err| {
+                        .map_err(clone!(outcome_context, |err| {
                             if let Some(outcome) = err.to_outcome() {
-                                send_outcomes(
-                                    &OutcomeContext::new(
-                                        *envelope_summary.borrow(),
-                                        relay_common::instant_to_date_time(start_time),
-                                        event_id,
-                                        remote_addr,
-                                        *scoping.borrow(),
-                                    ),
-                                    outcome,
-                                    outcome_producer,
-                                );
+                                send_outcomes(outcome_context.borrow(), outcome, outcome_producer);
                             }
                             err
                         }))
-                        .map(|state| (envelope, state, scoping))
+                        .map(|state| (envelope, state))
                 }
             ))
-            .and_then(clone!(outcome_producer, envelope_summary, |(
+            .and_then(clone!(outcome_producer, outcome_context, |(
                 envelope,
                 project_state,
-                scoping,
             )| {
                 processor
                     .send(ProcessEnvelope {
                         envelope,
                         project_state,
                         start_time,
-                        scoping: *scoping.borrow(),
+                        scoping: outcome_context.borrow().scoping(),
                     })
-                    .map_err(clone!(scoping, |err| {
+                    .map_err(clone!(outcome_context, |err| {
                         let err = ProcessingError::ScheduleFailed(err);
                         if let Some(outcome) = err.to_outcome() {
-                            send_outcomes(
-                                &OutcomeContext::new(
-                                    *envelope_summary.borrow(),
-                                    relay_common::instant_to_date_time(start_time),
-                                    event_id,
-                                    remote_addr,
-                                    *scoping.borrow(),
-                                ),
-                                outcome,
-                                outcome_producer,
-                            );
+                            send_outcomes(outcome_context.borrow(), outcome, outcome_producer);
                         }
                         err
                     }))
                     .flatten()
             }))
-            .and_then(clone!(project_cache, envelope_summary, |processed| {
+            .and_then(clone!(project_cache, outcome_context, |processed| {
                 let rate_limits = processed.rate_limits;
 
                 // Processing returned new rate limits. Cache them on the project to avoid expensive
@@ -2210,7 +2169,9 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
 
                 match processed.envelope {
                     Some(envelope) => {
-                        envelope_summary.replace(EnvelopeSummary::compute(&envelope));
+                        outcome_context
+                            .borrow_mut()
+                            .set_envelope_summary(EnvelopeSummary::compute(&envelope));
                         Ok(envelope)
                     }
                     None => Err(ProcessingError::RateLimited(rate_limits)),
@@ -2218,18 +2179,17 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             }))
             .into_actor(self)
             .and_then(clone!(
-                scoping,
+                outcome_context,
                 outcome_producer,
-                envelope_summary,
                 |envelope, slf, _| {
                     slf.send_envelope(
                         project_key,
                         project_cache,
                         envelope,
-                        *scoping.borrow(),
+                        outcome_context.borrow().scoping(),
                         start_time,
                     )
-                    .then(clone!(scoping, |result| {
+                    .then(clone!(outcome_context, |result| {
                         let received = match result {
                             Ok(_) => true,
                             Err(SendEnvelopeError::RateLimited(_)) => true,
@@ -2258,13 +2218,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                             if !received {
                                 if let Some(outcome) = error.to_outcome() {
                                     send_outcomes(
-                                        &OutcomeContext::new(
-                                            *envelope_summary.borrow(),
-                                            relay_common::instant_to_date_time(start_time),
-                                            event_id,
-                                            remote_addr,
-                                            *scoping.borrow(),
-                                        ),
+                                        outcome_context.borrow(),
                                         outcome,
                                         outcome_producer,
                                     );
@@ -2308,18 +2262,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 if let ProcessingError::Timeout = error {
                     // handle the last failure (the timeout)
                     if let Some(outcome) = outcome {
-                        let timestamp = relay_common::instant_to_date_time(start_time);
-                        send_outcomes(
-                            &OutcomeContext::new(
-                                *envelope_summary.borrow(),
-                                timestamp,
-                                event_id,
-                                remote_addr,
-                                *scoping.borrow(),
-                            ),
-                            outcome,
-                            outcome_producer,
-                        );
+                        send_outcomes(outcome_context.borrow(), outcome, outcome_producer);
                     }
                 }
             })
