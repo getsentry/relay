@@ -11,13 +11,14 @@ use failure::{Fail, ResultExt};
 use rdkafka::error::KafkaError;
 use rdkafka::producer::BaseRecord;
 use rdkafka::ClientConfig;
-use relay_metrics::{Bucket, BucketValue, MetricUnit};
 use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
 
 use relay_common::{metric, ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
+use relay_log::LogError;
+use relay_metrics::{Bucket, BucketValue, MetricUnit};
 use relay_quotas::Scoping;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
@@ -170,7 +171,10 @@ impl StoreForwarder {
             ItemType::Session => {
                 let mut session = match SessionUpdate::parse(&item.payload()) {
                     Ok(session) => session,
-                    Err(_) => return Ok(()),
+                    Err(error) => {
+                        relay_log::error!("failed to store session: {}", LogError(&error));
+                        return Ok(());
+                    }
                 };
 
                 if session.status == SessionStatus::Errored {

@@ -21,6 +21,13 @@ with open(os.path.join(os.path.dirname(__file__), "../../../relay/Cargo.toml")) 
     CURRENT_VERSION = _version_re.search(f.read()).group(1)
 
 
+def _parse_version(version):
+    if version == "latest":
+        return (float("inf"),)
+
+    return tuple(map(int, version.split(".")))
+
+
 class Sentry(SentryLike):
     def __init__(self, server_address, app):
         super(Sentry, self).__init__(server_address)
@@ -193,17 +200,27 @@ def mini_sentry(request):
     @app.route("/api/0/relays/register/challenge/", methods=["POST"])
     def get_challenge():
         relay_id = flask_request.json["relay_id"]
-        public_key = flask_request.json["public_key"]
-        version = flask_request.json["version"]
-
         assert relay_id == flask_request.headers["x-sentry-relay-id"]
+
         if relay_id not in sentry.known_relays:
             abort(403, "unknown relay")
 
-        if version != CURRENT_VERSION:
+        relay_info = sentry.known_relays[relay_id]
+
+        public_key = flask_request.json["public_key"]
+        version = flask_request.json.get("version")
+        registered_version = relay_info["version"]
+
+        if version is None:
+            if _parse_version(registered_version) >= (20, 8):
+                abort(400, "missing version")
+
+        elif version != registered_version and not (
+            registered_version == "latest" and version == CURRENT_VERSION
+        ):
             abort(403, "outdated version")
 
-        authenticated_relays[relay_id] = sentry.known_relays[relay_id]
+        authenticated_relays[relay_id] = relay_info
         return jsonify({"token": "123", "relay_id": relay_id})
 
     @app.route("/api/0/relays/register/response/", methods=["POST"])

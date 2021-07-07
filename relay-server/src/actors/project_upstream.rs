@@ -336,7 +336,7 @@ impl Handler<FetchProjectState> for UpstreamProjectSource {
 
         let query_timeout = self.config.query_timeout();
         let FetchProjectState {
-            public_key,
+            project_key: public_key,
             no_cache,
         } = message;
 

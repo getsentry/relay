@@ -229,6 +229,8 @@ jobs:
 
       - name: Run tests
         run: pytest tests -n auto -v
+        env:
+          RELAY_VERSION_CHAIN: '20.6.0,latest'
 
   test_against_latest_sentry:
     name: Sentry-Relay Integration Tests

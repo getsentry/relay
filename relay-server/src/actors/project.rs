@@ -4,7 +4,6 @@ use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
-use futures::future;
 use futures::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -17,20 +16,20 @@ use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_general::store::BreakdownsConfig;
-use relay_metrics::{
-    AggregateMetricsError, Aggregator, Bucket, FlushBuckets, InsertMetrics, MergeBuckets,
-};
+use relay_metrics::{self, Aggregator, Bucket, Metric};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 
-use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::DiscardReason;
 use crate::actors::outcome::OutcomeProducer;
-use crate::actors::project_cache::{FetchProjectState, ProjectCache, ProjectError};
+use crate::actors::project_cache::{
+    CheckEnvelopeResponse, CheckedEnvelope, ProjectCache, ProjectError, ProjectStateResponse,
+    UpdateProjectState,
+};
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
-use crate::utils::{ActorResponse, EnvelopeLimiter, Response};
+use crate::utils::{EnvelopeLimiter, Response};
 
 /// The current status of a project state. Return value of `ProjectState::outdated`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -284,10 +283,10 @@ impl ProjectState {
     ///
     /// This is a sanity check since project states are keyed by the DSN public key. Unless the
     /// state is invalid or unloaded, it must always match the public key.
-    pub fn is_matching_key(&self, public_key: ProjectKey) -> bool {
+    pub fn is_matching_key(&self, project_key: ProjectKey) -> bool {
         if let Some(key_config) = self.get_public_key_config() {
             // Always validate if we have a key config.
-            key_config.public_key == public_key
+            key_config.public_key == project_key
         } else {
             // Loaded states must have a key config, but ignore missing and invalid states.
             self.project_id.is_none()
@@ -466,16 +465,16 @@ enum AggregatorState {
     Unavailable,
 }
 
-/// Actor representing organization and project configuration for a project key.
+/// Structure representing organization and project configuration for a project key.
 ///
-/// This actor no longer uniquely identifies a project. Instead, it identifies a project key.
-/// Projects can define multiple keys, in which case this actor is duplicated for each instance.
+/// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
+/// Projects can define multiple keys, in which case this structure is duplicated for each instance.
 pub struct Project {
-    public_key: ProjectKey,
+    last_updated_at: Instant,
+    project_key: ProjectKey,
     config: Arc<Config>,
-    manager: Addr<ProjectCache>,
-    event_manager: Addr<EnvelopeManager>,
     outcome_producer: Addr<OutcomeProducer>,
+    project_cache: Addr<ProjectCache>,
     aggregator: AggregatorState,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<StateChannel>,
@@ -484,26 +483,29 @@ pub struct Project {
 }
 
 impl Project {
-    /// Creates a new `Project` actor.
+    /// Creates a new `Project`.
     pub fn new(
         key: ProjectKey,
         config: Arc<Config>,
-        manager: Addr<ProjectCache>,
-        event_manager: Addr<EnvelopeManager>,
         outcome_producer: Addr<OutcomeProducer>,
+        project_cache: Addr<ProjectCache>,
     ) -> Self {
         Project {
-            public_key: key,
+            last_updated_at: Instant::now(),
+            project_key: key,
             config,
-            manager,
-            event_manager,
             outcome_producer,
             aggregator: AggregatorState::Unknown,
             state: None,
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
+            project_cache,
         }
+    }
+
+    pub fn merge_rate_limits(&mut self, rate_limits: RateLimits) {
+        self.rate_limits.merge(rate_limits);
     }
 
     /// Returns a reference to the project state if available.
@@ -511,16 +513,34 @@ impl Project {
         self.state.as_deref()
     }
 
+    /// Returns a reference to the project state if available.
+    pub fn state_clone(&self) -> Option<Arc<ProjectState>> {
+        self.state.clone()
+    }
+
+    /// The last time the project state was updated
+    pub fn last_updated_at(&self) -> Instant {
+        self.last_updated_at
+    }
+
+    /// Refresh the update time of the project in order to delay eviction.
+    ///
+    /// Called by the project cache when the project state is refreshed.
+    pub fn refresh_updated_timestamp(&mut self) {
+        self.last_updated_at = Instant::now();
+    }
+
     /// Creates the aggregator if it is uninitialized and returns it.
     ///
     /// Returns `None` if the aggregator is permanently disabled, primarily for disabled projects.
-    fn get_or_create_aggregator(
-        &mut self,
-        context: &mut Context<Self>,
-    ) -> Option<Addr<Aggregator>> {
+    fn get_or_create_aggregator(&mut self) -> Option<Addr<Aggregator>> {
         if matches!(self.aggregator, AggregatorState::Unknown) {
-            let flush_receiver = context.address().recipient();
-            let aggregator = Aggregator::new(self.config.aggregator_config(), flush_receiver);
+            let flush_receiver = self.project_cache.clone().recipient();
+            let aggregator = Aggregator::new(
+                self.project_key,
+                self.config.aggregator_config(),
+                flush_receiver,
+            );
             // TODO: This starts the aggregator on the project arbiter, but we want a separate
             // thread or thread pool for this.
             self.aggregator = AggregatorState::Available(aggregator.start());
@@ -530,6 +550,18 @@ impl Project {
             Some(aggregator.clone())
         } else {
             None
+        }
+    }
+
+    pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
+        if let Some(aggregator) = self.get_or_create_aggregator() {
+            aggregator.do_send(relay_metrics::MergeBuckets::new(buckets));
+        }
+    }
+
+    pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
+        if let Some(aggregator) = self.get_or_create_aggregator() {
+            aggregator.do_send(relay_metrics::InsertMetrics::new(metrics));
         }
     }
 
@@ -546,23 +578,22 @@ impl Project {
     ///
     /// If the aggregator is not stopped immediately. Existing requests can continue and the
     /// aggregator will be stopped when the last reference drops.
-    fn update_aggregator(&mut self, context: &mut Context<Self>) {
+    fn update_aggregator(&mut self) {
         let metrics_allowed = match self.state() {
             Some(state) => state.check_disabled(&self.config).is_ok(),
             None => return,
         };
 
         if metrics_allowed && matches!(self.aggregator, AggregatorState::Unavailable) {
-            self.get_or_create_aggregator(context);
+            self.get_or_create_aggregator();
         } else if !metrics_allowed {
             self.aggregator = AggregatorState::Unavailable;
         }
     }
 
-    fn get_or_fetch_state(
+    pub fn get_or_fetch_state(
         &mut self,
         mut no_cache: bool,
-        context: &mut Context<Self>,
     ) -> Response<Arc<ProjectState>, ProjectError> {
         // count number of times we are looking for the project state
         metric!(counter(RelayCounters::ProjectStateGet) += 1);
@@ -598,11 +629,11 @@ impl Project {
 
         let receiver = match self.state_channel {
             Some(ref channel) if channel.no_cache || !no_cache => {
-                relay_log::debug!("project {} state request amended", self.public_key);
+                relay_log::debug!("project {} state request amended", self.project_key);
                 channel.receiver()
             }
             _ => {
-                relay_log::debug!("project {} state requested", self.public_key);
+                relay_log::debug!("project {} state requested", self.project_key);
 
                 let receiver = self
                     .state_channel
@@ -613,7 +644,7 @@ impl Project {
                 // Either there is no running request, or the current request does not have
                 // `no_cache` set. In both cases, start a new request. All in-flight receivers will
                 // get the latest state.
-                self.fetch_state(no_cache, context);
+                self.fetch_state(no_cache);
 
                 receiver
             }
@@ -630,52 +661,45 @@ impl Project {
         Response::future(future)
     }
 
-    fn fetch_state(&mut self, no_cache: bool, context: &mut Context<Self>) {
+    pub fn update_state(&mut self, state_result: Option<ProjectStateResponse>, no_cache: bool) {
+        let channel = match self.state_channel.take() {
+            Some(channel) => channel,
+            None => return,
+        };
+
+        // If the channel has `no_cache` set but we are not a `no_cache` request, we have
+        // been superseeded. Put it back and let the other request take precedence.
+        if channel.no_cache && !no_cache {
+            self.state_channel = Some(channel);
+            return;
+        }
+
+        self.state_channel = None;
+        self.state = state_result.map(|resp| resp.state);
+        self.update_aggregator();
+
+        if let Some(ref state) = self.state {
+            relay_log::debug!("project state {} updated", self.project_key);
+            channel.send(state.clone());
+        }
+    }
+
+    fn fetch_state(&mut self, no_cache: bool) {
         debug_assert!(self.state_channel.is_some());
-        let public_key = self.public_key;
-
-        self.manager
-            .send(FetchProjectState {
-                public_key,
-                no_cache,
-            })
-            .into_actor(self)
-            .map(move |state_result, slf, context| {
-                let channel = match slf.state_channel.take() {
-                    Some(channel) => channel,
-                    None => return,
-                };
-
-                // If the channel has `no_cache` set but we are not a `no_cache` request, we have
-                // been superseeded. Put it back and let the other request take precedence.
-                if channel.no_cache && !no_cache {
-                    slf.state_channel = Some(channel);
-                    return;
-                }
-
-                slf.state_channel = None;
-                slf.state = state_result.map(|resp| resp.state).ok();
-                slf.update_aggregator(context);
-
-                if let Some(ref state) = slf.state {
-                    relay_log::debug!("project state {} updated", public_key);
-                    channel.send(state.clone());
-                }
-            })
-            .drop_err()
-            .spawn(context);
+        self.project_cache
+            .do_send(UpdateProjectState::new(self.project_key, no_cache));
     }
 
     /// Creates `Scoping` for this project if the state is loaded.
     ///
     /// Returns `Some` if the project state has been fetched and contains a project identifier,
     /// otherwise `None`.
-    fn scoping(&self) -> Option<Scoping> {
+    pub fn scoping(&self) -> Option<Scoping> {
         let state = self.state()?;
         Some(Scoping {
             organization_id: state.organization_id.unwrap_or(0),
             project_id: state.project_id?,
-            public_key: self.public_key,
+            project_key: self.project_key,
             key_id: state
                 .get_public_key_config()
                 .and_then(|config| config.numeric_id),
@@ -694,7 +718,7 @@ impl Project {
         }
     }
 
-    fn check_envelope(
+    fn check_envelope_scoped(
         &mut self,
         mut envelope: Envelope,
         scoping: &Scoping,
@@ -725,248 +749,9 @@ impl Project {
         })
     }
 
-    fn check_envelope_scoped(&mut self, message: CheckEnvelope) -> CheckEnvelopeResponse {
-        let scoping = self.scope_request(message.envelope.meta());
-        let result = self.check_envelope(message.envelope, &scoping);
+    pub fn check_envelope(&mut self, envelope: Envelope) -> CheckEnvelopeResponse {
+        let scoping = self.scope_request(envelope.meta());
+        let result = self.check_envelope_scoped(envelope, &scoping);
         CheckEnvelopeResponse { result, scoping }
-    }
-}
-
-impl Actor for Project {
-    type Context = Context<Self>;
-
-    fn started(&mut self, _ctx: &mut Self::Context) {
-        relay_log::debug!("project {} initialized without state", self.public_key);
-    }
-
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
-        relay_log::debug!("project {} removed from cache", self.public_key);
-    }
-}
-
-/// Returns the project state if it is already cached.
-///
-/// This is used for cases when we only want to perform operations that do
-/// not require waiting for network requests.
-#[derive(Debug)]
-pub struct GetCachedProjectState;
-
-impl Message for GetCachedProjectState {
-    type Result = Option<Arc<ProjectState>>;
-}
-
-impl Handler<GetCachedProjectState> for Project {
-    type Result = Option<Arc<ProjectState>>;
-
-    fn handle(
-        &mut self,
-        _message: GetCachedProjectState,
-        _context: &mut Context<Self>,
-    ) -> Self::Result {
-        self.state.clone()
-    }
-}
-
-/// Returns the project state.
-///
-/// The project state is fetched if it is missing or outdated. If `no_cache` is specified, then the
-/// state is always refreshed.
-#[derive(Debug)]
-pub struct GetProjectState {
-    no_cache: bool,
-}
-
-impl GetProjectState {
-    /// Fetches the project state and uses the cached version if up-to-date.
-    pub fn new() -> Self {
-        Self { no_cache: false }
-    }
-
-    /// Fetches the project state and conditionally skips the cache.
-    pub fn no_cache(no_cache: bool) -> Self {
-        Self { no_cache }
-    }
-}
-
-impl Message for GetProjectState {
-    type Result = Result<Arc<ProjectState>, ProjectError>;
-}
-
-impl Handler<GetProjectState> for Project {
-    type Result = Response<Arc<ProjectState>, ProjectError>;
-
-    fn handle(&mut self, message: GetProjectState, context: &mut Context<Self>) -> Self::Result {
-        self.get_or_fetch_state(message.no_cache, context)
-    }
-}
-
-/// Checks the envelope against project configuration and rate limits.
-///
-/// When `fetched`, then the project state is ensured to be up to date. When `cached`, an outdated
-/// project state may be used, or otherwise the envelope is passed through unaltered.
-///
-/// To check the envelope, this runs:
-///  - Validate origins and public keys
-///  - Quotas with a limit of `0`
-///  - Cached rate limits
-#[derive(Debug)]
-pub struct CheckEnvelope {
-    envelope: Envelope,
-    fetch: bool,
-}
-
-impl CheckEnvelope {
-    /// Fetches the project state and checks the envelope.
-    pub fn fetched(envelope: Envelope) -> Self {
-        Self {
-            envelope,
-            fetch: true,
-        }
-    }
-
-    /// Uses a cached project state and checks the envelope.
-    pub fn cached(envelope: Envelope) -> Self {
-        Self {
-            envelope,
-            fetch: false,
-        }
-    }
-}
-
-/// A checked envelope and associated rate limits.
-///
-/// Items violating the rate limits have been removed from the envelope. If all items are removed
-/// from the envelope, `None` is returned in place of the envelope.
-#[derive(Debug)]
-pub struct CheckedEnvelope {
-    pub envelope: Option<Envelope>,
-    pub rate_limits: RateLimits,
-}
-
-/// Scoping information along with a checked envelope.
-#[derive(Debug)]
-pub struct CheckEnvelopeResponse {
-    pub result: Result<CheckedEnvelope, DiscardReason>,
-    pub scoping: Scoping,
-}
-
-impl Message for CheckEnvelope {
-    type Result = Result<CheckEnvelopeResponse, ProjectError>;
-}
-
-impl Handler<CheckEnvelope> for Project {
-    type Result = ActorResponse<Self, CheckEnvelopeResponse, ProjectError>;
-
-    fn handle(&mut self, message: CheckEnvelope, context: &mut Self::Context) -> Self::Result {
-        if message.fetch {
-            // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
-            // This will return synchronously if the state is still cached.
-            self.get_or_fetch_state(message.envelope.meta().no_cache(), context)
-                .into_actor()
-                .map(self, context, move |_, slf, _ctx| {
-                    slf.check_envelope_scoped(message)
-                })
-        } else {
-            // Preload the project cache so that it arrives a little earlier in processing. However,
-            // do not pass `no_cache`. In case the project is rate limited, we do not want to force
-            // a full reload.
-            self.get_or_fetch_state(false, context);
-
-            // message.fetch == false: Fetching must not block the store request. The
-            // EnvelopeManager will later fetch the project state.
-            ActorResponse::ok(self.check_envelope_scoped(message))
-        }
-    }
-}
-
-pub struct UpdateRateLimits(pub RateLimits);
-
-impl Message for UpdateRateLimits {
-    type Result = ();
-}
-
-impl Handler<UpdateRateLimits> for Project {
-    type Result = ();
-
-    fn handle(&mut self, message: UpdateRateLimits, _context: &mut Self::Context) -> Self::Result {
-        let UpdateRateLimits(rate_limits) = message;
-        self.rate_limits.merge(rate_limits);
-    }
-}
-
-impl Handler<InsertMetrics> for Project {
-    type Result = Result<(), AggregateMetricsError>;
-
-    fn handle(&mut self, message: InsertMetrics, context: &mut Self::Context) -> Self::Result {
-        // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
-        if let Some(aggregator) = self.get_or_create_aggregator(context) {
-            aggregator.do_send(message);
-        }
-
-        Ok(())
-    }
-}
-
-impl Handler<MergeBuckets> for Project {
-    type Result = Result<(), AggregateMetricsError>;
-
-    fn handle(&mut self, message: MergeBuckets, context: &mut Self::Context) -> Self::Result {
-        // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
-        if let Some(aggregator) = self.get_or_create_aggregator(context) {
-            aggregator.do_send(message);
-        }
-
-        Ok(())
-    }
-}
-
-impl Handler<FlushBuckets> for Project {
-    type Result = ResponseFuture<(), Vec<Bucket>>;
-
-    fn handle(&mut self, message: FlushBuckets, context: &mut Self::Context) -> Self::Result {
-        let outdated = match self.state() {
-            Some(state) => state.outdated(&self.config),
-            None => Outdated::HardOutdated,
-        };
-
-        // Schedule an update to the project state if it is outdated, regardless of whether the
-        // metrics can be forwarded or not. We never wait for this update.
-        if outdated != Outdated::Updated {
-            self.get_or_fetch_state(false, context);
-        }
-
-        // If the state is outdated, we need to wait for an updated state. Put them back into the
-        // aggregator and wait for the next flush cycle.
-        if outdated == Outdated::HardOutdated {
-            return Box::new(future::err(message.into_buckets()));
-        }
-
-        let (state, scoping) = match (self.state(), self.scoping()) {
-            (Some(state), Some(scoping)) => (state, scoping),
-            _ => return Box::new(future::err(message.into_buckets())),
-        };
-
-        // Only send if the project state is valid, otherwise drop this bucket.
-        if state.check_disabled(&self.config).is_err() {
-            return Box::new(future::ok(()));
-        }
-
-        let future = self
-            .event_manager
-            .send(SendMetrics {
-                buckets: message.into_buckets(),
-                scoping,
-                project: context.address(),
-            })
-            .then(move |send_result| match send_result {
-                Ok(Ok(())) => Ok(()),
-                Ok(Err(buckets)) => Err(buckets),
-                Err(_) => {
-                    relay_log::error!("dropped metric buckets: envelope manager mailbox full");
-                    Ok(())
-                }
-            });
-
-        Box::new(future)
     }
 }

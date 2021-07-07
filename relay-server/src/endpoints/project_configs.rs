@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::ProjectKey;
 
-use crate::actors::project::{GetProjectState, LimitedProjectState, ProjectState};
-use crate::actors::project_cache::GetProject;
+use crate::actors::project::{LimitedProjectState, ProjectState};
+use crate::actors::project_cache::GetProjectState;
 use crate::actors::project_upstream::GetProjectStates;
 use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;
@@ -66,17 +66,12 @@ fn get_project_configs(
     let full = relay.internal && body.inner.full_config;
     let no_cache = body.inner.no_cache;
 
-    let futures = body.inner.public_keys.into_iter().map(move |public_key| {
+    let project_cache = state.project_cache();
+    let futures = body.inner.public_keys.into_iter().map(move |project_key| {
         let relay = relay.clone();
-        state
-            .project_cache()
-            .send(GetProject { public_key })
+        project_cache
+            .send(GetProjectState::new(project_key).no_cache(no_cache))
             .map_err(Error::from)
-            .and_then(move |project| {
-                project
-                    .send(GetProjectState::no_cache(no_cache))
-                    .map_err(Error::from)
-            })
             .map(move |project_state| {
                 let project_state = project_state.ok()?;
                 // If public key is known (even if rate-limited, which is Some(false)), it has
@@ -92,12 +87,12 @@ fn get_project_configs(
                     relay_log::debug!(
                         "Relay {} does not have access to project key {}",
                         relay.public_key,
-                        public_key
+                        project_key
                     );
                     None
                 }
             })
-            .map(move |project_state| (public_key, project_state))
+            .map(move |project_state| (project_key, project_state))
     });
 
     Box::new(future::join_all(futures).map(move |mut project_states| {

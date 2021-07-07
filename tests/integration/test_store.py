@@ -943,7 +943,7 @@ def test_buffer_events_during_outage(relay, mini_sentry):
 
 
 def test_store_invalid_gzip(mini_sentry, relay_chain):
-    relay = relay_chain()
+    relay = relay_chain(min_relay_version="21.6.0")
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
