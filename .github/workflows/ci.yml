@@ -268,13 +268,6 @@ jobs:
         with:
           python-version: 3.6
 
-      # - name: Set up Sentry for Relay
-      #   env:
-      #     NEED_KAFKA: 1
-      #     NEED_SNUBA: 1
-      #   run: |
-      #     ./.github/scripts/setup-sentry.sh
-
       # A slightly modified version from upstream to account for different paths
       - name: Setup Sentry
         uses: ./.github/actions/setup-sentry
@@ -289,13 +282,6 @@ jobs:
           path: ${{ steps.setup.outputs.pip-cache-dir }}
           key: sentry-deps-${{ hashFiles('**/requirements**.txt') }}
           restore-keys: sentry-deps-
-
-      # XXX: For now
-      - name: Pull relay image
-        run: |
-          # pull relay we'll run and kill it for each test
-          docker pull us.gcr.io/sentryio/relay:nightly
-          docker ps -a
 
       - name: Run Sentry integration tests
         working-directory: sentry
