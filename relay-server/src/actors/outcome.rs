@@ -362,12 +362,12 @@ impl Message for TrackRawOutcome {
 
 /// Contains the required information to create an outcome
 pub struct OutcomeContext {
-    pub envelope_summary: EnvelopeSummary,
-    pub timestamp: DateTime<Utc>,
-    pub outcome: Option<Outcome>,
-    pub event_id: Option<EventId>,
-    pub remote_addr: Option<IpAddr>,
-    pub scoping: Scoping,
+    envelope_summary: EnvelopeSummary,
+    timestamp: DateTime<Utc>,
+    outcome: Option<Outcome>,
+    event_id: Option<EventId>,
+    remote_addr: Option<IpAddr>,
+    scoping: Scoping,
 }
 
 impl OutcomeContext {
