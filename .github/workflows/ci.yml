@@ -268,20 +268,26 @@ jobs:
         with:
           python-version: 3.6
 
-      # A slightly modified version from upstream to account for different paths
+      - name: Get pip cache dir
+        id: pip
+        run: |
+          pip install --upgrade pip wheel
+          echo "::set-output name=pip-cache-dir::$(pip cache dir)"
+
+      - name: Cache (pip)
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.pip.outputs.pip-cache-dir }}
+          key: sentry-deps-${{ hashFiles('**/requirements**.txt') }}
+          restore-keys: sentry-deps-
+
+      # A slightly modified version from upstream since I can't make it change directories
       - name: Setup Sentry
         uses: ./.github/actions/setup-sentry
         id: setup
         with:
           snuba: true
           kafka: true
-
-      - name: Cache (pip)
-        uses: actions/cache@v2
-        with:
-          path: ${{ steps.setup.outputs.pip-cache-dir }}
-          key: sentry-deps-${{ hashFiles('**/requirements**.txt') }}
-          restore-keys: sentry-deps-
 
       - name: Run Sentry integration tests
         working-directory: sentry
