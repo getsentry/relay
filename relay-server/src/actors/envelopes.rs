@@ -1218,14 +1218,14 @@ impl EnvelopeProcessor {
             relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
                 if let Some(ref outcome_producer) = self.outcome_producer {
                     send_outcomes(
-                        OutcomeContext::new(
+                        &OutcomeContext::new(
                             state.summary,
                             state.received_at,
-                            Outcome::Filtered(err),
                             state.envelope.event_id(),
                             client_ip,
                             state.scoping,
                         ),
+                        Outcome::Filtered(err),
                         outcome_producer.clone(),
                     );
                 }
@@ -1422,14 +1422,14 @@ impl EnvelopeProcessor {
             SamplingResult::Drop(rule_id) => {
                 if let Some(ref outcome_producer) = self.outcome_producer {
                     send_outcomes(
-                        OutcomeContext::new(
+                        &OutcomeContext::new(
                             state.summary,
                             state.received_at,
-                            Outcome::FilteredSampling(rule_id),
                             state.envelope.event_id(),
                             client_ip,
                             state.scoping,
                         ),
+                        Outcome::FilteredSampling(rule_id),
                         outcome_producer.clone(),
                     );
                 }
@@ -1522,14 +1522,14 @@ impl EnvelopeProcessor {
                     if let Some(ref outcome_producer) = self.outcome_producer {
                         if let Some(outcome) = err.to_outcome() {
                             send_outcomes(
-                                OutcomeContext::new(
+                                &OutcomeContext::new(
                                     envelope_summary,
                                     timestamp,
-                                    outcome,
                                     event_id,
                                     remote_addr,
                                     scoping,
                                 ),
+                                outcome,
                                 outcome_producer.clone(),
                             );
                         }
@@ -2055,14 +2055,14 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             .map_err(clone!(scoping, outcome_producer, envelope_summary, |err| {
                 if let Some(outcome) = err.to_outcome() {
                     send_outcomes(
-                        OutcomeContext::new(
+                        &OutcomeContext::new(
                             *envelope_summary.borrow(),
                             relay_common::instant_to_date_time(start_time),
-                            outcome,
                             event_id,
                             remote_addr,
                             *scoping.borrow(),
                         ),
+                        outcome,
                         outcome_producer,
                     );
                 }
@@ -2084,14 +2084,14 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                             let err = ProcessingError::Rejected(err);
                             if let Some(outcome) = err.to_outcome() {
                                 send_outcomes(
-                                    OutcomeContext::new(
+                                    &OutcomeContext::new(
                                         *envelope_summary.borrow(),
                                         relay_common::instant_to_date_time(start_time),
-                                        outcome,
                                         event_id,
                                         remote_addr,
                                         *scoping.borrow(),
                                     ),
+                                    outcome,
                                     outcome_producer,
                                 );
                             }
@@ -2146,14 +2146,14 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         .map_err(clone!(scoping, |err| {
                             if let Some(outcome) = err.to_outcome() {
                                 send_outcomes(
-                                    OutcomeContext::new(
+                                    &OutcomeContext::new(
                                         *envelope_summary.borrow(),
                                         relay_common::instant_to_date_time(start_time),
-                                        outcome,
                                         event_id,
                                         remote_addr,
                                         *scoping.borrow(),
                                     ),
+                                    outcome,
                                     outcome_producer,
                                 );
                             }
@@ -2178,14 +2178,14 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         let err = ProcessingError::ScheduleFailed(err);
                         if let Some(outcome) = err.to_outcome() {
                             send_outcomes(
-                                OutcomeContext::new(
+                                &OutcomeContext::new(
                                     *envelope_summary.borrow(),
                                     relay_common::instant_to_date_time(start_time),
-                                    outcome,
                                     event_id,
                                     remote_addr,
                                     *scoping.borrow(),
                                 ),
+                                outcome,
                                 outcome_producer,
                             );
                         }
@@ -2258,14 +2258,14 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                             if !received {
                                 if let Some(outcome) = error.to_outcome() {
                                     send_outcomes(
-                                        OutcomeContext::new(
+                                        &OutcomeContext::new(
                                             *envelope_summary.borrow(),
                                             relay_common::instant_to_date_time(start_time),
-                                            outcome,
                                             event_id,
                                             remote_addr,
                                             *scoping.borrow(),
                                         ),
+                                        outcome,
                                         outcome_producer,
                                     );
                                 }
@@ -2310,14 +2310,14 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     if let Some(outcome) = outcome {
                         let timestamp = relay_common::instant_to_date_time(start_time);
                         send_outcomes(
-                            OutcomeContext::new(
+                            &OutcomeContext::new(
                                 *envelope_summary.borrow(),
                                 timestamp,
-                                outcome,
                                 event_id,
                                 remote_addr,
                                 *scoping.borrow(),
                             ),
+                            outcome,
                             outcome_producer,
                         );
                     }

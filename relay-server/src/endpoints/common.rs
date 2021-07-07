@@ -436,14 +436,14 @@ where
                 if envelope.is_empty() {
                     if let Some(outcome) = BadStoreRequest::EmptyEnvelope.to_outcome() {
                         send_outcomes(
-                            OutcomeContext::new(
+                            &OutcomeContext::new(
                                 *envelope_summary.borrow(),
                                 timestamp,
-                                outcome,
                                 *event_id.borrow(),
                                 remote_addr,
                                 *scoping.borrow(),
                             ),
+                            outcome,
                             outcome_producer,
                         )
                     }
@@ -468,14 +468,14 @@ where
                     .map_err(move |err| {
                         if let Some(outcome) = err.to_outcome() {
                             send_outcomes(
-                                OutcomeContext::new(
+                                &OutcomeContext::new(
                                     *envelope_summary.borrow(),
                                     timestamp,
-                                    outcome,
                                     *event_id.borrow(),
                                     remote_addr,
                                     *scoping.borrow(),
                                 ),
+                                outcome,
                                 outcome_producer,
                             )
                         }
@@ -513,14 +513,14 @@ where
                     .map_err(move |err| {
                         if let Some(outcome) = err.to_outcome() {
                             send_outcomes(
-                                OutcomeContext::new(
+                                &OutcomeContext::new(
                                     *envelope_summary.borrow(),
                                     timestamp,
-                                    outcome,
                                     *event_id.borrow(),
                                     remote_addr,
                                     *scoping.borrow(),
                                 ),
+                                outcome,
                                 outcome_producer,
                             )
                         }
@@ -572,14 +572,14 @@ where
                     .map_err(move |err| {
                         if let Some(outcome) = err.to_outcome() {
                             send_outcomes(
-                                OutcomeContext::new(
+                                &OutcomeContext::new(
                                     *envelope_summary.borrow(),
                                     timestamp,
-                                    outcome,
                                     *event_id.borrow(),
                                     remote_addr,
                                     *scoping.borrow(),
                                 ),
+                                outcome,
                                 outcome_producer,
                             )
                         }

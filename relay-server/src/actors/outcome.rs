@@ -7,6 +7,7 @@
 use std::borrow::Cow;
 use std::mem;
 use std::net::IpAddr;
+use std::ops::Deref;
 use std::sync::Arc;
 
 use actix::prelude::*;
@@ -361,20 +362,19 @@ impl Message for TrackRawOutcome {
 }
 
 /// Contains the required information to create an outcome
+#[derive(Clone, Copy)]
 pub struct OutcomeContext {
-    envelope_summary: EnvelopeSummary,
-    timestamp: DateTime<Utc>,
-    outcome: Option<Outcome>,
-    event_id: Option<EventId>,
-    remote_addr: Option<IpAddr>,
-    scoping: Scoping,
+    pub envelope_summary: EnvelopeSummary,
+    pub timestamp: DateTime<Utc>,
+    pub event_id: Option<EventId>,
+    pub remote_addr: Option<IpAddr>,
+    pub scoping: Scoping,
 }
 
 impl OutcomeContext {
     pub fn new(
         envelope_summary: EnvelopeSummary,
         timestamp: DateTime<Utc>,
-        outcome: Outcome,
         event_id: Option<EventId>,
         remote_addr: Option<IpAddr>,
         scoping: Scoping,
@@ -382,7 +382,6 @@ impl OutcomeContext {
         OutcomeContext {
             envelope_summary,
             timestamp,
-            outcome: Some(outcome),
             event_id,
             remote_addr,
             scoping,
@@ -391,42 +390,43 @@ impl OutcomeContext {
 }
 
 /// Sends outcomes for an envelope summary
-pub fn send_outcomes(outcome_context: OutcomeContext, outcome_producer: Addr<OutcomeProducer>) {
+pub fn send_outcomes<T>(
+    outcome_context: T,
+    outcome: Outcome,
+    outcome_producer: Addr<OutcomeProducer>,
+) where
+    T: Deref<Target = OutcomeContext>,
+{
     let OutcomeContext {
         envelope_summary,
         timestamp,
-        outcome,
         event_id,
         remote_addr,
         scoping,
-    } = outcome_context;
+    } = outcome_context.deref();
 
-    if let Some(outcome) = outcome {
-        if let Some(category) = envelope_summary.event_category {
-            outcome_producer.do_send(TrackOutcome {
-                timestamp,
-                scoping,
-                outcome: outcome.clone(),
-                event_id,
-                remote_addr,
-                category,
-                quantity: 1,
-            });
-        }
+    if let Some(category) = envelope_summary.event_category {
+        outcome_producer.do_send(TrackOutcome {
+            timestamp: *timestamp,
+            scoping: *scoping,
+            outcome: outcome.clone(),
+            event_id: *event_id,
+            remote_addr: *remote_addr,
+            category,
+            quantity: 1,
+        });
+    }
 
-        if envelope_summary.attachment_quantity > 0 {
-            outcome_producer.do_send(TrackOutcome {
-                timestamp,
-                scoping,
-                outcome,
-                event_id,
-                remote_addr,
-                category: DataCategory::Attachment,
-                quantity: envelope_summary.attachment_quantity,
-            });
-        }
-    } else {
-        relay_log::error!("Trying to send outcomes without specifying the outcome.")
+    if envelope_summary.attachment_quantity > 0 {
+        outcome_producer.do_send(TrackOutcome {
+            timestamp: *timestamp,
+            scoping: *scoping,
+            outcome,
+            event_id: *event_id,
+            remote_addr: *remote_addr,
+            category: DataCategory::Attachment,
+            quantity: envelope_summary.attachment_quantity,
+        });
     }
 }
 
