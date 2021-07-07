@@ -20,7 +20,7 @@ outputs:
     value: ${{ steps.config.outputs.yarn-cache-dir }}
   pip-cache-dir:
     description: "Path to pip cache"
-    value: ${{ steps.pip-cache.outputs.pip-cache }}
+    value: ${{ steps.config.outputs.pip-cache }}
   acceptance-dir:
     description: "Path to acceptance visual snapshot artifacts"
     value: ${{ steps.config.outputs.acceptance-dir }}
@@ -85,6 +85,8 @@ runs:
         echo "::set-output name=yarn-cache-dir::$(yarn cache dir)"
         echo "::set-output name=matrix-instance-number::$(($MATRIX_INSTANCE+1))"
         echo "::set-output name=acceptance-dir::.artifacts/visual-snapshots/acceptance"
+        SENTRY_NO_VENV_CHECK=1 ./scripts/do.sh upgrade-pip
+        echo "::set-output name=pip-cache::$(pip cache dir)"
 
     - name: Install python dependencies
       shell: bash
@@ -94,7 +96,6 @@ runs:
         ls
         cd sentry
         python setup.py install_egg_info
-        pip install wheel # GitHub Actions does not have `wheel` installed by default
         pip install -U -e ".[dev]"
 
         # pytest plugin used for better pytest failure annotations
