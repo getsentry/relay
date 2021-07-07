@@ -85,7 +85,9 @@ runs:
         echo "::set-output name=yarn-cache-dir::$(yarn cache dir)"
         echo "::set-output name=matrix-instance-number::$(($MATRIX_INSTANCE+1))"
         echo "::set-output name=acceptance-dir::.artifacts/visual-snapshots/acceptance"
-        SENTRY_NO_VENV_CHECK=1 ./scripts/do.sh upgrade-pip
+        pwd
+        ls
+        pip install --upgrade pip wheel
         echo "::set-output name=pip-cache::$(pip cache dir)"
 
     - name: Install python dependencies
