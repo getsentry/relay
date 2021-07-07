@@ -187,14 +187,14 @@ pub fn sample_trace(
     Box::new(future.map_err(move |err| {
         // if the envelope is sampled, send outcomes
         send_outcomes(
-            OutcomeContext {
-                envelope_summary: &envelope_summary,
-                timestamp: relay_common::instant_to_date_time(timestamp),
-                outcome: FilteredSampling(err),
+            OutcomeContext::new(
+                envelope_summary,
+                relay_common::instant_to_date_time(timestamp),
+                FilteredSampling(err),
                 event_id,
                 remote_addr,
                 scoping,
-            },
+            ),
             outcome_producer,
         );
         err

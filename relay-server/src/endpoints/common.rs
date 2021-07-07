@@ -1,7 +1,6 @@
 //! Common facilities for ingesting events through store-like endpoints.
 
 use std::cell::RefCell;
-use std::ops::Deref;
 use std::rc::Rc;
 
 use actix::prelude::*;
@@ -437,14 +436,14 @@ where
                 if envelope.is_empty() {
                     if let Some(outcome) = BadStoreRequest::EmptyEnvelope.to_outcome() {
                         send_outcomes(
-                            OutcomeContext {
-                                envelope_summary: &envelope_summary.borrow(),
+                            OutcomeContext::new(
+                                *envelope_summary.borrow(),
                                 timestamp,
                                 outcome,
-                                event_id: *event_id.borrow(),
+                                *event_id.borrow(),
                                 remote_addr,
-                                scoping: *scoping.borrow(),
-                            },
+                                *scoping.borrow(),
+                            ),
                             outcome_producer,
                         )
                     }
@@ -469,14 +468,14 @@ where
                     .map_err(move |err| {
                         if let Some(outcome) = err.to_outcome() {
                             send_outcomes(
-                                OutcomeContext {
-                                    envelope_summary: &envelope_summary.borrow(),
+                                OutcomeContext::new(
+                                    *envelope_summary.borrow(),
                                     timestamp,
                                     outcome,
-                                    event_id: *event_id.borrow(),
+                                    *event_id.borrow(),
                                     remote_addr,
-                                    scoping: *scoping.borrow(),
-                                },
+                                    *scoping.borrow(),
+                                ),
                                 outcome_producer,
                             )
                         }
@@ -514,14 +513,14 @@ where
                     .map_err(move |err| {
                         if let Some(outcome) = err.to_outcome() {
                             send_outcomes(
-                                OutcomeContext {
-                                    envelope_summary: &envelope_summary.borrow(),
+                                OutcomeContext::new(
+                                    *envelope_summary.borrow(),
                                     timestamp,
                                     outcome,
-                                    event_id: *event_id.borrow(),
+                                    *event_id.borrow(),
                                     remote_addr,
-                                    scoping: *scoping.borrow(),
-                                },
+                                    *scoping.borrow(),
+                                ),
                                 outcome_producer,
                             )
                         }
@@ -536,7 +535,7 @@ where
             |(envelope, rate_limits)| {
                 let sampling_project_key = envelope.trace_context().map(|tc| tc.public_key);
 
-                let scoping: Scoping = *scoping.borrow().deref();
+                let scoping: Scoping = *scoping.borrow();
                 utils::sample_trace(
                     envelope,
                     sampling_project_key,
@@ -573,14 +572,14 @@ where
                     .map_err(move |err| {
                         if let Some(outcome) = err.to_outcome() {
                             send_outcomes(
-                                OutcomeContext {
-                                    envelope_summary: &envelope_summary.borrow(),
+                                OutcomeContext::new(
+                                    *envelope_summary.borrow(),
                                     timestamp,
                                     outcome,
-                                    event_id: *event_id.borrow(),
+                                    *event_id.borrow(),
                                     remote_addr,
-                                    scoping: *scoping.borrow(),
-                                },
+                                    *scoping.borrow(),
+                                ),
                                 outcome_producer,
                             )
                         }

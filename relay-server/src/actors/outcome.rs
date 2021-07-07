@@ -361,13 +361,33 @@ impl Message for TrackRawOutcome {
 }
 
 /// Contains the required information to create an outcome
-pub struct OutcomeContext<'a> {
-    pub envelope_summary: &'a EnvelopeSummary,
+pub struct OutcomeContext {
+    pub envelope_summary: EnvelopeSummary,
     pub timestamp: DateTime<Utc>,
-    pub outcome: Outcome,
+    pub outcome: Option<Outcome>,
     pub event_id: Option<EventId>,
     pub remote_addr: Option<IpAddr>,
     pub scoping: Scoping,
+}
+
+impl OutcomeContext {
+    pub fn new(
+        envelope_summary: EnvelopeSummary,
+        timestamp: DateTime<Utc>,
+        outcome: Outcome,
+        event_id: Option<EventId>,
+        remote_addr: Option<IpAddr>,
+        scoping: Scoping,
+    ) -> Self {
+        OutcomeContext {
+            envelope_summary,
+            timestamp,
+            outcome: Some(outcome),
+            event_id,
+            remote_addr,
+            scoping,
+        }
+    }
 }
 
 /// Sends outcomes for an envelope summary
@@ -381,28 +401,32 @@ pub fn send_outcomes(outcome_context: OutcomeContext, outcome_producer: Addr<Out
         scoping,
     } = outcome_context;
 
-    if let Some(category) = envelope_summary.event_category {
-        outcome_producer.do_send(TrackOutcome {
-            timestamp,
-            scoping,
-            outcome: outcome.clone(),
-            event_id,
-            remote_addr,
-            category,
-            quantity: 1,
-        });
-    }
+    if let Some(outcome) = outcome {
+        if let Some(category) = envelope_summary.event_category {
+            outcome_producer.do_send(TrackOutcome {
+                timestamp,
+                scoping,
+                outcome: outcome.clone(),
+                event_id,
+                remote_addr,
+                category,
+                quantity: 1,
+            });
+        }
 
-    if envelope_summary.attachment_quantity > 0 {
-        outcome_producer.do_send(TrackOutcome {
-            timestamp,
-            scoping,
-            outcome,
-            event_id,
-            remote_addr,
-            category: DataCategory::Attachment,
-            quantity: envelope_summary.attachment_quantity,
-        });
+        if envelope_summary.attachment_quantity > 0 {
+            outcome_producer.do_send(TrackOutcome {
+                timestamp,
+                scoping,
+                outcome,
+                event_id,
+                remote_addr,
+                category: DataCategory::Attachment,
+                quantity: envelope_summary.attachment_quantity,
+            });
+        }
+    } else {
+        relay_log::error!("Trying to send outcomes without specifying the outcome.")
     }
 }
 
