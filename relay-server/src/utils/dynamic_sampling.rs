@@ -11,8 +11,9 @@ use relay_sampling::{
     get_matching_event_rule, pseudo_random_from_uuid, rule_type_for_event, RuleId, SamplingResult,
 };
 
+use crate::actors::envelopes::EnvelopeContext;
 use crate::actors::outcome::Outcome::FilteredSampling;
-use crate::actors::outcome::{send_outcomes, OutcomeContext, OutcomeProducer};
+use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
 use crate::envelope::{Envelope, ItemType};
@@ -186,17 +187,14 @@ pub fn sample_trace(
 
     Box::new(future.map_err(move |err| {
         // if the envelope is sampled, send outcomes
-        send_outcomes(
-            &OutcomeContext::new(
-                envelope_summary,
-                relay_common::instant_to_date_time(timestamp),
-                event_id,
-                remote_addr,
-                scoping,
-            ),
-            FilteredSampling(err),
-            outcome_producer,
-        );
+        EnvelopeContext::new(
+            envelope_summary,
+            relay_common::instant_to_date_time(timestamp),
+            event_id,
+            remote_addr,
+            scoping,
+        )
+        .send_outcomes(FilteredSampling(err), outcome_producer);
         err
     }))
 }

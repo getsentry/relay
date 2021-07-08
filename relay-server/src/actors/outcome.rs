@@ -7,7 +7,6 @@
 use std::borrow::Cow;
 use std::mem;
 use std::net::IpAddr;
-use std::ops::Deref;
 use std::sync::Arc;
 
 use actix::prelude::*;
@@ -26,7 +25,6 @@ use relay_sampling::RuleId;
 
 use crate::actors::upstream::SendQuery;
 use crate::actors::upstream::{UpstreamQuery, UpstreamRelay};
-use crate::utils::EnvelopeSummary;
 use crate::ServerError;
 
 // Choose the outcome module implementation (either processing or non-processing).
@@ -359,86 +357,6 @@ impl TrackRawOutcome {
 
 impl Message for TrackRawOutcome {
     type Result = Result<(), OutcomeError>;
-}
-
-/// Contains the required information to create an outcome
-#[derive(Clone, Copy)]
-pub struct OutcomeContext {
-    envelope_summary: EnvelopeSummary,
-    timestamp: DateTime<Utc>,
-    event_id: Option<EventId>,
-    remote_addr: Option<IpAddr>,
-    scoping: Scoping,
-}
-
-impl OutcomeContext {
-    pub fn new(
-        envelope_summary: EnvelopeSummary,
-        timestamp: DateTime<Utc>,
-        event_id: Option<EventId>,
-        remote_addr: Option<IpAddr>,
-        scoping: Scoping,
-    ) -> Self {
-        OutcomeContext {
-            envelope_summary,
-            timestamp,
-            event_id,
-            remote_addr,
-            scoping,
-        }
-    }
-
-    pub fn set_scoping(&mut self, scoping: Scoping) {
-        self.scoping = scoping;
-    }
-    pub fn scoping(&self) -> Scoping {
-        self.scoping
-    }
-
-    pub fn set_envelope_summary(&mut self, summary: EnvelopeSummary) {
-        self.envelope_summary = summary;
-    }
-}
-
-/// Sends outcomes for an envelope summary
-pub fn send_outcomes<T>(
-    outcome_context: T,
-    outcome: Outcome,
-    outcome_producer: Addr<OutcomeProducer>,
-) where
-    T: Deref<Target = OutcomeContext>,
-{
-    let OutcomeContext {
-        envelope_summary,
-        timestamp,
-        event_id,
-        remote_addr,
-        scoping,
-    } = outcome_context.deref();
-
-    if let Some(category) = envelope_summary.event_category {
-        outcome_producer.do_send(TrackOutcome {
-            timestamp: *timestamp,
-            scoping: *scoping,
-            outcome: outcome.clone(),
-            event_id: *event_id,
-            remote_addr: *remote_addr,
-            category,
-            quantity: 1,
-        });
-    }
-
-    if envelope_summary.attachment_quantity > 0 {
-        outcome_producer.do_send(TrackOutcome {
-            timestamp: *timestamp,
-            scoping: *scoping,
-            outcome,
-            event_id: *event_id,
-            remote_addr: *remote_addr,
-            category: DataCategory::Attachment,
-            quantity: envelope_summary.attachment_quantity,
-        });
-    }
 }
 
 /// This is the implementation that uses kafka queues and does stuff
