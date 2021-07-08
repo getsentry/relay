@@ -2119,7 +2119,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
         let event_id = envelope.event_id();
         let remote_addr = envelope.meta().client_addr();
 
-        let outcome_context = Rc::new(RefCell::new(EnvelopeContext::new(
+        let envelope_context = Rc::new(RefCell::new(EnvelopeContext::new(
             EnvelopeSummary::compute(&envelope),
             relay_common::instant_to_date_time(start_time),
             event_id,
@@ -2131,26 +2131,26 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             .send(CheckEnvelope::fetched(project_key, envelope))
             .map_err(ProcessingError::ScheduleFailed)
             .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
-            .map_err(clone!(outcome_context, outcome_producer, |err| {
+            .map_err(clone!(envelope_context, outcome_producer, |err| {
                 if let Some(outcome) = err.to_outcome() {
-                    outcome_context
+                    envelope_context
                         .borrow()
                         .send_outcomes(outcome, outcome_producer);
                 }
                 err
             }))
-            .and_then(clone!(outcome_context, outcome_producer, |response| {
+            .and_then(clone!(envelope_context, outcome_producer, |response| {
                 // Use the project id from the loaded project state to account for redirects.
                 let project_id = response.scoping.project_id.value();
                 metric!(set(RelaySets::UniqueProjects) = project_id as i64);
 
-                outcome_context.borrow_mut().set_scoping(response.scoping);
+                envelope_context.borrow_mut().set_scoping(response.scoping);
 
                 let checked = match response.result {
                     Err(err) => {
                         let err = ProcessingError::Rejected(err);
                         if let Some(outcome) = err.to_outcome() {
-                            outcome_context
+                            envelope_context
                                 .borrow()
                                 .send_outcomes(outcome, outcome_producer);
                         }
@@ -2161,7 +2161,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
 
                 match checked.envelope {
                     Some(envelope) => {
-                        outcome_context
+                        envelope_context
                             .borrow_mut()
                             .set_envelope_summary(EnvelopeSummary::compute(&envelope));
                         Ok(envelope)
@@ -2173,7 +2173,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             .and_then(clone!(
                 project_cache,
                 outcome_producer,
-                outcome_context,
+                envelope_context,
                 |envelope| {
                     utils::sample_trace(
                         envelope,
@@ -2183,7 +2183,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         false,
                         processing_enabled,
                         start_time,
-                        outcome_context.borrow().scoping(),
+                        envelope_context.borrow().scoping(),
                     )
                     // outcomes already handled
                     .map_err(ProcessingError::TraceSampled)
@@ -2191,7 +2191,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             ))
             .and_then(clone!(
                 project_cache,
-                outcome_context,
+                envelope_context,
                 outcome_producer,
                 |envelope| {
                     // get the state for the current project. we can always fetch the cached version
@@ -2201,9 +2201,9 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         .send(GetProjectState::new(project_key))
                         .map_err(ProcessingError::ScheduleFailed)
                         .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
-                        .map_err(clone!(outcome_context, |err| {
+                        .map_err(clone!(envelope_context, |err| {
                             if let Some(outcome) = err.to_outcome() {
-                                outcome_context
+                                envelope_context
                                     .borrow()
                                     .send_outcomes(outcome, outcome_producer);
                             }
@@ -2212,7 +2212,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         .map(|state| (envelope, state))
                 }
             ))
-            .and_then(clone!(outcome_producer, outcome_context, |(
+            .and_then(clone!(outcome_producer, envelope_context, |(
                 envelope,
                 project_state,
             )| {
@@ -2221,12 +2221,12 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         envelope,
                         project_state,
                         start_time,
-                        scoping: outcome_context.borrow().scoping(),
+                        scoping: envelope_context.borrow().scoping(),
                     })
-                    .map_err(clone!(outcome_context, |err| {
+                    .map_err(clone!(envelope_context, |err| {
                         let err = ProcessingError::ScheduleFailed(err);
                         if let Some(outcome) = err.to_outcome() {
-                            outcome_context
+                            envelope_context
                                 .borrow()
                                 .send_outcomes(outcome, outcome_producer);
                         }
@@ -2234,7 +2234,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     }))
                     .flatten()
             }))
-            .and_then(clone!(project_cache, outcome_context, |processed| {
+            .and_then(clone!(project_cache, envelope_context, |processed| {
                 let rate_limits = processed.rate_limits;
 
                 // Processing returned new rate limits. Cache them on the project to avoid expensive
@@ -2251,7 +2251,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
 
                 match processed.envelope {
                     Some(envelope) => {
-                        outcome_context
+                        envelope_context
                             .borrow_mut()
                             .set_envelope_summary(EnvelopeSummary::compute(&envelope));
                         Ok(envelope)
@@ -2261,17 +2261,17 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             }))
             .into_actor(self)
             .and_then(clone!(
-                outcome_context,
+                envelope_context,
                 outcome_producer,
                 |envelope, slf, _| {
                     slf.send_envelope(
                         project_key,
                         project_cache,
                         envelope,
-                        outcome_context.borrow().scoping(),
+                        envelope_context.borrow().scoping(),
                         start_time,
                     )
-                    .then(clone!(outcome_context, |result| {
+                    .then(clone!(envelope_context, |result| {
                         let received = match result {
                             Ok(_) => true,
                             Err(SendEnvelopeError::RateLimited(_)) => true,
@@ -2299,7 +2299,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                             };
                             if !received {
                                 if let Some(outcome) = error.to_outcome() {
-                                    outcome_context
+                                    envelope_context
                                         .borrow()
                                         .send_outcomes(outcome, outcome_producer);
                                 }
@@ -2342,7 +2342,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 if let ProcessingError::Timeout = error {
                     // handle the last failure (the timeout)
                     if let Some(outcome) = outcome {
-                        outcome_context
+                        envelope_context
                             .borrow()
                             .send_outcomes(outcome, outcome_producer);
                     }

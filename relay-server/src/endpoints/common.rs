@@ -408,7 +408,7 @@ where
     let project_id = meta.project_id().unwrap_or_else(|| ProjectId::new(0));
     let is_internal = config.processing_internal_projects().contains(&project_id);
 
-    let outcome_context = Rc::new(RefCell::new(EnvelopeContext::new(
+    let envelope_context = Rc::new(RefCell::new(EnvelopeContext::new(
         EnvelopeSummary::empty(),
         relay_common::instant_to_date_time(start_time),
         None,
@@ -418,7 +418,7 @@ where
 
     let future = extract_envelope(&request, meta)
         .into_future()
-        .and_then(clone!(outcome_producer, outcome_context, |envelope| {
+        .and_then(clone!(outcome_producer, envelope_context, |envelope| {
             let summary = EnvelopeSummary::compute(&envelope);
 
             if is_internal && summary.event_category == Some(DataCategory::Transaction) {
@@ -428,14 +428,14 @@ where
                 );
             }
 
-            outcome_context
+            envelope_context
                 .borrow_mut()
                 .set_event_id(envelope.event_id())
                 .set_envelope_summary(summary);
 
             if envelope.is_empty() {
                 if let Some(outcome) = BadStoreRequest::EmptyEnvelope.to_outcome() {
-                    outcome_context
+                    envelope_context
                         .borrow()
                         .send_outcomes(outcome, outcome_producer)
                 }
@@ -447,7 +447,7 @@ where
         .and_then(clone!(
             project_manager,
             outcome_producer,
-            outcome_context,
+            envelope_context,
             |envelope| {
                 project_manager
                     .send(CheckEnvelope::cached(project_key, envelope))
@@ -455,7 +455,7 @@ where
                     .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
                     .map_err(move |err| {
                         if let Some(outcome) = err.to_outcome() {
-                            outcome_context
+                            envelope_context
                                 .borrow()
                                 .send_outcomes(outcome, outcome_producer);
                         }
@@ -463,8 +463,8 @@ where
                     })
             }
         ))
-        .and_then(clone!(outcome_producer, outcome_context, |response| {
-            outcome_context.borrow_mut().set_scoping(response.scoping);
+        .and_then(clone!(outcome_producer, envelope_context, |response| {
+            envelope_context.borrow_mut().set_scoping(response.scoping);
 
             response
                 .result
@@ -476,7 +476,7 @@ where
                         None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
                     };
 
-                    outcome_context
+                    envelope_context
                         .borrow_mut()
                         .set_envelope_summary(EnvelopeSummary::compute(&envelope));
                     if check_envelope_size_limits(&config, &envelope) {
@@ -487,7 +487,7 @@ where
                 })
                 .map_err(move |err| {
                     if let Some(outcome) = err.to_outcome() {
-                        outcome_context
+                        envelope_context
                             .borrow()
                             .send_outcomes(outcome, outcome_producer)
                     }
@@ -497,10 +497,10 @@ where
         .and_then(clone!(
             project_manager,
             outcome_producer,
-            outcome_context,
+            envelope_context,
             |(envelope, rate_limits)| {
                 let sampling_project_key = envelope.trace_context().map(|tc| tc.public_key);
-                let scoping = outcome_context.borrow().scoping();
+                let scoping = envelope_context.borrow().scoping();
 
                 utils::sample_trace(
                     envelope,
@@ -518,7 +518,7 @@ where
                 })
             }
         ))
-        .and_then(clone!(outcome_producer, outcome_context, |(
+        .and_then(clone!(outcome_producer, envelope_context, |(
             envelope,
             rate_limits,
             sampling_project_key,
@@ -535,7 +535,7 @@ where
                 .and_then(|result| result.map_err(BadStoreRequest::QueueFailed))
                 .map_err(move |err| {
                     if let Some(outcome) = err.to_outcome() {
-                        outcome_context
+                        envelope_context
                             .borrow()
                             .send_outcomes(outcome, outcome_producer)
                     }
@@ -552,7 +552,7 @@ where
         })
         .or_else(move |error: BadStoreRequest| {
             metric!(counter(RelayCounters::EnvelopeRejected) += 1);
-            let event_id = outcome_context.borrow().event_id();
+            let event_id = envelope_context.borrow().event_id();
 
             if !emit_rate_limit && matches!(error, BadStoreRequest::RateLimited(_)) {
                 return Ok(create_response(event_id));
