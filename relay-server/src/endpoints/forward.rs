@@ -15,7 +15,7 @@ use relay_common::GlobMatcher;
 use relay_config::Config;
 use relay_log::LogError;
 
-use crate::actors::upstream::{SendRequest, UpstreamRequestError};
+use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::body::ForwardBody;
 use crate::endpoints::statics;
 use crate::extractors::ForwardedFor;
@@ -127,7 +127,6 @@ pub fn forward_upstream(
 ) -> ResponseFuture<HttpResponse, Error> {
     let config = request.state().config();
     let max_response_size = config.max_api_payload_size();
-    let upstream_relay = request.state().upstream_relay();
     let limit = get_limit_for_path(request.path(), &config);
 
     let path_and_query = request
@@ -177,11 +176,13 @@ pub fn forward_upstream(
                         .map_err(UpstreamRequestError::Http)
                 });
 
-            upstream_relay.send(forward_request).map_err(|_| {
-                Error::from(ForwardedUpstreamRequestError(
-                    UpstreamRequestError::ChannelClosed,
-                ))
-            })
+            UpstreamRelay::from_registry()
+                .send(forward_request)
+                .map_err(|_| {
+                    Error::from(ForwardedUpstreamRequestError(
+                        UpstreamRequestError::ChannelClosed,
+                    ))
+                })
         })
         .and_then(move |result: Result<_, UpstreamRequestError>| {
             let (status, headers, body) = result.map_err(ForwardedUpstreamRequestError::from)?;

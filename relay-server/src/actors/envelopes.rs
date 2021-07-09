@@ -455,42 +455,68 @@ pub struct EnvelopeProcessor {
     rate_limiter: Option<RedisRateLimiter>,
     #[cfg(feature = "processing")]
     geoip_lookup: Option<Arc<GeoIpLookup>>,
-    #[cfg(feature = "processing")]
-    outcome_producer: Option<Addr<OutcomeProducer>>,
 }
 
 impl EnvelopeProcessor {
+    /// Starts a multi-threaded envelope processor.
+    pub fn start(
+        config: Arc<Config>,
+        _redis: Option<RedisPool>,
+    ) -> Result<Addr<Self>, ServerError> {
+        let thread_count = config.cpu_concurrency();
+        relay_log::info!("starting {} envelope processing workers", thread_count);
+
+        #[cfg(feature = "processing")]
+        {
+            let geoip_lookup = match config.geoip_path() {
+                Some(p) => Some(Arc::new(
+                    GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?,
+                )),
+                None => None,
+            };
+
+            let rate_limiter =
+                _redis.map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
+
+            Ok(SyncArbiter::start(
+                thread_count,
+                clone!(config, || {
+                    EnvelopeProcessor::new(config.clone())
+                        .with_rate_limiter(rate_limiter.clone())
+                        .with_geoip_lookup(geoip_lookup.clone())
+                }),
+            ))
+        }
+
+        #[cfg(not(feature = "processing"))]
+        Ok(SyncArbiter::start(
+            thread_count,
+            clone!(config, || EnvelopeProcessor::new(config.clone())),
+        ))
+    }
+
     #[inline]
-    pub fn new(config: Arc<Config>) -> Self {
+    fn new(config: Arc<Config>) -> Self {
         Self {
             config,
             #[cfg(feature = "processing")]
             rate_limiter: None,
             #[cfg(feature = "processing")]
             geoip_lookup: None,
-            #[cfg(feature = "processing")]
-            outcome_producer: None,
         }
     }
 
     #[cfg(feature = "processing")]
     #[inline]
-    pub fn with_rate_limiter(mut self, rate_limiter: Option<RedisRateLimiter>) -> Self {
+    fn with_rate_limiter(mut self, rate_limiter: Option<RedisRateLimiter>) -> Self {
         self.rate_limiter = rate_limiter;
         self
     }
 
     #[cfg(feature = "processing")]
     #[inline]
-    pub fn with_geoip_lookup(mut self, geoip_lookup: Option<Arc<GeoIpLookup>>) -> Self {
+    fn with_geoip_lookup(mut self, geoip_lookup: Option<Arc<GeoIpLookup>>) -> Self {
         self.geoip_lookup = geoip_lookup;
-        self
-    }
-
-    #[cfg(feature = "processing")]
-    #[inline]
-    pub fn with_outcome_producer(mut self, producer: Addr<OutcomeProducer>) -> Self {
-        self.outcome_producer = Some(producer);
         self
     }
 
@@ -1243,9 +1269,7 @@ impl EnvelopeProcessor {
         });
 
         state.rate_limits = limits;
-        if let Some(ref producer) = self.outcome_producer {
-            enforcement.track_outcomes(producer, &state.envelope, &scoping);
-        }
+        enforcement.track_outcomes(&state.envelope, &scoping);
 
         if remove_event {
             state.remove_event();
@@ -1473,6 +1497,12 @@ impl Actor for EnvelopeProcessor {
     type Context = SyncContext<Self>;
 }
 
+impl Default for EnvelopeProcessor {
+    fn default() -> Self {
+        unimplemented!("register with the SystemRegistry instead")
+    }
+}
+
 #[derive(Debug)]
 struct ProcessEnvelope {
     pub envelope: Envelope,
@@ -1530,9 +1560,6 @@ struct ProcessMetrics {
     /// The target project.
     pub project_key: ProjectKey,
 
-    /// The project cache.
-    pub project_cache: Addr<ProjectCache>,
-
     /// The instant at which the request was received.
     pub start_time: Instant,
 
@@ -1552,7 +1579,6 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
         let ProcessMetrics {
             items,
             project_key: public_key,
-            project_cache,
             start_time,
             sent_at,
         } = message;
@@ -1560,6 +1586,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
         let received = relay_common::instant_to_date_time(start_time);
         let default_timestamp = UnixTimestamp::from_secs(received.timestamp() as u64);
 
+        let project_cache = ProjectCache::from_registry();
         let clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
@@ -1609,12 +1636,9 @@ pub type CapturedEnvelope = Result<Envelope, String>;
 
 pub struct EnvelopeManager {
     config: Arc<Config>,
-    upstream: Addr<UpstreamRelay>,
-    processor: Addr<EnvelopeProcessor>,
     active_envelopes: u32,
-    outcome_producer: Addr<OutcomeProducer>,
     captures: BTreeMap<EventId, CapturedEnvelope>,
-
+    processor: Addr<EnvelopeProcessor>,
     #[cfg(feature = "processing")]
     store_forwarder: Option<Addr<StoreForwarder>>,
 }
@@ -1622,45 +1646,8 @@ pub struct EnvelopeManager {
 impl EnvelopeManager {
     pub fn create(
         config: Arc<Config>,
-        upstream: Addr<UpstreamRelay>,
-        outcome_producer: Addr<OutcomeProducer>,
-        redis_pool: Option<RedisPool>,
+        processor: Addr<EnvelopeProcessor>,
     ) -> Result<Self, ServerError> {
-        let thread_count = config.cpu_concurrency();
-        relay_log::info!("starting {} envelope processing workers", thread_count);
-
-        #[cfg(not(feature = "processing"))]
-        let _ = redis_pool;
-
-        #[cfg(feature = "processing")]
-        let processor = {
-            let geoip_lookup = match config.geoip_path() {
-                Some(p) => Some(Arc::new(
-                    GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?,
-                )),
-                None => None,
-            };
-
-            let rate_limiter = redis_pool
-                .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
-
-            SyncArbiter::start(
-                thread_count,
-                clone!(config, outcome_producer, || {
-                    EnvelopeProcessor::new(config.clone())
-                        .with_rate_limiter(rate_limiter.clone())
-                        .with_geoip_lookup(geoip_lookup.clone())
-                        .with_outcome_producer(outcome_producer.clone())
-                }),
-            )
-        };
-
-        #[cfg(not(feature = "processing"))]
-        let processor = SyncArbiter::start(
-            thread_count,
-            clone!(config, || EnvelopeProcessor::new(config.clone())),
-        );
-
         #[cfg(feature = "processing")]
         let store_forwarder = if config.processing_enabled() {
             let actor = StoreForwarder::create(config.clone())?;
@@ -1671,15 +1658,11 @@ impl EnvelopeManager {
 
         Ok(EnvelopeManager {
             config,
-            upstream,
-            processor,
             active_envelopes: 0,
             captures: BTreeMap::new(),
-
+            processor,
             #[cfg(feature = "processing")]
             store_forwarder,
-
-            outcome_producer,
         })
     }
 
@@ -1687,7 +1670,6 @@ impl EnvelopeManager {
     fn send_envelope(
         &mut self,
         project_key: ProjectKey,
-        project_cache: Addr<ProjectCache>,
         mut envelope: Envelope,
         scoping: Scoping,
         #[allow(unused_variables)] start_time: Instant,
@@ -1767,14 +1749,14 @@ impl EnvelopeManager {
             },
         );
 
-        let future = self
-            .upstream
+        let future = UpstreamRelay::from_registry()
             .send(request)
             .map_err(SendEnvelopeError::ScheduleFailed)
             .and_then(move |result| {
                 if let Err(UpstreamRequestError::RateLimited(upstream_limits)) = result {
                     let limits = upstream_limits.scope(&scoping);
-                    project_cache.do_send(UpdateRateLimits::new(project_key, limits.clone()));
+                    ProjectCache::from_registry()
+                        .do_send(UpdateRateLimits::new(project_key, limits.clone()));
                     Err(SendEnvelopeError::RateLimited(limits))
                 } else {
                     result.map_err(SendEnvelopeError::SendFailed)
@@ -1802,6 +1784,16 @@ impl Actor for EnvelopeManager {
     }
 }
 
+impl Supervised for EnvelopeManager {}
+
+impl SystemService for EnvelopeManager {}
+
+impl Default for EnvelopeManager {
+    fn default() -> Self {
+        unimplemented!("register with the SystemRegistry instead")
+    }
+}
+
 /// Queues an envelope for processing.
 ///
 /// Depending on the items in the envelope, there are multiple outcomes:
@@ -1822,7 +1814,6 @@ pub struct QueueEnvelope {
     pub envelope: Envelope,
     pub project_key: ProjectKey,
     pub sampling_project_key: Option<ProjectKey>,
-    pub project_cache: Addr<ProjectCache>,
     pub start_time: Instant,
 }
 
@@ -1843,11 +1834,11 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
                 queue_size_pct.floor() as u64
             }
         );
+
         let QueueEnvelope {
             mut envelope,
             project_key,
             sampling_project_key,
-            project_cache,
             start_time,
         } = message;
 
@@ -1869,7 +1860,6 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
             self.processor.do_send(ProcessMetrics {
                 items: metric_items,
                 project_key,
-                project_cache: project_cache.clone(),
                 start_time,
                 sent_at: envelope.sent_at(),
             });
@@ -1886,7 +1876,6 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
                 envelope: event_envelope,
                 sampling_project_key,
                 project_key,
-                project_cache: project_cache.clone(),
                 start_time,
             });
         }
@@ -1898,7 +1887,6 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
                 envelope,
                 project_key,
                 sampling_project_key,
-                project_cache,
                 start_time,
             });
         }
@@ -1928,7 +1916,6 @@ struct HandleEnvelope {
     pub envelope: Envelope,
     pub project_key: ProjectKey,
     pub sampling_project_key: Option<ProjectKey>,
-    pub project_cache: Addr<ProjectCache>,
     pub start_time: Instant,
 }
 
@@ -1957,7 +1944,6 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
         //    the total time an envelope spent in this Relay, corrected by incoming network delays.
 
         let processor = self.processor.clone();
-        let outcome_producer = self.outcome_producer.clone();
         let capture = self.config.relay_mode() == RelayMode::Capture;
         let processing_enabled = self.config.processing_enabled();
 
@@ -1966,7 +1952,6 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             project_key,
             start_time,
             sampling_project_key,
-            project_cache,
         } = message;
 
         let event_id = envelope.event_id();
@@ -1976,7 +1961,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
         let is_received = Rc::new(AtomicBool::from(false));
         let envelope_summary = Rc::new(RefCell::new(EnvelopeSummary::compute(&envelope)));
 
-        let future = project_cache
+        let future = ProjectCache::from_registry()
             .send(CheckEnvelope::fetched(project_key, envelope))
             .map_err(ProcessingError::ScheduleFailed)
             .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
@@ -1996,26 +1981,20 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     None => Err(ProcessingError::RateLimited(checked.rate_limits)),
                 }
             }))
-            .and_then(clone!(project_cache, |envelope| {
-                utils::sample_trace(
-                    envelope,
-                    sampling_project_key,
-                    project_cache,
-                    false,
-                    processing_enabled,
-                )
-                .map_err(ProcessingError::TraceSampled)
-            }))
-            .and_then(clone!(project_cache, |envelope| {
+            .and_then(move |envelope| {
+                utils::sample_trace(envelope, sampling_project_key, false, processing_enabled)
+                    .map_err(ProcessingError::TraceSampled)
+            })
+            .and_then(move |envelope| {
                 // get the state for the current project. we can always fetch the cached version
                 // even if the no_cache flag was passed, as the cache was updated prior in
                 // `CheckEnvelope`.
-                project_cache
+                ProjectCache::from_registry()
                     .send(GetProjectState::new(project_key))
                     .map_err(ProcessingError::ScheduleFailed)
                     .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
                     .map(|state| (envelope, state))
-            }))
+            })
             .and_then(move |(envelope, project_state)| {
                 processor
                     .send(ProcessEnvelope {
@@ -2026,7 +2005,8 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     .map_err(ProcessingError::ScheduleFailed)
                     .flatten()
             })
-            .and_then(clone!(project_cache, envelope_summary, |processed| {
+            .and_then(clone!(envelope_summary, |processed| {
+                let project_cache = ProjectCache::from_registry();
                 let rate_limits = processed.rate_limits;
 
                 // Processing returned new rate limits. Cache them on the project to avoid expensive
@@ -2051,34 +2031,30 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             }))
             .into_actor(self)
             .and_then(clone!(scoping, is_received, |envelope, slf, _| {
-                slf.send_envelope(
-                    project_key,
-                    project_cache,
-                    envelope,
-                    *scoping.borrow(),
-                    start_time,
-                )
-                .then(move |result| {
-                    let received = match result {
-                        Ok(_) => true,
-                        Err(SendEnvelopeError::RateLimited(_)) => true,
-                        Err(SendEnvelopeError::SendFailed(ref e)) => e.is_received(),
-                        Err(_) => false,
-                    };
+                slf.send_envelope(project_key, envelope, *scoping.borrow(), start_time)
+                    .then(move |result| {
+                        let received = match result {
+                            Ok(_) => true,
+                            Err(SendEnvelopeError::RateLimited(_)) => true,
+                            Err(SendEnvelopeError::SendFailed(ref e)) => e.is_received(),
+                            Err(_) => false,
+                        };
 
-                    // Flag that upstream has received the request, which will skip outcome
-                    // generation below.
-                    is_received.store(received, Ordering::SeqCst);
+                        // Flag that upstream has received the request, which will skip outcome
+                        // generation below.
+                        is_received.store(received, Ordering::SeqCst);
 
-                    result.map_err(|error| match error {
-                        SendEnvelopeError::ScheduleFailed(e) => ProcessingError::ScheduleFailed(e),
-                        #[cfg(feature = "processing")]
-                        SendEnvelopeError::StoreFailed(e) => ProcessingError::StoreFailed(e),
-                        SendEnvelopeError::SendFailed(e) => ProcessingError::SendFailed(e),
-                        SendEnvelopeError::RateLimited(e) => ProcessingError::RateLimited(e),
+                        result.map_err(|error| match error {
+                            SendEnvelopeError::ScheduleFailed(e) => {
+                                ProcessingError::ScheduleFailed(e)
+                            }
+                            #[cfg(feature = "processing")]
+                            SendEnvelopeError::StoreFailed(e) => ProcessingError::StoreFailed(e),
+                            SendEnvelopeError::SendFailed(e) => ProcessingError::SendFailed(e),
+                            SendEnvelopeError::RateLimited(e) => ProcessingError::RateLimited(e),
+                        })
                     })
-                })
-                .into_actor(slf)
+                    .into_actor(slf)
             }))
             .timeout(
                 self.config.envelope_buffer_expiry(),
@@ -2119,6 +2095,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
 
                 let envelope_summary = envelope_summary.borrow();
                 if let Some(outcome) = outcome {
+                    let outcome_producer = OutcomeProducer::from_registry();
                     let timestamp = relay_common::instant_to_date_time(start_time);
                     if let Some(category) = envelope_summary.event_category {
                         outcome_producer.do_send(TrackOutcome {
@@ -2167,8 +2144,6 @@ pub struct SendMetrics {
     pub scoping: Scoping,
     /// The project of the metrics.
     pub project_key: ProjectKey,
-    /// The project cache
-    pub project_cache: Addr<ProjectCache>,
 }
 
 impl fmt::Debug for SendMetrics {
@@ -2193,7 +2168,6 @@ impl Handler<SendMetrics> for EnvelopeManager {
             buckets,
             scoping,
             project_key,
-            project_cache,
         } = message;
 
         let upstream = self.config.upstream_descriptor();
@@ -2212,13 +2186,7 @@ impl Handler<SendMetrics> for EnvelopeManager {
         envelope.add_item(item);
 
         let future = self
-            .send_envelope(
-                project_key,
-                project_cache,
-                envelope,
-                scoping,
-                Instant::now(),
-            )
+            .send_envelope(project_key, envelope, scoping, Instant::now())
             .map_err(|_| buckets);
 
         Box::new(future)

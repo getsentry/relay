@@ -114,16 +114,14 @@ impl ProjectStateChannel {
 pub struct UpstreamProjectSource {
     backoff: RetryBackoff,
     config: Arc<Config>,
-    upstream: Addr<UpstreamRelay>,
     state_channels: HashMap<ProjectKey, ProjectStateChannel>,
 }
 
 impl UpstreamProjectSource {
-    pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(config: Arc<Config>) -> Self {
         UpstreamProjectSource {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             config,
-            upstream,
             state_channels: HashMap::new(),
         }
     }
@@ -214,7 +212,7 @@ impl UpstreamProjectSource {
                 // count number of http requests for project states
                 metric!(counter(RelayCounters::ProjectStateRequest) += 1);
 
-                self.upstream
+                UpstreamRelay::from_registry()
                     .send(SendQuery(query))
                     .map_err(ProjectError::ScheduleFailed)
                     .map(move |response| (channels_batch, response))

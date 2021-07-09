@@ -1,4 +1,4 @@
-use ::actix::prelude::*;
+use actix_web::actix::*;
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
 use futures::prelude::*;
@@ -9,7 +9,7 @@ use relay_common::tryf;
 use relay_config::RelayInfo;
 use relay_log::Hub;
 
-use crate::actors::relays::GetRelay;
+use crate::actors::relays::{GetRelay, RelayCache};
 use crate::middlewares::ActixWebHubExt;
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
@@ -66,9 +66,7 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
 
         let relay_sig = extract_header!("X-Sentry-Relay-Signature").to_owned();
 
-        let future = req
-            .state()
-            .relay_cache()
+        let future = RelayCache::from_registry()
             .send(GetRelay { relay_id })
             .map_err(Error::from)
             .and_then(|result| {

@@ -405,10 +405,7 @@ mod processing {
     }
 
     impl ProcessingOutcomeProducer {
-        pub fn create(
-            config: Arc<Config>,
-            upstream: Addr<UpstreamRelay>,
-        ) -> Result<Self, ServerError> {
+        pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
             let (future_producer, http_producer) = if config.processing_enabled() {
                 let mut client_config = ClientConfig::new();
                 for config_p in config.kafka_config() {
@@ -419,7 +416,7 @@ mod processing {
                     .context(ServerErrorKind::KafkaError)?;
                 (Some(future_producer), None)
             } else {
-                let http_producer = HttpOutcomeProducer::create(config.clone(), upstream)
+                let http_producer = HttpOutcomeProducer::create(config.clone())
                     .map(|producer| producer.start())
                     .map_err(|error| {
                         relay_log::error!("Failed to start http producer: {}", LogError(&error));
@@ -509,6 +506,16 @@ mod processing {
         }
     }
 
+    impl Supervised for ProcessingOutcomeProducer {}
+
+    impl SystemService for ProcessingOutcomeProducer {}
+
+    impl Default for ProcessingOutcomeProducer {
+        fn default() -> Self {
+            unimplemented!("register with the SystemRegistry instead")
+        }
+    }
+
     impl Handler<TrackOutcome> for ProcessingOutcomeProducer {
         type Result = Result<(), OutcomeError>;
 
@@ -541,16 +548,14 @@ pub enum OutcomeError {}
 
 pub struct HttpOutcomeProducer {
     pub(super) config: Arc<Config>,
-    pub(super) upstream: Addr<UpstreamRelay>,
     pub(super) unsent_outcomes: Vec<TrackRawOutcome>,
     pub(super) pending_flush_handle: Option<SpawnHandle>,
 }
 
 impl HttpOutcomeProducer {
-    pub fn create(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Result<Self, ServerError> {
+    pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
         Ok(Self {
             config,
-            upstream,
             unsent_outcomes: Vec::new(),
             pending_flush_handle: None,
         })
@@ -577,7 +582,7 @@ impl HttpOutcomeProducer {
             outcomes: mem::take(&mut self.unsent_outcomes),
         };
 
-        self.upstream
+        UpstreamRelay::from_registry()
             .send(SendQuery(request))
             .map(|_| relay_log::trace!("outcome batch sent."))
             .map_err(|error| {
@@ -606,6 +611,16 @@ impl HttpOutcomeProducer {
 
 impl Actor for HttpOutcomeProducer {
     type Context = Context<Self>;
+}
+
+impl Supervised for HttpOutcomeProducer {}
+
+impl SystemService for HttpOutcomeProducer {}
+
+impl Default for HttpOutcomeProducer {
+    fn default() -> Self {
+        unimplemented!("register with the SystemRegistry instead")
+    }
 }
 
 impl Handler<TrackRawOutcome> for HttpOutcomeProducer {

@@ -1,22 +1,17 @@
 //! Returns captured events.
 
-use ::actix::prelude::*;
+use actix_web::actix::*;
 use actix_web::{http::Method, HttpResponse, Path};
 use futures::future::Future;
 
-use crate::actors::envelopes::GetCapturedEnvelope;
+use crate::actors::envelopes::{EnvelopeManager, GetCapturedEnvelope};
 use crate::envelope;
-use crate::extractors::CurrentServiceState;
 use crate::service::ServiceApp;
 
 use relay_general::protocol::EventId;
 
-fn get_captured_event(
-    state: CurrentServiceState,
-    event_id: Path<EventId>,
-) -> ResponseFuture<HttpResponse, actix::MailboxError> {
-    let future = state
-        .envelope_manager()
+fn get_captured_event(event_id: Path<EventId>) -> ResponseFuture<HttpResponse, MailboxError> {
+    let future = EnvelopeManager::from_registry()
         .send(GetCapturedEnvelope {
             event_id: *event_id,
         })

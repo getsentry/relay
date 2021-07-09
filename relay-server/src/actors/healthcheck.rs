@@ -14,15 +14,13 @@ use crate::metrics::RelayGauges;
 
 pub struct Healthcheck {
     is_shutting_down: bool,
-    upstream: Addr<UpstreamRelay>,
     config: Arc<Config>,
 }
 
 impl Healthcheck {
-    pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(config: Arc<Config>) -> Self {
         Healthcheck {
             is_shutting_down: false,
-            upstream,
             config,
         }
     }
@@ -33,6 +31,16 @@ impl Actor for Healthcheck {
 
     fn started(&mut self, context: &mut Self::Context) {
         Controller::subscribe(context.address());
+    }
+}
+
+impl Supervised for Healthcheck {}
+
+impl SystemService for Healthcheck {}
+
+impl Default for Healthcheck {
+    fn default() -> Self {
+        unimplemented!("register with the SystemRegistry instead")
     }
 }
 
@@ -61,8 +69,10 @@ impl Handler<IsHealthy> for Healthcheck {
     type Result = ResponseFuture<bool, ()>;
 
     fn handle(&mut self, message: IsHealthy, context: &mut Self::Context) -> Self::Result {
+        let upstream = UpstreamRelay::from_registry();
+
         if self.config.relay_mode() == RelayMode::Managed {
-            self.upstream
+            upstream
                 .send(IsNetworkOutage)
                 .map_err(|_| ())
                 .map(|is_network_outage| {
@@ -80,7 +90,7 @@ impl Handler<IsHealthy> for Healthcheck {
                 if self.is_shutting_down {
                     Box::new(future::ok(false))
                 } else if self.config.requires_auth() {
-                    Box::new(self.upstream.send(IsAuthenticated).map_err(|_| ()))
+                    Box::new(upstream.send(IsAuthenticated).map_err(|_| ()))
                 } else {
                     Box::new(future::ok(true))
                 }
