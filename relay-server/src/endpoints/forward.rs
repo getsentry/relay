@@ -3,10 +3,15 @@
 //! This endpoint will issue a client request to the upstream and append relay's own headers
 //! (`X-Forwarded-For` and `Sentry-Relay-Id`). The response is then streamed back to the origin.
 
+use std::borrow::Cow;
+
 use ::actix::prelude::*;
 use actix_web::error::ResponseError;
+use actix_web::http::header::HeaderValue;
 use actix_web::http::{header, header::HeaderName, uri::PathAndQuery, StatusCode};
+use actix_web::http::{HeaderMap, Method};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
+use bytes::Bytes;
 use failure::Fail;
 use futures::prelude::*;
 use lazy_static::lazy_static;
@@ -15,7 +20,9 @@ use relay_common::GlobMatcher;
 use relay_config::Config;
 use relay_log::LogError;
 
-use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
+use crate::actors::upstream::{
+    SendRequest2, UpstreamRelay, UpstreamRequest2, UpstreamRequestError,
+};
 use crate::body::ForwardBody;
 use crate::endpoints::statics;
 use crate::extractors::ForwardedFor;
@@ -119,6 +126,69 @@ fn get_limit_for_path(path: &str, config: &Config) -> usize {
     }
 }
 
+#[derive(Debug)]
+struct ForwardRequest {
+    method: Method,
+    path: String,
+    headers: HeaderMap<HeaderValue>,
+    forwarded_for: ForwardedFor,
+    data: Bytes,
+    max_response_size: usize,
+}
+
+impl UpstreamRequest2 for ForwardRequest {
+    type Response = (reqwest::StatusCode, Vec<(String, Vec<u8>)>, Vec<u8>);
+    type Transform = ResponseFuture<Self::Response, HttpError>;
+
+    fn method(&self) -> Method {
+        self.method.clone()
+    }
+
+    fn path(&self) -> Cow<'_, str> {
+        self.path.as_str().into()
+    }
+
+    fn retry(&self) -> bool {
+        false
+    }
+
+    fn intercept_status_errors(&self) -> bool {
+        false
+    }
+
+    fn set_relay_id(&self) -> bool {
+        false
+    }
+
+    fn build(&self, builder: RequestBuilder) -> Result<crate::http::Request, HttpError> {
+        for (key, value) in &self.headers {
+            // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
+            // must not forward the content-encoding header, as the actix http client will do its own
+            // content encoding. Also remove content-length because it's likely wrong.
+            if HOP_BY_HOP_HEADERS.iter().any(|x| x == key)
+                || IGNORED_REQUEST_HEADERS.iter().any(|x| x == key)
+            {
+                continue;
+            }
+
+            builder.header(key, value);
+        }
+
+        builder.header("X-Forwarded-For", self.forwarded_for.as_ref());
+        builder.body(&self.data)
+    }
+
+    fn respond(&self, response: Response) -> Self::Transform {
+        let status = response.status();
+        let headers = response.clone_headers();
+        let future = response
+            .bytes(self.max_response_size)
+            .and_then(move |body| Ok((status, headers, body)));
+
+        Box::new(future)
+    }
+}
+
 /// Implementation of the forward endpoint.
 ///
 /// This endpoint will create a proxy request to the upstream for every incoming request and stream
@@ -145,38 +215,17 @@ pub fn forward_upstream(
     ForwardBody::new(request, limit)
         .map_err(Error::from)
         .and_then(move |data| {
-            let forward_request = SendRequest::new(method, path_and_query)
-                .retry(false)
-                .intercept_status_errors(false)
-                .set_relay_id(false)
-                .build(move |mut builder: RequestBuilder| {
-                    for (key, value) in &headers {
-                        // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
-                        // must not forward the content-encoding header, as the actix http client will do its own
-                        // content encoding. Also remove content-length because it's likely wrong.
-                        if HOP_BY_HOP_HEADERS.iter().any(|x| x == key)
-                            || IGNORED_REQUEST_HEADERS.iter().any(|x| x == key)
-                        {
-                            continue;
-                        }
-
-                        builder.header(key, value);
-                    }
-
-                    builder.header("X-Forwarded-For", forwarded_for.as_ref());
-                    builder.body(&data).map_err(UpstreamRequestError::Http)
-                })
-                .transform(move |response: Response| {
-                    let status = response.status();
-                    let headers = response.clone_headers();
-                    response
-                        .bytes(max_response_size)
-                        .and_then(move |body| Ok((status, headers, body)))
-                        .map_err(UpstreamRequestError::Http)
-                });
+            let forward_request = ForwardRequest {
+                method,
+                path: path_and_query,
+                headers,
+                forwarded_for,
+                data,
+                max_response_size,
+            };
 
             UpstreamRelay::from_registry()
-                .send(forward_request)
+                .send(SendRequest2(forward_request))
                 .map_err(|_| {
                     Error::from(ForwardedUpstreamRequestError(
                         UpstreamRequestError::ChannelClosed,

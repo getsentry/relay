@@ -1198,6 +1198,65 @@ where
     }
 }
 
+/// TODO: Doc
+pub trait UpstreamRequest2 {
+    type Response: Send + 'static;
+    type Transform: IntoFuture<Item = Self::Response, Error = HttpError>;
+
+    /// The HTTP method of the request.
+    fn method(&self) -> Method;
+
+    /// The path relative to the upstream.
+    fn path(&self) -> Cow<'_, str>;
+
+    /// Whether this request should retry on network errors.
+    fn retry(&self) -> bool {
+        true
+    }
+
+    /// The queueing priority of the request. Defaults to `Low`.
+    fn priority(&self) -> RequestPriority {
+        RequestPriority::Low
+    }
+
+    /// TODO: Doc
+    fn intercept_status_errors(&self) -> bool {
+        true
+    }
+
+    /// TODO: Doc
+    fn set_relay_id(&self) -> bool {
+        true
+    }
+
+    /// TODO: Doc
+    fn build(&self, builder: RequestBuilder) -> Result<Request, HttpError>;
+
+    fn respond(&self, response: Response) -> Self::Transform;
+
+    fn error(&self, _error: &UpstreamRequestError) {}
+}
+
+pub struct SendRequest2<T: UpstreamRequest2>(pub T);
+
+impl<T> Message for SendRequest2<T>
+where
+    T: UpstreamRequest2,
+{
+    type Result = Result<T::Response, UpstreamRequestError>;
+}
+
+impl<T> Handler<SendRequest2<T>> for UpstreamRelay
+where
+    T: UpstreamRequest2,
+{
+    type Result = ResponseFuture<T::Response, UpstreamRequestError>;
+
+    fn handle(&mut self, msg: SendRequest2<T>, ctx: &mut Self::Context) -> Self::Result {
+        let future = self.enqueue_request(msg.0, ctx);
+    }
+}
+
 /// This handler handles messages that mark the end of an http request future.
 /// The handler decrements the counter of in-flight HTTP requests (since one was just
 /// finished) and tries to pump the http message queue by sending a `PumpHttpMessageQueue`
