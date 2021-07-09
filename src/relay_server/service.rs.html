@@ -270,56 +270,6 @@
 <span id="269">269</span>
 <span id="270">270</span>
 <span id="271">271</span>
-<span id="272">272</span>
-<span id="273">273</span>
-<span id="274">274</span>
-<span id="275">275</span>
-<span id="276">276</span>
-<span id="277">277</span>
-<span id="278">278</span>
-<span id="279">279</span>
-<span id="280">280</span>
-<span id="281">281</span>
-<span id="282">282</span>
-<span id="283">283</span>
-<span id="284">284</span>
-<span id="285">285</span>
-<span id="286">286</span>
-<span id="287">287</span>
-<span id="288">288</span>
-<span id="289">289</span>
-<span id="290">290</span>
-<span id="291">291</span>
-<span id="292">292</span>
-<span id="293">293</span>
-<span id="294">294</span>
-<span id="295">295</span>
-<span id="296">296</span>
-<span id="297">297</span>
-<span id="298">298</span>
-<span id="299">299</span>
-<span id="300">300</span>
-<span id="301">301</span>
-<span id="302">302</span>
-<span id="303">303</span>
-<span id="304">304</span>
-<span id="305">305</span>
-<span id="306">306</span>
-<span id="307">307</span>
-<span id="308">308</span>
-<span id="309">309</span>
-<span id="310">310</span>
-<span id="311">311</span>
-<span id="312">312</span>
-<span id="313">313</span>
-<span id="314">314</span>
-<span id="315">315</span>
-<span id="316">316</span>
-<span id="317">317</span>
-<span id="318">318</span>
-<span id="319">319</span>
-<span id="320">320</span>
-<span id="321">321</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -330,12 +280,11 @@
 <span class="kw">use</span> <span class="ident">failure</span>::{<span class="ident">Backtrace</span>, <span class="ident">Context</span>, <span class="ident">Fail</span>};
 <span class="kw">use</span> <span class="ident">listenfd::ListenFd</span>;
 
-<span class="kw">use</span> <span class="ident">relay_common::clone</span>;
 <span class="kw">use</span> <span class="ident">relay_config::Config</span>;
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::controller</span>::{<span class="ident">Configure</span>, <span class="ident">Controller</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::envelopes::EnvelopeManager</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">EnvelopeProcessor</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::healthcheck::Healthcheck</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::outcome::OutcomeProducer</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project_cache::ProjectCache</span>;
@@ -429,21 +378,19 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ServiceState</span> {
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-    <span class="ident">relay_cache</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">RelayCache</span><span class="op">&gt;</span>,
-    <span class="ident">project_cache</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">ProjectCache</span><span class="op">&gt;</span>,
-    <span class="ident">upstream_relay</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">UpstreamRelay</span><span class="op">&gt;</span>,
-    <span class="ident">envelope_manager</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EnvelopeManager</span><span class="op">&gt;</span>,
-    <span class="ident">outcome_producer</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeProducer</span><span class="op">&gt;</span>,
-    <span class="ident">healthcheck</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">Healthcheck</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">ServiceState</span> {
     <span class="doccomment">/// Starts all services and returns addresses to all of them.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">upstream_relay</span> <span class="op">=</span> <span class="ident">Arbiter::start</span>(<span class="macro">clone!</span>(<span class="ident">config</span>, <span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">UpstreamRelay::new</span>(<span class="ident">config</span>)));
+        <span class="kw">let</span> <span class="ident">system</span> <span class="op">=</span> <span class="ident">System::current</span>();
+        <span class="kw">let</span> <span class="ident">registry</span> <span class="op">=</span> <span class="ident">system</span>.<span class="ident">registry</span>();
 
-        <span class="kw">let</span> <span class="ident">outcome_producer</span> <span class="op">=</span> <span class="ident">OutcomeProducer::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">upstream_relay</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">outcome_producer</span> <span class="op">=</span> <span class="ident">Arbiter::start</span>(<span class="kw">move</span> <span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">outcome_producer</span>);
+        <span class="kw">let</span> <span class="ident">upstream_relay</span> <span class="op">=</span> <span class="ident">UpstreamRelay::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>());
+        <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">Arbiter::start</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">upstream_relay</span>));
+
+        <span class="kw">let</span> <span class="ident">outcome_producer</span> <span class="op">=</span> <span class="ident">OutcomeProducer::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
+        <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">Arbiter::start</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">outcome_producer</span>));
 
         <span class="kw">let</span> <span class="ident">redis_pool</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">redis</span>() {
             <span class="prelude-val">Some</span>(<span class="ident">redis_config</span>) <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">processing_enabled</span>() <span class="op">=</span><span class="op">&gt;</span> {
@@ -452,67 +399,20 @@
             <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
         };
 
-        <span class="kw">let</span> <span class="ident">event_manager</span> <span class="op">=</span> <span class="ident">EnvelopeManager::create</span>(
-            <span class="ident">config</span>.<span class="ident">clone</span>(),
-            <span class="ident">upstream_relay</span>.<span class="ident">clone</span>(),
-            <span class="ident">outcome_producer</span>.<span class="ident">clone</span>(),
-            <span class="ident">redis_pool</span>.<span class="ident">clone</span>(),
-        )
-        .<span class="ident">context</span>(<span class="ident">ServerErrorKind::ConfigError</span>)<span class="question-mark">?</span>
-        .<span class="ident">start</span>();
+        <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">EnvelopeProcessor::start</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">redis_pool</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">envelope_manager</span> <span class="op">=</span> <span class="ident">EnvelopeManager::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">processor</span>)<span class="question-mark">?</span>;
+        <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">envelope_manager</span>.<span class="ident">start</span>());
 
-        <span class="kw">let</span> <span class="ident">project_cache</span> <span class="op">=</span> <span class="ident">ProjectCache::new</span>(
-            <span class="ident">config</span>.<span class="ident">clone</span>(),
-            <span class="ident">event_manager</span>.<span class="ident">clone</span>(),
-            <span class="ident">outcome_producer</span>.<span class="ident">clone</span>(),
-            <span class="ident">upstream_relay</span>.<span class="ident">clone</span>(),
-            <span class="ident">redis_pool</span>,
-        )
-        .<span class="ident">start</span>();
+        <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">ProjectCache::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">redis_pool</span>).<span class="ident">start</span>());
+        <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">Healthcheck::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>());
+        <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">RelayCache::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>());
 
-        <span class="prelude-val">Ok</span>(<span class="ident">ServiceState</span> {
-            <span class="ident">config</span>: <span class="ident">config</span>.<span class="ident">clone</span>(),
-            <span class="ident">upstream_relay</span>: <span class="ident">upstream_relay</span>.<span class="ident">clone</span>(),
-            <span class="ident">relay_cache</span>: <span class="ident">RelayCache::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">upstream_relay</span>.<span class="ident">clone</span>()).<span class="ident">start</span>(),
-            <span class="ident">project_cache</span>,
-            <span class="ident">healthcheck</span>: <span class="ident">Healthcheck::new</span>(<span class="ident">config</span>, <span class="ident">upstream_relay</span>).<span class="ident">start</span>(),
-            <span class="ident">envelope_manager</span>: <span class="ident">event_manager</span>,
-            <span class="ident">outcome_producer</span>,
-        })
+        <span class="prelude-val">Ok</span>(<span class="ident">ServiceState</span> { <span class="ident">config</span> })
     }
 
     <span class="doccomment">/// Returns an atomically counted reference to the config.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">clone</span>()
-    }
-
-    <span class="doccomment">/// Returns the current relay public key cache.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_cache</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">RelayCache</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">relay_cache</span>.<span class="ident">clone</span>()
-    }
-
-    <span class="doccomment">/// Returns the current project cache.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">project_cache</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">ProjectCache</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">project_cache</span>.<span class="ident">clone</span>()
-    }
-
-    <span class="doccomment">/// Returns the current envelope manager.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">envelope_manager</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EnvelopeManager</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">envelope_manager</span>.<span class="ident">clone</span>()
-    }
-
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outcome_producer</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeProducer</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">outcome_producer</span>.<span class="ident">clone</span>()
-    }
-
-    <span class="doccomment">/// Returns the actor for healthchecks.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">healthcheck</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">Healthcheck</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">healthcheck</span>.<span class="ident">clone</span>()
-    }
-
-    <span class="doccomment">/// Returns an actor for making raw HTTP requests against upstream.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">upstream_relay</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">UpstreamRelay</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">upstream_relay</span>.<span class="ident">clone</span>()
     }
 }
 

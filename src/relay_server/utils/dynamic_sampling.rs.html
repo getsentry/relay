@@ -355,8 +355,6 @@
 <span id="354">354</span>
 <span id="355">355</span>
 <span id="356">356</span>
-<span id="357">357</span>
-<span id="358">358</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.</span>
 <span class="doccomment">//!</span>
@@ -483,7 +481,6 @@
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sample_trace</span>(
     <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
     <span class="ident">project_key</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ProjectKey</span><span class="op">&gt;</span>,
-    <span class="ident">project_cache</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">ProjectCache</span><span class="op">&gt;</span>,
     <span class="ident">fast_processing</span>: <span class="ident">bool</span>,
     <span class="ident">processing_enabled</span>: <span class="ident">bool</span>,
 ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">Envelope</span>, <span class="ident">RuleId</span><span class="op">&gt;</span> {
@@ -500,7 +497,7 @@
     }
     <span class="comment">//we have a trace_context and we have a transaction_item see if we can sample them</span>
     <span class="kw">if</span> <span class="ident">fast_processing</span> {
-        <span class="kw">let</span> <span class="ident">fut</span> <span class="op">=</span> <span class="ident">project_cache</span>
+        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">ProjectCache::from_registry</span>()
             .<span class="ident">send</span>(<span class="ident">GetCachedProjectState::new</span>(<span class="ident">project_key</span>))
             .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">project_state</span><span class="op">|</span> {
                 <span class="kw">let</span> <span class="ident">project_state</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">project_state</span> {
@@ -510,24 +507,23 @@
                 };
                 <span class="ident">sample_transaction_internal</span>(<span class="ident">envelope</span>, <span class="ident">project_state</span>.<span class="ident">as_deref</span>(), <span class="ident">processing_enabled</span>)
             });
-        <span class="ident">Box::new</span>(<span class="ident">fut</span>) <span class="kw">as</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>
+        <span class="ident">Box::new</span>(<span class="ident">future</span>)
     } <span class="kw">else</span> {
-        <span class="kw">let</span> <span class="ident">fut</span> <span class="op">=</span>
-            <span class="ident">project_cache</span>
-                .<span class="ident">send</span>(<span class="ident">GetProjectState::new</span>(<span class="ident">project_key</span>))
-                .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">project_state</span><span class="op">|</span> {
-                    <span class="kw">let</span> <span class="ident">project_state</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">project_state</span> {
-                        <span class="comment">// error getting the project, give up and return envelope unchanged</span>
-                        <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>),
-                        <span class="prelude-val">Ok</span>(<span class="ident">project_state</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">project_state</span>,
-                    };
-                    <span class="ident">sample_transaction_internal</span>(
-                        <span class="ident">envelope</span>,
-                        <span class="ident">project_state</span>.<span class="ident">ok</span>().<span class="ident">as_deref</span>(),
-                        <span class="ident">processing_enabled</span>,
-                    )
-                });
-        <span class="ident">Box::new</span>(<span class="ident">fut</span>) <span class="kw">as</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>
+        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">ProjectCache::from_registry</span>()
+            .<span class="ident">send</span>(<span class="ident">GetProjectState::new</span>(<span class="ident">project_key</span>))
+            .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">project_state</span><span class="op">|</span> {
+                <span class="kw">let</span> <span class="ident">project_state</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">project_state</span> {
+                    <span class="comment">// error getting the project, give up and return envelope unchanged</span>
+                    <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>),
+                    <span class="prelude-val">Ok</span>(<span class="ident">project_state</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">project_state</span>,
+                };
+                <span class="ident">sample_transaction_internal</span>(
+                    <span class="ident">envelope</span>,
+                    <span class="ident">project_state</span>.<span class="ident">ok</span>().<span class="ident">as_deref</span>(),
+                    <span class="ident">processing_enabled</span>,
+                )
+            });
+        <span class="ident">Box::new</span>(<span class="ident">future</span>)
     }
 }
 

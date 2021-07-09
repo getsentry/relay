@@ -35,31 +35,21 @@
 <span id="34">34</span>
 <span id="35">35</span>
 <span id="36">36</span>
-<span id="37">37</span>
-<span id="38">38</span>
-<span id="39">39</span>
-<span id="40">40</span>
-<span id="41">41</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Returns captured events.</span>
 
-<span class="kw">use</span> <span class="ident">::actix::prelude</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">actix_web::actix</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">http::Method</span>, <span class="ident">HttpResponse</span>, <span class="ident">Path</span>};
 <span class="kw">use</span> <span class="ident">futures::future::Future</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::envelopes::GetCapturedEnvelope</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">GetCapturedEnvelope</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::envelope</span>;
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::extractors::CurrentServiceState</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::service::ServiceApp</span>;
 
 <span class="kw">use</span> <span class="ident">relay_general::protocol::EventId</span>;
 
-<span class="kw">fn</span> <span class="ident">get_captured_event</span>(
-    <span class="ident">state</span>: <span class="ident">CurrentServiceState</span>,
-    <span class="ident">event_id</span>: <span class="ident">Path</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">HttpResponse</span>, <span class="ident">actix::MailboxError</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">state</span>
-        .<span class="ident">envelope_manager</span>()
+<span class="kw">fn</span> <span class="ident">get_captured_event</span>(<span class="ident">event_id</span>: <span class="ident">Path</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">HttpResponse</span>, <span class="ident">MailboxError</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">EnvelopeManager::from_registry</span>()
         .<span class="ident">send</span>(<span class="ident">GetCapturedEnvelope</span> {
             <span class="ident">event_id</span>: <span class="kw-2">*</span><span class="ident">event_id</span>,
         })

@@ -604,15 +604,6 @@
 <span id="603">603</span>
 <span id="604">604</span>
 <span id="605">605</span>
-<span id="606">606</span>
-<span id="607">607</span>
-<span id="608">608</span>
-<span id="609">609</span>
-<span id="610">610</span>
-<span id="611">611</span>
-<span id="612">612</span>
-<span id="613">613</span>
-<span id="614">614</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -630,11 +621,10 @@
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">SendMetrics</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">OutcomeProducer</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::outcome::DiscardReason</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project</span>::{<span class="ident">Outdated</span>, <span class="ident">Project</span>, <span class="ident">ProjectState</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project_local::LocalProjectSource</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project_upstream::UpstreamProjectSource</span>;
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::upstream::UpstreamRelay</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::envelope::Envelope</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::metrics</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::utils</span>::{<span class="ident">ActorResponse</span>, <span class="ident">Response</span>};
@@ -656,9 +646,6 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProjectCache</span> {
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
     <span class="ident">projects</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">ProjectKey</span>, <span class="ident">Project</span><span class="op">&gt;</span>,
-
-    <span class="ident">event_manager</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EnvelopeManager</span><span class="op">&gt;</span>,
-    <span class="ident">outcome_producer</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeProducer</span><span class="op">&gt;</span>,
     <span class="ident">local_source</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">LocalProjectSource</span><span class="op">&gt;</span>,
     <span class="ident">upstream_source</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">UpstreamProjectSource</span><span class="op">&gt;</span>,
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
@@ -666,15 +653,9 @@
 }
 
 <span class="kw">impl</span> <span class="ident">ProjectCache</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(
-        <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-        <span class="ident">event_manager</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EnvelopeManager</span><span class="op">&gt;</span>,
-        <span class="ident">outcome_producer</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeProducer</span><span class="op">&gt;</span>,
-        <span class="ident">upstream_relay</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">UpstreamRelay</span><span class="op">&gt;</span>,
-        <span class="ident">_redis</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RedisPool</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>, <span class="ident">_redis</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RedisPool</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">local_source</span> <span class="op">=</span> <span class="ident">LocalProjectSource::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>();
-        <span class="kw">let</span> <span class="ident">upstream_source</span> <span class="op">=</span> <span class="ident">UpstreamProjectSource::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">upstream_relay</span>).<span class="ident">start</span>();
+        <span class="kw">let</span> <span class="ident">upstream_source</span> <span class="op">=</span> <span class="ident">UpstreamProjectSource::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>();
 
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
         <span class="kw">let</span> <span class="ident">redis_source</span> <span class="op">=</span> <span class="ident">_redis</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">pool</span><span class="op">|</span> {
@@ -690,8 +671,6 @@
         <span class="ident">ProjectCache</span> {
             <span class="ident">config</span>,
             <span class="ident">projects</span>: <span class="ident">HashMap::new</span>(),
-            <span class="ident">event_manager</span>,
-            <span class="ident">outcome_producer</span>,
             <span class="ident">local_source</span>,
             <span class="ident">upstream_source</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
@@ -710,15 +689,10 @@
         <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::ProjectStateEvictionDuration</span>) <span class="op">=</span> <span class="ident">eviction_start</span>.<span class="ident">elapsed</span>());
     }
 
-    <span class="kw">fn</span> <span class="ident">get_or_create_project</span>(
-        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
-        <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
-        <span class="ident">project_cache</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Project</span> {
+    <span class="kw">fn</span> <span class="ident">get_or_create_project</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Project</span> {
         <span class="macro">metric!</span>(<span class="ident">histogram</span>(<span class="ident">RelayHistograms::ProjectStateCacheSize</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">projects</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>);
 
         <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">clone</span>();
-        <span class="kw">let</span> <span class="ident">outcome_producer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">outcome_producer</span>.<span class="ident">clone</span>();
 
         <span class="self">self</span>.<span class="ident">projects</span>
             .<span class="ident">entry</span>(<span class="ident">project_key</span>)
@@ -727,7 +701,7 @@
             })
             .<span class="ident">or_insert_with</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> {
                 <span class="macro">metric!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters::ProjectCacheMiss</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
-                <span class="ident">Project::new</span>(<span class="ident">project_key</span>, <span class="ident">config</span>, <span class="ident">outcome_producer</span>, <span class="ident">project_cache</span>)
+                <span class="ident">Project::new</span>(<span class="ident">project_key</span>, <span class="ident">config</span>)
             })
     }
 }
@@ -751,6 +725,16 @@
 
     <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) {
         <span class="macro">relay_log::info!</span>(<span class="string">&quot;project cache stopped&quot;</span>);
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Supervised</span> <span class="kw">for</span> <span class="ident">ProjectCache</span> {}
+
+<span class="kw">impl</span> <span class="ident">SystemService</span> <span class="kw">for</span> <span class="ident">ProjectCache</span> {}
+
+<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">ProjectCache</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="macro">unimplemented!</span>(<span class="string">&quot;register with the SystemRegistry instead&quot;</span>)
     }
 }
 
@@ -834,7 +818,7 @@
             <span class="ident">no_cache</span>,
         } <span class="op">=</span> <span class="ident">message</span>;
 
-        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">project_key</span>, <span class="ident">context</span>.<span class="ident">address</span>());
+        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">project_key</span>);
 
         <span class="comment">// Bump the update time of the project in our hashmap to evade eviction.</span>
         <span class="ident">project</span>.<span class="ident">refresh_updated_timestamp</span>();
@@ -910,8 +894,8 @@
                 <span class="ident">Box::new</span>(<span class="ident">fetch_redis</span>)
             })
             .<span class="ident">into_actor</span>(<span class="self">self</span>)
-            .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">state_result</span>, <span class="ident">slf</span>, <span class="ident">context</span><span class="op">|</span> {
-                <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">slf</span>.<span class="ident">get_or_create_project</span>(<span class="ident">project_key</span>, <span class="ident">context</span>.<span class="ident">address</span>());
+            .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">state_result</span>, <span class="ident">slf</span>, <span class="ident">_context</span><span class="op">|</span> {
+                <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">slf</span>.<span class="ident">get_or_create_project</span>(<span class="ident">project_key</span>);
                 <span class="ident">project</span>.<span class="ident">update_state</span>(<span class="ident">state_result</span>.<span class="ident">ok</span>(), <span class="ident">no_cache</span>);
                 <span class="ident">fut::ok</span>(())
             })
@@ -952,8 +936,8 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">GetProjectState</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ProjectCache</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">Response</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>, <span class="ident">ProjectError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">GetProjectState</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
-        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>, <span class="ident">context</span>.<span class="ident">address</span>());
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">GetProjectState</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
+        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>);
         <span class="ident">project</span>.<span class="ident">get_or_fetch_state</span>(<span class="ident">message</span>.<span class="ident">no_cache</span>)
     }
 }
@@ -983,9 +967,9 @@
     <span class="kw">fn</span> <span class="ident">handle</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="ident">message</span>: <span class="ident">GetCachedProjectState</span>,
-        <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>,
+        <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
-        <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>, <span class="ident">context</span>.<span class="ident">address</span>())
+        <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>)
             .<span class="ident">state_clone</span>()
     }
 }
@@ -1051,17 +1035,17 @@
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ActorResponse</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">CheckEnvelopeResponse</span>, <span class="ident">ProjectError</span><span class="op">&gt;</span>;
 
     <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">CheckEnvelope</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
-        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>, <span class="ident">context</span>.<span class="ident">address</span>());
+        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>);
         <span class="kw">if</span> <span class="ident">message</span>.<span class="ident">fetch</span> {
             <span class="comment">// Project state fetching is allowed, so ensure the state is fetched and up-to-date.</span>
             <span class="comment">// This will return synchronously if the state is still cached.</span>
             <span class="ident">project</span>
                 .<span class="ident">get_or_fetch_state</span>(<span class="ident">message</span>.<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">no_cache</span>())
                 .<span class="ident">into_actor</span>()
-                .<span class="ident">map</span>(<span class="self">self</span>, <span class="ident">context</span>, <span class="kw">move</span> <span class="op">|</span><span class="kw">_</span>, <span class="ident">slf</span>, <span class="ident">context</span><span class="op">|</span> {
+                .<span class="ident">map</span>(<span class="self">self</span>, <span class="ident">context</span>, <span class="kw">move</span> <span class="op">|</span><span class="kw">_</span>, <span class="ident">slf</span>, <span class="ident">_context</span><span class="op">|</span> {
                     <span class="comment">// TODO RaduW can we do better that this ????</span>
                     <span class="comment">// (need to retrieve project again to get around borwoing problems)</span>
-                    <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">slf</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>, <span class="ident">context</span>.<span class="ident">address</span>());
+                    <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">slf</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>);
                     <span class="ident">project</span>.<span class="ident">check_envelope</span>(<span class="ident">message</span>.<span class="ident">envelope</span>)
                 })
         } <span class="kw">else</span> {
@@ -1098,12 +1082,12 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">UpdateRateLimits</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ProjectCache</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">UpdateRateLimits</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">UpdateRateLimits</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
         <span class="kw">let</span> <span class="ident">UpdateRateLimits</span> {
             <span class="ident">project_key</span>,
             <span class="ident">rate_limits</span>,
         } <span class="op">=</span> <span class="ident">message</span>;
-        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">project_key</span>, <span class="ident">context</span>.<span class="ident">address</span>());
+        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">project_key</span>);
         <span class="ident">project</span>.<span class="ident">merge_rate_limits</span>(<span class="ident">rate_limits</span>);
     }
 }
@@ -1135,9 +1119,9 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">InsertMetrics</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ProjectCache</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">InsertMetrics</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">InsertMetrics</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
         <span class="comment">// Only keep if we have an aggregator, otherwise drop because we know that we were disabled.</span>
-        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>, <span class="ident">context</span>.<span class="ident">address</span>());
+        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>);
         <span class="ident">project</span>.<span class="ident">insert_metrics</span>(<span class="ident">message</span>.<span class="ident">metrics</span>);
         <span class="prelude-val">Ok</span>(())
     }
@@ -1166,9 +1150,9 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">MergeBuckets</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ProjectCache</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">MergeBuckets</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">MergeBuckets</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
         <span class="comment">// Only keep if we have an aggregator, otherwise drop because we know that we were disabled.</span>
-        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>, <span class="ident">context</span>.<span class="ident">address</span>());
+        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>);
         <span class="ident">project</span>.<span class="ident">merge_buckets</span>(<span class="ident">message</span>.<span class="ident">buckets</span>);
         <span class="prelude-val">Ok</span>(())
     }
@@ -1177,10 +1161,10 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">FlushBuckets</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ProjectCache</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">FlushBuckets</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">FlushBuckets</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
         <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">clone</span>();
         <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">project_key</span>();
-        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">project_key</span>, <span class="ident">context</span>.<span class="ident">address</span>());
+        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">project_key</span>);
         <span class="kw">let</span> <span class="ident">outdated</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">project</span>.<span class="ident">state</span>() {
             <span class="prelude-val">Some</span>(<span class="ident">state</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">state</span>.<span class="ident">outdated</span>(<span class="ident">config</span>.<span class="ident">as_ref</span>()),
             <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Outdated::HardOutdated</span>,
@@ -1208,13 +1192,11 @@
             <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::ok</span>(()));
         }
 
-        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="self">self</span>
-            .<span class="ident">event_manager</span>
+        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">EnvelopeManager::from_registry</span>()
             .<span class="ident">send</span>(<span class="ident">SendMetrics</span> {
                 <span class="ident">buckets</span>: <span class="ident">message</span>.<span class="ident">into_buckets</span>(),
                 <span class="ident">scoping</span>,
                 <span class="ident">project_key</span>,
-                <span class="ident">project_cache</span>: <span class="ident">context</span>.<span class="ident">address</span>(),
             })
             .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">send_result</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">send_result</span> {
                 <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(())) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),

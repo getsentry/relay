@@ -1293,6 +1293,16 @@
 <span id="1292">1292</span>
 <span id="1293">1293</span>
 <span id="1294">1294</span>
+<span id="1295">1295</span>
+<span id="1296">1296</span>
+<span id="1297">1297</span>
+<span id="1298">1298</span>
+<span id="1299">1299</span>
+<span id="1300">1300</span>
+<span id="1301">1301</span>
+<span id="1302">1302</span>
+<span id="1303">1303</span>
+<span id="1304">1304</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -1605,26 +1615,6 @@
     }
 }
 
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">UpstreamRelay</span> {
-    <span class="doccomment">/// backoff policy for the registration messages</span>
-    <span class="ident">auth_backoff</span>: <span class="ident">RetryBackoff</span>,
-    <span class="ident">auth_state</span>: <span class="ident">AuthState</span>,
-    <span class="doccomment">/// backoff policy for the network outage message</span>
-    <span class="ident">outage_backoff</span>: <span class="ident">RetryBackoff</span>,
-    <span class="doccomment">/// from this instant forward we only got network errors on all our http requests</span>
-    <span class="doccomment">/// (any request that is sent without causing a network error resets this back to None)</span>
-    <span class="ident">first_error</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Instant</span><span class="op">&gt;</span>,
-    <span class="ident">max_inflight_requests</span>: <span class="ident">usize</span>,
-    <span class="ident">num_inflight_requests</span>: <span class="ident">usize</span>,
-    <span class="ident">high_prio_requests</span>: <span class="ident">VecDeque</span><span class="op">&lt;</span><span class="ident">UpstreamRequest</span><span class="op">&gt;</span>,
-    <span class="ident">low_prio_requests</span>: <span class="ident">VecDeque</span><span class="op">&lt;</span><span class="ident">UpstreamRequest</span><span class="op">&gt;</span>,
-    <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-    <span class="ident">reqwest_client</span>: <span class="ident">reqwest::Client</span>,
-    <span class="doccomment">/// &quot;reqwest runtime&quot; as this tokio runtime is currently only spawned such that reqwest can</span>
-    <span class="doccomment">/// run.</span>
-    <span class="ident">reqwest_runtime</span>: <span class="ident">tokio::runtime::Runtime</span>,
-}
-
 <span class="doccomment">/// Handles a response returned from the upstream.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// If the response indicates success via 2XX status codes, `Ok(response)` is returned. Otherwise,</span>
@@ -1681,6 +1671,26 @@
         });
 
     <span class="ident">Box::new</span>(<span class="ident">future</span>)
+}
+
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">UpstreamRelay</span> {
+    <span class="doccomment">/// backoff policy for the registration messages</span>
+    <span class="ident">auth_backoff</span>: <span class="ident">RetryBackoff</span>,
+    <span class="ident">auth_state</span>: <span class="ident">AuthState</span>,
+    <span class="doccomment">/// backoff policy for the network outage message</span>
+    <span class="ident">outage_backoff</span>: <span class="ident">RetryBackoff</span>,
+    <span class="doccomment">/// from this instant forward we only got network errors on all our http requests</span>
+    <span class="doccomment">/// (any request that is sent without causing a network error resets this back to None)</span>
+    <span class="ident">first_error</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Instant</span><span class="op">&gt;</span>,
+    <span class="ident">max_inflight_requests</span>: <span class="ident">usize</span>,
+    <span class="ident">num_inflight_requests</span>: <span class="ident">usize</span>,
+    <span class="ident">high_prio_requests</span>: <span class="ident">VecDeque</span><span class="op">&lt;</span><span class="ident">UpstreamRequest</span><span class="op">&gt;</span>,
+    <span class="ident">low_prio_requests</span>: <span class="ident">VecDeque</span><span class="op">&lt;</span><span class="ident">UpstreamRequest</span><span class="op">&gt;</span>,
+    <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
+    <span class="ident">reqwest_client</span>: <span class="ident">reqwest::Client</span>,
+    <span class="doccomment">/// &quot;reqwest runtime&quot; as this tokio runtime is currently only spawned such that reqwest can</span>
+    <span class="doccomment">/// run.</span>
+    <span class="ident">reqwest_runtime</span>: <span class="ident">tokio::runtime::Runtime</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">UpstreamRelay</span> {
@@ -2106,6 +2116,16 @@
 
     <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) {
         <span class="macro">relay_log::info!</span>(<span class="string">&quot;upstream relay stopped&quot;</span>);
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Supervised</span> <span class="kw">for</span> <span class="ident">UpstreamRelay</span> {}
+
+<span class="kw">impl</span> <span class="ident">SystemService</span> <span class="kw">for</span> <span class="ident">UpstreamRelay</span> {}
+
+<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">UpstreamRelay</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="macro">unimplemented!</span>(<span class="string">&quot;register with the SystemRegistry instead&quot;</span>)
     }
 }
 

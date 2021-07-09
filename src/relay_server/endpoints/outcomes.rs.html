@@ -23,10 +23,13 @@
 <span id="22">22</span>
 <span id="23">23</span>
 <span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
 </pre><div class="example-wrap"><pre class="rust ">
+<span class="kw">use</span> <span class="ident">actix_web::actix::SystemService</span>;
 <span class="kw">use</span> <span class="ident">actix_web::HttpResponse</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::outcome</span>::{<span class="ident">SendOutcomes</span>, <span class="ident">SendOutcomesResponse</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::outcome</span>::{<span class="ident">OutcomeProducer</span>, <span class="ident">SendOutcomes</span>, <span class="ident">SendOutcomesResponse</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::extractors</span>::{<span class="ident">CurrentServiceState</span>, <span class="ident">SignedJson</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::service::ServiceApp</span>;
 
@@ -35,8 +38,9 @@
         <span class="kw">return</span> <span class="ident">HttpResponse::Forbidden</span>().<span class="ident">finish</span>();
     }
 
+    <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="ident">OutcomeProducer::from_registry</span>();
     <span class="kw">for</span> <span class="ident">outcome</span> <span class="kw">in</span> <span class="ident">body</span>.<span class="ident">inner</span>.<span class="ident">outcomes</span> {
-        <span class="ident">state</span>.<span class="ident">outcome_producer</span>().<span class="ident">do_send</span>(<span class="ident">outcome</span>);
+        <span class="ident">producer</span>.<span class="ident">do_send</span>(<span class="ident">outcome</span>);
     }
 
     <span class="ident">HttpResponse::Accepted</span>().<span class="ident">json</span>(<span class="ident">SendOutcomesResponse</span> {})

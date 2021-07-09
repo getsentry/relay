@@ -744,18 +744,6 @@
 <span id="743">743</span>
 <span id="744">744</span>
 <span id="745">745</span>
-<span id="746">746</span>
-<span id="747">747</span>
-<span id="748">748</span>
-<span id="749">749</span>
-<span id="750">750</span>
-<span id="751">751</span>
-<span id="752">752</span>
-<span id="753">753</span>
-<span id="754">754</span>
-<span id="755">755</span>
-<span id="756">756</span>
-<span id="757">757</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -780,7 +768,6 @@
 <span class="kw">use</span> <span class="ident">relay_sampling::SamplingConfig</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::outcome::DiscardReason</span>;
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::outcome::OutcomeProducer</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project_cache</span>::{
     <span class="ident">CheckEnvelopeResponse</span>, <span class="ident">CheckedEnvelope</span>, <span class="ident">ProjectCache</span>, <span class="ident">ProjectError</span>, <span class="ident">ProjectStateResponse</span>,
     <span class="ident">UpdateProjectState</span>,
@@ -1232,8 +1219,6 @@
     <span class="ident">last_updated_at</span>: <span class="ident">Instant</span>,
     <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-    <span class="ident">outcome_producer</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeProducer</span><span class="op">&gt;</span>,
-    <span class="ident">project_cache</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">ProjectCache</span><span class="op">&gt;</span>,
     <span class="ident">aggregator</span>: <span class="ident">AggregatorState</span>,
     <span class="ident">state</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">state_channel</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">StateChannel</span><span class="op">&gt;</span>,
@@ -1243,23 +1228,16 @@
 
 <span class="kw">impl</span> <span class="ident">Project</span> {
     <span class="doccomment">/// Creates a new `Project`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(
-        <span class="ident">key</span>: <span class="ident">ProjectKey</span>,
-        <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-        <span class="ident">outcome_producer</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeProducer</span><span class="op">&gt;</span>,
-        <span class="ident">project_cache</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">ProjectCache</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">key</span>: <span class="ident">ProjectKey</span>, <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="ident">Project</span> {
             <span class="ident">last_updated_at</span>: <span class="ident">Instant::now</span>(),
             <span class="ident">project_key</span>: <span class="ident">key</span>,
             <span class="ident">config</span>,
-            <span class="ident">outcome_producer</span>,
             <span class="ident">aggregator</span>: <span class="ident">AggregatorState::Unknown</span>,
             <span class="ident">state</span>: <span class="prelude-val">None</span>,
             <span class="ident">state_channel</span>: <span class="prelude-val">None</span>,
             <span class="ident">rate_limits</span>: <span class="ident">RateLimits::new</span>(),
             <span class="ident">last_no_cache</span>: <span class="ident">Instant::now</span>(),
-            <span class="ident">project_cache</span>,
         }
     }
 
@@ -1294,11 +1272,10 @@
     <span class="doccomment">/// Returns `None` if the aggregator is permanently disabled, primarily for disabled projects.</span>
     <span class="kw">fn</span> <span class="ident">get_or_create_aggregator</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">Aggregator</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="macro">matches!</span>(<span class="self">self</span>.<span class="ident">aggregator</span>, <span class="ident">AggregatorState::Unknown</span>) {
-            <span class="kw">let</span> <span class="ident">flush_receiver</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">project_cache</span>.<span class="ident">clone</span>().<span class="ident">recipient</span>();
             <span class="kw">let</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(
                 <span class="self">self</span>.<span class="ident">project_key</span>,
                 <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">aggregator_config</span>(),
-                <span class="ident">flush_receiver</span>,
+                <span class="ident">ProjectCache::from_registry</span>().<span class="ident">recipient</span>(),
             );
             <span class="comment">// TODO: This starts the aggregator on the project arbiter, but we want a separate</span>
             <span class="comment">// thread or thread pool for this.</span>
@@ -1445,8 +1422,7 @@
 
     <span class="kw">fn</span> <span class="ident">fetch_state</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">no_cache</span>: <span class="ident">bool</span>) {
         <span class="macro">debug_assert!</span>(<span class="self">self</span>.<span class="ident">state_channel</span>.<span class="ident">is_some</span>());
-        <span class="self">self</span>.<span class="ident">project_cache</span>
-            .<span class="ident">do_send</span>(<span class="ident">UpdateProjectState::new</span>(<span class="self">self</span>.<span class="ident">project_key</span>, <span class="ident">no_cache</span>));
+        <span class="ident">ProjectCache::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">UpdateProjectState::new</span>(<span class="self">self</span>.<span class="ident">project_key</span>, <span class="ident">no_cache</span>));
     }
 
     <span class="doccomment">/// Creates `Scoping` for this project if the state is loaded.</span>
@@ -1494,7 +1470,7 @@
         });
 
         <span class="kw">let</span> (<span class="ident">enforcement</span>, <span class="ident">rate_limits</span>) <span class="op">=</span> <span class="ident">envelope_limiter</span>.<span class="ident">enforce</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">envelope</span>, <span class="ident">scoping</span>)<span class="question-mark">?</span>;
-        <span class="ident">enforcement</span>.<span class="ident">track_outcomes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">outcome_producer</span>, <span class="kw-2">&amp;</span><span class="ident">envelope</span>, <span class="ident">scoping</span>);
+        <span class="ident">enforcement</span>.<span class="ident">track_outcomes</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>, <span class="ident">scoping</span>);
 
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">envelope</span>.<span class="ident">is_empty</span>() {
             <span class="prelude-val">None</span>
