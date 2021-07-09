@@ -309,26 +309,6 @@ impl UpstreamRequest {
     }
 }
 
-pub struct UpstreamRelay {
-    /// backoff policy for the registration messages
-    auth_backoff: RetryBackoff,
-    auth_state: AuthState,
-    /// backoff policy for the network outage message
-    outage_backoff: RetryBackoff,
-    /// from this instant forward we only got network errors on all our http requests
-    /// (any request that is sent without causing a network error resets this back to None)
-    first_error: Option<Instant>,
-    max_inflight_requests: usize,
-    num_inflight_requests: usize,
-    high_prio_requests: VecDeque<UpstreamRequest>,
-    low_prio_requests: VecDeque<UpstreamRequest>,
-    config: Arc<Config>,
-    reqwest_client: reqwest::Client,
-    /// "reqwest runtime" as this tokio runtime is currently only spawned such that reqwest can
-    /// run.
-    reqwest_runtime: tokio::runtime::Runtime,
-}
-
 /// Handles a response returned from the upstream.
 ///
 /// If the response indicates success via 2XX status codes, `Ok(response)` is returned. Otherwise,
@@ -385,6 +365,26 @@ fn handle_response(
         });
 
     Box::new(future)
+}
+
+pub struct UpstreamRelay {
+    /// backoff policy for the registration messages
+    auth_backoff: RetryBackoff,
+    auth_state: AuthState,
+    /// backoff policy for the network outage message
+    outage_backoff: RetryBackoff,
+    /// from this instant forward we only got network errors on all our http requests
+    /// (any request that is sent without causing a network error resets this back to None)
+    first_error: Option<Instant>,
+    max_inflight_requests: usize,
+    num_inflight_requests: usize,
+    high_prio_requests: VecDeque<UpstreamRequest>,
+    low_prio_requests: VecDeque<UpstreamRequest>,
+    config: Arc<Config>,
+    reqwest_client: reqwest::Client,
+    /// "reqwest runtime" as this tokio runtime is currently only spawned such that reqwest can
+    /// run.
+    reqwest_runtime: tokio::runtime::Runtime,
 }
 
 impl UpstreamRelay {
@@ -810,6 +810,16 @@ impl Actor for UpstreamRelay {
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         relay_log::info!("upstream relay stopped");
+    }
+}
+
+impl Supervised for UpstreamRelay {}
+
+impl SystemService for UpstreamRelay {}
+
+impl Default for UpstreamRelay {
+    fn default() -> Self {
+        unimplemented!("register with the SystemRegistry instead")
     }
 }
 

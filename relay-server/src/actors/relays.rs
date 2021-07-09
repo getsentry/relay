@@ -106,19 +106,17 @@ impl RelayInfoChannel {
 pub struct RelayCache {
     backoff: RetryBackoff,
     config: Arc<Config>,
-    upstream: Addr<UpstreamRelay>,
     relays: HashMap<RelayId, RelayState>,
     static_relays: HashMap<RelayId, RelayInfo>,
     relay_channels: HashMap<RelayId, RelayInfoChannel>,
 }
 
 impl RelayCache {
-    pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(config: Arc<Config>) -> Self {
         RelayCache {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             static_relays: config.static_relays().clone(),
             config,
-            upstream,
             relays: HashMap::new(),
             relay_channels: HashMap::new(),
         }
@@ -153,7 +151,7 @@ impl RelayCache {
             relay_ids: channels.keys().cloned().collect(),
         };
 
-        self.upstream
+        UpstreamRelay::from_registry()
             .send(SendQuery(request))
             .map_err(KeyError::ScheduleFailed)
             .into_actor(self)
@@ -240,6 +238,16 @@ impl Actor for RelayCache {
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         relay_log::info!("key cache stopped");
+    }
+}
+
+impl Supervised for RelayCache {}
+
+impl SystemService for RelayCache {}
+
+impl Default for RelayCache {
+    fn default() -> Self {
+        unimplemented!("register with the SystemRegistry instead")
     }
 }
 
