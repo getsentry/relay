@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -7,13 +8,14 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
+use actix_web::http::Method;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use futures::{future, prelude::*};
 use serde_json::Value as SerdeValue;
 
 use relay_common::{clone, metric, ProjectId, ProjectKey, UnixTimestamp};
-use relay_config::{Config, RelayMode};
+use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
@@ -41,6 +43,8 @@ use crate::http::{HttpError, RequestBuilder};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
 use crate::utils::{self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt};
+
+use super::upstream::UpstreamRequest2;
 
 #[cfg(feature = "processing")]
 use {
@@ -1633,6 +1637,69 @@ enum SendEnvelopeError {
 
 /// Either a captured envelope or an error that occured during processing.
 pub type CapturedEnvelope = Result<Envelope, String>;
+
+#[derive(Debug)]
+struct SendEnvelope {
+    envelope: Envelope,
+    scoping: Scoping,
+    http_encoding: HttpEncoding,
+}
+
+impl UpstreamRequest2 for SendEnvelope {
+    type Response = ();
+
+    type Transform = Result<(), HttpError>;
+
+    fn method(&self) -> Method {
+        Method::POST
+    }
+
+    fn path(&self) -> Cow<'_, str> {
+        format!("/api/{}/envelope/", self.scoping.project_id).into()
+    }
+
+    fn build(&self, builder: RequestBuilder) -> Result<crate::http::Request, HttpError> {
+        // Override the `sent_at` timestamp. Since the envelope went through basic
+        // normalization, all timestamps have been corrected. We propagate the new
+        // `sent_at` to allow the next Relay to double-check this timestamp and
+        // potentially apply correction again. This is done as close to sending as
+        // possible so that we avoid internal delays.
+        self.envelope.set_sent_at(Utc::now());
+
+        let meta = self.envelope.meta();
+
+        if let Some(origin) = meta.origin() {
+            builder.header("Origin", origin.as_str());
+        }
+
+        if let Some(user_agent) = meta.user_agent() {
+            builder.header("User-Agent", user_agent);
+        }
+
+        builder
+            .content_encoding(self.http_encoding)
+            .header("X-Sentry-Auth", meta.auth_header())
+            .header("X-Forwarded-For", meta.forwarded_for())
+            .header("Content-Type", envelope::CONTENT_TYPE);
+
+        let body = self.envelope.to_vec().map_err(|e| HttpError::custom(e))?;
+        builder.body(body)
+    }
+
+    fn respond(&self, response: crate::http::Response) -> Self::Transform {
+        Ok(())
+    }
+
+    fn error(&self, error: &UpstreamRequestError) {
+        if let UpstreamRequestError::RateLimited(upstream_limits) = error {
+            let limits = upstream_limits.scope(&self.scoping);
+            ProjectCache::from_registry().do_send(UpdateRateLimits::new(
+                self.scoping.project_key,
+                limits.clone(),
+            ));
+        }
+    }
+}
 
 pub struct EnvelopeManager {
     config: Arc<Config>,
