@@ -154,8 +154,6 @@ def test_pii_selector_suggestions_from_event():
 
 def test_parse_release():
     parsed = sentry_relay.parse_release("org.example.FooApp@1.0rc1+20200101100")
-    import pprint
-    pprint.pprint(parsed)
     assert parsed == {
         "build_hash": None,
         "description": "1.0rc1 (20200101100)",
