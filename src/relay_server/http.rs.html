@@ -230,21 +230,6 @@
 <span id="229">229</span>
 <span id="230">230</span>
 <span id="231">231</span>
-<span id="232">232</span>
-<span id="233">233</span>
-<span id="234">234</span>
-<span id="235">235</span>
-<span id="236">236</span>
-<span id="237">237</span>
-<span id="238">238</span>
-<span id="239">239</span>
-<span id="240">240</span>
-<span id="241">241</span>
-<span id="242">242</span>
-<span id="243">243</span>
-<span id="244">244</span>
-<span id="245">245</span>
-<span id="246">246</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">///! Abstractions for dealing with either actix-web client structs or reqwest structs.</span>
 <span class="doccomment">///!</span>
@@ -259,9 +244,6 @@
 <span class="kw">use</span> <span class="ident">std::io</span>;
 <span class="kw">use</span> <span class="ident">std::io::Write</span>;
 
-<span class="kw">use</span> <span class="ident">actix_web::error</span>::{<span class="ident">JsonPayloadError</span>, <span class="ident">PayloadError</span>};
-<span class="kw">use</span> <span class="ident">actix_web::http::StatusCode</span>;
-<span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">Binary</span>, <span class="ident">Error</span> <span class="kw">as</span> <span class="ident">ActixError</span>};
 <span class="kw">use</span> <span class="ident">brotli2::write::BrotliEncoder</span>;
 <span class="kw">use</span> <span class="ident">failure::Fail</span>;
 <span class="kw">use</span> <span class="ident">flate2::write</span>::{<span class="ident">GzEncoder</span>, <span class="ident">ZlibEncoder</span>};
@@ -270,9 +252,10 @@
 <span class="kw">use</span> <span class="ident">futures03</span>::{<span class="ident">FutureExt</span>, <span class="ident">TryFutureExt</span>, <span class="ident">TryStreamExt</span>};
 <span class="kw">use</span> <span class="ident">serde::de::DeserializeOwned</span>;
 
-<span class="kw">use</span> <span class="ident">::actix::prelude</span>::<span class="kw-2">*</span>;
-
 <span class="kw">use</span> <span class="ident">relay_config::HttpEncoding</span>;
+
+<span class="attribute">#[<span class="ident">doc</span>(<span class="ident">inline</span>)]</span>
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">reqwest::StatusCode</span>;
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Fail</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">HttpError</span> {
@@ -280,26 +263,29 @@
     <span class="ident">Overflow</span>,
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not send request&quot;</span>)]</span>
     <span class="ident">Reqwest</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">reqwest::Error</span>),
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to create upstream request: {}&quot;</span>, <span class="ident">_0</span>)]</span>
-    <span class="ident">Actix</span>(<span class="ident">ActixError</span>),
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to stream payload: {}&quot;</span>, <span class="ident">_0</span>)]</span>
+    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to stream payload&quot;</span>)]</span>
     <span class="ident">Io</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">io::Error</span>),
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not parse json payload returned by upstream&quot;</span>)]</span>
-    <span class="ident">ActixJson</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">JsonPayloadError</span>),
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to receive response from upstream&quot;</span>)]</span>
-    <span class="ident">ActixPayload</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">PayloadError</span>),
+    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to parse JSON response&quot;</span>)]</span>
+    <span class="ident">Json</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">serde_json::Error</span>),
+    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;{}&quot;</span>, <span class="ident">_0</span>)]</span>
+    <span class="ident">Custom</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Fail</span><span class="op">&gt;</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">HttpError</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">custom</span>(<span class="ident">error</span>: <span class="kw">impl</span> <span class="ident">Fail</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="self">Self</span><span class="ident">::Custom</span>(<span class="ident">Box::new</span>(<span class="ident">error</span>))
+    }
+
     <span class="doccomment">/// Returns `true` if the error indicates a network downtime.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_network_error</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">HttpError::ActixPayload</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">HttpError::Io</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
-
+            <span class="self">Self</span><span class="ident">::Io</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
             <span class="comment">// note: status codes are not handled here because we never call error_for_status. This</span>
             <span class="comment">// logic is part of upstream actor.</span>
-            <span class="ident">HttpError::Reqwest</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">error</span>.<span class="ident">is_timeout</span>(),
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+            <span class="self">Self</span><span class="ident">::Reqwest</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">error</span>.<span class="ident">is_timeout</span>(),
+            <span class="self">Self</span><span class="ident">::Json</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">HttpError::Overflow</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+            <span class="self">Self</span><span class="ident">::Custom</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
         }
     }
 }
@@ -310,27 +296,9 @@
     }
 }
 
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">ActixError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HttpError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">ActixError</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="ident">HttpError::Actix</span>(<span class="ident">e</span>)
-    }
-}
-
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">io::Error</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HttpError</span> {
     <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">io::Error</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="ident">HttpError::Io</span>(<span class="ident">e</span>)
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">JsonPayloadError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HttpError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">JsonPayloadError</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="ident">HttpError::ActixJson</span>(<span class="ident">e</span>)
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">PayloadError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HttpError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">e</span>: <span class="ident">PayloadError</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="ident">HttpError::ActixPayload</span>(<span class="ident">e</span>)
     }
 }
 
@@ -368,7 +336,10 @@
         <span class="self">self</span>
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">body</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">body</span>: <span class="ident">Binary</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Request</span>, <span class="ident">HttpError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">body</span><span class="op">&lt;</span><span class="ident">B</span><span class="op">&gt;</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">body</span>: <span class="ident">B</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Request</span>, <span class="ident">HttpError</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">B</span>: <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span>,
+    {
         <span class="comment">// actix-web&#39;s Binary is used as argument here because the type can be constructed from</span>
         <span class="comment">// almost anything and then the actix-web codepath is minimally affected.</span>
         <span class="comment">//</span>
@@ -415,21 +386,20 @@
 
 <span class="kw">impl</span> <span class="ident">Response</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">status</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">StatusCode</span> {
-        <span class="ident">StatusCode::from_u16</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">status</span>().<span class="ident">as_u16</span>()).<span class="ident">unwrap</span>()
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">status</span>()
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">json</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">DeserializeOwned</span><span class="op">&gt;</span>(
         <span class="self">self</span>,
         <span class="ident">limit</span>: <span class="ident">usize</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">T</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="ident">HttpError</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bytes</span>(<span class="ident">limit</span>).<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">bytes</span><span class="op">|</span> {
-            <span class="ident">serde_json::from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>)
-                .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">HttpError::ActixJson</span>(<span class="ident">JsonPayloadError::Deserialize</span>(<span class="ident">e</span>)))
-        });
+        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="self">self</span>
+            .<span class="ident">bytes</span>(<span class="ident">limit</span>)
+            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">bytes</span><span class="op">|</span> <span class="ident">serde_json::from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>).<span class="ident">map_err</span>(<span class="ident">HttpError::Json</span>));
         <span class="ident">Box::new</span>(<span class="ident">future</span>)
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">consume</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">HttpError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">consume</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="self">Self</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="ident">HttpError</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="comment">// Consume the request payload such that the underlying connection returns to a</span>
         <span class="comment">// &quot;clean state&quot;.</span>
         <span class="comment">//</span>
@@ -471,7 +441,7 @@
             .<span class="ident">collect</span>()
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">bytes</span>(<span class="self">self</span>, <span class="ident">limit</span>: <span class="ident">usize</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">HttpError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">bytes</span>(<span class="self">self</span>, <span class="ident">limit</span>: <span class="ident">usize</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="ident">HttpError</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="ident">Box::new</span>(
             <span class="self">self</span>.<span class="number">0</span>
                 .<span class="ident">bytes_stream</span>()

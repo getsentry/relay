@@ -2668,15 +2668,6 @@
 <span id="2667">2667</span>
 <span id="2668">2668</span>
 <span id="2669">2669</span>
-<span id="2670">2670</span>
-<span id="2671">2671</span>
-<span id="2672">2672</span>
-<span id="2673">2673</span>
-<span id="2674">2674</span>
-<span id="2675">2675</span>
-<span id="2676">2676</span>
-<span id="2677">2677</span>
-<span id="2678">2678</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
@@ -4412,20 +4403,11 @@
                     .<span class="ident">header</span>(<span class="string">&quot;X-Forwarded-For&quot;</span>, <span class="ident">meta</span>.<span class="ident">forwarded_for</span>())
                     .<span class="ident">header</span>(<span class="string">&quot;Content-Type&quot;</span>, <span class="ident">envelope::CONTENT_TYPE</span>);
 
-                <span class="ident">builder</span>
-                    .<span class="ident">body</span>(
-                        <span class="ident">envelope</span>
-                            .<span class="ident">to_vec</span>()
-                            <span class="comment">// XXX: upstream actor should allow for custom error type,</span>
-                            <span class="comment">// right now we are forced to shoehorn our envelope errors into</span>
-                            <span class="comment">// UpstreamRequestError</span>
-                            .<span class="ident">map_err</span>(<span class="ident">failure::Error::from</span>)
-                            .<span class="ident">map_err</span>(<span class="ident">actix_web::Error::from</span>)
-                            .<span class="ident">map_err</span>(<span class="ident">HttpError::Actix</span>)
-                            .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError::Http</span>)<span class="question-mark">?</span>
-                            .<span class="ident">into</span>(),
-                    )
-                    .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError::Http</span>)
+                <span class="kw">let</span> <span class="ident">body</span> <span class="op">=</span> <span class="ident">envelope</span>
+                    .<span class="ident">to_vec</span>()
+                    .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">UpstreamRequestError::Http</span>(<span class="ident">HttpError::custom</span>(<span class="ident">e</span>)))<span class="question-mark">?</span>;
+
+                <span class="ident">builder</span>.<span class="ident">body</span>(<span class="ident">body</span>).<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError::Http</span>)
             },
         );
 

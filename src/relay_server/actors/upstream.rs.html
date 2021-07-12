@@ -1300,9 +1300,6 @@
 <span id="1299">1299</span>
 <span id="1300">1300</span>
 <span id="1301">1301</span>
-<span id="1302">1302</span>
-<span id="1303">1303</span>
-<span id="1304">1304</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -1332,7 +1329,7 @@
 
 <span class="kw">use</span> <span class="ident">::actix::fut</span>;
 <span class="kw">use</span> <span class="ident">::actix::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">actix_web::http</span>::{<span class="ident">header</span>, <span class="ident">Method</span>, <span class="ident">StatusCode</span>};
+<span class="kw">use</span> <span class="ident">actix_web::http</span>::{<span class="ident">header</span>, <span class="ident">Method</span>};
 <span class="kw">use</span> <span class="ident">failure::Fail</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">future</span>, <span class="ident">prelude</span>::<span class="kw-2">*</span>, <span class="ident">sync::oneshot</span>};
 <span class="kw">use</span> <span class="ident">itertools::Itertools</span>;
@@ -1347,7 +1344,7 @@
     <span class="ident">DataCategories</span>, <span class="ident">QuotaScope</span>, <span class="ident">RateLimit</span>, <span class="ident">RateLimitScope</span>, <span class="ident">RateLimits</span>, <span class="ident">RetryAfter</span>, <span class="ident">Scoping</span>,
 };
 
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::http</span>::{<span class="ident">HttpError</span>, <span class="ident">Request</span>, <span class="ident">RequestBuilder</span>, <span class="ident">Response</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::http</span>::{<span class="ident">HttpError</span>, <span class="ident">Request</span>, <span class="ident">RequestBuilder</span>, <span class="ident">Response</span>, <span class="ident">StatusCode</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::metrics</span>::{<span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::utils</span>::{<span class="self">self</span>, <span class="ident">ApiErrorResponse</span>, <span class="ident">IntoTracked</span>, <span class="ident">RelayErrorAction</span>, <span class="ident">TrackedFutureFinished</span>};
 
@@ -1908,8 +1905,8 @@
         <span class="ident">request</span>: <span class="kw-2">&amp;</span><span class="ident">UpstreamRequest</span>,
         <span class="ident">send_result</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span>,
     ) {
-        <span class="kw">let</span> <span class="ident">sc</span>: <span class="ident">StatusCode</span>;
-        <span class="kw">let</span> <span class="ident">sc2</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">reqwest::StatusCode</span><span class="op">&gt;</span>;
+        <span class="kw">let</span> <span class="ident">sc</span>;
+        <span class="kw">let</span> <span class="ident">sc2</span>;
 
         <span class="kw">let</span> (<span class="ident">status_code</span>, <span class="ident">result</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">send_result</span> {
             <span class="prelude-val">Ok</span>(<span class="kw-2">ref</span> <span class="ident">client_response</span>) <span class="op">=</span><span class="op">&gt;</span> {
@@ -1920,8 +1917,7 @@
                 (<span class="ident">status_code</span>.<span class="ident">as_str</span>(), <span class="string">&quot;response_error&quot;</span>)
             }
             <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::Http</span>(<span class="ident">HttpError::Io</span>(<span class="kw">_</span>))) <span class="op">=</span><span class="op">&gt;</span> (<span class="string">&quot;-&quot;</span>, <span class="string">&quot;payload_failed&quot;</span>),
-            <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::Http</span>(<span class="ident">HttpError::ActixPayload</span>(<span class="kw">_</span>))) <span class="op">=</span><span class="op">&gt;</span> (<span class="string">&quot;-&quot;</span>, <span class="string">&quot;payload_failed&quot;</span>),
-            <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::Http</span>(<span class="ident">HttpError::ActixJson</span>(<span class="kw">_</span>))) <span class="op">=</span><span class="op">&gt;</span> (<span class="string">&quot;-&quot;</span>, <span class="string">&quot;invalid_json&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::Http</span>(<span class="ident">HttpError::Json</span>(<span class="kw">_</span>))) <span class="op">=</span><span class="op">&gt;</span> (<span class="string">&quot;-&quot;</span>, <span class="string">&quot;invalid_json&quot;</span>),
             <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::Http</span>(<span class="ident">HttpError::Reqwest</span>(<span class="ident">error</span>))) <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="ident">sc2</span> <span class="op">=</span> <span class="ident">error</span>.<span class="ident">status</span>();
                 (
@@ -1929,13 +1925,13 @@
                     <span class="string">&quot;reqwest_error&quot;</span>,
                 )
             }
+            <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::Http</span>(<span class="ident">HttpError::Custom</span>(<span class="kw">_</span>))) <span class="op">=</span><span class="op">&gt;</span> (<span class="string">&quot;-&quot;</span>, <span class="string">&quot;internal&quot;</span>),
 
             <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::SendFailed</span>(<span class="kw">_</span>)) <span class="op">=</span><span class="op">&gt;</span> (<span class="string">&quot;-&quot;</span>, <span class="string">&quot;send_failed&quot;</span>),
             <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::RateLimited</span>(<span class="kw">_</span>)) <span class="op">=</span><span class="op">&gt;</span> (<span class="string">&quot;-&quot;</span>, <span class="string">&quot;rate_limited&quot;</span>),
             <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::NoCredentials</span>)
             <span class="op">|</span> <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::ChannelClosed</span>)
-            <span class="op">|</span> <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::Http</span>(<span class="ident">HttpError::Overflow</span>))
-            <span class="op">|</span> <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::Http</span>(<span class="ident">HttpError::Actix</span>(<span class="kw">_</span>))) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="op">|</span> <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::Http</span>(<span class="ident">HttpError::Overflow</span>)) <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="comment">// these are not errors caused when sending to upstream so we don&#39;t need to log anything</span>
                 <span class="macro">relay_log::error!</span>(<span class="string">&quot;meter_result called for unsupported error&quot;</span>);
                 <span class="kw">return</span>;
@@ -2085,9 +2081,7 @@
                 <span class="kw">move</span> <span class="op">|</span><span class="kw-2">mut</span> <span class="ident">builder</span>: <span class="ident">RequestBuilder</span><span class="op">|</span> {
                     <span class="ident">builder</span>.<span class="ident">header</span>(<span class="string">&quot;X-Sentry-Relay-Signature&quot;</span>, <span class="ident">signature</span>.<span class="ident">as_str</span>().<span class="ident">as_bytes</span>());
                     <span class="ident">builder</span>.<span class="ident">header</span>(<span class="ident">header::CONTENT_TYPE</span>, <span class="string">b&quot;application/json&quot;</span>);
-                    <span class="ident">builder</span>
-                        .<span class="ident">body</span>(<span class="ident">json</span>.<span class="ident">clone</span>().<span class="ident">into</span>())
-                        .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError::Http</span>)
+                    <span class="ident">builder</span>.<span class="ident">body</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">json</span>).<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError::Http</span>)
                 },
                 <span class="ident">ctx</span>,
             )
