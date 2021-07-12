@@ -2,6 +2,7 @@
 #![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
 
+use std::cmp::Ordering;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
@@ -220,6 +221,19 @@ pub unsafe extern "C" fn relay_is_glob_match(
 pub unsafe extern "C" fn relay_parse_release(value: *const RelayStr) -> RelayStr {
     let release = sentry_release_parser::Release::parse((*value).as_str())?;
     RelayStr::from_string(serde_json::to_string(&release)?)
+}
+
+/// Compares two versions.
+#[no_mangle]
+#[relay_ffi::catch_unwind]
+pub unsafe extern "C" fn relay_compare_versions(a: *const RelayStr, b: *const RelayStr) -> i32 {
+    let ver_a = sentry_release_parser::Version::parse((*a).as_str())?;
+    let ver_b = sentry_release_parser::Version::parse((*b).as_str())?;
+    match ver_a.cmp(&ver_b) {
+        Ordering::Less => -1,
+        Ordering::Equal => 0,
+        Ordering::Greater => 1,
+    }
 }
 
 /// Validate a sampling rule condition.
