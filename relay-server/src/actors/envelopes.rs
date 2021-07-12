@@ -1732,20 +1732,11 @@ impl EnvelopeManager {
                     .header("X-Forwarded-For", meta.forwarded_for())
                     .header("Content-Type", envelope::CONTENT_TYPE);
 
-                builder
-                    .body(
-                        envelope
-                            .to_vec()
-                            // XXX: upstream actor should allow for custom error type,
-                            // right now we are forced to shoehorn our envelope errors into
-                            // UpstreamRequestError
-                            .map_err(failure::Error::from)
-                            .map_err(actix_web::Error::from)
-                            .map_err(HttpError::Actix)
-                            .map_err(UpstreamRequestError::Http)?
-                            .into(),
-                    )
-                    .map_err(UpstreamRequestError::Http)
+                let body = envelope
+                    .to_vec()
+                    .map_err(|e| UpstreamRequestError::Http(HttpError::custom(e)))?;
+
+                builder.body(body).map_err(UpstreamRequestError::Http)
             },
         );
 

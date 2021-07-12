@@ -26,7 +26,7 @@ use std::time::Instant;
 
 use ::actix::fut;
 use ::actix::prelude::*;
-use actix_web::http::{header, Method, StatusCode};
+use actix_web::http::{header, Method};
 use failure::Fail;
 use futures::{future, prelude::*, sync::oneshot};
 use itertools::Itertools;
@@ -41,7 +41,7 @@ use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
 
-use crate::http::{HttpError, Request, RequestBuilder, Response};
+use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
 use crate::metrics::{RelayHistograms, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, IntoTracked, RelayErrorAction, TrackedFutureFinished};
 
@@ -602,8 +602,8 @@ impl UpstreamRelay {
         request: &UpstreamRequest,
         send_result: &Result<Response, UpstreamRequestError>,
     ) {
-        let sc: StatusCode;
-        let sc2: Option<reqwest::StatusCode>;
+        let sc;
+        let sc2;
 
         let (status_code, result) = match send_result {
             Ok(ref client_response) => {
@@ -614,8 +614,7 @@ impl UpstreamRelay {
                 (status_code.as_str(), "response_error")
             }
             Err(UpstreamRequestError::Http(HttpError::Io(_))) => ("-", "payload_failed"),
-            Err(UpstreamRequestError::Http(HttpError::ActixPayload(_))) => ("-", "payload_failed"),
-            Err(UpstreamRequestError::Http(HttpError::ActixJson(_))) => ("-", "invalid_json"),
+            Err(UpstreamRequestError::Http(HttpError::Json(_))) => ("-", "invalid_json"),
             Err(UpstreamRequestError::Http(HttpError::Reqwest(error))) => {
                 sc2 = error.status();
                 (
@@ -623,13 +622,13 @@ impl UpstreamRelay {
                     "reqwest_error",
                 )
             }
+            Err(UpstreamRequestError::Http(HttpError::Custom(_))) => ("-", "internal"),
 
             Err(UpstreamRequestError::SendFailed(_)) => ("-", "send_failed"),
             Err(UpstreamRequestError::RateLimited(_)) => ("-", "rate_limited"),
             Err(UpstreamRequestError::NoCredentials)
             | Err(UpstreamRequestError::ChannelClosed)
-            | Err(UpstreamRequestError::Http(HttpError::Overflow))
-            | Err(UpstreamRequestError::Http(HttpError::Actix(_))) => {
+            | Err(UpstreamRequestError::Http(HttpError::Overflow)) => {
                 // these are not errors caused when sending to upstream so we don't need to log anything
                 relay_log::error!("meter_result called for unsupported error");
                 return;
@@ -779,9 +778,7 @@ impl UpstreamRelay {
                 move |mut builder: RequestBuilder| {
                     builder.header("X-Sentry-Relay-Signature", signature.as_str().as_bytes());
                     builder.header(header::CONTENT_TYPE, b"application/json");
-                    builder
-                        .body(json.clone().into())
-                        .map_err(UpstreamRequestError::Http)
+                    builder.body(&*json).map_err(UpstreamRequestError::Http)
                 },
                 ctx,
             )
