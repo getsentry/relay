@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add ability to compare versions. ([#1038](https://github.com/getsentry/relay/pull/1038))
+
 ## 21.6.3
 
 - No documented changes.
