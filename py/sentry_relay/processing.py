@@ -203,7 +203,7 @@ def pii_selector_suggestions_from_event(event):
 
 
 def parse_release(release):
-    """Parses a release string into a dictionary of it's components."""
+    """Parses a release string into a dictionary of its components."""
     return json.loads(
         decode_str(rustcall(lib.relay_parse_release, encode_str(release)), free=True)
     )
