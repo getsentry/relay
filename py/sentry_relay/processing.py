@@ -203,9 +203,15 @@ def pii_selector_suggestions_from_event(event):
 
 
 def parse_release(release):
+    """Parses a release string into a dictionary of it's components."""
     return json.loads(
         decode_str(rustcall(lib.relay_parse_release, encode_str(release)), free=True)
     )
+
+
+def compare_version(a, b):
+    """Compares two versions with each other and returns 1/0/-1."""
+    return rustcall(lib.relay_compare_versions, encode_str(a), encode_str(b))
 
 
 def validate_sampling_condition(condition):

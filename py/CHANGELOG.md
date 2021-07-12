@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Bump release parser to 1.3.0 and add ability to compare versions. ([#1038](https://github.com/getsentry/relay/pull/1038))
+
 ## 1.1.4
 
 - Bump release parser to 1.1.4. ([#1031](https://github.com/getsentry/relay/pull/1031))

@@ -154,9 +154,11 @@ def test_pii_selector_suggestions_from_event():
 
 def test_parse_release():
     parsed = sentry_relay.parse_release("org.example.FooApp@1.0rc1+20200101100")
+    import pprint
+    pprint.pprint(parsed)
     assert parsed == {
         "build_hash": None,
-        "description": "1.0-rc1 (20200101100)",
+        "description": "1.0rc1 (20200101100)",
         "package": "org.example.FooApp",
         "version_parsed": {
             "build_code": "20200101100",
@@ -166,6 +168,7 @@ def test_parse_release():
             "patch": 0,
             "pre": "rc1",
             "raw_quad": ["1", "0", None, None],
+            "raw_short": "1.0rc1",
             "revision": 0,
         },
         "version_raw": "1.0rc1+20200101100",
@@ -175,6 +178,12 @@ def test_parse_release():
 def test_parse_release_error():
     with pytest.raises(sentry_relay.InvalidReleaseErrorBadCharacters):
         sentry_relay.parse_release("/var/foo/foo")
+
+
+def compare_versions():
+    assert sentry_relay.compare_versions("1.0.0", "0.1.1") == 1
+    assert sentry_relay.compare_versions("0.0.0", "0.1.1") == -1
+    assert sentry_relay.compare_versions("1.0.0", "1.0") == -1
 
 
 def test_validate_sampling_condition():
