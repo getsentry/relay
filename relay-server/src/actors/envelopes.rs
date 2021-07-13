@@ -1646,9 +1646,8 @@ struct SendEnvelope {
 }
 
 impl UpstreamRequest2 for SendEnvelope {
-    type Response = ();
-
-    type Transform = Result<(), HttpError>;
+    ///type Response = ();
+    //type Transform = Result<crate::http::Response, HttpError>;
 
     fn method(&self) -> Method {
         Method::POST
@@ -1658,13 +1657,13 @@ impl UpstreamRequest2 for SendEnvelope {
         format!("/api/{}/envelope/", self.scoping.project_id).into()
     }
 
-    fn build(&self, builder: RequestBuilder) -> Result<crate::http::Request, HttpError> {
+    fn build(&self, mut builder: RequestBuilder) -> Result<crate::http::Request, HttpError> {
         // Override the `sent_at` timestamp. Since the envelope went through basic
         // normalization, all timestamps have been corrected. We propagate the new
         // `sent_at` to allow the next Relay to double-check this timestamp and
         // potentially apply correction again. This is done as close to sending as
         // possible so that we avoid internal delays.
-        self.envelope.set_sent_at(Utc::now());
+        //self.envelope.set_sent_at(Utc::now());
 
         let meta = self.envelope.meta();
 
@@ -1686,11 +1685,14 @@ impl UpstreamRequest2 for SendEnvelope {
         builder.body(body)
     }
 
-    fn respond(&self, response: crate::http::Response) -> Self::Transform {
-        Ok(())
+    fn respond(
+        &self,
+        response: crate::http::Response,
+    ) -> ResponseFuture<crate::http::Response, HttpError> {
+        Box::new(futures::future::ok(response))
     }
 
-    fn error(&self, error: &UpstreamRequestError) {
+    fn error(&self, error: UpstreamRequestError) {
         if let UpstreamRequestError::RateLimited(upstream_limits) = error {
             let limits = upstream_limits.scope(&self.scoping);
             ProjectCache::from_registry().do_send(UpdateRateLimits::new(
@@ -1761,7 +1763,7 @@ impl EnvelopeManager {
         // if we are in capture mode, we stash away the event instead of forwarding it.
         if self.config.relay_mode() == RelayMode::Capture {
             // XXX: this is wrong because captured_events does not take envelopes without
-            // event_id into account.
+            // event_id into account.`
             if let Some(event_id) = envelope.event_id() {
                 relay_log::debug!("capturing envelope");
                 self.captures.insert(event_id, Ok(envelope));

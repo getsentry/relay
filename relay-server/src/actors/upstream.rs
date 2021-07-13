@@ -380,6 +380,8 @@ pub struct UpstreamRelay {
     num_inflight_requests: usize,
     high_prio_requests: VecDeque<UpstreamRequest>,
     low_prio_requests: VecDeque<UpstreamRequest>,
+    high_prio_requests2: VecDeque<Box<dyn UpstreamRequest2>>,
+    low_prio_requests2: VecDeque<Box<dyn UpstreamRequest2>>,
     config: Arc<Config>,
     reqwest_client: reqwest::Client,
     /// "reqwest runtime" as this tokio runtime is currently only spawned such that reqwest can
@@ -418,6 +420,8 @@ impl UpstreamRelay {
             num_inflight_requests: 0,
             high_prio_requests: VecDeque::new(),
             low_prio_requests: VecDeque::new(),
+            high_prio_requests2: VecDeque::new(),
+            low_prio_requests2: VecDeque::new(),
             first_error: None,
             config,
             reqwest_runtime,
@@ -709,6 +713,13 @@ impl UpstreamRelay {
         );
 
         ctx.notify(PumpHttpMessageQueue);
+    }
+
+    fn enqueue_request2<T>(&self, request: T, ctx: &mut Context<Self>)
+    where
+        T: UpstreamRequest2,
+    {
+        let priority = request.priority();
     }
 
     fn enqueue_request<P, F>(
@@ -1199,9 +1210,8 @@ where
 }
 
 /// TODO: Doc
-pub trait UpstreamRequest2 {
-    type Response: Send + 'static;
-    type Transform: IntoFuture<Item = Self::Response, Error = HttpError>;
+pub trait UpstreamRequest2: Send {
+    ///type Response: Send + 'static;
 
     /// The HTTP method of the request.
     fn method(&self) -> Method;
@@ -1232,9 +1242,9 @@ pub trait UpstreamRequest2 {
     /// TODO: Doc
     fn build(&self, builder: RequestBuilder) -> Result<Request, HttpError>;
 
-    fn respond(&self, response: Response) -> Self::Transform;
+    fn respond(&self, response: Response) -> ResponseFuture<Response, HttpError>;
 
-    fn error(&self, _error: &UpstreamRequestError) {}
+    fn error(&self, _error: UpstreamRequestError) {}
 }
 
 pub struct SendRequest2<T: UpstreamRequest2>(pub T);
@@ -1243,17 +1253,18 @@ impl<T> Message for SendRequest2<T>
 where
     T: UpstreamRequest2,
 {
-    type Result = Result<T::Response, UpstreamRequestError>;
+    type Result = Result<Response, UpstreamRequestError>;
 }
 
 impl<T> Handler<SendRequest2<T>> for UpstreamRelay
 where
     T: UpstreamRequest2,
 {
-    type Result = ResponseFuture<T::Response, UpstreamRequestError>;
+    type Result = ResponseFuture<Response, UpstreamRequestError>;
 
     fn handle(&mut self, msg: SendRequest2<T>, ctx: &mut Self::Context) -> Self::Result {
-        let future = self.enqueue_request(msg.0, ctx);
+        let future = self.enqueue_request2(msg.0, ctx);
+        todo!(); // return error if you can't enqueue
     }
 }
 

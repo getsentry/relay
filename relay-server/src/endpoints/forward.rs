@@ -137,8 +137,8 @@ struct ForwardRequest {
 }
 
 impl UpstreamRequest2 for ForwardRequest {
-    type Response = (reqwest::StatusCode, Vec<(String, Vec<u8>)>, Vec<u8>);
-    type Transform = ResponseFuture<Self::Response, HttpError>;
+    //type Response = (reqwest::StatusCode, Vec<(String, Vec<u8>)>, Vec<u8>);
+    //type Transform = ResponseFuture<Response, HttpError>;
 
     fn method(&self) -> Method {
         self.method.clone()
@@ -160,7 +160,7 @@ impl UpstreamRequest2 for ForwardRequest {
         false
     }
 
-    fn build(&self, builder: RequestBuilder) -> Result<crate::http::Request, HttpError> {
+    fn build(&self, mut builder: RequestBuilder) -> Result<crate::http::Request, HttpError> {
         for (key, value) in &self.headers {
             // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
             // must not forward the content-encoding header, as the actix http client will do its own
@@ -178,12 +178,14 @@ impl UpstreamRequest2 for ForwardRequest {
         builder.body(&self.data)
     }
 
-    fn respond(&self, response: Response) -> Self::Transform {
+    fn respond(&self, response: Response) -> ResponseFuture<Response, HttpError> {
         let status = response.status();
         let headers = response.clone_headers();
-        let future = response
-            .bytes(self.max_response_size)
-            .and_then(move |body| Ok((status, headers, body)));
+        let future = futures::future::ok(response);
+        //TODO fix here !!!! RaduW
+        // let future = response
+        //     .bytes(self.max_response_size)
+        //     .and_then(move |body| Ok((status, headers, body)));
 
         Box::new(future)
     }
@@ -212,60 +214,61 @@ pub fn forward_upstream(
     let headers = request.headers().clone();
     let forwarded_for = ForwardedFor::from(request);
 
-    ForwardBody::new(request, limit)
-        .map_err(Error::from)
-        .and_then(move |data| {
-            let forward_request = ForwardRequest {
-                method,
-                path: path_and_query,
-                headers,
-                forwarded_for,
-                data,
-                max_response_size,
-            };
-
-            UpstreamRelay::from_registry()
-                .send(SendRequest2(forward_request))
-                .map_err(|_| {
-                    Error::from(ForwardedUpstreamRequestError(
-                        UpstreamRequestError::ChannelClosed,
-                    ))
-                })
-        })
-        .and_then(move |result: Result<_, UpstreamRequestError>| {
-            let (status, headers, body) = result.map_err(ForwardedUpstreamRequestError::from)?;
-            let actix_code = StatusCode::from_u16(status.as_u16()).unwrap();
-            let mut forwarded_response = HttpResponse::build(actix_code);
-
-            let mut has_content_type = false;
-
-            for (key, value) in headers {
-                if key == "content-type" {
-                    has_content_type = true;
-                }
-
-                // 2. Just pass content-length, content-encoding etc through
-                if HOP_BY_HOP_HEADERS.iter().any(|x| key.as_str() == x) {
-                    continue;
-                }
-
-                forwarded_response.header(&key, &*value);
-            }
-
-            // For reqwest the option to disable automatic response decompression can only be
-            // set per-client. For non-forwarded upstream requests that is desirable, so we
-            // keep it enabled.
-            //
-            // Essentially this means that content negotiation is done twice, and the response
-            // body is first decompressed by reqwest, then re-compressed by actix-web.
-
-            Ok(if has_content_type {
-                forwarded_response.body(body)
-            } else {
-                forwarded_response.finish()
-            })
-        })
-        .responder()
+    unimplemented!();
+    // ForwardBody::new(request, limit)
+    //     .map_err(Error::from)
+    //     .and_then(move |data| {
+    //         let forward_request = ForwardRequest {
+    //             method,
+    //             path: path_and_query,
+    //             headers,
+    //             forwarded_for,
+    //             data,
+    //             max_response_size,
+    //         };
+    //
+    //         UpstreamRelay::from_registry()
+    //             .send(SendRequest2(forward_request))
+    //             .map_err(|_| {
+    //                 Error::from(ForwardedUpstreamRequestError(
+    //                     UpstreamRequestError::ChannelClosed,
+    //                 ))
+    //             })
+    //     })
+    //     .and_then(move |result: Result<_, UpstreamRequestError>| {
+    //         let (status, headers, body) = result.map_err(ForwardedUpstreamRequestError::from)?;
+    //         let actix_code = StatusCode::from_u16(status.as_u16()).unwrap();
+    //         let mut forwarded_response = HttpResponse::build(actix_code);
+    //
+    //         let mut has_content_type = false;
+    //
+    //         for (key, value) in headers {
+    //             if key == "content-type" {
+    //                 has_content_type = true;
+    //             }
+    //
+    //             // 2. Just pass content-length, content-encoding etc through
+    //             if HOP_BY_HOP_HEADERS.iter().any(|x| key.as_str() == x) {
+    //                 continue;
+    //             }
+    //
+    //             forwarded_response.header(&key, &*value);
+    //         }
+    //
+    //         // For reqwest the option to disable automatic response decompression can only be
+    //         // set per-client. For non-forwarded upstream requests that is desirable, so we
+    //         // keep it enabled.
+    //         //
+    //         // Essentially this means that content negotiation is done twice, and the response
+    //         // body is first decompressed by reqwest, then re-compressed by actix-web.
+    //
+    //         Ok(if has_content_type {
+    //             forwarded_response.body(body)
+    //         } else {
+    //             forwarded_response.finish()
+    //         })
+    //     })
+    //     .responder()
 }
 
 /// Registers this endpoint in the actix-web app.
