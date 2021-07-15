@@ -1242,9 +1242,13 @@ pub trait UpstreamRequest2: Send {
     /// TODO: Doc
     fn build(&self, builder: RequestBuilder) -> Result<Request, HttpError>;
 
-    fn respond(&self, response: Response) -> ResponseFuture<Response, HttpError>;
+    /// TODO doc
+    fn respond(&mut self, response: Response) -> ResponseFuture<(), HttpError> {
+        //just consumes the response in case it is not needed
+        Box::new(response.consume().map(|_| ()))
+    }
 
-    fn error(&self, _error: UpstreamRequestError) {}
+    fn error(&mut self, _error: UpstreamRequestError) {}
 }
 
 pub struct SendRequest2<T: UpstreamRequest2>(pub T);
@@ -1253,18 +1257,16 @@ impl<T> Message for SendRequest2<T>
 where
     T: UpstreamRequest2,
 {
-    type Result = Result<Response, UpstreamRequestError>;
+    type Result = ();
 }
 
 impl<T> Handler<SendRequest2<T>> for UpstreamRelay
 where
     T: UpstreamRequest2,
 {
-    type Result = ResponseFuture<Response, UpstreamRequestError>;
-
+    type Result = ();
     fn handle(&mut self, msg: SendRequest2<T>, ctx: &mut Self::Context) -> Self::Result {
-        let future = self.enqueue_request2(msg.0, ctx);
-        todo!(); // return error if you can't enqueue
+        self.enqueue_request2(msg.0, ctx);
     }
 }
 

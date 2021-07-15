@@ -1685,22 +1685,22 @@ impl UpstreamRequest2 for SendEnvelope {
         builder.body(body)
     }
 
-    fn respond(
-        &self,
-        response: crate::http::Response,
-    ) -> ResponseFuture<crate::http::Response, HttpError> {
-        Box::new(futures::future::ok(response))
-    }
+    // fn respond(
+    //     &self,
+    //     response: crate::http::Response,
+    // ) -> ResponseFuture<crate::http::Response, HttpError> {
+    //     Box::new(futures::future::ok(response))
+    // }
 
-    fn error(&self, error: UpstreamRequestError) {
-        if let UpstreamRequestError::RateLimited(upstream_limits) = error {
-            let limits = upstream_limits.scope(&self.scoping);
-            ProjectCache::from_registry().do_send(UpdateRateLimits::new(
-                self.scoping.project_key,
-                limits.clone(),
-            ));
-        }
-    }
+    // fn error(&self, error: UpstreamRequestError) {
+    //     if let UpstreamRequestError::RateLimited(upstream_limits) = error {
+    //         let limits = upstream_limits.scope(&self.scoping);
+    //         ProjectCache::from_registry().do_send(UpdateRateLimits::new(
+    //             self.scoping.project_key,
+    //             limits.clone(),
+    //         ));
+    //     }
+    // }
 }
 
 pub struct EnvelopeManager {

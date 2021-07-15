@@ -4,6 +4,7 @@
 //! (`X-Forwarded-For` and `Sentry-Relay-Id`). The response is then streamed back to the origin.
 
 use std::borrow::Cow;
+use std::fmt::Debug;
 
 use ::actix::prelude::*;
 use actix_web::error::ResponseError;
@@ -13,10 +14,11 @@ use actix_web::http::{HeaderMap, Method};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use failure::Fail;
-use futures::prelude::*;
+use futures::{prelude::*, sync::oneshot};
+
 use lazy_static::lazy_static;
 
-use relay_common::GlobMatcher;
+use relay_common::{clone, GlobMatcher};
 use relay_config::Config;
 use relay_log::LogError;
 
@@ -126,7 +128,7 @@ fn get_limit_for_path(path: &str, config: &Config) -> usize {
     }
 }
 
-#[derive(Debug)]
+//#[derive(Debug)]
 struct ForwardRequest {
     method: Method,
     path: String,
@@ -134,12 +136,17 @@ struct ForwardRequest {
     forwarded_for: ForwardedFor,
     data: Bytes,
     max_response_size: usize,
+    response_channel: oneshot::Sender<Result<Response, UpstreamRequestError>>,
 }
 
-impl UpstreamRequest2 for ForwardRequest {
-    //type Response = (reqwest::StatusCode, Vec<(String, Vec<u8>)>, Vec<u8>);
-    //type Transform = ResponseFuture<Response, HttpError>;
+// impl Debug for ForwardRequest {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "ForwardRequest()")
+//         //TODO finish here
+//     }
+// }
 
+impl UpstreamRequest2 for ForwardRequest {
     fn method(&self) -> Method {
         self.method.clone()
     }
@@ -178,17 +185,16 @@ impl UpstreamRequest2 for ForwardRequest {
         builder.body(&self.data)
     }
 
-    fn respond(&self, response: Response) -> ResponseFuture<Response, HttpError> {
-        let status = response.status();
-        let headers = response.clone_headers();
-        let future = futures::future::ok(response);
-        //TODO fix here !!!! RaduW
-        // let future = response
-        //     .bytes(self.max_response_size)
-        //     .and_then(move |body| Ok((status, headers, body)));
-
-        Box::new(future)
-    }
+    // fn respond(&self, response: Response) -> ResponseFuture<(), HttpError> {
+    //     let status = response.status();
+    //     let headers = response.clone_headers();
+    //     let future = futures::future::ok();
+    //     let future = response
+    //         .bytes(self.max_response_size)
+    //         .and_then(move |body| Ok((status, headers, body)));
+    //
+    //     Box::new(future)
+    // }
 }
 
 /// Implementation of the forward endpoint.
@@ -214,61 +220,74 @@ pub fn forward_upstream(
     let headers = request.headers().clone();
     let forwarded_for = ForwardedFor::from(request);
 
-    unimplemented!();
-    // ForwardBody::new(request, limit)
-    //     .map_err(Error::from)
-    //     .and_then(move |data| {
-    //         let forward_request = ForwardRequest {
-    //             method,
-    //             path: path_and_query,
-    //             headers,
-    //             forwarded_for,
-    //             data,
-    //             max_response_size,
-    //         };
-    //
-    //         UpstreamRelay::from_registry()
-    //             .send(SendRequest2(forward_request))
-    //             .map_err(|_| {
-    //                 Error::from(ForwardedUpstreamRequestError(
-    //                     UpstreamRequestError::ChannelClosed,
-    //                 ))
-    //             })
-    //     })
-    //     .and_then(move |result: Result<_, UpstreamRequestError>| {
-    //         let (status, headers, body) = result.map_err(ForwardedUpstreamRequestError::from)?;
-    //         let actix_code = StatusCode::from_u16(status.as_u16()).unwrap();
-    //         let mut forwarded_response = HttpResponse::build(actix_code);
-    //
-    //         let mut has_content_type = false;
-    //
-    //         for (key, value) in headers {
-    //             if key == "content-type" {
-    //                 has_content_type = true;
-    //             }
-    //
-    //             // 2. Just pass content-length, content-encoding etc through
-    //             if HOP_BY_HOP_HEADERS.iter().any(|x| key.as_str() == x) {
-    //                 continue;
-    //             }
-    //
-    //             forwarded_response.header(&key, &*value);
-    //         }
-    //
-    //         // For reqwest the option to disable automatic response decompression can only be
-    //         // set per-client. For non-forwarded upstream requests that is desirable, so we
-    //         // keep it enabled.
-    //         //
-    //         // Essentially this means that content negotiation is done twice, and the response
-    //         // body is first decompressed by reqwest, then re-compressed by actix-web.
-    //
-    //         Ok(if has_content_type {
-    //             forwarded_response.body(body)
-    //         } else {
-    //             forwarded_response.finish()
-    //         })
-    //     })
-    //     .responder()
+    ForwardBody::new(request, limit)
+        .map_err(Error::from)
+        .and_then(clone!(max_response_size, |data| {
+            let (tx, rx) = oneshot::channel();
+
+            let forward_request = ForwardRequest {
+                method,
+                path: path_and_query,
+                headers,
+                forwarded_for,
+                data,
+                max_response_size,
+                response_channel: tx,
+            };
+
+            UpstreamRelay::from_registry().do_send(SendRequest2(forward_request));
+            rx.map_err(|_| {
+                Error::from(ForwardedUpstreamRequestError(
+                    UpstreamRequestError::ChannelClosed,
+                ))
+            })
+        }))
+        .and_then(|response| {
+            response.map_err(|e| Error::from(ForwardedUpstreamRequestError::from(e)))
+        })
+        .and_then(move |response| {
+            let status = response.status();
+            let headers = response.clone_headers();
+            response
+                .bytes(max_response_size)
+                .and_then(move |body| Ok((status, headers, body)))
+                .map_err(|e| {
+                    Error::from(ForwardedUpstreamRequestError(UpstreamRequestError::Http(e)))
+                })
+        })
+        .and_then(move |(status, headers, body)| {
+            let actix_code = StatusCode::from_u16(status.as_u16()).unwrap();
+            let mut forwarded_response = HttpResponse::build(actix_code);
+
+            let mut has_content_type = false;
+
+            for (key, value) in headers {
+                if key == "content-type" {
+                    has_content_type = true;
+                }
+
+                // 2. Just pass content-length, content-encoding etc through
+                if HOP_BY_HOP_HEADERS.iter().any(|x| key.as_str() == x) {
+                    continue;
+                }
+
+                forwarded_response.header(&key, &*value);
+            }
+
+            // For reqwest the option to disable automatic response decompression can only be
+            // set per-client. For non-forwarded upstream requests that is desirable, so we
+            // keep it enabled.
+            //
+            // Essentially this means that content negotiation is done twice, and the response
+            // body is first decompressed by reqwest, then re-compressed by actix-web.
+
+            Ok(if has_content_type {
+                forwarded_response.body(body)
+            } else {
+                forwarded_response.finish()
+            })
+        })
+        .responder()
 }
 
 /// Registers this endpoint in the actix-web app.
