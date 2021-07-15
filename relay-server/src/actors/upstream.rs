@@ -939,46 +939,46 @@ impl UpstreamRelay {
         Box::new(future)
     }
 
-    fn enqueue_query<Q: UpstreamQuery>(
+    fn enqueue_query<Q: 'static + UpstreamQuery>(
         &mut self,
         query: Q,
         ctx: &mut Context<Self>,
     ) -> ResponseFuture<Q::Response, UpstreamRequestError> {
-        let method = query.method();
-        let path = query.path();
-        let config = UpstreamRequestConfig {
-            retry: Q::retry(),
-            priority: Q::priority(),
-            intercept_status_errors: true,
-            set_relay_id: true,
-        };
-
         let credentials = tryf!(self
             .config
             .credentials()
             .ok_or(UpstreamRequestError::NoCredentials));
 
-        let (json, signature) = credentials.secret_key.pack(query);
-        let json = Arc::new(json);
+        let (body, signature) = credentials.secret_key.pack(&query);
 
         let max_response_size = self.config.max_api_payload_size();
 
-        let future = self
-            .enqueue_request(
-                config,
-                method,
-                path,
-                move |mut builder: RequestBuilder| {
-                    builder.header("X-Sentry-Relay-Signature", signature.as_str().as_bytes());
-                    builder.header(header::CONTENT_TYPE, b"application/json");
-                    builder.body(&*json).map_err(UpstreamRequestError::Http)
-                },
-                ctx,
-            )
-            .and_then(move |r| {
-                r.json(max_response_size)
-                    .map_err(UpstreamRequestError::Http)
-            });
+        let (tx, rx) = oneshot::channel();
+
+        let upstream_request = UpstreamQueryRequest2 {
+            query,
+            body,
+            signature,
+            response_sender: Some(tx),
+        };
+
+        self.enqueue2(
+            EnqueuedRequest2 {
+                request: Box::new(upstream_request),
+                previous_retries: 0,
+            },
+            ctx,
+            EnqueuePosition::Front,
+        );
+
+        let future = rx
+            .map_err(|_| UpstreamRequestError::ChannelClosed)
+            .and_then(|result| result);
+
+        let future = future.and_then(move |r| {
+            r.json(max_response_size)
+                .map_err(UpstreamRequestError::Http)
+        });
 
         Box::new(future)
     }
@@ -1530,7 +1530,7 @@ impl Handler<TrackedFutureFinished> for UpstreamRelay {
     }
 }
 
-pub trait UpstreamQuery: Serialize {
+pub trait UpstreamQuery: Serialize + Send {
     type Response: DeserializeOwned + 'static + Send;
 
     /// The HTTP method of the request.
@@ -1554,12 +1554,83 @@ impl<T: UpstreamQuery> Message for SendQuery<T> {
     type Result = Result<T::Response, UpstreamRequestError>;
 }
 
+struct UpstreamQueryRequest2<T: UpstreamQuery> {
+    query: T,
+    body: Vec<u8>,
+    signature: String,
+    response_sender: Option<oneshot::Sender<Result<Response, UpstreamRequestError>>>,
+}
+
+impl<T: UpstreamQuery> UpstreamQueryRequest2<T> {
+    /// Helper function to use the response sender
+    fn send_response(&mut self, response: Result<Response, UpstreamRequestError>) {
+        // Take ownership of response_sender by replacing it with None:
+        let response_sender = std::mem::replace(&mut self.response_sender, None);
+        if let Some(response_sender) = response_sender {
+            response_sender
+                .send(response)
+                .map_err(|_| {
+                    relay_log::error!("failed to send response through oneshot channel");
+                })
+                .ok();
+        } else {
+            relay_log::error!("response_sender already used");
+        }
+    }
+}
+
+impl<T: UpstreamQuery> UpstreamRequest2 for UpstreamQueryRequest2<T> {
+    fn method(&self) -> Method {
+        self.query.method()
+    }
+
+    fn path(&self) -> Cow<'_, str> {
+        self.query.path()
+    }
+
+    fn build(&self, mut builder: RequestBuilder) -> Result<Request, HttpError> {
+        builder.header(
+            "X-Sentry-Relay-Signature",
+            self.signature.as_str().as_bytes(),
+        );
+        builder.header(header::CONTENT_TYPE, b"application/json");
+        builder.body(&self.body)
+    }
+
+    fn retry(&self) -> bool {
+        T::retry()
+    }
+
+    fn priority(&self) -> RequestPriority {
+        T::priority()
+    }
+
+    fn intercept_status_errors(&self) -> bool {
+        // TODO: Does default make sense?
+        true
+    }
+
+    fn set_relay_id(&self) -> bool {
+        // TODO: Does default make sense?
+        true
+    }
+
+    fn respond(&mut self, response: Response) -> ResponseFuture<(), ()> {
+        self.send_response(Ok(response));
+        Box::new(futures::future::ok(()))
+    }
+
+    fn error(&mut self, error: UpstreamRequestError) {
+        self.send_response(Err(error));
+    }
+}
+
 /// SendQuery<T> messages represent messages that need to be sent to the upstream server
 /// and use Relay authentication.
 ///
 /// The handler ensures that Relay is authenticated with the upstream server, adds the message
 /// to one of the message queues.
-impl<T: UpstreamQuery> Handler<SendQuery<T>> for UpstreamRelay {
+impl<T: 'static + UpstreamQuery> Handler<SendQuery<T>> for UpstreamRelay {
     type Result = ResponseFuture<T::Response, UpstreamRequestError>;
 
     fn handle(&mut self, message: SendQuery<T>, ctx: &mut Self::Context) -> Self::Result {
