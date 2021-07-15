@@ -9,6 +9,14 @@ jobs:
   linux:
     name: Linux
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        libc: [gnu, musl]
+        include:
+          - libc: gnu
+            suffix: ""
+          - libc: musl
+            suffix: "-musl"
 
     steps:
       - uses: actions/checkout@v2
@@ -19,18 +27,19 @@ jobs:
         run: scripts/docker-build-linux.sh
         env:
           BUILD_ARCH: x86_64
+          BUILD_LIBC: ${{ matrix.libc }}
           RELAY_FEATURES: ssl
 
       - name: Bundle Debug File
         run: |
-          cd target/x86_64-unknown-linux-gnu/release/
-          zip relay-Linux-x86_64-debug.zip relay.debug
-          mv relay relay-Linux-x86_64
+          cd target/x86_64-unknown-linux-${{ matrix.libc }}/release/
+          zip relay-Linux${{ matrix.suffix }}-x86_64-debug.zip relay.debug
+          mv relay relay-Linux${{ matrix.suffix }}-x86_64
 
       - uses: actions/upload-artifact@v2
         with:
           name: ${{ github.sha }}
-          path: target/x86_64-unknown-linux-gnu/release/relay-Linux-x86_64*
+          path: target/x86_64-unknown-linux-${{ matrix.libc }}/release/relay-Linux${{ matrix.suffix }}-x86_64*
 
   macos:
     name: macOS

@@ -10,7 +10,23 @@ else
   exit 1
 fi
 
-TARGET=${BUILD_ARCH}-unknown-linux-gnu
+BUILD_LIBC="${BUILD_LIBC:-gnu}"
+if [ "${BUILD_LIBC}" = "gnu" ]; then
+  DOCKERFILE="Dockerfile"
+elif [ "${BUILD_LIBC}" = "musl" ]; then
+  DOCKERFILE="Dockerfile.alpine"
+else
+  echo "Invalid libc: ${BUILD_LIBC}"
+  exit 1
+fi
+
+if [ "${BUILD_ARCH}" = "i686" ] && [ "${BUILD_LIBC}" = "musl" ]; then
+  # For some reason there's no Docker image for this
+  echo "i686 musl not supported"
+  exit 1
+fi
+
+TARGET=${BUILD_ARCH}-unknown-linux-${BUILD_LIBC}
 BUILD_IMAGE="us.gcr.io/sentryio/relay:deps"
 
 # Prepare build environment first
@@ -19,6 +35,7 @@ docker build --build-arg DOCKER_ARCH=${DOCKER_ARCH} \
              --build-arg BUILD_ARCH=${BUILD_ARCH} \
              --cache-from=${BUILD_IMAGE} \
              --target relay-deps \
+             -f "${DOCKERFILE}" \
              -t "${BUILD_IMAGE}" .
 
 DOCKER_RUN_OPTS="
