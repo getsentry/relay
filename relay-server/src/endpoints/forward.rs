@@ -4,7 +4,7 @@
 //! (`X-Forwarded-For` and `Sentry-Relay-Id`). The response is then streamed back to the origin.
 
 use std::borrow::Cow;
-use std::fmt::Debug;
+use std::fmt;
 
 use ::actix::prelude::*;
 use actix_web::error::ResponseError;
@@ -14,7 +14,7 @@ use actix_web::http::{HeaderMap, Method};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use failure::Fail;
-use futures::{prelude::*, sync::oneshot};
+use futures::{future, prelude::*, sync::oneshot};
 
 use lazy_static::lazy_static;
 
@@ -136,15 +136,17 @@ struct ForwardRequest {
     forwarded_for: ForwardedFor,
     data: Bytes,
     max_response_size: usize,
-    response_channel: oneshot::Sender<Result<Response, UpstreamRequestError>>,
+    response_channel: Option<oneshot::Sender<Result<Response, UpstreamRequestError>>>,
 }
 
-// impl Debug for ForwardRequest {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         write!(f, "ForwardRequest()")
-//         //TODO finish here
-//     }
-// }
+impl fmt::Debug for ForwardRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ForwardRequest")
+            .field("method", &self.method)
+            .field("path", &self.path)
+            .finish()
+    }
+}
 
 impl UpstreamRequest2 for ForwardRequest {
     fn method(&self) -> Method {
@@ -185,16 +187,14 @@ impl UpstreamRequest2 for ForwardRequest {
         builder.body(&self.data)
     }
 
-    // fn respond(&self, response: Response) -> ResponseFuture<(), ()> {
-    //     let status = response.status();
-    //     let headers = response.clone_headers();
-    //     let future = futures::future::ok();
-    //     let future = response
-    //         .bytes(self.max_response_size)
-    //         .and_then(move |body| Ok((status, headers, body)));
-    //
-    //     Box::new(future)
-    // }
+    fn respond(&mut self, response: Response) -> ResponseFuture<(), ()> {
+        self.response_channel.take().unwrap().send(Ok(response));
+        Box::new(future::ok(()))
+    }
+
+    fn error(&mut self, error: UpstreamRequestError) {
+        self.response_channel.take().unwrap().send(Err(error));
+    }
 }
 
 /// Implementation of the forward endpoint.
@@ -232,7 +232,7 @@ pub fn forward_upstream(
                 forwarded_for,
                 data,
                 max_response_size,
-                response_channel: tx,
+                response_channel: Some(tx),
             };
 
             UpstreamRelay::from_registry().do_send(SendRequest2(forward_request));

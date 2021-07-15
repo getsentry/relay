@@ -1436,6 +1436,7 @@ pub trait UpstreamRequest2: Send {
         }))
     }
 
+    // TODO(markus): Consider making it non-optional
     fn error(&mut self, _error: UpstreamRequestError) {}
 }
 
