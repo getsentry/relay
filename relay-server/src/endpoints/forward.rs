@@ -185,7 +185,7 @@ impl UpstreamRequest2 for ForwardRequest {
         builder.body(&self.data)
     }
 
-    // fn respond(&self, response: Response) -> ResponseFuture<(), HttpError> {
+    // fn respond(&self, response: Response) -> ResponseFuture<(), ()> {
     //     let status = response.status();
     //     let headers = response.clone_headers();
     //     let future = futures::future::ok();
