@@ -276,6 +276,9 @@ jobs:
         run: |
           pip install --upgrade pip wheel
           echo "::set-output name=pip-cache-dir::$(pip cache dir)"
+          # We cannot execute actions that are not placed under .github of the main repo
+          mkdir -p .github/actions/setup-sentry/
+          cp sentry/.github/actions/setup-sentry/action.yml .github/actions/setup-sentry/action.yml
 
       - name: Cache (pip)
         uses: actions/cache@v2
@@ -285,7 +288,7 @@ jobs:
           restore-keys: sentry-deps-
 
       - name: Setup Sentry
-        uses: ../sentry/.github/actions/setup-sentry
+        uses: ./.github/actions/setup-sentry
         with:
           workdir: sentry
           snuba: true
