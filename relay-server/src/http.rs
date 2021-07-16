@@ -107,14 +107,6 @@ impl RequestBuilder {
     where
         B: AsRef<[u8]>,
     {
-        // actix-web's Binary is used as argument here because the type can be constructed from
-        // almost anything and then the actix-web codepath is minimally affected.
-        //
-        // Still it's not perfect as in the identity-encoding path we have some unnecessary copying
-        // that is just to get around type conflicts. We cannot use Bytes here because we have a
-        // version split between actix-web's Bytes dependency and reqwest's Bytes dependency. A
-        // real zero-copy abstraction over both would force us to downgrade reqwest to a version
-        // that uses Bytes 0.4.
         self.builder = match self.http_encoding {
             HttpEncoding::Identity => self.builder.body(body.as_ref().to_vec()),
             HttpEncoding::Deflate => {

@@ -36,7 +36,7 @@ use serde::ser::Serialize;
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 use relay_common::{metric, tryf, RetryBackoff};
 use relay_config::{Config, RelayMode};
-use relay_log::LogError;
+use relay_log::{self, LogError};
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
@@ -254,61 +254,6 @@ where
     }
 }
 
-/// Upstream request objects queued inside the `Upstream` actor.
-///
-/// The objects are transformed int HTTP requests, and sent to upstream as HTTP connections
-/// become available.
-struct UpstreamRequest {
-    config: UpstreamRequestConfig,
-    /// One-shot channel to be notified when the request is done.
-    ///
-    /// The request is either successful or it has failed but we are not going to retry it.
-    response_sender: oneshot::Sender<Result<Response, UpstreamRequestError>>,
-    /// Http method.
-    method: Method,
-    /// Request URL.
-    path: String,
-    /// Request build function.
-    build: Box<dyn RequestBuilderTransformer>,
-    /// Number of times this request was already sent
-    previous_retries: u32,
-    /// When the last sending attempt started
-    send_start: Option<Instant>,
-}
-impl UpstreamRequest {
-    pub fn route_name(&self) -> &'static str {
-        if self.path.contains("/outcomes/") {
-            "outcomes"
-        } else if self.path.contains("/envelope/") {
-            "envelope"
-        } else if self.path.contains("/projectids/") {
-            "project_ids"
-        } else if self.path.contains("/projectconfigs/") {
-            "project_configs"
-        } else if self.path.contains("/publickeys/") {
-            "public_keys"
-        } else if self.path.contains("/challenge/") {
-            "challenge"
-        } else if self.path.contains("/response/") {
-            "response"
-        } else if self.path.contains("/live/") {
-            "check_live"
-        } else {
-            "unknown"
-        }
-    }
-
-    pub fn retries_bucket(&self) -> &'static str {
-        match self.previous_retries {
-            0 => "0",
-            1 => "1",
-            2 => "2",
-            3..=10 => "few",
-            _ => "many",
-        }
-    }
-}
-
 /// Handles a response returned from the upstream.
 ///
 /// If the response indicates success via 2XX status codes, `Ok(response)` is returned. Otherwise,
@@ -378,8 +323,8 @@ pub struct UpstreamRelay {
     first_error: Option<Instant>,
     max_inflight_requests: usize,
     num_inflight_requests: usize,
-    high_prio_requests: VecDeque<UpstreamRequest>,
-    low_prio_requests: VecDeque<UpstreamRequest>,
+    high_prio_requests: VecDeque<EnqueuedRequest>,
+    low_prio_requests: VecDeque<EnqueuedRequest>,
     config: Arc<Config>,
     reqwest_client: reqwest::Client,
     /// "reqwest runtime" as this tokio runtime is currently only spawned such that reqwest can
@@ -506,7 +451,7 @@ impl UpstreamRelay {
             "Network outage, scheduling another check in {:?}",
             next_backoff
         );
-        ctx.notify_later(CheckUpstreamConnection, next_backoff);
+        ctx.notify_later(CheckUpstreamConnection::new(), next_backoff);
     }
 
     /// Records an occurrence of a network error.
@@ -527,33 +472,35 @@ impl UpstreamRelay {
         }
     }
 
-    fn send_request(&mut self, mut request: UpstreamRequest, ctx: &mut Context<Self>) {
+    fn send_request(&mut self, mut request: EnqueuedRequest, ctx: &mut Context<Self>) {
         let uri = self
             .config
             .upstream_descriptor()
-            .get_url(request.path.as_ref());
+            .get_url(request.request.path().as_ref());
 
         let host_header = self
             .config
             .http_host_header()
             .unwrap_or_else(|| self.config.upstream_descriptor().host());
 
-        let method = reqwest::Method::from_bytes(request.method.as_ref().as_bytes()).unwrap();
+        let method =
+            reqwest::Method::from_bytes(request.request.method().as_ref().as_bytes()).unwrap();
+
         let builder = self.reqwest_client.request(method, uri);
         let mut builder = RequestBuilder::reqwest(builder);
 
         builder.header("Host", host_header.as_bytes());
 
-        if request.config.set_relay_id {
+        if request.request.set_relay_id() {
             if let Some(ref credentials) = self.config.credentials() {
                 builder.header("X-Sentry-Relay-Id", credentials.id.to_string().as_bytes());
             }
         }
 
         //try to build a ClientRequest
-        let client_request = match request.build.build_request(builder) {
+        let client_request = match request.request.build(builder) {
             Err(e) => {
-                request.response_sender.send(Err(e)).ok();
+                request.request.error(UpstreamRequestError::Http(e));
                 return;
             }
             Ok(client_request) => client_request,
@@ -562,25 +509,26 @@ impl UpstreamRelay {
         // we are about to send a HTTP message keep track of requests in flight
         self.num_inflight_requests += 1;
 
-        let intercept_status_errors = request.config.intercept_status_errors;
+        let intercept_status_errors = request.request.intercept_status_errors();
 
-        request.send_start = Some(Instant::now());
+        let send_start = Instant::now();
 
         let client = self.reqwest_client.clone();
 
         let (tx, rx) = oneshot::channel();
+
         self.reqwest_runtime.spawn(async move {
             let res = client
                 .execute(client_request.0)
                 .await
+                .map(Response)
                 .map_err(UpstreamRequestError::SendFailed);
             tx.send(res)
         });
 
         let future = rx
             .map_err(|_| UpstreamRequestError::ChannelClosed)
-            .flatten()
-            .map(Response);
+            .flatten();
 
         let max_response_size = self.config.max_api_payload_size();
 
@@ -590,8 +538,8 @@ impl UpstreamRelay {
                 handle_response(response, intercept_status_errors, max_response_size)
             })
             .into_actor(self)
-            .then(|send_result, slf, ctx| {
-                slf.handle_http_response(request, send_result, ctx);
+            .then(move |send_result, slf, ctx| {
+                slf.handle_http_response(send_start, request, send_result, ctx);
                 fut::ok(())
             })
             .spawn(ctx);
@@ -599,7 +547,8 @@ impl UpstreamRelay {
 
     /// Adds a metric for the upstream request.
     fn meter_result(
-        request: &UpstreamRequest,
+        send_start: Instant,
+        request: &EnqueuedRequest,
         send_result: &Result<Response, UpstreamRequestError>,
     ) {
         let sc;
@@ -635,15 +584,13 @@ impl UpstreamRelay {
             }
         };
 
-        if let Some(send_start) = request.send_start {
-            metric!(
-                timer(RelayTimers::UpstreamRequestsDuration) = send_start.elapsed(),
-                result = result,
-                status_code = status_code,
-                route = request.route_name(),
-                retries = request.retries_bucket(),
-            )
-        }
+        metric!(
+            timer(RelayTimers::UpstreamRequestsDuration) = send_start.elapsed(),
+            result = result,
+            status_code = status_code,
+            route = request.route_name(),
+            retries = request.retries_bucket(),
+        );
 
         metric!(
             histogram(RelayHistograms::UpstreamRetries) = request.previous_retries.into(),
@@ -661,15 +608,16 @@ impl UpstreamRelay {
     /// 4. Otherwise, ensure an authentication request is scheduled.
     fn handle_http_response(
         &mut self,
-        mut request: UpstreamRequest,
+        send_start: Instant,
+        mut request: EnqueuedRequest,
         send_result: Result<Response, UpstreamRequestError>,
         ctx: &mut Context<Self>,
     ) {
-        UpstreamRelay::meter_result(&request, &send_result);
+        UpstreamRelay::meter_result(send_start, &request, &send_result);
         if matches!(send_result, Err(ref err) if err.is_network_error()) {
             self.handle_network_error(ctx);
 
-            if request.config.retry {
+            if request.request.retry() {
                 request.previous_retries += 1;
                 return self.enqueue(request, ctx, EnqueuePosition::Back);
             }
@@ -679,18 +627,29 @@ impl UpstreamRelay {
             self.reset_network_error();
         }
 
-        request.response_sender.send(send_result).ok();
+        match send_result {
+            Ok(response) => {
+                request
+                    .request
+                    .respond(response)
+                    .into_actor(self)
+                    .spawn(ctx);
+            }
+            Err(err) => {
+                request.request.error(err);
+            }
+        }
     }
 
     /// Enqueues a request and ensures that the message queue advances.
     fn enqueue(
         &mut self,
-        request: UpstreamRequest,
+        request: EnqueuedRequest,
         ctx: &mut Context<Self>,
         position: EnqueuePosition,
     ) {
-        let name = request.config.priority.name();
-        let queue = match request.config.priority {
+        let name = request.request.priority().name();
+        let queue = match request.request.priority() {
             // Immediate is special and bypasses the queue. Directly send the request and return
             // the response channel rather than waiting for `PumpHttpMessageQueue`.
             RequestPriority::Immediate => return self.send_request(request, ctx),
@@ -711,81 +670,46 @@ impl UpstreamRelay {
         ctx.notify(PumpHttpMessageQueue);
     }
 
-    fn enqueue_request<P, F>(
-        &mut self,
-        config: UpstreamRequestConfig,
-        method: Method,
-        path: P,
-        build: F,
-        ctx: &mut Context<Self>,
-    ) -> ResponseFuture<Response, UpstreamRequestError>
-    where
-        F: RequestBuilderTransformer,
-        P: AsRef<str>,
-    {
-        let (tx, rx) = oneshot::channel::<Result<Response, UpstreamRequestError>>();
-
-        let request = UpstreamRequest {
-            config,
-            method,
-            path: path.as_ref().to_owned(),
-            response_sender: tx,
-            build: Box::new(build),
-            previous_retries: 0,
-            send_start: None,
-        };
-
-        self.enqueue(request, ctx, EnqueuePosition::Front);
-
-        let future = rx
-            // map errors caused by the oneshot channel being closed (unlikely)
-            .map_err(|_| UpstreamRequestError::ChannelClosed)
-            // unwrap the result (this is how we transport the http failure through the channel)
-            .and_then(|result| result);
-
-        Box::new(future)
-    }
-
-    fn enqueue_query<Q: UpstreamQuery>(
+    fn enqueue_query<Q: 'static + UpstreamQuery>(
         &mut self,
         query: Q,
         ctx: &mut Context<Self>,
     ) -> ResponseFuture<Q::Response, UpstreamRequestError> {
-        let method = query.method();
-        let path = query.path();
-        let config = UpstreamRequestConfig {
-            retry: Q::retry(),
-            priority: Q::priority(),
-            intercept_status_errors: true,
-            set_relay_id: true,
-        };
-
         let credentials = tryf!(self
             .config
             .credentials()
             .ok_or(UpstreamRequestError::NoCredentials));
 
-        let (json, signature) = credentials.secret_key.pack(query);
-        let json = Arc::new(json);
+        let (body, signature) = credentials.secret_key.pack(&query);
 
         let max_response_size = self.config.max_api_payload_size();
 
-        let future = self
-            .enqueue_request(
-                config,
-                method,
-                path,
-                move |mut builder: RequestBuilder| {
-                    builder.header("X-Sentry-Relay-Signature", signature.as_str().as_bytes());
-                    builder.header(header::CONTENT_TYPE, b"application/json");
-                    builder.body(&*json).map_err(UpstreamRequestError::Http)
-                },
-                ctx,
-            )
-            .and_then(move |r| {
-                r.json(max_response_size)
-                    .map_err(UpstreamRequestError::Http)
-            });
+        let (tx, rx) = oneshot::channel();
+
+        let upstream_request = UpstreamQueryRequest {
+            query,
+            body,
+            signature,
+            response_sender: Some(tx),
+        };
+
+        self.enqueue(
+            EnqueuedRequest {
+                request: Box::new(upstream_request),
+                previous_retries: 0,
+            },
+            ctx,
+            EnqueuePosition::Front,
+        );
+
+        let future = rx
+            .map_err(|_| UpstreamRequestError::ChannelClosed)
+            .and_then(|result| result);
+
+        let future = future.and_then(move |r| {
+            r.json(max_response_size)
+                .map_err(UpstreamRequestError::Http)
+        });
 
         Box::new(future)
     }
@@ -990,7 +914,69 @@ impl Handler<PumpHttpMessageQueue> for UpstreamRelay {
 }
 
 /// Checks the status of the network connection with the upstream server
-struct CheckUpstreamConnection;
+struct CheckUpstreamConnection {
+    response_sender: Option<oneshot::Sender<Result<Response, UpstreamRequestError>>>,
+}
+
+impl CheckUpstreamConnection {
+    fn new() -> Self {
+        CheckUpstreamConnection {
+            response_sender: None,
+        }
+    }
+    fn from_sender(sender: oneshot::Sender<Result<Response, UpstreamRequestError>>) -> Self {
+        CheckUpstreamConnection {
+            response_sender: Some(sender),
+        }
+    }
+}
+
+impl UpstreamRequest for CheckUpstreamConnection {
+    fn method(&self) -> Method {
+        Method::GET
+    }
+
+    fn path(&self) -> Cow<'_, str> {
+        Cow::Borrowed("/api/0/relays/live/")
+    }
+
+    fn retry(&self) -> bool {
+        false
+    }
+
+    fn priority(&self) -> RequestPriority {
+        RequestPriority::Immediate
+    }
+    fn set_relay_id(&self) -> bool {
+        true
+    }
+
+    fn intercept_status_errors(&self) -> bool {
+        true
+    }
+
+    fn build(&mut self, builder: RequestBuilder) -> Result<Request, HttpError> {
+        builder.finish()
+    }
+
+    fn respond(&mut self, response: Response) -> ResponseFuture<(), ()> {
+        let sender = self.response_sender.take();
+        let fut = response
+            .consume()
+            .map_err(UpstreamRequestError::Http)
+            .then(move |resp| {
+                sender.map(|sender| sender.send(resp).ok());
+                Ok(())
+            });
+        Box::new(fut)
+    }
+
+    fn error(&mut self, error: UpstreamRequestError) {
+        self.response_sender
+            .take()
+            .map(|sender| sender.send(Err(error)).ok());
+    }
+}
 
 impl Message for CheckUpstreamConnection {
     type Result = ();
@@ -1000,36 +986,45 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
     type Result = ();
 
     fn handle(&mut self, _msg: CheckUpstreamConnection, ctx: &mut Self::Context) -> Self::Result {
-        self.enqueue_request(
-            UpstreamRequestConfig {
-                priority: RequestPriority::Immediate,
-                retry: false,
-                intercept_status_errors: true,
-                set_relay_id: true,
+        let (tx, rx) = oneshot::channel();
+
+        //create a request with sender (so we can send back termination info)
+        let request = Box::new(CheckUpstreamConnection::from_sender(tx));
+
+        self.enqueue(
+            EnqueuedRequest {
+                request,
+                previous_retries: 0,
             },
-            Method::GET,
-            "/api/0/relays/live/",
-            |builder: RequestBuilder| builder.finish().map_err(UpstreamRequestError::Http),
             ctx,
-        )
-        .and_then(|client_response| {
-            // consume response bodies to ensure the connection remains usable.
-            client_response
-                .consume()
-                .map_err(UpstreamRequestError::Http)
-        })
-        .into_actor(self)
-        .then(|result, slf, ctx| {
-            if matches!(result, Err(err) if err.is_network_error()) {
-                // still network error, schedule another attempt
-                slf.upstream_connection_check(ctx);
-            } else {
-                // resume normal messages
-                ctx.notify(PumpHttpMessageQueue);
-            }
-            fut::ok(())
-        })
-        .spawn(ctx);
+            EnqueuePosition::Front,
+        );
+
+        let future = rx
+            // map errors caused by the oneshot channel being closed (unlikely)
+            .map_err(|_| UpstreamRequestError::ChannelClosed)
+            // unwrap the result (this is how we transport the http failure through the channel)
+            .and_then(|result| result);
+
+        future
+            .and_then(|client_response| {
+                // consume response bodies to ensure the connection remains usable.
+                client_response
+                    .consume()
+                    .map_err(UpstreamRequestError::Http)
+            })
+            .into_actor(self)
+            .then(|result, slf, ctx| {
+                if matches!(result, Err(err) if err.is_network_error()) {
+                    // still network error, schedule another attempt
+                    slf.upstream_connection_check(ctx);
+                } else {
+                    // resume normal messages
+                    ctx.notify(PumpHttpMessageQueue);
+                }
+                fut::ok(())
+            })
+            .spawn(ctx);
     }
 }
 
@@ -1064,137 +1059,113 @@ where
     }
 }
 
-pub struct SendRequest<B: RequestBuilderTransformer = (), R: ResponseTransformer = ()> {
-    method: Method,
-    path: String,
-    builder: B,
-    transformer: R,
-    config: UpstreamRequestConfig,
+/// TODO: Doc
+pub trait UpstreamRequest: Send {
+    ///type Response: Send + 'static;
+
+    /// The HTTP method of the request.
+    fn method(&self) -> Method;
+
+    /// The path relative to the upstream.
+    fn path(&self) -> Cow<'_, str>;
+
+    /// Whether this request should retry on network errors.
+    fn retry(&self) -> bool {
+        true
+    }
+
+    /// The queueing priority of the request. Defaults to `Low`.
+    fn priority(&self) -> RequestPriority {
+        RequestPriority::Low
+    }
+
+    /// TODO: Doc
+    fn intercept_status_errors(&self) -> bool {
+        true
+    }
+
+    /// TODO: Doc
+    fn set_relay_id(&self) -> bool {
+        true
+    }
+
+    /// TODO: Doc
+    fn build(&mut self, builder: RequestBuilder) -> Result<Request, HttpError>;
+
+    /// TODO doc
+    fn respond(&mut self, response: Response) -> ResponseFuture<(), ()> {
+        //just consumes the response in case it is not needed
+        Box::new(response.consume().map(|_| ()).map_err(|e| {
+            relay_log::error!("failed to consume response: {}", LogError(&e));
+        }))
+    }
+
+    /// TODO doc
+    fn error(&mut self, _error: UpstreamRequestError);
 }
 
-struct UpstreamRequestConfig {
-    /// Queueing priority for the request.
-    priority: RequestPriority,
-    /// Should the request be retried in case of network error.
-    retry: bool,
-    /// Should 429s be honored within the upstream.
-    intercept_status_errors: bool,
-    /// Should the x-sentry-relay-id header be added.
-    set_relay_id: bool,
+struct EnqueuedRequest {
+    request: Box<dyn UpstreamRequest>,
+    previous_retries: u32,
 }
 
-impl SendRequest {
-    pub fn new<S: Into<String>>(method: Method, path: S) -> Self {
-        SendRequest {
-            method,
-            path: path.into(),
-            builder: (),
-            transformer: (),
-            config: UpstreamRequestConfig {
-                priority: RequestPriority::Low,
-                retry: true,
-                intercept_status_errors: true,
-                set_relay_id: true,
+impl EnqueuedRequest {
+    fn route_name(&self) -> &'static str {
+        if self.request.path().contains("/outcomes/") {
+            "outcomes"
+        } else if self.request.path().contains("/envelope/") {
+            "envelope"
+        } else if self.request.path().contains("/projectids/") {
+            "project_ids"
+        } else if self.request.path().contains("/projectconfigs/") {
+            "project_configs"
+        } else if self.request.path().contains("/publickeys/") {
+            "public_keys"
+        } else if self.request.path().contains("/challenge/") {
+            "challenge"
+        } else if self.request.path().contains("/response/") {
+            "response"
+        } else if self.request.path().contains("/live/") {
+            "check_live"
+        } else {
+            "unknown"
+        }
+    }
+
+    fn retries_bucket(&self) -> &'static str {
+        match self.previous_retries {
+            0 => "0",
+            1 => "1",
+            2 => "2",
+            3..=10 => "few",
+            _ => "many",
+        }
+    }
+}
+
+pub struct SendRequest<T: UpstreamRequest>(pub T);
+
+impl<T> Message for SendRequest<T>
+where
+    T: UpstreamRequest,
+{
+    type Result = ();
+}
+
+impl<T> Handler<SendRequest<T>> for UpstreamRelay
+where
+    T: UpstreamRequest + 'static,
+{
+    type Result = ();
+    fn handle(&mut self, msg: SendRequest<T>, ctx: &mut Self::Context) -> Self::Result {
+        self.enqueue(
+            EnqueuedRequest {
+                request: Box::new(msg.0),
+                previous_retries: 0,
             },
-        }
-    }
-
-    pub fn post<S: Into<String>>(path: S) -> Self {
-        Self::new(Method::POST, path)
-    }
-}
-
-impl<B, T> SendRequest<B, T>
-where
-    B: RequestBuilderTransformer,
-    T: ResponseTransformer,
-{
-    pub fn build<F>(self, builder: F) -> SendRequest<F, T>
-    where
-        F: RequestBuilderTransformer,
-    {
-        SendRequest {
-            method: self.method,
-            path: self.path,
-            builder,
-            transformer: self.transformer,
-            config: self.config,
-        }
-    }
-
-    #[inline]
-    pub fn retry(mut self, should_retry: bool) -> Self {
-        self.config.retry = should_retry;
-        self
-    }
-
-    #[inline]
-    pub fn intercept_status_errors(mut self, should_intercept_status_errors: bool) -> Self {
-        self.config.intercept_status_errors = should_intercept_status_errors;
-        self
-    }
-
-    #[inline]
-    pub fn set_relay_id(mut self, should_set_relay_id: bool) -> Self {
-        self.config.set_relay_id = should_set_relay_id;
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn transform<F>(self, callback: F) -> SendRequest<B, F>
-    where
-        F: ResponseTransformer,
-    {
-        SendRequest {
-            method: self.method,
-            path: self.path,
-            builder: self.builder,
-            transformer: callback,
-            config: self.config,
-        }
-    }
-}
-
-impl<B, R> Message for SendRequest<B, R>
-where
-    B: RequestBuilderTransformer,
-    R: ResponseTransformer,
-{
-    type Result = Result<<R::Result as IntoFuture>::Item, <R::Result as IntoFuture>::Error>;
-}
-
-// impl<B> Message for SendRequest<B> {
-//     type Result = Result<(), UpstreamRequestError>;
-// }
-
-/// SendRequest<B> messages represent external messages that need to be sent to the upstream server
-/// and do not use Relay authentication.
-///
-/// The handler adds the message to one of the message queues.
-impl<B, R> Handler<SendRequest<B, R>> for UpstreamRelay
-where
-    B: RequestBuilderTransformer,
-    R: ResponseTransformer,
-    <R::Result as IntoFuture>::Item: Send + 'static,
-    <R::Result as IntoFuture>::Error: From<UpstreamRequestError> + Send + 'static,
-{
-    type Result = ResponseFuture<<R::Result as IntoFuture>::Item, <R::Result as IntoFuture>::Error>;
-
-    fn handle(&mut self, message: SendRequest<B, R>, ctx: &mut Self::Context) -> Self::Result {
-        let SendRequest {
-            method,
-            path,
-            builder,
-            transformer,
-            config,
-        } = message;
-
-        let future = self
-            .enqueue_request(config, method, path, builder, ctx)
-            .from_err()
-            .and_then(move |r| transformer.transform_response(r));
-
-        Box::new(future)
+            ctx,
+            EnqueuePosition::Front,
+        );
     }
 }
 
@@ -1223,7 +1194,7 @@ impl Handler<TrackedFutureFinished> for UpstreamRelay {
     }
 }
 
-pub trait UpstreamQuery: Serialize {
+pub trait UpstreamQuery: Serialize + Send + 'static {
     type Response: DeserializeOwned + 'static + Send;
 
     /// The HTTP method of the request.
@@ -1245,6 +1216,65 @@ pub struct SendQuery<T: UpstreamQuery>(pub T);
 
 impl<T: UpstreamQuery> Message for SendQuery<T> {
     type Result = Result<T::Response, UpstreamRequestError>;
+}
+
+struct UpstreamQueryRequest<T: UpstreamQuery> {
+    query: T,
+    body: Vec<u8>,
+    signature: String,
+    response_sender: Option<oneshot::Sender<Result<Response, UpstreamRequestError>>>,
+}
+
+impl<T: UpstreamQuery> UpstreamQueryRequest<T> {
+    /// Helper function to use the response sender
+    fn send_response(&mut self, response: Result<Response, UpstreamRequestError>) {
+        if let Some(response_sender) = self.response_sender.take() {
+            response_sender
+                .send(response)
+                .map_err(|_| {
+                    relay_log::error!("failed to send response through oneshot channel");
+                })
+                .ok();
+        } else {
+            relay_log::error!("response_sender already used");
+        }
+    }
+}
+
+impl<T: UpstreamQuery> UpstreamRequest for UpstreamQueryRequest<T> {
+    fn method(&self) -> Method {
+        self.query.method()
+    }
+
+    fn path(&self) -> Cow<'_, str> {
+        self.query.path()
+    }
+
+    fn build(&mut self, mut builder: RequestBuilder) -> Result<Request, HttpError> {
+        builder.header(
+            "X-Sentry-Relay-Signature",
+            self.signature.as_str().as_bytes(),
+        );
+        builder.header(header::CONTENT_TYPE, b"application/json");
+        builder.body(&self.body)
+    }
+
+    fn retry(&self) -> bool {
+        T::retry()
+    }
+
+    fn priority(&self) -> RequestPriority {
+        T::priority()
+    }
+
+    fn respond(&mut self, response: Response) -> ResponseFuture<(), ()> {
+        self.send_response(Ok(response));
+        Box::new(futures::future::ok(()))
+    }
+
+    fn error(&mut self, error: UpstreamRequestError) {
+        self.send_response(Err(error));
+    }
 }
 
 /// SendQuery<T> messages represent messages that need to be sent to the upstream server
