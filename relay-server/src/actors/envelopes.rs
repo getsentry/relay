@@ -1680,7 +1680,7 @@ impl UpstreamRequest for SendEnvelope {
             .header("X-Forwarded-For", meta.forwarded_for())
             .header("Content-Type", envelope::CONTENT_TYPE);
 
-        let body = self.envelope.to_vec().map_err(|e| HttpError::custom(e))?;
+        let body = self.envelope.to_vec().map_err(HttpError::custom)?;
         builder.body(body)
     }
 
@@ -1695,11 +1695,11 @@ impl UpstreamRequest for SendEnvelope {
                             UpstreamRequestError::Http(e),
                         )))
                         .ok();
-                    return Err(());
+                    Err(())
                 }
                 Ok(_) => {
                     sender.send(Ok(())).ok();
-                    return Ok(());
+                    Ok(())
                 }
             });
             Err(())
