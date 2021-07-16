@@ -1586,7 +1586,7 @@ impl<T: UpstreamQuery> UpstreamRequest2 for UpstreamQueryRequest2<T> {
         self.query.path()
     }
 
-    fn build(&self, mut builder: RequestBuilder) -> Result<Request, HttpError> {
+    fn build(&mut self, mut builder: RequestBuilder) -> Result<Request, HttpError> {
         builder.header(
             "X-Sentry-Relay-Signature",
             self.signature.as_str().as_bytes(),

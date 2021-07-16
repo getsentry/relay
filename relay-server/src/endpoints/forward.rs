@@ -18,7 +18,7 @@ use futures::{future, prelude::*, sync::oneshot};
 
 use lazy_static::lazy_static;
 
-use relay_common::{clone, GlobMatcher};
+use relay_common::GlobMatcher;
 use relay_config::Config;
 use relay_log::LogError;
 
@@ -135,7 +135,6 @@ struct ForwardRequest {
     headers: HeaderMap<HeaderValue>,
     forwarded_for: ForwardedFor,
     data: Bytes,
-    max_response_size: usize,
     response_channel: Option<oneshot::Sender<Result<Response, UpstreamRequestError>>>,
 }
 
@@ -188,12 +187,16 @@ impl UpstreamRequest2 for ForwardRequest {
     }
 
     fn respond(&mut self, response: Response) -> ResponseFuture<(), ()> {
-        self.response_channel.take().unwrap().send(Ok(response));
+        self.response_channel
+            .take()
+            .unwrap()
+            .send(Ok(response))
+            .ok();
         Box::new(future::ok(()))
     }
 
     fn error(&mut self, error: UpstreamRequestError) {
-        self.response_channel.take().unwrap().send(Err(error));
+        self.response_channel.take().unwrap().send(Err(error)).ok();
     }
 }
 
@@ -222,7 +225,7 @@ pub fn forward_upstream(
 
     ForwardBody::new(request, limit)
         .map_err(Error::from)
-        .and_then(clone!(max_response_size, |data| {
+        .and_then(|data| {
             let (tx, rx) = oneshot::channel();
 
             let forward_request = ForwardRequest {
@@ -231,7 +234,6 @@ pub fn forward_upstream(
                 headers,
                 forwarded_for,
                 data,
-                max_response_size,
                 response_channel: Some(tx),
             };
 
@@ -241,7 +243,7 @@ pub fn forward_upstream(
                     UpstreamRequestError::ChannelClosed,
                 ))
             })
-        }))
+        })
         .and_then(|response| {
             response.map_err(|e| Error::from(ForwardedUpstreamRequestError::from(e)))
         })
