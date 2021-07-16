@@ -1530,7 +1530,7 @@ impl Handler<TrackedFutureFinished> for UpstreamRelay {
     }
 }
 
-pub trait UpstreamQuery: Serialize + Send {
+pub trait UpstreamQuery: Serialize + Send + 'static {
     type Response: DeserializeOwned + 'static + Send;
 
     /// The HTTP method of the request.
@@ -1564,9 +1564,7 @@ struct UpstreamQueryRequest2<T: UpstreamQuery> {
 impl<T: UpstreamQuery> UpstreamQueryRequest2<T> {
     /// Helper function to use the response sender
     fn send_response(&mut self, response: Result<Response, UpstreamRequestError>) {
-        // Take ownership of response_sender by replacing it with None:
-        let response_sender = std::mem::replace(&mut self.response_sender, None);
-        if let Some(response_sender) = response_sender {
+        if let Some(response_sender) = self.response_sender.take() {
             response_sender
                 .send(response)
                 .map_err(|_| {
@@ -1605,16 +1603,6 @@ impl<T: UpstreamQuery> UpstreamRequest2 for UpstreamQueryRequest2<T> {
         T::priority()
     }
 
-    fn intercept_status_errors(&self) -> bool {
-        // TODO: Does default make sense?
-        true
-    }
-
-    fn set_relay_id(&self) -> bool {
-        // TODO: Does default make sense?
-        true
-    }
-
     fn respond(&mut self, response: Response) -> ResponseFuture<(), ()> {
         self.send_response(Ok(response));
         Box::new(futures::future::ok(()))
@@ -1630,7 +1618,7 @@ impl<T: UpstreamQuery> UpstreamRequest2 for UpstreamQueryRequest2<T> {
 ///
 /// The handler ensures that Relay is authenticated with the upstream server, adds the message
 /// to one of the message queues.
-impl<T: 'static + UpstreamQuery> Handler<SendQuery<T>> for UpstreamRelay {
+impl<T: UpstreamQuery> Handler<SendQuery<T>> for UpstreamRelay {
     type Result = ResponseFuture<T::Response, UpstreamRequestError>;
 
     fn handle(&mut self, message: SendQuery<T>, ctx: &mut Self::Context) -> Self::Result {
