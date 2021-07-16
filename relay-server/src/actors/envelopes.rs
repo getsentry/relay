@@ -36,7 +36,7 @@ use crate::actors::project_cache::{
     CheckEnvelope, GetProjectState, InsertMetrics, MergeBuckets, ProjectCache, ProjectError,
     UpdateRateLimits,
 };
-use crate::actors::upstream::{SendRequest2, UpstreamRelay, UpstreamRequestError};
+use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, RequestBuilder, Response};
@@ -44,7 +44,7 @@ use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
 use crate::utils::{self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt};
 
-use super::upstream::UpstreamRequest2;
+use super::upstream::UpstreamRequest;
 
 #[cfg(feature = "processing")]
 use {
@@ -1647,7 +1647,7 @@ struct SendEnvelope {
     project_key: ProjectKey,
 }
 
-impl UpstreamRequest2 for SendEnvelope {
+impl UpstreamRequest for SendEnvelope {
     fn method(&self) -> Method {
         Method::POST
     }
@@ -1802,7 +1802,7 @@ impl EnvelopeManager {
             project_key,
         };
 
-        UpstreamRelay::from_registry().do_send(SendRequest2(request));
+        UpstreamRelay::from_registry().do_send(SendRequest(request));
         let future = rx
             .map_err(|_| SendEnvelopeError::SendFailed(UpstreamRequestError::ChannelClosed))
             .and_then(|result| result);
