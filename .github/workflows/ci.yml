@@ -231,3 +231,70 @@ jobs:
         run: pytest tests -n auto -v
         env:
           RELAY_VERSION_CHAIN: '20.6.0,latest'
+
+  test_against_latest_sentry:
+    name: Sentry-Relay Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Relay
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - uses: swatinem/rust-cache@v1
+        with:
+          key: ${{ github.job }}
+
+      - name: Cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all-features
+
+      # Checkout Sentry and run integration tests against latest Relay
+      - name: Checkout sentry
+        uses: actions/checkout@v2
+        with:
+          repository: getsentry/sentry
+          # XXX: Temporary change
+          ref: armenzg/reusable-workflow
+          path: sentry
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.6
+
+      - name: Setup steps
+        id: setup
+        run: |
+          pip install --upgrade pip wheel
+          echo "::set-output name=pip-cache-dir::$(pip cache dir)"
+          # We cannot execute actions that are not placed under .github of the main repo
+          mkdir -p .github/actions/setup-sentry/
+          cp sentry/.github/actions/setup-sentry/action.yml .github/actions/setup-sentry/action.yml
+
+      - name: Cache (pip)
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.setup.outputs.pip-cache-dir }}
+          key: sentry-deps-${{ hashFiles('**/requirements**.txt') }}
+          restore-keys: sentry-deps-
+
+      - name: Setup Sentry
+        uses: ./.github/actions/setup-sentry
+        with:
+          workdir: sentry
+          snuba: true
+          kafka: true
+
+      - name: Run Sentry integration tests
+        working-directory: sentry
+        run: |
+          make test-relay-integration
