@@ -1,6 +1,7 @@
+use actix_web::actix::SystemService;
 use actix_web::HttpResponse;
 
-use crate::actors::outcome::{SendOutcomes, SendOutcomesResponse};
+use crate::actors::outcome::{OutcomeProducer, SendOutcomes, SendOutcomesResponse};
 use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;
 
@@ -9,8 +10,9 @@ fn send_outcomes(state: CurrentServiceState, body: SignedJson<SendOutcomes>) -> 
         return HttpResponse::Forbidden().finish();
     }
 
+    let producer = OutcomeProducer::from_registry();
     for outcome in body.inner.outcomes {
-        state.outcome_producer().do_send(outcome);
+        producer.do_send(outcome);
     }
 
     HttpResponse::Accepted().json(SendOutcomesResponse {})

@@ -18,9 +18,9 @@ use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_sampling::RuleId;
 
-use crate::actors::envelopes::{QueueEnvelope, QueueEnvelopeError};
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project_cache::{CheckEnvelope, ProjectError};
+use crate::actors::envelopes::{EnvelopeManager, QueueEnvelope, QueueEnvelopeError};
+use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
+use crate::actors::project_cache::{CheckEnvelope, ProjectCache, ProjectError};
 use crate::body::StorePayloadError;
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;
@@ -381,8 +381,6 @@ where
     I: IntoFuture<Item = Envelope, Error = BadStoreRequest> + 'static,
     R: FnOnce(Option<EventId>) -> HttpResponse + Copy + 'static,
 {
-    let start_time = meta.start_time();
-
     // For now, we only handle <= v8 and drop everything else
     let version = meta.version();
     if version > relay_common::PROTOCOL_VERSION {
@@ -396,20 +394,17 @@ where
     );
 
     let project_key = meta.public_key();
-
-    let event_manager = request.state().envelope_manager();
-    let project_manager = request.state().project_cache();
-    let outcome_producer = request.state().outcome_producer();
     let remote_addr = meta.client_addr();
+    let start_time = meta.start_time();
+    let project_id = meta.project_id().unwrap_or_else(|| ProjectId::new(0));
+
+    let config = request.state().config();
+    let processing_enabled = config.processing_enabled();
+    let is_internal = config.processing_internal_projects().contains(&project_id);
 
     let scoping = Rc::new(RefCell::new(meta.get_partial_scoping()));
     let event_id = Rc::new(RefCell::new(None));
     let envelope_summary = Rc::new(RefCell::new(EnvelopeSummary::empty()));
-    let config = request.state().config();
-    let processing_enabled = config.processing_enabled();
-
-    let project_id = meta.project_id().unwrap_or_else(|| ProjectId::new(0));
-    let is_internal = config.processing_internal_projects().contains(&project_id);
 
     let future = extract_envelope(&request, meta)
         .into_future()
@@ -432,12 +427,12 @@ where
                 Ok(envelope)
             }
         }))
-        .and_then(clone!(project_manager, |envelope| {
-            project_manager
+        .and_then(move |envelope| {
+            ProjectCache::from_registry()
                 .send(CheckEnvelope::cached(project_key, envelope))
                 .map_err(BadStoreRequest::ScheduleFailed)
                 .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
-        }))
+        })
         .and_then(clone!(scoping, envelope_summary, |response| {
             scoping.replace(response.scoping);
 
@@ -456,28 +451,22 @@ where
                 Err(BadStoreRequest::PayloadError(StorePayloadError::Overflow))
             }
         }))
-        .and_then(clone!(project_manager, |(envelope, rate_limits)| {
+        .and_then(move |(envelope, rate_limits)| {
             let sampling_project_key = envelope.trace_context().map(|tc| tc.public_key);
 
-            utils::sample_trace(
-                envelope,
-                sampling_project_key,
-                project_manager,
-                true,
-                processing_enabled,
+            utils::sample_trace(envelope, sampling_project_key, true, processing_enabled).then(
+                move |result| match result {
+                    Err(rule_id) => Err(BadStoreRequest::TraceSampled(rule_id)),
+                    Ok(envelope) => Ok((envelope, rate_limits, sampling_project_key)),
+                },
             )
-            .then(move |result| match result {
-                Err(rule_id) => Err(BadStoreRequest::TraceSampled(rule_id)),
-                Ok(envelope) => Ok((envelope, rate_limits, sampling_project_key)),
-            })
-        }))
+        })
         .and_then(move |(envelope, rate_limits, sampling_project_key)| {
-            event_manager
+            EnvelopeManager::from_registry()
                 .send(QueueEnvelope {
                     envelope,
                     project_key,
                     sampling_project_key,
-                    project_cache: project_manager.clone(),
                     start_time,
                 })
                 .map_err(BadStoreRequest::ScheduleFailed)
@@ -496,6 +485,7 @@ where
 
             let envelope_summary = envelope_summary.borrow();
             if let Some(outcome) = error.to_outcome() {
+                let outcome_producer = OutcomeProducer::from_registry();
                 let timestamp = relay_common::instant_to_date_time(start_time);
                 if let Some(category) = envelope_summary.event_category {
                     outcome_producer.do_send(TrackOutcome {

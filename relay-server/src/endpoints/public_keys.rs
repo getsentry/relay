@@ -1,17 +1,12 @@
-use actix::ResponseFuture;
-use actix_web::{Error, Json};
+use actix_web::{actix::*, Error, Json};
 use futures::prelude::*;
 
-use crate::actors::relays::{GetRelays, GetRelaysResult};
-use crate::extractors::{CurrentServiceState, SignedJson};
+use crate::actors::relays::{GetRelays, GetRelaysResult, RelayCache};
+use crate::extractors::SignedJson;
 use crate::service::ServiceApp;
 
-fn get_public_keys(
-    state: CurrentServiceState,
-    body: SignedJson<GetRelays>,
-) -> ResponseFuture<Json<GetRelaysResult>, Error> {
-    let future = state
-        .relay_cache()
+fn get_public_keys(body: SignedJson<GetRelays>) -> ResponseFuture<Json<GetRelaysResult>, Error> {
+    let future = RelayCache::from_registry()
         .send(body.inner)
         .map_err(Error::from)
         .and_then(|x| x.map_err(Error::from).map(Json));

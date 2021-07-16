@@ -123,7 +123,6 @@ fn sample_transaction_internal(
 pub fn sample_trace(
     envelope: Envelope,
     project_key: Option<ProjectKey>,
-    project_cache: Addr<ProjectCache>,
     fast_processing: bool,
     processing_enabled: bool,
 ) -> ResponseFuture<Envelope, RuleId> {
@@ -140,7 +139,7 @@ pub fn sample_trace(
     }
     //we have a trace_context and we have a transaction_item see if we can sample them
     if fast_processing {
-        let fut = project_cache
+        let future = ProjectCache::from_registry()
             .send(GetCachedProjectState::new(project_key))
             .then(move |project_state| {
                 let project_state = match project_state {
@@ -150,24 +149,23 @@ pub fn sample_trace(
                 };
                 sample_transaction_internal(envelope, project_state.as_deref(), processing_enabled)
             });
-        Box::new(fut) as ResponseFuture<_, _>
+        Box::new(future)
     } else {
-        let fut =
-            project_cache
-                .send(GetProjectState::new(project_key))
-                .then(move |project_state| {
-                    let project_state = match project_state {
-                        // error getting the project, give up and return envelope unchanged
-                        Err(_) => return Ok(envelope),
-                        Ok(project_state) => project_state,
-                    };
-                    sample_transaction_internal(
-                        envelope,
-                        project_state.ok().as_deref(),
-                        processing_enabled,
-                    )
-                });
-        Box::new(fut) as ResponseFuture<_, _>
+        let future = ProjectCache::from_registry()
+            .send(GetProjectState::new(project_key))
+            .then(move |project_state| {
+                let project_state = match project_state {
+                    // error getting the project, give up and return envelope unchanged
+                    Err(_) => return Ok(envelope),
+                    Ok(project_state) => project_state,
+                };
+                sample_transaction_internal(
+                    envelope,
+                    project_state.ok().as_deref(),
+                    processing_enabled,
+                )
+            });
+        Box::new(future)
     }
 }
 

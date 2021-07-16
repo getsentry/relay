@@ -4,10 +4,9 @@ use actix_web::{Error, HttpResponse};
 use futures::prelude::*;
 use serde::Serialize;
 
-use crate::extractors::CurrentServiceState;
 use crate::service::ServiceApp;
 
-use crate::actors::healthcheck::IsHealthy;
+use crate::actors::healthcheck::{Healthcheck, IsHealthy};
 
 #[derive(Serialize)]
 struct HealthcheckResponse {
@@ -32,13 +31,9 @@ impl HealthcheckResponse {
     }
 }
 
-fn healthcheck_impl(
-    state: CurrentServiceState,
-    message: IsHealthy,
-) -> ResponseFuture<HttpResponse, Error> {
+fn healthcheck_impl(message: IsHealthy) -> ResponseFuture<HttpResponse, Error> {
     Box::new(
-        state
-            .healthcheck()
+        Healthcheck::from_registry()
             .send(message)
             .map_err(|_| ())
             .flatten()
@@ -53,12 +48,12 @@ fn healthcheck_impl(
     )
 }
 
-fn readiness_healthcheck(state: CurrentServiceState) -> ResponseFuture<HttpResponse, Error> {
-    healthcheck_impl(state, IsHealthy::Readiness)
+fn readiness_healthcheck(_: ()) -> ResponseFuture<HttpResponse, Error> {
+    healthcheck_impl(IsHealthy::Readiness)
 }
 
-fn liveness_healthcheck(state: CurrentServiceState) -> ResponseFuture<HttpResponse, Error> {
-    healthcheck_impl(state, IsHealthy::Liveness)
+fn liveness_healthcheck(_: ()) -> ResponseFuture<HttpResponse, Error> {
+    healthcheck_impl(IsHealthy::Liveness)
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
