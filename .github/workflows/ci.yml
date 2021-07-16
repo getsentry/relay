@@ -258,7 +258,7 @@ jobs:
           command: build
           args: --all-features
 
-      # Checkout Sentry and run integreation tests against latest Relay
+      # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout sentry
         uses: actions/checkout@v2
         with:
@@ -269,24 +269,27 @@ jobs:
         with:
           python-version: 3.6
 
-      - name: Get pip cache dir
-        id: pip
+      - name: Setup steps
+        id: setup
         run: |
           pip install --upgrade pip wheel
           echo "::set-output name=pip-cache-dir::$(pip cache dir)"
+          # We cannot execute actions that are not placed under .github of the main repo
+          mkdir -p .github/actions/setup-sentry/
+          cp sentry/.github/actions/setup-sentry/action.yml .github/actions/setup-sentry/action.yml
 
       - name: Cache (pip)
         uses: actions/cache@v2
         with:
-          path: ${{ steps.pip.outputs.pip-cache-dir }}
+          path: ${{ steps.setup.outputs.pip-cache-dir }}
           key: sentry-deps-${{ hashFiles('**/requirements**.txt') }}
           restore-keys: sentry-deps-
 
-      # A slightly modified version from upstream since I can't make it change directories
       - name: Setup Sentry
         uses: ./.github/actions/setup-sentry
         id: setup
         with:
+          workdir: sentry
           snuba: true
           kafka: true
 
