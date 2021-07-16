@@ -262,9 +262,9 @@ jobs:
       - name: Checkout sentry
         uses: actions/checkout@v2
         with:
-          repository: "getsentry/sentry"
+          repository: getsentry/sentry
           # XXX: Temporary change
-          ref: "armenzg/reusable-workflow"
+          ref: armenzg/reusable-workflow
           path: sentry
 
       - uses: actions/setup-python@v2
@@ -289,7 +289,6 @@ jobs:
 
       - name: Setup Sentry
         uses: ./.github/actions/setup-sentry
-        id: setup
         with:
           workdir: sentry
           snuba: true
