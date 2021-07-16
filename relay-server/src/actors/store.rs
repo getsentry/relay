@@ -423,8 +423,6 @@ where
 struct EventKafkaMessage {
     /// Raw event payload.
     payload: Bytes,
-    /// Time at which the event was received by Relay.
-    start_time: u64,
     /// The event id.
     event_id: EventId,
     /// The project id for the current event.
