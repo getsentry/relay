@@ -1426,7 +1426,7 @@ pub trait UpstreamRequest2: Send {
     }
 
     /// TODO: Doc
-    fn build(&self, builder: RequestBuilder) -> Result<Request, HttpError>;
+    fn build(&mut self, builder: RequestBuilder) -> Result<Request, HttpError>;
 
     /// TODO doc
     fn respond(&mut self, response: Response) -> ResponseFuture<(), ()> {

@@ -11,7 +11,7 @@ use actix::prelude::*;
 use actix_web::http::Method;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
-use futures::{future, prelude::*};
+use futures::{future, prelude::*, sync::oneshot};
 use serde_json::Value as SerdeValue;
 
 use relay_common::{clone, metric, ProjectId, ProjectKey, UnixTimestamp};
@@ -36,10 +36,10 @@ use crate::actors::project_cache::{
     CheckEnvelope, GetProjectState, InsertMetrics, MergeBuckets, ProjectCache, ProjectError,
     UpdateRateLimits,
 };
-use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
+use crate::actors::upstream::{SendRequest2, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
-use crate::http::{HttpError, RequestBuilder};
+use crate::http::{HttpError, RequestBuilder, Response};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
 use crate::utils::{self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt};
@@ -1643,12 +1643,11 @@ struct SendEnvelope {
     envelope: Envelope,
     scoping: Scoping,
     http_encoding: HttpEncoding,
+    response_sender: Option<oneshot::Sender<Result<(), SendEnvelopeError>>>,
+    project_key: ProjectKey,
 }
 
 impl UpstreamRequest2 for SendEnvelope {
-    ///type Response = ();
-    //type Transform = Result<crate::http::Response, HttpError>;
-
     fn method(&self) -> Method {
         Method::POST
     }
@@ -1657,13 +1656,13 @@ impl UpstreamRequest2 for SendEnvelope {
         format!("/api/{}/envelope/", self.scoping.project_id).into()
     }
 
-    fn build(&self, mut builder: RequestBuilder) -> Result<crate::http::Request, HttpError> {
+    fn build(&mut self, mut builder: RequestBuilder) -> Result<crate::http::Request, HttpError> {
         // Override the `sent_at` timestamp. Since the envelope went through basic
         // normalization, all timestamps have been corrected. We propagate the new
         // `sent_at` to allow the next Relay to double-check this timestamp and
         // potentially apply correction again. This is done as close to sending as
         // possible so that we avoid internal delays.
-        //self.envelope.set_sent_at(Utc::now());
+        self.envelope.set_sent_at(Utc::now());
 
         let meta = self.envelope.meta();
 
@@ -1685,22 +1684,40 @@ impl UpstreamRequest2 for SendEnvelope {
         builder.body(body)
     }
 
-    // fn respond(
-    //     &self,
-    //     response: crate::http::Response,
-    // ) -> ResponseFuture<crate::http::Response, HttpError> {
-    //     Box::new(futures::future::ok(response))
-    // }
+    fn respond(&mut self, response: Response) -> ResponseFuture<(), ()> {
+        let sender = self.response_sender.take();
 
-    // fn error(&self, error: UpstreamRequestError) {
-    //     if let UpstreamRequestError::RateLimited(upstream_limits) = error {
-    //         let limits = upstream_limits.scope(&self.scoping);
-    //         ProjectCache::from_registry().do_send(UpdateRateLimits::new(
-    //             self.scoping.project_key,
-    //             limits.clone(),
-    //         ));
-    //     }
-    // }
+        Box::new(response.consume().then(move |result| {
+            sender.map(|sender| match result {
+                Err(e) => {
+                    sender
+                        .send(Err(SendEnvelopeError::SendFailed(
+                            UpstreamRequestError::Http(e),
+                        )))
+                        .ok();
+                    return Err(());
+                }
+                Ok(_) => {
+                    sender.send(Ok(())).ok();
+                    return Ok(());
+                }
+            });
+            Err(())
+        }))
+    }
+    fn error(&mut self, error: UpstreamRequestError) {
+        self.response_sender.take().map(|sender| {
+            let err = if let UpstreamRequestError::RateLimited(upstream_limits) = error {
+                let limits = upstream_limits.scope(&self.scoping);
+                ProjectCache::from_registry()
+                    .do_send(UpdateRateLimits::new(self.project_key, limits.clone()));
+                Err(SendEnvelopeError::RateLimited(limits))
+            } else {
+                Err(SendEnvelopeError::SendFailed(error))
+            };
+            sender.send(err).ok();
+        });
+    }
 }
 
 pub struct EnvelopeManager {
@@ -1739,7 +1756,7 @@ impl EnvelopeManager {
     fn send_envelope(
         &mut self,
         project_key: ProjectKey,
-        mut envelope: Envelope,
+        envelope: Envelope,
         scoping: Scoping,
         #[allow(unused_variables)] start_time: Instant,
     ) -> ResponseFuture<(), SendEnvelopeError> {
@@ -1763,7 +1780,7 @@ impl EnvelopeManager {
         // if we are in capture mode, we stash away the event instead of forwarding it.
         if self.config.relay_mode() == RelayMode::Capture {
             // XXX: this is wrong because captured_events does not take envelopes without
-            // event_id into account.`
+            // event_id into account.
             if let Some(event_id) = envelope.event_id() {
                 relay_log::debug!("capturing envelope");
                 self.captures.insert(event_id, Ok(envelope));
@@ -1776,52 +1793,19 @@ impl EnvelopeManager {
 
         relay_log::trace!("sending envelope to sentry endpoint");
         let http_encoding = self.config.http_encoding();
-        let request = SendRequest::post(format!("/api/{}/envelope/", scoping.project_id)).build(
-            move |mut builder: RequestBuilder| {
-                // Override the `sent_at` timestamp. Since the envelope went through basic
-                // normalization, all timestamps have been corrected. We propagate the new
-                // `sent_at` to allow the next Relay to double-check this timestamp and
-                // potentially apply correction again. This is done as close to sending as
-                // possible so that we avoid internal delays.
-                envelope.set_sent_at(Utc::now());
+        let (tx, rx) = oneshot::channel();
+        let request = SendEnvelope {
+            envelope,
+            scoping,
+            http_encoding,
+            response_sender: Some(tx),
+            project_key,
+        };
 
-                let meta = envelope.meta();
-
-                if let Some(origin) = meta.origin() {
-                    builder.header("Origin", origin.as_str());
-                }
-
-                if let Some(user_agent) = meta.user_agent() {
-                    builder.header("User-Agent", user_agent);
-                }
-
-                builder
-                    .content_encoding(http_encoding)
-                    .header("X-Sentry-Auth", meta.auth_header())
-                    .header("X-Forwarded-For", meta.forwarded_for())
-                    .header("Content-Type", envelope::CONTENT_TYPE);
-
-                let body = envelope
-                    .to_vec()
-                    .map_err(|e| UpstreamRequestError::Http(HttpError::custom(e)))?;
-
-                builder.body(body).map_err(UpstreamRequestError::Http)
-            },
-        );
-
-        let future = UpstreamRelay::from_registry()
-            .send(request)
-            .map_err(SendEnvelopeError::ScheduleFailed)
-            .and_then(move |result| {
-                if let Err(UpstreamRequestError::RateLimited(upstream_limits)) = result {
-                    let limits = upstream_limits.scope(&scoping);
-                    ProjectCache::from_registry()
-                        .do_send(UpdateRateLimits::new(project_key, limits.clone()));
-                    Err(SendEnvelopeError::RateLimited(limits))
-                } else {
-                    result.map_err(SendEnvelopeError::SendFailed)
-                }
-            });
+        UpstreamRelay::from_registry().do_send(SendRequest2(request));
+        let future = rx
+            .map_err(|_| SendEnvelopeError::SendFailed(UpstreamRequestError::ChannelClosed))
+            .and_then(|result| result);
 
         Box::new(future)
     }

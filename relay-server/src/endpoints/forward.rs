@@ -169,7 +169,7 @@ impl UpstreamRequest2 for ForwardRequest {
         false
     }
 
-    fn build(&self, mut builder: RequestBuilder) -> Result<crate::http::Request, HttpError> {
+    fn build(&mut self, mut builder: RequestBuilder) -> Result<crate::http::Request, HttpError> {
         for (key, value) in &self.headers {
             // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
             // must not forward the content-encoding header, as the actix http client will do its own
