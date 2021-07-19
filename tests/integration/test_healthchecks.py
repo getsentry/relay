@@ -23,21 +23,21 @@ def wait_get(server, path):
 
 
 def test_live(mini_sentry, relay):
-    """Internal endpoint used by kubernetes"""
+    """Internal endpoint used by kubernetes """
     relay = relay(mini_sentry)
     response = relay.get("/api/relay/healthcheck/live/")
     assert response.status_code == 200
 
 
 def test_external_live(mini_sentry, relay):
-    """Endpoint called by a downstream to see if it has network connection to the upstream."""
+    """Endpoint called by a downstream to see if it has network connection to the upstream. """
     relay = relay(mini_sentry)
     response = relay.get("/api/0/relays/live/")
     assert response.status_code == 200
 
 
 def test_readiness(mini_sentry, relay):
-    """Internal endpoint used by kubernetes"""
+    """Internal endpoint used by kubernetes """
     original_check_challenge = mini_sentry.app.view_functions["check_challenge"]
     mini_sentry.app.view_functions["check_challenge"] = failing_check_challenge
 
