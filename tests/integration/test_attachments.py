@@ -153,7 +153,10 @@ def test_attachments_ratelimit(
 
 
 def test_attachments_quotas(
-    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer,
+    mini_sentry,
+    relay_with_processing,
+    attachments_consumer,
+    outcomes_consumer,
 ):
     event_id = "515539018c9b4260a6f999572f1661ee"
     attachment_body = b"blabla"

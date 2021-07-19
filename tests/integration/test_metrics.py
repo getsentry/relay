@@ -5,7 +5,11 @@ from .test_envelope import generate_transaction_item
 
 
 TEST_CONFIG = {
-    "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0,}
+    "aggregator": {
+        "bucket_interval": 1,
+        "initial_delay": 0,
+        "debounce_delay": 0,
+    }
 }
 
 
@@ -149,7 +153,10 @@ def test_session_metrics_feature_disabled(mini_sentry, relay):
         "duration": 1947.49,
         "status": "exited",
         "errors": 0,
-        "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
+        "attrs": {
+            "release": "sentry-test@1.0.0",
+            "environment": "production",
+        },
     }
 
     relay.send_session(project_id, session_payload)
@@ -184,7 +191,10 @@ def test_session_metrics(mini_sentry, relay_with_processing, metrics_consumer):
         "duration": 1947.49,
         "status": "exited",
         "errors": 0,
-        "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
+        "attrs": {
+            "release": "sentry-test@1.0.0",
+            "environment": "production",
+        },
     }
 
     relay.send_session(project_id, session_payload)
@@ -230,7 +240,10 @@ def test_session_metrics(mini_sentry, relay_with_processing, metrics_consumer):
         "type": "d",
         "unit": "s",
         "value": [1947.49],
-        "tags": {"environment": "production", "release": "sentry-test@1.0.0",},
+        "tags": {
+            "environment": "production",
+            "release": "sentry-test@1.0.0",
+        },
     }
 
     metrics_consumer.assert_empty()
@@ -256,7 +269,11 @@ def test_transaction_metrics(mini_sentry, relay_with_processing, metrics_consume
             "foo": {"value": 1.2},
             "bar": {"value": 1.3},
         }
-        transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 1.4},}}
+        transaction["breakdowns"] = {
+            "breakdown1": {
+                "baz": {"value": 1.4},
+            }
+        }
 
         relay.send_event(42, transaction)
 
@@ -264,7 +281,11 @@ def test_transaction_metrics(mini_sentry, relay_with_processing, metrics_consume
         transaction["measurements"] = {
             "foo": {"value": 2.2},
         }
-        transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 2.4},}}
+        transaction["breakdowns"] = {
+            "breakdown1": {
+                "baz": {"value": 2.4},
+            }
+        }
         relay.send_event(42, transaction)
 
         if not feature_enabled:

@@ -207,7 +207,11 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
     transaction_item = generate_transaction_item()
     transaction_item.update(
         {
-            "breakdowns": {"span_ops": {"lcp": {"value": 202.1},}},
+            "breakdowns": {
+                "span_ops": {
+                    "lcp": {"value": 202.1},
+                }
+            },
             "spans": [
                 {
                     "description": "GET /api/0/organizations/?member=1",

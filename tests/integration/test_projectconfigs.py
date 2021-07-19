@@ -13,7 +13,11 @@ RelayInfo = namedtuple("RelayInfo", ["id", "public_key", "secret_key", "internal
 
 @pytest.mark.parametrize(
     "caller, projects",
-    [("r2", ["p2"]), ("sr1", ["p1", "p2", "p3", "p4"]), ("sr2", ["p4"]),],
+    [
+        ("r2", ["p2"]),
+        ("sr1", ["p1", "p2", "p3", "p4"]),
+        ("sr2", ["p4"]),
+    ],
     ids=[
         "dyn external relay fetches proj info",
         "static internal relay fetches proj info",
@@ -34,7 +38,10 @@ def test_dynamic_relays(mini_sentry, relay, caller, projects):
 
     relay1 = relay(mini_sentry, wait_healthcheck=True, static_relays=relays_conf)
     relay2 = relay(
-        mini_sentry, wait_healthcheck=True, external=True, static_relays=relays_conf,
+        mini_sentry,
+        wait_healthcheck=True,
+        external=True,
+        static_relays=relays_conf,
     )
 
     # create info for our test parameters
