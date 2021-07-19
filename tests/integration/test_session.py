@@ -25,10 +25,7 @@ def test_sessions(mini_sentry, relay_chain):
         "duration": 1947.49,
         "status": "exited",
         "errors": 0,
-        "attrs": {
-            "release": "sentry-test@1.0.0",
-            "environment": "production",
-        },
+        "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
     }
 
     relay.send_session(project_id, session_payload)
@@ -64,10 +61,7 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
             "duration": 1947.49,
             "status": "exited",
             "errors": 0,
-            "attrs": {
-                "release": "sentry-test@1.0.0",
-                "environment": "production",
-            },
+            "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
         },
     )
 
@@ -87,6 +81,7 @@ def test_session_with_processing(mini_sentry, relay_with_processing, sessions_co
         "errors": 0,
         "release": "sentry-test@1.0.0",
         "environment": "production",
+        "retention_days": 90,
         "sdk": "raven-node/2.6.3",
     }
 
@@ -112,10 +107,7 @@ def test_session_with_processing_two_events(
             "timestamp": timestamp.isoformat(),
             "started": started.isoformat(),
             "status": "ok",
-            "attrs": {
-                "release": "sentry-test@1.0.0",
-                "environment": "production",
-            },
+            "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
         },
     )
     session = sessions_consumer.get_session()
@@ -134,6 +126,7 @@ def test_session_with_processing_two_events(
         "errors": 0,
         "release": "sentry-test@1.0.0",
         "environment": "production",
+        "retention_days": 90,
         "sdk": "raven-node/2.6.3",
     }
 
@@ -147,10 +140,7 @@ def test_session_with_processing_two_events(
             "started": started.isoformat(),
             "duration": 1947.49,
             "status": "exited",
-            "attrs": {
-                "release": "sentry-test@1.0.0",
-                "environment": "production",
-            },
+            "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
         },
     )
     session = sessions_consumer.get_session()
@@ -168,6 +158,7 @@ def test_session_with_processing_two_events(
         "errors": 0,
         "release": "sentry-test@1.0.0",
         "environment": "production",
+        "retention_days": 90,
         "sdk": "raven-node/2.6.3",
     }
 
@@ -192,15 +183,9 @@ def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consume
                     "exited": 2,
                     "errored": 3,
                 },
-                {
-                    "started": started2.isoformat(),
-                    "abnormal": 1,
-                },
+                {"started": started2.isoformat(), "abnormal": 1,},
             ],
-            "attrs": {
-                "release": "sentry-test@1.0.0",
-                "environment": "production",
-            },
+            "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
         },
     )
 
@@ -219,6 +204,7 @@ def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consume
         "errors": 0,
         "release": "sentry-test@1.0.0",
         "environment": "production",
+        "retention_days": 90,
         "sdk": "raven-node/2.6.3",
     }
 
@@ -237,6 +223,7 @@ def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consume
         "errors": 1,
         "release": "sentry-test@1.0.0",
         "environment": "production",
+        "retention_days": 90,
         "sdk": "raven-node/2.6.3",
     }
 
@@ -255,6 +242,7 @@ def test_session_aggregates(mini_sentry, relay_with_processing, sessions_consume
         "errors": 1,
         "release": "sentry-test@1.0.0",
         "environment": "production",
+        "retention_days": 90,
         "sdk": "raven-node/2.6.3",
     }
 
@@ -281,6 +269,7 @@ def test_session_with_custom_retention(
     )
 
     session = sessions_consumer.get_session()
+    assert session["retention_days"] == 17
 
 
 def test_session_age_discard(mini_sentry, relay_with_processing, sessions_consumer):
@@ -348,6 +337,7 @@ def test_session_force_errors_on_crash(
         "errors": 1,
         "release": "sentry-test@1.0.0",
         "environment": "production",
+        "retention_days": 90,
         "sdk": "raven-node/2.6.3",
     }
 
