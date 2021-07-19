@@ -14,7 +14,7 @@ use actix_web::http::{HeaderMap, Method};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use failure::Fail;
-use futures::{future, prelude::*, sync::oneshot};
+use futures::{prelude::*, sync::oneshot};
 
 use lazy_static::lazy_static;
 
@@ -184,17 +184,17 @@ impl UpstreamRequest for ForwardRequest {
         builder.body(&self.data)
     }
 
-    fn respond(&mut self, response: Response) -> ResponseFuture<(), ()> {
-        self.response_channel
-            .take()
-            .unwrap()
-            .send(Ok(response))
-            .ok();
-        Box::new(future::ok(()))
-    }
-
-    fn error(&mut self, error: UpstreamRequestError) {
-        self.response_channel.take().unwrap().send(Err(error)).ok();
+    fn respond(
+        &mut self,
+        response: Result<Response, UpstreamRequestError>,
+    ) -> ResponseFuture<(), ()> {
+        let result = if response.is_ok() {
+            futures::future::ok(())
+        } else {
+            futures::future::err(())
+        };
+        self.response_channel.take().unwrap().send(response).ok();
+        Box::new(result)
     }
 }
 

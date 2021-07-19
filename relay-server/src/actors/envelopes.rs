@@ -1684,39 +1684,46 @@ impl UpstreamRequest for SendEnvelope {
         builder.body(body)
     }
 
-    fn respond(&mut self, response: Response) -> ResponseFuture<(), ()> {
-        let sender = self.response_sender.take();
-
-        Box::new(response.consume().then(move |result| {
-            sender.map(|sender| match result {
-                Err(e) => {
-                    sender
-                        .send(Err(SendEnvelopeError::SendFailed(
-                            UpstreamRequestError::Http(e),
-                        )))
-                        .ok();
+    fn respond(
+        &mut self,
+        result: Result<Response, UpstreamRequestError>,
+    ) -> ResponseFuture<(), ()> {
+        match result {
+            Ok(response) => {
+                let sender = self.response_sender.take();
+                Box::new(response.consume().then(move |result| {
+                    sender.map(|sender| match result {
+                        Err(e) => {
+                            sender
+                                .send(Err(SendEnvelopeError::SendFailed(
+                                    UpstreamRequestError::Http(e),
+                                )))
+                                .ok();
+                            Err(())
+                        }
+                        Ok(_) => {
+                            sender.send(Ok(())).ok();
+                            Ok(())
+                        }
+                    });
                     Err(())
-                }
-                Ok(_) => {
-                    sender.send(Ok(())).ok();
-                    Ok(())
-                }
-            });
-            Err(())
-        }))
-    }
-    fn error(&mut self, error: UpstreamRequestError) {
-        self.response_sender.take().map(|sender| {
-            let err = if let UpstreamRequestError::RateLimited(upstream_limits) = error {
-                let limits = upstream_limits.scope(&self.scoping);
-                ProjectCache::from_registry()
-                    .do_send(UpdateRateLimits::new(self.project_key, limits.clone()));
-                Err(SendEnvelopeError::RateLimited(limits))
-            } else {
-                Err(SendEnvelopeError::SendFailed(error))
-            };
-            sender.send(err).ok();
-        });
+                }))
+            }
+            Err(error) => {
+                self.response_sender.take().map(|sender| {
+                    let err = if let UpstreamRequestError::RateLimited(upstream_limits) = error {
+                        let limits = upstream_limits.scope(&self.scoping);
+                        ProjectCache::from_registry()
+                            .do_send(UpdateRateLimits::new(self.project_key, limits.clone()));
+                        Err(SendEnvelopeError::RateLimited(limits))
+                    } else {
+                        Err(SendEnvelopeError::SendFailed(error))
+                    };
+                    sender.send(err).ok();
+                });
+                Box::new(futures::future::err(()))
+            }
+        }
     }
 }
 

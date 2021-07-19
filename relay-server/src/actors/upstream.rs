@@ -500,7 +500,11 @@ impl UpstreamRelay {
         //try to build a ClientRequest
         let client_request = match request.request.build(builder) {
             Err(e) => {
-                request.request.error(UpstreamRequestError::Http(e));
+                request
+                    .request
+                    .respond(Err(UpstreamRequestError::Http(e)))
+                    .into_actor(self)
+                    .spawn(ctx);
                 return;
             }
             Ok(client_request) => client_request,
@@ -627,18 +631,11 @@ impl UpstreamRelay {
             self.reset_network_error();
         }
 
-        match send_result {
-            Ok(response) => {
-                request
-                    .request
-                    .respond(response)
-                    .into_actor(self)
-                    .spawn(ctx);
-            }
-            Err(err) => {
-                request.request.error(err);
-            }
-        }
+        request
+            .request
+            .respond(send_result)
+            .into_actor(self)
+            .spawn(ctx);
     }
 
     /// Enqueues a request and ensures that the message queue advances.
@@ -959,22 +956,28 @@ impl UpstreamRequest for CheckUpstreamConnection {
         builder.finish()
     }
 
-    fn respond(&mut self, response: Response) -> ResponseFuture<(), ()> {
+    fn respond(
+        &mut self,
+        response: Result<Response, UpstreamRequestError>,
+    ) -> ResponseFuture<(), ()> {
         let sender = self.response_sender.take();
-        let fut = response
-            .consume()
-            .map_err(UpstreamRequestError::Http)
-            .then(move |resp| {
-                sender.map(|sender| sender.send(resp).ok());
-                Ok(())
-            });
-        Box::new(fut)
-    }
-
-    fn error(&mut self, error: UpstreamRequestError) {
-        self.response_sender
-            .take()
-            .map(|sender| sender.send(Err(error)).ok());
+        match response {
+            Ok(response) => {
+                let fut =
+                    response
+                        .consume()
+                        .map_err(UpstreamRequestError::Http)
+                        .then(move |resp| {
+                            sender.map(|sender| sender.send(resp).ok());
+                            Ok(())
+                        });
+                Box::new(fut)
+            }
+            Err(err) => {
+                sender.map(|sender| sender.send(Err(err)));
+                Box::new(future::err(()))
+            }
+        }
     }
 }
 
@@ -1087,15 +1090,18 @@ pub trait UpstreamRequest: Send {
     fn build(&mut self, builder: RequestBuilder) -> Result<Request, HttpError>;
 
     /// TODO doc
-    fn respond(&mut self, response: Response) -> ResponseFuture<(), ()> {
+    fn respond(
+        &mut self,
+        response: Result<Response, UpstreamRequestError>,
+    ) -> ResponseFuture<(), ()> {
         //just consumes the response in case it is not needed
-        Box::new(response.consume().map(|_| ()).map_err(|e| {
-            relay_log::error!("failed to consume response: {}", LogError(&e));
-        }))
+        match response {
+            Ok(response) => Box::new(response.consume().map(|_| ()).map_err(|e| {
+                relay_log::error!("failed to consume response: {}", LogError(&e));
+            })),
+            Err(_) => Box::new(futures::future::err(())),
+        }
     }
-
-    /// TODO doc
-    fn error(&mut self, _error: UpstreamRequestError);
 }
 
 struct EnqueuedRequest {
@@ -1261,13 +1267,17 @@ impl<T: UpstreamQuery> UpstreamRequest for UpstreamQueryRequest<T> {
         T::priority()
     }
 
-    fn respond(&mut self, response: Response) -> ResponseFuture<(), ()> {
-        self.send_response(Ok(response));
-        Box::new(futures::future::ok(()))
-    }
-
-    fn error(&mut self, error: UpstreamRequestError) {
-        self.send_response(Err(error));
+    fn respond(
+        &mut self,
+        response: Result<Response, UpstreamRequestError>,
+    ) -> ResponseFuture<(), ()> {
+        let result = if response.is_ok() {
+            future::ok(())
+        } else {
+            future::err(())
+        };
+        self.send_response(response);
+        Box::new(result)
     }
 }
 
