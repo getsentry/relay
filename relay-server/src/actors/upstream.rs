@@ -521,14 +521,14 @@ impl UpstreamRelay {
             let res = client
                 .execute(client_request.0)
                 .await
-                .map(Response)
                 .map_err(UpstreamRequestError::SendFailed);
             tx.send(res)
         });
 
         let future = rx
             .map_err(|_| UpstreamRequestError::ChannelClosed)
-            .flatten();
+            .flatten()
+            .map(Response);
 
         let max_response_size = self.config.max_api_payload_size();
 
