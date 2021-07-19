@@ -227,7 +227,6 @@ impl StoreForwarder {
             release: attributes.release,
             environment: attributes.environment,
             sdk: client.map(str::to_owned),
-            retention_days: event_retention,
             status: SessionStatus::Exited,
         };
 
@@ -301,7 +300,6 @@ impl StoreForwarder {
             release: session.attributes.release,
             environment: session.attributes.environment,
             sdk: client.map(str::to_owned),
-            retention_days: event_retention,
         })
     }
 
@@ -497,7 +495,6 @@ struct SessionKafkaMessage {
     release: String,
     environment: Option<String>,
     sdk: Option<String>,
-    retention_days: u16,
 }
 
 #[derive(Clone, Debug, Serialize)]
