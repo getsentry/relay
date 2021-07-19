@@ -1007,12 +1007,6 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
             .and_then(|result| result);
 
         future
-            .and_then(|client_response| {
-                // consume response bodies to ensure the connection remains usable.
-                client_response
-                    .consume()
-                    .map_err(UpstreamRequestError::Http)
-            })
             .into_actor(self)
             .then(|result, slf, ctx| {
                 if matches!(result, Err(err) if err.is_network_error()) {
