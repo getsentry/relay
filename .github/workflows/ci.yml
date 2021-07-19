@@ -277,7 +277,6 @@ jobs:
           # We cannot execute actions that are not placed under .github of the main repo
           mkdir -p .github/actions/setup-sentry/
           cp sentry/.github/actions/setup-sentry/action.yml .github/actions/setup-sentry/action.yml
-          ls sentry/requirements*
 
       - name: Sentry's pip cache
         uses: actions/cache@v2
