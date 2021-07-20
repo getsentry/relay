@@ -12,9 +12,9 @@ fi
 
 BUILD_LIBC="${BUILD_LIBC:-musl}"
 if [ "${BUILD_LIBC}" = "gnu" ]; then
-  DOCKERFILE="Dockerfile"
+  DOCKERFILE="Dockerfile.debian"
 elif [ "${BUILD_LIBC}" = "musl" ]; then
-  DOCKERFILE="Dockerfile.alpine"
+  DOCKERFILE="Dockerfile"
 else
   echo "Invalid libc: ${BUILD_LIBC}"
   exit 1

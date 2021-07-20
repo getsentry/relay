@@ -4,7 +4,7 @@ ARG DOCKER_ARCH=amd64
 ### Deps stage ###
 ##################
 
-FROM $DOCKER_ARCH/rust:slim-buster AS relay-deps
+FROM $DOCKER_ARCH/rust:alpine AS relay-deps
 
 ARG DOCKER_ARCH
 ARG BUILD_ARCH=x86_64
@@ -12,13 +12,9 @@ ARG BUILD_ARCH=x86_64
 ENV DOCKER_ARCH=${DOCKER_ARCH}
 ENV BUILD_ARCH=${BUILD_ARCH}
 
-ENV BUILD_TARGET=${BUILD_ARCH}-unknown-linux-gnu
+ENV BUILD_TARGET=${BUILD_ARCH}-unknown-linux-musl
 
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y \
-    curl build-essential git zip cmake \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache curl gcc g++ git cmake make bash musl-dev perl zip
 
 WORKDIR /work
 
