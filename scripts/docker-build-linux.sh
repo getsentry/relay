@@ -10,7 +10,7 @@ else
   exit 1
 fi
 
-BUILD_LIBC="${BUILD_LIBC:-gnu}"
+BUILD_LIBC="${BUILD_LIBC:-musl}"
 if [ "${BUILD_LIBC}" = "gnu" ]; then
   DOCKERFILE="Dockerfile"
 elif [ "${BUILD_LIBC}" = "musl" ]; then
