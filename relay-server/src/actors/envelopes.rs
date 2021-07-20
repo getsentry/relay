@@ -155,11 +155,6 @@ impl ProcessingError {
             // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
-            #[cfg(feature = "processing")]
-            Self::EventFiltered(_filter_stat_key) => None,
-            // Trace sampled outcomes are handled in sample_trace
-            Self::TraceSampled(_) => None,
-            Self::EventSampled(_rule_id) => None,
 
             // Internal errors
             Self::SerializeFailed(_)
@@ -172,6 +167,12 @@ impl ProcessingError {
             Self::StoreFailed(_) | Self::QuotasFailed(_) => {
                 Some(Outcome::Invalid(DiscardReason::Internal))
             }
+
+            #[cfg(feature = "processing")]
+            Self::EventFiltered(_filter_stat_key) => None,
+            // Trace sampled outcomes are handled in sample_trace
+            Self::TraceSampled(_) => None,
+            Self::EventSampled(_rule_id) => None,
 
             // Rate limiting outcomes are emitted at the source.
             Self::RateLimited(_) => None,
@@ -233,35 +234,27 @@ impl EnvelopeContext {
     }
 
     pub fn send_outcomes(&self, outcome: Outcome, outcome_producer: Addr<OutcomeProducer>) {
-        let EnvelopeContext {
-            envelope_summary,
-            timestamp,
-            event_id,
-            remote_addr,
-            scoping,
-        } = self;
-
-        if let Some(category) = envelope_summary.event_category {
+        if let Some(category) = self.envelope_summary.event_category {
             outcome_producer.do_send(TrackOutcome {
-                timestamp: *timestamp,
-                scoping: *scoping,
+                timestamp: self.timestamp,
+                scoping: self.scoping,
                 outcome: outcome.clone(),
-                event_id: *event_id,
-                remote_addr: *remote_addr,
+                event_id: self.event_id,
+                remote_addr: self.remote_addr,
                 category,
                 quantity: 1,
             });
         }
 
-        if envelope_summary.attachment_quantity > 0 {
+        if self.envelope_summary.attachment_quantity > 0 {
             outcome_producer.do_send(TrackOutcome {
-                timestamp: *timestamp,
-                scoping: *scoping,
+                timestamp: self.timestamp,
+                scoping: self.scoping,
                 outcome,
-                event_id: *event_id,
-                remote_addr: *remote_addr,
+                event_id: self.event_id,
+                remote_addr: self.remote_addr,
                 category: DataCategory::Attachment,
-                quantity: envelope_summary.attachment_quantity,
+                quantity: self.envelope_summary.attachment_quantity,
             });
         }
     }
