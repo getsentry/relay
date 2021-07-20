@@ -263,6 +263,8 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: getsentry/sentry
+          # XXX: Temporary change
+          ref: armenzg/sentry-setup-action-minor-changes
           path: sentry
 
       - uses: actions/setup-python@v2
@@ -294,5 +296,8 @@ jobs:
 
       - name: Run Sentry integration tests
         working-directory: sentry
+        env:
+          RELAY_DOCKER_TAG: ${github.sha}
         run: |
+          echo "Testing agasint ${RELAY_DOCKER_TAG}"
           make test-relay-integration
