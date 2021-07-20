@@ -1710,7 +1710,7 @@ impl UpstreamRequest for SendEnvelope {
                 }))
             }
             Err(error) => {
-                self.response_sender.take().map(|sender| {
+                if let Some(sender) = self.response_sender.take() {
                     let err = if let UpstreamRequestError::RateLimited(upstream_limits) = error {
                         let limits = upstream_limits.scope(&self.scoping);
                         ProjectCache::from_registry()
@@ -1720,7 +1720,7 @@ impl UpstreamRequest for SendEnvelope {
                         Err(SendEnvelopeError::SendFailed(error))
                     };
                     sender.send(err).ok();
-                });
+                }
                 Box::new(futures::future::err(()))
             }
         }
