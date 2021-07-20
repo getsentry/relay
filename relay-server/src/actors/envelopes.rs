@@ -1628,6 +1628,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
 /// Error returned from [`EnvelopeManager::send_envelope`].
 #[derive(Debug)]
 enum SendEnvelopeError {
+    #[cfg(feature = "processing")]
     ScheduleFailed(MailboxError),
     #[cfg(feature = "processing")]
     StoreFailed(StoreError),
@@ -2088,6 +2089,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                             Ok(_) => true,
                             Err(SendEnvelopeError::RateLimited(_)) => true,
                             Err(SendEnvelopeError::SendFailed(ref e)) => e.is_received(),
+                            #[cfg(feature = "processing")]
                             Err(_) => false,
                         };
 
@@ -2096,6 +2098,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         is_received.store(received, Ordering::SeqCst);
 
                         result.map_err(|error| match error {
+                            #[cfg(feature = "processing")]
                             SendEnvelopeError::ScheduleFailed(e) => {
                                 ProcessingError::ScheduleFailed(e)
                             }
