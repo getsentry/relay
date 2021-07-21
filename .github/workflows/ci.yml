@@ -242,21 +242,12 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
-
-      - uses: swatinem/rust-cache@v1
-        with:
-          key: ${{ github.job }}
-
-      - name: Cargo build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --all-features
+      - name: Build Relay Docker image
+        id: docker
+        run: |
+          # Build Relay, we'll run and kill it for each test as part of pytest execution
+          docker build -t relay:$GITHUB_SHA .
+          echo "::set-output name=image::relay:$GITHUB_SHA"
 
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout sentry
@@ -297,7 +288,7 @@ jobs:
       - name: Run Sentry integration tests
         working-directory: sentry
         env:
-          RELAY_DOCKER_TAG: ${github.sha}
+          RELAY_TEST_IMAGE: ${{ steps.setup.outputs.pip-cache-dir }}
         run: |
-          echo "Testing agasint ${RELAY_DOCKER_TAG}"
+          echo "Testing against ${RELAY_TEST_IMAGE}"
           make test-relay-integration
