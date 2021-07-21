@@ -427,6 +427,8 @@ struct EventKafkaMessage {
     start_time: u64,
     /// The event id.
     event_id: EventId,
+    /// The project id for the current event.
+    project_id: ProjectId,
     /// The client ip address.
     remote_addr: Option<String>,
     /// Attachments that are potentially relevant for processing.
@@ -652,6 +654,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                 payload: event_item.payload(),
                 start_time: UnixTimestamp::from_instant(start_time).as_secs(),
                 event_id: event_id.ok_or(StoreError::NoEventId)?,
+                project_id: scoping.project_id,
                 remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
                 attachments,
             });
