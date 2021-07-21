@@ -339,7 +339,7 @@ jobs:
       - name: Run Sentry integration tests
         working-directory: sentry
         env:
-          RELAY_TEST_IMAGE: ${{ steps.setup.outputs.pip-cache-dir }}
+          RELAY_TEST_IMAGE: ${{ steps.docker.outputs.image }}
         run: |
           echo "Testing against ${RELAY_TEST_IMAGE}"
           make test-relay-integration
