@@ -243,6 +243,8 @@ jobs:
           submodules: recursive
 
       - name: Build Relay Docker image
+        env:
+          DOCKER_BUILDKIT: 1
         run: |
           docker pull us.gcr.io/sentryio/relay:nightly
           docker build \
@@ -250,8 +252,25 @@ jobs:
             --cache-from us.gcr.io/sentryio/relay:nightly \
             -t relay:$GITHUB_SHA .
 
-  slow_docker:
+  docker_build_2:
     name: Docker build (slow)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Relay
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Build Relay Docker image
+        run: |
+          docker pull us.gcr.io/sentryio/relay:nightly
+          docker build \
+            --cache-from us.gcr.io/sentryio/relay:nightly \
+            -t relay:$GITHUB_SHA .
+
+  docker_build_3:
+    name: Docker build (slowest)
     runs-on: ubuntu-latest
 
     steps:
