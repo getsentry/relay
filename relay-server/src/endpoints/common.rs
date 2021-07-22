@@ -26,7 +26,9 @@ use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
 use crate::service::{ServiceApp, ServiceState};
-use crate::utils::{self, ApiErrorResponse, EnvelopeSummary, FormDataIter, MultipartError};
+use crate::utils::{
+    self, ApiErrorResponse, EnvelopeSummary, FormDataIter, MultipartError, SendWithOutcome,
+};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
