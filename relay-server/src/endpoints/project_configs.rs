@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 use relay_common::ProjectKey;
 
 use crate::actors::project::{LimitedProjectState, ProjectState};
-use crate::actors::project_cache::GetProjectState;
+use crate::actors::project_cache::{GetProjectState, ProjectCache};
 use crate::actors::project_upstream::GetProjectStates;
-use crate::extractors::{CurrentServiceState, SignedJson};
+use crate::extractors::SignedJson;
 use crate::service::ServiceApp;
 
 /// Helper to deserialize the `version` query parameter.
@@ -59,17 +59,15 @@ struct GetProjectStatesResponseWrapper {
 }
 
 fn get_project_configs(
-    state: CurrentServiceState,
     body: SignedJson<GetProjectStates>,
 ) -> ResponseFuture<Json<GetProjectStatesResponseWrapper>, Error> {
     let relay = body.relay;
     let full = relay.internal && body.inner.full_config;
     let no_cache = body.inner.no_cache;
 
-    let project_cache = state.project_cache();
     let futures = body.inner.public_keys.into_iter().map(move |project_key| {
         let relay = relay.clone();
-        project_cache
+        ProjectCache::from_registry()
             .send(GetProjectState::new(project_key).no_cache(no_cache))
             .map_err(Error::from)
             .map(move |project_state| {

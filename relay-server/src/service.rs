@@ -7,12 +7,11 @@ use failure::ResultExt;
 use failure::{Backtrace, Context, Fail};
 use listenfd::ListenFd;
 
-use relay_common::clone;
 use relay_config::Config;
 use relay_redis::RedisPool;
 
 use crate::actors::controller::{Configure, Controller};
-use crate::actors::envelopes::EnvelopeManager;
+use crate::actors::envelopes::{EnvelopeManager, EnvelopeProcessor};
 use crate::actors::healthcheck::Healthcheck;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::ProjectCache;
@@ -106,21 +105,19 @@ impl From<Context<ServerErrorKind>> for ServerError {
 #[derive(Clone)]
 pub struct ServiceState {
     config: Arc<Config>,
-    relay_cache: Addr<RelayCache>,
-    project_cache: Addr<ProjectCache>,
-    upstream_relay: Addr<UpstreamRelay>,
-    envelope_manager: Addr<EnvelopeManager>,
-    outcome_producer: Addr<OutcomeProducer>,
-    healthcheck: Addr<Healthcheck>,
 }
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
     pub fn start(config: Arc<Config>) -> Result<Self, ServerError> {
-        let upstream_relay = Arbiter::start(clone!(config, |_| UpstreamRelay::new(config)));
+        let system = System::current();
+        let registry = system.registry();
 
-        let outcome_producer = OutcomeProducer::create(config.clone(), upstream_relay.clone())?;
-        let outcome_producer = Arbiter::start(move |_| outcome_producer);
+        let upstream_relay = UpstreamRelay::new(config.clone());
+        registry.set(Arbiter::start(|_| upstream_relay));
+
+        let outcome_producer = OutcomeProducer::create(config.clone())?;
+        registry.set(Arbiter::start(|_| outcome_producer));
 
         let redis_pool = match config.redis() {
             Some(redis_config) if config.processing_enabled() => {
@@ -129,67 +126,20 @@ impl ServiceState {
             _ => None,
         };
 
-        let event_manager = EnvelopeManager::create(
-            config.clone(),
-            upstream_relay.clone(),
-            outcome_producer.clone(),
-            redis_pool.clone(),
-        )
-        .context(ServerErrorKind::ConfigError)?
-        .start();
+        let processor = EnvelopeProcessor::start(config.clone(), redis_pool.clone())?;
+        let envelope_manager = EnvelopeManager::create(config.clone(), processor)?;
+        registry.set(envelope_manager.start());
 
-        let project_cache = ProjectCache::new(
-            config.clone(),
-            event_manager.clone(),
-            outcome_producer.clone(),
-            upstream_relay.clone(),
-            redis_pool,
-        )
-        .start();
+        registry.set(ProjectCache::new(config.clone(), redis_pool).start());
+        registry.set(Healthcheck::new(config.clone()).start());
+        registry.set(RelayCache::new(config.clone()).start());
 
-        Ok(ServiceState {
-            config: config.clone(),
-            upstream_relay: upstream_relay.clone(),
-            relay_cache: RelayCache::new(config.clone(), upstream_relay.clone()).start(),
-            project_cache,
-            healthcheck: Healthcheck::new(config, upstream_relay).start(),
-            envelope_manager: event_manager,
-            outcome_producer,
-        })
+        Ok(ServiceState { config })
     }
 
     /// Returns an atomically counted reference to the config.
     pub fn config(&self) -> Arc<Config> {
         self.config.clone()
-    }
-
-    /// Returns the current relay public key cache.
-    pub fn relay_cache(&self) -> Addr<RelayCache> {
-        self.relay_cache.clone()
-    }
-
-    /// Returns the current project cache.
-    pub fn project_cache(&self) -> Addr<ProjectCache> {
-        self.project_cache.clone()
-    }
-
-    /// Returns the current envelope manager.
-    pub fn envelope_manager(&self) -> Addr<EnvelopeManager> {
-        self.envelope_manager.clone()
-    }
-
-    pub fn outcome_producer(&self) -> Addr<OutcomeProducer> {
-        self.outcome_producer.clone()
-    }
-
-    /// Returns the actor for healthchecks.
-    pub fn healthcheck(&self) -> Addr<Healthcheck> {
-        self.healthcheck.clone()
-    }
-
-    /// Returns an actor for making raw HTTP requests against upstream.
-    pub fn upstream_relay(&self) -> Addr<UpstreamRelay> {
-        self.upstream_relay.clone()
     }
 }
 

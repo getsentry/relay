@@ -21,7 +21,6 @@ use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
 
 use crate::actors::outcome::DiscardReason;
-use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project_cache::{
     CheckEnvelopeResponse, CheckedEnvelope, ProjectCache, ProjectError, ProjectStateResponse,
     UpdateProjectState,
@@ -473,8 +472,6 @@ pub struct Project {
     last_updated_at: Instant,
     project_key: ProjectKey,
     config: Arc<Config>,
-    outcome_producer: Addr<OutcomeProducer>,
-    project_cache: Addr<ProjectCache>,
     aggregator: AggregatorState,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<StateChannel>,
@@ -484,23 +481,16 @@ pub struct Project {
 
 impl Project {
     /// Creates a new `Project`.
-    pub fn new(
-        key: ProjectKey,
-        config: Arc<Config>,
-        outcome_producer: Addr<OutcomeProducer>,
-        project_cache: Addr<ProjectCache>,
-    ) -> Self {
+    pub fn new(key: ProjectKey, config: Arc<Config>) -> Self {
         Project {
             last_updated_at: Instant::now(),
             project_key: key,
             config,
-            outcome_producer,
             aggregator: AggregatorState::Unknown,
             state: None,
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
-            project_cache,
         }
     }
 
@@ -535,11 +525,10 @@ impl Project {
     /// Returns `None` if the aggregator is permanently disabled, primarily for disabled projects.
     fn get_or_create_aggregator(&mut self) -> Option<Addr<Aggregator>> {
         if matches!(self.aggregator, AggregatorState::Unknown) {
-            let flush_receiver = self.project_cache.clone().recipient();
             let aggregator = Aggregator::new(
                 self.project_key,
                 self.config.aggregator_config(),
-                flush_receiver,
+                ProjectCache::from_registry().recipient(),
             );
             // TODO: This starts the aggregator on the project arbiter, but we want a separate
             // thread or thread pool for this.
@@ -686,8 +675,7 @@ impl Project {
 
     fn fetch_state(&mut self, no_cache: bool) {
         debug_assert!(self.state_channel.is_some());
-        self.project_cache
-            .do_send(UpdateProjectState::new(self.project_key, no_cache));
+        ProjectCache::from_registry().do_send(UpdateProjectState::new(self.project_key, no_cache));
     }
 
     /// Creates `Scoping` for this project if the state is loaded.
@@ -735,7 +723,7 @@ impl Project {
         });
 
         let (enforcement, rate_limits) = envelope_limiter.enforce(&mut envelope, scoping)?;
-        enforcement.track_outcomes(&self.outcome_producer, &envelope, scoping);
+        enforcement.track_outcomes(&envelope, scoping);
 
         let envelope = if envelope.is_empty() {
             None

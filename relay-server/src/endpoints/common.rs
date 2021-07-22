@@ -18,17 +18,17 @@ use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_sampling::RuleId;
 
-use crate::actors::envelopes::{EnvelopeContext, QueueEnvelope, QueueEnvelopeError};
+use crate::actors::envelopes::{
+    EnvelopeContext, EnvelopeManager, QueueEnvelope, QueueEnvelopeError,
+};
 use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::actors::project_cache::{CheckEnvelope, ProjectError};
+use crate::actors::project_cache::{CheckEnvelope, ProjectCache, ProjectError};
 use crate::body::StorePayloadError;
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
 use crate::service::{ServiceApp, ServiceState};
-use crate::utils::{
-    self, ApiErrorResponse, EnvelopeSummary, FormDataIter, MultipartError, SendWithOutcome,
-};
+use crate::utils::{self, ApiErrorResponse, EnvelopeSummary, FormDataIter, MultipartError};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -384,8 +384,6 @@ where
     I: IntoFuture<Item = Envelope, Error = BadStoreRequest> + 'static,
     R: FnOnce(Option<EventId>) -> HttpResponse + Copy + 'static,
 {
-    let start_time = meta.start_time();
-
     // For now, we only handle <= v8 and drop everything else
     let version = meta.version();
     if version > relay_common::PROTOCOL_VERSION {
@@ -399,15 +397,11 @@ where
     );
 
     let project_key = meta.public_key();
-
-    let event_manager = request.state().envelope_manager();
-    let project_manager = request.state().project_cache();
-    let outcome_producer = request.state().outcome_producer();
+    let start_time = meta.start_time();
+    let project_id = meta.project_id().unwrap_or_else(|| ProjectId::new(0));
 
     let config = request.state().config();
     let processing_enabled = config.processing_enabled();
-
-    let project_id = meta.project_id().unwrap_or_else(|| ProjectId::new(0));
     let is_internal = config.processing_internal_projects().contains(&project_id);
 
     let envelope_context = Rc::new(RefCell::new(EnvelopeContext::new(
@@ -420,7 +414,7 @@ where
 
     let future = extract_envelope(&request, meta)
         .into_future()
-        .and_then(clone!(outcome_producer, envelope_context, |envelope| {
+        .and_then(clone!(envelope_context, |envelope| {
             let summary = EnvelopeSummary::compute(&envelope);
 
             if is_internal && summary.event_category == Some(DataCategory::Transaction) {
@@ -437,35 +431,26 @@ where
 
             if envelope.is_empty() {
                 if let Some(outcome) = BadStoreRequest::EmptyEnvelope.to_outcome() {
-                    envelope_context
-                        .borrow()
-                        .send_outcomes(outcome, outcome_producer)
+                    envelope_context.borrow().send_outcomes(outcome)
                 }
                 Err(BadStoreRequest::EmptyEnvelope)
             } else {
                 Ok(envelope)
             }
         }))
-        .and_then(clone!(
-            project_manager,
-            outcome_producer,
-            envelope_context,
-            |envelope| {
-                project_manager
-                    .send(CheckEnvelope::cached(project_key, envelope))
-                    .map_err(BadStoreRequest::ScheduleFailed)
-                    .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
-                    .map_err(move |err| {
-                        if let Some(outcome) = err.to_outcome() {
-                            envelope_context
-                                .borrow()
-                                .send_outcomes(outcome, outcome_producer);
-                        }
-                        err
-                    })
-            }
-        ))
-        .and_then(clone!(outcome_producer, envelope_context, |response| {
+        .and_then(clone!(envelope_context, |envelope| {
+            ProjectCache::from_registry()
+                .send(CheckEnvelope::cached(project_key, envelope))
+                .map_err(BadStoreRequest::ScheduleFailed)
+                .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
+                .map_err(move |err| {
+                    if let Some(outcome) = err.to_outcome() {
+                        envelope_context.borrow().send_outcomes(outcome);
+                    }
+                    err
+                })
+        }))
+        .and_then(clone!(envelope_context, |response| {
             envelope_context.borrow_mut().set_scoping(response.scoping);
 
             response
@@ -489,57 +474,45 @@ where
                 })
                 .map_err(move |err| {
                     if let Some(outcome) = err.to_outcome() {
-                        envelope_context
-                            .borrow()
-                            .send_outcomes(outcome, outcome_producer)
+                        envelope_context.borrow().send_outcomes(outcome)
                     }
                     err
                 })
         }))
-        .and_then(clone!(
-            project_manager,
-            outcome_producer,
-            envelope_context,
-            |(envelope, rate_limits)| {
-                let sampling_project_key = envelope.trace_context().map(|tc| tc.public_key);
-                let scoping = envelope_context.borrow().scoping();
+        .and_then(clone!(envelope_context, |(envelope, rate_limits)| {
+            let sampling_project_key = envelope.trace_context().map(|tc| tc.public_key);
+            let scoping = envelope_context.borrow().scoping();
 
-                utils::sample_trace(
-                    envelope,
-                    sampling_project_key,
-                    project_manager,
-                    outcome_producer,
-                    true,
-                    processing_enabled,
-                    start_time,
-                    scoping,
-                )
-                .then(move |result| match result {
-                    Err(rule_id) => Err(BadStoreRequest::TraceSampled(rule_id)),
-                    Ok(envelope) => Ok((envelope, rate_limits, sampling_project_key)),
-                })
-            }
-        ))
-        .and_then(clone!(outcome_producer, envelope_context, |(
+            utils::sample_trace(
+                envelope,
+                sampling_project_key,
+                true,
+                processing_enabled,
+                start_time,
+                scoping,
+            )
+            .then(move |result| match result {
+                Err(rule_id) => Err(BadStoreRequest::TraceSampled(rule_id)),
+                Ok(envelope) => Ok((envelope, rate_limits, sampling_project_key)),
+            })
+        }))
+        .and_then(clone!(envelope_context, |(
             envelope,
             rate_limits,
             sampling_project_key,
         )| {
-            event_manager
+            EnvelopeManager::from_registry()
                 .send(QueueEnvelope {
                     envelope,
                     project_key,
                     sampling_project_key,
-                    project_cache: project_manager.clone(),
                     start_time,
                 })
                 .map_err(BadStoreRequest::ScheduleFailed)
                 .and_then(|result| result.map_err(BadStoreRequest::QueueFailed))
                 .map_err(move |err| {
                     if let Some(outcome) = err.to_outcome() {
-                        envelope_context
-                            .borrow()
-                            .send_outcomes(outcome, outcome_producer)
+                        envelope_context.borrow().send_outcomes(outcome)
                     }
                     err
                 })

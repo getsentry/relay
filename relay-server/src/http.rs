@@ -11,9 +11,6 @@
 use std::io;
 use std::io::Write;
 
-use actix_web::error::{JsonPayloadError, PayloadError};
-use actix_web::http::StatusCode;
-use actix_web::{Binary, Error as ActixError};
 use brotli2::write::BrotliEncoder;
 use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
@@ -22,9 +19,10 @@ use futures::prelude::*;
 use futures03::{FutureExt, TryFutureExt, TryStreamExt};
 use serde::de::DeserializeOwned;
 
-use ::actix::prelude::*;
-
 use relay_config::HttpEncoding;
+
+#[doc(inline)]
+pub use reqwest::StatusCode;
 
 #[derive(Fail, Debug)]
 pub enum HttpError {
@@ -32,26 +30,29 @@ pub enum HttpError {
     Overflow,
     #[fail(display = "could not send request")]
     Reqwest(#[cause] reqwest::Error),
-    #[fail(display = "failed to create upstream request: {}", _0)]
-    Actix(ActixError),
-    #[fail(display = "failed to stream payload: {}", _0)]
+    #[fail(display = "failed to stream payload")]
     Io(#[cause] io::Error),
-    #[fail(display = "could not parse json payload returned by upstream")]
-    ActixJson(#[cause] JsonPayloadError),
-    #[fail(display = "failed to receive response from upstream")]
-    ActixPayload(#[cause] PayloadError),
+    #[fail(display = "failed to parse JSON response")]
+    Json(#[cause] serde_json::Error),
+    #[fail(display = "{}", _0)]
+    Custom(Box<dyn Fail>),
 }
 
 impl HttpError {
+    pub fn custom(error: impl Fail) -> Self {
+        Self::Custom(Box::new(error))
+    }
+
     /// Returns `true` if the error indicates a network downtime.
     pub fn is_network_error(&self) -> bool {
         match self {
-            HttpError::ActixPayload(_) | HttpError::Io(_) => true,
-
+            Self::Io(_) => true,
             // note: status codes are not handled here because we never call error_for_status. This
             // logic is part of upstream actor.
-            HttpError::Reqwest(error) => error.is_timeout(),
-            _ => false,
+            Self::Reqwest(error) => error.is_timeout(),
+            Self::Json(_) => false,
+            HttpError::Overflow => false,
+            Self::Custom(_) => false,
         }
     }
 }
@@ -62,27 +63,9 @@ impl From<reqwest::Error> for HttpError {
     }
 }
 
-impl From<ActixError> for HttpError {
-    fn from(e: ActixError) -> Self {
-        HttpError::Actix(e)
-    }
-}
-
 impl From<io::Error> for HttpError {
     fn from(e: io::Error) -> Self {
         HttpError::Io(e)
-    }
-}
-
-impl From<JsonPayloadError> for HttpError {
-    fn from(e: JsonPayloadError) -> Self {
-        HttpError::ActixJson(e)
-    }
-}
-
-impl From<PayloadError> for HttpError {
-    fn from(e: PayloadError) -> Self {
-        HttpError::ActixPayload(e)
     }
 }
 
@@ -120,7 +103,10 @@ impl RequestBuilder {
         self
     }
 
-    pub fn body(mut self, body: Binary) -> Result<Request, HttpError> {
+    pub fn body<B>(mut self, body: B) -> Result<Request, HttpError>
+    where
+        B: AsRef<[u8]>,
+    {
         // actix-web's Binary is used as argument here because the type can be constructed from
         // almost anything and then the actix-web codepath is minimally affected.
         //
@@ -167,21 +153,20 @@ pub struct Response(pub reqwest::Response);
 
 impl Response {
     pub fn status(&self) -> StatusCode {
-        StatusCode::from_u16(self.0.status().as_u16()).unwrap()
+        self.0.status()
     }
 
     pub fn json<T: 'static + DeserializeOwned>(
         self,
         limit: usize,
     ) -> Box<dyn Future<Item = T, Error = HttpError>> {
-        let future = self.bytes(limit).and_then(|bytes| {
-            serde_json::from_slice(&bytes)
-                .map_err(|e| HttpError::ActixJson(JsonPayloadError::Deserialize(e)))
-        });
+        let future = self
+            .bytes(limit)
+            .and_then(|bytes| serde_json::from_slice(&bytes).map_err(HttpError::Json));
         Box::new(future)
     }
 
-    pub fn consume(mut self) -> ResponseFuture<Self, HttpError> {
+    pub fn consume(mut self) -> Box<dyn Future<Item = Self, Error = HttpError>> {
         // Consume the request payload such that the underlying connection returns to a
         // "clean state".
         //
@@ -223,7 +208,7 @@ impl Response {
             .collect()
     }
 
-    pub fn bytes(self, limit: usize) -> ResponseFuture<Vec<u8>, HttpError> {
+    pub fn bytes(self, limit: usize) -> Box<dyn Future<Item = Vec<u8>, Error = HttpError>> {
         Box::new(
             self.0
                 .bytes_stream()

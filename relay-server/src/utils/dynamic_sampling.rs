@@ -13,7 +13,6 @@ use relay_sampling::{
 
 use crate::actors::envelopes::EnvelopeContext;
 use crate::actors::outcome::Outcome::FilteredSampling;
-use crate::actors::outcome::OutcomeProducer;
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
 use crate::envelope::{Envelope, ItemType};
@@ -129,15 +128,13 @@ fn sample_transaction_internal(
 #[allow(clippy::too_many_arguments)]
 pub fn sample_trace(
     envelope: Envelope,
-    public_key: Option<ProjectKey>,
-    project_cache: Addr<ProjectCache>,
-    outcome_producer: Addr<OutcomeProducer>,
+    project_key: Option<ProjectKey>,
     fast_processing: bool,
     processing_enabled: bool,
     timestamp: Instant,
     scoping: Scoping,
 ) -> ResponseFuture<Envelope, RuleId> {
-    let project_key = match public_key {
+    let project_key = match project_key {
         None => return Box::new(future::ok(envelope)),
         Some(project) => project,
     };
@@ -155,7 +152,7 @@ pub fn sample_trace(
 
     //we have a trace_context and we have a transaction_item see if we can sample them
     let future = if fast_processing {
-        let fut = project_cache
+        let future = ProjectCache::from_registry()
             .send(GetCachedProjectState::new(project_key))
             .then(move |project_state| {
                 let project_state = match project_state {
@@ -165,24 +162,23 @@ pub fn sample_trace(
                 };
                 sample_transaction_internal(envelope, project_state.as_deref(), processing_enabled)
             });
-        Box::new(fut) as ResponseFuture<_, _>
+        Box::new(future) as ResponseFuture<_, _>
     } else {
-        let fut =
-            project_cache
-                .send(GetProjectState::new(project_key))
-                .then(move |project_state| {
-                    let project_state = match project_state {
-                        // error getting the project, give up and return envelope unchanged
-                        Err(_) => return Ok(envelope),
-                        Ok(project_state) => project_state,
-                    };
-                    sample_transaction_internal(
-                        envelope,
-                        project_state.ok().as_deref(),
-                        processing_enabled,
-                    )
-                });
-        Box::new(fut) as ResponseFuture<_, _>
+        let future = ProjectCache::from_registry()
+            .send(GetProjectState::new(project_key))
+            .then(move |project_state| {
+                let project_state = match project_state {
+                    // error getting the project, give up and return envelope unchanged
+                    Err(_) => return Ok(envelope),
+                    Ok(project_state) => project_state,
+                };
+                sample_transaction_internal(
+                    envelope,
+                    project_state.ok().as_deref(),
+                    processing_enabled,
+                )
+            });
+        Box::new(future)
     };
 
     Box::new(future.map_err(move |err| {
@@ -194,7 +190,7 @@ pub fn sample_trace(
             remote_addr,
             scoping,
         )
-        .send_outcomes(FilteredSampling(err), outcome_producer);
+        .send_outcomes(FilteredSampling(err));
         err
     }))
 }

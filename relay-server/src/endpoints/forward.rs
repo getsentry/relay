@@ -15,12 +15,13 @@ use relay_common::GlobMatcher;
 use relay_config::Config;
 use relay_log::LogError;
 
-use crate::actors::upstream::{SendRequest, UpstreamRequestError};
+use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::body::ForwardBody;
 use crate::endpoints::statics;
 use crate::extractors::ForwardedFor;
 use crate::http::{HttpError, RequestBuilder, Response};
 use crate::service::{ServiceApp, ServiceState};
+use crate::utils::ApiErrorResponse;
 
 /// Headers that this endpoint must handle and cannot forward.
 static HOP_BY_HOP_HEADERS: &[HeaderName] = &[
@@ -71,10 +72,11 @@ impl ResponseError for ForwardedUpstreamRequestError {
                             .unwrap(),
                     )
                 }
-                HttpError::Actix(e) => e.as_response_error().error_response(),
                 HttpError::Io(_) => HttpResponse::BadGateway().finish(),
-                HttpError::ActixPayload(e) => e.error_response(),
-                HttpError::ActixJson(e) => e.error_response(),
+                HttpError::Json(e) => e.error_response(),
+                HttpError::Custom(e) => {
+                    HttpResponse::InternalServerError().json(&ApiErrorResponse::from_fail(e))
+                }
             },
             UpstreamRequestError::SendFailed(e) => {
                 if e.is_timeout() {
@@ -127,7 +129,6 @@ pub fn forward_upstream(
 ) -> ResponseFuture<HttpResponse, Error> {
     let config = request.state().config();
     let max_response_size = config.max_api_payload_size();
-    let upstream_relay = request.state().upstream_relay();
     let limit = get_limit_for_path(request.path(), &config);
 
     let path_and_query = request
@@ -163,10 +164,7 @@ pub fn forward_upstream(
                     }
 
                     builder.header("X-Forwarded-For", forwarded_for.as_ref());
-
-                    builder
-                        .body(data.clone().into())
-                        .map_err(UpstreamRequestError::Http)
+                    builder.body(&data).map_err(UpstreamRequestError::Http)
                 })
                 .transform(move |response: Response| {
                     let status = response.status();
@@ -177,15 +175,18 @@ pub fn forward_upstream(
                         .map_err(UpstreamRequestError::Http)
                 });
 
-            upstream_relay.send(forward_request).map_err(|_| {
-                Error::from(ForwardedUpstreamRequestError(
-                    UpstreamRequestError::ChannelClosed,
-                ))
-            })
+            UpstreamRelay::from_registry()
+                .send(forward_request)
+                .map_err(|_| {
+                    Error::from(ForwardedUpstreamRequestError(
+                        UpstreamRequestError::ChannelClosed,
+                    ))
+                })
         })
         .and_then(move |result: Result<_, UpstreamRequestError>| {
             let (status, headers, body) = result.map_err(ForwardedUpstreamRequestError::from)?;
-            let mut forwarded_response = HttpResponse::build(status);
+            let actix_code = StatusCode::from_u16(status.as_u16()).unwrap();
+            let mut forwarded_response = HttpResponse::build(actix_code);
 
             let mut has_content_type = false;
 

@@ -3,14 +3,13 @@ use actix::prelude::*;
 use futures::prelude::*;
 
 use crate::actors::envelopes::EnvelopeContext;
-use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer};
+use crate::actors::outcome::{DiscardReason, Outcome};
 
 pub trait SendWithOutcome<A> {
     fn send_with_outcome_error<Msg>(
         &self,
         message: Msg,
         envelope_context: EnvelopeContext,
-        outcome_producer: Addr<OutcomeProducer>,
     ) -> ResponseFuture<Msg::Result, ()>
     where
         Msg: Message,
@@ -28,7 +27,6 @@ where
         &self,
         message: Msg,
         envelope_context: EnvelopeContext,
-        outcome_producer: Addr<OutcomeProducer>,
     ) -> ResponseFuture<Msg::Result, ()>
     where
         A: Handler<Msg>,
@@ -37,8 +35,7 @@ where
         Msg::Result: Send,
     {
         let fut = self.send(message).map_err(move |_| {
-            envelope_context
-                .send_outcomes(Outcome::Invalid(DiscardReason::Internal), outcome_producer);
+            envelope_context.send_outcomes(Outcome::Invalid(DiscardReason::Internal));
         });
         Box::new(fut)
     }

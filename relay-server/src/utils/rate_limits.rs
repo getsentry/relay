@@ -1,6 +1,6 @@
 use std::fmt::{self, Write};
 
-use actix::Addr;
+use actix::SystemService;
 
 use relay_quotas::{
     DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
@@ -230,17 +230,12 @@ impl Enforcement {
     /// Invokes [`TrackOutcome`] on all enforcements reported by the [`EnvelopeLimiter`].
     ///
     /// Relay generally does not emit outcomes for sessions, so those are skipped.
-    pub fn track_outcomes(
-        self,
-        producer: &Addr<OutcomeProducer>,
-        envelope: &Envelope,
-        scoping: &Scoping,
-    ) {
+    pub fn track_outcomes(self, envelope: &Envelope, scoping: &Scoping) {
         // Do not report outcomes for sessions.
         for limit in std::array::IntoIter::new([self.event, self.attachments]) {
             if limit.is_active() {
                 let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
-                producer.do_send(TrackOutcome {
+                OutcomeProducer::from_registry().do_send(TrackOutcome {
                     timestamp,
                     scoping: *scoping,
                     outcome: Outcome::RateLimited(limit.reason_code),
