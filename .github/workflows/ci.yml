@@ -252,6 +252,16 @@ jobs:
             --cache-from us.gcr.io/sentryio/relay:nightly \
             -t relay:$GITHUB_SHA .
 
+      # Build again to see if caching even works
+      - name: Build Relay Docker image (again)
+        env:
+          DOCKER_BUILDKIT: 1
+        run: |
+          docker build \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from us.gcr.io/sentryio/relay:nightly \
+            -t relay:$GITHUB_SHA .
+
   docker_build_2:
     name: Docker build (slow)
     runs-on: ubuntu-latest
