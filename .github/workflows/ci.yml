@@ -277,6 +277,7 @@ jobs:
             docker pull ghcr.io/getsentry/relay-ci:latest || true
 
       - name: Build relay docker image for CI
+        id: docker
         run: |
           docker build . \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
@@ -287,6 +288,7 @@ jobs:
             --cache-from ghcr.io/getsentry/relay-ci:latest \
             --cache-from ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} \
             --cache-from ghcr.io/getsentry/relay-ci:${{ github.sha }}
+          echo "::set-output name=image::ghcr.io/getsentry/relay-ci:$GITHUB_SHA"
 
       - name: Publish images for cache
         run: |
