@@ -2,6 +2,7 @@
 
 !.git/
 !.gitmodules
+!.github
 
 !relay*/
 !tools/

@@ -4,7 +4,9 @@ ARG DOCKER_ARCH=amd64
 ### Deps stage ###
 ##################
 
-FROM $DOCKER_ARCH/rust:slim-buster AS relay-deps
+# If we don't specify a specific version the cache gets invalidated with every new version
+# We can use tools like dependabot to bump this for us when there are security issues
+FROM $DOCKER_ARCH/rust:1.53.0-slim-buster AS relay-deps
 
 ARG DOCKER_ARCH
 ARG BUILD_ARCH=x86_64
@@ -26,7 +28,7 @@ WORKDIR /work
 ### Builder stage ###
 #####################
 
-FROM getsentry/sentry-cli:1 AS sentry-cli
+FROM getsentry/sentry-cli:1.67.2 AS sentry-cli
 FROM relay-deps AS relay-builder
 
 ARG RELAY_FEATURES=ssl,processing
@@ -50,7 +52,7 @@ RUN sentry-cli --version \
 ### Final stage ###
 ###################
 
-FROM debian:buster-slim
+FROM debian:buster-20210721-slim
 
 RUN apt-get update \
     && apt-get install -y ca-certificates gosu curl --no-install-recommends \
