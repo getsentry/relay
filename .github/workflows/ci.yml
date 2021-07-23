@@ -262,7 +262,7 @@ jobs:
 
       - name: Build relay-deps images
         run: |
-          docker pull ghcr.io/getsentry/relay-deps-ci:latest
+          docker pull ghcr.io/getsentry/relay-deps-ci:latest || true
           docker build . \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
             -t ghcr.io/getsentry/relay-deps-ci:latest \
