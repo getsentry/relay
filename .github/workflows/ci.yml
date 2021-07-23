@@ -255,16 +255,16 @@ jobs:
 
       # We are only using ghcr here for CI as `setup-gcloud` is a bit slow
       # Should revisit this when we move off of google cloud build (we may want to move these to GCR)
-      # - name: Registry login
-      #   run: |
-      #     echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
+      - name: Registry login
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
 
-      # # These are pulled in order to be able to use docker layer caching
-      # - name: Pull relay CI images
-      #   run: |
-      #     docker pull ghcr.io/getsentry/relay-ci:${{ github.sha }} || \
-      #       docker pull ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} || \
-      #       docker pull ghcr.io/getsentry/relay-ci:latest || true
+      # These are pulled in order to be able to use docker layer caching
+      - name: Pull relay CI images
+        run: |
+          docker pull ghcr.io/getsentry/relay-ci:${{ github.sha }} || \
+            docker pull ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} || \
+            docker pull ghcr.io/getsentry/relay-ci:latest || true
 
       - name: Build relay docker image for CI
         run: |
@@ -277,11 +277,11 @@ jobs:
             --cache-from ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} \
             --cache-from ghcr.io/getsentry/relay-ci:${{ github.sha }}
 
-      # - name: Publish images for cache
-      #   run: |
-      #     docker push ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }}
-      #     docker push ghcr.io/getsentry/relay-ci:${{ github.sha }}
-      #     docker push ghcr.io/getsentry/relay-ci:latest
+      - name: Publish images for cache
+        run: |
+          docker push ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }}
+          docker push ghcr.io/getsentry/relay-ci:${{ github.sha }}
+          docker push ghcr.io/getsentry/relay-ci:latest
 
       # XXX: This step will be removed once we can actually push the images to the registry
       - name: Build Relay Docker image
