@@ -28,7 +28,9 @@ use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
 use crate::service::{ServiceApp, ServiceState};
-use crate::utils::{self, ApiErrorResponse, EnvelopeSummary, FormDataIter, MultipartError};
+use crate::utils::{
+    self, ApiErrorResponse, EnvelopeSummary, FormDataIter, MultipartError, SendWithOutcome,
+};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -36,7 +38,7 @@ pub enum BadStoreRequest {
     UnsupportedProtocolVersion(u16),
 
     #[fail(display = "could not schedule event processing")]
-    ScheduleFailed(#[cause] MailboxError),
+    ScheduleFailed,
 
     #[fail(display = "failed to fetch project information")]
     ProjectFailed(#[cause] ProjectError),
@@ -118,11 +120,13 @@ impl BadStoreRequest {
                 ProjectError::FetchFailed => Outcome::Invalid(DiscardReason::ProjectState),
                 _ => Outcome::Invalid(DiscardReason::Internal),
             },
-            BadStoreRequest::ScheduleFailed(_) => Outcome::Invalid(DiscardReason::Internal),
             BadStoreRequest::EventRejected(reason) => Outcome::Invalid(*reason),
             BadStoreRequest::PayloadError(payload_error) => {
                 Outcome::Invalid(payload_error.discard_reason())
             }
+
+            // Handled by send_with_outcome
+            BadStoreRequest::ScheduleFailed => return None,
 
             // Outcomes for sampled envelopes are emitted during envelope sampling
             BadStoreRequest::TraceSampled(_) => return None,
@@ -163,10 +167,10 @@ impl ResponseError for BadStoreRequest {
                     // more likely that the error is local to this project.
                     HttpResponse::InternalServerError().json(&body)
                 }
-                ProjectError::ScheduleFailed(_) => HttpResponse::ServiceUnavailable().json(&body),
+                ProjectError::ScheduleFailed => HttpResponse::ServiceUnavailable().json(&body),
             },
 
-            BadStoreRequest::ScheduleFailed(_) | BadStoreRequest::QueueFailed(_) => {
+            BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed(_) => {
                 // These errors indicate that something's wrong with our actor system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
@@ -440,8 +444,11 @@ where
         }))
         .and_then(clone!(envelope_context, |envelope| {
             ProjectCache::from_registry()
-                .send(CheckEnvelope::cached(project_key, envelope))
-                .map_err(BadStoreRequest::ScheduleFailed)
+                .send_with_outcome_error(
+                    CheckEnvelope::cached(project_key, envelope),
+                    *envelope_context.clone().borrow(),
+                )
+                .map_err(|_| BadStoreRequest::ScheduleFailed)
                 .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
                 .map_err(move |err| {
                     if let Some(outcome) = err.to_outcome() {
@@ -502,13 +509,16 @@ where
             sampling_project_key,
         )| {
             EnvelopeManager::from_registry()
-                .send(QueueEnvelope {
-                    envelope,
-                    project_key,
-                    sampling_project_key,
-                    start_time,
-                })
-                .map_err(BadStoreRequest::ScheduleFailed)
+                .send_with_outcome_error(
+                    QueueEnvelope {
+                        envelope,
+                        project_key,
+                        sampling_project_key,
+                        start_time,
+                    },
+                    *envelope_context.clone().borrow(),
+                )
+                .map_err(|_| BadStoreRequest::ScheduleFailed)
                 .and_then(|result| result.map_err(BadStoreRequest::QueueFailed))
                 .map_err(move |err| {
                     if let Some(outcome) = err.to_outcome() {

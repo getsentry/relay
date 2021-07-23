@@ -39,7 +39,9 @@ use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, RequestBuilder};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
-use crate::utils::{self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt};
+use crate::utils::{
+    self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt, SendWithOutcome,
+};
 
 #[cfg(feature = "processing")]
 use {
@@ -90,7 +92,7 @@ enum ProcessingError {
     NoEventPayload,
 
     #[fail(display = "could not schedule project fetch")]
-    ScheduleFailed(#[cause] MailboxError),
+    ScheduleFailed,
 
     #[fail(display = "failed to resolve project information")]
     ProjectFailed(#[cause] ProjectError),
@@ -158,7 +160,6 @@ impl ProcessingError {
 
             // Internal errors
             Self::SerializeFailed(_)
-            | Self::ScheduleFailed(_)
             | Self::ProjectFailed(_)
             | Self::Timeout
             | Self::ProcessingFailed(_)
@@ -167,6 +168,9 @@ impl ProcessingError {
             Self::StoreFailed(_) | Self::QuotasFailed(_) => {
                 Some(Outcome::Invalid(DiscardReason::Internal))
             }
+
+            // Handled locally
+            Self::ScheduleFailed => None,
 
             #[cfg(feature = "processing")]
             Self::EventFiltered(_filter_stat_key) => None,
@@ -1762,7 +1766,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
 /// Error returned from [`EnvelopeManager::send_envelope`].
 #[derive(Debug)]
 enum SendEnvelopeError {
-    ScheduleFailed(MailboxError),
+    ScheduleFailed,
     #[cfg(feature = "processing")]
     StoreFailed(StoreError),
     SendFailed(UpstreamRequestError),
@@ -1822,7 +1826,7 @@ impl EnvelopeManager {
                         start_time,
                         scoping,
                     })
-                    .map_err(SendEnvelopeError::ScheduleFailed)
+                    .map_err(|_| SendEnvelopeError::ScheduleFailed)
                     .and_then(|result| result.map_err(SendEnvelopeError::StoreFailed));
 
                 return Box::new(future);
@@ -1880,7 +1884,7 @@ impl EnvelopeManager {
 
         let future = UpstreamRelay::from_registry()
             .send(request)
-            .map_err(SendEnvelopeError::ScheduleFailed)
+            .map_err(|_| SendEnvelopeError::ScheduleFailed)
             .and_then(move |result| {
                 if let Err(UpstreamRequestError::RateLimited(upstream_limits)) = result {
                     let limits = upstream_limits.scope(&scoping);
@@ -2095,8 +2099,11 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
         )));
 
         let future = ProjectCache::from_registry()
-            .send(CheckEnvelope::fetched(project_key, envelope))
-            .map_err(ProcessingError::ScheduleFailed)
+            .send_with_outcome_error(
+                CheckEnvelope::fetched(project_key, envelope),
+                *envelope_context.clone().borrow(),
+            )
+            .map_err(|_| ProcessingError::ScheduleFailed)
             .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
             .map_err(clone!(envelope_context, |err| {
                 if let Some(outcome) = err.to_outcome() {
@@ -2150,8 +2157,11 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 // even if the no_cache flag was passed, as the cache was updated prior in
                 // `CheckEnvelope`.
                 ProjectCache::from_registry()
-                    .send(GetProjectState::new(project_key))
-                    .map_err(ProcessingError::ScheduleFailed)
+                    .send_with_outcome_error(
+                        GetProjectState::new(project_key),
+                        *envelope_context.borrow(),
+                    )
+                    .map_err(|_| ProcessingError::ScheduleFailed)
                     .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
                     .map_err(clone!(envelope_context, |err| {
                         if let Some(outcome) = err.to_outcome() {
@@ -2163,19 +2173,16 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             }))
             .and_then(clone!(envelope_context, |(envelope, project_state)| {
                 processor
-                    .send(ProcessEnvelope {
-                        envelope,
-                        project_state,
-                        start_time,
-                        scoping: envelope_context.borrow().scoping(),
-                    })
-                    .map_err(clone!(envelope_context, |err| {
-                        let err = ProcessingError::ScheduleFailed(err);
-                        if let Some(outcome) = err.to_outcome() {
-                            envelope_context.borrow().send_outcomes(outcome);
-                        }
-                        err
-                    }))
+                    .send_with_outcome_error(
+                        ProcessEnvelope {
+                            envelope,
+                            project_state,
+                            start_time,
+                            scoping: envelope_context.borrow().scoping(),
+                        },
+                        *envelope_context.borrow(),
+                    )
+                    .map_err(|_err| ProcessingError::ScheduleFailed)
                     .flatten()
             }))
             .and_then(clone!(envelope_context, |processed| {
@@ -2222,9 +2229,8 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
 
                     result.map_err(|error| {
                         let error = match error {
-                            SendEnvelopeError::ScheduleFailed(e) => {
-                                ProcessingError::ScheduleFailed(e)
-                            }
+                            SendEnvelopeError::ScheduleFailed => ProcessingError::ScheduleFailed,
+
                             #[cfg(feature = "processing")]
                             SendEnvelopeError::StoreFailed(e) => ProcessingError::StoreFailed(e),
                             // do not emit outcomes
@@ -2237,8 +2243,17 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                             }
                         };
                         if !received {
-                            if let Some(outcome) = error.to_outcome() {
-                                envelope_context.borrow().send_outcomes(outcome);
+                            match error {
+                                //Special handling of ScheduledFailed since we can't
+                                // use send_with_outcome_errors in send_envelope
+                                ProcessingError::ScheduleFailed => envelope_context
+                                    .borrow()
+                                    .send_outcomes(Outcome::Invalid(DiscardReason::Internal)),
+                                _ => {
+                                    if let Some(outcome) = error.to_outcome() {
+                                        envelope_context.borrow().send_outcomes(outcome);
+                                    }
+                                }
                             }
                         }
                         error

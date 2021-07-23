@@ -214,7 +214,7 @@ impl UpstreamProjectSource {
 
                 UpstreamRelay::from_registry()
                     .send(SendQuery(query))
-                    .map_err(ProjectError::ScheduleFailed)
+                    .map_err(|_| ProjectError::ScheduleFailed)
                     .map(move |response| (channels_batch, response))
             })
             .collect();

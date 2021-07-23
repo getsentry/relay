@@ -31,7 +31,7 @@ pub enum ProjectError {
     FetchFailed,
 
     #[fail(display = "could not schedule project fetching")]
-    ScheduleFailed(#[cause] MailboxError),
+    ScheduleFailed,
 }
 
 impl ResponseError for ProjectError {}
