@@ -232,15 +232,14 @@ jobs:
         env:
           RELAY_VERSION_CHAIN: '20.6.0,latest'
 
-  relay-image:
-    name: Docker build
+  sentry-relay-integration-tests:
+    name: Sentry-Relay Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 35
-    outputs:
-      branch: ${{ steps.branch.outputs.branch }}
+    timeout-minutes: 30
     env:
       # https://docs.docker.com/develop/develop-images/build_enhancements/
       DOCKER_BUILDKIT: 1
+
     steps:
       - name: Checkout Relay
         uses: actions/checkout@v2
@@ -259,23 +258,23 @@ jobs:
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
 
-
       - name: Build relay-deps images
         run: |
           docker pull ghcr.io/getsentry/relay-deps-ci:latest || true
+          # We build it with BUILDKIT_INLINE_CACHE=1 in order to be usable with --cache-from
           docker build . \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
             -t ghcr.io/getsentry/relay-deps-ci:latest \
-            --cache-from us.gcr.io/sentryio/relay:deps \
+            --cache-from ghcr.io/getsentry/relay-deps-ci:latest \
             --target relay-deps
           docker push ghcr.io/getsentry/relay-deps-ci:latest
 
       # These are pulled in order to be able to use docker layer caching
-      # - name: Pull images
-      #   run: |
-      #     docker pull ghcr.io/getsentry/relay-ci:$GITHUB_SHA || \
-      #       docker pull ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} || \
-      #       docker pull ghcr.io/getsentry/relay-ci:latest || true
+      - name: Pull images
+        run: |
+          docker pull ghcr.io/getsentry/relay-ci:$GITHUB_SHA || \
+            docker pull ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} || \
+            docker pull ghcr.io/getsentry/relay-ci:latest || true
 
       - name: Build relay docker image for CI
         run: |
@@ -289,38 +288,11 @@ jobs:
             --cache-from ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} \
             --cache-from ghcr.io/getsentry/relay-ci:${{ github.sha }}
 
-      # XXX: Master should be the only one tagging latest
       - name: Publish images for cache
         run: |
           docker push ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }}
           docker push ghcr.io/getsentry/relay-ci:${{ github.sha }}
           docker push ghcr.io/getsentry/relay-ci:latest
-
-  test_against_latest_sentry:
-    name: Sentry-Relay Integration Tests
-    runs-on: ubuntu-latest
-    # XXX: We should lower this later
-    timeout-minutes: 30
-    needs: [relay-image]
-
-    steps:
-      - name: Checkout Relay
-        uses: actions/checkout@v2
-        with:
-          submodules: recursive
-
-      - name: Build relay docker image for CI
-        env:
-          DOCKER_BUILDKIT: 1
-        run: |
-          docker build . \
-            --build-arg BUILDKIT_INLINE_CACHE=1 \
-            -t ghcr.io/getsentry/relay-ci:latest \
-            -t ghcr.io/getsentry/relay-ci:${{ github.sha }} \
-            -t ghcr.io/getsentry/relay-ci:${{ needs.relay-image.outputs.branch }} \
-            --cache-from ghcr.io/getsentry/relay-ci:latest \
-            --cache-from ghcr.io/getsentry/relay-ci:${{ needs.relay-image.outputs.branch }} \
-            --cache-from ghcr.io/getsentry/relay-ci:${{ github.sha }}
 
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout sentry
