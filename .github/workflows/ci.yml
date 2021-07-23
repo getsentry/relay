@@ -259,12 +259,23 @@ jobs:
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
 
-      # These are pulled in order to be able to use docker layer caching
-      - name: Pull relay CI images
+
+      - name: Build relay-deps images
         run: |
-          docker pull ghcr.io/getsentry/relay-ci:$GITHUB_SHA || \
-            docker pull ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} || \
-            docker pull ghcr.io/getsentry/relay-ci:latest || true
+          docker pull ghcr.io/getsentry/relay-deps-ci:latest
+          docker build . \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            -t ghcr.io/getsentry/relay-deps-ci:latest \
+            --cache-from us.gcr.io/sentryio/relay:deps \
+            --target relay-deps
+          docker push ghcr.io/getsentry/relay-deps-ci:latest
+
+      # These are pulled in order to be able to use docker layer caching
+      # - name: Pull images
+      #   run: |
+      #     docker pull ghcr.io/getsentry/relay-ci:$GITHUB_SHA || \
+      #       docker pull ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} || \
+      #       docker pull ghcr.io/getsentry/relay-ci:latest || true
 
       - name: Build relay docker image for CI
         run: |
@@ -273,10 +284,12 @@ jobs:
             -t ghcr.io/getsentry/relay-ci:latest \
             -t ghcr.io/getsentry/relay-ci:$GITHUB_SHA \
             -t ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} \
+            --cache-from ghcr.io/getsentry/relay-deps-ci:latest \
             --cache-from ghcr.io/getsentry/relay-ci:latest \
             --cache-from ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} \
             --cache-from ghcr.io/getsentry/relay-ci:$GITHUB_SHA
 
+      # XXX: Master should be the only one tagging latest
       - name: Publish images for cache
         run: |
           docker push ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }}
@@ -304,9 +317,9 @@ jobs:
             --build-arg BUILDKIT_INLINE_CACHE=1 \
             -t ghcr.io/getsentry/relay-ci:latest \
             -t ghcr.io/getsentry/relay-ci:$GITHUB_SHA \
-            -t ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} \
+            -t ghcr.io/getsentry/snuba-ci:${{ needs.relay-image.outputs.branch }} \
             --cache-from ghcr.io/getsentry/relay-ci:latest \
-            --cache-from ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} \
+            --cache-from ghcr.io/getsentry/relay-ci:${{ needs.relay-image.outputs.branch }} \
             --cache-from ghcr.io/getsentry/relay-ci:$GITHUB_SHA
 
       # Checkout Sentry and run integration tests against latest Relay
