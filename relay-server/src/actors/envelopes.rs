@@ -188,7 +188,7 @@ impl ProcessingError {
 }
 
 /// Contains the required envelope related information to create an outcome
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct EnvelopeContext {
     envelope_summary: EnvelopeSummary,
     timestamp: DateTime<Utc>,
@@ -319,14 +319,8 @@ struct ProcessEnvelopeState {
     /// ID.
     project_id: ProjectId,
 
-    /// UTC date time converted from the `start_time` instant.
-    received_at: DateTime<Utc>,
-
-    /// The request scoping
-    scoping: Scoping,
-
-    /// The envelope summary before processing
-    summary: EnvelopeSummary,
+    /// The envelope context before processing
+    envelope_context: EnvelopeContext,
 }
 
 impl ProcessEnvelopeState {
@@ -614,7 +608,7 @@ impl EnvelopeProcessor {
     /// Sessions are removed from the envelope if they contain invalid JSON or if their timestamps
     /// are out of range after clock drift correction.
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
-        let received = state.received_at;
+        let received = state.envelope_context.timestamp;
         let extract_metrics = self.config.processing_enabled()
             && state.project_state.has_feature(Feature::MetricsExtraction);
         let _extracted_metrics = &mut state.extracted_metrics;
@@ -794,6 +788,15 @@ impl EnvelopeProcessor {
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
         let summary = EnvelopeSummary::compute(&envelope);
+        let received_at = relay_common::instant_to_date_time(start_time);
+        let envelope_context = EnvelopeContext::new(
+            summary,
+            received_at,
+            envelope.event_id(),
+            envelope.meta().remote_addr(),
+            scoping,
+        );
+
         Ok(ProcessEnvelopeState {
             envelope,
             event: Annotated::empty(),
@@ -803,9 +806,7 @@ impl EnvelopeProcessor {
             extracted_metrics: Vec::new(),
             project_state,
             project_id,
-            received_at: relay_common::instant_to_date_time(start_time),
-            scoping,
-            summary,
+            envelope_context,
         })
     }
 
@@ -1239,8 +1240,8 @@ impl EnvelopeProcessor {
             None => None,
         };
 
-        let mut processor =
-            ClockDriftProcessor::new(sent_at, state.received_at).at_least(MINIMUM_CLOCK_DRIFT);
+        let mut processor = ClockDriftProcessor::new(sent_at, state.envelope_context.timestamp)
+            .at_least(MINIMUM_CLOCK_DRIFT);
         process_value(&mut state.event, &mut processor, ProcessingState::root())
             .map_err(|_| ProcessingError::InvalidTransaction)?;
 
@@ -1248,7 +1249,7 @@ impl EnvelopeProcessor {
         // store processing, which could modify the timestamp if it exceeds a threshold. We are
         // interested in the actual delay before this correction.
         if let Some(timestamp) = state.event.value().and_then(|e| e.timestamp.value()) {
-            let event_delay = state.received_at - timestamp.into_inner();
+            let event_delay = state.envelope_context.timestamp - timestamp.into_inner();
             if event_delay > SignedDuration::minutes(1) {
                 let category = state.event_category().unwrap_or(DataCategory::Unknown);
                 metric!(
@@ -1267,7 +1268,7 @@ impl EnvelopeProcessor {
             ref envelope,
             ref mut event,
             ref project_state,
-            received_at,
+            ref envelope_context,
             ..
         } = *state;
 
@@ -1297,7 +1298,7 @@ impl EnvelopeProcessor {
             remove_other: Some(true),
             normalize_user_agent: Some(true),
             sent_at: envelope.sent_at(),
-            received_at: Some(received_at),
+            received_at: Some(envelope_context.timestamp),
             breakdowns: project_state.config.breakdowns_v2.clone(),
         };
 
@@ -1325,14 +1326,7 @@ impl EnvelopeProcessor {
 
         metric!(timer(RelayTimers::EventProcessingFiltering), {
             relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
-                EnvelopeContext::new(
-                    state.summary,
-                    state.received_at,
-                    state.envelope.event_id(),
-                    client_ip,
-                    state.scoping,
-                )
-                .send_outcomes(Outcome::Filtered(err));
+                state.envelope_context.send_outcomes(Outcome::Filtered(err));
 
                 ProcessingError::EventFiltered(err)
             })
@@ -1522,14 +1516,9 @@ impl EnvelopeProcessor {
             self.config.processing_enabled(),
         ) {
             SamplingResult::Drop(rule_id) => {
-                EnvelopeContext::new(
-                    state.summary,
-                    state.received_at,
-                    state.envelope.event_id(),
-                    client_ip,
-                    state.scoping,
-                )
-                .send_outcomes(Outcome::FilteredSampling(rule_id));
+                state
+                    .envelope_context
+                    .send_outcomes(Outcome::FilteredSampling(rule_id));
 
                 Err(ProcessingError::EventSampled(rule_id))
             }
@@ -1611,21 +1600,11 @@ impl EnvelopeProcessor {
                 }
             },
             || {
-                let scoping = state.scoping;
-                let remote_addr = state.envelope.meta().remote_addr();
-                let envelope_summary = state.summary;
-                let timestamp = state.received_at;
-                let event_id = state.envelope.event_id();
+                let envelope_context = state.envelope_context;
+
                 self.process_state(state).map_err(|err| {
                     if let Some(outcome) = err.to_outcome() {
-                        EnvelopeContext::new(
-                            envelope_summary,
-                            timestamp,
-                            event_id,
-                            remote_addr,
-                            scoping,
-                        )
-                        .send_outcomes(outcome);
+                        envelope_context.send_outcomes(outcome);
                     }
                     err
                 })
@@ -2146,8 +2125,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     sampling_project_key,
                     false,
                     processing_enabled,
-                    start_time,
-                    envelope_context.borrow().scoping(),
+                    *envelope_context.borrow(),
                 )
                 // outcomes already handled
                 .map_err(ProcessingError::TraceSampled)

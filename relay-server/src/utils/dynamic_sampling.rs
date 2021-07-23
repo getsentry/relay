@@ -16,9 +16,6 @@ use crate::actors::outcome::Outcome::FilteredSampling;
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
 use crate::envelope::{Envelope, ItemType};
-use crate::utils::EnvelopeSummary;
-use relay_quotas::Scoping;
-use std::time::Instant;
 
 /// Checks whether an event should be kept or removed by dynamic sampling.
 pub fn should_keep_event(
@@ -131,8 +128,7 @@ pub fn sample_trace(
     project_key: Option<ProjectKey>,
     fast_processing: bool,
     processing_enabled: bool,
-    timestamp: Instant,
-    scoping: Scoping,
+    envelope_context: EnvelopeContext,
 ) -> ResponseFuture<Envelope, RuleId> {
     let project_key = match project_key {
         None => return Box::new(future::ok(envelope)),
@@ -145,10 +141,6 @@ pub fn sample_trace(
     if trace_context.is_none() || transaction_item.is_none() {
         return Box::new(future::ok(envelope));
     }
-
-    let envelope_summary = EnvelopeSummary::compute(&envelope);
-    let event_id = envelope.event_id();
-    let remote_addr = envelope.meta().client_addr();
 
     //we have a trace_context and we have a transaction_item see if we can sample them
     let future = if fast_processing {
@@ -183,14 +175,7 @@ pub fn sample_trace(
 
     Box::new(future.map_err(move |err| {
         // if the envelope is sampled, send outcomes
-        EnvelopeContext::new(
-            envelope_summary,
-            relay_common::instant_to_date_time(timestamp),
-            event_id,
-            remote_addr,
-            scoping,
-        )
-        .send_outcomes(FilteredSampling(err));
+        envelope_context.send_outcomes(FilteredSampling(err));
         err
     }))
 }

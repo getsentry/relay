@@ -488,15 +488,13 @@ where
         }))
         .and_then(clone!(envelope_context, |(envelope, rate_limits)| {
             let sampling_project_key = envelope.trace_context().map(|tc| tc.public_key);
-            let scoping = envelope_context.borrow().scoping();
 
             utils::sample_trace(
                 envelope,
                 sampling_project_key,
                 true,
                 processing_enabled,
-                start_time,
-                scoping,
+                *envelope_context.borrow(),
             )
             .then(move |result| match result {
                 Err(rule_id) => Err(BadStoreRequest::TraceSampled(rule_id)),
