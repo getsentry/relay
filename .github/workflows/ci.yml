@@ -282,18 +282,18 @@ jobs:
           docker build . \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
             -t ghcr.io/getsentry/relay-ci:latest \
-            -t ghcr.io/getsentry/relay-ci:$GITHUB_SHA \
+            -t ghcr.io/getsentry/relay-ci:${{ github.sha }} \
             -t ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} \
             --cache-from ghcr.io/getsentry/relay-deps-ci:latest \
             --cache-from ghcr.io/getsentry/relay-ci:latest \
             --cache-from ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} \
-            --cache-from ghcr.io/getsentry/relay-ci:$GITHUB_SHA
+            --cache-from ghcr.io/getsentry/relay-ci:${{ github.sha }}
 
       # XXX: Master should be the only one tagging latest
       - name: Publish images for cache
         run: |
           docker push ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }}
-          docker push ghcr.io/getsentry/relay-ci:$GITHUB_SHA
+          docker push ghcr.io/getsentry/relay-ci:${{ github.sha }}
           docker push ghcr.io/getsentry/relay-ci:latest
 
   test_against_latest_sentry:
@@ -316,11 +316,11 @@ jobs:
           docker build . \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
             -t ghcr.io/getsentry/relay-ci:latest \
-            -t ghcr.io/getsentry/relay-ci:$GITHUB_SHA \
-            -t ghcr.io/getsentry/snuba-ci:${{ needs.relay-image.outputs.branch }} \
+            -t ghcr.io/getsentry/relay-ci:${{ github.sha }} \
+            -t ghcr.io/getsentry/relay-ci:${{ needs.relay-image.outputs.branch }} \
             --cache-from ghcr.io/getsentry/relay-ci:latest \
             --cache-from ghcr.io/getsentry/relay-ci:${{ needs.relay-image.outputs.branch }} \
-            --cache-from ghcr.io/getsentry/relay-ci:$GITHUB_SHA
+            --cache-from ghcr.io/getsentry/relay-ci:${{ github.sha }}
 
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout sentry
