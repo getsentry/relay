@@ -13,6 +13,13 @@ steps:
         git reset --hard FETCH_HEAD
         git config -f .gitmodules submodule.core.url https://github.com/getsentry/$REPO_NAME.git
 
+  - name: "gcr.io/cloud-builders/git"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        echo "https://github.com/repos/getsentry/relay/actions/workflows/integration.yml/dispatches"
+
   # - name: "gcr.io/cloud-builders/docker"
   #   entrypoint: "bash"
   #   args:
