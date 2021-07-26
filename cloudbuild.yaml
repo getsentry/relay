@@ -32,6 +32,9 @@ steps:
 
   # Build the first stage
   - name: "gcr.io/cloud-builders/docker"
+    env:
+    # https://docs.docker.com/develop/develop-images/build_enhancements/
+    - 'DOCKER_BUILDKIT=1'
     args:
       [
         "build",
@@ -44,24 +47,32 @@ steps:
 
   # Build the second stage
   - name: "gcr.io/cloud-builders/docker"
+    env:
+    # https://docs.docker.com/develop/develop-images/build_enhancements/
+    - 'DOCKER_BUILDKIT=1'
     args:
       [
         "build",
         "--build-arg", "BUILDKIT_INLINE_CACHE=1",
         "--target", "relay-builder",
         "-t", "us.gcr.io/$PROJECT_ID/relay:builder",
+        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:deps",
         "--cache-from", "us.gcr.io/$PROJECT_ID/relay:builder",
         ".",
       ]
 
   # Build everything
   - name: "gcr.io/cloud-builders/docker"
+    env:
+    # https://docs.docker.com/develop/develop-images/build_enhancements/
+    - 'DOCKER_BUILDKIT=1'
     args:
       [
         "build",
         "--build-arg", "BUILDKIT_INLINE_CACHE=1",
         "-t", "us.gcr.io/$PROJECT_ID/relay:nightly",
         "-t", "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA",
+        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:deps",
         "--cache-from", "us.gcr.io/$PROJECT_ID/relay:builder",
         "--cache-from", "us.gcr.io/$PROJECT_ID/relay:nightly",
         ".",
