@@ -258,7 +258,7 @@ jobs:
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
 
-      - name: Build relay-deps images
+      - name: Build relay-deps image
         run: |
           docker pull ghcr.io/getsentry/relay-deps-ci:latest || true
           # We build it with BUILDKIT_INLINE_CACHE=1 in order to be usable with --cache-from
@@ -267,6 +267,17 @@ jobs:
             --build-arg BUILDKIT_INLINE_CACHE=1 \
             -t ghcr.io/getsentry/relay:deps \
             --target relay-deps
+          docker push ghcr.io/getsentry/relay-deps-ci:latest
+
+      - name: Build relay-builder image
+        run: |
+          docker pull ghcr.io/getsentry/relay-deps-ci:latest || true
+          docker build . \
+            -f docker/Dockerfile.relay-deps \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            -t ghcr.io/getsentry/relay:builder \
+            --target relay-builder
+          docker push ghcr.io/getsentry/relay-builder-ci:latest
 
       # These are pulled in order to be able to use docker layer caching
       - name: Pull images

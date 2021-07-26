@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM relay-deps AS relay-builder
+FROM relay-builder AS relay-builder
 FROM debian:buster-20210721-slim
 
 RUN apt-get update \
