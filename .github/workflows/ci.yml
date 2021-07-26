@@ -266,6 +266,7 @@ jobs:
             -f docker/Dockerfile.relay-deps \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
             -t ghcr.io/getsentry/relay:deps \
+            --cache-from ghcr.io/getsentry/relay-deps-ci:latest \
             --target relay-deps
           docker push ghcr.io/getsentry/relay-deps-ci:latest
 
@@ -276,6 +277,8 @@ jobs:
             -f docker/Dockerfile.relay-deps \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
             -t ghcr.io/getsentry/relay:builder \
+            --cache-from ghcr.io/getsentry/relay-deps-ci:latest \
+            --cache-from ghcr.io/getsentry/relay-builder-ci:latest \
             --target relay-builder
           docker push ghcr.io/getsentry/relay-builder-ci:latest
 
@@ -294,7 +297,7 @@ jobs:
             -t ghcr.io/getsentry/relay-ci:latest \
             -t ghcr.io/getsentry/relay-ci:${{ github.sha }} \
             -t ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} \
-            --cache-from ghcr.io/getsentry/relay:deps,
+            --cache-from ghcr.io/getsentry/relay-deps-ci:latest \
             --cache-from ghcr.io/getsentry/relay-ci:latest \
             --cache-from ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} \
             --cache-from ghcr.io/getsentry/relay-ci:${{ github.sha }}
