@@ -1,10 +1,8 @@
-# syntax=docker/dockerfile:1
-FROM getsentry/sentry-cli:1.67.2 AS sentry-cli
+FROM getsentry/sentry-cli:1.67.2
 
 ARG RELAY_FEATURES=ssl,processing
 ENV RELAY_FEATURES=${RELAY_FEATURES}
 
-COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
 COPY . .
 
 # BUILD IT!
