@@ -21,14 +21,13 @@ steps:
         "docker pull us.gcr.io/$PROJECT_ID/relay:nightly || true"
       ]
 
-  # Pull the images with the first build stages
+  # Pull the image with the first build stage
   - name: "gcr.io/cloud-builders/docker"
     entrypoint: "bash"
     args:
       [
         "-c",
-        "docker pull us.gcr.io/$PROJECT_ID/relay:deps || true",
-        "docker pull us.gcr.io/$PROJECT_ID/relay:builder || true"
+        "docker pull us.gcr.io/$PROJECT_ID/relay:deps || true"
       ]
 
   # Build the first stage
@@ -36,22 +35,10 @@ steps:
     args:
       [
         "build",
-        "-f", "docker/Dockerfile.1.relay-deps",
+        "-f", "docker/Dockerfile.relay-deps",
         "--build-arg", "BUILDKIT_INLINE_CACHE=1",
         "-t", "us.gcr.io/$PROJECT_ID/relay:deps",
         "--cache-from", "us.gcr.io/$PROJECT_ID/relay:deps",
-        ".",
-      ]
-
-  # Build the second stage
-  - name: "gcr.io/cloud-builders/docker"
-    args:
-      [
-        "build",
-        "-f", "docker/Dockerfile.2.relay-builder",
-        "--build-arg", "BUILDKIT_INLINE_CACHE=1",
-        "-t", "us.gcr.io/$PROJECT_ID/relay:builder",
-        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:builder",
         ".",
       ]
 
@@ -61,9 +48,10 @@ steps:
       [
         "build",
         "--build-arg", "BUILDKIT_INLINE_CACHE=1",
+        "--target", "relay-deps",
         "-t", "us.gcr.io/$PROJECT_ID/relay:nightly",
         "-t", "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA",
-        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:builder",
+        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:deps",
         "--cache-from", "us.gcr.io/$PROJECT_ID/relay:nightly",
         ".",
       ]

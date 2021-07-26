@@ -263,22 +263,12 @@ jobs:
           docker pull ghcr.io/getsentry/relay-deps-ci:latest || true
           # We build it with BUILDKIT_INLINE_CACHE=1 in order to be usable with --cache-from
           docker build . \
-            -f docker/Dockerfile.1.relay-deps \
+            -f docker/Dockerfile.relay-deps \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
             -t ghcr.io/getsentry/relay-deps-ci:latest \
-            --cache-from ghcr.io/getsentry/relay-deps-ci:latest
+            --cache-from ghcr.io/getsentry/relay-deps-ci:latest \
+            --target relay-deps
           docker push ghcr.io/getsentry/relay-deps-ci:latest
-
-      - name: Build relay-builder image
-        run: |
-          docker pull ghcr.io/getsentry/relay-builder-ci:latest || true
-          # We build it with BUILDKIT_INLINE_CACHE=1 in order to be usable with --cache-from
-          docker build . \
-            -f docker/Dockerfile.2.relay-builder \
-            --build-arg BUILDKIT_INLINE_CACHE=1 \
-            -t ghcr.io/getsentry/relay-builder-ci:latest \
-            --cache-from ghcr.io/getsentry/relay-builder-ci:latest
-          docker push ghcr.io/getsentry/relay-builder-ci:latest
 
       # These are pulled in order to be able to use docker layer caching
       - name: Pull images
@@ -295,7 +285,7 @@ jobs:
             -t ghcr.io/getsentry/relay-ci:latest \
             -t ghcr.io/getsentry/relay-ci:${{ github.sha }} \
             -t ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} \
-            --cache-from ghcr.io/getsentry/relay-builder-ci:latest \
+            --cache-from ghcr.io/getsentry/relay-deps-ci:latest \
             --cache-from ghcr.io/getsentry/relay-ci:latest \
             --cache-from ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} \
             --cache-from ghcr.io/getsentry/relay-ci:${{ github.sha }}
