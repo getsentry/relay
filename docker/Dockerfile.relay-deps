@@ -23,7 +23,6 @@ WORKDIR /work
 #####################
 
 FROM getsentry/sentry-cli:1.67.2 AS sentry-cli
-FROM relay-deps AS relay-builder
 
 ARG RELAY_FEATURES=ssl,processing
 ENV RELAY_FEATURES=${RELAY_FEATURES}
