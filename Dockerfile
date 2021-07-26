@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
 FROM debian:buster-20210721-slim
+FROM relay-deps AS relay-builder
 
 RUN apt-get update \
     && apt-get install -y ca-certificates gosu curl --no-install-recommends \
