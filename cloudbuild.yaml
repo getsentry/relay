@@ -64,7 +64,7 @@ steps:
         "--build-arg", "BUILDKIT_INLINE_CACHE=1",
         "-t", "us.gcr.io/$PROJECT_ID/relay:nightly",
         "-t", "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA",
-        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:deps",
+        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:builder",
         "--cache-from", "us.gcr.io/$PROJECT_ID/relay:nightly",
         ".",
       ]
