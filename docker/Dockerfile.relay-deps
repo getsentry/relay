@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 ARG DOCKER_ARCH=amd64
-FROM $DOCKER_ARCH/rust:1.53.0-slim-buster
+FROM $DOCKER_ARCH/rust:1.53.0-slim-buster AS relay-deps
 
 ARG DOCKER_ARCH
 ARG BUILD_ARCH=x86_64
