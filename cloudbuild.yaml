@@ -18,7 +18,10 @@ steps:
     args:
       - "-c"
       - |
-        echo "https://github.com/repos/getsentry/relay/actions/workflows/integration.yml/dispatches"
+        curl -u ":$GH_TOKEN" \
+        -X POST -H "Accept: application/vnd.github.v3+json" \
+        https://api.github.com/repos/armenzg/relay/actions/workflows/integration.yml/dispatches \
+        -d '{"ref": "armenzg/test-gcb-workflow-dispatch"}'
 
   # - name: "gcr.io/cloud-builders/docker"
   #   entrypoint: "bash"
