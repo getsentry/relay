@@ -1,0 +1,18 @@
+FROM getsentry/sentry-cli:1.67.2 AS sentry-cli
+
+ARG RELAY_FEATURES=ssl,processing
+ENV RELAY_FEATURES=${RELAY_FEATURES}
+
+COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
+COPY . .
+
+# BUILD IT!
+RUN make build-linux-release TARGET=${BUILD_TARGET} RELAY_FEATURES=${RELAY_FEATURES}
+
+RUN cp ./target/$BUILD_TARGET/release/relay /bin/relay \
+    && zip /opt/relay-debug.zip target/$BUILD_TARGET/release/relay.debug
+
+# Collect source bundle
+RUN sentry-cli --version \
+    && sentry-cli difutil bundle-sources ./target/$BUILD_TARGET/release/relay.debug \
+    && mv ./target/$BUILD_TARGET/release/relay.src.zip /opt/relay.src.zip
