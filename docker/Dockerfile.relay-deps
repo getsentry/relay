@@ -23,6 +23,7 @@ WORKDIR /work
 #####################
 
 FROM getsentry/sentry-cli:1.67.2 AS sentry-cli
+FROM relay-deps AS relay-builder
 
 ARG RELAY_FEATURES=ssl,processing
 ENV RELAY_FEATURES=${RELAY_FEATURES}
@@ -34,7 +35,7 @@ COPY . .
 RUN make build-linux-release TARGET=${BUILD_TARGET} RELAY_FEATURES=${RELAY_FEATURES}
 
 RUN cp ./target/$BUILD_TARGET/release/relay /bin/relay \
-    -    && zip /opt/relay-debug.zip target/$BUILD_TARGET/release/relay.debug
+    && zip /opt/relay-debug.zip target/$BUILD_TARGET/release/relay.debug
 
 # Collect source bundle
 RUN sentry-cli --version \
