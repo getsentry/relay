@@ -265,7 +265,7 @@ jobs:
           docker build . \
             -f docker/Dockerfile.relay-deps \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
-            -t ghcr.io/getsentry/relay:deps \
+            -t ghcr.io/getsentry/relay-deps-ci:latest \
             --cache-from ghcr.io/getsentry/relay-deps-ci:latest \
             --target relay-deps
           docker push ghcr.io/getsentry/relay-deps-ci:latest
@@ -276,7 +276,7 @@ jobs:
           docker build . \
             -f docker/Dockerfile.relay-deps \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
-            -t ghcr.io/getsentry/relay:builder \
+            -t ghcr.io/getsentry/relay-builder-ci:latest \
             --cache-from ghcr.io/getsentry/relay-deps-ci:latest \
             --cache-from ghcr.io/getsentry/relay-builder-ci:latest \
             --target relay-builder
