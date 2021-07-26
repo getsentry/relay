@@ -12,15 +12,9 @@ steps:
         git fetch --depth=1 origin $COMMIT_SHA
         git reset --hard FETCH_HEAD
         git config -f .gitmodules submodule.core.url https://github.com/getsentry/$REPO_NAME.git
-
-  - name: "gcr.io/cloud-builders/git"
-    entrypoint: "bash"
-    args:
-      - "-c"
-      - |
         curl -u ":$_GH_TOKEN" \
-        -X POST -H "Accept: application/vnd.github.v3+json" \
-        https://api.github.com/repos/armenzg/relay/actions/workflows/integration.yml/dispatches \
-        -d '{"ref": "armenzg/test-gcb-workflow-dispatch"}'
+          -X POST -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/armenzg/relay/actions/workflows/integration.yml/dispatches \
+          -d '{"ref": "armenzg/test-gcb-workflow-dispatch"}'
 
 timeout: 3600s
