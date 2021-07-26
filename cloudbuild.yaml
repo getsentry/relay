@@ -27,7 +27,7 @@ steps:
     args:
       [
         "-c",
-        "docker pull us.gcr.io/$PROJECT_ID/relay:deps || true"
+        "docker pull us.gcr.io/$PROJECT_ID/relay:deps || true",
         "docker pull us.gcr.io/$PROJECT_ID/relay:builder || true"
       ]
 
