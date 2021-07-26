@@ -43,7 +43,20 @@ steps:
         ".",
       ]
 
-    # Build everything
+  # Build the second stage
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "build",
+        "-f", "docker/Dockerfile.relay-deps",
+        "--build-arg", "BUILDKIT_INLINE_CACHE=1",
+        "--target", "relay-builder",
+        "-t", "us.gcr.io/$PROJECT_ID/relay:builder",
+        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:builder",
+        ".",
+      ]
+
+  # Build everything
   - name: "gcr.io/cloud-builders/docker"
     args:
       [
@@ -96,6 +109,7 @@ steps:
 images:
   [
     "us.gcr.io/$PROJECT_ID/relay:deps",
+    "us.gcr.io/$PROJECT_ID/relay:builder",
     "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA",
   ]
 timeout: 3600s
