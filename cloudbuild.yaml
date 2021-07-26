@@ -35,7 +35,6 @@ steps:
     args:
       [
         "build",
-        "-f", "docker/Dockerfile.relay-deps",
         "--build-arg", "BUILDKIT_INLINE_CACHE=1",
         "--target", "relay-deps",
         "-t", "us.gcr.io/$PROJECT_ID/relay:deps",
@@ -48,7 +47,6 @@ steps:
     args:
       [
         "build",
-        "-f", "docker/Dockerfile.relay-deps",
         "--build-arg", "BUILDKIT_INLINE_CACHE=1",
         "--target", "relay-builder",
         "-t", "us.gcr.io/$PROJECT_ID/relay:builder",
