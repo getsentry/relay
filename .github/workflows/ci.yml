@@ -276,8 +276,8 @@ jobs:
           docker build . \
             -f docker/Dockerfile.2.relay-builder \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
-            -t ghcr.io/getsentry/relay-deps-ci:latest \
-            --cache-from ghcr.io/getsentry/relay-deps-ci:latest
+            -t ghcr.io/getsentry/relay-builder-ci:latest \
+            --cache-from ghcr.io/getsentry/relay-builder-ci:latest
           docker push ghcr.io/getsentry/relay-builder-ci:latest
 
       # These are pulled in order to be able to use docker layer caching
