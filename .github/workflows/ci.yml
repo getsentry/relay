@@ -298,6 +298,7 @@ jobs:
             -t ghcr.io/getsentry/relay-ci:${{ github.sha }} \
             -t ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} \
             --cache-from ghcr.io/getsentry/relay-deps-ci:latest \
+            --cache-from ghcr.io/getsentry/relay-builder-ci:latest \
             --cache-from ghcr.io/getsentry/relay-ci:latest \
             --cache-from ghcr.io/getsentry/relay-ci:${{ steps.branch.outputs.branch }} \
             --cache-from ghcr.io/getsentry/relay-ci:${{ github.sha }}
