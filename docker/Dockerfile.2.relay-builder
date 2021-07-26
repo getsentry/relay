@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM getsentry/sentry-cli:1.67.2 AS sentry-cli
 
 ARG RELAY_FEATURES=ssl,processing

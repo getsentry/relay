@@ -1,9 +1,5 @@
+# syntax=docker/dockerfile:1
 ARG DOCKER_ARCH=amd64
-
-##################
-### Deps stage ###
-##################
-
 # If we don't specify a specific version the cache gets invalidated with every new version
 # We can use tools like dependabot to bump this for us when there are security issues
 FROM $DOCKER_ARCH/rust:1.53.0-slim-buster

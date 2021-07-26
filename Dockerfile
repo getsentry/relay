@@ -1,7 +1,4 @@
-###################
-### Final stage ###
-###################
-
+# syntax=docker/dockerfile:1
 FROM debian:buster-20210721-slim
 
 RUN apt-get update \

@@ -267,7 +267,6 @@ jobs:
             --build-arg BUILDKIT_INLINE_CACHE=1 \
             -t ghcr.io/getsentry/relay-deps-ci:latest \
             --cache-from ghcr.io/getsentry/relay-deps-ci:latest \
-            --target relay-deps
           docker push ghcr.io/getsentry/relay-deps-ci:latest
 
       - name: Build relay-builder image
