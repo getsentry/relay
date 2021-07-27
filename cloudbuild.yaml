@@ -22,7 +22,6 @@ steps:
       - |
         echo $REVISION_ID
         echo $COMMIT_SHA
-        echo $BRANCH_NAME
         echo $SHORT_SHA
         echo $_HEAD_BRANCH
         echo $_BASE_BRANCH
@@ -31,7 +30,7 @@ steps:
         curl -u ":$$GH_TOKEN" \
           -X POST -H "Accept: application/vnd.github.v3+json" \
           https://api.github.com/repos/armenzg/relay/actions/workflows/integration.yml/dispatches \
-          -d '{"ref": "armenzg/test-gcb-workflow-dispatch"}'
+          -d '{"ref": "$BRANCH_NAME"}'
 
 timeout: 3600s
 options:
