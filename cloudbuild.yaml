@@ -4,22 +4,124 @@ steps:
   # See: https://github.com/GoogleCloudPlatform/cloud-builders/issues/236#issuecomment-558991730
   - name: "gcr.io/cloud-builders/git"
     entrypoint: "bash"
-    secretEnv: ['GH_TOKEN']
     args:
       - "-c"
       - |
         git init
-        git remote add origin https://github.com/armenzg/$REPO_NAME.git
+        git remote add origin https://github.com/getsentry/$REPO_NAME.git
         git fetch --depth=1 origin $COMMIT_SHA
         git reset --hard FETCH_HEAD
         git config -f .gitmodules submodule.core.url https://github.com/getsentry/$REPO_NAME.git
+
+  - name: "gcr.io/cloud-builders/docker"
+    entrypoint: "bash"
+    args:
+      [
+        "-c",
+        "docker pull us.gcr.io/$PROJECT_ID/relay:nightly || true"
+      ]
+
+  # Pull the image with the first build stage
+  - name: "gcr.io/cloud-builders/docker"
+    entrypoint: "bash"
+    args:
+      [
+        "-c",
+        "docker pull us.gcr.io/$PROJECT_ID/relay:deps || true"
+      ]
+
+  # Build the first stage
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "build",
+        "--target", "relay-deps",
+        "-t", "us.gcr.io/$PROJECT_ID/relay:deps",
+        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:deps",
+        ".",
+      ]
+
+    # Build everything
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "build",
+        "-t", "us.gcr.io/$PROJECT_ID/relay:nightly",
+        "-t", "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA",
+        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:deps",
+        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:nightly",
+        ".",
+      ]
+
+  # Trigger tests that depend on the Docker build
+  - name: "gcr.io/cloud-builders/docker"
+    entrypoint: 'bash'
+    secretEnv: ['GH_TOKEN']
+    args:
+      - "-c"
+      - |
         curl -u $$GH_TOKEN \
           -X POST -H "Accept: application/vnd.github.v3+json" \
           https://api.github.com/repos/armenzg/relay/actions/workflows/integration.yml/dispatches \
           -d '{"ref": "armenzg/test-gcb-workflow-dispatch"}'
 
+
+  # On-premise Integration tests
+  - name: 'gcr.io/$PROJECT_ID/docker-compose'
+    entrypoint: 'bash'
+    env:
+    - 'RELAY_IMAGE=us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA'
+    - 'SENTRY_TEST_HOST=http://nginx'
+    - 'CI=1'
+    args:
+    - '-e'
+    - '-c'
+    - |
+      mkdir onpremise && cd onpremise
+      curl -L "https://github.com/getsentry/onpremise/archive/master.tar.gz" | tar xzf - --strip-components=1
+      # The following trick is from https://stackoverflow.com/a/52400857/90297 with great gratuity
+      echo '{"version": "3.4", "networks":{"default":{"external":{"name":"cloudbuild"}}}}' > docker-compose.override.yml
+      ./install.sh
+      ./test.sh || docker-compose logs nginx web relay
+    timeout: 450s
+
+  - name: 'gcr.io/cloud-builders/docker'
+    secretEnv: ['DOCKER_PASSWORD']
+    entrypoint: 'bash'
+    args:
+    - '-e'
+    - '-c'
+    - |
+      # Only push to Docker Hub from master
+      [ "$BRANCH_NAME" != "master" ] && exit 0
+      docker push us.gcr.io/$PROJECT_ID/relay:nightly
+      echo "$$DOCKER_PASSWORD" | docker login --username=sentrybuilder --password-stdin
+      docker tag us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA getsentry/relay:$SHORT_SHA
+      docker push getsentry/relay:$SHORT_SHA
+      docker tag us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA getsentry/relay:$COMMIT_SHA
+      docker push getsentry/relay:$COMMIT_SHA
+      docker tag us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA getsentry/relay:nightly
+      docker push getsentry/relay:nightly
+
+images:
+  [
+    "us.gcr.io/$PROJECT_ID/relay:deps",
+    "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA",
+  ]
 timeout: 3600s
+options:
+  # Run on bigger machines
+  machineType: 'N1_HIGHCPU_8'
 availableSecrets:
   secretManager:
   - versionName: projects/sentry-dev-tooling/secrets/RelayCIToken/versions/1
     env: 'GH_TOKEN'
+secrets:
+- kmsKeyName: projects/sentryio/locations/global/keyRings/service-credentials/cryptoKeys/cloudbuild
+  secretEnv:
+    # This is a personal access token for the sentrybuilder account, encrypted using the
+    # short guide at http://bit.ly/2Pg6uw9
+    DOCKER_PASSWORD: |
+      CiQAE8gN7y3OMxn+a1kofmK4Bi8jQZtdRFj2lYYwaZHVeIIBUzMSTQA9tvn8XCv2vqj6u8CHoeSP
+      TVW9pLvSCorKoeNtOp0eb+6V1yNJW/+JC07DNO1KLbTbodbuza6jKJHU5xeAJ4kGQI78UY5Vu1Gp
+      QcMK
