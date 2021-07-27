@@ -20,6 +20,8 @@ steps:
     args:
       - "-c"
       - |
+        env | sort
+        echo $COMMIT_SHA
         curl -u ":$$GH_TOKEN" \
           -X POST -H "Accept: application/vnd.github.v3+json" \
           https://api.github.com/repos/armenzg/relay/actions/workflows/integration.yml/dispatches \
