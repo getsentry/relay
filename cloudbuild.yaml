@@ -24,6 +24,10 @@ steps:
         echo $COMMIT_SHA
         echo $BRANCH_NAME
         echo $SHORT_SHA
+        echo $_HEAD_BRANCH
+        echo $_BASE_BRANCH
+        echo $_HEAD_REPO_URL
+        echo $_PR_NUMBER
         curl -u ":$$GH_TOKEN" \
           -X POST -H "Accept: application/vnd.github.v3+json" \
           https://api.github.com/repos/armenzg/relay/actions/workflows/integration.yml/dispatches \
