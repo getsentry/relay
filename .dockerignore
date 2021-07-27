@@ -1,9 +1,7 @@
+# Ignore every file change
 *
-
-!.git/
-!.gitmodules
-!.github
-
+# Except the following matches (lines starting with exclamation marks)
+# Read: Rebuild the Docker image everytime these change
 !relay*/
 !tools/
 !Cargo.toml
