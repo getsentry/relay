@@ -17,7 +17,7 @@ jobs:
       # These are pulled in order to be able to use docker layer caching
       - name: Pull images
         run: |
-          docker pull us.gcr.io/$PROJECT_ID/relay:nightly || true
+          docker pull us.gcr.io/sentryio/relay:nightly || true
 
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout sentry
