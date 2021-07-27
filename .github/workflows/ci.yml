@@ -235,7 +235,7 @@ jobs:
   sentry-relay-integration-tests:
     name: Sentry-Relay Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       # https://docs.docker.com/develop/develop-images/build_enhancements/
       DOCKER_BUILDKIT: 1
