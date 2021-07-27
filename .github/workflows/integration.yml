@@ -1,3 +1,4 @@
+# This workflow is triggered when the GCB build pushes a Relay image
 name: Post-Docker-build
 
 on: workflow_dispatch
@@ -7,6 +8,9 @@ jobs:
     name: Sentry-Relay Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # XXX: At a later stage we will be pulling us.gcr.io/sentryio/relay:${{ github.sha }}
+      RELAY_TEST_IMAGE: us.gcr.io/sentryio/relay:nightly
 
     steps:
       - name: Checkout Relay
@@ -14,10 +18,10 @@ jobs:
         with:
           submodules: recursive
 
-      # These are pulled in order to be able to use docker layer caching
-      - name: Pull images
+      - name: Pull Relay image
         run: |
-          docker pull us.gcr.io/sentryio/relay:nightly || true
+          docker pull $RELAY_TEST_IMAGE || true
+          echo $GITHUB_SHA
 
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout sentry
@@ -40,6 +44,7 @@ jobs:
           # We cannot execute actions that are not placed under .github of the main repo
           mkdir -p .github/actions/setup-sentry/
           cp sentry/.github/actions/setup-sentry/action.yml .github/actions/setup-sentry/action.yml
+
       - name: Sentry's pip cache
         uses: actions/cache@v2
         with:
@@ -56,12 +61,6 @@ jobs:
 
       - name: Run Sentry integration tests
         working-directory: sentry
-        env:
-          RELAY_TEST_IMAGE: ${{ steps.docker.outputs.image }}
         run: |
           echo "Testing against ${RELAY_TEST_IMAGE}"
-          if [[ -z "$RELAY_TEST_IMAGE" ]]; then
-              echo "The RELAY_TEST_IMAGE needs to be set" 1>&2
-              exit 1
-          fi
           make test-relay-integration
