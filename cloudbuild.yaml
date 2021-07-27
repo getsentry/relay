@@ -18,3 +18,7 @@ steps:
           -d '{"ref": "armenzg/test-gcb-workflow-dispatch"}'
 
 timeout: 3600s
+availableSecrets:
+  secretManager:
+  - versionName: projects/sentry-dev-tooling/secrets/RelayCIToken/versions/1
+    env: '_GH_TOKEN'
