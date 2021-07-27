@@ -13,46 +13,6 @@ steps:
         git reset --hard FETCH_HEAD
         git config -f .gitmodules submodule.core.url https://github.com/getsentry/$REPO_NAME.git
 
-  - name: "gcr.io/cloud-builders/docker"
-    entrypoint: "bash"
-    args:
-      [
-        "-c",
-        "docker pull us.gcr.io/$PROJECT_ID/relay:nightly || true"
-      ]
-
-  # Pull the image with the first build stage
-  - name: "gcr.io/cloud-builders/docker"
-    entrypoint: "bash"
-    args:
-      [
-        "-c",
-        "docker pull us.gcr.io/$PROJECT_ID/relay:deps || true"
-      ]
-
-  # Build the first stage
-  - name: "gcr.io/cloud-builders/docker"
-    args:
-      [
-        "build",
-        "--target", "relay-deps",
-        "-t", "us.gcr.io/$PROJECT_ID/relay:deps",
-        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:deps",
-        ".",
-      ]
-
-    # Build everything
-  - name: "gcr.io/cloud-builders/docker"
-    args:
-      [
-        "build",
-        "-t", "us.gcr.io/$PROJECT_ID/relay:nightly",
-        "-t", "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA",
-        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:deps",
-        "--cache-from", "us.gcr.io/$PROJECT_ID/relay:nightly",
-        ".",
-      ]
-
   # Trigger tests that depend on the Docker build
   - name: "gcr.io/cloud-builders/docker"
     entrypoint: 'bash'

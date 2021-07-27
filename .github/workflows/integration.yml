@@ -3,15 +3,65 @@ name: Post-Docker-build
 on: workflow_dispatch
 
 jobs:
-  hello_world:
-    name: Trigger after GCB build
+  sentry-relay-integration-tests:
+    name: Sentry-Relay Integration Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout Relay
+        uses: actions/checkout@v2
         with:
           submodules: recursive
 
-      - name: Run Rustfmt
+      # These are pulled in order to be able to use docker layer caching
+      - name: Pull images
         run: |
-          echo "Hello world!"
+          docker pull us.gcr.io/$PROJECT_ID/relay:nightly || true
+
+      # Checkout Sentry and run integration tests against latest Relay
+      - name: Checkout sentry
+        uses: actions/checkout@v2
+        with:
+          repository: getsentry/sentry
+          # XXX: Temporary change
+          ref: armenzg/sentry-setup-action-minor-changes
+          path: sentry
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.6
+
+      - name: Setup steps
+        id: setup
+        run: |
+          pip install --upgrade pip wheel
+          echo "::set-output name=pip-cache-dir::$(pip cache dir)"
+          # We cannot execute actions that are not placed under .github of the main repo
+          mkdir -p .github/actions/setup-sentry/
+          cp sentry/.github/actions/setup-sentry/action.yml .github/actions/setup-sentry/action.yml
+      - name: Sentry's pip cache
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.setup.outputs.pip-cache-dir }}
+          key: sentry-deps-${{ hashFiles('sentry/requirements**.txt') }}
+          restore-keys: sentry-deps-
+
+      - name: Setup Sentry
+        uses: ./.github/actions/setup-sentry
+        with:
+          workdir: sentry
+          snuba: true
+          kafka: true
+
+      - name: Run Sentry integration tests
+        working-directory: sentry
+        env:
+          RELAY_TEST_IMAGE: ${{ steps.docker.outputs.image }}
+        run: |
+          echo "Testing against ${RELAY_TEST_IMAGE}"
+          if [[ -z "$RELAY_TEST_IMAGE" ]]; then
+              echo "The RELAY_TEST_IMAGE needs to be set" 1>&2
+              exit 1
+          fi
+          make test-relay-integration
