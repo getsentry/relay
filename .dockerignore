@@ -1,7 +1,10 @@
 # Ignore every file change
 *
 # Except the following matches (lines starting with exclamation marks)
-# Read: Rebuild the Docker image everytime these change
+# Read: Include these files as part of the build process and if they change
+# it will rebuild the Docker image
+!.git/hooks
+
 !relay*/
 !tools/
 !Cargo.toml
