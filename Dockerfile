@@ -4,9 +4,7 @@ ARG DOCKER_ARCH=amd64
 ### Deps stage ###
 ##################
 
-# If we don't specify a specific version the cache gets invalidated with every new version
-# We can use tools like dependabot to bump this for us when there are security issues
-FROM $DOCKER_ARCH/rust AS relay-deps
+FROM $DOCKER_ARCH/rust:slim-buster AS relay-deps
 
 ARG DOCKER_ARCH
 ARG BUILD_ARCH=x86_64
@@ -28,7 +26,7 @@ WORKDIR /work
 ### Builder stage ###
 #####################
 
-FROM getsentry/sentry-cli AS sentry-cli
+FROM getsentry/sentry-cli:1 AS sentry-cli
 FROM relay-deps AS relay-builder
 
 ARG RELAY_FEATURES=ssl,processing
