@@ -264,7 +264,11 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" == "pull_request" ]; then
             SHA=$(cat $GITHUB_EVENT_PATH | jq -r .pull_request.head.sha)
           fi
+          echo $SHA
           echo "::set-output name=relay-test-image::us.gcr.io/sentryio/relay:$SHA"
+          echo us.gcr.io/sentryio/relay:$SHA
+          echo ${SHA}
+          exit 1
           pip install --upgrade pip wheel
           echo "::set-output name=pip-cache-dir::$(pip cache dir)"
           # We cannot execute actions that are not placed under .github of the main repo
