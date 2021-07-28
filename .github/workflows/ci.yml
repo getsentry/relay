@@ -240,6 +240,11 @@ jobs:
       RELAY_TEST_IMAGE: us.gcr.io/sentryio/relay:${{ github.sha }}
 
     steps:
+      - name: Env variables
+        run: |
+          env | sort
+          exit 1
+
       - name: Checkout Relay
         uses: actions/checkout@v2
         with:
@@ -284,7 +289,7 @@ jobs:
       - name: Pull the image
         run: |
           echo "We poll for the Relay Docker image that the GCB build produces until it succeeds or this job times out."
-          until docker pull "$RELAY_TEST_IMAGE"; do
+          until docker pull "$RELAY_TEST_IMAGE" 2>/dev/null; do
               sleep 10
           done
 
