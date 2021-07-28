@@ -236,13 +236,20 @@ jobs:
     name: Sentry-Relay Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    env:
-      RELAY_TEST_IMAGE: us.gcr.io/sentryio/relay:${{ github.sha }}
 
     steps:
       - name: Env variables
+        id: info
         run: |
-          env | sort
+          SHA=$GITHUB_SHA
+          # GITHUB_SHA in pull requests points to the merge commit
+          if [ "$GITHUB_EVENT_NAME" == "pull_request" ]; then
+            SHA=$(cat $GITHUB_EVENT_PATH | jq -r .pull_request.head.sha)
+            echo "GITHUB_SHA=$SHA" >> $GITHUB_ENV
+          fi
+          echo $GITHUB_ENV
+          echo "::set-output name=relay-test-image::us.gcr.io/sentryio/relay:$SHA"
+          echo $SHA
           exit 1
 
       - name: Checkout Relay
@@ -295,6 +302,8 @@ jobs:
 
       - name: Run Sentry integration tests
         working-directory: sentry
+        env:
+          RELAY_TEST_IMAGE: ${{ steps.info.outputs.relay-test-image }}
         run: |
           echo "Testing against ${RELAY_TEST_IMAGE}"
           make test-relay-integration
