@@ -238,19 +238,24 @@ jobs:
     timeout-minutes: 25
 
     steps:
-      - name: Env variables
+      - name: Determine image name
         id: info
         run: |
           SHA=$GITHUB_SHA
           # GITHUB_SHA in pull requests points to the merge commit
           if [ "$GITHUB_EVENT_NAME" == "pull_request" ]; then
             SHA=$(cat $GITHUB_EVENT_PATH | jq -r .pull_request.head.sha)
-            echo "GITHUB_SHA=$SHA" >> $GITHUB_ENV
+            echo "SHA=$SHA" >> $GITHUB_ENV
           fi
-          echo $GITHUB_ENV
           echo "::set-output name=relay-test-image::us.gcr.io/sentryio/relay:$SHA"
           echo $SHA
-          exit 1
+
+      - name: Determine image name
+        env:
+          RELAY_TEST_IMAGE: ${{ steps.info.outputs.relay-test-image }}
+        run: |
+          echo $SHA
+          echo $RELAY_TEST_IMAGE
 
       - name: Checkout Relay
         uses: actions/checkout@v2
