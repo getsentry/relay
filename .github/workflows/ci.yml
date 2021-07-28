@@ -298,4 +298,8 @@ jobs:
           RELAY_TEST_IMAGE: ${{ steps.setup.outputs.relay-test-image }}
         run: |
           echo "Testing against ${RELAY_TEST_IMAGE}"
+          if [[ -z "$RELAY_TEST_IMAGE" ]]; then
+              echo "The RELAY_TEST_IMAGE needs to be set" 1>&2
+              exit 1
+          fi
           make test-relay-integration
