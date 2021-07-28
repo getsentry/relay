@@ -288,6 +288,7 @@ jobs:
       - name: Pull the image
         run: |
           echo "We poll for the Relay Docker image that the GCB build produces until it succeeds or this job times out."
+          echo "Polling for $RELAY_TEST_IMAGE"
           until docker pull "$RELAY_TEST_IMAGE" 2>/dev/null; do
               sleep 10
           done
