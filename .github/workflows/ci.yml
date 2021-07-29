@@ -258,7 +258,7 @@ jobs:
         id: setup
         run: |
           # GITHUB_SHA in pull requests points to the merge commit
-          RELAY_TEST_IMAGE=us.gcr.io/sentryio/relay:${{ github.pull_request.head.sha || github.sha }}
+          RELAY_TEST_IMAGE=us.gcr.io/sentryio/relay:${{ github.pull_request.base.sha || github.sha }}
           echo "We expected GCB to push this image $RELAY_TEST_IMAGE"
           echo "::set-output name=relay-test-image::RELAY_TEST_IMAGE"
           pip install --upgrade pip wheel
