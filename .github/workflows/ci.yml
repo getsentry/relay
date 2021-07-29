@@ -258,9 +258,16 @@ jobs:
         id: setup
         run: |
           # GITHUB_SHA in pull requests points to the merge commit
-          RELAY_TEST_IMAGE=us.gcr.io/sentryio/relay:${{ github.event.pull_request.base.sha || github.sha }}
+          RELAY_TEST_IMAGE=us.gcr.io/sentryio/relay:${{ github.head_ref || github.sha }}
+          echo $GITHUB_SHA
+          echo ${{ github.base_ref }}
+          echo ${{ github.head_ref }}
+          echo ${{ github.sha }}
+          echo ${{ github.event.pull_request }}
+          echo ${{ github.event }}
           echo "We expected GCB to push this image $RELAY_TEST_IMAGE"
           echo "::set-output name=relay-test-image::RELAY_TEST_IMAGE"
+          exit 1
           pip install --upgrade pip wheel
           echo "::set-output name=pip-cache-dir::$(pip cache dir)"
           # We cannot execute actions that are not placed under .github of the main repo
