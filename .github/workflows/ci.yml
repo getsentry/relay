@@ -258,13 +258,14 @@ jobs:
         id: setup
         run: |
           # GITHUB_SHA in pull requests points to the merge commit
-          RELAY_TEST_IMAGE=us.gcr.io/sentryio/relay:${{ github.head_ref || github.sha }}
+          RELAY_TEST_IMAGE=us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}
           echo $GITHUB_SHA
-          echo ${{ github.base_ref }}
-          echo ${{ github.head_ref }}
-          echo ${{ github.sha }}
-          echo ${{ github.event.pull_request }}
-          echo ${{ github.event }}
+          # echo ${{ github.base_ref }} master
+          # echo ${{ github.head_ref }} branch name
+          # echo ${{ github.sha }} wrong
+          echo ${{ github.event.pull_request.base.sha }}
+          echo ${{ github.event.pull_request.head.sha }}
+          echo ${{ github.event.pull_request.head.ref }}
           echo "We expected GCB to push this image $RELAY_TEST_IMAGE"
           echo "::set-output name=relay-test-image::RELAY_TEST_IMAGE"
           exit 1
