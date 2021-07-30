@@ -621,7 +621,7 @@
 
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">SendMetrics</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::outcome::DiscardReason</span>;
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project</span>::{<span class="ident">Outdated</span>, <span class="ident">Project</span>, <span class="ident">ProjectState</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project</span>::{<span class="ident">Expiry</span>, <span class="ident">Project</span>, <span class="ident">ProjectState</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project_local::LocalProjectSource</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project_upstream::UpstreamProjectSource</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::envelope::Envelope</span>;
@@ -1164,20 +1164,20 @@
         <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">clone</span>();
         <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">project_key</span>();
         <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">project_key</span>);
-        <span class="kw">let</span> <span class="ident">outdated</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">project</span>.<span class="ident">state</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">state</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">state</span>.<span class="ident">outdated</span>(<span class="ident">config</span>.<span class="ident">as_ref</span>()),
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Outdated::HardOutdated</span>,
+        <span class="kw">let</span> <span class="ident">expiry</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">project</span>.<span class="ident">state</span>() {
+            <span class="prelude-val">Some</span>(<span class="ident">state</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">state</span>.<span class="ident">check_expiry</span>(<span class="ident">config</span>.<span class="ident">as_ref</span>()),
+            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Expiry::Expired</span>,
         };
 
         <span class="comment">// Schedule an update to the project state if it is outdated, regardless of whether the</span>
         <span class="comment">// metrics can be forwarded or not. We never wait for this update.</span>
-        <span class="kw">if</span> <span class="ident">outdated</span> <span class="op">!</span><span class="op">=</span> <span class="ident">Outdated::Updated</span> {
+        <span class="kw">if</span> <span class="ident">expiry</span> <span class="op">!</span><span class="op">=</span> <span class="ident">Expiry::Updated</span> {
             <span class="ident">project</span>.<span class="ident">get_or_fetch_state</span>(<span class="bool-val">false</span>);
         }
 
         <span class="comment">// If the state is outdated, we need to wait for an updated state. Put them back into the</span>
         <span class="comment">// aggregator and wait for the next flush cycle.</span>
-        <span class="kw">if</span> <span class="ident">outdated</span> <span class="op">=</span><span class="op">=</span> <span class="ident">Outdated::HardOutdated</span> {
+        <span class="kw">if</span> <span class="ident">expiry</span> <span class="op">=</span><span class="op">=</span> <span class="ident">Expiry::Expired</span> {
             <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::err</span>(<span class="ident">message</span>.<span class="ident">into_buckets</span>()));
         }
 

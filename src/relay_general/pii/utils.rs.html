@@ -72,7 +72,7 @@
     <span class="kw">for</span> (<span class="ident">idx</span>, <span class="ident">annotated</span>) <span class="kw">in</span> <span class="ident">value</span>.<span class="ident">iter_mut</span>().<span class="ident">enumerate</span>() {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">pair</span>) <span class="op">=</span> <span class="ident">annotated</span>.<span class="ident">value_mut</span>() {
             <span class="kw">let</span> (<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">key</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">value</span>) <span class="op">=</span> <span class="ident">pair</span>.<span class="ident">as_pair_mut</span>();
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">key_name</span>) <span class="op">=</span> <span class="ident">key</span>.<span class="ident">as_str</span>() {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">key_name</span>) <span class="op">=</span> <span class="ident">key</span>.<span class="ident">as_str</span>() {
                 <span class="comment">// if the pair has no key name, we skip over it for PII stripping. It is</span>
                 <span class="comment">// still processed with index-based path in the invocation of</span>
                 <span class="comment">// `process_child_values`.</span>

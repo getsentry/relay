@@ -776,17 +776,17 @@
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::metrics::RelayCounters</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::utils</span>::{<span class="ident">EnvelopeLimiter</span>, <span class="ident">Response</span>};
 
-<span class="doccomment">/// The current status of a project state. Return value of `ProjectState::outdated`.</span>
+<span class="doccomment">/// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Outdated</span> {
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Expiry</span> {
     <span class="doccomment">/// The project state is perfectly up to date.</span>
     <span class="ident">Updated</span>,
     <span class="doccomment">/// The project state is outdated but events depending on this project state can still be</span>
     <span class="doccomment">/// processed. The state should be refreshed in the background though.</span>
-    <span class="ident">SoftOutdated</span>,
+    <span class="ident">Stale</span>,
     <span class="doccomment">/// The project state is completely outdated and events need to be buffered up until the new</span>
     <span class="doccomment">/// state has been fetched.</span>
-    <span class="ident">HardOutdated</span>,
+    <span class="ident">Expired</span>,
 }
 
 <span class="doccomment">/// Features exposed by project config</span>
@@ -969,7 +969,7 @@
     }
 
     <span class="doccomment">/// Returns whether this state is outdated and needs to be refetched.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outdated</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Outdated</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Expiry</span> {
         <span class="kw">let</span> <span class="ident">expiry</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">project_id</span> {
             <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">cache_miss_expiry</span>(),
             <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">project_cache_expiry</span>(),
@@ -977,11 +977,11 @@
 
         <span class="kw">let</span> <span class="ident">elapsed</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">last_fetch</span>.<span class="ident">elapsed</span>();
         <span class="kw">if</span> <span class="ident">elapsed</span> <span class="op">&gt;</span><span class="op">=</span> <span class="ident">expiry</span> <span class="op">+</span> <span class="ident">config</span>.<span class="ident">project_grace_period</span>() {
-            <span class="ident">Outdated::HardOutdated</span>
+            <span class="ident">Expiry::Expired</span>
         } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">elapsed</span> <span class="op">&gt;</span><span class="op">=</span> <span class="ident">expiry</span> {
-            <span class="ident">Outdated::SoftOutdated</span>
+            <span class="ident">Expiry::Stale</span>
         } <span class="kw">else</span> {
-            <span class="ident">Outdated::Updated</span>
+            <span class="ident">Expiry::Updated</span>
         }
     }
 
@@ -1091,7 +1091,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_disabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">DiscardReason</span><span class="op">&gt;</span> {
         <span class="comment">// if the state is out of date, we proceed as if it was still up to date. The</span>
         <span class="comment">// upstream relay (or sentry) will still filter events.</span>
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">outdated</span>(<span class="ident">config</span>) <span class="op">=</span><span class="op">=</span> <span class="ident">Outdated::HardOutdated</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">check_expiry</span>(<span class="ident">config</span>) <span class="op">=</span><span class="op">=</span> <span class="ident">Expiry::Expired</span> {
             <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
         }
 
@@ -1344,22 +1344,22 @@
         }
 
         <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">as_ref</span>();
-        <span class="kw">let</span> <span class="ident">outdated</span> <span class="op">=</span> <span class="ident">state</span>
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">outdated</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>))
-            .<span class="ident">unwrap_or</span>(<span class="ident">Outdated::HardOutdated</span>);
+        <span class="kw">let</span> <span class="ident">expiry</span> <span class="op">=</span> <span class="ident">state</span>
+            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">check_expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>))
+            .<span class="ident">unwrap_or</span>(<span class="ident">Expiry::Expired</span>);
 
-        <span class="kw">let</span> <span class="ident">cached_state</span> <span class="op">=</span> <span class="kw">match</span> (<span class="ident">state</span>, <span class="ident">outdated</span>) {
+        <span class="kw">let</span> <span class="ident">cached_state</span> <span class="op">=</span> <span class="kw">match</span> (<span class="ident">state</span>, <span class="ident">expiry</span>) {
             <span class="comment">// Never use the cached state if `no_cache` is set.</span>
             <span class="kw">_</span> <span class="kw">if</span> <span class="ident">no_cache</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
 
             <span class="comment">// There is no project state that can be used, fetch a state and return it.</span>
-            (<span class="prelude-val">None</span>, <span class="kw">_</span>) <span class="op">|</span> (<span class="kw">_</span>, <span class="ident">Outdated::HardOutdated</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            (<span class="prelude-val">None</span>, <span class="kw">_</span>) <span class="op">|</span> (<span class="kw">_</span>, <span class="ident">Expiry::Expired</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
 
             <span class="comment">// The project is semi-outdated, fetch new state but return old one.</span>
-            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="ident">Outdated::SoftOutdated</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
+            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="ident">Expiry::Stale</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
 
             <span class="comment">// The project is not outdated, return early here to jump over fetching logic below.</span>
-            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="ident">Outdated::Updated</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">Response::ok</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
+            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="ident">Expiry::Updated</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">Response::ok</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
         };
 
         <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state_channel</span> {

@@ -2017,11 +2017,11 @@
                     }
                 })
             }),
-            <span class="string">&quot;event.is_local_ip&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Value::Bool</span>(<span class="ident">relay_filter::localhost::matches</span>(<span class="kw-2">&amp;</span><span class="self">self</span>)),
+            <span class="string">&quot;event.is_local_ip&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Value::Bool</span>(<span class="ident">relay_filter::localhost::matches</span>(<span class="self">self</span>)),
             <span class="string">&quot;event.has_bad_browser_extensions&quot;</span> <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="ident">Value::Bool</span>(<span class="ident">relay_filter::browser_extensions::matches</span>(<span class="kw-2">&amp;</span><span class="self">self</span>))
+                <span class="ident">Value::Bool</span>(<span class="ident">relay_filter::browser_extensions::matches</span>(<span class="self">self</span>))
             }
-            <span class="string">&quot;event.web_crawlers&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Value::Bool</span>(<span class="ident">relay_filter::web_crawlers::matches</span>(<span class="kw-2">&amp;</span><span class="self">self</span>)),
+            <span class="string">&quot;event.web_crawlers&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Value::Bool</span>(<span class="ident">relay_filter::web_crawlers::matches</span>(<span class="self">self</span>)),
             <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Value::Null</span>,
         }
     }

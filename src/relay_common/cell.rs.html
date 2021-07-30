@@ -125,7 +125,7 @@
 
     <span class="doccomment">/// Try to get a cached value or create one by calling `f()`.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_or_insert_with</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw">impl</span> <span class="ident">FnOnce</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">T</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">LazyCellRef</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span>, <span class="ident">T</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">borrow</span>() {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">borrow</span>() {
             <span class="kw">return</span> <span class="ident">LazyCellRef::Borrowed</span>(<span class="ident">value</span>);
         }
 
@@ -140,7 +140,7 @@
 
         <span class="comment">// The lazy cell was filled successfully, so the `borrow()` should never fail.</span>
         <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">borrow</span>() {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">LazyCellRef::Borrowed</span>(<span class="ident">value</span>),
+            <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">LazyCellRef::Borrowed</span>(<span class="ident">value</span>),
             <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">unreachable!</span>(),
         }
     }

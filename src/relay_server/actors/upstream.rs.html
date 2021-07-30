@@ -1847,7 +1847,7 @@
         <span class="ident">builder</span>.<span class="ident">header</span>(<span class="string">&quot;Host&quot;</span>, <span class="ident">host_header</span>.<span class="ident">as_bytes</span>());
 
         <span class="kw">if</span> <span class="ident">request</span>.<span class="ident">config</span>.<span class="ident">set_relay_id</span> {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">credentials</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">credentials</span>() {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">credentials</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">credentials</span>() {
                 <span class="ident">builder</span>.<span class="ident">header</span>(<span class="string">&quot;X-Sentry-Relay-Id&quot;</span>, <span class="ident">credentials</span>.<span class="ident">id</span>.<span class="ident">to_string</span>().<span class="ident">as_bytes</span>());
             }
         }

@@ -269,8 +269,8 @@
     <span class="doccomment">/// The text of this chunk.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Chunk::Text</span> { <span class="ident">text</span> } <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">text</span>,
-            <span class="ident">Chunk::Redaction</span> { <span class="ident">text</span>, .. } <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">text</span>,
+            <span class="ident">Chunk::Text</span> { <span class="ident">text</span> } <span class="op">=</span><span class="op">&gt;</span> <span class="ident">text</span>,
+            <span class="ident">Chunk::Redaction</span> { <span class="ident">text</span>, .. } <span class="op">=</span><span class="op">&gt;</span> <span class="ident">text</span>,
         }
     }
 
@@ -376,7 +376,7 @@
 <span class="kw">where</span>
     <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Chunk</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Chunk</span><span class="op">&gt;</span>,
 {
-    <span class="kw">let</span> <span class="ident">chunks</span> <span class="op">=</span> <span class="ident">split_chunks</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>, <span class="ident">meta</span>.<span class="ident">iter_remarks</span>());
+    <span class="kw">let</span> <span class="ident">chunks</span> <span class="op">=</span> <span class="ident">split_chunks</span>(<span class="ident">value</span>, <span class="ident">meta</span>.<span class="ident">iter_remarks</span>());
     <span class="kw">let</span> (<span class="ident">new_value</span>, <span class="ident">remarks</span>) <span class="op">=</span> <span class="ident">join_chunks</span>(<span class="ident">f</span>(<span class="ident">chunks</span>));
 
     <span class="kw">if</span> <span class="ident">new_value</span> <span class="op">!</span><span class="op">=</span> <span class="kw-2">*</span><span class="ident">value</span> {
