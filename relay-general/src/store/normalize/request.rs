@@ -79,7 +79,7 @@ fn normalize_url(request: &mut Request) {
 fn normalize_method(method: &mut String, meta: &mut Meta) -> ProcessingResult {
     method.make_ascii_uppercase();
 
-    if !meta.has_errors() && !METHOD_RE.is_match(&method) {
+    if !meta.has_errors() && !METHOD_RE.is_match(method) {
         meta.add_error(ErrorKind::InvalidData);
         return Err(ProcessingAction::DeleteValueSoft);
     }
@@ -151,7 +151,7 @@ fn normalize_data(request: &mut Request) {
             .headers
             .value()
             .and_then(|headers| headers.get_header("Content-Type"))
-            .map(|value| value.split(';').next().unwrap_or(&value).to_string())
+            .map(|value| value.split(';').next().unwrap_or(value).to_string())
             .into();
     }
 }

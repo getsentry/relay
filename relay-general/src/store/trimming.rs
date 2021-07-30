@@ -422,18 +422,17 @@ fn test_basic_trimming() {
     use crate::types::Annotated;
 
     use crate::processor::MaxChars;
-    use std::iter::repeat;
 
     let mut processor = TrimmingProcessor::new();
 
     let mut event = Annotated::new(Event {
-        culprit: Annotated::new(repeat("x").take(300).collect::<String>()),
+        culprit: Annotated::new("x".repeat(300)),
         ..Default::default()
     });
 
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    let mut expected = Annotated::new(repeat("x").take(300).collect::<String>());
+    let mut expected = Annotated::new("x".repeat(300));
     expected
         .apply(|v, m| {
             trim_string(v, m, MaxChars::Culprit);
@@ -521,7 +520,6 @@ fn test_databag_array_stripping() {
     use crate::protocol::{Event, ExtraValue};
     use crate::types::{Annotated, SerializableAnnotated, Value};
     use insta::assert_ron_snapshot;
-    use std::iter::repeat;
 
     let mut processor = TrimmingProcessor::new();
 
@@ -530,9 +528,7 @@ fn test_databag_array_stripping() {
         for idx in 0..100 {
             map.insert(
                 format!("key_{}", idx),
-                Annotated::new(ExtraValue(Value::String(
-                    repeat("x").take(50000).collect::<String>(),
-                ))),
+                Annotated::new(ExtraValue(Value::String("x".repeat(50000)))),
             );
         }
         map
@@ -552,15 +548,14 @@ fn test_databag_array_stripping() {
 fn test_tags_stripping() {
     use crate::protocol::{Event, TagEntry, Tags};
     use crate::types::Annotated;
-    use std::iter::repeat;
 
     let mut processor = TrimmingProcessor::new();
 
     let mut event = Annotated::new(Event {
         tags: Annotated::new(Tags(
             vec![Annotated::new(TagEntry(
-                Annotated::new(repeat("x").take(200).collect()),
-                Annotated::new(repeat("x").take(300).collect()),
+                Annotated::new("x".repeat(200)),
+                Annotated::new("x".repeat(300)),
             ))]
             .into(),
         )),
@@ -644,8 +639,6 @@ fn test_databag_state_leak() {
 
 #[test]
 fn test_custom_context_trimming() {
-    use std::iter::repeat;
-
     use crate::protocol::{Context, ContextInner, Contexts};
     use crate::types::{Annotated, Object, Value};
 
@@ -655,11 +648,11 @@ fn test_custom_context_trimming() {
             let mut context = Object::new();
             context.insert(
                 "foo".to_string(),
-                Annotated::new(Value::String(repeat('a').take(4000).collect())),
+                Annotated::new(Value::String("a".repeat(4000))),
             );
             context.insert(
                 "bar".to_string(),
-                Annotated::new(Value::String(repeat('a').take(5000).collect())),
+                Annotated::new(Value::String("a".repeat(5000))),
             );
             Annotated::new(ContextInner(Context::Other(context)))
         });

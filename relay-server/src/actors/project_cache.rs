@@ -15,7 +15,7 @@ use relay_redis::RedisPool;
 
 use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::DiscardReason;
-use crate::actors::project::{Outdated, Project, ProjectState};
+use crate::actors::project::{Expiry, Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
@@ -558,20 +558,20 @@ impl Handler<FlushBuckets> for ProjectCache {
         let config = self.config.clone();
         let project_key = message.project_key();
         let project = self.get_or_create_project(project_key);
-        let outdated = match project.state() {
-            Some(state) => state.outdated(config.as_ref()),
-            None => Outdated::HardOutdated,
+        let expiry = match project.state() {
+            Some(state) => state.check_expiry(config.as_ref()),
+            None => Expiry::Expired,
         };
 
         // Schedule an update to the project state if it is outdated, regardless of whether the
         // metrics can be forwarded or not. We never wait for this update.
-        if outdated != Outdated::Updated {
+        if expiry != Expiry::Updated {
             project.get_or_fetch_state(false);
         }
 
         // If the state is outdated, we need to wait for an updated state. Put them back into the
         // aggregator and wait for the next flush cycle.
-        if outdated == Outdated::HardOutdated {
+        if expiry == Expiry::Expired {
             return Box::new(future::err(message.into_buckets()));
         }
 

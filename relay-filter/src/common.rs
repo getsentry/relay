@@ -52,7 +52,7 @@ impl GlobPatterns {
         let mut globs = Vec::with_capacity(self.patterns.len());
 
         for pattern in &self.patterns {
-            let glob_result = GlobBuilder::new(&pattern)
+            let glob_result = GlobBuilder::new(pattern)
                 .case_insensitive(true)
                 .backslash_escape(true)
                 .build();

@@ -73,7 +73,7 @@ pub fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
 
         let mut body = TokenStream::new();
         for (index, bi) in variant.bindings().iter().enumerate() {
-            let field_attrs = parse_field_attributes(index, &bi.ast(), &mut is_tuple_struct);
+            let field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct);
             let ident = &bi.binding;
             let field_attrs_name = Ident::new(&format!("FIELD_ATTRS_{}", index), Span::call_site());
             let field_name = field_attrs.field_name.clone();

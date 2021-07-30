@@ -101,11 +101,11 @@ impl<'a> FormDataEntry<'a> {
     }
 
     pub fn key(&self) -> &'a str {
-        &self.0
+        self.0
     }
 
     pub fn value(&self) -> &'a str {
-        &self.1
+        self.1
     }
 
     fn to_writer<W: io::Write>(&self, mut writer: W) {

@@ -20,7 +20,7 @@ impl CompiledPiiConfig {
             #[allow(clippy::mutable_key_type)]
             let mut rule_set = BTreeSet::default();
             for rule_id in rules {
-                collect_rules(config, &mut rule_set, &rule_id, None);
+                collect_rules(config, &mut rule_set, rule_id, None);
             }
             applications.push((selector.clone(), rule_set));
         }
@@ -68,7 +68,7 @@ fn collect_rules(
                 None
             };
             for rule_id in &m.rules {
-                collect_rules(config, rules, &rule_id, parent.clone());
+                collect_rules(config, rules, rule_id, parent.clone());
             }
         }
         RuleType::Alias(ref a) => {
