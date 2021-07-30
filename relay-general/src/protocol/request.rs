@@ -220,7 +220,7 @@ impl FromValue for HeaderValue {
                             header_value.push(',');
                         }
 
-                        header_value.push_str(&string);
+                        header_value.push_str(string);
                     }
                 }
 

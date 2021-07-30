@@ -322,7 +322,7 @@ enum PathItem<'a> {
 impl<'a> PartialEq for PathItem<'a> {
     fn eq(&self, other: &PathItem<'a>) -> bool {
         match *self {
-            PathItem::StaticKey(ref s) => other.key() == Some(s),
+            PathItem::StaticKey(s) => other.key() == Some(s),
             PathItem::Index(value) => other.index() == Some(value),
         }
     }
@@ -467,7 +467,7 @@ impl<'a> ProcessingState<'a> {
 
     /// Returns the path in the processing state.
     pub fn path(&'a self) -> Path<'a> {
-        Path(&self)
+        Path(self)
     }
 
     pub fn value_type(&self) -> EnumSet<ValueType> {
@@ -477,7 +477,7 @@ impl<'a> ProcessingState<'a> {
     /// Returns the field attributes.
     pub fn attrs(&self) -> &FieldAttrs {
         match self.attrs {
-            Some(ref cow) => &cow,
+            Some(ref cow) => cow,
             None => &DEFAULT_FIELD_ATTRS,
         }
     }
@@ -511,7 +511,7 @@ impl<'a> ProcessingState<'a> {
     ///
     /// This is `false` when we entered a newtype struct.
     pub fn entered_anything(&'a self) -> bool {
-        if let Some(ref parent) = self.parent {
+        if let Some(parent) = self.parent {
             parent.depth() != self.depth()
         } else {
             true

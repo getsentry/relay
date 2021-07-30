@@ -19,7 +19,7 @@ pub fn process_pairlist<P: Processor, T: ProcessValue + AsPair>(
     for (idx, annotated) in value.iter_mut().enumerate() {
         if let Some(ref mut pair) = annotated.value_mut() {
             let (ref mut key, ref mut value) = pair.as_pair_mut();
-            if let Some(ref key_name) = key.as_str() {
+            if let Some(key_name) = key.as_str() {
                 // if the pair has no key name, we skip over it for PII stripping. It is
                 // still processed with index-based path in the invocation of
                 // `process_child_values`.

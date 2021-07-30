@@ -191,7 +191,7 @@ impl ErrorKind {
             ErrorKind::PastTimestamp => "past_timestamp",
             ErrorKind::FutureTimestamp => "future_timestamp",
             ErrorKind::ClockDrift => "clock_drift",
-            ErrorKind::Unknown(error) => &error,
+            ErrorKind::Unknown(error) => error,
         }
     }
 }

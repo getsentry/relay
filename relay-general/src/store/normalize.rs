@@ -107,7 +107,7 @@ impl<'a> NormalizeProcessor<'a> {
     fn normalize_breakdowns(&self, event: &mut Event) {
         match &self.config.breakdowns {
             None => {}
-            Some(breakdowns_config) => breakdowns::normalize_breakdowns(event, &breakdowns_config),
+            Some(breakdowns_config) => breakdowns::normalize_breakdowns(event, breakdowns_config),
         }
     }
 
@@ -371,7 +371,7 @@ impl<'a> NormalizeProcessor<'a> {
     }
 
     fn normalize_exceptions(&self, event: &mut Event) -> ProcessingResult {
-        let os_hint = mechanism::OsHint::from_event(&event);
+        let os_hint = mechanism::OsHint::from_event(event);
 
         if let Some(exception_values) = event.exceptions.value_mut() {
             if let Some(exceptions) = exception_values.values.value_mut() {
@@ -446,7 +446,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 
         // Validate basic attributes
         event.platform.apply(|platform, _| {
-            if is_valid_platform(&platform) {
+            if is_valid_platform(platform) {
                 Ok(())
             } else {
                 Err(ProcessingAction::DeleteValueSoft)
@@ -454,7 +454,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         })?;
 
         event.environment.apply(|environment, meta| {
-            if protocol::validate_environment(&environment).is_ok() {
+            if protocol::validate_environment(environment).is_ok() {
                 Ok(())
             } else {
                 meta.add_error(ErrorKind::InvalidData);
@@ -463,7 +463,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         })?;
 
         event.release.apply(|release, meta| {
-            if protocol::validate_release(&release).is_ok() {
+            if protocol::validate_release(release).is_ok() {
                 Ok(())
             } else {
                 meta.add_error(ErrorKind::InvalidData);
@@ -544,7 +544,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 
         // Infer user.geo from user.ip_address
         if user.geo.value().is_none() {
-            if let Some(ref geoip_lookup) = self.geoip_lookup {
+            if let Some(geoip_lookup) = self.geoip_lookup {
                 if let Some(ip_address) = user.ip_address.value() {
                     if let Ok(Some(geo)) = geoip_lookup.lookup(ip_address.as_str()) {
                         user.geo.set_value(Some(geo));

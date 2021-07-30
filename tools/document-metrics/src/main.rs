@@ -326,7 +326,7 @@ mod tests {
             }
         "#;
 
-        let metrics = parse_metrics(&source)?;
+        let metrics = parse_metrics(source)?;
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {

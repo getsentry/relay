@@ -360,11 +360,11 @@ impl FieldValueProvider for Event {
                     }
                 })
             }),
-            "event.is_local_ip" => Value::Bool(relay_filter::localhost::matches(&self)),
+            "event.is_local_ip" => Value::Bool(relay_filter::localhost::matches(self)),
             "event.has_bad_browser_extensions" => {
-                Value::Bool(relay_filter::browser_extensions::matches(&self))
+                Value::Bool(relay_filter::browser_extensions::matches(self))
             }
-            "event.web_crawlers" => Value::Bool(relay_filter::web_crawlers::matches(&self)),
+            "event.web_crawlers" => Value::Bool(relay_filter::web_crawlers::matches(self)),
             _ => Value::Null,
         }
     }

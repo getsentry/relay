@@ -118,7 +118,7 @@ fn test_globs() {
     test_glob!("foo\nbar", "foo*", true, {allow_newline: true});
     test_glob!("1.18.4.2153-2aa83397b", "1.18.[0-4].*", true, {});
 
-    let mut long_string = std::iter::repeat('x').take(1_000_000).collect::<String>();
+    let mut long_string = "x".repeat(1_000_000);
     long_string.push_str(".PY");
     test_glob!(&long_string, "*************************.py", true, {double_star: true, case_insensitive: true, path_normalize: true});
     test_glob!(&long_string, "*************************.js", false, {double_star: true, case_insensitive: true, path_normalize: true});

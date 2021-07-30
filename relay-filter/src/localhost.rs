@@ -85,7 +85,7 @@ mod tests {
             get_event_with_ip_addr("127.0.0.1"),
             get_event_with_domain("localhost"),
         ] {
-            let filter_result = should_filter(&event, &FilterConfig { is_enabled: false });
+            let filter_result = should_filter(event, &FilterConfig { is_enabled: false });
             assert_eq!(
                 filter_result,
                 Ok(()),

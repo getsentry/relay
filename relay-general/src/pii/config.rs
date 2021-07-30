@@ -226,6 +226,6 @@ impl PiiConfig {
     /// else.
     #[inline]
     pub fn compiled_uncached(&self) -> CompiledPiiConfig {
-        CompiledPiiConfig::new(&self)
+        CompiledPiiConfig::new(self)
     }
 }

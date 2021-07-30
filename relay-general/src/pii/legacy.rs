@@ -69,6 +69,6 @@ impl DataScrubbingConfig {
     /// else.
     #[inline]
     pub fn pii_config_uncached(&self) -> Option<PiiConfig> {
-        convert::to_pii_config(&self)
+        convert::to_pii_config(self)
     }
 }
