@@ -496,10 +496,18 @@ where
                 processing_enabled,
                 *envelope_context.borrow(),
             )
-            .then(move |result| match result {
+            .then(clone!(envelope_context, |result| match result {
                 Err(rule_id) => Err(BadStoreRequest::TraceSampled(rule_id)),
-                Ok(envelope) => Ok((envelope, rate_limits, sampling_project_key)),
-            })
+                Ok(envelope) => {
+                    // sample_trace may drop part of the envelope, recalculate summary.
+                    let summary = EnvelopeSummary::compute(&envelope);
+                    envelope_context
+                        .borrow_mut()
+                        .set_event_id(envelope.event_id())
+                        .set_envelope_summary(summary);
+                    Ok((envelope, rate_limits, sampling_project_key))
+                }
+            }))
         }))
         .and_then(clone!(envelope_context, |(
             envelope,

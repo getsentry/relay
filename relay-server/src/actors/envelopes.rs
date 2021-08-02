@@ -2131,6 +2131,13 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 .map_err(ProcessingError::TraceSampled)
             }))
             .and_then(clone!(envelope_context, |envelope| {
+                // recalculate the envelope summary since sample_tracing might have dropped parts
+                // of the envelope
+                let summary = EnvelopeSummary::compute(&envelope);
+                envelope_context
+                    .borrow_mut()
+                    .set_event_id(envelope.event_id())
+                    .set_envelope_summary(summary);
                 // get the state for the current project. we can always fetch the cached version
                 // even if the no_cache flag was passed, as the cache was updated prior in
                 // `CheckEnvelope`.
