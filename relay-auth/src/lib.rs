@@ -225,7 +225,7 @@ impl SecretKey {
         // this can only fail if we deal with badly formed data.  In that case we
         // consider that a panic.  Should not happen.
         let json = serde_json::to_vec(&data).expect("attempted to pack non json safe data");
-        let sig = self.sign_with_header(&json, &header);
+        let sig = self.sign_with_header(&json, header);
         (json, sig)
     }
 }
@@ -333,8 +333,8 @@ impl PublicKey {
         data: &[u8],
         signature: &str,
     ) -> Result<(SignatureHeader, D), UnpackError> {
-        if let Some(header) = self.verify_meta(&data, signature) {
-            serde_json::from_slice(&data)
+        if let Some(header) = self.verify_meta(data, signature) {
+            serde_json::from_slice(data)
                 .map(|data| (header, data))
                 .map_err(UnpackError::BadPayload)
         } else {
@@ -749,7 +749,7 @@ fn test_signatures() {
 
     let bad_sig =
         "jgubwSf2wb2wuiRpgt2H9_bdDSMr88hXLp5zVuhbr65EGkSxOfT5ILIWr623twLgLd0bDgHg6xzOaUCX7XvUCw";
-    assert!(!pk.verify(data, &bad_sig));
+    assert!(!pk.verify(data, bad_sig));
 }
 
 #[test]

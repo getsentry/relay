@@ -79,7 +79,7 @@ fn extract_envelope(
         content_type => ContentType::from(content_type),
     };
 
-    let future = StoreBody::new(&request, max_payload_size)
+    let future = StoreBody::new(request, max_payload_size)
         .map_err(BadStoreRequest::PayloadError)
         .and_then(move |data| {
             if data.is_empty() {

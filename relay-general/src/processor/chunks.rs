@@ -54,8 +54,8 @@ impl<'a> Chunk<'a> {
     /// The text of this chunk.
     pub fn as_str(&self) -> &str {
         match self {
-            Chunk::Text { text } => &text,
-            Chunk::Redaction { text, .. } => &text,
+            Chunk::Text { text } => text,
+            Chunk::Redaction { text, .. } => text,
         }
     }
 
@@ -161,7 +161,7 @@ pub fn process_chunked_value<F>(value: &mut String, meta: &mut Meta, f: F)
 where
     F: FnOnce(Vec<Chunk>) -> Vec<Chunk>,
 {
-    let chunks = split_chunks(&value, meta.iter_remarks());
+    let chunks = split_chunks(value, meta.iter_remarks());
     let (new_value, remarks) = join_chunks(f(chunks));
 
     if new_value != *value {

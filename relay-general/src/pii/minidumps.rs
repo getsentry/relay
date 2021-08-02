@@ -8,7 +8,7 @@ use std::str::Utf8Error;
 
 use failure::Fail;
 use minidump::format::{
-    CvSignature, MINIDUMP_LOCATION_DESCRIPTOR, MINIDUMP_STREAM_TYPE as StreamType, RVA,
+    CvSignature, MINIDUMP_LOCATION_DESCRIPTOR, MINIDUMP_STREAM_TYPE as StreamType,
 };
 use minidump::{
     Error as MinidumpError, Minidump, MinidumpMemoryList, MinidumpModuleList, MinidumpThreadList,
@@ -156,15 +156,14 @@ impl<'a> MinidumpData<'a> {
         let mut items = Vec::new();
 
         let thread_list: MinidumpThreadList = self.minidump.get_stream()?;
-        let stack_rvas: Vec<RVA> = thread_list
-            .threads
-            .iter()
-            .map(|t| t.raw.stack.memory.rva)
-            .collect();
 
         let mem_list: MinidumpMemoryList = self.minidump.get_stream()?;
         for mem in mem_list.iter() {
-            if stack_rvas.contains(&mem.desc.memory.rva) {
+            if thread_list
+                .threads
+                .iter()
+                .any(|t| t.raw.stack.memory.rva == mem.desc.memory.rva)
+            {
                 items.push(MinidumpItem::StackMemory(
                     self.location_range(mem.desc.memory)?,
                 ));
@@ -323,7 +322,7 @@ impl PiiAttachmentsProcessor<'_> {
 
 #[cfg(test)]
 mod tests {
-    use minidump::{MinidumpModule, Module};
+    use minidump::{format::RVA, MinidumpModule, Module};
 
     use crate::pii::PiiConfig;
 

@@ -47,7 +47,7 @@ pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
         // parse_variant_attributes currently cannot deal with struct attributes. Structs are
         // represented as single-variant enums in synstructure.
         if !is_single_variant {
-            let variant_attrs = parse_variant_attributes(&variant.ast().attrs);
+            let variant_attrs = parse_variant_attributes(variant.ast().attrs);
 
             if variant_attrs.omit_from_schema {
                 continue;
@@ -59,7 +59,7 @@ pub fn derive_jsonschema(mut s: synstructure::Structure<'_>) -> TokenStream {
         let mut is_tuple_struct = false;
 
         for (index, bi) in variant.bindings().iter().enumerate() {
-            let field_attrs = parse_field_attributes(index, &bi.ast(), &mut is_tuple_struct);
+            let field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct);
             let name = field_attrs.field_name;
 
             let mut ast = bi.ast().clone();

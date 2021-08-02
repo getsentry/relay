@@ -231,3 +231,76 @@ jobs:
         run: pytest tests -n auto -v
         env:
           RELAY_VERSION_CHAIN: '20.6.0,latest'
+
+  sentry-relay-integration-tests:
+    name: Sentry-Relay Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout Relay
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      # Checkout Sentry and run integration tests against latest Relay
+      - name: Checkout Sentry
+        uses: actions/checkout@v2
+        with:
+          repository: getsentry/sentry
+          path: sentry
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.6
+
+      - name: Setup steps
+        id: setup
+        run: |
+          # GITHUB_SHA in pull requests points to the merge commit
+          RELAY_TEST_IMAGE=us.gcr.io/sentryio/relay:${{ github.event.pull_request.head.sha || github.sha }}
+          echo "We expected GCB to push this image $RELAY_TEST_IMAGE"
+          echo "::set-output name=relay-test-image::$RELAY_TEST_IMAGE"
+          pip install --upgrade pip wheel
+          echo "::set-output name=pip-cache-dir::$(pip cache dir)"
+          # We cannot execute actions that are not placed under .github of the main repo
+          mkdir -p .github/actions/setup-sentry/
+          cp sentry/.github/actions/setup-sentry/action.yml .github/actions/setup-sentry/action.yml
+
+      - name: Sentry's pip cache
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.setup.outputs.pip-cache-dir }}
+          key: sentry-deps-${{ hashFiles('sentry/requirements**.txt') }}
+          restore-keys: sentry-deps-
+
+      - name: Setup Sentry
+        uses: ./.github/actions/setup-sentry
+        with:
+          workdir: sentry
+          snuba: true
+          kafka: true
+
+      # We wait on GCB producing the Docker image because it can built it faster than the GH runners
+      # If the GCB fails to push the image, this job will keep pulling until it times out
+      - name: Pull the image
+        env:
+          RELAY_TEST_IMAGE: ${{ steps.setup.outputs.relay-test-image }}
+        run: |
+          echo "We poll for the Relay Docker image that the GCB build produces until it succeeds or this job times out."
+          if [[ -z "$RELAY_TEST_IMAGE" ]]; then
+              echo "The RELAY_TEST_IMAGE needs to be set" 1>&2
+              exit 1
+          fi
+          echo "Polling for $RELAY_TEST_IMAGE"
+          until docker pull "$RELAY_TEST_IMAGE" 2>/dev/null; do
+              sleep 10
+          done
+
+      - name: Run Sentry integration tests
+        working-directory: sentry
+        env:
+          RELAY_TEST_IMAGE: ${{ steps.setup.outputs.relay-test-image }}
+        run: |
+          echo "Testing against ${RELAY_TEST_IMAGE}"
+          make test-relay-integration

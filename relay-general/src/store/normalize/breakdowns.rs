@@ -244,7 +244,7 @@ pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: &BreakdownsCon
 
     for (breakdown_name, breakdown_config) in breakdowns_config.iter() {
         // TODO: move this to deserialization in a follow-up.
-        if !Breakdowns::is_valid_breakdown_name(&breakdown_name) {
+        if !Breakdowns::is_valid_breakdown_name(breakdown_name) {
             continue;
         }
 

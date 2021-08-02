@@ -51,7 +51,7 @@ impl<T> UpsertingLazyCell<T> {
 
     /// Try to get a cached value or create one by calling `f()`.
     pub fn get_or_insert_with(&self, f: impl FnOnce() -> T) -> LazyCellRef<'_, T> {
-        if let Some(ref value) = self.0.borrow() {
+        if let Some(value) = self.0.borrow() {
             return LazyCellRef::Borrowed(value);
         }
 
@@ -66,7 +66,7 @@ impl<T> UpsertingLazyCell<T> {
 
         // The lazy cell was filled successfully, so the `borrow()` should never fail.
         match self.0.borrow() {
-            Some(ref value) => LazyCellRef::Borrowed(value),
+            Some(value) => LazyCellRef::Borrowed(value),
             None => unreachable!(),
         }
     }

@@ -168,7 +168,7 @@ impl ContentType {
             Self::Minidump => "application/x-dmp",
             Self::Xml => "text/xml",
             Self::Envelope => self::CONTENT_TYPE,
-            Self::Other(ref other) => &other,
+            Self::Other(ref other) => other,
         }
     }
 
@@ -206,7 +206,7 @@ impl From<String> for ContentType {
 
 impl From<&'_ str> for ContentType {
     fn from(content_type: &str) -> Self {
-        Self::from_str(&content_type)
+        Self::from_str(content_type)
             .unwrap_or_else(|| ContentType::Other(content_type.to_ascii_lowercase()))
     }
 }
@@ -1041,8 +1041,7 @@ mod tests {
         assert_eq!(envelope.len(), 0);
         assert!(envelope.is_empty());
 
-        let items: Vec<_> = envelope.items().collect();
-        assert!(items.is_empty());
+        assert!(envelope.items().next().is_none());
     }
 
     #[test]

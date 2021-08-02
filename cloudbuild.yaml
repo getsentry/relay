@@ -53,6 +53,14 @@ steps:
         ".",
       ]
 
+  # We push the image to GCR since the Sentry integration tests are polling
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "push",
+        "us.gcr.io/$PROJECT_ID/relay:$COMMIT_SHA"
+      ]
+
   # On-premise Integration tests
   - name: 'gcr.io/$PROJECT_ID/docker-compose'
     entrypoint: 'bash'
