@@ -1056,7 +1056,7 @@ where
     }
 }
 
-/// TODO: Doc
+/// Represents an HTTP request to be sent by the Upstream actor.
 pub trait UpstreamRequest: Send {
     ///type Response: Send + 'static;
 
@@ -1076,20 +1076,25 @@ pub trait UpstreamRequest: Send {
         RequestPriority::Low
     }
 
-    /// TODO: Doc
+    /// True if normal error processing should occur, false if
+    /// errors from the upstream should not be processed and returned as is
+    /// in the response.
     fn intercept_status_errors(&self) -> bool {
         true
     }
 
-    /// TODO: Doc
+    /// If set to True it will add the X-Sentry-Relay-Id header to the request
+    ///     
+    /// This should be done (only) for calls to endpoints that use Relay authentication.
     fn set_relay_id(&self) -> bool {
         true
     }
 
-    /// TODO: Doc
+    /// Called whenever the request will be send over HTTP (possible multiple times)
     fn build(&mut self, builder: RequestBuilder) -> Result<Request, HttpError>;
 
-    /// TODO doc
+    /// Called when the HTTP request completes, either with success or an error that will not
+    /// be retried.
     fn respond(
         &mut self,
         response: Result<Response, UpstreamRequestError>,
