@@ -18,15 +18,19 @@ use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_sampling::RuleId;
 
-use crate::actors::envelopes::{EnvelopeManager, QueueEnvelope, QueueEnvelopeError};
-use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
+use crate::actors::envelopes::{
+    EnvelopeContext, EnvelopeManager, QueueEnvelope, QueueEnvelopeError,
+};
+use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::project_cache::{CheckEnvelope, ProjectCache, ProjectError};
 use crate::body::StorePayloadError;
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
 use crate::service::{ServiceApp, ServiceState};
-use crate::utils::{self, ApiErrorResponse, EnvelopeSummary, FormDataIter, MultipartError};
+use crate::utils::{
+    self, ApiErrorResponse, EnvelopeSummary, FormDataIter, MultipartError, SendWithOutcome,
+};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -34,7 +38,7 @@ pub enum BadStoreRequest {
     UnsupportedProtocolVersion(u16),
 
     #[fail(display = "could not schedule event processing")]
-    ScheduleFailed(#[cause] MailboxError),
+    ScheduleFailed,
 
     #[fail(display = "failed to fetch project information")]
     ProjectFailed(#[cause] ProjectError),
@@ -116,13 +120,16 @@ impl BadStoreRequest {
                 ProjectError::FetchFailed => Outcome::Invalid(DiscardReason::ProjectState),
                 _ => Outcome::Invalid(DiscardReason::Internal),
             },
-            BadStoreRequest::ScheduleFailed(_) => Outcome::Invalid(DiscardReason::Internal),
             BadStoreRequest::EventRejected(reason) => Outcome::Invalid(*reason),
             BadStoreRequest::PayloadError(payload_error) => {
                 Outcome::Invalid(payload_error.discard_reason())
             }
 
-            BadStoreRequest::TraceSampled(rule_id) => Outcome::FilteredSampling(*rule_id),
+            // Handled by send_with_outcome
+            BadStoreRequest::ScheduleFailed => return None,
+
+            // Outcomes for sampled envelopes are emitted during envelope sampling
+            BadStoreRequest::TraceSampled(_) => return None,
 
             // should actually never create an outcome
             BadStoreRequest::InvalidEventId => Outcome::Invalid(DiscardReason::Internal),
@@ -160,10 +167,10 @@ impl ResponseError for BadStoreRequest {
                     // more likely that the error is local to this project.
                     HttpResponse::InternalServerError().json(&body)
                 }
-                ProjectError::ScheduleFailed(_) => HttpResponse::ServiceUnavailable().json(&body),
+                ProjectError::ScheduleFailed => HttpResponse::ServiceUnavailable().json(&body),
             },
 
-            BadStoreRequest::ScheduleFailed(_) | BadStoreRequest::QueueFailed(_) => {
+            BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed(_) => {
                 // These errors indicate that something's wrong with our actor system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
@@ -394,7 +401,6 @@ where
     );
 
     let project_key = meta.public_key();
-    let remote_addr = meta.client_addr();
     let start_time = meta.start_time();
     let project_id = meta.project_id().unwrap_or_else(|| ProjectId::new(0));
 
@@ -402,13 +408,17 @@ where
     let processing_enabled = config.processing_enabled();
     let is_internal = config.processing_internal_projects().contains(&project_id);
 
-    let scoping = Rc::new(RefCell::new(meta.get_partial_scoping()));
-    let event_id = Rc::new(RefCell::new(None));
-    let envelope_summary = Rc::new(RefCell::new(EnvelopeSummary::empty()));
+    let envelope_context = Rc::new(RefCell::new(EnvelopeContext::new(
+        EnvelopeSummary::empty(),
+        relay_common::instant_to_date_time(start_time),
+        None,
+        meta.client_addr(),
+        meta.get_partial_scoping(),
+    )));
 
     let future = extract_envelope(&request, meta)
         .into_future()
-        .and_then(clone!(event_id, envelope_summary, |envelope| {
+        .and_then(clone!(envelope_context, |envelope| {
             let summary = EnvelopeSummary::compute(&envelope);
 
             if is_internal && summary.event_category == Some(DataCategory::Transaction) {
@@ -418,61 +428,112 @@ where
                 );
             }
 
-            event_id.replace(envelope.event_id());
-            envelope_summary.replace(summary);
+            envelope_context
+                .borrow_mut()
+                .set_event_id(envelope.event_id())
+                .set_envelope_summary(summary);
 
             if envelope.is_empty() {
+                if let Some(outcome) = BadStoreRequest::EmptyEnvelope.to_outcome() {
+                    envelope_context.borrow().send_outcomes(outcome)
+                }
                 Err(BadStoreRequest::EmptyEnvelope)
             } else {
                 Ok(envelope)
             }
         }))
-        .and_then(move |envelope| {
+        .and_then(clone!(envelope_context, |envelope| {
             ProjectCache::from_registry()
-                .send(CheckEnvelope::cached(project_key, envelope))
-                .map_err(BadStoreRequest::ScheduleFailed)
+                .send_with_outcome_error(
+                    CheckEnvelope::cached(project_key, envelope),
+                    *envelope_context.clone().borrow(),
+                )
+                .map_err(|_| BadStoreRequest::ScheduleFailed)
                 .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
-        })
-        .and_then(clone!(scoping, envelope_summary, |response| {
-            scoping.replace(response.scoping);
-
-            let checked = response.result.map_err(BadStoreRequest::EventRejected)?;
-
-            // Skip over queuing and issue a rate limit right away
-            let envelope = match checked.envelope {
-                Some(envelope) => envelope,
-                None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
-            };
-
-            envelope_summary.replace(EnvelopeSummary::compute(&envelope));
-            if check_envelope_size_limits(&config, &envelope) {
-                Ok((envelope, checked.rate_limits))
-            } else {
-                Err(BadStoreRequest::PayloadError(StorePayloadError::Overflow))
-            }
+                .map_err(move |err| {
+                    if let Some(outcome) = err.to_outcome() {
+                        envelope_context.borrow().send_outcomes(outcome);
+                    }
+                    err
+                })
         }))
-        .and_then(move |(envelope, rate_limits)| {
+        .and_then(clone!(envelope_context, |response| {
+            envelope_context.borrow_mut().set_scoping(response.scoping);
+
+            response
+                .result
+                .map_err(BadStoreRequest::EventRejected)
+                .and_then(|checked| {
+                    // Skip over queuing and issue a rate limit right away
+                    let envelope = match checked.envelope {
+                        Some(envelope) => envelope,
+                        None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
+                    };
+
+                    envelope_context
+                        .borrow_mut()
+                        .set_envelope_summary(EnvelopeSummary::compute(&envelope));
+                    if check_envelope_size_limits(&config, &envelope) {
+                        Ok((envelope, checked.rate_limits))
+                    } else {
+                        Err(BadStoreRequest::PayloadError(StorePayloadError::Overflow))
+                    }
+                })
+                .map_err(move |err| {
+                    if let Some(outcome) = err.to_outcome() {
+                        envelope_context.borrow().send_outcomes(outcome)
+                    }
+                    err
+                })
+        }))
+        .and_then(clone!(envelope_context, |(envelope, rate_limits)| {
             let sampling_project_key = envelope.trace_context().map(|tc| tc.public_key);
 
-            utils::sample_trace(envelope, sampling_project_key, true, processing_enabled).then(
-                move |result| match result {
-                    Err(rule_id) => Err(BadStoreRequest::TraceSampled(rule_id)),
-                    Ok(envelope) => Ok((envelope, rate_limits, sampling_project_key)),
-                },
+            utils::sample_trace(
+                envelope,
+                sampling_project_key,
+                true,
+                processing_enabled,
+                *envelope_context.borrow(),
             )
-        })
-        .and_then(move |(envelope, rate_limits, sampling_project_key)| {
+            .then(clone!(envelope_context, |result| match result {
+                Err(rule_id) => Err(BadStoreRequest::TraceSampled(rule_id)),
+                Ok(envelope) => {
+                    // sample_trace may drop part of the envelope, recalculate summary.
+                    let summary = EnvelopeSummary::compute(&envelope);
+                    envelope_context
+                        .borrow_mut()
+                        .set_event_id(envelope.event_id())
+                        .set_envelope_summary(summary);
+                    Ok((envelope, rate_limits, sampling_project_key))
+                }
+            }))
+        }))
+        .and_then(clone!(envelope_context, |(
+            envelope,
+            rate_limits,
+            sampling_project_key,
+        )| {
             EnvelopeManager::from_registry()
-                .send(QueueEnvelope {
-                    envelope,
-                    project_key,
-                    sampling_project_key,
-                    start_time,
-                })
-                .map_err(BadStoreRequest::ScheduleFailed)
+                .send_with_outcome_error(
+                    QueueEnvelope {
+                        envelope,
+                        project_key,
+                        sampling_project_key,
+                        start_time,
+                    },
+                    *envelope_context.clone().borrow(),
+                )
+                .map_err(|_| BadStoreRequest::ScheduleFailed)
                 .and_then(|result| result.map_err(BadStoreRequest::QueueFailed))
+                .map_err(move |err| {
+                    if let Some(outcome) = err.to_outcome() {
+                        envelope_context.borrow().send_outcomes(outcome)
+                    }
+                    err
+                })
                 .map(move |event_id| (event_id, rate_limits))
-        })
+        }))
         .and_then(move |(event_id, rate_limits)| {
             if rate_limits.is_limited() {
                 Err(BadStoreRequest::RateLimited(rate_limits))
@@ -482,42 +543,14 @@ where
         })
         .or_else(move |error: BadStoreRequest| {
             metric!(counter(RelayCounters::EnvelopeRejected) += 1);
-
-            let envelope_summary = envelope_summary.borrow();
-            if let Some(outcome) = error.to_outcome() {
-                let outcome_producer = OutcomeProducer::from_registry();
-                let timestamp = relay_common::instant_to_date_time(start_time);
-                if let Some(category) = envelope_summary.event_category {
-                    outcome_producer.do_send(TrackOutcome {
-                        timestamp,
-                        scoping: *scoping.borrow(),
-                        outcome: outcome.clone(),
-                        event_id: *event_id.borrow(),
-                        remote_addr,
-                        category,
-                        quantity: 1,
-                    });
-                }
-
-                if envelope_summary.attachment_quantity > 0 {
-                    outcome_producer.do_send(TrackOutcome {
-                        timestamp,
-                        scoping: *scoping.borrow(),
-                        outcome,
-                        event_id: *event_id.borrow(),
-                        remote_addr,
-                        category: DataCategory::Attachment,
-                        quantity: envelope_summary.attachment_quantity,
-                    });
-                }
-            }
+            let event_id = envelope_context.borrow().event_id();
 
             if !emit_rate_limit && matches!(error, BadStoreRequest::RateLimited(_)) {
-                return Ok(create_response(*event_id.borrow()));
+                return Ok(create_response(event_id));
             }
 
             if matches!(error, BadStoreRequest::TraceSampled(_)) {
-                return Ok(create_response(*event_id.borrow()));
+                return Ok(create_response(event_id));
             }
 
             let response = error.error_response();

@@ -10,10 +10,6 @@
 
 ## 21.6.2
 
-**Internal**:
-
-- All fields in breakdown config should be camelCase, and rename the breakdown key name in project options. ([#1020](https://github.com/getsentry/relay/pull/1020))
-
 **Bug Fixes**:
 
 - Remove connection metrics reported under `connector.*`. They have been fully disabled since version `21.3.0`. ([#1021](https://github.com/getsentry/relay/pull/1021))
@@ -22,6 +18,7 @@
 **Internal**:
 
 - Assign a random Kafka partition key for session aggregates and metrics to distribute messages evenly. ([#1022](https://github.com/getsentry/relay/pull/1022))
+- All fields in breakdown config should be camelCase, and rename the breakdown key name in project options. ([#1020](https://github.com/getsentry/relay/pull/1020))
 
 ## 21.6.1
 

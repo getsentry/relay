@@ -27,7 +27,7 @@ pub enum KeyError {
     FetchFailed,
 
     #[fail(display = "could not schedule key fetching")]
-    ScheduleFailed(#[cause] MailboxError),
+    ScheduleFailed,
 }
 
 impl ResponseError for KeyError {
@@ -153,7 +153,7 @@ impl RelayCache {
 
         UpstreamRelay::from_registry()
             .send(SendQuery(request))
-            .map_err(KeyError::ScheduleFailed)
+            .map_err(|_| KeyError::ScheduleFailed)
             .into_actor(self)
             .and_then(|response, slf, ctx| {
                 match response {

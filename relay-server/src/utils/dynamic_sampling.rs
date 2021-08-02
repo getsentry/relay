@@ -11,6 +11,8 @@ use relay_sampling::{
     get_matching_event_rule, pseudo_random_from_uuid, rule_type_for_event, RuleId, SamplingResult,
 };
 
+use crate::actors::envelopes::EnvelopeContext;
+use crate::actors::outcome::Outcome::FilteredSampling;
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
 use crate::envelope::{Envelope, ItemType};
@@ -120,11 +122,13 @@ fn sample_transaction_internal(
 ///
 /// Returns `Ok` if there are remaining items in the envelope. Returns `Err` with the matching rule
 /// identifier if all elements have been removed.
+#[allow(clippy::too_many_arguments)]
 pub fn sample_trace(
     envelope: Envelope,
     project_key: Option<ProjectKey>,
     fast_processing: bool,
     processing_enabled: bool,
+    envelope_context: EnvelopeContext,
 ) -> ResponseFuture<Envelope, RuleId> {
     let project_key = match project_key {
         None => return Box::new(future::ok(envelope)),
@@ -137,8 +141,9 @@ pub fn sample_trace(
     if trace_context.is_none() || transaction_item.is_none() {
         return Box::new(future::ok(envelope));
     }
+
     //we have a trace_context and we have a transaction_item see if we can sample them
-    if fast_processing {
+    let future = if fast_processing {
         let future = ProjectCache::from_registry()
             .send(GetCachedProjectState::new(project_key))
             .then(move |project_state| {
@@ -149,7 +154,7 @@ pub fn sample_trace(
                 };
                 sample_transaction_internal(envelope, project_state.as_deref(), processing_enabled)
             });
-        Box::new(future)
+        Box::new(future) as ResponseFuture<_, _>
     } else {
         let future = ProjectCache::from_registry()
             .send(GetProjectState::new(project_key))
@@ -166,7 +171,13 @@ pub fn sample_trace(
                 )
             });
         Box::new(future)
-    }
+    };
+
+    Box::new(future.map_err(move |err| {
+        // if the envelope is sampled, send outcomes
+        envelope_context.send_outcomes(FilteredSampling(err));
+        err
+    }))
 }
 
 #[cfg(test)]
