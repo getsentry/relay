@@ -1073,15 +1073,6 @@ impl EnvelopeProcessor {
     ///  4. A multipart form data body.
     ///  5. If none match, `Annotated::empty()`.
     fn extract_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        self.extract_event_internal(state).map_err(|err| {
-            relay_log::trace!("hello");
-            err
-        })
-    }
-    fn extract_event_internal(
-        &self,
-        state: &mut ProcessEnvelopeState,
-    ) -> Result<(), ProcessingError> {
         let envelope = &mut state.envelope;
 
         // Remove all items first, and then process them. After this function returns, only
@@ -1749,6 +1740,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
 /// Error returned from [`EnvelopeManager::send_envelope`].
 #[derive(Debug)]
 enum SendEnvelopeError {
+    #[cfg(feature = "processing")]
     ScheduleFailed,
     #[cfg(feature = "processing")]
     StoreFailed(StoreError),
@@ -2264,46 +2256,84 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     envelope_context.borrow().scoping(),
                     start_time,
                 )
-                .then(clone!(envelope_context, |result| {
-                    let received = match result {
-                        Ok(_) => true,
-                        Err(SendEnvelopeError::RateLimited(_)) => true,
-                        Err(SendEnvelopeError::SendFailed(ref e)) => e.is_received(),
-                        Err(_) => false,
-                    };
-
-                    result.map_err(|error| {
-                        let error = match error {
-                            SendEnvelopeError::ScheduleFailed => ProcessingError::ScheduleFailed,
-
-                            #[cfg(feature = "processing")]
-                            SendEnvelopeError::StoreFailed(e) => ProcessingError::StoreFailed(e),
-                            // do not emit outcomes
-                            SendEnvelopeError::SendFailed(e) => {
-                                return ProcessingError::SendFailed(e)
-                            }
-                            // do not emit outcomes
-                            SendEnvelopeError::RateLimited(e) => {
-                                return ProcessingError::RateLimited(e)
-                            }
-                        };
-                        if !received {
-                            match error {
-                                //Special handling of ScheduledFailed since we can't
-                                // use send_with_outcome_errors in send_envelope
-                                ProcessingError::ScheduleFailed => envelope_context
-                                    .borrow()
-                                    .send_outcomes(Outcome::Invalid(DiscardReason::Internal)),
-                                _ => {
-                                    if let Some(outcome) = error.to_outcome() {
-                                        envelope_context.borrow().send_outcomes(outcome);
+                .then({
+                    #[cfg(not(feature = "processing"))]
+                    {
+                        move |result| {
+                            result.map_err(|error| {
+                                match error {
+                                    // do not emit outcomes
+                                    SendEnvelopeError::SendFailed(e) => {
+                                        ProcessingError::SendFailed(e)
+                                    }
+                                    // do not emit outcomes
+                                    SendEnvelopeError::RateLimited(e) => {
+                                        ProcessingError::RateLimited(e)
                                     }
                                 }
-                            }
+                            })
                         }
-                        error
-                    })
-                }))
+                    }
+                    #[cfg(feature = "processing")]
+                    {
+                        let envelope_context = envelope_context.clone();
+                        move |result| {
+                            let received = match result {
+                                Ok(_) => true,
+                                Err(SendEnvelopeError::RateLimited(_)) => true,
+                                Err(SendEnvelopeError::SendFailed(ref e)) => e.is_received(),
+                                #[cfg(feature = "processing")]
+                                Err(SendEnvelopeError::ScheduleFailed) => false,
+                                #[cfg(feature = "processing")]
+                                Err(SendEnvelopeError::StoreFailed(_)) => false,
+                            };
+
+                            result.map_err(|error| {
+                                let error: ProcessingError = match error {
+                                    #[cfg(feature = "processing")]
+                                    SendEnvelopeError::ScheduleFailed => {
+                                        ProcessingError::ScheduleFailed
+                                    }
+
+                                    #[cfg(feature = "processing")]
+                                    SendEnvelopeError::StoreFailed(e) => {
+                                        ProcessingError::StoreFailed(e)
+                                    }
+                                    // do not emit outcomes
+                                    SendEnvelopeError::SendFailed(e) => {
+                                        return ProcessingError::SendFailed(e)
+                                    }
+                                    // do not emit outcomes
+                                    SendEnvelopeError::RateLimited(e) => {
+                                        return ProcessingError::RateLimited(e)
+                                    }
+                                };
+                                {
+                                    if !received {
+                                        match error {
+                                            //Special handling of ScheduledFailed since we can't
+                                            // use send_with_outcome_errors in send_envelope
+                                            #[cfg(feature = "processing")]
+                                            ProcessingError::ScheduleFailed => {
+                                                envelope_context.borrow().send_outcomes(
+                                                    Outcome::Invalid(DiscardReason::Internal),
+                                                )
+                                            }
+                                            _ => {
+                                                if let Some(outcome) = error.to_outcome() {
+                                                    envelope_context
+                                                        .borrow()
+                                                        .send_outcomes(outcome);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    error
+                                }
+                            })
+                        }
+                    }
+                })
                 .into_actor(slf)
             }))
             .timeout(
