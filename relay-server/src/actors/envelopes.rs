@@ -2276,8 +2276,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     }
                     #[cfg(feature = "processing")]
                     {
-                        let envelope_context = envelope_context.clone();
-                        move |result| {
+                        clone!(envelope_context, |result| {
                             let received = match result {
                                 Ok(_) => true,
                                 Err(SendEnvelopeError::RateLimited(_)) => true,
@@ -2331,7 +2330,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                                     error
                                 }
                             })
-                        }
+                        })
                     }
                 })
                 .into_actor(slf)
