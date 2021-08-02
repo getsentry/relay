@@ -297,15 +297,15 @@ fn apply_regex_to_chunks<'a>(
                                 &mut rv,
                                 &mut replacement_chunks,
                             );
-                            insert_replacement_chunks(&rule, g.as_str(), &mut rv);
+                            insert_replacement_chunks(rule, g.as_str(), &mut rv);
                             pos = g.end();
                         }
                     }
                 }
             }
             ReplaceBehavior::Value => {
-                process_text(&"", &mut rv, &mut replacement_chunks);
-                insert_replacement_chunks(&rule, &search_string, &mut rv);
+                process_text("", &mut rv, &mut replacement_chunks);
+                insert_replacement_chunks(rule, &search_string, &mut rv);
                 pos = search_string.len();
                 break;
             }

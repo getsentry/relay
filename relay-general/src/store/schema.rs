@@ -12,9 +12,9 @@ impl Processor for SchemaProcessor {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        value_trim_whitespace(value, meta, &state);
-        verify_value_nonempty(value, meta, &state)?;
-        verify_value_characters(value, meta, &state)?;
+        value_trim_whitespace(value, meta, state);
+        verify_value_nonempty(value, meta, state)?;
+        verify_value_characters(value, meta, state)?;
         Ok(())
     }
 

@@ -10,7 +10,7 @@ pub fn derive_empty(mut s: synstructure::Structure<'_>) -> TokenStream {
         let mut is_tuple_struct = false;
         let mut cond = quote!(true);
         for (index, bi) in variant.bindings().iter().enumerate() {
-            let field_attrs = parse_field_attributes(index, &bi.ast(), &mut is_tuple_struct);
+            let field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct);
             let ident = &bi.binding;
             if field_attrs.additional_properties {
                 cond = quote! {
@@ -37,7 +37,7 @@ pub fn derive_empty(mut s: synstructure::Structure<'_>) -> TokenStream {
         let mut cond = quote!(true);
         let mut is_tuple_struct = false;
         for (index, bi) in variant.bindings().iter().enumerate() {
-            let field_attrs = parse_field_attributes(index, &bi.ast(), &mut is_tuple_struct);
+            let field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct);
             let ident = &bi.binding;
             let skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
 

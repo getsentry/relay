@@ -121,7 +121,7 @@ impl ServiceState {
 
         let redis_pool = match config.redis() {
             Some(redis_config) if config.processing_enabled() => {
-                Some(RedisPool::new(&redis_config).context(ServerErrorKind::RedisError)?)
+                Some(RedisPool::new(redis_config).context(ServerErrorKind::RedisError)?)
             }
             _ => None,
         };

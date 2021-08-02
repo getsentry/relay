@@ -23,10 +23,10 @@ pub fn execute() -> Result<(), Error> {
     // Commands that do not need to load the config:
     if let Some(matches) = matches.subcommand_matches("config") {
         if let Some(matches) = matches.subcommand_matches("init") {
-            return init_config(&config_path, &matches);
+            return init_config(&config_path, matches);
         }
     } else if let Some(matches) = matches.subcommand_matches("generate-completions") {
-        return generate_completions(&matches);
+        return generate_completions(matches);
     }
 
     // Commands that need a loaded config:
@@ -37,14 +37,14 @@ pub fn execute() -> Result<(), Error> {
 
     relay_log::init(config.logging(), config.sentry());
     if let Some(matches) = matches.subcommand_matches("config") {
-        manage_config(&config, &matches)
+        manage_config(&config, matches)
     } else if let Some(matches) = matches.subcommand_matches("credentials") {
-        manage_credentials(config, &matches)
+        manage_credentials(config, matches)
     } else if let Some(matches) = matches.subcommand_matches("run") {
         // override config with run command args
         let arg_config = extract_config_args(matches);
         config.apply_override(arg_config)?;
-        run(config, &matches)
+        run(config, matches)
     } else {
         unreachable!();
     }
@@ -201,7 +201,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
 
 pub fn manage_config<'a>(config: &Config, matches: &ArgMatches<'a>) -> Result<(), Error> {
     if let Some(matches) = matches.subcommand_matches("init") {
-        init_config(config.path(), &matches)
+        init_config(config.path(), matches)
     } else if let Some(matches) = matches.subcommand_matches("show") {
         match matches.value_of("format").unwrap() {
             "debug" => println!("{:#?}", &config),

@@ -53,7 +53,7 @@ pub struct ItemScoping<'a> {
 
 impl AsRef<Scoping> for ItemScoping<'_> {
     fn as_ref(&self) -> &Scoping {
-        &self.scoping
+        self.scoping
     }
 }
 
@@ -61,7 +61,7 @@ impl std::ops::Deref for ItemScoping<'_> {
     type Target = Scoping;
 
     fn deref(&self) -> &Self::Target {
-        &self.scoping
+        self.scoping
     }
 }
 

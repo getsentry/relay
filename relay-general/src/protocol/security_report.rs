@@ -360,7 +360,7 @@ impl CspRaw {
         // Now we need to stitch on a scheme to the value, but let's not stitch on the boring
         // values.
         let original_uri = match self.document_uri {
-            Some(ref u) => &u,
+            Some(ref u) => u,
             None => "",
         };
 

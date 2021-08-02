@@ -94,7 +94,7 @@ impl Serialize for LegacyBrowser {
             LegacyBrowser::OperaMiniPre8 => "opera_mini_pre_8",
             LegacyBrowser::AndroidPre4 => "android_pre_4",
             LegacyBrowser::SafariPre6 => "safari_pre_6",
-            LegacyBrowser::Unknown(string) => &string,
+            LegacyBrowser::Unknown(string) => string,
         })
     }
 }

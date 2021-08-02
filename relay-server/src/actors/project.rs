@@ -30,17 +30,17 @@ use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
 use crate::utils::{EnvelopeLimiter, Response};
 
-/// The current status of a project state. Return value of `ProjectState::outdated`.
+/// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum Outdated {
+pub enum Expiry {
     /// The project state is perfectly up to date.
     Updated,
     /// The project state is outdated but events depending on this project state can still be
     /// processed. The state should be refreshed in the background though.
-    SoftOutdated,
+    Stale,
     /// The project state is completely outdated and events need to be buffered up until the new
     /// state has been fetched.
-    HardOutdated,
+    Expired,
 }
 
 /// Features exposed by project config
@@ -223,7 +223,7 @@ impl ProjectState {
     }
 
     /// Returns whether this state is outdated and needs to be refetched.
-    pub fn outdated(&self, config: &Config) -> Outdated {
+    pub fn check_expiry(&self, config: &Config) -> Expiry {
         let expiry = match self.project_id {
             None => config.cache_miss_expiry(),
             Some(_) => config.project_cache_expiry(),
@@ -231,11 +231,11 @@ impl ProjectState {
 
         let elapsed = self.last_fetch.elapsed();
         if elapsed >= expiry + config.project_grace_period() {
-            Outdated::HardOutdated
+            Expiry::Expired
         } else if elapsed >= expiry {
-            Outdated::SoftOutdated
+            Expiry::Stale
         } else {
-            Outdated::Updated
+            Expiry::Updated
         }
     }
 
@@ -345,7 +345,7 @@ impl ProjectState {
     pub fn check_disabled(&self, config: &Config) -> Result<(), DiscardReason> {
         // if the state is out of date, we proceed as if it was still up to date. The
         // upstream relay (or sentry) will still filter events.
-        if self.outdated(config) == Outdated::HardOutdated {
+        if self.check_expiry(config) == Expiry::Expired {
             return Ok(());
         }
 
@@ -598,22 +598,22 @@ impl Project {
         }
 
         let state = self.state.as_ref();
-        let outdated = state
-            .map(|s| s.outdated(&self.config))
-            .unwrap_or(Outdated::HardOutdated);
+        let expiry = state
+            .map(|s| s.check_expiry(&self.config))
+            .unwrap_or(Expiry::Expired);
 
-        let cached_state = match (state, outdated) {
+        let cached_state = match (state, expiry) {
             // Never use the cached state if `no_cache` is set.
             _ if no_cache => None,
 
             // There is no project state that can be used, fetch a state and return it.
-            (None, _) | (_, Outdated::HardOutdated) => None,
+            (None, _) | (_, Expiry::Expired) => None,
 
             // The project is semi-outdated, fetch new state but return old one.
-            (Some(state), Outdated::SoftOutdated) => Some(state.clone()),
+            (Some(state), Expiry::Stale) => Some(state.clone()),
 
             // The project is not outdated, return early here to jump over fetching logic below.
-            (Some(state), Outdated::Updated) => return Response::ok(state.clone()),
+            (Some(state), Expiry::Updated) => return Response::ok(state.clone()),
         };
 
         let receiver = match self.state_channel {

@@ -56,7 +56,7 @@ impl<S> Middleware<S> for Metrics {
         );
         metric!(
             counter(RelayCounters::ResponsesStatusCodes) += 1,
-            status_code = &resp.status().as_str(),
+            status_code = resp.status().as_str(),
             route = req.resource().name(),
             method = req.method().as_str()
         );
@@ -204,7 +204,7 @@ impl<S: 'static> Middleware<S> for SentryMiddleware {
                     let with_pii = client
                         .as_ref()
                         .map_or(false, |x| x.options().send_default_pii);
-                    *cached_data = Some(extract_request(&req.get(), with_pii));
+                    *cached_data = Some(extract_request(req.get(), with_pii));
                 }
 
                 if let Some((ref transaction, ref req)) = *cached_data {

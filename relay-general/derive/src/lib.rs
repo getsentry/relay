@@ -69,7 +69,7 @@ fn derive_newtype_metastructure(
 
     let _process_func_call_tokens = type_attrs.process_func_call_tokens();
 
-    let field_attrs = parse_field_attributes(0, &s.variants()[0].bindings()[0].ast(), &mut true);
+    let field_attrs = parse_field_attributes(0, s.variants()[0].bindings()[0].ast(), &mut true);
     let skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
     let _field_attrs_tokens = field_attrs.as_tokens(Some(quote!(parent_attrs)));
 
@@ -140,7 +140,7 @@ fn derive_enum_metastructure(
     let mut extract_child_meta_body = TokenStream::new();
 
     for variant in s.variants() {
-        let variant_attrs = parse_variant_attributes(&variant.ast().attrs);
+        let variant_attrs = parse_variant_attributes(variant.ast().attrs);
         let variant_name = &variant.ast().ident;
         let tag = variant_attrs
             .tag_override
@@ -294,7 +294,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
     let mut is_tuple_struct = false;
 
     for (index, bi) in variant.bindings().iter().enumerate() {
-        let field_attrs = parse_field_attributes(index, &bi.ast(), &mut is_tuple_struct);
+        let field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct);
         let field_name = field_attrs.field_name.clone();
 
         let skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
@@ -346,7 +346,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 .to_tokens(&mut from_value_body);
 
                 for legacy_alias in &field_attrs.legacy_aliases {
-                    let legacy_field_name = LitStr::new(&legacy_alias, Span::call_site());
+                    let legacy_field_name = LitStr::new(legacy_alias, Span::call_site());
                     (quote! {
                         let #bi = #bi.or(__obj.remove(#legacy_field_name));
                     })
@@ -554,7 +554,7 @@ struct TypeAttrs {
 impl TypeAttrs {
     fn process_func_call_tokens(&self) -> TokenStream {
         if let Some(ref func_name) = self.process_func {
-            let func_name = Ident::new(&func_name, Span::call_site());
+            let func_name = Ident::new(func_name, Span::call_site());
             quote! {
                 __processor.#func_name(self, __meta, __state)?;
             }

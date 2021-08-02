@@ -775,7 +775,7 @@ impl EnvelopeProcessor {
         if let Err(json_error) = apply_result {
             // logged in extract_event
             relay_log::configure_scope(|scope| {
-                scope.set_extra("payload", String::from_utf8_lossy(&data).into());
+                scope.set_extra("payload", String::from_utf8_lossy(data).into());
             });
 
             return Err(ProcessingError::InvalidSecurityReport(json_error));

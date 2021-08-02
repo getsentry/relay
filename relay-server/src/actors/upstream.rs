@@ -492,7 +492,7 @@ impl UpstreamRelay {
         builder.header("Host", host_header.as_bytes());
 
         if request.request.set_relay_id() {
-            if let Some(ref credentials) = self.config.credentials() {
+            if let Some(credentials) = self.config.credentials() {
                 builder.header("X-Sentry-Relay-Id", credentials.id.to_string().as_bytes());
             }
         }
