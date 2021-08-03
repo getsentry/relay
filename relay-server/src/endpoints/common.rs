@@ -120,22 +120,18 @@ impl BadStoreRequest {
                 ProjectError::FetchFailed => Outcome::Invalid(DiscardReason::ProjectState),
                 _ => Outcome::Invalid(DiscardReason::Internal),
             },
-            BadStoreRequest::EventRejected(reason) => Outcome::Invalid(*reason),
             BadStoreRequest::PayloadError(payload_error) => {
                 Outcome::Invalid(payload_error.discard_reason())
             }
 
-            // Handled by send_with_outcome
-            BadStoreRequest::ScheduleFailed => return None,
-
-            // Outcomes for sampled envelopes are emitted during envelope sampling
-            BadStoreRequest::TraceSampled(_) => return None,
-
             // should actually never create an outcome
             BadStoreRequest::InvalidEventId => Outcome::Invalid(DiscardReason::Internal),
 
-            // Rate limiting outcomes are emitted at the source.
+            // Outcomes emitted at the source
+            BadStoreRequest::EventRejected(_) => return None,
             BadStoreRequest::RateLimited(_) => return None,
+            BadStoreRequest::ScheduleFailed => return None,
+            BadStoreRequest::TraceSampled(_) => return None,
         })
     }
 }
@@ -408,13 +404,7 @@ where
     let processing_enabled = config.processing_enabled();
     let is_internal = config.processing_internal_projects().contains(&project_id);
 
-    let envelope_context = Rc::new(RefCell::new(EnvelopeContext::new(
-        EnvelopeSummary::empty(),
-        relay_common::instant_to_date_time(start_time),
-        None,
-        meta.client_addr(),
-        meta.get_partial_scoping(),
-    )));
+    let envelope_context = Rc::new(RefCell::new(EnvelopeContext::from_request(&meta)));
 
     let future = extract_envelope(&request, meta)
         .into_future()
@@ -428,15 +418,9 @@ where
                 );
             }
 
-            envelope_context
-                .borrow_mut()
-                .set_event_id(envelope.event_id())
-                .set_envelope_summary(summary);
-
+            envelope_context.borrow_mut().update(&envelope);
             if envelope.is_empty() {
-                if let Some(outcome) = BadStoreRequest::EmptyEnvelope.to_outcome() {
-                    envelope_context.borrow().send_outcomes(outcome)
-                }
+                // envelope is empty, cannot send outcomes
                 Err(BadStoreRequest::EmptyEnvelope)
             } else {
                 Ok(envelope)
@@ -444,7 +428,7 @@ where
         }))
         .and_then(clone!(envelope_context, |envelope| {
             ProjectCache::from_registry()
-                .send_with_outcome_error(
+                .send_tracked(
                     CheckEnvelope::cached(project_key, envelope),
                     *envelope_context.clone().borrow(),
                 )
@@ -458,33 +442,28 @@ where
                 })
         }))
         .and_then(clone!(envelope_context, |response| {
-            envelope_context.borrow_mut().set_scoping(response.scoping);
+            let mut envelope_context = envelope_context.borrow_mut();
+            envelope_context.scope(response.scoping);
 
-            response
-                .result
-                .map_err(BadStoreRequest::EventRejected)
-                .and_then(|checked| {
-                    // Skip over queuing and issue a rate limit right away
-                    let envelope = match checked.envelope {
-                        Some(envelope) => envelope,
-                        None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
-                    };
+            let checked = response.result.map_err(|reason| {
+                envelope_context.send_outcomes(Outcome::Invalid(reason));
+                BadStoreRequest::EventRejected(reason)
+            })?;
 
-                    envelope_context
-                        .borrow_mut()
-                        .set_envelope_summary(EnvelopeSummary::compute(&envelope));
-                    if check_envelope_size_limits(&config, &envelope) {
-                        Ok((envelope, checked.rate_limits))
-                    } else {
-                        Err(BadStoreRequest::PayloadError(StorePayloadError::Overflow))
-                    }
-                })
-                .map_err(move |err| {
-                    if let Some(outcome) = err.to_outcome() {
-                        envelope_context.borrow().send_outcomes(outcome)
-                    }
-                    err
-                })
+            // Skip over queuing and issue a rate limit right away
+            let envelope = match checked.envelope {
+                Some(envelope) => envelope,
+                // rate limit outcome logged by CheckEnvelope already
+                None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
+            };
+
+            envelope_context.update(&envelope);
+            if check_envelope_size_limits(&config, &envelope) {
+                Ok((envelope, checked.rate_limits))
+            } else {
+                envelope_context.send_outcomes(Outcome::Invalid(DiscardReason::TooLarge));
+                Err(BadStoreRequest::PayloadError(StorePayloadError::Overflow))
+            }
         }))
         .and_then(clone!(envelope_context, |(envelope, rate_limits)| {
             let sampling_project_key = envelope.trace_context().map(|tc| tc.public_key);
@@ -499,12 +478,7 @@ where
             .then(clone!(envelope_context, |result| match result {
                 Err(rule_id) => Err(BadStoreRequest::TraceSampled(rule_id)),
                 Ok(envelope) => {
-                    // sample_trace may drop part of the envelope, recalculate summary.
-                    let summary = EnvelopeSummary::compute(&envelope);
-                    envelope_context
-                        .borrow_mut()
-                        .set_event_id(envelope.event_id())
-                        .set_envelope_summary(summary);
+                    envelope_context.borrow_mut().update(&envelope);
                     Ok((envelope, rate_limits, sampling_project_key))
                 }
             }))
@@ -514,20 +488,20 @@ where
             rate_limits,
             sampling_project_key,
         )| {
+            let message = QueueEnvelope {
+                envelope,
+                project_key,
+                sampling_project_key,
+                start_time,
+            };
+
             EnvelopeManager::from_registry()
-                .send_with_outcome_error(
-                    QueueEnvelope {
-                        envelope,
-                        project_key,
-                        sampling_project_key,
-                        start_time,
-                    },
-                    *envelope_context.clone().borrow(),
-                )
+                .send_tracked(message, *envelope_context.clone().borrow())
                 .map_err(|_| BadStoreRequest::ScheduleFailed)
                 .and_then(|result| result.map_err(BadStoreRequest::QueueFailed))
                 .map_err(move |err| {
                     if let Some(outcome) = err.to_outcome() {
+                        // TODO: Move this into Handler<QueueEnvelope>
                         envelope_context.borrow().send_outcomes(outcome)
                     }
                     err

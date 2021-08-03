@@ -97,7 +97,6 @@ impl UpstreamRequestError {
     /// Despite resulting in an error, the server has received and acknowledged the request. This
     /// includes rate limits (status code 429), and bad payloads (4XX), but not network errors
     /// (502-504).
-    #[cfg(feature = "processing")]
     pub fn is_received(&self) -> bool {
         match self {
             // Rate limits are a special case of `ResponseError(429, _)`.

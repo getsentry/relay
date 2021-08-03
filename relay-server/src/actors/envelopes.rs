@@ -151,7 +151,6 @@ impl ProcessingError {
             Self::PayloadTooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge)),
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
-            Self::Rejected(reason) => Some(Outcome::Invalid(reason)),
             Self::InvalidSecurityType => Some(Outcome::Invalid(DiscardReason::SecurityReportType)),
             Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
@@ -169,21 +168,18 @@ impl ProcessingError {
             | Self::ProcessingFailed(_)
             | Self::MissingProjectId => Some(Outcome::Invalid(DiscardReason::Internal)),
             #[cfg(feature = "processing")]
-            Self::StoreFailed(_) | Self::QuotasFailed(_) => {
-                Some(Outcome::Invalid(DiscardReason::Internal))
-            }
+            Self::QuotasFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
 
-            // Handled locally
+            // These outcomes are emitted at the source.
             Self::ScheduleFailed => None,
-
+            Self::Rejected(_) => None,
             #[cfg(feature = "processing")]
-            Self::EventFiltered(_filter_stat_key) => None,
-            // Trace sampled outcomes are handled in sample_trace
+            Self::EventFiltered(_) => None,
             Self::TraceSampled(_) => None,
-            Self::EventSampled(_rule_id) => None,
-
-            // Rate limiting outcomes are emitted at the source.
+            Self::EventSampled(_) => None,
             Self::RateLimited(_) => None,
+            #[cfg(feature = "processing")]
+            Self::StoreFailed(_) => None,
 
             // If we send to an upstream, we don't emit outcomes.
             Self::SendFailed(_) => None,
@@ -191,61 +187,73 @@ impl ProcessingError {
     }
 }
 
-/// Contains the required envelope related information to create an outcome
+/// Contains the required envelope related information to create an outcome.
 #[derive(Clone, Copy, Debug)]
 pub struct EnvelopeContext {
-    envelope_summary: EnvelopeSummary,
-    timestamp: DateTime<Utc>,
+    summary: EnvelopeSummary,
+    received_at: DateTime<Utc>,
     event_id: Option<EventId>,
     remote_addr: Option<net::IpAddr>,
     scoping: Scoping,
 }
 
 impl EnvelopeContext {
-    pub fn new(
-        envelope_summary: EnvelopeSummary,
-        timestamp: DateTime<Utc>,
-        event_id: Option<EventId>,
-        remote_addr: Option<net::IpAddr>,
-        scoping: Scoping,
-    ) -> Self {
-        EnvelopeContext {
-            envelope_summary,
-            timestamp,
-            event_id,
-            remote_addr,
-            scoping,
+    /// Creates an envelope context from the given request meta data.
+    ///
+    /// This context contains partial scoping and no envelope summary. There will be no outcomes
+    /// logged without updating this context.
+    pub fn from_request(meta: &RequestMeta) -> Self {
+        Self {
+            summary: EnvelopeSummary::empty(),
+            received_at: relay_common::instant_to_date_time(meta.start_time()),
+            event_id: None,
+            remote_addr: meta.client_addr(),
+            scoping: meta.get_partial_scoping(),
         }
     }
 
-    pub fn set_scoping(&mut self, scoping: Scoping) -> &mut Self {
+    /// Computes an envelope context from the given envelope.
+    ///
+    /// To provide additional scoping, use [`EnvelopeContext::scope`].
+    pub fn from_envelope(envelope: &Envelope) -> Self {
+        let mut context = Self::from_request(envelope.meta());
+        context.update(envelope);
+        context
+    }
+
+    /// Update the context with new envelope information.
+    ///
+    /// This updates the item summary as well as the event id.
+    pub fn update(&mut self, envelope: &Envelope) -> &mut Self {
+        self.event_id = envelope.event_id();
+        self.summary = EnvelopeSummary::compute(envelope);
+        self
+    }
+
+    /// Re-scopes this context to the given scoping.
+    pub fn scope(&mut self, scoping: Scoping) -> &mut Self {
         self.scoping = scoping;
         self
     }
 
+    /// Returns scoping stored in this context.
     pub fn scoping(&self) -> Scoping {
         self.scoping
     }
 
-    pub fn set_event_id(&mut self, event_id: Option<EventId>) -> &mut Self {
-        self.event_id = event_id;
-        self
-    }
-
+    /// Returns the event id of this context, if any.
     pub fn event_id(&self) -> Option<EventId> {
         self.event_id
     }
 
-    pub fn set_envelope_summary(&mut self, summary: EnvelopeSummary) -> &mut Self {
-        self.envelope_summary = summary;
-        self
-    }
-
+    /// Records outcomes for all items stored in this context.
+    ///
+    /// This does not send outcomes for empty envelopes or request-only contexts.
     pub fn send_outcomes(&self, outcome: Outcome) {
         let outcome_producer = OutcomeProducer::from_registry();
-        if let Some(category) = self.envelope_summary.event_category {
+        if let Some(category) = self.summary.event_category {
             outcome_producer.do_send(TrackOutcome {
-                timestamp: self.timestamp,
+                timestamp: self.received_at,
                 scoping: self.scoping,
                 outcome: outcome.clone(),
                 event_id: self.event_id,
@@ -255,15 +263,15 @@ impl EnvelopeContext {
             });
         }
 
-        if self.envelope_summary.attachment_quantity > 0 {
+        if self.summary.attachment_quantity > 0 {
             outcome_producer.do_send(TrackOutcome {
-                timestamp: self.timestamp,
+                timestamp: self.received_at,
                 scoping: self.scoping,
                 outcome,
                 event_id: self.event_id,
                 remote_addr: self.remote_addr,
                 category: DataCategory::Attachment,
-                quantity: self.envelope_summary.attachment_quantity,
+                quantity: self.summary.attachment_quantity,
             });
         }
     }
@@ -612,7 +620,7 @@ impl EnvelopeProcessor {
     /// Sessions are removed from the envelope if they contain invalid JSON or if their timestamps
     /// are out of range after clock drift correction.
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
-        let received = state.envelope_context.timestamp;
+        let received = state.envelope_context.received_at;
         let extract_metrics = self.config.processing_enabled()
             && state.project_state.has_feature(Feature::MetricsExtraction);
         let _extracted_metrics = &mut state.extracted_metrics;
@@ -765,7 +773,7 @@ impl EnvelopeProcessor {
         let ProcessEnvelope {
             mut envelope,
             project_state,
-            start_time,
+            start_time: _,
             scoping,
         } = message;
 
@@ -791,15 +799,8 @@ impl EnvelopeProcessor {
         //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
-        let summary = EnvelopeSummary::compute(&envelope);
-        let received_at = relay_common::instant_to_date_time(start_time);
-        let envelope_context = EnvelopeContext::new(
-            summary,
-            received_at,
-            envelope.event_id(),
-            envelope.meta().remote_addr(),
-            scoping,
-        );
+        let mut envelope_context = EnvelopeContext::from_envelope(&envelope);
+        envelope_context.scope(scoping);
 
         Ok(ProcessEnvelopeState {
             envelope,
@@ -1235,7 +1236,7 @@ impl EnvelopeProcessor {
             None => None,
         };
 
-        let mut processor = ClockDriftProcessor::new(sent_at, state.envelope_context.timestamp)
+        let mut processor = ClockDriftProcessor::new(sent_at, state.envelope_context.received_at)
             .at_least(MINIMUM_CLOCK_DRIFT);
         process_value(&mut state.event, &mut processor, ProcessingState::root())
             .map_err(|_| ProcessingError::InvalidTransaction)?;
@@ -1244,7 +1245,7 @@ impl EnvelopeProcessor {
         // store processing, which could modify the timestamp if it exceeds a threshold. We are
         // interested in the actual delay before this correction.
         if let Some(timestamp) = state.event.value().and_then(|e| e.timestamp.value()) {
-            let event_delay = state.envelope_context.timestamp - timestamp.into_inner();
+            let event_delay = state.envelope_context.received_at - timestamp.into_inner();
             if event_delay > SignedDuration::minutes(1) {
                 let category = state.event_category().unwrap_or(DataCategory::Unknown);
                 metric!(
@@ -1293,7 +1294,7 @@ impl EnvelopeProcessor {
             remove_other: Some(true),
             normalize_user_agent: Some(true),
             sent_at: envelope.sent_at(),
-            received_at: Some(envelope_context.timestamp),
+            received_at: Some(envelope_context.received_at),
             breakdowns: project_state.config.breakdowns_v2.clone(),
         };
 
@@ -1358,18 +1359,14 @@ impl EnvelopeProcessor {
             envelope_limiter.assume_event(category);
         }
 
-        // Fetch scoping again from the project state. This is a rather cheap operation at this
-        // point and it is easier than passing scoping through all layers of `process_envelope`.
-        let scoping = project_state.scope_request(state.envelope.meta());
-
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
             envelope_limiter
-                .enforce(&mut state.envelope, &scoping)
+                .enforce(&mut state.envelope, &state.envelope_context.scoping)
                 .map_err(ProcessingError::QuotasFailed)?
         });
 
         state.rate_limits = limits;
-        enforcement.track_outcomes(&state.envelope, &scoping);
+        enforcement.track_outcomes(&state.envelope, &state.envelope_context.scoping);
 
         if remove_event {
             state.remove_event();
@@ -2119,18 +2116,10 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
         } = message;
 
         let event_id = envelope.event_id();
-        let remote_addr = envelope.meta().client_addr();
-
-        let envelope_context = Rc::new(RefCell::new(EnvelopeContext::new(
-            EnvelopeSummary::compute(&envelope),
-            relay_common::instant_to_date_time(start_time),
-            event_id,
-            remote_addr,
-            envelope.meta().get_partial_scoping(),
-        )));
+        let envelope_context = Rc::new(RefCell::new(EnvelopeContext::from_envelope(&envelope)));
 
         let future = ProjectCache::from_registry()
-            .send_with_outcome_error(
+            .send_tracked(
                 CheckEnvelope::fetched(project_key, envelope),
                 *envelope_context.clone().borrow(),
             )
@@ -2138,6 +2127,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
             .map_err(clone!(envelope_context, |err| {
                 if let Some(outcome) = err.to_outcome() {
+                    // TODO: Move this into CheckEnvelope
                     envelope_context.borrow().send_outcomes(outcome);
                 }
                 err
@@ -2147,24 +2137,17 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 let project_id = response.scoping.project_id.value();
                 metric!(set(RelaySets::UniqueProjects) = project_id as i64);
 
-                envelope_context.borrow_mut().set_scoping(response.scoping);
+                let mut envelope_context = envelope_context.borrow_mut();
+                envelope_context.scope(response.scoping);
 
-                let checked = match response.result {
-                    Err(err) => {
-                        let err = ProcessingError::Rejected(err);
-                        if let Some(outcome) = err.to_outcome() {
-                            envelope_context.borrow().send_outcomes(outcome);
-                        }
-                        return Err(err);
-                    }
-                    Ok(checked) => checked,
-                };
+                let checked = response.result.map_err(|reason| {
+                    envelope_context.send_outcomes(Outcome::Invalid(reason));
+                    ProcessingError::Rejected(reason)
+                })?;
 
                 match checked.envelope {
                     Some(envelope) => {
-                        envelope_context
-                            .borrow_mut()
-                            .set_envelope_summary(EnvelopeSummary::compute(&envelope));
+                        envelope_context.update(&envelope);
                         Ok(envelope)
                     }
                     // errors from rate limiting already produced outcomes nothing more to do
@@ -2183,18 +2166,14 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 .map_err(ProcessingError::TraceSampled)
             }))
             .and_then(clone!(envelope_context, |envelope| {
-                // recalculate the envelope summary since sample_tracing might have dropped parts
-                // of the envelope
-                let summary = EnvelopeSummary::compute(&envelope);
-                envelope_context
-                    .borrow_mut()
-                    .set_event_id(envelope.event_id())
-                    .set_envelope_summary(summary);
+                // update the context since sample_tracing might have dropped parts of the envelope
+                envelope_context.borrow_mut().update(&envelope);
+
                 // get the state for the current project. we can always fetch the cached version
                 // even if the no_cache flag was passed, as the cache was updated prior in
                 // `CheckEnvelope`.
                 ProjectCache::from_registry()
-                    .send_with_outcome_error(
+                    .send_tracked(
                         GetProjectState::new(project_key),
                         *envelope_context.borrow(),
                     )
@@ -2209,16 +2188,15 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     .map(|state| (envelope, state))
             }))
             .and_then(clone!(envelope_context, |(envelope, project_state)| {
+                let message = ProcessEnvelope {
+                    envelope,
+                    project_state,
+                    start_time,
+                    scoping: envelope_context.borrow().scoping(),
+                };
+
                 processor
-                    .send_with_outcome_error(
-                        ProcessEnvelope {
-                            envelope,
-                            project_state,
-                            start_time,
-                            scoping: envelope_context.borrow().scoping(),
-                        },
-                        *envelope_context.borrow(),
-                    )
+                    .send_tracked(message, *envelope_context.borrow())
                     .map_err(|_err| ProcessingError::ScheduleFailed)
                     .flatten()
             }))
@@ -2240,9 +2218,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
 
                 match processed.envelope {
                     Some(envelope) => {
-                        envelope_context
-                            .borrow_mut()
-                            .set_envelope_summary(EnvelopeSummary::compute(&envelope));
+                        envelope_context.borrow_mut().update(&envelope);
                         Ok(envelope)
                     }
                     None => Err(ProcessingError::RateLimited(rate_limits)),
@@ -2250,85 +2226,40 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             }))
             .into_actor(self)
             .and_then(clone!(envelope_context, |envelope, slf, _| {
-                slf.send_envelope(
-                    project_key,
-                    envelope,
-                    envelope_context.borrow().scoping(),
-                    start_time,
-                )
-                .then({
-                    #[cfg(not(feature = "processing"))]
-                    {
-                        move |result| {
-                            result.map_err(|error| {
-                                match error {
-                                    // do not emit outcomes
-                                    SendEnvelopeError::SendFailed(e) => {
-                                        ProcessingError::SendFailed(e)
-                                    }
-                                    // do not emit outcomes
-                                    SendEnvelopeError::RateLimited(e) => {
-                                        ProcessingError::RateLimited(e)
-                                    }
-                                }
-                            })
-                        }
-                    }
-                    #[cfg(feature = "processing")]
-                    {
-                        clone!(envelope_context, |result| {
-                            let received = match result {
-                                Ok(_) => true,
-                                Err(SendEnvelopeError::RateLimited(_)) => true,
-                                Err(SendEnvelopeError::SendFailed(ref e)) => e.is_received(),
-                                Err(SendEnvelopeError::ScheduleFailed) => false,
-                                Err(SendEnvelopeError::StoreFailed(_)) => false,
-                            };
+                let scoping = envelope_context.borrow().scoping();
+                slf.send_envelope(project_key, envelope, scoping, start_time)
+                    .then(clone!(envelope_context, |result| {
+                        result.map_err(|error| {
+                            let envelope_context = envelope_context.borrow();
+                            let outcome = Outcome::Invalid(DiscardReason::Internal);
 
-                            result.map_err(|error| {
-                                let error: ProcessingError = match error {
-                                    SendEnvelopeError::ScheduleFailed => {
-                                        ProcessingError::ScheduleFailed
+                            match error {
+                                #[cfg(feature = "processing")]
+                                SendEnvelopeError::ScheduleFailed => {
+                                    envelope_context.send_outcomes(outcome);
+                                    ProcessingError::ScheduleFailed
+                                }
+
+                                #[cfg(feature = "processing")]
+                                SendEnvelopeError::StoreFailed(e) => {
+                                    envelope_context.send_outcomes(outcome);
+                                    ProcessingError::StoreFailed(e)
+                                }
+                                SendEnvelopeError::SendFailed(e) => {
+                                    if !e.is_received() {
+                                        envelope_context.send_outcomes(outcome);
                                     }
 
-                                    SendEnvelopeError::StoreFailed(e) => {
-                                        ProcessingError::StoreFailed(e)
-                                    }
-                                    // do not emit outcomes
-                                    SendEnvelopeError::SendFailed(e) => {
-                                        return ProcessingError::SendFailed(e)
-                                    }
-                                    // do not emit outcomes
-                                    SendEnvelopeError::RateLimited(e) => {
-                                        return ProcessingError::RateLimited(e)
-                                    }
-                                };
-                                {
-                                    if !received {
-                                        match error {
-                                            //Special handling of ScheduledFailed since we can't
-                                            // use send_with_outcome_errors in send_envelope
-                                            ProcessingError::ScheduleFailed => {
-                                                envelope_context.borrow().send_outcomes(
-                                                    Outcome::Invalid(DiscardReason::Internal),
-                                                )
-                                            }
-                                            _ => {
-                                                if let Some(outcome) = error.to_outcome() {
-                                                    envelope_context
-                                                        .borrow()
-                                                        .send_outcomes(outcome);
-                                                }
-                                            }
-                                        }
-                                    }
-                                    error
+                                    ProcessingError::SendFailed(e)
                                 }
-                            })
+                                SendEnvelopeError::RateLimited(e) => {
+                                    // outcome emitted at the source
+                                    ProcessingError::RateLimited(e)
+                                }
+                            }
                         })
-                    }
-                })
-                .into_actor(slf)
+                    }))
+                    .into_actor(slf)
             }))
             .timeout(
                 self.config.envelope_buffer_expiry(),
