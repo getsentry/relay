@@ -2281,20 +2281,16 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                                 Ok(_) => true,
                                 Err(SendEnvelopeError::RateLimited(_)) => true,
                                 Err(SendEnvelopeError::SendFailed(ref e)) => e.is_received(),
-                                #[cfg(feature = "processing")]
                                 Err(SendEnvelopeError::ScheduleFailed) => false,
-                                #[cfg(feature = "processing")]
                                 Err(SendEnvelopeError::StoreFailed(_)) => false,
                             };
 
                             result.map_err(|error| {
                                 let error: ProcessingError = match error {
-                                    #[cfg(feature = "processing")]
                                     SendEnvelopeError::ScheduleFailed => {
                                         ProcessingError::ScheduleFailed
                                     }
 
-                                    #[cfg(feature = "processing")]
                                     SendEnvelopeError::StoreFailed(e) => {
                                         ProcessingError::StoreFailed(e)
                                     }
@@ -2312,7 +2308,6 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                                         match error {
                                             //Special handling of ScheduledFailed since we can't
                                             // use send_with_outcome_errors in send_envelope
-                                            #[cfg(feature = "processing")]
                                             ProcessingError::ScheduleFailed => {
                                                 envelope_context.borrow().send_outcomes(
                                                     Outcome::Invalid(DiscardReason::Internal),
